@@ -1,0 +1,4 @@
+// A result annotation cannot turn a bare shared range into a mutable loan.
+machine middle(items: &mut [i32; 3]) -> &mut [i32] {
+    items[1..2]
+}

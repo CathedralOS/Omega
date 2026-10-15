@@ -78,21 +78,16 @@ pub(in crate::legalization) fn argument_at(
         );
     }
     // Aggregate transport rejoins the existing home for every access mode.
-    // A fixed array has the same storage contract as a record: whether its
-    // root arrived or was constructed cannot select a different borrow ABI.
+    // Records, arrays and byte owners retain their ordinary owned geometry:
+    // whether a root arrived or was constructed cannot select a borrow ABI.
     // In particular, write-only access does not make a local home an incoming
     // pointer, and it must not allocate a referent copy.
     if semantic.access == StructuralAccess::Owned
-        || plan.structural_types.iter().any(|declaration| {
-            declaration.id == destination_parameter.structural_type
-                && matches!(
-                    declaration.shape,
-                    terminal_psi::StructuralTypeShape::Record { .. }
-                        | terminal_psi::StructuralTypeShape::Sum { .. }
-                        | terminal_psi::StructuralTypeShape::Mixed { .. }
-                        | terminal_psi::StructuralTypeShape::FixedArray { .. }
-                )
-        })
+        || crate::structural_inputs::structural_reference_input::owned_storage_shape(
+            destination_parameter.structural_type,
+            &plan.structural_types,
+        )
+        .is_some()
     {
         return super::aggregate_results::call_argument(
             semantic,
@@ -152,17 +147,6 @@ pub(in crate::legalization) fn argument_at(
             native,
             plan,
         );
-    }
-    if let Some(argument) = owned_byte_loan(
-        semantic,
-        call_operation,
-        caller,
-        destination_parameter,
-        call,
-        parameter_ordinal,
-        plan,
-    )? {
-        return Ok(argument);
     }
     // A dominating local array lends its producing home through a
     // borrowed byte or element view: the same presentation an incoming
@@ -452,102 +436,6 @@ fn view_argument(
             .ok_or(LegalizationError::custody())?
             .clone(),
     })
-}
-
-/// A bounded owner formal borrows the complete owner layout, not a descriptor.
-/// Shared view presentation is reconstructed by the byte-view owner above.
-fn owned_byte_loan(
-    semantic: &StructuralArgument,
-    call_operation: semantic_vocabulary::OperationId,
-    caller: &PsiOptimizationFunction,
-    destination_parameter: &terminal_psi::StructuralParameterDeclaration,
-    call: &CallPlan,
-    parameter_ordinal: usize,
-    plan: &AbstractOperationPlan,
-) -> Result<Option<TargetStructuralArgument>, LegalizationError> {
-    if !semantic.path.is_empty()
-        || semantic.access != destination_parameter.access
-        || !abstract_operations::control_flow::owner_loans::is_bounded_owner_loan_in(
-            destination_parameter,
-            &plan.structural_types,
-        )
-    {
-        return Ok(None);
-    }
-    let site = |matches: &dyn Fn(&AbstractOperation) -> bool| {
-        caller.blocks.iter().find_map(|block| {
-            block
-                .nodes
-                .iter()
-                .position(|node| matches(&node.operation))
-                .map(|position| (block.id, position))
-        })
-    };
-    let Some((producer, structural_type)) =
-        super::byte_views::owned_byte_result(caller, semantic.place, &plan.structural_types)
-    else {
-        return Ok(None);
-    };
-    let (exact_producer, result) = super::structural_case::source_result(caller, semantic.place)?;
-    let before = site(&|operation| {
-        matches!(operation, AbstractOperation::EstablishByteSequenceConcatenation {
-            psi_operation, ..
-        } if *psi_operation == producer)
-    })
-    .ok_or(LegalizationError::custody())?;
-    let after = site(&|operation| {
-        matches!(operation,
-            abstract_operations::boundary_or_structural_call_pair_pattern!(psi_operation,structural_arguments, ..)
-            if *psi_operation == call_operation && structural_arguments.contains(semantic))
-    })
-    .ok_or(LegalizationError::custody())?;
-    if producer != exact_producer
-        || structural_type != result.structural_type
-        || result.structural_type != destination_parameter.structural_type
-        || !plan.structural_types.iter().any(|declaration| {
-            declaration.id == result.structural_type
-                && declaration.shape.is_bounded_owned_byte_sequence()
-        })
-        || result.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
-        || !result.projected_qualifications.is_empty()
-        || !result.qualification_establishments.is_empty()
-        || !result.claims.is_empty()
-        || (before.0 == after.0 && before.1 >= after.1)
-        || (before.0 != after.0
-            && !super::target::control_flow::sources::dominates(caller, before.0, after.0))
-    {
-        return Err(LegalizationError::custody());
-    }
-    let referent = crate::structural_inputs::structural_reference_input::shape(
-        destination_parameter.structural_type,
-        &plan.structural_types,
-    )
-    .ok_or(LegalizationError::custody())?;
-    let shape = ValueShape::borrowed_reference(referent.byte_size, referent.alignment);
-    let destination = call
-        .parameters
-        .get(parameter_ordinal)
-        .ok_or(LegalizationError::custody())?
-        .clone();
-    if destination.shape != shape {
-        return Err(LegalizationError::custody());
-    }
-    Ok(Some(TargetStructuralArgument {
-        place: semantic.place,
-        access: semantic.access,
-        path: Vec::new(),
-        root_structural_type: result.structural_type,
-        structural_type: destination_parameter.structural_type,
-        shape,
-        source_byte_offset: 0,
-        fixed_array_length: None,
-        element_stride: None,
-        indices: Vec::new(),
-        source: target_operations::TargetStructuralArgumentSource::StructuralHome {
-            psi_operation: producer,
-        },
-        destination,
-    }))
 }
 
 /// Reconstruct a primitive borrow at its actual ordered call ABI position.

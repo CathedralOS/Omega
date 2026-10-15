@@ -162,11 +162,13 @@ pub(super) fn copied_place_type(
     if program.type_multiplicity(reference) != language_semantics::Multiplicity::Unrestricted {
         return false;
     }
-    // A fixed primitive array is a copyable structural value too. Materialize
-    // the existing copied-place operation before an owned call argument so
-    // reading a field through `&self`/`&mut self` never moves it out of the
-    // borrowed receiver. The destination keeps the exact array type/extent.
-    if validation::is_closed_primitive_array_type(program, reference) {
+    // Copying established array storage preserves its element qualifications;
+    // unlike literal construction, it does not need an unqualified scalar
+    // initializer route. Multiplicity above decides whether contents copy.
+    if matches!(
+        program.type_reference_table.type_reference(reference),
+        TypeReferenceNode::FixedArray { .. }
+    ) {
         return true;
     }
     let TypeReferenceNode::Named { symbol, .. } =
@@ -177,8 +179,35 @@ pub(super) fn copied_place_type(
     program.data_definition_by_symbol(*symbol).is_some()
 }
 
+/// The value presented by an authored place. A borrowed formal presents its
+/// referent, while a local owns its stored descriptor. Do not apply referent
+/// normalization to a descriptor copy or a view's captured collection extent.
+pub(super) fn readable_place_type(
+    program: &dyn ::validation::CheckingInput,
+    state: SymbolHandle,
+    statement_index: usize,
+    place: &validation::CanonicalPlace,
+    expected: TypeReferenceHandle,
+) -> Option<TypeReferenceHandle> {
+    let declared =
+        validation::canonical_place_type_reference(program, state, statement_index, place)?;
+    if validation::declared_carriers_match(program, declared, expected) {
+        return Some(declared);
+    }
+    let state = program.state_by_symbol(state)?;
+    let symbol = place.root.as_symbol()?;
+    if !place.segments.is_empty() || program.state_parameter_by_symbol(state, symbol).is_none() {
+        return None;
+    }
+    let shell = validation::reference_shell(program, declared)?;
+    if shell.access == language_semantics::ReferenceAccess::WriteOnly {
+        return None;
+    }
+    validation::declared_carriers_match(program, shell.referee, expected).then_some(shell.referee)
+}
+
 /// A member/index projection rooted at readable owned or borrowed storage
-/// whose leaf is a copyable `Unrestricted` named type or fixed primitive array.
+/// whose leaf is a copyable `Unrestricted` structural type.
 /// It shares the scalar-case read's root/path contract, but retains contents
 /// that cannot be reconstructed by case fan-out. A bare
 /// whole-root name is the degenerate path: an owned root's `Unrestricted`
@@ -212,35 +241,17 @@ pub(in crate::execution::scalar_computations) fn needs_copied_place_root(
     let Some(root) = symbol_declared_type(program, symbol) else {
         return false;
     };
-    if place.segments.is_empty() {
-        // A whole shared reference copies its descriptor with an empty path;
-        // adding Referent would copy or reborrow different storage. Exclusive
-        // descriptors remain transfers, while other copyable owned roots
-        // supply their declared value without consuming the source.
-        let root_is_shared = validation::reference_shell(program, root)
-            .is_some_and(|shell| shell.access == language_semantics::ReferenceAccess::Shared);
-        if matches!(
-            program.type_reference_table.type_reference(root),
-            TypeReferenceNode::Reference { .. }
-        ) && !root_is_shared
-        {
-            return false;
-        }
-    } else if let TypeReferenceNode::Reference { access, .. } =
-        program.type_reference_table.type_reference(root)
-        && !matches!(
-            access,
-            language_semantics::ReferenceAccess::Shared
-                | language_semantics::ReferenceAccess::Mutable
-        )
+    if !place.segments.is_empty()
+        && validation::reference_shell(program, root)
+            .is_some_and(|shell| shell.access == language_semantics::ReferenceAccess::WriteOnly)
     {
         // A readable owned root can supply its copyable child just as a
         // readable loan can. Neither consumes the root, even when it is
         // affine; a write-only loan still grants no observation authority.
         return false;
     }
-    validation::canonical_place_type_reference(program, state, statement_index, &place)
-        .is_some_and(|leaf| validation::declared_carriers_match(program, leaf, expected))
+    readable_place_type(program, state, statement_index, &place, expected)
+        .is_some_and(|leaf| copied_place_type(program, leaf))
 }
 
 /// The terminal expression carrying a projection's storage: the whole local

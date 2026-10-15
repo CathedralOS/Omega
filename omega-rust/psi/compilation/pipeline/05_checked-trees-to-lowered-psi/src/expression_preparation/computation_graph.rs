@@ -404,7 +404,9 @@ pub(crate) fn structural_dependencies(
                 scalars.extend(fields(checked, subject)?.iter().map(|field| field.value))
             }
             Value::ScalarArray { elements } => scalars.extend(elements),
-            Value::ZeroedScalarArray { element, .. } => scalars.push(*element),
+            Value::Scalar { value: element } | Value::ZeroedScalarArray { element, .. } => {
+                scalars.push(*element)
+            }
             Value::BorrowedSliceView { source, region, .. }
             | Value::MutableSliceView { source, region, .. } => {
                 extend_range(source, &mut scalars);

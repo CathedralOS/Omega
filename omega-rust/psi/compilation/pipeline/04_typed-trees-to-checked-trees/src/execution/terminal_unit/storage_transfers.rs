@@ -159,6 +159,41 @@ pub(in crate::execution::terminal_unit) fn from_storage(
     Some(output)
 }
 
+/// Retained computations include selected exits not yet appended to the body.
+/// A possible owned use fences unconditional retirement, but proves no actual
+/// transfer: the selected control path still owns its move or cleanup receipt.
+/// This is a conservative fence, not a current-occupant transfer count. Named
+/// replacement cleanup separately owns an old occurrence's death; this query
+/// cannot authorize retirement or infer that a later root actually executes.
+pub(in crate::execution::terminal_unit) fn has_computation_transfer(
+    program: &dyn ::validation::CheckingInput,
+    facts: &CheckFacts,
+    state: SymbolHandle,
+    results: &Results,
+    result: &CheckedUnitStructuralResultBindingPlan,
+    operations: &[CheckedUnitEffectOperationPlan],
+) -> Option<bool> {
+    let query = Query {
+        program,
+        facts,
+        results,
+        source: CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+            binding_ordinal: result.binding_ordinal,
+        },
+        formation: result.statement_index,
+        operations,
+    };
+    for (_, root) in facts.values.scalar_computations.roots.iter() {
+        if root.state == state
+            && root.statement_ordinal >= result.statement_index
+            && !query.computation(root.root)?.possible.is_empty()
+        {
+            return Some(true);
+        }
+    }
+    Some(false)
+}
+
 /// A parameter's vacancies at an ordinary completion: the maximal paths moved
 /// on every alternative, and the paths moved on only some alternatives
 /// (`maybe`). One completion cannot dispose storage present on only some

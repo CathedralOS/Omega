@@ -6,6 +6,7 @@ use super::super::structural_layout::{
     structural_shape,
 };
 use crate::LoweringError;
+use crate::lowering::control_flow::scalar_sources::{ScalarSources, runtime_indices};
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
 use abstract_operations::AbstractFunction;
 use calling_conventions::{ValuePlacement, ValueShape};
@@ -15,9 +16,7 @@ use target_operations::{
     TargetStructuralArgument, TargetStructuralArgumentSource, TargetStructuralHomeRequirement,
     TargetStructuralParameter, TargetUnitOperation,
 };
-use terminal_psi::{
-    StructuralAccess, StructuralMultiplicity, StructuralPathSegment, StructuralTypeShape,
-};
+use terminal_psi::{StructuralAccess, StructuralMultiplicity, StructuralTypeShape};
 
 /// The callee/place pair every structural argument type rejection spells.
 fn argument_type_mismatch(callee: MachineId, place: PlaceId) -> LoweringError {
@@ -40,6 +39,7 @@ pub(in crate::lowering) fn lower_structural_argument(
     local_homes: &BTreeMap<PlaceId, TargetStructuralHomeRequirement>,
     established_views: &BTreeMap<PlaceId, (OperationId, StructuralTypeId)>,
     operations: &[TargetUnitOperation],
+    scalar_sources: &ScalarSources<'_>,
     shape_cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
     active: &mut BTreeSet<StructuralTypeId>,
 ) -> Result<TargetStructuralArgument, LoweringError> {
@@ -183,8 +183,9 @@ pub(in crate::lowering) fn lower_structural_argument(
     }
     // One geometry walk selects storage for every field/index/case path.
     // An inline byte carrier uses the callee's presentation, not a nominal
-    // alias inferred from another equal-capacity declaration. Runtime-indexed
-    // operands retain their separate selector-carrying argument route.
+    // alias inferred from another equal-capacity declaration. The projection
+    // retains runtime coordinates beside the constant offset; resolve them
+    // against the same dominating scalar environment as every other argument.
     let (selected, selected_shape, source_byte_offset, indices) =
         super::super::structural_layout::runtime_storage_projection(
             source_structural_type,
@@ -193,9 +194,7 @@ pub(in crate::lowering) fn lower_structural_argument(
             shape_cache,
             active,
         )?;
-    if !indices.is_empty() {
-        return Err(argument_type_mismatch(callee, argument.place));
-    }
+    let indices = runtime_indices(indices, function, scalar_sources)?;
     let mut byte_field_capacity = None;
     let (projected_type, projected_shape) = match selected {
         super::super::structural_layout::ProjectedStorage::Field(field)
@@ -232,8 +231,9 @@ pub(in crate::lowering) fn lower_structural_argument(
             selected_shape,
         ),
     };
-    // Exact typed projections retain only their offset. Extent/stride metadata
-    // belongs to the array-to-view presentation above, not to an index spelling.
+    // Exact typed projections retain their offset and captured index terms.
+    // Extent/stride ABI metadata belongs to the array-to-view presentation
+    // above, not to an index spelling.
     // A bounded inline byte field lends its live bytes through a fresh
     // borrowed-view descriptor. `source_byte_offset` names the field itself:
     // the descriptor's length is the live length word stored there and the
@@ -311,7 +311,7 @@ pub(in crate::lowering) fn lower_structural_argument(
             source_byte_offset,
             fixed_array_length: None,
             element_stride: None,
-            indices: Vec::new(),
+            indices,
             source: source_placement.clone().into(),
             destination: destination.clone(),
         });
@@ -342,7 +342,7 @@ pub(in crate::lowering) fn lower_structural_argument(
         source_byte_offset,
         fixed_array_length: None,
         element_stride: None,
-        indices: Vec::new(),
+        indices,
         source: source_placement.clone().into(),
         destination: destination.clone(),
     })

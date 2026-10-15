@@ -66,6 +66,7 @@ pub(crate) use call_targets::machine_state_by_symbol;
 pub(crate) use caller_aliases::expression_has_calls;
 pub use caller_aliases::{
     AssignmentWriteTarget, CallWriteOrigins, LocalWriteOrigin, LocalWriteSource, RecastSource,
+    ReferenceResultLeafOrigin,
 };
 pub use demand::CallFrameTables;
 pub(crate) use demand::statement_value_expression_roots;

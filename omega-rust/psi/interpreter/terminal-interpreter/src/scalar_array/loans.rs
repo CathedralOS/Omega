@@ -29,10 +29,7 @@ impl TerminalExecution<'_> {
         identity_cursor: &mut Option<u64>,
         local_roots: &mut BTreeMap<PlaceId, TerminalStructuralValue>,
     ) -> Result<Option<(TerminalStructuralValue, ElementView)>, TerminalInterpretError> {
-        if !matches!(
-            parameter.access,
-            terminal_psi::reading_borrow_pair_pattern!()
-        ) {
+        if parameter.access == StructuralAccess::Owned {
             return Ok(None);
         }
         let Some(collection_type) = self.lent_collection_type(parameter, argument) else {
@@ -101,11 +98,10 @@ impl TerminalExecution<'_> {
             }
             StructuralAccess::Owned
         };
-        if !matches!(
-            source_access,
-            StructuralAccess::Owned | terminal_psi::borrowed_access_pair_pattern!()
-        ) || (parameter.access == StructuralAccess::MutableBorrow
-            && source_access == StructuralAccess::SharedBorrow)
+        // Capturing a loan pins backing; it never observes its contents. The
+        // requested access must still fit the actual source, including when
+        // forwarding a write-only loan or attenuating mutable access.
+        if !parameter.access.admits(source_access)
             || self
                 .live_affine_frontier
                 .iter()

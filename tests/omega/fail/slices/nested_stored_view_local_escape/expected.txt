@@ -1,1 +1,1 @@
-returns a view borrowing the local `windows`, which does not outlive the call
+returns a view borrowing the local `local`, which does not outlive the call

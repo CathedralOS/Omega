@@ -131,10 +131,16 @@ pub enum TerminalInterpretError {
     VerifiedBoundaryMachineMissing(BoundaryMachineId),
     VerifiedBlockMissing,
     VerifiedOperationMalformed,
-    VerifiedExecutionMalformed {
+    ExecutionSite {
         machine: MachineId,
         block: BlockId,
         operation: Option<OperationId>,
+        cause: Box<TerminalInterpretError>,
+    },
+    StructuralReplacement {
+        operation: OperationId,
+        phase: &'static str,
+        cause: Box<TerminalInterpretError>,
     },
     VerifiedStructuralPlaceMissing(PlaceId),
     VerifiedValueMissing(ValueId),

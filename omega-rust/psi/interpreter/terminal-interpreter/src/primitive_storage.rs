@@ -148,6 +148,126 @@ impl PrimitiveStorage {
     }
 }
 
+struct PreparedPrimitiveWrite {
+    destination: PlaceId,
+    endpoint: PrimitiveStorageEndpoint,
+    value: TerminalScalarValue,
+}
+
+/// One content-independent storage transaction. Preparation checks every owner,
+/// extent and codec before any write; commit cannot call user code or rebind a
+/// frame. Ordinary scalar stores and completed aggregate replacements share it.
+#[derive(Default)]
+pub(crate) struct PrimitiveStorageWrites {
+    first_write: Option<PreparedPrimitiveWrite>,
+    remaining_writes: Vec<PreparedPrimitiveWrite>,
+}
+
+impl PrimitiveStorageWrites {
+    pub(crate) fn stage(
+        &mut self,
+        execution: &TerminalExecution,
+        destination: PlaceId,
+        storage: PrimitiveStorage,
+        scalar_type: ScalarType,
+        value: TerminalScalarValue,
+    ) -> Result<(), TerminalInterpretError> {
+        if value.scalar_type() != scalar_type || !terminal_scalar_belongs_to_type(value) {
+            return Err(malformed());
+        }
+        if let Some(encoding) = storage.encoding {
+            let value = if encoding.view != encoding.source {
+                encoding.source_value(value, encoding.source)?
+            } else {
+                value
+            };
+            return execution.prepare_encoded_primitive(
+                self,
+                destination,
+                &storage.endpoint,
+                encoding.source,
+                value,
+            );
+        }
+        match &storage.endpoint {
+            PrimitiveStorageEndpoint::OwnedArrayElement { home, index } => {
+                execution.owned_array_home(home)?;
+                let arrays = if home.depth == execution.call_stack.len() {
+                    &execution.scalar_array_values
+                } else {
+                    &execution.frame_at_depth(home.depth)?.scalar_array_values
+                };
+                let stored = arrays
+                    .get(&home.place)
+                    .filter(|array| array.structural_type == home.structural_type)
+                    .and_then(|array| array.elements.get(*index))
+                    .ok_or(TerminalInterpretError::StructuralPrimitiveStorageMissing(
+                        destination,
+                    ))?;
+                if stored.scalar_type() != scalar_type {
+                    return Err(malformed());
+                }
+            }
+            PrimitiveStorageEndpoint::Scalar(home) => {
+                // A live primitive home may be awaiting its first payload.
+                if execution
+                    .structural_primitive_storage
+                    .get(home)
+                    .is_some_and(|stored| stored.scalar_type() != scalar_type)
+                {
+                    return Err(malformed());
+                }
+            }
+            PrimitiveStorageEndpoint::ScalarField(field) => {
+                let stored = execution.structural_scalar_fields.get(field).ok_or(
+                    TerminalInterpretError::StructuralScalarFieldMissing {
+                        source: destination,
+                        field: field.field,
+                    },
+                )?;
+                if stored.scalar_type() != scalar_type {
+                    return Err(malformed());
+                }
+            }
+            PrimitiveStorageEndpoint::ArrayElement { array, index } => {
+                let TerminalScalarValue::Integer {
+                    value: IntegerValue::Unsigned(byte),
+                    ..
+                } = value
+                else {
+                    return Err(malformed());
+                };
+                u8::try_from(byte).map_err(|_| malformed())?;
+                if *index >= execution.stored_byte_array_length(array)? {
+                    return Err(malformed());
+                }
+            }
+            PrimitiveStorageEndpoint::ViewByte { .. } => return Err(malformed()),
+        }
+        let write = PreparedPrimitiveWrite {
+            destination,
+            endpoint: storage.endpoint,
+            value,
+        };
+        if self.first_write.is_none() {
+            self.first_write = Some(write);
+        } else {
+            self.remaining_writes.push(write);
+        }
+        Ok(())
+    }
+
+    pub(crate) fn commit(
+        self,
+        execution: &mut TerminalExecution,
+    ) -> Result<(), TerminalInterpretError> {
+        for write in self.first_write.into_iter().chain(self.remaining_writes) {
+            execution.commit_primitive_store(write.destination, write.endpoint, write.value)?;
+        }
+        Ok(())
+    }
+}
+
 /// One ordinary primitive loan retains a storage endpoint, not copied data.
 /// Frame-local place bindings may change; the pinned owner activation does not.
 #[derive(Clone)]
@@ -399,6 +519,18 @@ impl TerminalExecution<'_> {
         referent.path.push(StructuralPathSegment::FixedIndex(index));
         let endpoint = match binding {
             ByteSequenceBinding::Immutable(bytes) if access == StructuralAccess::SharedBorrow => {
+                PrimitiveStorageEndpoint::ViewByte {
+                    bytes: bytes.clone(),
+                    index: usize::try_from(index).map_err(|_| malformed())?,
+                }
+            }
+            ByteSequenceBinding::MutableField { .. } | ByteSequenceBinding::MutableOwner { .. }
+                if access == StructuralAccess::SharedBorrow =>
+            {
+                // Observe this loan's current owner bytes, not the descriptor
+                // object. Shared observation prevents intervening mutation;
+                // it uses the same immutable backing as an ordinary byte view.
+                let (bytes, _) = self.exclusive_owner_bytes(binding)?;
                 PrimitiveStorageEndpoint::ViewByte {
                     bytes: bytes.clone(),
                     index: usize::try_from(index).map_err(|_| malformed())?,
@@ -1748,25 +1880,21 @@ impl TerminalExecution<'_> {
         scalar_type: ScalarType,
         scalar: TerminalScalarValue,
     ) -> Result<(), TerminalInterpretError> {
-        if scalar.scalar_type() != scalar_type || !terminal_scalar_belongs_to_type(scalar) {
-            return Err(malformed());
-        }
-        if let Some(encoding) = storage.encoding {
-            let scalar = if encoding.view != encoding.source {
-                encoding.source_value(scalar, encoding.source)?
-            } else {
-                scalar
-            };
-            return self.store_encoded_primitive(
-                destination,
-                &storage.endpoint,
-                encoding.source,
-                scalar,
-            );
-        }
-        match storage.endpoint {
+        let mut writes = PrimitiveStorageWrites::default();
+        writes.stage(self, destination, storage, scalar_type, scalar)?;
+        writes.commit(self)
+    }
+
+    fn commit_primitive_store(
+        &mut self,
+        destination: PlaceId,
+        endpoint: PrimitiveStorageEndpoint,
+        scalar: TerminalScalarValue,
+    ) -> Result<(), TerminalInterpretError> {
+        // Preparation resolved these exact cells without mutation. No frame or
+        // storage topology changes between preparation and this commit.
+        match endpoint {
             PrimitiveStorageEndpoint::OwnedArrayElement { home, index } => {
-                self.owned_array_home(&home)?;
                 let arrays = if home.depth == self.call_stack.len() {
                     &mut self.scalar_array_values
                 } else {
@@ -1778,14 +1906,10 @@ impl TerminalExecution<'_> {
                 };
                 let stored = arrays
                     .get_mut(&home.place)
-                    .filter(|array| array.structural_type == home.structural_type)
                     .and_then(|array| array.elements.get_mut(index))
                     .ok_or(TerminalInterpretError::StructuralPrimitiveStorageMissing(
                         destination,
                     ))?;
-                if stored.scalar_type() != scalar_type {
-                    return Err(malformed());
-                }
                 *stored = scalar;
             }
             PrimitiveStorageEndpoint::Scalar(storage) => {
@@ -1795,14 +1919,7 @@ impl TerminalExecution<'_> {
                 // operation must not require the previous scalar to exist.
                 // Reads still require an initialized cell; this creates no
                 // owner, loan, predicate membership, or implicit zero value.
-                if let Some(stored) = self.structural_primitive_storage.get_mut(&storage) {
-                    if stored.scalar_type() != scalar_type {
-                        return Err(malformed());
-                    }
-                    *stored = scalar;
-                } else {
-                    self.structural_primitive_storage.insert(storage, scalar);
-                }
+                self.structural_primitive_storage.insert(storage, scalar);
             }
             PrimitiveStorageEndpoint::ScalarField(field) => {
                 let stored = self.structural_scalar_fields.get_mut(&field).ok_or(
@@ -1811,9 +1928,6 @@ impl TerminalExecution<'_> {
                         field: field.field,
                     },
                 )?;
-                if stored.scalar_type() != scalar_type {
-                    return Err(malformed());
-                }
                 *stored = scalar;
             }
             PrimitiveStorageEndpoint::ArrayElement { array, index } => {

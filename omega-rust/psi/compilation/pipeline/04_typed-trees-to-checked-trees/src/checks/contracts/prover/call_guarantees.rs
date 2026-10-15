@@ -29,7 +29,7 @@ pub(in crate::checks) mod arithmetic;
 pub(in crate::checks) mod callable;
 use callable::Callable;
 mod availability;
-pub(in crate::checks) use availability::{AvailableGuarantee, available};
+pub(in crate::checks) use availability::{AvailableGuarantee, GuaranteeUse, available};
 
 struct Invocation<'program> {
     site: CallSite<'program>,
@@ -71,7 +71,14 @@ pub(in crate::checks) fn proves_current(
         literal: &|expression| crate::flow::literal(program, expression),
         place,
     };
-    let guarantees = available(program, facts, caller, statement, contexts, frames);
+    let guarantees = available(
+        program,
+        facts,
+        caller,
+        GuaranteeUse::StatementEntry(statement),
+        contexts,
+        frames,
+    );
     guarantees.into_iter().any(|guarantee| {
         let supplied = PredicateScope {
             callable: guarantee.invocation.callable,
@@ -151,53 +158,60 @@ pub(crate) fn current_predicates(
     contexts: &[facts::FactContextHandle],
     frames: &validation::CallFrameResolver<'_>,
 ) -> Vec<crate::facts::boolean_predicates::BoundPredicate> {
-    available(program, facts, caller, statement, contexts, frames)
-        .into_iter()
-        .filter_map(|guarantee| {
-            let invocation = &guarantee.invocation;
-            let parameters = invocation.callable.parameters(program);
-            let expression = crate::values::lower_callable_scalar_contract_predicate(
+    available(
+        program,
+        facts,
+        caller,
+        GuaranteeUse::StatementEntry(statement),
+        contexts,
+        frames,
+    )
+    .into_iter()
+    .filter_map(|guarantee| {
+        let invocation = &guarantee.invocation;
+        let parameters = invocation.callable.parameters(program);
+        let expression = crate::values::lower_callable_scalar_contract_predicate(
+            program,
+            &facts.operators,
+            invocation.callable.owner_symbol(),
+            parameters,
+            invocation.callable.result_type(),
+            guarantee.expression,
+            true,
+            &mut 4096,
+        )?;
+        let mut predicate = crate::facts::boolean_predicates::bind_parameters(
+            program,
+            invocation.callable.owner_symbol(),
+            invocation.callable.target_symbol(),
+            parameters,
+            expression,
+        )?;
+        let arguments = validation::call_site_argument_expressions(program, &invocation.site);
+        for binding in &mut predicate.bindings {
+            let position = parameters
+                .iter()
+                .position(|parameter| binding.place.root == PlaceRoot::Symbol(parameter.symbol))?;
+            let actual = *arguments.get(position)?;
+            let place = crate::semantic::facts::projected_argument_place(
                 program,
-                &facts.operators,
-                invocation.callable.owner_symbol(),
-                parameters,
-                invocation.callable.result_type(),
-                guarantee.expression,
-                true,
-                &mut 4096,
+                caller.state_symbol,
+                invocation.statement,
+                actual,
+                parameters[position].type_reference,
+                &binding.place.segments,
             )?;
-            let mut predicate = crate::facts::boolean_predicates::bind_parameters(
+            binding.place = crate::flow::rebase_exact_local_place(
                 program,
-                invocation.callable.owner_symbol(),
-                invocation.callable.target_symbol(),
-                parameters,
-                expression,
+                caller.state_symbol,
+                invocation.statement,
+                place,
+                Some(frames),
             )?;
-            let arguments = validation::call_site_argument_expressions(program, &invocation.site);
-            for binding in &mut predicate.bindings {
-                let position = parameters.iter().position(|parameter| {
-                    binding.place.root == PlaceRoot::Symbol(parameter.symbol)
-                })?;
-                let actual = *arguments.get(position)?;
-                let place = crate::semantic::facts::projected_argument_place(
-                    program,
-                    caller.state_symbol,
-                    invocation.statement,
-                    actual,
-                    parameters[position].type_reference,
-                    &binding.place.segments,
-                )?;
-                binding.place = crate::flow::rebase_exact_local_place(
-                    program,
-                    caller.state_symbol,
-                    invocation.statement,
-                    place,
-                    Some(frames),
-                )?;
-            }
-            Some(predicate)
-        })
-        .collect()
+        }
+        Some(predicate)
+    })
+    .collect()
 }
 
 /// Read an exact scalar conclusion after authenticating its declaration,
@@ -272,7 +286,7 @@ pub(super) fn proves(
         program,
         facts,
         caller,
-        call.statement_index,
+        GuaranteeUse::StatementEntry(call.statement_index),
         contexts,
         frames,
     )

@@ -286,9 +286,9 @@ fn edge_cleanup_calls_match<'a>(
                         crate::object_artifact::replay::structural::condition_layout::replay_structural_value_shape(
                             argument.root_structural_type,
                             structural_types,
-                        ).map(|shape| (argument.root_structural_type, shape, 0))
+                        ).map(|shape| (argument.root_structural_type, shape, 0, Vec::new()))
                     } else {
-                        crate::object_artifact::replay::structural::condition_layout::replay_structural_projection(
+                        crate::object_artifact::replay::structural::condition_layout::replay_runtime_projection(
                             argument.root_structural_type,
                             &argument.path,
                             structural_types,
@@ -297,9 +297,14 @@ fn edge_cleanup_calls_match<'a>(
                     argument.place != nominal.place
                         || argument.structural_type != nominal.structural_type
                         || argument.path != nominal.path
-                        || !argument.indices.is_empty()
-                        || projection.is_none_or(|(leaf_type, leaf_shape, byte_offset)| {
+                        || projection.is_none_or(|(leaf_type, leaf_shape, byte_offset, elements)| {
+                            let selectors = argument.path.iter().filter_map(|segment| segment.runtime_index().map(|(value, _)| value)).collect::<Vec<_>>();
                             leaf_type != nominal.structural_type
+                                || elements.len() != argument.indices.len()
+                                || selectors.len() != argument.indices.len()
+                                || elements.iter().zip(&argument.indices).zip(selectors).any(|(((_, stride), actual), selector)| {
+                                    actual.stride != *stride || actual.operand.source_value() != selector
+                                })
                                 || argument.source_byte_offset != byte_offset
                                 || argument.shape != calling_conventions::ValueShape::borrowed_reference(
                                     leaf_shape.byte_size,

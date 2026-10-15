@@ -1,0 +1,5 @@
+// The array's outer policy belongs to each numeric element it copies.
+machine bad(destination: &mut [u32; 2] in Wrapping,
+            source: [u32; 1] in Saturating) {
+    destination[0..1] = source;
+}

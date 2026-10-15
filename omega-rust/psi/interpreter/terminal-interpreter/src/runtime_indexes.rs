@@ -37,88 +37,104 @@ impl TerminalExecution<'_> {
             return Err(malformed());
         }
         for (projection, path) in projections.into_iter().zip(paths) {
+            if !path.iter().any(|segment| segment.runtime_index().is_some()) {
+                continue;
+            }
             let root = projection.root;
-            for position in 0..path.len() {
-                let Some((index, _)) = path[position].runtime_index() else {
-                    continue;
-                };
-                let TerminalScalarValue::Integer { value, .. } = self.scalar_value(index)? else {
-                    return Err(malformed());
-                };
-                // Initialized value arrays own a payload instead of an opaque
-                // root. Resolve their selectors here too, before dispatch, so
-                // every consumer receives the same checked static projection.
-                let root_type = self.live_structural_type(root)?;
-                let root_type = if matches!(
-                    operation.kind,
-                    terminal_psi::OperationKind::ElementViewRead { .. }
-                ) {
-                    match self
-                        .program
-                        .structural_types()
-                        .get(&root_type)
-                        .ok_or_else(malformed)?
-                        .shape
-                    {
-                        StructuralTypeShape::ElementView { element } => element,
-                        _ => return Err(malformed()),
-                    }
-                } else {
-                    root_type
-                };
-                let array = resolve_structural_path_type(
-                    &self.program.structural_types(),
-                    root_type,
-                    // The declared path retains the bounds discharged by
-                    // checking. Earlier selected indices are physical runtime
-                    // coordinates, not new static bounds on a descriptor.
-                    &projection.path[..position],
-                )?;
-                let length = match self
+            let root_type = self.live_structural_type(root)?;
+            let root_type = if matches!(
+                operation.kind,
+                terminal_psi::OperationKind::ElementViewRead { .. }
+            ) {
+                match self
                     .program
                     .structural_types()
-                    .get(&array)
+                    .get(&root_type)
                     .ok_or_else(malformed)?
                     .shape
                 {
-                    StructuralTypeShape::FixedArray { length, .. } => length,
-                    StructuralTypeShape::ByteSequence(
-                        terminal_psi::ByteSequenceCarrier::BoundedView { capacity, .. },
-                    ) => capacity,
-                    // Extent is metadata of the exact selected descriptor,
-                    // never the containing root or its backing's capacity.
-                    StructuralTypeShape::ElementView { .. } => {
-                        let source = StructuralArgument {
-                            place: root,
-                            path: path[..position].to_vec(),
-                            access: StructuralAccess::SharedBorrow,
-                        };
-                        let selected =
-                            self.resolve_live_projection(root, &source.path, source.access)?;
-                        u64::try_from(self.element_view_argument(&source, &selected)?.len())
-                            .map_err(|_| malformed())?
-                    }
-                    StructuralTypeShape::ByteSequence(
-                        terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
-                        | terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
-                    ) => {
-                        let source = StructuralArgument {
-                            place: root,
-                            path: path[..position].to_vec(),
-                            access: StructuralAccess::SharedBorrow,
-                        };
-                        let selected =
-                            self.resolve_live_projection(root, &source.path, source.access)?;
-                        let binding = self.byte_descriptor_binding(&source, &selected)?;
-                        self.byte_descriptor_length(&binding, &selected)?
-                    }
+                    StructuralTypeShape::ElementView { element } => element,
                     _ => return Err(malformed()),
-                };
-                let element = terminal_semantics::runtime_index_selects(value, length)
-                    .ok_or_else(malformed)?;
-                path[position] = StructuralPathSegment::FixedIndex(element);
-            }
+                }
+            } else {
+                root_type
+            };
+            self.select_runtime_projection(root, root_type, projection.path, path)?;
         }
         Ok(selected)
+    }
+
+    /// Resolve one captured projection before custody changes or a hook runs.
+    /// Operations and cleanup edges consume the same concrete storage path.
+    pub(crate) fn select_runtime_projection(
+        &self,
+        root: semantic_vocabulary::PlaceId,
+        root_type: semantic_vocabulary::StructuralTypeId,
+        declared_path: &[StructuralPathSegment],
+        path: &mut [StructuralPathSegment],
+    ) -> Result<(), TerminalInterpretError> {
+        for position in 0..path.len() {
+            let Some((index, _)) = path[position].runtime_index() else {
+                continue;
+            };
+            let TerminalScalarValue::Integer { value, .. } = self.scalar_value(index)? else {
+                return Err(malformed());
+            };
+            // Initialized value arrays own a payload instead of an opaque
+            // root. Resolve their selectors here too, before dispatch, so
+            // every consumer receives the same checked static projection.
+            let array = resolve_structural_path_type(
+                &self.program.structural_types(),
+                root_type,
+                // The declared path retains the bounds discharged by
+                // checking. Earlier selected indices are physical runtime
+                // coordinates, not new static bounds on a descriptor.
+                &declared_path[..position],
+            )?;
+            let length = match self
+                .program
+                .structural_types()
+                .get(&array)
+                .ok_or_else(malformed)?
+                .shape
+            {
+                StructuralTypeShape::FixedArray { length, .. } => length,
+                StructuralTypeShape::ByteSequence(
+                    terminal_psi::ByteSequenceCarrier::BoundedView { capacity, .. },
+                ) => capacity,
+                // Extent is metadata of the exact selected descriptor,
+                // never the containing root or its backing's capacity.
+                StructuralTypeShape::ElementView { .. } => {
+                    let source = StructuralArgument {
+                        place: root,
+                        path: path[..position].to_vec(),
+                        access: StructuralAccess::SharedBorrow,
+                    };
+                    let selected =
+                        self.resolve_live_projection(root, &source.path, source.access)?;
+                    u64::try_from(self.element_view_argument(&source, &selected)?.len())
+                        .map_err(|_| malformed())?
+                }
+                StructuralTypeShape::ByteSequence(
+                    terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
+                    | terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
+                ) => {
+                    let source = StructuralArgument {
+                        place: root,
+                        path: path[..position].to_vec(),
+                        access: StructuralAccess::SharedBorrow,
+                    };
+                    let selected =
+                        self.resolve_live_projection(root, &source.path, source.access)?;
+                    let binding = self.byte_descriptor_binding(&source, &selected)?;
+                    self.byte_descriptor_length(&binding, &selected)?
+                }
+                _ => return Err(malformed()),
+            };
+            let element =
+                terminal_semantics::runtime_index_selects(value, length).ok_or_else(malformed)?;
+            path[position] = StructuralPathSegment::FixedIndex(element);
+        }
+        Ok(())
     }
 }

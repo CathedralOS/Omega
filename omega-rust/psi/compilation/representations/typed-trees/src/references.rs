@@ -1494,6 +1494,9 @@ fn visit_statement(
         StatementNode::LocalData(local) => {
             visit_type_reference(program, retained, local.type_reference);
         }
+        StatementNode::Assignment(assignment) => {
+            visit_type_reference(program, retained, assignment.receiving_type);
+        }
         StatementNode::Transition(transition) => {
             for target in transition.targets() {
                 if let TransitionTargetNode::Named {
@@ -1512,7 +1515,6 @@ fn visit_statement(
         }
         StatementNode::RootBinding(_)
         | StatementNode::AssemblyFact(_)
-        | StatementNode::Assignment(_)
         | StatementNode::Expression(_) => {}
     }
 }

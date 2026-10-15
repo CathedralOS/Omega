@@ -42,8 +42,9 @@ pub(super) fn build_call_flow_fact<'plans>(
     active_constraints: &mut arena::HandleSpan<FlowConstraintRef>,
     borrow_call: &BorrowCallFact,
     captured_operands: &[checked_trees::FlowOperandFact],
-    storage_writes: Option<&[validation::CanonicalPlace]>,
+    writes: Option<&super::call_phases::CallStorageWrites>,
 ) -> FlowCallFact {
+    let storage_writes = writes.map(|writes| writes.places.as_slice());
     super::state_values::record_invocation(program, build, machine, state, borrow_call);
     let contract_call = proof_contract_call(
         proof,
@@ -133,6 +134,9 @@ pub(super) fn build_call_flow_fact<'plans>(
         borrow_call,
         entry.contexts,
         &mut exit,
+        argument_sources.as_ref(),
+        domains,
+        writes.map(|writes| writes.contributions.as_slice()),
     );
     let boundary_edges = append_call_boundary_edges(program, build, borrow_call);
     *active_contexts = retained_flow_contexts(&build.contexts.semantic_context_refs, exit.contexts);
@@ -516,53 +520,52 @@ fn append_call_parameter_domain_facts<'plans>(
         borrow_call.target_symbol,
     );
     for (position, domain_symbol, semantic_domain, declared) in claims.iter() {
-        if !declared
-            && !argument_sources.is_some_and(|sources| sources.observation_survives(*position, &[]))
+        // Declared root and field obligations are handed back together by
+        // call_phases::referents. This publisher owns authored routed ensures.
+        if *declared
+            || argument_sources.is_some_and(|sources| sources.referent_places(*position).is_some())
+            || !argument_sources.is_some_and(|sources| sources.observation_survives(*position, &[]))
         {
             continue;
         }
         // An ENSURED claim publishes only for a routed domain: that is the
         // provenance the checker rejoins, and a predicate-domain `ensures`
         // would only add an invalidatable fact the call never minted.
-        //
-        // A DECLARED claim is the other direction. It comes from a mutable
-        // reference parameter's own type, so every write the callee makes
-        // through it owes that domain and its entry required it -- the
-        // caller's argument holds it again on return. Without this the
-        // mutation retires the caller's fact and nothing restores it, so an
-        // out parameter could never carry a domain at all.
-        if !declared
-            && !validation::field_domains::domain_requires_provenance(program, *domain_symbol)
-        {
+        if !validation::field_domains::domain_requires_provenance(program, *domain_symbol) {
             continue;
         }
         let Some(&argument) = arguments.get(*position) else {
             continue;
         };
-        let Some(place) = validation::canonical_place_from_expression_in_state(
+        // Stable copied inputs keep their observation-survival rule. Borrowed
+        // guarantees use the actual captured occurrence in referents.rs.
+        let places = validation::canonical_place_from_expression_in_state(
             program,
             state.symbol,
             borrow_call.statement_index,
             argument,
-        ) else {
-            continue;
-        };
-        let place = crate::semantic::places::append_place(semantic, place.root, &place.segments);
-        let fact = semantic.append_fact(Fact {
-            place: FactPlace::Place(place),
-            point,
-            origin: FactOrigin::CallEnsures,
-            evidence,
-            payload: FactPayload::DomainMembership {
-                value: ExpressionHandle::invalid(),
-                domain: HandleSpan::empty(),
-                domain_symbol: *domain_symbol,
-                semantic_domain: *semantic_domain,
-            },
-        });
-        let mut refs = HandleSpan::empty();
-        semantic.append_ref(&mut refs, fact);
-        reference_spans::append_semantic_context(semantic, build, exit, point, refs);
+        )
+        .into_iter()
+        .collect::<Vec<_>>();
+        for place in &places {
+            let place =
+                crate::semantic::places::append_place(semantic, place.root, &place.segments);
+            let fact = semantic.append_fact(Fact {
+                place: FactPlace::Place(place),
+                point,
+                origin: FactOrigin::CallEnsures,
+                evidence,
+                payload: FactPayload::DomainMembership {
+                    value: ExpressionHandle::invalid(),
+                    domain: HandleSpan::empty(),
+                    domain_symbol: *domain_symbol,
+                    semantic_domain: *semantic_domain,
+                },
+            });
+            let mut refs = HandleSpan::empty();
+            semantic.append_ref(&mut refs, fact);
+            reference_spans::append_semantic_context(semantic, build, exit, point, refs);
+        }
     }
 }
 

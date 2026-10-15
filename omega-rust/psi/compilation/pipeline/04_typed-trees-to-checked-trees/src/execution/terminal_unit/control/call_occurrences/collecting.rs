@@ -137,6 +137,7 @@ pub(super) fn collect_constructor_calls(
                     CheckedScalarExpressionRole::StructuralValueField { .. }
                         | CheckedScalarExpressionRole::RecordField { .. }
                         | CheckedScalarExpressionRole::StructuralArrayElement { .. }
+                        | CheckedScalarExpressionRole::StructuralScalarValue { .. }
                         | CheckedScalarExpressionRole::StructuralValueSubject { .. }
                         | CheckedScalarExpressionRole::StructuralValuePattern { .. }
                 )
@@ -680,35 +681,13 @@ pub(super) fn collect_structural_argument_calls(
     visits: &mut Vec<ComputationVisit>,
     consumed: &mut Vec<arena::Handle<checked_trees::FlowCallFact>>,
 ) -> Option<()> {
-    if let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
-        expression,
-    } = argument.source
-    {
-        let values = &facts.values.structural_values;
-        let root = values.root_for_expression(state, u32::try_from(statement).ok()?, expression)?;
-        if !values.nodes.is_valid(root.root)
-            || values.nodes.get(root.root).expression != expression
-            || (argument.path.is_empty()
-                && validation::structural_type_identity(program, root.type_reference, &[], &[])
-                    != argument.type_identity)
-            || !matches!(
-                argument.access,
-                checked_trees::CheckedStructuralAccess::Owned
-                    | checked_trees::CheckedStructuralAccess::SharedBorrow
-                    | checked_trees::CheckedStructuralAccess::MutableBorrow
-            )
-        {
-            return None;
-        }
-        // A projected actual selects a subtree without replacing this retained
-        // owner. Its path/type/transfer were admitted with the call; discovery
-        // follows the owner's dependencies, not the selected argument type.
-        // Descriptor formation owns loan admission too; call accounting must
-        // not impose an owned-result contract on that borrowed value.
-        // Constructor fields already own their scalar computation roots in
-        // collect_constructor_calls. Following them again here would count
-        // one authored invocation twice; this edge only rejoins its value.
-    }
+    // Formation and argument admission already own storage, type and access.
+    // This collector owns only executable projection operands. Anonymous
+    // backing is retained as a structural value child (Reference::source_value),
+    // not necessarily a statement root; its graph walk owns the producer call.
+    // Requiring another root here rejects nested borrowed results and would
+    // duplicate constructor accounting. Exact occurrence and unconsumed-call
+    // checks still prevent losing or scheduling a call twice.
     for handle in argument.computation_operands() {
         collect(
             program,

@@ -4,14 +4,14 @@
 //! through static projections. Exclusive joins admit the same referents,
 //! whole or statically projected, while transferring the exact incoming
 //! mutable or write-only permission. Neither carrier copies the referent.
-//! A shared or mutable bounded byte owner loan (`owner_loans`) is carried as its
-//! owner's address; it keeps the owner's plain byte qualifications. An edge
-//! forwards an identically qualified loan whole, or lends one declared owner
-//! field whose predicates verification proves imply the loan's domains.
+//! Bounded byte owner loans likewise carry the owner's address. Qualifications
+//! describe obligations on that storage, not a different address carrier;
+//! semantic admission owns their preservation and implication at each edge.
 //! Byte and element views keep their `{base, extent}` descriptor carriers.
 //!
-//! This is a type rule, not producer evidence. Each stage independently replays
-//! the sources, type, access and origin custody. Exclusive name availability
+//! This classifies physical transport, not producer evidence. Source semantics
+//! and exact edge custody remain separate from the address representation.
+//! Exclusive name availability
 //! and shared-loan origin pinning remain separate receiving checks. Carrying
 //! an address grants no readable authority to a write-only loan. Stored reference
 //! and view fields stay in the referent: borrowing its address neither copies
@@ -35,23 +35,12 @@ pub fn is_address_join<'a>(
     parameter: &StructuralParameterDeclaration,
     lookup: impl Fn(StructuralTypeId) -> Option<&'a StructuralTypeDeclaration> + Copy,
 ) -> bool {
-    super::owner_loans::is_bounded_owner_loan(parameter, lookup)
-        || is_unqualified_address_join(parameter, lookup)
-}
-
-/// Unqualified address loans, independent of the referent's stored children.
-fn is_unqualified_address_join<'a>(
-    parameter: &StructuralParameterDeclaration,
-    lookup: impl Fn(StructuralTypeId) -> Option<&'a StructuralTypeDeclaration> + Copy,
-) -> bool {
     matches!(
         parameter.access,
         StructuralAccess::SharedBorrow
             | StructuralAccess::MutableBorrow
             | StructuralAccess::WriteOnlyBorrow
     ) && parameter.multiplicity == StructuralMultiplicity::Unrestricted
-        && parameter.qualifications.is_empty()
-        && parameter.projected_qualifications.is_empty()
         && lookup(parameter.structural_type).is_some_and(|declaration| {
             matches!(
                 declaration.shape,
@@ -61,6 +50,9 @@ fn is_unqualified_address_join<'a>(
                     | StructuralTypeShape::FixedArray { .. }
                     | StructuralTypeShape::Sum { .. }
                     | StructuralTypeShape::Mixed { .. }
+                    | StructuralTypeShape::ByteSequence(
+                        terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                    )
             )
         })
 }

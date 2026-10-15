@@ -33,6 +33,7 @@ struct CapturedSource {
     expression: ExpressionHandle,
     type_reference: typed_trees::types::TypeReferenceHandle,
     later_writes: Option<Vec<CanonicalPlace>>,
+    referents: Vec<CanonicalPlace>,
 }
 
 fn writes_after_capture(
@@ -90,12 +91,31 @@ fn retain_capture(
     if !type_reference.is_valid() {
         return None;
     }
+    let referents = if super::super::operand_binds_live_view(program, type_reference) {
+        control
+            .operand_referents
+            .span(capture.referents)?
+            .iter()
+            .map(|referent| {
+                Some(CanonicalPlace {
+                    root: referent.root,
+                    segments: control
+                        .operand_referent_segments
+                        .span(referent.segments)?
+                        .to_vec(),
+                })
+            })
+            .collect::<Option<Vec<_>>>()?
+    } else {
+        Vec::new()
+    };
     captures.push(CapturedSource {
         position,
         destination: destination.clone(),
         expression: capture.expression,
         type_reference,
         later_writes: writes_after_capture(control, capture, invocation),
+        referents,
     });
     for child in control.operand_children.span(capture.children)? {
         if !control.operands.is_valid(child.value) || active.contains(&child.value) {
@@ -131,6 +151,18 @@ fn retain_capture(
 }
 
 impl<'program, 'writes> ArgumentSources<'program, 'writes> {
+    /// The completed reference's actual backing, not the source spelling or
+    /// a replay of its initializer. An empty roster is unavailable evidence;
+    /// several candidates do not identify which one the callee changed.
+    pub(in crate::flow) fn referent_places(&self, position: usize) -> Option<&[CanonicalPlace]> {
+        let capture = self
+            .captures
+            .iter()
+            .find(|capture| capture.position == position && capture.destination.is_empty())?;
+        super::super::operand_binds_live_view(self.program, capture.type_reference)
+            .then_some(capture.referents.as_slice())
+    }
+
     pub(in crate::flow) fn new(
         program: &'program dyn ::validation::CheckingInput,
         machine: SymbolHandle,

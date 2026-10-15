@@ -39,6 +39,7 @@ pub(super) fn reference_referent_projection(
     mut root: StructuralTypeId,
     mut path: &[StructuralPathSegment],
     requested: StructuralAccess,
+    expected: Option<StructuralTypeId>,
     declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
 ) -> Result<
     (
@@ -91,7 +92,7 @@ pub(super) fn reference_referent_projection(
         root,
         path,
         requested,
-        None,
+        expected,
         declarations,
         &mut shapes,
         &mut active,
@@ -226,7 +227,20 @@ fn contiguous_primitive_projection(
     path: &[StructuralPathSegment],
     declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
 ) -> Option<(ScalarType, u32, Vec<(semantic_vocabulary::ValueId, u32)>)> {
-    if let StructuralTypeShape::ByteSequence(carrier) = declarations.get(&root)?.shape {
+    if let Some((selector, prefix)) = path.split_last()
+        && matches!(
+            selector,
+            StructuralPathSegment::FixedIndex(_) | StructuralPathSegment::RuntimeIndex { .. }
+        )
+        && let Ok((selected, _, owner_offset, mut indices)) = runtime_projection(
+            root,
+            prefix,
+            declarations,
+            &mut BTreeMap::new(),
+            &mut BTreeSet::new(),
+        )
+        && let StructuralTypeShape::ByteSequence(carrier) = declarations.get(&selected)?.shape
+    {
         let scalar = terminal_semantics::primitive_projection_type(
             declarations.values().copied(),
             root,
@@ -237,16 +251,19 @@ fn contiguous_primitive_projection(
             terminal_psi::ByteSequenceCarrier::BoundedView { .. }
             | terminal_psi::ByteSequenceCarrier::BorrowedView { .. } => 0,
         };
-        // Geometry is relative to payload backing, not to a view's descriptor.
-        // The sequence is the container; selecting its byte ends the path.
-        return match path {
-            [StructuralPathSegment::FixedIndex(index)] => Some((
+        // First select the owner within this contiguous region, then its byte.
+        // An array/record prefix retains its own offset and selectors. Pointer
+        // regions already load borrowed backing, whose payload offset is zero.
+        let payload_offset = owner_offset.checked_add(payload_offset)?;
+        return match selector {
+            StructuralPathSegment::FixedIndex(index) => Some((
                 scalar,
                 payload_offset.checked_add(u32::try_from(*index).ok()?)?,
-                Vec::new(),
+                indices,
             )),
-            [StructuralPathSegment::RuntimeIndex { index, .. }] => {
-                Some((scalar, payload_offset, vec![(*index, 1)]))
+            StructuralPathSegment::RuntimeIndex { index, .. } => {
+                indices.push((*index, 1));
+                Some((scalar, payload_offset, indices))
             }
             _ => None,
         };
@@ -1077,6 +1094,9 @@ impl ProjectedStorage<'_> {
             Self::Field(leaf) => leaf,
         };
         let declaration = match (leaf_type(leaf), leaf.byte_sequence_carrier()) {
+            (Some(StructuralFieldType::Structural(identity)), _) => {
+                declarations.get(&identity).copied()
+            }
             (Some(contract), _) => contract.leaf_declaration(declarations.values().copied()),
             (None, Some(carrier)) => terminal_semantics::byte_carrier_field_declaration(
                 declarations.values().copied(),

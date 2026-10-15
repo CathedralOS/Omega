@@ -254,7 +254,12 @@ pub fn structural_effect_leaf_observation_in(
                     | terminal_psi::StructuralAccess::SharedBorrow
             ) || result.multiplicity != terminal_psi::StructuralMultiplicity::Affine
                 || !result.qualifications.is_empty()
-                || !result.projected_qualifications.is_empty()
+                // Membership belongs below the borrowed boundary. Source
+                // transfer validation authenticates these occurrence rows;
+                // this operation-shape judgment grants none by itself.
+                || result.projected_qualifications.iter().any(|row| {
+                    row.path.first() != Some(&terminal_psi::StructuralPathSegment::Referent)
+                })
                 || !result.claims.is_empty()
             {
                 return Err(OperationSemanticError::StructuralEffectActionShapeMismatch(

@@ -78,11 +78,14 @@ impl TerminalExecution<'_> {
         )
         .is_some()
         {
-            let value = self
-                .scalar_array_values
-                .get(source)
-                .cloned()
-                .ok_or(malformed())?;
+            let value = self.scalar_array_snapshot(
+                &StructuralArgument {
+                    place: *source,
+                    path: Vec::new(),
+                    access: StructuralAccess::Owned,
+                },
+                signature.structural_type,
+            )?;
             if value.structural_type != signature.structural_type
                 || signature.multiplicity != StructuralMultiplicity::Unrestricted
                 || !signature.qualifications.is_empty()
@@ -325,6 +328,11 @@ impl TerminalExecution<'_> {
             }
         };
         completed.destination = destination;
+        let cleanup_actions = block_bindings::BlockBindings::default().prepare_cleanup_actions(
+            self,
+            &[],
+            cleanup_actions,
+        )?;
         // No payload, descriptor, claim, caller frame, or cleanup root moves
         // while the sponsor cannot pay this edge.
         if let Err(error) = meter.charge_terminator(terminator) {
@@ -341,9 +349,8 @@ impl TerminalExecution<'_> {
         for binding in &active_returned_claims {
             self.live_claims.remove(&binding.claim);
         }
-        self.retire_return_inputs();
         self.continue_cleanup_actions(
-            cleanup_actions.clone().into_iter(),
+            cleanup_actions.into_iter(),
             CleanupContinuation::Return(completed),
         )
     }

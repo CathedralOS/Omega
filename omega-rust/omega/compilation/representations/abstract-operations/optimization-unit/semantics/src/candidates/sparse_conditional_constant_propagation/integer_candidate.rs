@@ -87,7 +87,8 @@ pub(crate) fn validate_integer_evaluation_candidate(
                 .find(|fact| {
                     fact.identity == identity
                         && fact.machine == function.machine
-                        && fact.operation == source_operation
+                        && fact.owner
+                            == optimization_unit::PsiProvenance::Operation(source_operation)
                 })
                 .ok_or(OptimizationUnitValidationError::CandidateAcceptedObligationFactMismatch)?;
             if !function.facts.iter().any(|reference| {

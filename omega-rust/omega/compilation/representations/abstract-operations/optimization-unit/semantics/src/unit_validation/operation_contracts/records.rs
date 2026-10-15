@@ -151,7 +151,7 @@ pub(crate) fn record_establishment_matches(
     else {
         return false;
     };
-    field_initializers_match(
+    let fields_match = field_initializers_match(
         function,
         *psi_operation,
         result,
@@ -159,7 +159,44 @@ pub(crate) fn record_establishment_matches(
         fields,
         types,
         domains,
-    )
+    );
+    if !fields_match {
+        return false;
+    }
+    // Relocation retains the complete operand roster. In particular a mutable
+    // reference's preservation obligations cannot disappear inside a record.
+    // Inline byte fields have their own predicate contract, not nominal rows.
+    let mut projected = Vec::new();
+    for declaration in declarations
+        .iter()
+        .filter(|field| !field.relevance.is_erased())
+    {
+        if !matches!(declaration.field_type, StructuralFieldType::Structural(_)) {
+            continue;
+        }
+        let Some(RecordFieldValue::Structural(argument)) = fields
+            .iter()
+            .find(|binding| binding.field == declaration.id)
+            .map(|binding| &binding.value)
+        else {
+            return false;
+        };
+        let Some(source) = structural_source_contract(function, argument.place) else {
+            return false;
+        };
+        let (whole, children) = source.selected_qualifications(&argument.path);
+        terminal_psi::StructuralPathQualification::append_under(
+            &whole,
+            &children,
+            &[terminal_psi::StructuralPathSegment::Field(
+                declaration.identity,
+            )],
+            &mut projected,
+        );
+    }
+    projected.sort();
+    projected.dedup();
+    result.projected_qualifications == projected
 }
 
 /// Aggregate construction can carry a completed child's memberships below
@@ -649,10 +686,6 @@ pub(super) fn structural_initializer_matches(
             || (source.access == StructuralAccess::SharedBorrow
                 && shared_view_member(types, expected)))
         && source.structural_type == expected
-        && (source.is_unqualified()
-            || types
-                .get(&source.structural_type)
-                .is_some_and(|declaration| declaration.shape.is_composite_shape()))
         && !source_has_claims(function, argument.place)
         && argument.place != result.place
         && matches!(

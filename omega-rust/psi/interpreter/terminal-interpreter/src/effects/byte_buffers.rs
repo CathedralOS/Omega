@@ -104,13 +104,13 @@ impl BoundaryArguments {
                         values.get(&parameter.place).ok_or_else(malformed)?,
                     )
             } else {
-                matches!(
-                    parameter.access,
-                    terminal_psi::reading_borrow_pair_pattern!()
-                ) && parameter.access == view.access()
+                parameter.access == view.access()
                     && parameter.multiplicity == StructuralMultiplicity::Unrestricted
                     && parameter.qualifications.is_empty()
                     && parameter.projected_qualifications.is_empty()
+                    && view.matches_descriptor_home(
+                        values.get(&parameter.place).ok_or_else(malformed)?,
+                    )
             };
             if !admitted || element_views.insert(parameter.place, view).is_some() {
                 return Err(malformed());
@@ -613,17 +613,7 @@ impl TerminalExecution<'_> {
             if value.structural_type != parameter.structural_type {
                 return Err(malformed());
             }
-            // Lending identifies storage, not readable descriptor contents.
-            // In particular, a write-only formal can forward its existing
-            // owner loan without acquiring read authority.
-            if argument.path.is_empty()
-                && let Some(binding) = self.byte_sequence_values.get(&argument.place)
-                && !matches!(binding, ByteSequenceBinding::Immutable(_))
-            {
-                binding.validate_mutable_referent(self, &value)?;
-                return Ok(binding.clone());
-            }
-            return self.lend_declared_owner(parameter, argument, &value);
+            return self.lend_declared_owner(parameter, &value);
         }
         let (mut parent, identity, field, namespace) =
             self.structural_field_binding_frame(argument)?;
@@ -643,6 +633,7 @@ impl TerminalExecution<'_> {
         // referent and full field path for alias/custody checks.
         parent.structural_type = parameter.structural_type;
         parent.qualifications = parameter.qualifications.clone();
+        parent.projected_qualifications = parameter.projected_qualifications.clone();
         parent
             .path
             .push(StructuralPathSegment::Field(identity.clone()));
@@ -666,23 +657,9 @@ impl TerminalExecution<'_> {
     fn lend_declared_owner(
         &self,
         parameter: &StructuralParameterDeclaration,
-        argument: &StructuralArgument,
         owner: &TerminalStructuralValue,
     ) -> Result<ByteSequenceBinding, TerminalInterpretError> {
         let coordinate = StructuralRuntimePlace::from(owner);
-        let home = if self.structural_byte_storage.contains_key(&coordinate) {
-            crate::byte_sequences::binding::ByteOwnerHome::Storage(coordinate)
-        } else {
-            if !argument.path.is_empty() {
-                return Err(malformed());
-            }
-            let (crate::byte_sequences::write::MutableByteSequenceStorage::Owned(home), _) =
-                self.mutable_byte_sequence_storage(argument.place)?
-            else {
-                return Err(malformed());
-            };
-            home
-        };
         let Some(ByteSequenceCarrier::BoundedOwned { capacity }) = self
             .program
             .structural_types()
@@ -697,6 +674,85 @@ impl TerminalExecution<'_> {
         if owner.qualifications != parameter.qualifications {
             return Err(malformed());
         }
+        if let Some(binding) = self.captured_byte_owner_binding(owner) {
+            binding.validate_mutable_referent(self, owner)?;
+            return Ok(binding.clone());
+        }
+        // The selected runtime identity, not the syntax path through a stored
+        // descriptor, locates the backing. A frame loan retains its activation;
+        // a typed subtree retains its cell. Neither lookup reads descriptor
+        // contents, so write-only forwarding does not acquire observation.
+        let home = if self.structural_byte_storage.contains_key(&coordinate) {
+            crate::byte_sequences::binding::ByteOwnerHome::Storage(coordinate)
+        } else {
+            let frames = std::iter::once((
+                self.call_stack.len(),
+                self.current_machine,
+                &self.structural_values,
+                &self.byte_sequence_values,
+            ))
+            .chain(self.call_stack.iter().enumerate().map(|(depth, frame)| {
+                (
+                    depth,
+                    frame.current_machine,
+                    &frame.structural_values,
+                    &frame.byte_sequence_values,
+                )
+            }));
+            let mut selected_home = None;
+            for (depth, machine, values, bindings) in frames {
+                for (place, value) in values {
+                    if StructuralRuntimePlace::from(value) != coordinate
+                        || value.structural_type != owner.structural_type
+                    {
+                        continue;
+                    }
+                    let Some(binding) = bindings.get(place) else {
+                        continue;
+                    };
+                    match binding {
+                        ByteSequenceBinding::MutableOwner { .. }
+                        | ByteSequenceBinding::MutableField { .. } => {
+                            binding.validate_mutable_referent(self, owner)?;
+                            return Ok(binding.clone());
+                        }
+                        ByteSequenceBinding::Immutable(_) if value.path.is_empty() => {
+                            let declaration = self
+                                .program
+                                .machines()
+                                .get(&machine)
+                                .ok_or_else(malformed)?;
+                            let owns_storage = declaration
+                                .structural_parameter(*place)
+                                .is_some_and(|parameter| {
+                                    parameter.access == StructuralAccess::Owned
+                                        && parameter.structural_type == owner.structural_type
+                                })
+                                || declaration
+                                    .structural_place(*place)
+                                    .and_then(|place| place.kind.as_operation_result())
+                                    .is_some_and(|(_, structural_type)| {
+                                        structural_type == owner.structural_type
+                                    });
+                            if owns_storage {
+                                selected_home =
+                                    Some(crate::byte_sequences::binding::ByteOwnerHome::Frame {
+                                        depth,
+                                        machine,
+                                        place: *place,
+                                    });
+                                break;
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+                if selected_home.is_some() {
+                    break;
+                }
+            }
+            selected_home.ok_or_else(malformed)?
+        };
         let binding = ByteSequenceBinding::MutableOwner {
             home,
             capacity,
@@ -827,6 +883,7 @@ impl TerminalExecution<'_> {
         };
         parent.structural_type = parameter.structural_type;
         parent.qualifications = parameter.qualifications.clone();
+        parent.projected_qualifications = parameter.projected_qualifications.clone();
         parent
             .path
             .push(StructuralPathSegment::Field(identity.clone()));

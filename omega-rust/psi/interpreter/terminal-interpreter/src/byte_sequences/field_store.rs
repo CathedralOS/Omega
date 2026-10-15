@@ -280,8 +280,11 @@ impl TerminalExecution<'_> {
             else {
                 return Err(malformed());
             };
-            let (collection, selected_path) =
-                view.structural_projection(carrier_path, requires_mutation)?;
+            let (collection, selected_path) = view.structural_projection(
+                &self.program.structural_types(),
+                carrier_path,
+                requires_mutation,
+            )?;
             let StructuralTypeShape::FixedArray {
                 element: backing_element,
                 ..

@@ -129,7 +129,8 @@ impl TerminalExecution<'_> {
             cleanup_actions,
         } = successor;
         let bindings = self.prepare_block_bindings(target, arguments, structural_arguments)?;
-        bindings.validate_cleanup_actions(self, structural_arguments, cleanup_actions)?;
+        let cleanup_actions =
+            bindings.prepare_cleanup_actions(self, structural_arguments, cleanup_actions)?;
         if let Err(error) = meter.charge_edge(edge, terminator) {
             return meter_status(error).map(TerminatorFlow::Yield);
         }
@@ -137,7 +138,9 @@ impl TerminalExecution<'_> {
         // Snapshot first: hooks may change storage, and a target may reuse a
         // source name. Projected ownership splits commit exactly once here.
         for argument in structural_arguments.iter().filter(|argument| {
-            argument.access == StructuralAccess::Owned && !argument.path.is_empty()
+            argument.access == StructuralAccess::Owned
+                && !argument.path.is_empty()
+                && bindings.projected_sources.contains(&argument.place)
         }) {
             consume_projected_ownership(
                 &self.program.structural_types(),
@@ -149,7 +152,7 @@ impl TerminalExecution<'_> {
             )?;
         }
         // The suspended frame owns the remaining cursor across a hook call.
-        let remaining = cleanup_actions.to_vec();
+        let remaining = cleanup_actions;
         self.continue_cleanup_actions(
             remaining.into_iter(),
             CleanupContinuation::Successor { target, bindings },
@@ -243,12 +246,13 @@ impl TerminalExecution<'_> {
             bindings.push((parameter.id, scalar));
         }
         let bindings = block_bindings::BlockBindings::from_scalars(bindings);
-        bindings.validate_cleanup_actions(self, &[], &successor.cleanup_actions)?;
+        let cleanup_actions =
+            bindings.prepare_cleanup_actions(self, &[], &successor.cleanup_actions)?;
         if let Err(error) = meter.charge_edge(successor.edge, terminator) {
             return meter_status(error).map(TerminatorFlow::Yield);
         }
         self.continue_cleanup_actions(
-            successor.cleanup_actions.clone().into_iter(),
+            cleanup_actions.into_iter(),
             CleanupContinuation::Successor {
                 target: successor.target,
                 bindings,
@@ -273,7 +277,7 @@ impl TerminalExecution<'_> {
         if !matches!(machine.result, TerminalMachineResult::Scalar(_)) {
             return Err(malformed());
         }
-        block_bindings::BlockBindings::default().validate_cleanup_actions(
+        let cleanup_actions = block_bindings::BlockBindings::default().prepare_cleanup_actions(
             self,
             &[],
             cleanup_actions,
@@ -282,9 +286,8 @@ impl TerminalExecution<'_> {
             return meter_status(error).map(TerminatorFlow::Yield);
         }
         let result = self.scalar_value(*value)?;
-        self.retire_return_inputs();
         self.continue_cleanup_actions(
-            cleanup_actions.clone().into_iter(),
+            cleanup_actions.into_iter(),
             CleanupContinuation::Return(CompletedReturn::plain(TerminalExecutionResult::Scalar(
                 result,
             ))),
@@ -306,7 +309,7 @@ impl TerminalExecution<'_> {
         if machine.result != TerminalMachineResult::Unit {
             return Err(malformed());
         }
-        block_bindings::BlockBindings::default().validate_cleanup_actions(
+        let cleanup_actions = block_bindings::BlockBindings::default().prepare_cleanup_actions(
             self,
             &[],
             cleanup_actions,
@@ -314,9 +317,8 @@ impl TerminalExecution<'_> {
         if let Err(error) = meter.charge_terminator(terminator) {
             return meter_status(error).map(TerminatorFlow::Yield);
         }
-        self.retire_return_inputs();
         self.continue_cleanup_actions(
-            cleanup_actions.clone().into_iter(),
+            cleanup_actions.into_iter(),
             CleanupContinuation::Return(CompletedReturn::plain(TerminalExecutionResult::Unit)),
         )
     }

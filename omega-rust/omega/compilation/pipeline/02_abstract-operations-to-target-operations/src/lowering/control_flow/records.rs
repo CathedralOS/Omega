@@ -238,23 +238,12 @@ pub(super) fn establish(
                     _ => return Err(LoweringError::unsupported_control_flow(function.machine)),
                 };
                 let reference_bearing = super::references::contains_reference(types, nested);
-                // A sum, mixed, or fixed-array member rides as one completed
-                // value the way a record member does.
-                if !matches!(
-                    types.get(&nested).map(|declaration| &declaration.shape),
-                    Some(
-                        StructuralTypeShape::Record { .. }
-                            | terminal_psi::sum_or_mixed_shape_pattern!()
-                            | StructuralTypeShape::FixedArray { .. }
-                    )
-                ) && byte_carrier.is_none()
-                    && !descriptor_member
-                    && !reference_bearing
-                    && terminal_semantics::scalar_array_leaf_shape(types.values().copied(), nested)
-                        .is_none()
-                {
-                    return Err(LoweringError::unsupported_control_flow(function.machine));
-                }
+                // Assembly consumes an already established home, not a second
+                // constructor selected by the child's shape. Its source and
+                // destination layouts retain the exact declared child type;
+                // custody below decides copying or transfer. Scalar receiving
+                // obligations belong to the producer, just as field obligations
+                // do for records, and are not re-proved while copying storage.
                 let (selected, multiplicity) =
                     super::aggregate_results::value_input(function, types, live, argument)?;
                 if selected != nested {

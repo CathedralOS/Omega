@@ -19,7 +19,7 @@ mod invalidation;
 mod referents;
 
 pub(super) use copied_guarantees::ArgumentSources;
-pub(super) use invalidation::{apply_call_invalidations, call_storage_writes};
+pub(super) use invalidation::{CallStorageWrites, apply_call_invalidations, call_storage_writes};
 pub(super) use referents::append_call_referent_field_domain_facts;
 
 pub(super) struct CallFlowContexts {

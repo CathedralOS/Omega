@@ -36,7 +36,7 @@ machine size(bytes: &[u8]) -> u64 { bytes.len }
 machine observe_borrowed(reply: &DirectReply, header_size: u64, content_size: u64) -> bool {
     let common: u64 = size(&reply.header);
     transition reply {
-        DirectReply::Message { content } -> (common == header_size && size(&content) == content_size)
+        DirectReply::Message { content } -> (common == header_size && size(&content) == content_size && content.len == content_size)
         DirectReply::Empty -> (common == header_size && content_size == 0)
     }
 }

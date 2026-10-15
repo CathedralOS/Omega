@@ -46,7 +46,7 @@ pub(super) fn re_home_bound_references(
     if bindings.len() != parameters.len() {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
-    let mut moved = Vec::new();
+    let mut captured = Vec::new();
     let mut selected_sources = BTreeSet::new();
     let mut destinations = BTreeSet::new();
     for (binding, parameter) in bindings.iter().zip(parameters) {
@@ -57,6 +57,29 @@ pub(super) fn re_home_bound_references(
             || binding.argument.access != terminal_psi::StructuralAccess::Owned
         {
             continue;
+        }
+        let copies = parameter.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted;
+        if copies {
+            let source_contract = live
+                .structural_homes
+                .get(&binding.argument.place)
+                .map(|home| (home.access(), home.multiplicity()))
+                .or_else(|| {
+                    function
+                        .structural_parameters
+                        .iter()
+                        .chain(function.block_structural_parameters())
+                        .find(|source| source.place == binding.argument.place)
+                        .map(|source| (source.access, source.multiplicity))
+                });
+            if source_contract
+                != Some((
+                    terminal_psi::StructuralAccess::Owned,
+                    terminal_psi::StructuralMultiplicity::Unrestricted,
+                ))
+            {
+                return Err(LoweringError::unsupported_control_flow(function.machine));
+            }
         }
         // Move resident descriptor storage simultaneously. An inactive case
         // contributes no descriptor; declaration geometry checks each present
@@ -74,12 +97,24 @@ pub(super) fn re_home_bound_references(
             let destination = (parameter.place, relative.to_vec());
             if references::leaf_referent(types, parameter.structural_type, relative)
                 != Some(descriptor.referent)
-                || !selected_sources.insert(source.clone())
+                || (!copies && !selected_sources.insert(source.clone()))
                 || !destinations.insert(destination.clone())
+                || (copies
+                    && !types
+                        .get(&descriptor.carrier_type)
+                        .is_some_and(|declaration| {
+                            matches!(
+                                declaration.shape,
+                                terminal_psi::StructuralTypeShape::Reference {
+                                    access: terminal_psi::StructuralAccess::SharedBorrow,
+                                    ..
+                                }
+                            )
+                        }))
             {
                 return Err(LoweringError::unsupported_control_flow(function.machine));
             }
-            moved.push((
+            captured.push((
                 source.clone(),
                 destination,
                 descriptor.clone(),
@@ -88,15 +123,19 @@ pub(super) fn re_home_bound_references(
             ));
         }
     }
-    if destinations.iter().any(|destination| {
-        live.references.contains_key(destination) && !selected_sources.contains(destination)
-    }) {
-        return Err(LoweringError::unsupported_control_flow(function.machine));
-    }
-    for (source, _, _, _) in &moved {
+    // Inputs were captured simultaneously above. A receiving block parameter
+    // begins a new occurrence, including on a backedge: its prior descriptors
+    // and inactive-case slots cannot remain resident. Copies from other roots
+    // survive; only moved sources and the receiving occurrences retire here.
+    live.references.retain(|(root, _), _| {
+        !parameters.iter().any(|parameter| {
+            parameter.place == *root && parameter.access == terminal_psi::StructuralAccess::Owned
+        })
+    });
+    for source in &selected_sources {
         live.references.remove(source);
     }
-    for (_, destination, mut storage, carrier_type) in moved {
+    for (_, destination, mut storage, carrier_type) in captured {
         storage.carrier_type = carrier_type;
         live.references.insert(destination, storage);
     }
@@ -157,7 +196,7 @@ pub(super) fn address_parameter<'a>(
 
 /// An address-join edge lends one readable root, or a static projection
 /// beneath it, that is live in the predecessor: a plain owned home (an
-/// established local or an owned join's storage), a claim-free unqualified
+/// established local or an owned join's storage), a claim-free
 /// machine parameter, or an earlier address join. The root keeps its owner
 /// and storage; the path must name exactly the join's referent type. A root
 /// suspended by an outstanding exclusive loan cannot lend a shared view.
@@ -176,42 +215,18 @@ fn address_join_argument(
     }
     // Qualifications carry no target storage. The admitted owner loan uses
     // the same address whether its backing is a parameter or a completed local.
-    // Forwarded parameters retain their precise access and predicate roster;
-    // local homes retain their authenticated result and independently held descriptor.
-    let owner_loan = abstract_operations::control_flow::owner_loans::is_bounded_owner_loan(
-        parameter,
-        |identity| structural_types.get(&identity).copied(),
-    ) && argument.path.is_empty();
-    if owner_loan && !live.structural_homes.contains_key(&argument.place) {
-        return function
-            .structural_parameters
-            .iter()
-            .chain(
-                live.address_joins
-                    .contains(&argument.place)
-                    .then(|| function.block_structural_parameters())
-                    .into_iter()
-                    .flatten(),
-            )
-            .any(|source| {
-                source.place == argument.place
-                    && source.structural_type == parameter.structural_type
-                    && source.access == parameter.access
-                    && source.multiplicity == parameter.multiplicity
-                    && source.qualifications == parameter.qualifications
-                    && source.projected_qualifications.is_empty()
-            });
-    }
+    // The current graph already carries the checked qualification judgment.
+    // Requiring an empty or identical predicate roster here confuses storage
+    // transport with semantic admission and rejects ordinary qualified arrays.
+    // Access, live custody and exact projected type still determine the address.
     let root_type = if let Some(home) = live.structural_homes.get(&argument.place) {
         ((parameter.access == terminal_psi::StructuralAccess::SharedBorrow
             || home
                 .operation_result()
                 .is_some_and(|(_, result)| result.place == argument.place))
             && !home.has_claims()
-            && home.multiplicity() != terminal_psi::StructuralMultiplicity::Linear
-            && (home.qualifications().is_empty() || owner_loan)
-            && home.projected_qualifications().is_empty())
-        .then(|| home.structural_type())
+            && home.multiplicity() != terminal_psi::StructuralMultiplicity::Linear)
+            .then(|| home.structural_type())
     } else if let Some(source) = function.structural_parameter(argument.place) {
         (abstract_operations::control_flow::address_joins::loan_access_permitted(
             structural_types.values().copied(),
@@ -219,10 +234,8 @@ fn address_join_argument(
             &argument.path,
             source.access,
             parameter.access,
-        ) && source.multiplicity != terminal_psi::StructuralMultiplicity::Linear
-            && source.qualifications.is_empty()
-            && source.projected_qualifications.is_empty())
-        .then_some(source.structural_type)
+        ) && source.multiplicity != terminal_psi::StructuralMultiplicity::Linear)
+            .then_some(source.structural_type)
     } else if live.address_joins.contains(&argument.place) {
         function
             .block_structural_parameters()

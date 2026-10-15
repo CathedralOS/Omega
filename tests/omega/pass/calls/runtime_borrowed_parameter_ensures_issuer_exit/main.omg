@@ -1,0 +1,29 @@
+// Expected exit: 0. Authored call guarantees keep their callee issuer when
+// published on a captured borrowed argument, including a stored local reference.
+data Ticket [copy] { amount: i32; }
+domain Ticket::Issued established by Ticket::issue;
+
+machine Ticket::issue() -> Ticket
+ensures result in Ticket::Issued { Ticket { amount: 41 } }
+
+machine refresh(ticket: &mut Ticket)
+ensures ticket in Ticket::Issued { ticket = Ticket::issue(); }
+
+machine require_issued(ticket: &Ticket)
+requires ticket in Ticket::Issued {}
+
+machine main() crashes Trap {
+    let mut ticket: Ticket = Ticket { amount: 0 };
+    refresh(&mut ticket);
+    require_issued(&ticket);
+    let mut captured: Ticket = Ticket { amount: 0 };
+    let destination: &mut Ticket = &mut captured;
+    refresh(destination);
+    require_issued(destination);
+    transition ticket.amount == 41 && captured.amount == 41 {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

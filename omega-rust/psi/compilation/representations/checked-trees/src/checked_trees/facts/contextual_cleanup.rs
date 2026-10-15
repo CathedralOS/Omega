@@ -13,6 +13,9 @@ use symbols::SymbolHandle;
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ContextualCleanupFacts {
     pub dispositions: Arena<ContextualCleanupDisposition>,
+    /// Receiving extents authenticated with the old occurrence's disposition.
+    /// Claim events may name individual leaves of this containing write.
+    pub storage_establishments: Arena<ContextualStorageEstablishment>,
     /// Exact candidate deaths for owners transferred on selected evaluation
     /// paths. These share ordinary hook admission, but are not unconditional
     /// permission events. Lowering must retain the selected live frontier.
@@ -29,6 +32,16 @@ pub struct ContextualCleanupFacts {
     /// Bound generic obligations are entry inputs to source flow. Their
     /// storage survives refreshing the selected death occurrences.
     pub entry_requirements: ContextualCleanupEntryRequirements,
+}
+
+/// One successful receiving write, distinct from the claims it establishes.
+/// Its destination path belongs to `ContextualCleanupFacts::segments`.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ContextualStorageEstablishment {
+    pub machine: SymbolHandle,
+    pub state: SymbolHandle,
+    pub source: PermissionEventSource,
+    pub destination: Place,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

@@ -29,10 +29,7 @@ impl RewriteTable {
 
     /// The first stored pattern equal to `term`, in the same insertion order
     /// the flat scan observed.
-    pub(super) fn find(
-        &self,
-        term: &StructuralTerm,
-    ) -> Option<&(StructuralTerm, StructuralTerm)> {
+    pub(super) fn find(&self, term: &StructuralTerm) -> Option<&(StructuralTerm, StructuralTerm)> {
         let indices = self.index.get(&rewrite_key(term))?;
         for &index in indices {
             let entry = &self.entries[index as usize];
@@ -43,9 +40,7 @@ impl RewriteTable {
         None
     }
 
-    pub(super) fn iter(
-        &self,
-    ) -> impl Iterator<Item = &(StructuralTerm, StructuralTerm)> {
+    pub(super) fn iter(&self) -> impl Iterator<Item = &(StructuralTerm, StructuralTerm)> {
         self.entries.iter()
     }
 }
@@ -81,9 +76,9 @@ fn rewrite_key(term: &StructuralTerm) -> (u8, u64) {
             (7, string_key(data) ^ string_key(case).rotate_left(32))
         }
         StructuralTerm::Application { target, .. } => (8, handle_key(*target)),
-        StructuralTerm::CallProjection {
-            target, field, ..
-        } => (9, handle_key(*target) ^ handle_key(*field).rotate_left(32)),
+        StructuralTerm::CallProjection { target, field, .. } => {
+            (9, handle_key(*target) ^ handle_key(*field).rotate_left(32))
+        }
         StructuralTerm::IndexedValue { .. } => (10, 0),
         StructuralTerm::Projection { .. } => (11, 0),
         StructuralTerm::ScalarBinary { operator, .. } => (12, discriminant_key(operator)),

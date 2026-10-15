@@ -33,7 +33,9 @@ pub(super) fn accepted_obligation_fact(
     unit.accepted_obligation_facts
         .iter()
         .find(|fact| {
-            fact.machine == machine && fact.operation == operation && fact.obligation == obligation
+            fact.machine == machine
+                && fact.owner == optimization_unit::PsiProvenance::Operation(operation)
+                && fact.obligation == obligation
         })
         .map(|fact| fact.identity)
         .ok_or(RuleProposalError::MissingAcceptedObligation {

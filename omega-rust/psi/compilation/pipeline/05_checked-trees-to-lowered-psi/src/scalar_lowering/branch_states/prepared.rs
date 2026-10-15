@@ -285,6 +285,8 @@ pub(crate) enum LoweredScalarEffect {
     },
     EstablishReference {
         storage: checked_trees::CheckedReferenceStorage,
+        backing_type: typed_trees::types::TypeReferenceHandle,
+        qualification_decisions: arena::HandleSpan<checked_trees::CheckedValueQualification>,
         state: symbols::SymbolHandle,
         statement: u32,
         expression: checked_trees::expression::ExpressionHandle,
@@ -308,6 +310,11 @@ pub(crate) enum LoweredScalarEffect {
         claims: Vec<crate::emission::claim_bindings::PreparedClaim>,
     },
     EstablishScalarArray(LoweredScalarArrayConstruction),
+    EstablishScalarHome {
+        place: PlaceId,
+        structural_type: StructuralTypeId,
+        value: LoweredDirectExpression,
+    },
     EstablishElementView(crate::unit::attached_unit::view_ranges::CollectionView),
     EstablishScalarCase(computations::cases::Construction),
     /// Establish a literal's reserved image descriptor or fresh owned backing

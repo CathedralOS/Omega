@@ -365,7 +365,7 @@ pub(super) fn match_input(
         let obligation_custody_missing = |psi_operation: OperationId, obligation: ObligationId| {
             !unit.accepted_obligation_facts.iter().any(|fact| {
                 fact.machine == optimized.machine
-                    && fact.operation == psi_operation
+                    && fact.owner == optimization_unit::PsiProvenance::Operation(psi_operation)
                     && fact.obligation == obligation
             }) || !optimized.facts.iter().any(|fact| {
                 matches!(fact,

@@ -296,13 +296,14 @@ pub(in crate::legalization) fn referent_destination(
     path: &[StructuralPathSegment],
     required_access: StructuralAccess,
 ) -> Option<ReferentDestination> {
-    optimization_unit_semantics::unqualified_owned_reference_carrier(function, carrier)?;
-    let projected = window_destination(function, custody, types, carrier, path, required_access)?;
-    matches!(
-        find_structural_type(types, projected.referent)?.shape,
-        StructuralTypeShape::Record { .. }
-    )
-    .then_some(projected)
+    optimization_unit_semantics::unqualified_reference_projection(
+        function,
+        types,
+        carrier,
+        path,
+        required_access,
+    )?;
+    window_destination(function, custody, types, carrier, path, required_access)
 }
 
 /// A window uses the exact descriptor selected inside its current carrier.
@@ -732,37 +733,53 @@ fn reference_source_type(
     types: &[StructuralTypeDeclaration],
     source: &StructuralArgument,
 ) -> Option<StructuralTypeId> {
-    if !matches!(
-        source.access,
-        StructuralAccess::SharedBorrow
-            | StructuralAccess::MutableBorrow
-            | StructuralAccess::WriteOnlyBorrow
-    ) {
+    if !reference_source_accessible(function, custody, types, source) {
         return None;
     }
-    if source.path.contains(&StructuralPathSegment::Referent) {
-        let mut current = source_contract(function, custody, source.place)?;
-        let mut start = 0;
-        for (position, segment) in source.path.iter().enumerate() {
-            if *segment != StructuralPathSegment::Referent {
-                continue;
-            }
-            current = leaf_type(types, current, &source.path[start..position])?;
-            let StructuralTypeShape::Reference { referent, access } =
-                &find_structural_type(types, current)?.shape
-            else {
-                return (position + 1 == source.path.len()).then_some(current);
-            };
-            let compatible = source.access.admits_referent(*access);
-            if !compatible {
-                return None;
-            }
-            current = *referent;
-            start = position + 1;
-        }
-        return leaf_type(types, current, &source.path[start..]);
+    let root = source_contract(function, custody, source.place)?;
+    let path = terminal_semantics::reference_source_storage_path(types.iter(), root, &source.path);
+    // A shared loan observes a restricted scalar through its read carrier;
+    // its owner's predicate remains attached to the original storage. Keep
+    // that observation consistent with lowering even for explicit re-views.
+    if source.access == StructuralAccess::SharedBorrow
+        && let Some(observed) = terminal_semantics::borrowed_primitive_projection_declaration(
+            types.iter(),
+            root,
+            path,
+            None,
+        )
+    {
+        return Some(observed);
     }
-    direct_storage_type(function, types, source)
+    leaf_type(types, root, path)
+}
+
+/// Declared authority does not require a nominal endpoint. Custody below
+/// independently authenticates every live parent and possible backing origin.
+fn reference_source_accessible(
+    function: &PsiOptimizationFunction,
+    custody: &Custody,
+    types: &[StructuralTypeDeclaration],
+    source: &StructuralArgument,
+) -> bool {
+    let Some(root) = source_contract(function, custody, source.place) else {
+        return false;
+    };
+    let (multiplicity, access) = if let Some(parameter) = function.arrival_parameter(source.place) {
+        (parameter.multiplicity, parameter.access)
+    } else if let Ok((_, result)) = super::structural_case::source_result(function, source.place) {
+        (result.multiplicity, StructuralAccess::Owned)
+    } else {
+        return false;
+    };
+    terminal_semantics::reference_source_projection_accessible(
+        types.iter(),
+        root,
+        multiplicity,
+        access,
+        &source.path,
+        source.access,
+    )
 }
 
 // A new shared loan may coexist only with authenticated shared carrier leaves.
@@ -800,7 +817,8 @@ fn storage_projection(
     source: &StructuralArgument,
 ) -> Option<optimization_unit_semantics::StructuralStorageProjection> {
     let mut carrier = source_contract(function, custody, source.place)?;
-    let mut path = source.path.as_slice();
+    let mut path =
+        terminal_semantics::reference_source_storage_path(types.iter(), carrier, &source.path);
     if let Some(crossing) = path
         .iter()
         .rposition(|segment| *segment == StructuralPathSegment::Referent)
@@ -896,41 +914,34 @@ fn normalized_direct_source(
     types: &[StructuralTypeDeclaration],
     source: &StructuralArgument,
 ) -> Result<(Root, Vec<OccurrenceIdentity>), LegalizationError> {
+    let path = source.path.as_slice();
     if let Some(crossing) = source
         .path
         .iter()
         .rposition(|segment| *segment == StructuralPathSegment::Referent)
     {
-        let carrier_path = &source.path[..crossing];
-        let suffix = &source.path[crossing + 1..];
-        let Some(leaf) = custody.leaf(source.place, carrier_path) else {
-            // Member storage under a carrier never held as a live reference
-            // borrows the carrier's own storage; only a non-reference member
-            // may root there — a missing reference carrier is a custody gap.
-            let carrier =
-                source_contract(function, custody, source.place).ok_or_else(|| invalid())?;
-            return match leaf_type(types, carrier, carrier_path).and_then(|leaf| {
-                find_structural_type(types, leaf).and_then(|declaration| match declaration.shape {
-                    StructuralTypeShape::Reference { .. } => None,
-                    _ if suffix.is_empty() => Some(()),
-                    _ => None,
-                })
-            }) {
-                Some(()) => {
-                    let root = Root::Ingress(source.place, carrier_path.to_vec());
-                    Ok((root, Vec::new()))
-                }
-                None => Err(invalid()),
-            };
-        };
-        if leaf_type(types, leaf.referent, suffix).is_none() {
+        let carrier_path = &path[..crossing];
+        let suffix = &path[crossing + 1..];
+        // A remaining crossing is a real descriptor, never a borrowed-leaf
+        // marker. Missing live custody cannot become a direct-storage origin.
+        let leaf = custody
+            .leaf(source.place, carrier_path)
+            .ok_or_else(|| invalid())?;
+        if optimization_unit_semantics::structural_borrowed_storage_projection(
+            types.iter(),
+            leaf.referent,
+            suffix,
+            source.access,
+        )
+        .is_none()
+        {
             return Err(invalid());
         }
         Ok((leaf.root.projected(suffix), vec![leaf.identity.clone()]))
     } else if source.path.is_empty() {
         Ok((Root::Place(source.place), Vec::new()))
     } else if storage_projection(function, custody, types, source).is_some() {
-        let root = Root::Ingress(source.place, source.path.clone());
+        let root = Root::Ingress(source.place, path.to_vec());
         Ok((root, Vec::new()))
     } else {
         Err(invalid())
@@ -1750,16 +1761,10 @@ pub(in crate::legalization) fn apply(
                     .ok_or(invalid())?,
                 ),
             };
-            let shared_descriptor = find_structural_type(types, result.structural_type)
-                .is_some_and(|declaration| {
-                    matches!(
-                        declaration.shape,
-                        StructuralTypeShape::Reference {
-                            access: StructuralAccess::SharedBorrow,
-                            ..
-                        }
-                    )
-                });
+            let shared_descriptor = terminal_semantics::is_shared_reference_carrier(
+                types.iter(),
+                result.structural_type,
+            );
             if !shared_copy_type(types, result.structural_type)
                 || (result.multiplicity != StructuralMultiplicity::Unrestricted
                     && !(result.multiplicity == StructuralMultiplicity::Affine
@@ -1912,26 +1917,34 @@ pub(in crate::legalization) fn apply(
             storage,
         } => {
             let referent = referent(types, result.structural_type).ok_or_else(|| invalid())?;
-            if !result.is_affine_plain()
+            if result.multiplicity != StructuralMultiplicity::Affine
+                || !result.qualifications.is_empty()
+                || !result.claims.is_empty()
+                || !result.qualification_establishments.is_empty()
                 || custody
                     .leaves
                     .keys()
                     .any(|(carrier, _)| *carrier == result.place)
-                || !reference_source_type(function, custody, types, source).is_some_and(|actual| {
-                    match storage {
-                        Some(storage) => terminal_semantics::reference_storage_source_compatible(
+                || !reference_source_accessible(function, custody, types, source)
+                || !match storage {
+                    Some(storage) => reference_source_type(function, custody, types, source)
+                        .is_some_and(|actual| {
+                            terminal_semantics::reference_storage_source_compatible(
+                                types.iter(),
+                                actual,
+                                result.structural_type,
+                                storage.stored_scalar,
+                            )
+                        }),
+                    None => source_contract(function, custody, source.place).is_some_and(|root| {
+                        terminal_semantics::reference_source_projection_compatible(
                             types.iter(),
-                            actual,
+                            root,
+                            &source.path,
                             result.structural_type,
-                            storage.stored_scalar,
-                        ),
-                        None => terminal_semantics::reference_source_compatible(
-                            types.iter(),
-                            actual,
-                            result.structural_type,
-                        ),
-                    }
-                })
+                        )
+                    }),
+                }
             {
                 return Err(invalid());
             }
@@ -2886,8 +2899,6 @@ pub(in crate::legalization) fn referent_argument(
     if argument.access == StructuralAccess::Owned
         || argument.access != declaration.access
         || declaration.multiplicity != StructuralMultiplicity::Unrestricted
-        || !declaration.qualifications.is_empty()
-        || !declaration.projected_qualifications.is_empty()
     {
         return Err(invalid());
     }
@@ -2897,6 +2908,7 @@ pub(in crate::legalization) fn referent_argument(
         root_type,
         &argument.path,
         argument.access,
+        Some(declaration.structural_type),
         types,
     )
     .ok_or(invalid())?;
@@ -2933,8 +2945,6 @@ pub(in crate::legalization) fn referent_argument(
     }) {
         if parameter.access != StructuralAccess::Owned
             || parameter.multiplicity == StructuralMultiplicity::Linear
-            || !parameter.qualifications.is_empty()
-            || !parameter.projected_qualifications.is_empty()
         {
             return Err(invalid());
         }
@@ -2946,8 +2956,6 @@ pub(in crate::legalization) fn referent_argument(
         let (producer, result) = super::structural_case::source_result(caller, argument.place)?;
         if result.structural_type != root_type
             || result.multiplicity == StructuralMultiplicity::Linear
-            || !result.qualifications.is_empty()
-            || !result.projected_qualifications.is_empty()
             || !result.qualification_establishments.is_empty()
             || !result.claims.is_empty()
         {
@@ -2970,7 +2978,7 @@ pub(in crate::legalization) fn referent_argument(
         indices: super::target::control_flow::sources::call_indices(
             native,
             caller,
-            call_operation,
+            target_operations::CallSiteOwner::Operation(call_operation),
             &projection.elements,
         )?,
         source,

@@ -1086,7 +1086,7 @@ pub(super) fn local_reference_loans(
 /// at the root or beneath record/array paths. The path-specific retirement
 /// owner still decides how each descriptor ends. An empty proven roster is
 /// distinct from a missing or ambiguous producer relationship.
-fn carrier_loans(
+pub(super) fn carrier_loans(
     facts: &CheckFacts,
     machine: SymbolHandle,
     state: SymbolHandle,

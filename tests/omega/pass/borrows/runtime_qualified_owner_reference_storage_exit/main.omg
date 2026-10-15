@@ -1,0 +1,93 @@
+// Expected exit: 0. A stored mutable reference forwards the original qualified
+// owner and its restored domain. Qualification preserves exact array geometry.
+domain [u8; 8]::Utf8(bytes) requires valid_utf8(bytes);
+domain [u8; 8]::Ascii(bytes) requires ascii_only(bytes);
+data Held { bytes: &mut [u8; 8] in Utf8; }
+data Observed { bytes: &[u8; 8] in Utf8; }
+data AsciiContainer { bytes: [u8; 8] in Ascii & Utf8; }
+data Container { first: [u8; 8] in Utf8; second: [u8; 8] in Utf8; }
+data ContainersView { owners: &mut [Container; 2]; }
+data HeldContainer { owner: &mut Container; }
+machine replace(bytes: &mut [u8; 8] in Utf8) -> bool { bytes = "éééé"; true }
+machine indirect(bytes: &mut [u8; 8] in Utf8) -> bool {
+    let held: Held = Held { bytes: bytes };
+    replace(held.bytes)
+}
+machine local_owner() -> bool {
+    let bytes: [u8; 8] in Utf8 = "local...";
+    let held: Held = Held { bytes: &mut bytes };
+    let changed: bool = replace(held.bytes);
+    changed && bytes == "éééé" && bytes.len == 8
+}
+machine field_owner(container: &mut Container) -> bool {
+    let held: Held = Held { bytes: &mut container.second };
+    replace(held.bytes)
+}
+machine array_owner(entries: &mut [[u8; 8] in Utf8; 2]) -> bool {
+    let held: Held = Held { bytes: &mut entries[1] };
+    replace(held.bytes)
+}
+// One formation crosses the stored parent pointer before its runtime selector.
+// It lends the selected owner's inline field, not the descriptor's storage.
+machine selected_field(containers: &mut [Container; 2], position: u64 [0..=1]) -> bool {
+    let mut selector: u64 [0..=1] = position;
+    let view: ContainersView = ContainersView { owners: containers };
+    let held: Held = Held { bytes: &mut view.owners[selector].second };
+    selector = 0;
+    replace(held.bytes)
+}
+// The field projection may follow capture of the runtime-selected owner.
+machine selected_descendant(containers: &mut [Container; 2], position: u64 [0..=1]) -> bool {
+    let mut selector: u64 [0..=1] = position;
+    let held: HeldContainer = HeldContainer { owner: &mut containers[selector] };
+    selector = 0;
+    replace(&mut held.owner.second)
+}
+machine shared_field(container: &AsciiContainer) -> bool {
+    let observed: Observed = Observed { bytes: &container.bytes };
+    observed.bytes == "plain..." && observed.bytes.len == 8
+}
+// State transfer changes the storage occurrence, not permission to replace
+// an owned array element's field.
+machine owned_arrival(owners: [Container; 2]) -> bool {
+    transition { _ -> update(owners) }
+    state update(mut owners: [Container; 2]) -> bool {
+        owners[1].second = "arrived.";
+        owners[0].first == "left...." && owners[0].second == "first..."
+            && owners[1].first == "right..." && owners[1].second == "arrived."
+    }
+}
+machine main() crashes Trap {
+    let bytes: [u8; 8] in Utf8 = "before..";
+    let changed: bool = indirect(&mut bytes);
+    let local_changed: bool = local_owner();
+    let container: Container = Container { first: "kept....", second: "field..." };
+    let field_changed: bool = field_owner(&mut container);
+    let entries: [[u8; 8] in Utf8; 2] = ["kept....", "element."];
+    let array_changed: bool = array_owner(&mut entries);
+    let ascii: AsciiContainer = AsciiContainer { bytes: "plain..." };
+    let shared_valid: bool = shared_field(&ascii);
+    let containers: [Container; 2] = [
+        Container { first: "left....", second: "first..." },
+        Container { first: "right...", second: "second.." }
+    ];
+    let selected_changed: bool = selected_field(&mut containers, 1);
+    let selected_valid: bool = containers[1].second == "éééé";
+    containers[1].second = "again...";
+    let descendant_changed: bool = selected_descendant(&mut containers, 1);
+    let descendants_valid: bool = containers[0].first == "left...."
+        && containers[0].second == "first..." && containers[1].first == "right..."
+        && containers[1].second == "éééé" && containers[1].second.len == 8;
+    let arrival_changed: bool = owned_arrival(containers);
+    transition changed && bytes == "éééé" && bytes.len == 8
+        && local_changed && field_changed && array_changed && shared_valid
+        && container.first == "kept...." && container.second == "éééé" && container.second.len == 8
+        && entries[0] == "kept...." && entries[1] == "éééé" && entries[1].len == 8
+        && selected_changed && selected_valid && descendant_changed && arrival_changed
+        && descendants_valid {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

@@ -96,21 +96,17 @@ pub(super) fn validate_borrowed_argument(
                 })
                 .map(|parameter| parameter.semantic.structural_type)
         });
+    // Every owned aggregate home lends its original storage. Storage geometry
+    // already distinguishes aggregates from scalar and borrowed descriptors;
+    // a bounded byte owner needs no second whole-place, readable-only route.
+    // Access and source custody stay independent of that physical distinction.
     let aggregate = aggregate_root
         .filter(|root| {
-            signature.structural_types.iter().any(|declaration| {
-                declaration.id == *root
-                    && matches!(
-                        declaration.shape,
-                        terminal_psi::StructuralTypeShape::Record { .. }
-                            | terminal_psi::StructuralTypeShape::Sum { .. }
-                            | terminal_psi::StructuralTypeShape::Mixed { .. }
-                            // A whole-place borrow of a produced fixed array
-                            // rejoins the same aggregate home an aggregate
-                            // borrow does.
-                            | terminal_psi::StructuralTypeShape::FixedArray { .. }
-                    )
-            })
+            crate::structural_inputs::structural_reference_input::owned_storage_shape(
+                *root,
+                &signature.structural_types,
+            )
+            .is_some()
         })
         .and_then(|root| {
             let (selected, offset, elements) =
@@ -134,32 +130,6 @@ pub(super) fn validate_borrowed_argument(
                 ))
             .then_some(shape)
         });
-    // A whole owned bounded byte home lends its `{length, bytes}` storage to
-    // a borrowed bounded-owner formal; the callee uses the owner layout in
-    // place, so the pointer names the home itself at offset zero.
-    let owner_home = aggregate_home
-        .filter(|(_, result)| {
-            semantic.path.is_empty()
-                && matches!(
-                    semantic.access,
-                    terminal_psi::reading_borrow_pair_pattern!()
-                )
-                && target.root_structural_type == result.structural_type
-                && target.structural_type == result.structural_type
-                && target.source_byte_offset == 0
-                && indices.is_empty()
-                && signature.structural_types.iter().any(|declaration| {
-                    declaration.id == result.structural_type
-                        && declaration.shape.is_bounded_owned_byte_sequence()
-                })
-        })
-        .and_then(|(_, result)| {
-            crate::structural_inputs::structural_reference_input::shape(
-                result.structural_type,
-                &signature.structural_types,
-            )
-        })
-        .map(|shape| ValueShape::borrowed_reference(shape.byte_size, shape.alignment));
     // A fixed array presents its backing from an incoming parameter or
     // from a local home lent through this argument's own borrow — Terminal's
     // array-result loan. The home keeps its owned access; `aggregate_home`
@@ -349,8 +319,6 @@ pub(super) fn validate_borrowed_argument(
         shape
     } else if block_forward && aggregate_block_home.is_none() {
         destination_shape
-    } else if let Some(shape) = owner_home {
-        shape
     } else if let Some((offset, _)) = byte_view {
         if offset != target.source_byte_offset {
             return None;
@@ -409,7 +377,6 @@ pub(super) fn validate_borrowed_argument(
     let no_indirect_home = !exclusive
         && address_join.is_none()
         && aggregate.is_none()
-        && owner_home.is_none()
         && byte_view.is_none()
         && byte_field.is_none()
         && byte_owner.is_none()
@@ -462,7 +429,7 @@ pub(super) fn validate_borrowed_argument(
                     semantic.place,
                 )
                 .is_some_and(|(actual, _)| actual == producer);
-            if (aggregate.is_none() && !home_view && owner_home.is_none() && !descriptor_home)
+            if (aggregate.is_none() && !home_view && !descriptor_home)
                 || *psi_operation != producer
                 || producer == operation
             {

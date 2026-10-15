@@ -130,10 +130,10 @@ pub fn attach_accepted_obligation_facts(
     if facts.iter().any(|fact| !fact.has_canonical_identity()) {
         return Err(AcceptedObligationFactIndexError::InvalidFactIdentity);
     }
-    facts.sort_by_key(|fact| (fact.machine, fact.operation, fact.obligation));
+    facts.sort_by_key(|fact| (fact.machine, fact.owner, fact.obligation));
     if facts.windows(2).any(|pair| {
-        (pair[0].machine, pair[0].operation, pair[0].obligation)
-            == (pair[1].machine, pair[1].operation, pair[1].obligation)
+        (pair[0].machine, pair[0].owner, pair[0].obligation)
+            == (pair[1].machine, pair[1].owner, pair[1].obligation)
     }) {
         return Err(AcceptedObligationFactIndexError::DuplicateOwner);
     }

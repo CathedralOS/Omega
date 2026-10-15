@@ -41,16 +41,10 @@ pub(super) fn lower(
     // A shared descriptor's affine disposal does not make its backing affine
     // payload. Copy its value with independent custody, never a source-home loan.
     let shared_descriptor_copy = result.multiplicity == StructuralMultiplicity::Affine
-        && structural_types.iter().any(|declaration| {
-            declaration.id == result.structural_type
-                && matches!(
-                    declaration.shape,
-                    StructuralTypeShape::Reference {
-                        access: StructuralAccess::SharedBorrow,
-                        ..
-                    }
-                )
-        });
+        && terminal_semantics::is_shared_reference_carrier(
+            structural_types.iter(),
+            result.structural_type,
+        );
     if (result.multiplicity != StructuralMultiplicity::Unrestricted && !shared_descriptor_copy)
         || !result.qualification_establishments.is_empty()
         || !result.claims.is_empty()

@@ -210,7 +210,7 @@ pub(super) fn argument(
         indices: super::super::target::control_flow::sources::call_indices(
             native,
             caller,
-            call_operation,
+            target_operations::CallSiteOwner::Operation(call_operation),
             &elements,
         )?,
         source,

@@ -1,0 +1,3 @@
+cannot prove default-domain field requirement for return from corrupt
+rows[0][1] requires u64::Positive
+rows[1][1] requires u64::Positive

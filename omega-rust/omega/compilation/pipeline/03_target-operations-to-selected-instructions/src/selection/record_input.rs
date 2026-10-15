@@ -245,18 +245,9 @@ pub(super) fn structural_operand_shape(
             // that transfer consumes an affine child; copyable-leaf geometry
             // would incorrectly reject references beneath an array dimension.
             // A bare reference transfers its address, never its referent bytes.
-            if crate::structural_inputs::structural_reference_input::owned_storage_shape(
-                *nested,
-                declarations,
-            )
-            .is_none()
-                && !declarations.iter().any(|declaration| {
-                    declaration.id == *nested
-                        && matches!(declaration.shape, StructuralTypeShape::Reference { .. })
-                })
-            {
-                return None;
-            }
+            // A completed primitive home is storage too. Exact source identity
+            // and owned access below authorize this operand; layout supplies
+            // its bytes without an aggregate-only constructor whitelist.
             if argument.access != terminal_psi::StructuralAccess::Owned
                 || !argument.path.is_empty()
                 || argument.place == parent.place

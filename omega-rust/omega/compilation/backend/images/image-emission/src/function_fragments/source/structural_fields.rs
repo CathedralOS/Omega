@@ -1123,35 +1123,16 @@ fn write_destination(
     if !matches!(
         path.first(),
         Some(terminal_psi::StructuralPathSegment::Referent)
-    ) && let Some((access, structural_type)) = read_access(function, target, place, purpose)
+    ) && let Some((access, _)) = read_access(function, target, place, purpose)
     {
-        // Whole byte-field replacement may mutate an existing copy-record
-        // home. read_access has already rejoined its exact target producer;
-        // this adds no owned-parameter or indexed-store write authority.
-        let owned_record = purpose == AccessPurpose::ByteLength
-            && access == terminal_psi::StructuralAccess::Owned
-            && target.graph.structural_types.iter().any(|declaration| {
-                declaration.id == structural_type && declaration.is_record_shape()
-            })
-            && function.operations.iter().any(|operation| {
-                let result = match operation {
-                    abstract_operations::structural_establish_triple_pattern!(result, ..)
-                    | AbstractOperation::StructuralLeafCopy { result, .. }
-                    | AbstractOperation::CallStructural {
-                        result: AbstractStructuralCallResult::Structural { result, .. },
-                        ..
-                    } => result,
-                    _ => return false,
-                };
-                result.place == place
-                    && matches!(
-                        result.multiplicity,
-                        terminal_psi::StructuralMultiplicity::Unrestricted
-                            | terminal_psi::StructuralMultiplicity::Affine
-                    )
-                    && result.qualification_establishments.is_empty()
-            });
-        return (owned_record
+        // Whole field replacement retains the authenticated owned home,
+        // whether produced here or received at a state edge. Mandatory graph
+        // replay checks the selected field's access, geometry and predicates;
+        // publication must not impose another outer-shape or producer roster.
+        // Indexed-byte stores keep their separate borrowed-destination rule.
+        let owned_home =
+            purpose == AccessPurpose::ByteLength && access == terminal_psi::StructuralAccess::Owned;
+        return (owned_home
             || matches!(
                 access,
                 terminal_psi::StructuralAccess::MutableBorrow

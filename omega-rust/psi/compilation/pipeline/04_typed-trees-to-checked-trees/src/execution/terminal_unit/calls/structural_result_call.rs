@@ -52,7 +52,7 @@ pub(super) fn build(
     phase("call operation: structural result loan");
     let forwarded_reference_sources =
         validation::reference_result_custody::terminal_call_reference_sources(
-            program, state, call, result,
+            program, facts, state, call, result,
         )
         .unwrap_or_default();
     let reference_result = crate::execution::terminal_unit::reference_results::has_borrowed_parts(

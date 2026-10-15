@@ -15,6 +15,12 @@ pub enum PsiProvenance {
     Edge(EdgeId),
 }
 
+impl From<OperationId> for PsiProvenance {
+    fn from(operation: OperationId) -> Self {
+        Self::Operation(operation)
+    }
+}
+
 /// One source logical-fuel settlement. Native lowering must retain this even
 /// when several source nodes become one physical instruction.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]

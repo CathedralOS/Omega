@@ -117,6 +117,26 @@ pub(in crate::selection) fn scale(
     row: &LegalizedScalarInstruction,
     place: PlaceId,
     byte_offset: u32,
+    address: VirtualRegisterId,
+    indices: &[LegalizedRuntimeIndexOperand],
+) -> Result<VirtualRegisterId, SelectedInstructionError> {
+    scale_at_site(
+        builder,
+        super::provenance(row),
+        place,
+        byte_offset,
+        address,
+        indices,
+    )
+}
+
+/// Operations and edge-owned cleanup share the address calculation. Retain
+/// the real site rather than inventing an operation for an edge's invocation.
+pub(in crate::selection) fn scale_at_site(
+    builder: &mut Builder<'_>,
+    provenance: SelectedInstructionProvenance,
+    place: PlaceId,
+    byte_offset: u32,
     mut address: VirtualRegisterId,
     indices: &[LegalizedRuntimeIndexOperand],
 ) -> Result<VirtualRegisterId, SelectedInstructionError> {
@@ -150,9 +170,8 @@ pub(in crate::selection) fn scale(
                     builder.constraints.keys.copy_i64,
                     &[index_register, extended],
                     SelectedInstructionProvenance {
-                        operations: vec![row.operation],
                         values: vec![index.operand.value],
-                        ..Default::default()
+                        ..provenance.clone()
                     },
                 )?;
                 extended
@@ -162,10 +181,7 @@ pub(in crate::selection) fn scale(
         builder.emit_materialize_i64(
             IntegerValue::Unsigned(u128::from(index.stride)),
             stride,
-            SelectedInstructionProvenance {
-                operations: vec![row.operation],
-                ..Default::default()
-            },
+            provenance.clone(),
         )?;
         let scaled = transport_register(builder, place, byte_offset)?;
         builder.emit(
@@ -173,9 +189,8 @@ pub(in crate::selection) fn scale(
             builder.constraints.keys.multiply_i64,
             &[index_register, stride, scaled],
             SelectedInstructionProvenance {
-                operations: vec![row.operation],
                 values: vec![index.operand.value],
-                ..Default::default()
+                ..provenance.clone()
             },
         )?;
         let joined = transport_register(builder, place, byte_offset)?;
@@ -184,10 +199,9 @@ pub(in crate::selection) fn scale(
             scaled,
             joined,
             SelectedInstructionProvenance {
-                operations: vec![row.operation],
                 values: vec![index.operand.value],
                 obligations: vec![index.obligation],
-                ..Default::default()
+                ..provenance.clone()
             },
         )?;
         address = joined;

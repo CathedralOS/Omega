@@ -38,7 +38,6 @@ use crate::custody::bind_arguments;
 use crate::custody::resolve_single_structural_argument;
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::{LiveClaim, TerminalExecution};
-use crate::scalar_array::TerminalScalarArrayValue;
 use crate::values::{TerminalScalarValue, TerminalStructuralValue};
 
 #[derive(Default)]
@@ -46,7 +45,6 @@ pub(crate) struct BlockBindings {
     scalars: BTreeMap<ValueId, TerminalScalarValue>,
     structural: BTreeMap<PlaceId, TerminalStructuralValue>,
     aggregate_backings: BTreeMap<PlaceId, crate::reference::AggregateBacking>,
-    scalar_arrays: BTreeMap<PlaceId, TerminalScalarArrayValue>,
     byte_sequences: BTreeMap<PlaceId, ByteSequenceBinding>,
     primitive_loans: BTreeMap<PlaceId, crate::primitive_storage::PrimitiveLoan>,
     element_views: BTreeMap<PlaceId, crate::element_views::ElementView>,
@@ -54,7 +52,7 @@ pub(crate) struct BlockBindings {
     claims: BTreeMap<ClaimId, LiveClaim>,
     /// Roots whose projected children moved on this edge. Their whole-root
     /// frontier entries are split by the caller, not removed as transfers.
-    projected_sources: BTreeSet<PlaceId>,
+    pub(super) projected_sources: BTreeSet<PlaceId>,
     affine_destinations: BTreeSet<StructuralAffineDiscard>,
     aggregate_payload: crate::record::storage::ConstructorStorage,
     identity_cursor: Option<u64>,
@@ -109,19 +107,12 @@ impl BlockBindings {
             execution.scalar_array_values.remove(destination);
             execution.primitive_loan_values.remove(destination);
         }
-        for destination in self.scalar_arrays.keys() {
-            execution.aggregate_argument_backings.remove(destination);
-            execution.structural_values.remove(destination);
-            execution.element_view_values.remove(destination);
-            execution.primitive_loan_values.remove(destination);
-        }
         execution.live_claims.extend(self.claims);
         execution.values.extend(self.scalars);
         execution.structural_values.extend(self.structural);
         execution
             .aggregate_argument_backings
             .extend(self.aggregate_backings);
-        execution.scalar_array_values.extend(self.scalar_arrays);
         execution.byte_sequence_values.extend(self.byte_sequences);
         execution.primitive_loan_values.extend(self.primitive_loans);
         execution.element_view_values.extend(self.element_views);
@@ -131,19 +122,39 @@ impl BlockBindings {
         Ok(())
     }
 
-    pub(crate) fn validate_cleanup_actions(
+    pub(crate) fn prepare_cleanup_actions(
         &self,
         execution: &TerminalExecution,
         structural_arguments: &[StructuralArgument],
         actions: &[terminal_psi::TerminalAffineCleanupAction],
-    ) -> Result<(), TerminalInterpretError> {
+    ) -> Result<Vec<terminal_psi::TerminalAffineCleanupAction>, TerminalInterpretError> {
         use terminal_psi::TerminalAffineCleanupAction;
+        // Capture each receiver once. The resulting schedule survives hook
+        // suspension and is exactly the schedule preflight checks below.
+        let mut selected = actions.to_vec();
+        for (action, selected) in actions.iter().zip(&mut selected) {
+            let path = match selected {
+                TerminalAffineCleanupAction::DiscardResidual(discard) => &mut discard.path,
+                TerminalAffineCleanupAction::InvokeNominal(cleanup) => &mut cleanup.path,
+                _ => continue,
+            };
+            if path.iter().any(|segment| segment.runtime_index().is_some()) {
+                execution.select_runtime_projection(
+                    action.place(),
+                    execution.live_structural_type(action.place())?,
+                    action.path(),
+                    path,
+                )?;
+            }
+        }
         let mut discarded = BTreeSet::new();
         let mut values = execution.structural_values.clone();
         let mut frontier = execution.live_affine_frontier.clone();
         let mut claims = execution.live_claims.clone();
         for argument in structural_arguments.iter().filter(|argument| {
-            argument.access == StructuralAccess::Owned && !argument.path.is_empty()
+            argument.access == StructuralAccess::Owned
+                && !argument.path.is_empty()
+                && self.projected_sources.contains(&argument.place)
         }) {
             crate::custody::consume_projected_ownership(
                 &execution.program.structural_types(),
@@ -159,7 +170,7 @@ impl BlockBindings {
         // Preflight follows that same custody transaction without executing any
         // hook or changing backing. Checking each child against the unchanged
         // entry ledger mistakes its already-consumed parent's claim for overlap.
-        for action in actions {
+        for action in &selected {
             let place = action.place();
             let path = action.path();
             if self.owned_sources.contains(&place)
@@ -242,17 +253,12 @@ impl BlockBindings {
         }
         // A swap may replace another transferred root. Replacing a different
         // live destination requires its explicit whole-root discard first.
-        if self
-            .structural
-            .keys()
-            .chain(self.scalar_arrays.keys())
-            .any(|place| {
-                execution.live_affine_discard_at(*place).is_some()
-                    && !self.owned_sources.contains(place)
-                    && !self.projected_sources.contains(place)
-                    && !discarded.contains(place)
-            })
-        {
+        if self.structural.keys().any(|place| {
+            execution.live_affine_discard_at(*place).is_some()
+                && !self.owned_sources.contains(place)
+                && !self.projected_sources.contains(place)
+                && !discarded.contains(place)
+        }) {
             return Err(TerminalInterpretError::AffineFrontierMismatch);
         }
         // Destination names can equal names consumed elsewhere in a swap or
@@ -269,7 +275,7 @@ impl BlockBindings {
         {
             return Err(TerminalInterpretError::ClaimTransferMismatch);
         }
-        Ok(())
+        Ok(selected)
     }
 }
 
@@ -302,7 +308,7 @@ impl TerminalExecution<'_> {
             .any(|argument| self.scalar_array_values.contains_key(&argument.place));
         let mut descriptor_parameters = Vec::new();
         let mut descriptor_arguments = Vec::new();
-        let mut scalar_arrays = BTreeMap::new();
+        let mut packed_arguments = Vec::new();
         let mut primitive_loans = BTreeMap::new();
         let mut array_loans = BTreeMap::new();
         let mut byte_loans = BTreeMap::new();
@@ -403,18 +409,44 @@ impl TerminalExecution<'_> {
                 }
                 continue;
             }
-            if self.scalar_array_values.contains_key(&argument.place) {
-                // Arrays already have a complete value carrier. Capture it by
-                // the same rules as call operands before replacing any slots.
-                let value = self.prepare_scalar_array_argument(machine, parameter, argument)?;
+            if let Some(root) = self.scalar_array_values.get(&argument.place) {
+                let source_matches =
+                    self.owned_block_source(argument.place)
+                        .is_some_and(|source| {
+                            source.structural_type == root.structural_type
+                                && source.access == StructuralAccess::Owned
+                                && source.multiplicity == StructuralMultiplicity::Unrestricted
+                        })
+                        || self.owned_result_source(
+                            argument.place,
+                            root.structural_type,
+                            StructuralMultiplicity::Unrestricted,
+                        );
+                let value = crate::record::storage::ConstructorValue::resolve(self, argument)?;
                 if !self.block_parameter_is_declared(target, parameter)
+                    || !source_matches
+                    || parameter.access != StructuralAccess::Owned
+                    || parameter.multiplicity != StructuralMultiplicity::Unrestricted
+                    || parameter.structural_type != value.structural_type()
+                    || !parameter.qualifications.is_empty()
+                    || !parameter.projected_qualifications.is_empty()
+                    || machine
+                        .block_entry_claims
+                        .iter()
+                        .any(|claim| claim.input == parameter.place)
+                    || self.live_claims.values().any(|claim| {
+                        claim.place == Some(argument.place) || claim.place == Some(parameter.place)
+                    })
                     || self.live_affine_frontier.iter().any(|entry| {
                         entry.place == argument.place || entry.place == parameter.place
                     })
-                    || scalar_arrays.insert(parameter.place, value).is_some()
                 {
                     return Err(malformed());
                 }
+                // Packed arrays and selected leaves arrive in ordinary typed
+                // storage. Snapshot every operand before edge cleanup/writes;
+                // no source ownership or sibling payload is retired by a copy.
+                packed_arguments.push((parameter, argument, value));
                 continue;
             }
             let value =
@@ -428,15 +460,29 @@ impl TerminalExecution<'_> {
                     if !self.block_parameter_is_declared(target, parameter) {
                         return Err(malformed());
                     }
-                    if argument.path.is_empty() {
+                    if argument.path.is_empty()
+                        || parameter.multiplicity == StructuralMultiplicity::Unrestricted
+                    {
+                        let selected = resolve_single_structural_argument(
+                            &self.program.structural_types(),
+                            &self.structural_values,
+                            argument,
+                        )?;
+                        if selected.structural_type != parameter.structural_type {
+                            return Err(malformed());
+                        }
                         let source_matches =
                             self.owned_block_source(argument.place)
                                 .is_some_and(|source| {
-                                    source.structural_type == parameter.structural_type
+                                    source.structural_type == value.structural_type
                                         && source.multiplicity == parameter.multiplicity
                                         && source.access == StructuralAccess::Owned
                                 })
-                                || self.owned_result_matches(argument.place, parameter);
+                                || self.owned_result_source(
+                                    argument.place,
+                                    value.structural_type,
+                                    parameter.multiplicity,
+                                );
                         if !source_matches {
                             return Err(malformed());
                         }
@@ -482,6 +528,7 @@ impl TerminalExecution<'_> {
                         if parameter.multiplicity == StructuralMultiplicity::Linear && count == 0 {
                             return Err(malformed());
                         }
+                        projected_value = Some(selected);
                     } else {
                         let root = value;
                         let view = resolve_single_structural_argument(
@@ -831,16 +878,32 @@ impl TerminalExecution<'_> {
                 return Err(malformed());
             }
         }
-        let aggregate_payload = self.stage_owned_aggregate_arguments(
+        let mut aggregate_payload = self.stage_owned_value_arguments(
             descriptor_parameters,
             &mut structural,
             &mut identity_cursor,
         )?;
+        for (parameter, argument, value) in packed_arguments {
+            let identity = self
+                .local_structural_identities
+                .allocate_staged(&mut identity_cursor)?;
+            let captured =
+                TerminalStructuralValue::minted(identity, parameter.structural_type, Vec::new());
+            aggregate_payload.stage(
+                self,
+                argument,
+                &value,
+                &crate::values::StructuralRuntimePlace::from(&captured),
+                false,
+            )?;
+            if structural.insert(parameter.place, captured).is_some() {
+                return Err(malformed());
+            }
+        }
         Ok(BlockBindings {
             scalars,
             structural,
             aggregate_backings,
-            scalar_arrays,
             byte_sequences,
             primitive_loans,
             element_views,

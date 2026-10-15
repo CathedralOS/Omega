@@ -26,6 +26,51 @@ pub(super) fn equalities(
     let left_symbols = bound_symbols(program, lookup, left);
     let right_symbols = bound_symbols(program, lookup, right);
     let mut premises = Vec::new();
+    // A named or preparation-captured selector may retain a call result.
+    // Follow its produced stored operand, including copied locals, instead
+    // of treating the initializer's spelling as surviving value provenance.
+    for &symbol in left_symbols.iter().chain(&right_symbols) {
+        let Some((state, operand)) = stored_copy(program, captures, symbol) else {
+            continue;
+        };
+        let Some(values) = crate::flow::captured_operand_values(
+            program,
+            captures.flow,
+            captures.semantic,
+            state,
+            operand,
+            operand.type_reference,
+            &[],
+        ) else {
+            continue;
+        };
+        let [value] = values.as_slice() else {
+            continue;
+        };
+        let Some(NormalizedBound::CallResult {
+            expression,
+            mut segments,
+        }) = normalized_bound(program, lookup, value.projection.expression)
+        else {
+            continue;
+        };
+        segments.extend_from_slice(&value.projection.remaining);
+        if !segments.iter().all(|segment| {
+            matches!(
+                segment,
+                PlaceSegment::Field { .. } | PlaceSegment::FixedIndex { .. }
+            )
+        }) {
+            continue;
+        }
+        premises.push(StatedOrderingPremise::captured_equality(
+            NormalizedBound::Symbol { symbol, offset: 0 },
+            NormalizedBound::CallResult {
+                expression,
+                segments,
+            },
+        ));
+    }
     // Only the bounds used in this spatial comparison participate. Building
     // an all-local pair table would do quadratic work unrelated to this query.
     for left in left_symbols {

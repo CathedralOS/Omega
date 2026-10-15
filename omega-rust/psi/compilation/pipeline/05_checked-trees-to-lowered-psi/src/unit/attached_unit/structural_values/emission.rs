@@ -1466,7 +1466,7 @@ impl Emission<'_, '_, '_> {
                 source,
                 source_value,
                 storage,
-                ..
+                backing_type,
             } => self.reference_value(
                 identities,
                 super::super::reference_results::Formation {
@@ -1474,6 +1474,9 @@ impl Emission<'_, '_, '_> {
                     state: node.state,
                     statement_index: node.statement_index as usize,
                     expression: node.expression,
+                    backing_type,
+                    qualification_decisions: node.qualification_decisions,
+                    domain_ids: self.domain_ids,
                 },
                 &source,
                 source_value,
@@ -1673,6 +1676,31 @@ impl Emission<'_, '_, '_> {
                     operation,
                     self.structural_type,
                 ));
+                self.completed(identities, place, continuation)
+            }
+            CheckedStructuralValueKind::Scalar { value } => {
+                let initialized = self.scalar(
+                    identities,
+                    CheckedScalarExpressionRole::StructuralScalarValue {
+                        expression: node.expression,
+                    },
+                    value,
+                    self.values.len(),
+                )?;
+                let obligation = super::super::primitive_locals::initialization_obligation(
+                    self.structural_types,
+                    self.structural_type,
+                    &mut self.calls.next_obligation_identity,
+                )?;
+                let (place, declaration) = super::super::primitive_locals::push_established_local(
+                    self.next_place,
+                    self.operations,
+                    initialized.id,
+                    self.structural_type,
+                    self.structural_types,
+                    obligation,
+                )?;
+                self.temporary_places.push(declaration);
                 self.completed(identities, place, continuation)
             }
             CheckedStructuralValueKind::ScalarArray { elements } => {

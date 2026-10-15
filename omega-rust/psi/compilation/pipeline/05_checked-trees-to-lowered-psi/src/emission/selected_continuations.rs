@@ -71,7 +71,9 @@ pub(crate) fn prepare(
         validate_group(blocks, group)?;
     }
     let extractions = super::affine_cleanup::owned_extractions(parameters, places, blocks, types)?;
-    let projected_roots = super::affine_cleanup::partitioned_roots(blocks, &extractions);
+    let copied_roots = super::affine_cleanup::copied_operand_roots(parameters, blocks);
+    let mut projected_roots =
+        super::affine_cleanup::partitioned_roots(blocks, &extractions, &copied_roots);
     if !projected_roots.is_empty() {
         // Preserve partitioned roots through their discriminator branches.
         // Differing case payload holes meet only after restoration or the
@@ -126,10 +128,10 @@ pub(crate) fn prepare(
         }
         for operation in &block.operations {
             for argument in super::affine_cleanup::structural_operands(&operation.kind) {
-                consume_argument(&regions, &mut frontier, argument);
+                consume_argument(&regions, &mut frontier, argument, &copied_roots);
             }
             for (_, extraction) in extractions.iter().filter(|(id, _)| *id == operation.id) {
-                consume_argument(&regions, &mut frontier, extraction);
+                consume(&regions, &mut frontier, extraction.place, &extraction.path);
             }
             if let OperationKind::ReleaseReference { source, path } = &operation.kind {
                 consume(&regions, &mut frontier, *source, path);
@@ -181,7 +183,7 @@ pub(crate) fn prepare(
         for ((edge, original_target), arguments) in edges.into_iter().zip(arguments) {
             let mut outgoing = frontier.clone();
             for argument in arguments {
-                consume_argument(&regions, &mut outgoing, argument);
+                consume_argument(&regions, &mut outgoing, argument, &copied_roots);
             }
             let mut target = original_target;
             if let Some(group) = groups.iter().find(|group| group.edge == edge) {
@@ -248,8 +250,9 @@ fn consume_argument(
     regions: &[StructuralArgument],
     frontier: &mut [RegionState],
     argument: &StructuralArgument,
+    copied_roots: &std::collections::BTreeSet<PlaceId>,
 ) {
-    if argument.access == StructuralAccess::Owned {
+    if super::affine_cleanup::transfers_custody(argument, copied_roots) {
         consume(regions, frontier, argument.place, &argument.path);
     }
 }

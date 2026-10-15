@@ -1,7 +1,7 @@
 //! Whole-owner loans preserve capacity, live-length metadata and predicates.
 use terminal_psi::{
     ByteSequenceCarrier, StructuralAccess, StructuralArgument, StructuralMultiplicity,
-    StructuralParameterDeclaration, StructuralPathSegment, StructuralTypeShape, TerminalModule,
+    StructuralParameterDeclaration, StructuralTypeShape, TerminalModule,
 };
 
 /// Rejoin an ordinary call loan to the original whole bounded owner. An
@@ -46,20 +46,14 @@ pub fn bounded_byte_owner_capacity_in<'type_declaration, 'domain>(
             actual.multiplicity,
             terminal_psi::nonlinear_multiplicity_pair_pattern!()
         )
-        || !matches!(
-            (actual.access, argument.access),
-            (
-                StructuralAccess::MutableBorrow,
-                StructuralAccess::MutableBorrow
-                    | StructuralAccess::WriteOnlyBorrow
-                    | StructuralAccess::SharedBorrow
-            ) | (
-                StructuralAccess::WriteOnlyBorrow,
-                StructuralAccess::WriteOnlyBorrow
-            ) | (
-                StructuralAccess::SharedBorrow,
-                StructuralAccess::SharedBorrow
-            )
+        || argument.access == StructuralAccess::Owned
+        || !crate::reference_source_projection_accessible(
+            types.clone(),
+            actual.structural_type,
+            actual.multiplicity,
+            actual.access,
+            &argument.path,
+            argument.access,
         )
     {
         return None;
@@ -85,17 +79,7 @@ pub fn bounded_byte_owner_capacity_in<'type_declaration, 'domain>(
             crate::byte_parameter_predicates_in(domains.clone(), actual)?,
         )
     } else {
-        if !actual.qualifications.is_empty()
-            || !actual.projected_qualifications.is_empty()
-            || !argument.path.iter().all(|segment| {
-                matches!(
-                    segment,
-                    StructuralPathSegment::Field(_)
-                        | StructuralPathSegment::FixedIndex(_)
-                        | StructuralPathSegment::Case(_)
-                )
-            })
-        {
+        if !actual.qualifications.is_empty() || !actual.projected_qualifications.is_empty() {
             return None;
         }
         let field = crate::runtime_structural_field(types, actual.structural_type, &argument.path)?;

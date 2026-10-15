@@ -36,7 +36,9 @@
 
 // Call obligations: contract requirements and guarantees, and borrows.
 mod borrows;
-pub(crate) use borrows::{StorageSelectorFacts, storage_path_compatibility};
+pub(crate) use borrows::{
+    StorageSelectorFacts, captured_storage_paths_are_disjoint, storage_path_compatibility,
+};
 pub(crate) mod atomic_fences;
 mod case_access;
 pub(crate) mod collection_extents;

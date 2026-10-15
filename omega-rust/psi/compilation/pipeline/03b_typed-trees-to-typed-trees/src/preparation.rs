@@ -277,6 +277,7 @@ pub fn prepare_typed_trees(
     // Complete their field views just as for source types, without revisiting
     // the unchanged source roster or electing a private realization's fields.
     data_applications::elaborate_new_types(&mut program, signature_type_start)?;
+    crate::assignment_destinations::prepare(&mut program);
     Ok((
         program.into(),
         TypedPreparation {
@@ -368,6 +369,7 @@ pub fn prepare_constant_execution(
     specialize_static_machine_calls(&mut program)?;
     settle_value_destinations(&mut program)?;
     crate::constructed_results::retain_constructed_result_types(&mut program);
+    crate::assignment_destinations::prepare(&mut program);
     Ok(program)
 }
 

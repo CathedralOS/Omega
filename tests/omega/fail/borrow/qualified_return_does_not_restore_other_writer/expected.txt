@@ -1,0 +1,4 @@
+cannot prove default-domain field requirement for return from corrupt
+entries[1] requires [u8; N]::Utf8
+cannot prove default-domain field requirement for return from corrupt_through_stored_reference
+entries[1] requires [u8; N]::Ascii

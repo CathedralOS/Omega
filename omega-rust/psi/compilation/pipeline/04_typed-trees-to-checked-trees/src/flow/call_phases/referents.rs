@@ -1,4 +1,4 @@
-//! Declared field facts handed back by a call's exclusive borrowed referents.
+//! Declared and authored facts handed back through captured call referents.
 //!
 //! A callee's normal return is a default-domain consumption point for every
 //! mutable or write-only referent it received, `self` included
@@ -6,21 +6,21 @@
 //! referent is known to satisfy the field facts the callee assumed on entry.
 //! Call invalidation retires the actual's facts along the callee's write
 //! frame; this phase re-seeds exactly those paths on the actual's storage
-//! place. It seeds no other place: an argument whose storage origin is not
-//! one exact place, and the untouched remainder of a conservative frame, keep
-//! whatever coverage survived invalidation.
+//! place. Pre-live concrete memberships also survive conservative overlap
+//! when every affecting writer returns the same qualified occurrence. Writer
+//! identity comes from its callee-relative formal, never selector spelling:
+//! a guarantee about one captured index cannot excuse another argument's write.
 
 use crate::flow::CallFlowContexts;
 use crate::flow::FlowBuildContext;
 use crate::flow::reference_spans;
 use arena::HandleSpan;
 use checked_trees::expression::ExpressionHandle;
-use checked_trees::{BorrowCallFact, FlowSemanticContextRef};
+use checked_trees::{BorrowCallFact, DomainFacts, FlowSemanticContextRef};
 use facts::{
     Fact, FactOrigin, FactPayload, FactPlace, FactPlan, PlaceSegment, ProgramPoint,
     QualificationEvidence,
 };
-use symbols::SymbolHandle;
 
 /// Re-seed the declared field facts of every exclusive borrowed referent the
 /// call hands back, on the referent's exact storage place.
@@ -33,17 +33,10 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
     borrow_call: &BorrowCallFact,
     pre_contexts: HandleSpan<FlowSemanticContextRef>,
     exit: &mut CallFlowContexts,
+    argument_sources: Option<&super::ArgumentSources<'_, '_>>,
+    domains: &DomainFacts,
+    writes: Option<&[crate::flow::mutation::CallMutationWrite]>,
 ) {
-    let Some(site) = super::super::calls::memoized_find_call_site(
-        program,
-        build,
-        machine.symbol,
-        state.symbol,
-        borrow_call.statement_index,
-        borrow_call.call_ordinal,
-    ) else {
-        return;
-    };
     let Some(parameters) = super::super::calls::memoized_call_target_parameters(
         program,
         build,
@@ -51,35 +44,45 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
     ) else {
         return;
     };
-    let arguments = validation::call_site_argument_expressions(program, &site);
     let mut rows = Vec::new();
-    let mut argument_index = 0usize;
-    for parameter in parameters {
-        let argument = {
-            let argument = arguments.get(argument_index).copied();
-            argument_index += 1;
-            argument
-        };
+    let mut preserved = Vec::new();
+    let mut guarantees = Vec::new();
+    let parameter_claims = build
+        .call_parameter_identities
+        .get(&borrow_call.target_symbol)
+        .cloned();
+    for (argument_position, parameter) in parameters.iter().enumerate() {
         let referent =
             crate::checks::contracts::exclusive_referent_type(program, parameter.type_reference);
-        if !referent.is_valid() {
-            continue;
-        }
         // Every exclusive borrowed formal, including a receiver, restores its
         // declared fields. Receiver syntax does not change return obligations.
-        let Some(paths) = build
+        let paths = build
             .referent_type_paths
             .entry(parameter.type_reference)
             .or_insert_with(|| {
+                if !referent.is_valid() {
+                    return None;
+                }
                 let paths = validation::field_domains::declared_result_field_domain_paths(
                     program, referent,
                 );
-                let paths = paths
+                let mut paths = paths
                     .into_iter()
                     .filter(|(_, domain_symbol, _)| {
                         crate::checks::contracts::value_provable_domain(program, *domain_symbol)
                     })
                     .collect::<Vec<_>>();
+                // Root and field handback share the same normal-return
+                // obligation. The declaration is a callee obligation, not
+                // permission to repair an unrelated caller occurrence.
+                paths.extend(
+                    validation::field_domains::domain_constraint_identities(
+                        program,
+                        parameter.type_reference,
+                    )
+                    .into_iter()
+                    .map(|(domain, identity)| (Vec::new(), domain, identity)),
+                );
                 if paths.is_empty() {
                     None
                 } else {
@@ -87,74 +90,44 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
                 }
             })
             .clone()
+            .unwrap_or_default();
+        let mut paths = paths.as_ref().clone();
+        if argument_sources
+            .is_some_and(|sources| sources.observation_survives(argument_position, &[]))
+        {
+            for (position, domain, identity, declared) in
+                parameter_claims.iter().flat_map(|claims| claims.iter())
+            {
+                if *position == argument_position
+                    && !declared
+                    && validation::field_domains::domain_requires_provenance(program, *domain)
+                {
+                    let row = (Vec::new(), *domain, *identity);
+                    if !paths.contains(&row) {
+                        paths.push(row);
+                    }
+                }
+            }
+        }
+        let Some(targets) =
+            argument_sources.and_then(|sources| sources.referent_places(argument_position))
         else {
             continue;
         };
-        let actual = {
-            argument.and_then(|argument| {
-                build.canonical_place_at(
-                    program,
-                    state.symbol,
-                    borrow_call.statement_index,
-                    argument,
-                )
-            })
-        };
-        let Some(actual) = actual else {
-            continue;
-        };
-        // Facts live on storage places: an argument spelled through a local
-        // reference re-seeds its exact origin. A reference bound from a
-        // checked reference result names one of finitely many candidates;
+        // Facts live on the evaluated reference's captured backing. A
+        // reference result may name one of finitely many candidates;
         // the callee guarantees the rows only on the candidate it received,
-        // and the others were merely retired conservatively, so a candidate
-        // gets a row back exactly when that row was live before the call.
-        // Any other ambiguity seeds nothing.
-        let exact = crate::flow::rebase_exact_local_place(
-            program,
-            state.symbol,
-            borrow_call.statement_index,
-            actual.clone(),
-            build.call_frames,
-        );
-        let targets: Vec<(validation::CanonicalPlace, bool)> = match exact {
-            Some(storage) => vec![(storage, false)],
-            None => {
-                let Some(root) = actual.root.as_symbol() else {
-                    continue;
-                };
-                let Some(candidates) = build.reference_candidate_places_at(
-                    program,
-                    state.symbol,
-                    borrow_call.statement_index,
-                    root,
-                ) else {
-                    continue;
-                };
-                candidates
-                    .iter()
-                    .cloned()
-                    .map(|mut candidate| {
-                        candidate.segments.extend_from_slice(&actual.segments);
-                        (candidate, true)
-                    })
-                    .collect()
-            }
-        };
-        for (storage, requires_prior_row) in targets {
+        // and the others were merely retired conservatively. Alternative
+        // origins go through the shared all-writers preservation judgment.
+        for storage in targets {
             for (path, domain_symbol, semantic_domain) in paths.iter() {
-                if requires_prior_row
-                    && !row_was_live(
-                        program,
-                        semantic,
-                        build,
-                        pre_contexts,
-                        &storage,
-                        path,
-                        *domain_symbol,
-                        *semantic_domain,
-                    )
+                if let Some(place) = crate::flow::project_captured_view_place(storage.clone(), path)
                 {
+                    guarantees.push((parameter.symbol, place, *domain_symbol, *semantic_domain));
+                }
+                if targets.len() > 1 {
+                    // Alternative origins need the all-writers preservation
+                    // judgment below, not independent unconditional facts.
                     continue;
                 }
                 rows.push((
@@ -166,7 +139,98 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
             }
         }
     }
-    if rows.is_empty() {
+    // Invalidation deliberately forgets which concrete element a runtime
+    // selector denotes. Preserve only an already-live row, and only if every
+    // overlapping contribution is restored by its own captured formal. Domain
+    // dependency overlap uses the very same judgment as invalidation.
+    if let Some(writes) = writes
+        && !guarantees.is_empty()
+    {
+        for reference in build
+            .contexts
+            .semantic_context_refs
+            .span_or_empty(pre_contexts)
+        {
+            for fact_reference in semantic
+                .refs
+                .span_or_empty(semantic.contexts.get(reference.context).facts)
+            {
+                let fact = semantic.facts.get(fact_reference.fact);
+                let (
+                    FactPlace::Place(handle),
+                    FactPayload::DomainMembership {
+                        domain_symbol,
+                        semantic_domain,
+                        ..
+                    }
+                    | FactPayload::ContractDomainMembership {
+                        domain_symbol,
+                        semantic_domain,
+                        ..
+                    },
+                ) = (fact.place, fact.payload)
+                else {
+                    continue;
+                };
+                if !semantic_domain.is_valid() {
+                    continue;
+                }
+                let Some(place) = crate::flow::canonical_place_from_semantic_place(
+                    program,
+                    semantic,
+                    semantic.places.get(handle),
+                ) else {
+                    continue;
+                };
+                if !place
+                    .segments
+                    .iter()
+                    .all(crate::flow::place_segment_has_static_identity)
+                {
+                    continue;
+                }
+                let mut affected = false;
+                let restored = writes.iter().all(|write| {
+                    if crate::flow::domain::matching_mutation_for_fact_place(
+                        program,
+                        semantic,
+                        domains,
+                        fact,
+                        handle,
+                        std::slice::from_ref(&write.place),
+                    )
+                    .is_none()
+                    {
+                        return true;
+                    }
+                    affected = true;
+                    let Some(source) = &write.source else {
+                        return false;
+                    };
+                    guarantees
+                        .iter()
+                        .any(|(parameter, guarantee, domain, identity)| {
+                            source.root.as_symbol() == Some(*parameter)
+                                && write_stays_in_captured_storage(program, parameters, source)
+                                && *domain == domain_symbol
+                                && *identity == semantic_domain
+                                && same_occurrence_when_selected(program, &place, guarantee)
+                        })
+                });
+                if affected && restored {
+                    // This is a frame judgment about a pre-existing fact,
+                    // not a new claim issued on this exact path by the call.
+                    // Keep its original issuer and proof point for the
+                    // qualification join; only its liveness changes here.
+                    let row = (place, fact_reference.fact);
+                    if !preserved.contains(&row) {
+                        preserved.push(row);
+                    }
+                }
+            }
+        }
+    }
+    if rows.is_empty() && preserved.is_empty() {
         return;
     }
     let point = ProgramPoint::CallEnsures {
@@ -177,14 +241,27 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
     };
     let evidence = QualificationEvidence::from_origin(
         language_semantics::QualificationEvidenceOrigin::Propagated,
-        state.symbol,
+        borrow_call.target_symbol,
     );
     // One context per exact place, so a later write to one field retires
     // only that field's row (flow/transfers keeps the same granularity).
     let mut contexts: Vec<(validation::CanonicalPlace, HandleSpan<facts::FactRef>)> = Vec::new();
+    for (place, fact) in preserved {
+        if let Some((_, refs)) = contexts
+            .iter_mut()
+            .find(|(candidate, _)| *candidate == place)
+        {
+            semantic.append_ref(refs, fact);
+        } else {
+            let mut refs = HandleSpan::empty();
+            semantic.append_ref(&mut refs, fact);
+            contexts.push((place, refs));
+        }
+    }
     for (storage, path, domain_symbol, semantic_domain) in rows {
-        let mut place = storage.clone();
-        place.extend_segments(&path);
+        let Some(place) = crate::flow::project_captured_view_place(storage, &path) else {
+            continue;
+        };
         let place_handle =
             crate::semantic::places::append_place(semantic, place.root, &place.segments);
         let fact = semantic.append_fact(Fact {
@@ -215,47 +292,63 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
     }
 }
 
-/// Whether this exact `storage + path in domain instance` was live before
-/// the call. A different application of one indexed family cannot restore a
-/// conservatively invalidated candidate that the callee might not have received.
-fn row_was_live(
+/// A callee-relative inline write stays within this captured occurrence.
+/// A stored reference crosses to another home, so its formal root alone is
+/// insufficient provenance for restoring the containing owner's promises.
+fn write_stays_in_captured_storage(
     program: &dyn ::validation::CheckingInput,
-    semantic: &mut FactPlan,
-    build: &FlowBuildContext,
-    pre_contexts: HandleSpan<FlowSemanticContextRef>,
-    storage: &validation::CanonicalPlace,
-    path: &[PlaceSegment],
-    domain_symbol: SymbolHandle,
-    semantic_domain: language_semantics::SemanticDomainId,
+    parameters: &[typed_trees::signature::StateParameter],
+    source: &validation::CanonicalPlace,
 ) -> bool {
-    if !semantic_domain.is_valid() {
-        return false;
-    }
-    let mut place = storage.clone();
-    place.extend_segments(path);
-    let place = crate::semantic::places::append_place(semantic, place.root, &place.segments);
-    build
-        .contexts
-        .semantic_context_refs
-        .span_or_empty(pre_contexts)
+    let Some(parameter) = parameters
         .iter()
-        .any(|reference| {
-            semantic
-                .context_view(semantic.contexts.get(reference.context))
-                .facts()
-                .any(|fact| {
-                    matches!(fact.payload,
-                        FactPayload::DomainMembership {
-                            domain_symbol: candidate_domain,
-                            semantic_domain: candidate_instance,
-                            ..
-                        } | FactPayload::ContractDomainMembership {
-                            domain_symbol: candidate_domain,
-                            semantic_domain: candidate_instance,
-                            ..
-                        } if candidate_domain == domain_symbol && candidate_instance == semantic_domain)
-                        && matches!(fact.place, FactPlace::Place(candidate_place)
-                            if semantic.places_match(program, candidate_place, place))
-                })
-        })
+        .find(|parameter| source.root.as_symbol() == Some(parameter.symbol))
+    else {
+        return false;
+    };
+    let Some(shell) = validation::reference_shell(program, parameter.type_reference) else {
+        return false;
+    };
+    let mut reference = shell.referee;
+    for segment in &source.segments {
+        if validation::reference_shell(program, reference).is_some() {
+            return false;
+        }
+        let Some(projected) = validation::project_type_reference_from_segments(
+            program,
+            reference,
+            std::slice::from_ref(segment),
+        ) else {
+            return false;
+        };
+        reference = projected;
+    }
+    // A write summary ending at a stored pointer can denote its referent,
+    // not only replacement of the descriptor slot. Without that distinction
+    // in the summary, it cannot establish confinement to the inline owner.
+    validation::reference_shell(program, reference).is_none()
+}
+
+/// Conditional identity of a concrete row and a captured selected occurrence.
+/// An unknown single-element coordinate may select that concrete index; it
+/// does not equate two separately evaluated selectors or a whole range.
+fn same_occurrence_when_selected(
+    program: &dyn ::validation::CheckingInput,
+    concrete: &validation::CanonicalPlace,
+    selected: &validation::CanonicalPlace,
+) -> bool {
+    concrete.root == selected.root
+        && concrete.segments.len() == selected.segments.len()
+        && concrete
+            .segments
+            .iter()
+            .zip(&selected.segments)
+            .all(|(left, right)| match (*left, *right) {
+                (PlaceSegment::FixedIndex { .. }, PlaceSegment::Index { expression }) => {
+                    expression.is_valid()
+                        && program.expression_table.range_node(expression).is_none()
+                }
+                _ => crate::flow::static_place_segment_pair_equal(*left, *right)
+                    .unwrap_or(*left == *right),
+            })
 }

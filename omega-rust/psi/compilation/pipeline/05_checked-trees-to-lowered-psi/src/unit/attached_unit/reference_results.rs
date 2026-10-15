@@ -18,6 +18,10 @@ pub(crate) struct Formation<'checked> {
     pub(crate) state: symbols::SymbolHandle,
     pub(crate) statement_index: usize,
     pub(crate) expression: checked_trees::expression::ExpressionHandle,
+    /// The supplying endpoint, never the receiving reference annotation.
+    pub(crate) backing_type: typed_trees::types::TypeReferenceHandle,
+    pub(crate) qualification_decisions: arena::HandleSpan<checked_trees::CheckedValueQualification>,
+    pub(crate) domain_ids: &'checked [crate::terminal_identities::StructuralDomainBinding],
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -76,13 +80,14 @@ pub(crate) fn publish_storage(
     ))
 }
 
-pub(super) fn emit(
+pub(super) fn emit<'parameter>(
     formation: Formation<'_>,
     result: &CheckedUnitStructuralResultBindingPlan,
     source: StructuralArgument,
     storage: PublishedReferenceStorage,
     types: &[(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)],
     declarations: &[terminal_psi::StructuralTypeDeclaration],
+    parameters: impl Iterator<Item = &'parameter terminal_psi::StructuralParameterDeclaration>,
     next_place: &mut u64,
     operations: &mut OperationBuffer,
 ) -> Result<StructuralPlaceDeclaration, LoweringError> {
@@ -93,17 +98,19 @@ pub(super) fn emit(
         source,
         storage,
         declarations,
+        parameters,
         place_id(allocate_dense(next_place)?),
         operations,
     )
 }
 
-pub(crate) fn emit_carrier(
+pub(crate) fn emit_carrier<'parameter>(
     formation: Formation<'_>,
     structural_type: StructuralTypeId,
     source: StructuralArgument,
     storage: PublishedReferenceStorage,
     declarations: &[terminal_psi::StructuralTypeDeclaration],
+    parameters: impl Iterator<Item = &'parameter terminal_psi::StructuralParameterDeclaration>,
     place: semantic_vocabulary::PlaceId,
     operations: &mut OperationBuffer,
 ) -> Result<StructuralPlaceDeclaration, LoweringError> {
@@ -216,11 +223,99 @@ pub(crate) fn emit_carrier(
                 });
         }
     }
+    let mut result = structural_result_declaration(place, structural_type, multiplicity);
+    if matches!(
+        declaration.shape,
+        terminal_psi::StructuralTypeShape::Reference { .. }
+    ) {
+        // A descriptor carries the actual source's memberships below its
+        // borrowed boundary, never qualifications on the descriptor itself.
+        // Constructor transport then prefixes these same rows with its field
+        // or element path. A destination annotation cannot supply missing rows.
+        let terminal_psi::OperationResult::Structural(result) = &mut result else {
+            return Err(LoweringError::Unsupported(
+                "reference result is not structural",
+            ));
+        };
+        if let Some((root, whole, projected)) =
+            super::structural_values::member_memberships::source_memberships(
+                source.place,
+                parameters,
+                operations,
+            )
+        {
+            let path = terminal_semantics::reference_source_storage_path(
+                declarations.iter(),
+                root,
+                &source.path,
+            );
+            let (whole, projected) =
+                terminal_psi::StructuralPathQualification::select(whole, projected, path);
+            terminal_psi::StructuralPathQualification::append_under(
+                &whole,
+                &projected,
+                &[terminal_psi::StructuralPathSegment::Referent],
+                &mut result.projected_qualifications,
+            );
+            if let Some(field) =
+                terminal_semantics::runtime_structural_field(declarations.iter(), root, path)
+                && field.field_type.byte_sequence_carrier().is_some()
+            {
+                if !formation.backing_type.is_valid() {
+                    return Err(LoweringError::Unsupported(
+                        "inline field loan lost its supplying type",
+                    ));
+                }
+                let terminal_psi::StructuralTypeShape::Reference { referent, access } =
+                    declaration.shape
+                else {
+                    return Err(LoweringError::Unsupported(
+                        "field loan lost its reference carrier",
+                    ));
+                };
+                let mut domains = if access == terminal_psi::StructuralAccess::SharedBorrow {
+                    Vec::new()
+                } else {
+                    validation::field_domains::domain_constraint_identities(
+                        &formation.checked.typed,
+                        formation.backing_type,
+                    )
+                    .into_iter()
+                    .map(|(_, domain)| domain)
+                    .collect::<Vec<_>>()
+                };
+                let decisions = formation
+                    .checked
+                    .facts
+                    .qualifications
+                    .value_formations
+                    .span(formation.qualification_decisions)
+                    .ok_or(LoweringError::Unsupported(
+                        "field loan membership decisions are stale",
+                    ))?;
+                domains.extend(decisions.iter().map(|decision| decision.semantic_domain));
+                for domain in domains {
+                    result.projected_qualifications.push(
+                        terminal_psi::StructuralPathQualification {
+                            path: vec![terminal_psi::StructuralPathSegment::Referent],
+                            domain: crate::terminal_identities::lookup_domain_id_for_carrier(
+                                formation.domain_ids,
+                                domain,
+                                referent,
+                            )?,
+                        },
+                    );
+                }
+            }
+        }
+        result.projected_qualifications.sort();
+        result.projected_qualifications.dedup();
+    }
     operations.push(Operation {
         static_reach_binding: None,
         suspension_crossing: None,
         id,
-        result: structural_result_declaration(place, structural_type, multiplicity),
+        result,
         kind,
     });
     Ok(StructuralPlaceDeclaration {

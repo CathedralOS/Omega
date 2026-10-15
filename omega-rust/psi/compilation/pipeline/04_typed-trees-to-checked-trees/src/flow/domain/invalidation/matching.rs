@@ -6,7 +6,7 @@ use crate::flow::canonical_place_segments_may_overlap;
 use checked_trees::{DomainDependencyFact, DomainFacts};
 use facts::{Fact, FactPlan};
 
-pub(super) fn matching_mutation_for_fact_place<'a, 'b>(
+pub(in crate::flow) fn matching_mutation_for_fact_place<'a, 'b>(
     program: &dyn ::validation::CheckingInput,
     semantic: &FactPlan,
     domain_dependencies: &'a DomainFacts,

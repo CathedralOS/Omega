@@ -10,6 +10,7 @@ pub(super) fn proves(
     call: &FlowCallFact,
     entry_contexts: &[FactContextHandle],
     required: &Fact,
+    captured_referents: Option<&[validation::CanonicalPlace]>,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> bool {
     let Some((_, _, domain_symbol, _)) = required.payload.domain_membership() else {
@@ -41,30 +42,47 @@ pub(super) fn proves(
     // A reference-result local with no single origin names one of finitely
     // many candidates; the required row must then hold on every candidate,
     // since the callee receives whichever storage the loan names.
-    let sources = match crate::flow::local_reference_storage_at_call(
-        program,
-        frames,
-        machine,
-        &facts.flow,
-        state,
-        call,
-        place.clone(),
-    ) {
-        Some(source) => vec![source],
-        None => crate::flow::local_reference_candidate_storages_at_call(
+    let sources = if let Some(referents) = captured_referents {
+        referents.to_vec()
+    } else {
+        match crate::flow::local_reference_storage_at_call(
             program,
             frames,
-            &facts.borrow,
             machine,
             &facts.flow,
             state,
             call,
             place.clone(),
-        )
-        .unwrap_or_default(),
+        ) {
+            Some(source) => vec![source],
+            None => crate::flow::local_reference_candidate_storages_at_call(
+                program,
+                frames,
+                &facts.borrow,
+                machine,
+                &facts.flow,
+                state,
+                call,
+                place.clone(),
+            )
+            .unwrap_or_default(),
+        }
     };
     if !sources.is_empty()
         && sources.iter().all(|source| {
+            if captured_referents.is_some()
+                && !crate::flow::place_cases_are_selected(
+                    program,
+                    &facts.semantic,
+                    entry_contexts,
+                    state.machine_symbol,
+                    state.state_symbol,
+                    call.statement_index,
+                    source,
+                )
+            {
+                return false;
+            }
             contexts_prove_domain(
                 program,
                 facts,
@@ -72,7 +90,7 @@ pub(super) fn proves(
                 source,
                 domain_symbol,
                 |candidate| {
-                    crate::flow::local_reference_storage_at_call(
+                    let candidate = crate::flow::local_reference_storage_at_call(
                         program,
                         frames,
                         machine,
@@ -80,7 +98,27 @@ pub(super) fn proves(
                         state,
                         call,
                         candidate,
-                    )
+                    )?;
+                    // A frozen unresolved selector is not its expression's
+                    // current value. Only whole-extent evidence covers it;
+                    // equal selector syntax cannot authenticate that capture.
+                    if captured_referents.is_some()
+                        && candidate.segments.iter().zip(&source.segments).any(
+                            |(candidate, source)| {
+                                matches!(source, facts::PlaceSegment::Index { .. })
+                                    && !matches!(
+                                        candidate,
+                                        facts::PlaceSegment::FixedRange {
+                                            start: 0,
+                                            end: usize::MAX
+                                        }
+                                    )
+                            },
+                        )
+                    {
+                        return None;
+                    }
+                    Some(candidate)
                 },
             )
         })
@@ -90,7 +128,7 @@ pub(super) fn proves(
     // An owned copy freezes its source value. Replay the existing exact value
     // custody walk before consulting the qualification at that state's entry;
     // a current fact for an overwritten source slot is not capture evidence.
-    if !field_place(&place) {
+    if captured_referents.is_some() || !field_place(&place) {
         return false;
     }
     let Some(source) = crate::flow::value_origin_at_call(

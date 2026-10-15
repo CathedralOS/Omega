@@ -407,17 +407,20 @@ fn is_discardable_write_only_sum(
     })
 }
 
-/// Fixed-array aggregate elements stay a closed runtime shape: the existing
-/// primitive scalars plus eligible statically discardable records or sums whose direct
-/// runtime occurrences are all material. A recursively literal fixed array of
-/// the same eligible elements is also one atomic element of its enclosing
-/// array. Generic/qualified shells do not enter through this judgment, and
-/// aggregate elements remain atomic.
+/// Array elements use the same qualified-leaf contract as whole referees and
+/// record fields. Their declared atoms remain on the selected element type;
+/// projection cannot erase them, and replacement still proves the incoming
+/// value satisfies them. Qualification changes no address or disposal work.
+/// Nested literal arrays compose recursively; record and sum elements retain
+/// their material-storage and static-disposal requirements. This does not
+/// admit projection inside a domain-qualified aggregate as if its whole-value
+/// predicate were an independent predicate on every child.
 fn is_discardable_write_only_array_element(
     program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> bool {
     is_unrestricted_scalar(program, type_reference)
+        || is_qualified_write_only_leaf(program, type_reference)
         || fixed_discardable_write_only_array_shape(program, type_reference).is_some()
         || write_only_record(program, type_reference).is_some_and(|definition| {
             is_discardable_write_only_data(program, definition)
@@ -510,8 +513,8 @@ fn write_only_assignment_leaf(
 /// Named constraints, compiler-owned domain subjects (carry, value, layout),
 /// classified or routed domains, element and range stores into a
 /// domain-qualified carrier (a partial write cannot re-establish whole-value
-/// membership), and `&write` subloans of a domain-qualified leaf (the
-/// attenuated referee cannot carry the atom) stay outside the envelope.
+/// membership) stay outside the envelope. A subloan of the complete qualified
+/// leaf retains its exact referee atoms through call or local formation.
 fn is_plain_domain_qualified_leaf(
     program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
@@ -886,13 +889,12 @@ fn validate_statement<'p>(
                 machine_definition,
                 state_definition,
                 assignment.target,
-                assignment.value,
                 roots,
                 bound_lookup,
                 diagnostics,
             ) {
-                // The range-specific gate owns non-observation and RHS shape.
-                // Ordinary range validation independently owns order/bounds.
+                // This gate owns non-observation and discardable storage.
+                // Ordinary assignment validation owns reception and bounds.
             } else if let Some(index) =
                 write_only_element_assignment_index(program, assignment.target, roots)
             {
@@ -1019,15 +1021,15 @@ fn validate_statement<'p>(
 
 /// Validate an exact range replacement: a statically normalized half-open
 /// window of a direct fixed array of eligible unrestricted elements, or an
-/// eligible common-field path ending in one, replaced by an array literal of
-/// exactly the same element width. Returns whether the target was such a range
+/// eligible common-field path ending in one. Ordinary assignment validation
+/// checks the completed source's element identity and exact width independently
+/// of its producer. Returns whether the target was such a range
 /// even when another checker owns its eventual rejection.
 fn validate_write_only_fixed_array_range_assignment<'p>(
     program: &'p dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
-    value: ExpressionHandle,
     roots: &[WriteOnlyRoot],
     bound_lookup: &mut Option<
         crate::proof_contracts::immutable_integer_bounds::ImmutableBoundLookup<'p>,
@@ -1037,21 +1039,21 @@ fn validate_write_only_fixed_array_range_assignment<'p>(
     let Some(indexed) = program.expression_table.indexed_node(expression) else {
         return false;
     };
-    let (root, collection_type) =
+    let collection_type =
         if let Some(root) = direct_write_only_root(program, indexed.collection, roots) {
-            (root, root.referee)
+            root.referee
         } else {
             let Some(collection_type) =
                 write_only_record_field_type(program, indexed.collection, roots)
             else {
                 return false;
             };
-            let Some(root) = mentioned_write_only_root(program, indexed.collection, roots) else {
+            let Some(_) = mentioned_write_only_root(program, indexed.collection, roots) else {
                 return false;
             };
-            (root, collection_type)
+            collection_type
         };
-    let Some((element_type, collection_len)) =
+    let Some((_, collection_len)) =
         fixed_discardable_write_only_array_shape(program, collection_type)
     else {
         return false;
@@ -1068,12 +1070,6 @@ fn validate_write_only_fixed_array_range_assignment<'p>(
     }
     if range.end.is_valid() {
         validate_expression(program, machine, state, range.end, roots, diagnostics);
-    } else {
-        diagnostics.push(Diagnostic::error(format!(
-            "machine `{}` state `{}` replaces a write-only fixed-array range with an omitted end; this exact-footprint rung requires a statically known end bound",
-            machine.name, state.name,
-        )));
-        return true;
     }
 
     let start = if range.start.is_valid() {
@@ -1081,14 +1077,18 @@ fn validate_write_only_fixed_array_range_assignment<'p>(
     } else {
         Some(0)
     };
-    let end = crate::normalize_immutable_integer_bound_to_usize(program, bound_lookup, range.end)
-        .and_then(|end| {
-            if range.end_inclusive {
-                end.checked_add(1)
-            } else {
-                Some(end)
-            }
-        });
+    let end = if range.end.is_valid() {
+        crate::normalize_immutable_integer_bound_to_usize(program, bound_lookup, range.end)
+            .and_then(|end| {
+                if range.end_inclusive {
+                    end.checked_add(1)
+                } else {
+                    Some(end)
+                }
+            })
+    } else {
+        Some(collection_len)
+    };
     let (Some(start), Some(end)) = (start, end) else {
         diagnostics.push(Diagnostic::error(format!(
             "machine `{}` state `{}` replaces a write-only fixed-array range whose bounds are not statically known; exact range replacement currently requires literal bounds or finite immutable local-copy aliases",
@@ -1102,30 +1102,9 @@ fn validate_write_only_fixed_array_range_assignment<'p>(
     if start > end || end > collection_len {
         return true;
     }
-    if !matches!(
-        program.expression_table.expression(value),
-        ExpressionNode::ArrayLiteral(_)
-    ) {
-        diagnostics.push(Diagnostic::error(format!(
-            "machine `{}` state `{}` replaces write-only fixed-array range `{}[{}..{}]` from a non-literal value; the exact range-replacement rung requires an array literal of {} element(s)",
-            machine.name,
-            state.name,
-            root.name,
-            start,
-            end,
-            end - start,
-        )));
-        return true;
-    }
-    crate::value_custody::struct_literals::validate_array_literal_elements_for_shape(
-        program,
-        machine,
-        state,
-        value,
-        element_type,
-        Some(end - start),
-        diagnostics,
-    );
+    // program_validation::statements::assignment_statements runs the shared
+    // element/width checker for every range assignment, including write-only
+    // destinations. Reception does not depend on the source's literal syntax.
     true
 }
 

@@ -16,16 +16,17 @@ use legalized_operations::LegalizedRuntimeIndexOperand;
 use optimization_unit::{PsiOptimizationFunction, PsiOptimizationUnit};
 use semantic_vocabulary::{OperationId, ScalarType, StructuralTypeId, ValueId};
 
-/// Join each runtime element of `operation`'s projection, in path order, to
+/// Join each runtime element of the owner's projection, in path order, to
 /// its selector's exact definition and to the accepted certificate for the
-/// element's obligation at that operation of this machine. A selector must
+/// element's obligation at that operation or edge of this machine. A selector must
 /// be an integer carrier the 64-bit address model can extend.
 pub(crate) fn operands(
     optimized: &PsiOptimizationFunction,
     unit: &PsiOptimizationUnit,
-    operation: OperationId,
+    owner: impl Into<optimization_unit::PsiProvenance>,
     elements: &[RuntimeElement],
 ) -> Result<Vec<LegalizedRuntimeIndexOperand>, LegalizationError> {
+    let owner = owner.into();
     elements
         .iter()
         .map(|element| {
@@ -39,7 +40,7 @@ pub(crate) fn operands(
                 .iter()
                 .find(|fact| {
                     fact.machine == optimized.machine
-                        && fact.operation == operation
+                        && fact.owner == owner
                         && fact.obligation == element.obligation
                 })
                 .map(|fact| fact.identity)
@@ -81,14 +82,14 @@ pub(in crate::legalization) fn defined_type(
 /// its final inline leaf. Call placement and storage operations own endpoint
 /// presentation and access; selector transport keeps the actual occurrence's
 /// strides and obligations. Explicit reference crossings still require their
-/// access-aware pointer regions. A static path mints no indices.
+/// pointer regions. Access belongs to the operation's source contract, not
+/// this selector roster. A static path mints no indices.
 pub(crate) fn projection(
     optimized: &PsiOptimizationFunction,
     unit: &PsiOptimizationUnit,
-    operation: OperationId,
+    owner: impl Into<optimization_unit::PsiProvenance>,
     root: StructuralTypeId,
     path: &[terminal_psi::StructuralPathSegment],
-    access: terminal_psi::StructuralAccess,
     declarations: &[terminal_psi::StructuralTypeDeclaration],
 ) -> Result<Vec<LegalizedRuntimeIndexOperand>, LegalizationError> {
     if !path.iter().any(|segment| {
@@ -100,10 +101,9 @@ pub(crate) fn projection(
         return Ok(Vec::new());
     }
     let elements = if path.contains(&terminal_psi::StructuralPathSegment::Referent) {
-        crate::structural_inputs::structural_reference_input::reference_projection(
+        crate::structural_inputs::structural_reference_input::reference_formation_geometry(
             root,
             path,
-            access,
             declarations,
         )
         .ok_or(LegalizationError::custody())?
@@ -116,7 +116,7 @@ pub(crate) fn projection(
         )
         .ok_or(LegalizationError::custody())?
     };
-    operands(optimized, unit, operation, &elements)
+    operands(optimized, unit, owner, &elements)
 }
 
 pub(crate) fn reference_source(
@@ -134,13 +134,15 @@ pub(crate) fn reference_source(
         Some((terminal_psi::StructuralPathSegment::Referent, prefix)) => prefix,
         _ => source.path.as_slice(),
     };
-    let geometry = crate::structural_inputs::structural_reference_input::borrowed_source_geometry(
-        root,
-        path,
-        &unit.structural_types,
-        source.access,
-    )
-    .ok_or(LegalizationError::custody())?;
+    // Selector transport needs the actual storage regions, not a standalone
+    // declaration for an inline endpoint. Formation owns its presentation.
+    let geometry =
+        crate::structural_inputs::structural_reference_input::reference_formation_geometry(
+            root,
+            path,
+            &unit.structural_types,
+        )
+        .ok_or(LegalizationError::custody())?;
     operands(optimized, unit, operation, &geometry.elements)
 }
 

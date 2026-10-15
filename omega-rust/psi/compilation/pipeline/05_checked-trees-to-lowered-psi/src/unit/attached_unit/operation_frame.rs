@@ -281,12 +281,14 @@ impl OperationFrame<'_, '_> {
             }
             CheckedUnitEffectOperationPlan::EstablishReference {
                 formation_expression,
+                backing_type,
                 result,
                 source,
                 storage,
             } => self.establish_reference(
                 identities,
                 *formation_expression,
+                *backing_type,
                 result,
                 source,
                 *storage,
@@ -314,6 +316,7 @@ impl OperationFrame<'_, '_> {
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
 
         formation_expression: checked_trees::expression::ExpressionHandle,
+        backing_type: typed_trees::types::TypeReferenceHandle,
         result: &checked_trees::CheckedUnitStructuralResultBindingPlan,
         source: &CheckedUnitStructuralArgumentPlan,
         storage: checked_trees::CheckedReferenceStorage,
@@ -382,12 +385,16 @@ impl OperationFrame<'_, '_> {
                 state: self.state,
                 statement_index: result.statement_index as usize,
                 expression: formation_expression,
+                backing_type,
+                qualification_decisions: Default::default(),
+                domain_ids: self.calls.domain_ids,
             },
             result,
             argument,
             storage,
             self.type_ids,
             self.structural_types.declarations(),
+            self.evaluation.structural_root_parameters(),
             self.next_place,
             self.operations,
         )?;
@@ -524,13 +531,12 @@ impl OperationFrame<'_, '_> {
                     });
                 }
             }
-            terminal_psi::StructuralTypeShape::ElementView { .. }
-            | terminal_psi::StructuralTypeShape::ByteSequence(
-                terminal_psi::byte_sequence_view_carrier_pattern!(),
-            ) => {
-                // Fixed and runtime-length descriptors retire through ordinary carrier cleanup.
-                // Their captured loan boundary does not change their geometry
-                // into a stored reference or consume their borrowed backing.
+            _ if leaf.descriptor_cleanup => {
+                // The checked whole-carrier roster also covers stored arrays
+                // and records. Retire their remaining descriptor frontier
+                // through ordinary cleanup, without inventing a pointer shape
+                // or disposing borrowed backing. Nominal hooks and conserved
+                // claims are excluded by the produced descriptor-cleanup fact.
                 self.evaluation.continue_cleanup_regions(
                     identities,
                     self.checked,

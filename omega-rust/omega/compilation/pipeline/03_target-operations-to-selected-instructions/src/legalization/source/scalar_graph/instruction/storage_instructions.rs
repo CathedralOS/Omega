@@ -134,7 +134,6 @@ pub(super) fn project_borrowed_window(
                     *psi_operation,
                     source.structural_type(),
                     selected,
-                    terminal_psi::StructuralAccess::Owned,
                     &plan.structural_types,
                 )?,
             })
@@ -171,7 +170,6 @@ pub(super) fn project_borrowed_window(
                     *psi_operation,
                     destination.structural_type(),
                     path,
-                    terminal_psi::StructuralAccess::Owned,
                     &plan.structural_types,
                 )?,
             })
@@ -790,7 +788,9 @@ fn accepted_obligation_fact<'unit>(
     unit.accepted_obligation_facts
         .iter()
         .find(|fact| {
-            fact.machine == machine && fact.operation == operation && fact.obligation == obligation
+            fact.machine == machine
+                && fact.owner == optimization_unit::PsiProvenance::Operation(operation)
+                && fact.obligation == obligation
         })
         .ok_or(Error::custody())
 }

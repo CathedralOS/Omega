@@ -815,6 +815,7 @@ fn structural_argument(
         &live.structural_homes,
         &live.views,
         operations,
+        &super::scalar_sources::ScalarSources::from(live),
         shape_cache,
         active,
     )

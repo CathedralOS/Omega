@@ -64,7 +64,7 @@ pub(super) fn extend(
                 };
                 let mut accepted_matches = unit.accepted_obligation_facts.iter().filter(|fact| {
                     fact.machine == function.machine
-                        && fact.operation == operation
+                        && fact.owner == optimization_unit::PsiProvenance::Operation(operation)
                         && fact.obligation == obligation
                         && fact.proposition == canonical
                         && fact.psi == unit.psi

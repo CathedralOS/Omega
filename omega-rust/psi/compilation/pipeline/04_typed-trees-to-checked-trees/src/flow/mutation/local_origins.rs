@@ -1,8 +1,8 @@
 //! Project the shared frame engine's local storage origins into flow places.
 //!
 //! Alias transfer belongs to validation. This adapter resolves its canonical
-//! names to existing typed symbols and retains only declared, builtin fixed
-//! coordinates from its captured structural origins.
+//! names to existing typed symbols. Complete runtime-selected paths retain
+//! their descendant fields for overlap, but do not supply exact identity.
 //! The inventory includes unknown reference sources. Demand a source only
 //! after selecting overlapping local storage; unrelated unknown leaves cannot
 //! erase a known effect. Alias invalidation conservatively retires unknown
@@ -24,7 +24,7 @@ use checked_trees::expression::ExpressionNode;
 use checked_trees::statement::StatementNode;
 use symbols::SymbolHandle;
 mod coordinates;
-pub(crate) use coordinates::{origin_place, sole_local_referent_origin};
+pub(crate) use coordinates::{OriginPrecision, origin_place, sole_local_referent_origin};
 
 pub(crate) fn close_storage_places_over_aliases(
     program: &dyn ::validation::CheckingInput,
@@ -63,7 +63,7 @@ pub(crate) fn close_storage_places_over_aliases(
             }
             continue;
         }
-        let (source, exact) = origin_place(program, state, statement_index, &origin)?;
+        let (source, precision) = origin_place(program, state, statement_index, &origin)?;
         let normalized_source_root = *normalized_roots
             .entry(source.root)
             .or_insert_with(|| source.root);
@@ -87,7 +87,9 @@ pub(crate) fn close_storage_places_over_aliases(
             if !canonical_place_segments_may_overlap(program, &place.segments, &source.segments) {
                 continue;
             }
-            if place.segments.len() >= source.segments.len() && exact {
+            if place.segments.len() >= source.segments.len()
+                && precision != OriginPrecision::Enclosing
+            {
                 alias
                     .segments
                     .extend_from_slice(&place.segments[source.segments.len()..]);
@@ -263,8 +265,8 @@ pub(crate) fn rebase_exact_local_place(
     {
         return None;
     }
-    let (canonical, exact) = origin_place(program, state, statement_index, origin)?;
-    if !exact {
+    let (canonical, precision) = origin_place(program, state, statement_index, origin)?;
+    if precision != OriginPrecision::Exact {
         return None;
     }
     // The origin may be a captured view window. Its first child projection
@@ -316,10 +318,10 @@ pub(super) fn rebase_local_write_places(
         if !canonical_place_segments_may_overlap(program, &place.segments, &origin.local_segments) {
             continue;
         }
-        let (mut canonical, exact) = origin_place(program, state, statement_index, origin)?;
+        let (mut canonical, precision) = origin_place(program, state, statement_index, origin)?;
         if place.segments.len() >= origin.local_segments.len() {
             retains_private_storage = false;
-            if exact {
+            if precision != OriginPrecision::Enclosing {
                 canonical
                     .segments
                     .extend_from_slice(&place.segments[origin.local_segments.len()..]);

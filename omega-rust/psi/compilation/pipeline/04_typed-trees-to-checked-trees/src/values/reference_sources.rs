@@ -168,7 +168,18 @@ pub(crate) fn capture(
         && validation::structural_type_identity(program, endpoint, &[], &[])
             != validation::structural_type_identity(program, referent, &[], &[])
     {
-        return None;
+        // Bounded byte domains name different theories over the same owner
+        // geometry. Their preservation is checked separately; neither may be
+        // confused with a plain fixed array or a borrowed view descriptor.
+        let supplied = validation::byte_sequence_carrier(program, endpoint, &[]);
+        let requested = validation::byte_sequence_carrier(program, referent, &[]);
+        if !matches!(
+            supplied,
+            Some(checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. })
+        ) || supplied != requested
+        {
+            return None;
+        }
     }
     if is_placed {
         let named_symbol = |reference| {

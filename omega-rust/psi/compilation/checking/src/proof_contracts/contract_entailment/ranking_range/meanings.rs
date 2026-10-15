@@ -85,13 +85,16 @@ pub(super) fn admitted_carrier(
             // an unrelated payload need not belong to integer arithmetic.
             // Whole-actual effects and formation stay with the source owners.
             crate::declarations::data_queries::data_definition_by_symbol(
-                program, literal.type_symbol,
+                program,
+                literal.type_symbol,
             )?;
             // An inline constructor need not retain a standalone named
             // reference (notably a lifetime application). Admission invents
             // no applied type; coordinate resolution still authenticates and
             // forms each demanded declared leaf independently.
-            Some(crate::expression_result_type_reference(program, machine, state, expression))
+            Some(crate::expression_result_type_reference(
+                program, machine, state, expression,
+            ))
         }
         ExpressionNode::ArrayLiteral(_) => {
             Some(Some(crate::parameter_expression_result_type_reference(

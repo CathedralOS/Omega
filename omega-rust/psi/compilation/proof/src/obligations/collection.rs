@@ -5,6 +5,10 @@
 //! does. Its declaration supplies the required predicate, never the operand's
 //! proof. Both share the occurrence-bound initializer check; later mutable
 //! field writes retain the separate invariant-window rules.
+//! Array literals likewise initialize each element under its receiving type.
+//! Walk construction and destination together; the array's inferred result
+//! type is not evidence for a stricter receiving element. Copies and reference
+//! formation retain their separate custody checks, without invented stores.
 
 use crate::obligations::constraints::{
     collect_constraints, derived_binary_constraints, expression_constraints,
@@ -401,6 +405,31 @@ fn collect_bounded_assignment_obligation(
     let Some(target_type) = expression_type_reference(program, machine, state, target) else {
         return;
     };
+    // A window receives elements of its collection, not one scalar. Extent and
+    // selector admission belong to checking; this walk owes element predicates.
+    let collection_window = program
+        .expression_table
+        .indexed_node(target)
+        .filter(|indexed| program.expression_table.range_node(indexed.index).is_some());
+    let construction_type = collection_window
+        .and_then(|indexed| expression_type_reference(program, machine, state, indexed.collection))
+        .unwrap_or(target_type);
+    collect_array_element_obligations(
+        program,
+        machine,
+        state,
+        statement_index,
+        assignment.value,
+        construction_type,
+        proof_plan,
+    );
+    // A window replacement is a sequence of element stores, not a scalar
+    // assignment to the collection's element type. Its construction obligations
+    // above own the bounds; treating the whole literal as one element rejects
+    // lawful stores and records a false scalar range for an aggregate value.
+    if collection_window.is_some() {
+        return;
+    }
     let bounded_target = constrained_type_reference(program, target_type);
     let (base_type, constraints) = bounded_target
         .map(|(base_type, constraints)| {
@@ -675,6 +704,15 @@ fn collect_bounded_transition_argument_obligations(
         .all(|argument| !expression_contains_call_node(program, *argument));
 
     for (parameter, argument) in callable_parameters(program, target_state).zip(arguments.iter()) {
+        collect_array_element_obligations(
+            program,
+            machine,
+            state,
+            statement_index,
+            *argument,
+            parameter.type_reference,
+            proof_plan,
+        );
         let Some((base_type, constraints)) =
             constrained_type_reference(program, parameter.type_reference)
         else {
@@ -921,11 +959,7 @@ fn collect_nested_receiving_obligations(
                         ) else {
                             continue;
                         };
-                        // Reference/aggregate custody remains with construction;
-                        // only a scalar's own receiving predicate is owed here.
-                        if program.primitive_type_reference(reference).is_some() {
-                            fields.push((field, reference));
-                        }
+                        fields.push((field, reference));
                     }
                 }
             },
@@ -975,6 +1009,15 @@ fn collect_bounded_call_argument_obligations(
     };
 
     for (parameter, argument) in parameters.iter().zip(call.arguments.iter()) {
+        collect_array_element_obligations(
+            program,
+            machine,
+            state,
+            statement_index,
+            *argument,
+            parameter.type_reference,
+            proof_plan,
+        );
         let Some((base_type, constraints)) =
             constrained_type_reference(program, parameter.type_reference)
         else {
@@ -1066,6 +1109,21 @@ fn collect_receiving_initializer_obligation(
     owner: ProofObligationOwner,
     proof_plan: &mut ProofPlan<'_>,
 ) {
+    if let Some((_, _, statement_index)) = owner.state_statement() {
+        collect_array_element_obligations(
+            program,
+            machine,
+            state,
+            statement_index,
+            value,
+            reference,
+            proof_plan,
+        );
+    }
+    // Aggregate and reference custody is not a scalar receiving obligation.
+    if program.primitive_type_reference(reference).is_none() {
+        return;
+    }
     let Some((base_type, constraints)) = constrained_type_reference(program, reference) else {
         return;
     };
@@ -1083,6 +1141,81 @@ fn collect_receiving_initializer_obligation(
     ));
 }
 
+/// Each literal element is a first store, including nested arrays and arrays
+/// selected by a match. One receiving walk covers locals, fields, replacements,
+/// calls, returns and transitions; it never grants the destination's bounds to
+/// the source expression. The ordinary bounded-initializer checker retains full
+/// mathematical bounds and the element's exact evaluation occurrence.
+fn collect_array_element_obligations(
+    program: &dyn ::validation::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    statement_index: usize,
+    value: ExpressionHandle,
+    reference: TypeReferenceHandle,
+    proof_plan: &mut ProofPlan<'_>,
+) {
+    if let Some(borrow) = program.expression_table.borrow_expression(value) {
+        // Traverse formation, not an existing referee's contents. A named
+        // backing reaches no literal and therefore creates no new stores.
+        collect_array_element_obligations(
+            program,
+            machine,
+            state,
+            statement_index,
+            borrow.target,
+            reference,
+            proof_plan,
+        );
+        return;
+    }
+    if let Some(dispatch) = program.expression_table.match_node(value) {
+        for arm in program.expression_table.match_arms(dispatch.arms) {
+            collect_array_element_obligations(
+                program,
+                machine,
+                state,
+                statement_index,
+                arm.value,
+                reference,
+                proof_plan,
+            );
+        }
+        return;
+    }
+    let Some(elements) = program.expression_table.array_literal_node(value) else {
+        return;
+    };
+    let Some(element_type) = validation::collection_element_type_reference(program, reference)
+    else {
+        return;
+    };
+    for (element_index, element) in program
+        .expression_table
+        .expression_handles(*elements)
+        .iter()
+        .enumerate()
+    {
+        collect_receiving_initializer_obligation(
+            program,
+            machine,
+            state,
+            *element,
+            element_type,
+            ProofObligationOwner::ArrayElement {
+                machine_symbol: machine.symbol,
+                machine: machine.name.clone(),
+                state_symbol: state.symbol,
+                state: state.name.clone(),
+                statement_index,
+                construction: value,
+                element_index,
+            },
+            proof_plan,
+        );
+    }
+}
+
 fn collect_bounded_state_return_obligation(
     program: &dyn ::validation::CheckingInput,
     machine: &Machine,
@@ -1090,9 +1223,6 @@ fn collect_bounded_state_return_obligation(
     return_type: TypeReferenceHandle,
     proof_plan: &mut ProofPlan<'_>,
 ) {
-    let Some((base_type, constraints)) = constrained_type_reference(program, return_type) else {
-        return;
-    };
     let Some(typed_trees::statement::StatementNode::Expression(value)) = program
         .statement_table
         .statements(state.statement_nodes)
@@ -1106,6 +1236,18 @@ fn collect_bounded_state_return_obligation(
         .statements(state.statement_nodes)
         .len()
         - 1;
+    collect_array_element_obligations(
+        program,
+        machine,
+        state,
+        statement_index,
+        value,
+        return_type,
+        proof_plan,
+    );
+    let Some((base_type, constraints)) = constrained_type_reference(program, return_type) else {
+        return;
+    };
     let value_constraints =
         proof_plan.store_constraints(expression_constraints(program, machine, state, value));
     let constraints = proof_plan.store_constraint_nodes(program, base_type, constraints);

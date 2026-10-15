@@ -321,6 +321,10 @@ pub enum CheckedScalarExpressionRole {
         expression: ExpressionHandle,
         element_ordinal: u32,
     },
+    /// The evaluated scalar that initializes one structural scalar home.
+    StructuralScalarValue {
+        expression: ExpressionHandle,
+    },
     /// Initial value written into mutable local storage. This does not append
     /// an immutable runtime binding or change the scalar operand namespace.
     StorageInitializer,

@@ -77,7 +77,7 @@ pub(in crate::execution::terminal_unit) fn release_matches(
         *source == (CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
             binding_ordinal: result.binding_ordinal,
         }) && path.is_empty()
-    } else { *released == loans })
+    } else { path.is_empty() && *released == loans })
 }
 
 /// A prior constructor or call transfer already moved this descriptor's
@@ -105,6 +105,15 @@ fn custody_transferred(
 /// A materialized carrier owns the same captured loan group whether formed
 /// locally or returned by a call. Scheduling and custody accounting must join
 /// that exact holder rather than select retirement by producer family.
+pub(in crate::execution::terminal_unit) struct CapturedReferenceResult<'operation> {
+    pub result: &'operation CheckedUnitStructuralResultBindingPlan,
+    pub loans: arena::HandleSpan<checked_trees::BorrowLoanFact>,
+    /// Scalar siblings and borrows of the carrier home can outlive its last
+    /// descriptor observation. Whole disposal must retain both inventories.
+    whole_storage_boundary: u32,
+    storage_loans: Vec<arena::Handle<checked_trees::BorrowLoanFact>>,
+}
+
 pub(in crate::execution::terminal_unit) fn captured_reference_result<'operation>(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
@@ -112,11 +121,9 @@ pub(in crate::execution::terminal_unit) fn captured_reference_result<'operation>
     state: SymbolHandle,
     results: &[(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)],
     operation: &'operation CheckedUnitEffectOperationPlan,
-) -> Option<(
-    &'operation CheckedUnitStructuralResultBindingPlan,
-    arena::HandleSpan<checked_trees::BorrowLoanFact>,
-)> {
-    match operation {
+    operations: &[CheckedUnitEffectOperationPlan],
+) -> Option<CapturedReferenceResult<'operation>> {
+    let direct = match operation {
         CheckedUnitEffectOperationPlan::EstablishReference { result, .. } => {
             super::reference_retirement::local_reference_loans(
                 facts, machine, state, result, results,
@@ -168,7 +175,82 @@ pub(in crate::execution::terminal_unit) fn captured_reference_result<'operation>
                 })
                 .then_some((result, custody.reference_loans))
         }),
+    };
+    if let Some((result, loans)) = direct {
+        return Some(CapturedReferenceResult {
+            result,
+            loans,
+            whole_storage_boundary: 0,
+            storage_loans: Vec::new(),
+        });
     }
+    let (result, _) = operation.discardable_structural_result()?;
+    let authored_state = program.state_by_symbol(state)?;
+    let mut owners = results.iter().filter(|(binding, _)| binding == result);
+    let (_, facts::PlaceRoot::Symbol(owner)) = owners.next()? else {
+        return None;
+    };
+    if owners.next().is_some() {
+        return None;
+    }
+    let (formation, local) = program.state_local_declaration(authored_state, *owner)?;
+    if formation != result.statement_index as usize
+        || !validation::has_contents(
+            program,
+            local.type_reference,
+            &[],
+            validation::ContentsRequirement::DescriptorCleanup,
+        )
+        || !super::reference_retirement::transferred_paths(
+            program,
+            facts,
+            results,
+            result.binding_ordinal,
+            operations,
+        )?
+        .is_empty()
+        || facts.borrow.loans.iter().any(|(_, loan)| {
+            loan.storage_owner == facts::PlaceRoot::Symbol(*owner)
+                && loan.statement_index != formation
+        })
+    {
+        return None;
+    }
+    // Completion computations are retained outside the body operation list.
+    // A possible owned use on one selected path keeps this occurrence with
+    // that path's normal custody; an unconditional release would race its move.
+    // Replacement-owned deaths remain with replacement cleanup in the callers;
+    // this conservative inventory never grants a transfer or release itself.
+    if result.multiplicity != Multiplicity::Unrestricted
+        && crate::execution::terminal_unit::storage_transfers::has_computation_transfer(
+            program, facts, state, results, result, operations,
+        )?
+    {
+        return None;
+    }
+    // Borrow production owns one complete contiguous roster for this exact
+    // storage occurrence. Copyability does not choose physical retirement:
+    // cleanup-free affine records and unrestricted aggregates both retain
+    // their captured descriptors until this holder dies. Never concatenate
+    // leaf groups or charge a returned copy with its supplier's disposal.
+    let loans = super::reference_retirement::carrier_loans(facts, machine, state, result, results)?;
+    if loans.is_empty() {
+        return None;
+    }
+    Some(CapturedReferenceResult {
+        result,
+        loans,
+        whole_storage_boundary: validation::reference_result_custody::whole_local_release_boundary(
+            program,
+            facts,
+            machine,
+            authored_state,
+            result.statement_index,
+        )?,
+        storage_loans: validation::reference_result_custody::local_storage_loans(
+            facts, machine, state, *owner,
+        )?,
+    })
 }
 
 /// End captured reference custody at entry to the next authored statement.
@@ -243,9 +325,12 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
             operation,
         )?;
         pending.extend(stored_releases);
-        let reference_result =
-            captured_reference_result(program, facts, machine, state, results, operation);
-        if let Some((result, loans)) = reference_result {
+        let reference_result = captured_reference_result(
+            program, facts, machine, state, results, operation, operations,
+        );
+        if let Some(captured) = reference_result {
+            let result = captured.result;
+            let loans = captured.loans;
             if replacement_owns_release(facts, machine, state, loans) {
                 continue;
             }
@@ -263,7 +348,8 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
                     program, facts, machine, state, loan,
                 )
             })?
-            .max(result.statement_index.checked_add(1)?);
+            .max(result.statement_index.checked_add(1)?)
+            .max(captured.whole_storage_boundary);
             let retirement = super::reference_retirement::Retirement {
                 program,
                 facts,
@@ -279,6 +365,10 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
             };
             if boundary <= statement_index
                 && retirement.carrier_children_retired(result)
+                && captured
+                    .storage_loans
+                    .iter()
+                    .all(|loan| retirement.holder_retired(*loan))
                 && facts
                     .borrow
                     .loan_group(loans)?
@@ -304,7 +394,17 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
                     retired.push(result.binding_ordinal);
                 }
             }
-            continue;
+            // A copied aggregate can retain live scalar siblings after one
+            // descriptor expires. Until whole retirement is scheduled, keep
+            // the ordinary projected-leaf schedule below available.
+            if captured.whole_storage_boundary == 0
+                || operations
+                    .iter()
+                    .chain(&pending)
+                    .any(|operation| release_matches(operation, result, loans))
+            {
+                continue;
+            }
         }
         let Some((result, true)) = operation.discardable_structural_result() else {
             continue;
@@ -532,9 +632,11 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
 ) -> Option<()> {
     let mut pending = Vec::new();
     for operation in operations.iter() {
-        if let Some((result, loans)) =
-            captured_reference_result(program, facts, machine, state, results, operation)
-        {
+        if let Some(captured) = captured_reference_result(
+            program, facts, machine, state, results, operation, operations,
+        ) {
+            let result = captured.result;
+            let loans = captured.loans;
             if replacement_owns_release(facts, machine, state, loans) {
                 continue;
             }
@@ -571,13 +673,14 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
                     facts, machine, state, loan,
                 )
             })?
-            .max(result.statement_index.checked_add(1)?);
+            .max(result.statement_index.checked_add(1)?)
+            .max(captured.whole_storage_boundary);
             if !operations
                 .iter()
                 .any(|operation| release_matches(operation, result, loans))
                 && !pending
                     .iter()
-                    .any(|(_, operation)| release_matches(operation, result, loans))
+                    .any(|(_, operation, _)| release_matches(operation, result, loans))
             {
                 pending.push((
                     boundary,
@@ -598,11 +701,12 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
                         loans,
                         selection_complements: Vec::new(),
                     },
+                    captured.storage_loans,
                 ));
             }
         }
     }
-    pending.sort_by_key(|(boundary, _)| *boundary);
+    pending.sort_by_key(|(boundary, _, _)| *boundary);
     let authored_state = program.state_by_symbol(state)?;
     let statement_index = authored_state.statement_nodes.count();
     let transported_loans = super::reference_retirement::transport::collect(
@@ -634,7 +738,7 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
             transported_loans: &transported_loans,
         };
         let mut next = None;
-        for (index, (_, operation)) in pending.iter().enumerate() {
+        for (index, (_, operation, storage_loans)) in pending.iter().enumerate() {
             let CheckedUnitEffectOperationPlan::ReleaseReference { loans, source, .. } = operation
             else {
                 return None;
@@ -648,6 +752,9 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
                 .iter()
                 .find(|(result, _)| result.binding_ordinal == *binding_ordinal)?;
             if retirement.carrier_children_retired(result)
+                && storage_loans
+                    .iter()
+                    .all(|loan| retirement.holder_retired(*loan))
                 && facts
                     .borrow
                     .loan_group(*loans)?
@@ -1077,6 +1184,7 @@ pub(in crate::execution::terminal_unit) fn consume_value_places(
             | checked_trees::CheckedStructuralValueKind::CopiedStructuralPlace { .. }
             | checked_trees::CheckedStructuralValueKind::ZeroedScalarArray { .. }
             | checked_trees::CheckedStructuralValueKind::ScalarArray { .. }
+            | checked_trees::CheckedStructuralValueKind::Scalar { .. }
             | checked_trees::CheckedStructuralValueKind::ZeroedStructural { .. }
             | checked_trees::CheckedStructuralValueKind::ByteLiteralView { .. }
             | checked_trees::CheckedStructuralValueKind::Case(_) => {}

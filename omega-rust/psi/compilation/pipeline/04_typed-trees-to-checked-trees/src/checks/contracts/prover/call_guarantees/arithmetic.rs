@@ -69,23 +69,30 @@ pub(in crate::checks) fn proves_at_exit(
     frames: &validation::CallFrameResolver<'_>,
     goal: &ScopedArithmeticExpression,
 ) -> bool {
-    let hypotheses = super::available(program, facts, caller, statement, contexts, frames)
-        .into_iter()
-        .filter_map(|guarantee| {
-            at_call(
-                program,
-                facts,
-                caller,
-                &guarantee.invocation,
-                guarantee.expression,
-                frames,
-            )
-            .map(|proposition| ScopedArithmeticHypothesis {
-                proposition,
-                holds: true,
-            })
+    let hypotheses = super::available(
+        program,
+        facts,
+        caller,
+        super::GuaranteeUse::StatementEntry(statement),
+        contexts,
+        frames,
+    )
+    .into_iter()
+    .filter_map(|guarantee| {
+        at_call(
+            program,
+            facts,
+            caller,
+            &guarantee.invocation,
+            guarantee.expression,
+            frames,
+        )
+        .map(|proposition| ScopedArithmeticHypothesis {
+            proposition,
+            holds: true,
         })
-        .collect();
+    })
+    .collect();
     proves_bound(
         program, facts, caller, statement, contexts, goal, hypotheses, frames, None,
     )

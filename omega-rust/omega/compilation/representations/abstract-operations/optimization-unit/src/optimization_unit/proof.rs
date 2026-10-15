@@ -4,11 +4,11 @@ use super::super::{
     AcceptedObligationFactIdentity, AdmissionSiteId, BlockId, ContractId, EdgeId, EvidenceIdentity,
     ObligationId, OperationId, ProofQuestionIdentity,
 };
-use super::{MachineId, TerminalPsiIdentity};
+use super::{MachineId, PsiProvenance, TerminalPsiIdentity};
 /// An admitted proof fact projected from the immutable verifier context.
 ///
 /// The row binds both semantic artifact identities and the exact operation
-/// owner. It remains attached after a rewrite removes that operation so the
+/// or edge owner. It remains attached after a rewrite removes that owner so the
 /// transformation ledger and manifest can retain proof custody.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AcceptedObligationFact {
@@ -16,7 +16,7 @@ pub struct AcceptedObligationFact {
     pub psi: TerminalPsiIdentity,
     pub proof_bundle_fingerprint: [u8; 32],
     pub machine: MachineId,
-    pub operation: OperationId,
+    pub owner: PsiProvenance,
     pub obligation: ObligationId,
     pub proposition: Vec<u8>,
     /// Exact receiving correspondence retained from the immutable source cut.
@@ -111,7 +111,7 @@ impl AcceptedObligationFact {
         psi: TerminalPsiIdentity,
         proof_bundle_fingerprint: [u8; 32],
         machine: MachineId,
-        operation: OperationId,
+        owner: PsiProvenance,
         obligation: ObligationId,
         proposition: Vec<u8>,
     ) -> Self {
@@ -119,7 +119,7 @@ impl AcceptedObligationFact {
             psi,
             proof_bundle_fingerprint,
             machine,
-            operation,
+            owner,
             obligation,
             &proposition,
             None,
@@ -129,7 +129,7 @@ impl AcceptedObligationFact {
             psi,
             proof_bundle_fingerprint,
             machine,
-            operation,
+            owner,
             obligation,
             proposition,
             scalar_receiving: None,
@@ -144,7 +144,7 @@ impl AcceptedObligationFact {
             self.psi,
             self.proof_bundle_fingerprint,
             self.machine,
-            self.operation,
+            self.owner,
             self.obligation,
             &self.proposition,
             self.scalar_receiving.as_ref(),
@@ -158,7 +158,7 @@ impl AcceptedObligationFact {
                 self.psi,
                 self.proof_bundle_fingerprint,
                 self.machine,
-                self.operation,
+                self.owner,
                 self.obligation,
                 &self.proposition,
                 self.scalar_receiving.as_ref(),
@@ -170,18 +170,27 @@ pub(crate) fn accepted_obligation_fact_identity(
     psi: TerminalPsiIdentity,
     proof_bundle_fingerprint: [u8; 32],
     machine: MachineId,
-    operation: OperationId,
+    owner: PsiProvenance,
     obligation: ObligationId,
     proposition: &[u8],
     scalar_receiving: Option<&SourceCheckedScalarReceiving>,
 ) -> AcceptedObligationFactIdentity {
     let mut canonical = Vec::new();
-    canonical.extend_from_slice(b"omega.psi-accepted-obligation-fact.v1\0");
+    canonical.extend_from_slice(b"omega.psi-accepted-obligation-fact.v2\0");
     canonical.extend_from_slice(psi.program_fingerprint.as_bytes());
     crate::codec_bytes::push_encoded(&mut canonical, psi.vocabulary_marker.get().to_le_bytes());
     canonical.extend_from_slice(&proof_bundle_fingerprint);
     crate::codec_bytes::push_encoded(&mut canonical, machine.get().to_le_bytes());
-    crate::codec_bytes::push_encoded(&mut canonical, operation.get().to_le_bytes());
+    match owner {
+        PsiProvenance::Operation(operation) => {
+            canonical.push(0);
+            crate::codec_bytes::push_encoded(&mut canonical, operation.get().to_le_bytes());
+        }
+        PsiProvenance::Edge(edge) => {
+            canonical.push(1);
+            crate::codec_bytes::push_encoded(&mut canonical, edge.get().to_le_bytes());
+        }
+    }
     crate::codec_bytes::push_encoded(&mut canonical, obligation.get().to_le_bytes());
     canonical.extend_from_slice(
         &u64::try_from(proposition.len())

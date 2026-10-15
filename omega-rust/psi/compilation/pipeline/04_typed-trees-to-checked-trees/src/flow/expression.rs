@@ -380,7 +380,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             constraints,
             borrowed_call,
             captured_operands,
-            writes.as_deref().map(Vec::as_slice),
+            writes.as_deref(),
         );
         // Evaluation consumers need this occurrence before the later package
         // source-custody binding pass. The authored ordinal identifies a call;
@@ -391,7 +391,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                 ExpressionHandle::invalid()
             }
         };
-        self.record_operand_writes(writes.as_deref().cloned());
+        self.record_operand_writes(writes.as_deref().map(|writes| writes.places.clone()));
         call.operands = self
             .context
             .control
@@ -510,7 +510,31 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             contexts,
             constraints,
         );
-        let referents = referents.unwrap_or_else(|| self.reference_operand_referents(expression));
+        let referents = referents.unwrap_or_else(|| {
+            if self.operand_is_view(expression) {
+                return self.reference_operand_referents(expression);
+            }
+            // An owned container has its own address even when some children
+            // are references. Resolve those descriptors only after projecting
+            // their slots; asking for the container's reference origin would
+            // lose its address or substitute a child's backing for the owner.
+            if self
+                .context
+                .expression_result_type_at(self.program, self.machine, self.state, expression)
+                .is_none()
+            {
+                return HandleSpan::empty();
+            }
+            let Some(place) = validation::canonical_place_from_expression_in_state(
+                self.program,
+                self.state.symbol,
+                self.statement_index,
+                expression,
+            ) else {
+                return HandleSpan::empty();
+            };
+            self.append_referent_places(&[place])
+        });
         let mut capture =
             self.capture_operand(expression, first_write, *contexts, *constraints, referents);
         capture.children = children;

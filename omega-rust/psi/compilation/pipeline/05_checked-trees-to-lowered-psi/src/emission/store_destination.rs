@@ -12,6 +12,7 @@ use semantic_vocabulary::{PlaceId, StructuralTypeId};
 pub(crate) struct LocalStoreRoot<'a> {
     pub(crate) argument: &'a terminal_psi::StructuralArgument,
     pub(crate) structural_type: StructuralTypeId,
+    pub(crate) multiplicity: terminal_psi::StructuralMultiplicity,
     /// Type at the local alias's captured path within that root.
     pub(crate) selected_type: StructuralTypeId,
     pub(crate) qualifications: &'a [semantic_vocabulary::StructuralDomainId],
@@ -63,6 +64,7 @@ pub(crate) fn local_store_place<'a>(
                 parameter.structural_type,
                 parameter.qualifications.as_slice(),
                 parameter.projected_qualifications.as_slice(),
+                parameter.multiplicity,
             )
         })
         .chain(operations.operations.iter().filter_map(|operation| {
@@ -72,16 +74,18 @@ pub(crate) fn local_store_place<'a>(
                     result.structural_type,
                     result.qualifications.as_slice(),
                     result.projected_qualifications.as_slice(),
+                    result.multiplicity,
                 )
             })
         }))
-        .find(|(place, _, _, _)| *place == argument.place)
+        .find(|(place, _, _, _, _)| *place == argument.place)
         .ok_or(LoweringError::Unsupported(
             "store local has no declared storage root",
         ))?;
     Ok(LocalStoreRoot {
         argument,
         structural_type: declaration.1,
+        multiplicity: declaration.4,
         selected_type: *selected_type,
         qualifications: declaration.2,
         projected_qualifications: declaration.3,

@@ -36,6 +36,7 @@ mod window_elements;
 use observations::ConstructionObservations;
 
 pub(crate) use window_elements::validate_array_window_elements;
+pub use window_elements::{ArrayWindowShape, array_window_shape};
 
 pub use construction_bounds::case_predicates_admit_zero;
 use construction_bounds::{validate_literal_case_constraints, validate_literal_default_domain};

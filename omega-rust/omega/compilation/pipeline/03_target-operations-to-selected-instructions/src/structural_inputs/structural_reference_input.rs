@@ -172,12 +172,12 @@ pub(crate) struct PointerSlot {
 
 /// Address formation regions retain selectors on the side of each pointer
 /// crossing where they were authored. Construction scratch, not another IR.
-pub(crate) struct ReferenceSourceGeometry {
+pub(crate) struct ReferenceSourceGeometry<Endpoint = StructuralTypeId> {
     /// The final contiguous storage region, distinct from the descriptor root.
     pub(crate) region_root: StructuralTypeId,
     /// Declared read permission at every crossing, not a liveness judgment.
     pub(crate) readable: bool,
-    pub(crate) selected: StructuralTypeId,
+    pub(crate) selected: Endpoint,
     pub(crate) byte_offset: u32,
     pub(crate) pointer_slots: Vec<PointerSlot>,
     pub(crate) elements: Vec<RuntimeElement>,
@@ -212,6 +212,20 @@ pub(crate) fn descriptor_source_geometry(
     reference_source_geometry_with_leaf_type(root, path, declarations, descriptor_leaf_type)
 }
 
+/// Address formation retains the actual storage endpoint. An inline qualified
+/// byte field has no nominal declaration, and equal-capacity owners elsewhere
+/// in the catalog cannot supply its identity. The caller separately joins this
+/// storage contract to the explicitly declared reference presentation.
+pub(crate) fn reference_formation_geometry<'types>(
+    root: StructuralTypeId,
+    path: &[StructuralPathSegment],
+    declarations: &'types [StructuralTypeDeclaration],
+) -> Option<ReferenceSourceGeometry<std::borrow::Cow<'types, StructuralFieldType>>> {
+    reference_geometry(root, path, declarations, |root, path| {
+        runtime_storage_projection(root, path, declarations)
+    })
+}
+
 // Pointer crossings select descriptor storage independently of the eventual
 // scalar or aggregate endpoint. Inline fields use the same carrier as roots;
 // their access remains on the original path, not on this layout declaration.
@@ -233,29 +247,6 @@ fn descriptor_leaf_type(field: &StructuralFieldType) -> Option<StructuralFieldTy
             })
         })
         .or_else(|| field.canonical_leaf_type())
-}
-
-/// A shared reference captures the field's observed carrier while retaining
-/// its physical declaration and every pointer/index boundary. Writable
-/// formation continues to require the complete receiving leaf contract.
-pub(crate) fn borrowed_source_geometry(
-    root: StructuralTypeId,
-    path: &[StructuralPathSegment],
-    declarations: &[StructuralTypeDeclaration],
-    access: terminal_psi::StructuralAccess,
-) -> Option<ReferenceSourceGeometry> {
-    let leaf: fn(&StructuralFieldType) -> Option<StructuralFieldType> =
-        if access == terminal_psi::StructuralAccess::SharedBorrow {
-            |field| {
-                field
-                    .shared_observation_type()
-                    .filter(|observed| observed.scalar_type().is_some())
-                    .or_else(|| field.canonical_leaf_type())
-            }
-        } else {
-            StructuralFieldType::canonical_leaf_type
-        };
-    reference_source_geometry_with_leaf_type(root, path, declarations, leaf)
 }
 
 pub(crate) fn reference_source_geometry(
@@ -300,15 +291,15 @@ fn reference_source_geometry_with_leaf_type(
 /// Formation and call preparation share the independently bounded pointer
 /// regions. Only the final leaf contract differs: a scalar call carries its
 /// address and codec descriptor rather than loading the scalar value.
-fn reference_geometry(
+fn reference_geometry<Endpoint>(
     root: StructuralTypeId,
     path: &[StructuralPathSegment],
     declarations: &[StructuralTypeDeclaration],
     endpoint: impl Fn(
         StructuralTypeId,
         &[StructuralPathSegment],
-    ) -> Option<(StructuralTypeId, u32, Vec<RuntimeElement>)>,
-) -> Option<ReferenceSourceGeometry> {
+    ) -> Option<(Endpoint, u32, Vec<RuntimeElement>)>,
+) -> Option<ReferenceSourceGeometry<Endpoint>> {
     let regions = storage_projection_regions(root, path, declarations)?;
     let (selected, byte_offset, leaf_elements) =
         endpoint(regions.root, &path[regions.segment_start..])?;
@@ -596,11 +587,20 @@ pub(crate) fn primitive_geometry(
     let mut roots = declarations
         .iter()
         .filter(|declaration| declaration.id == root);
-    let declaration = roots.next()?;
+    roots.next()?;
     if roots.next().is_some() {
         return None;
     }
-    if let StructuralTypeShape::ByteSequence(carrier) = declaration.shape {
+    if let Some((selector, prefix)) = path.split_last()
+        && matches!(
+            selector,
+            StructuralPathSegment::FixedIndex(_) | StructuralPathSegment::RuntimeIndex { .. }
+        )
+        && let Some((selected, owner_offset, mut elements)) =
+            runtime_projection(root, prefix, declarations)
+        && let StructuralTypeShape::ByteSequence(carrier) =
+            find_structural_type(declarations, selected)?.shape
+    {
         if terminal_semantics::primitive_projection_type(declarations.iter(), root, path)
             != Some(scalar)
         {
@@ -616,27 +616,27 @@ pub(crate) fn primitive_geometry(
             }
             terminal_psi::ByteSequenceCarrier::BorrowedView { .. } => (0u32, None),
         };
-        return match path {
-            [StructuralPathSegment::FixedIndex(index)] => {
+        let payload_offset = owner_offset.checked_add(payload_offset)?;
+        return match selector {
+            StructuralPathSegment::FixedIndex(index) => {
                 if extent.is_some_and(|extent| *index >= extent) {
                     return None;
                 }
                 Some((
                     payload_offset.checked_add(u32::try_from(*index).ok()?)?,
                     1,
-                    Vec::new(),
+                    elements,
                 ))
             }
-            [StructuralPathSegment::RuntimeIndex { index, obligation }] => Some((
-                payload_offset,
-                1,
-                vec![RuntimeElement {
+            StructuralPathSegment::RuntimeIndex { index, obligation } => {
+                elements.push(RuntimeElement {
                     index: *index,
                     obligation: *obligation,
                     stride: 1,
                     extent,
-                }],
-            )),
+                });
+                Some((payload_offset, 1, elements))
+            }
             _ => None,
         };
     }
@@ -1790,6 +1790,7 @@ pub(crate) fn reference_projection(
     mut root: StructuralTypeId,
     mut path: &[StructuralPathSegment],
     access: terminal_psi::StructuralAccess,
+    expected: Option<StructuralTypeId>,
     declarations: &[StructuralTypeDeclaration],
 ) -> Option<ReferenceProjection> {
     use terminal_psi::StructuralAccess;
@@ -1830,12 +1831,13 @@ pub(crate) fn reference_projection(
         root = referent;
         path = &path[crossing + 1..];
     }
+    let expected = expected.and_then(|identity| find_structural_type(declarations, identity));
     let geometry = reference_geometry(initial_root, initial_path, declarations, |root, path| {
         runtime_projection_with_leaf_type(
             root,
             path,
             declarations,
-            borrowed_leaf_type(access, None),
+            borrowed_leaf_type(access, expected),
         )
     })?;
     let scalar_descriptor = geometry.pointer_slots.last()?.scalar_descriptor;
@@ -1973,7 +1975,10 @@ fn project_inner(
     let (storage, offset, elements) = project_storage(root, path, declarations)?;
     let identity = match &*storage {
         StructuralFieldType::Structural(identity) => *identity,
-        field => leaf_type(field)?.leaf_declaration(declarations.iter())?.id,
+        field => match leaf_type(field)? {
+            StructuralFieldType::Structural(identity) => identity,
+            field => field.leaf_declaration(declarations.iter())?.id,
+        },
     };
     Some((identity, offset, elements))
 }
@@ -2159,7 +2164,10 @@ fn runtime_projection_with_leaf_type(
     let (storage, offset, elements) = runtime_storage_projection(root, path, declarations)?;
     let selected = match &*storage {
         StructuralFieldType::Structural(identity) => *identity,
-        field => leaf_type(field)?.leaf_declaration(declarations.iter())?.id,
+        field => match leaf_type(field)? {
+            StructuralFieldType::Structural(identity) => identity,
+            field => field.leaf_declaration(declarations.iter())?.id,
+        },
     };
     Some((selected, offset, elements))
 }
@@ -2176,11 +2184,16 @@ fn runtime_storage_projection<'types>(
     u32,
     Vec<RuntimeElement>,
 )> {
-    if !path.is_empty()
+    // Byte elements have primitive storage without a standalone declaration.
+    // Classify the selected collection, not the outer root: a record field or
+    // array element retains the same byte storage and codec as a direct owner.
+    if let Some((selector, prefix)) = path.split_last()
         && matches!(
-            find_structural_type(declarations, root).map(|row| &row.shape),
-            Some(StructuralTypeShape::ByteSequence(_))
+            selector,
+            StructuralPathSegment::FixedIndex(_) | StructuralPathSegment::RuntimeIndex { .. }
         )
+        && collection_projection(root, prefix, declarations)
+            .is_some_and(|(shape, _, _)| matches!(*shape, StructuralTypeShape::ByteSequence(_)))
     {
         let scalar =
             terminal_semantics::primitive_projection_type(declarations.iter(), root, path)?;
@@ -2750,7 +2763,9 @@ pub(crate) fn byte_field_length(
     if !terminal_psi::is_static_structural_scalar_store_path(path) {
         return None;
     }
-    plain_record_shape(structural_type, declarations)?;
+    // The selected carrier owns the field, not necessarily the root. The
+    // common field geometry checks its declaration and bounds the complete
+    // access against the enclosing home, including fixed-array projections.
     scalar_field_geometry(structural_type, path, field, scalar, declarations, true)
         .map(|(offset, bytes, _)| (offset, bytes))
 }
@@ -2787,55 +2802,6 @@ pub(crate) fn byte_field_storage(
     (u64::from(offset).checked_add(8)?.checked_add(capacity)?
         <= u64::from(shape(structural_type, declarations)?.byte_size))
     .then_some((offset, capacity))
-}
-
-/// A shared view field stores a two-word descriptor in its record: the
-/// backing pointer, then the extent. Return the descriptor's offset from the
-/// root. The backing itself lies outside the root; its custody is the view's.
-pub(crate) fn byte_view_field_descriptor(
-    structural_type: StructuralTypeId,
-    path: &[StructuralPathSegment],
-    field: StructuralFieldId,
-    declarations: &[StructuralTypeDeclaration],
-) -> Option<u32> {
-    let scalar = ScalarType::Integer(
-        semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
-            .ok()?,
-    );
-    let (length_word, _) = byte_field_length(structural_type, path, field, scalar, declarations)?;
-    let (carrier, _) = project(structural_type, path, declarations)?;
-    let StructuralTypeShape::Record { fields, .. } =
-        &find_structural_type(declarations, carrier)?.shape
-    else {
-        return None;
-    };
-    let mut matching = fields.iter().filter(|candidate| candidate.id == field);
-    let selected = matching.next()?;
-    (matching.next().is_none()
-        && (selected.field_type.byte_sequence_carrier()
-            == Some(terminal_psi::ByteSequenceCarrier::BorrowedView {
-                access: Some(terminal_psi::StructuralAccess::SharedBorrow),
-            })
-            || matches!(
-                selected.field_type,
-                StructuralFieldType::Structural(child)
-                    if declarations.iter().any(|declaration| {
-                        declaration.id == child
-                            && matches!(
-                                declaration.shape,
-                                StructuralTypeShape::ElementView { .. }
-                                    | StructuralTypeShape::ByteSequence(
-                                        terminal_psi::ByteSequenceCarrier::BorrowedView {
-                                            access: Some(
-                                                terminal_psi::StructuralAccess::SharedBorrow,
-                                            ),
-                                        },
-                                    )
-                            )
-                    })
-            )))
-    .then(|| length_word.checked_sub(8))
-    .flatten()
 }
 
 /// A typed representation loan keeps both declarations. Portable validity

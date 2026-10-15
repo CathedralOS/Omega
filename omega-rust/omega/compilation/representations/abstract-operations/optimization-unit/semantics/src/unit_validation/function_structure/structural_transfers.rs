@@ -41,6 +41,7 @@ pub(super) fn validate(
                 || !places.insert(parameter.place)
                 || (!plain(parameter)
                     && !qualified_owned_arrival(parameter, types, domains)
+                    && !address_join(parameter, types)
                     && !(parameter.qualifications.is_empty()
                         && terminal_semantics::view_descriptor_parameter(
                             parameter,
@@ -221,7 +222,10 @@ pub(super) fn validate(
                     // the root stays with the caller.
                     abstract_operations::control_flow::address_joins::is_address_projection(
                         &binding.argument.path,
-                    ) && source.is_some_and(|(root_type, access, multiplicity)| {
+                    ) && super::super::operation_contracts::structural_source_contract(
+                        function, binding.argument.place,
+                    ).is_some_and(|source| {
+                        let access = source.backing_access(types);
                         (if matches!(
                             parameter.access,terminal_psi::exclusive_borrow_pair_pattern!()) {
                             super::super::operation_contracts::structural_access_can_supply(
@@ -238,10 +242,11 @@ pub(super) fn validate(
                                     })
                         } else {
                             access != StructuralAccess::WriteOnlyBorrow
-                        }) && multiplicity != StructuralMultiplicity::Linear
+                        }) && source.multiplicity != StructuralMultiplicity::Linear
+                            && source.borrowed_qualifications_match(&binding.argument.path, parameter)
                             && abstract_operations::control_flow::address_joins::borrowed_referent_type(
                                 types.values().copied(),
-                                root_type,
+                                source.structural_type,
                                 &binding.argument.path,
                                 parameter.access,
                             ) == Some(parameter.structural_type)
@@ -276,21 +281,25 @@ pub(super) fn validate(
                     // independently transfers its complete claim frontier and
                     // retains the source's siblings until edge cleanup.
                     parameter.access == StructuralAccess::Owned
-                        && matches!(
-                            parameter.multiplicity,
-                            StructuralMultiplicity::Affine | StructuralMultiplicity::Linear
-                        )
-                        && parameter.qualifications.is_empty()
-                        && parameter.projected_qualifications.is_empty()
                         && source.is_some_and(|(root_type, access, multiplicity)| {
                             access == StructuralAccess::Owned
-                                && multiplicity == StructuralMultiplicity::Affine
+                                && (multiplicity == StructuralMultiplicity::Affine
+                                    && matches!(parameter.multiplicity, StructuralMultiplicity::Affine | StructuralMultiplicity::Linear)
+                                    || multiplicity == StructuralMultiplicity::Unrestricted
+                                        && parameter.multiplicity == StructuralMultiplicity::Unrestricted)
                                 &&
                             crate::unit_validation::structural_catalog::resolve_structural_path(
                                 types,
                                 root_type,
                                 &binding.argument.path,
                             ) == Some(parameter.structural_type)
+                                && super::super::operation_contracts::structural_source_contract(
+                                    function, binding.argument.place,
+                                ).is_some_and(|source| {
+                                    let (whole, projected) = source.selected_qualifications(&binding.argument.path);
+                                    parameter.qualifications.iter().all(|domain| whole.contains(domain))
+                                        && parameter.projected_qualifications.iter().all(|row| projected.contains(row))
+                                })
                         })
                 } else {
                     source.is_some_and(|(source_type, access, multiplicity)| {

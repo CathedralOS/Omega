@@ -113,21 +113,21 @@ pub(crate) fn check_with_private_entry_ram(
                         interface, slot, ..
                     } => {
                         let catalog = &program.catalogs.dynamic_dispatch;
-                        let slot_index = usize::try_from(*slot)
-                            .map_err(|_| TerminalInterpretError::VerifiedOperationMalformed)?;
+                        let slot_index =
+                            usize::try_from(*slot).map_err(|_| crate::errors::malformed())?;
                         if catalog
                             .interface(*interface)
                             .and_then(|interface| interface.slots.get(slot_index))
                             .is_none()
                         {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                            return Err(crate::errors::malformed());
                         }
                         for table in &catalog.tables {
                             if table.interface == *interface {
                                 let row = table
                                     .rows
                                     .get(slot_index)
-                                    .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+                                    .ok_or_else(crate::errors::malformed)?;
                                 pending.extend(*row);
                             }
                         }

@@ -20,7 +20,7 @@ use validation::canonical_place_from_expression_in_state;
 use validation::find_call_site;
 
 use crate::flow::jump_loans::{HeldAccesses, TargetRun, held_accesses, target_run};
-use crate::flow::mutation::WritePlaceNamespace;
+use crate::flow::mutation::{CallMutationWrite, WritePlaceNamespace};
 
 use super::local_origins::rebase_local_write_places;
 use checked_trees::expression::ExpressionNode;
@@ -79,7 +79,7 @@ pub(super) fn instantiate_known_call_mutation_summary_places(
     namespace: WritePlaceNamespace,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
     loan: Option<&CanonicalPlace>,
-) -> Option<Vec<CanonicalPlace>> {
+) -> Option<Vec<CallMutationWrite>> {
     let target_state = program.state_by_symbol(borrow_call.target_symbol)?;
     let summary = state_mutation_summary(program, borrow, cache, target_state, call_frames)?;
     let run = target_run(
@@ -97,7 +97,7 @@ pub(super) fn instantiate_known_call_mutation_summary_places(
         {
             continue;
         }
-        let places = instantiate_call_relative_places(
+        let contributions = instantiate_call_relative_writes(
             program,
             caller_machine_symbol,
             caller_state_symbol,
@@ -107,9 +107,9 @@ pub(super) fn instantiate_known_call_mutation_summary_places(
             namespace,
             call_frames,
         )?;
-        for place in places {
-            if !instantiated.contains(&place) {
-                instantiated.push(place);
+        for contribution in contributions {
+            if !instantiated.contains(&contribution) {
+                instantiated.push(contribution);
             }
         }
     }
@@ -309,8 +309,12 @@ fn propagate_state_mutation_summaries(
                               pending: &mut Vec<MutationWrite>,
                               writes: Vec<MutationWrite>| {
                     for write in writes {
-                        if state_summary_exposes_place(program, caller_state, &write.place)
-                            && !existing.contains(&write)
+                        if state_summary_exposes_place(
+                            program,
+                            caller_state,
+                            &write.place,
+                            call_frames,
+                        ) && !existing.contains(&write)
                             && !pending.contains(&write)
                         {
                             pending.push(write);
@@ -511,6 +515,7 @@ fn state_summary_exposes_place(
     program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     place: &CanonicalPlace,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> bool {
     let Some(root) = place.root.as_symbol() else {
         return false;
@@ -521,6 +526,14 @@ fn state_summary_exposes_place(
                 && (program
                     .primitive_type_reference(parameter.type_reference)
                     .is_none())
+                // Incoming owned storage is a private value, even when a
+                // local loan lets a nested call mutate it. Only references
+                // carried by the formal can expose those writes to a caller.
+                // Reuse the resolver's closed-shape law; opaque or recursive
+                // storage stays conservative rather than guessing isolation.
+                && call_frames.is_none_or(|frames| {
+                    !frames.value_is_reference_free(parameter.type_reference)
+                })
         })
 }
 
@@ -550,7 +563,7 @@ fn collect_state_mutation_summary_places(
                     place,
                     requires_exclusive_access: true,
                 };
-                if state_summary_exposes_place(program, state, &write.place)
+                if state_summary_exposes_place(program, state, &write.place, call_frames)
                     && !writes.contains(&write)
                 {
                     writes.push(write);
@@ -582,7 +595,8 @@ fn collect_state_mutation_summary_places(
                 place,
                 requires_exclusive_access,
             };
-            if state_summary_exposes_place(program, state, &write.place) && !writes.contains(&write)
+            if state_summary_exposes_place(program, state, &write.place, call_frames)
+                && !writes.contains(&write)
             {
                 writes.push(write);
             }
@@ -602,6 +616,38 @@ pub(in crate::flow) fn instantiate_call_relative_places(
     namespace: WritePlaceNamespace,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<CanonicalPlace>> {
+    instantiate_call_relative_writes(
+        program,
+        caller_machine_symbol,
+        caller_state_symbol,
+        borrow,
+        borrow_call,
+        relative_place,
+        namespace,
+        call_frames,
+    )
+    .map(|writes| writes.into_iter().map(|write| write.place).collect())
+}
+
+fn instantiate_call_relative_writes(
+    program: &dyn ::validation::CheckingInput,
+    caller_machine_symbol: SymbolHandle,
+    caller_state_symbol: SymbolHandle,
+    borrow: &BorrowFacts,
+    borrow_call: &BorrowCallFact,
+    relative_place: &CanonicalPlace,
+    namespace: WritePlaceNamespace,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
+) -> Option<Vec<CallMutationWrite>> {
+    let attributed = |places: Vec<CanonicalPlace>| {
+        places
+            .into_iter()
+            .map(|place| CallMutationWrite {
+                place,
+                source: Some(relative_place.clone()),
+            })
+            .collect()
+    };
     let parameter_symbol = relative_place.root.as_symbol()?;
     let call_site = find_call_site(
         program,
@@ -647,7 +693,7 @@ pub(in crate::flow) fn instantiate_call_relative_places(
                     &relative_place.segments,
                 )
             {
-                return Some(places);
+                return Some(attributed(places));
             }
             argument.and_then(|expression| {
                 canonical_place_from_expression_in_state(
@@ -665,7 +711,7 @@ pub(in crate::flow) fn instantiate_call_relative_places(
             .segments
             .extend(relative_place.segments.iter().copied());
         return match namespace {
-            WritePlaceNamespace::AccessRoute => Some(vec![instantiated]),
+            WritePlaceNamespace::AccessRoute => Some(attributed(vec![instantiated])),
             WritePlaceNamespace::Storage if !storage_place_has_declared_identity(&instantiated) => {
                 // Expression identity describes evaluation, not storage. The
                 // shared complete frame owns origins of literal/computed
@@ -678,6 +724,7 @@ pub(in crate::flow) fn instantiate_call_relative_places(
                     borrow_call,
                     call_frames,
                 )
+                .map(super::unattributed_writes)
             }
             WritePlaceNamespace::Storage => rebase_local_write_places(
                 program,
@@ -685,7 +732,8 @@ pub(in crate::flow) fn instantiate_call_relative_places(
                 borrow_call.statement_index,
                 instantiated,
                 call_frames,
-            ),
+            )
+            .map(attributed),
         };
     }
 

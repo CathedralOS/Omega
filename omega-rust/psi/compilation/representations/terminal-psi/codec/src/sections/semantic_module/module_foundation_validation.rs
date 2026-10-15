@@ -1015,11 +1015,7 @@ fn validate_structural_arguments(
             // Independent verification checks availability, runtime bounds
             // and exclusive overlap; canonicalization establishes none of them.
             let payload_loan = argument.access == expected.access
-                && matches!(
-                    argument.access,
-                    terminal_psi::StructuralAccess::SharedBorrow
-                        | terminal_psi::StructuralAccess::MutableBorrow
-                );
+                && argument.access != terminal_psi::StructuralAccess::Owned;
             let admitted_access = matches!(
                 (argument.access, expected.access),
                 (
@@ -1029,7 +1025,11 @@ fn validate_structural_arguments(
             ) || payload_loan;
             if !plain_source
                 || !admitted_access
-                || (!payload_loan && !argument.path.is_empty())
+                || (!payload_loan
+                    && argument
+                        .path
+                        .iter()
+                        .any(|segment| !matches!(segment, StructuralPathSegment::FixedIndex(_))))
                 || expected.multiplicity != StructuralMultiplicity::Unrestricted
                 || !expected.qualifications.is_empty()
                 || !expected.projected_qualifications.is_empty()
@@ -1043,7 +1043,7 @@ fn validate_structural_arguments(
                     .any(|claim| claim.input.root == argument.place)
             {
                 return malformed(
-                    "primitive-array argument requires plain array transfer or loan custody",
+                    "primitive-array argument requires owned element selection or loan custody",
                 );
             }
         }
@@ -1095,9 +1095,12 @@ fn validate_structural_arguments(
         // Preserve the original root/path and replay the exact capacity and
         // predicate contract instead of manufacturing a structural leaf type.
         if matches!(presentation, StructuralArgumentPresentation::Ordinary)
-            && parameter.is_some_and(|actual| {
+            && backing.is_some_and(|actual| {
                 terminal_semantics::bounded_byte_owner_capacity(module, actual, argument, expected)
                     .is_some()
+            })
+            && !result.is_some_and(|result| {
+                !result.claims.is_empty() || !result.qualification_establishments.is_empty()
             })
             && !machine
                 .entry_claims

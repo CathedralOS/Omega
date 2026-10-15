@@ -79,6 +79,7 @@ pub(crate) fn lower_statement_node(
             typed::statement::StatementNode::Assignment(typed::statement::TableAssignment {
                 target: lower_statement_expression(lowerer, assignment.target)?,
                 value: lower_statement_expression(lowerer, assignment.value)?,
+                receiving_type: typed::types::TypeReferenceHandle::invalid(),
             }),
         ),
         resolved::statement::StatementNode::Call(call) => Ok(

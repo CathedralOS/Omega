@@ -8,7 +8,7 @@ use checked_trees::{
 use facts::{FactPayload, FactPlan};
 mod matching;
 
-use self::matching::matching_mutation_for_fact_place;
+pub(in crate::flow) use self::matching::matching_mutation_for_fact_place;
 
 /// Query the same storage/dependent-domain invalidation law without publishing
 /// a second flow trace. Cleanup selections carry existing context identities.

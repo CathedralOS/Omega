@@ -181,17 +181,15 @@ impl ByteLiteral {
 }
 
 /// The ordered frame supplies a real formal or a previously produced local
-/// reference or owned home. Keeping these distinct prevents manufacturing parameter custody
-/// for a call result; source replay and Terminal verify the loan independently.
+/// home. Local ownership comes from its declaration, not a record/reference
+/// shape classification; projected pointer crossings retain their access.
 pub(crate) enum StoreRoot<'a> {
     Parameter(&'a StructuralParameterDeclaration),
-    Reference {
+    Local {
         place: semantic_vocabulary::PlaceId,
         structural_type: StructuralTypeId,
-    },
-    Owned {
-        place: semantic_vocabulary::PlaceId,
-        structural_type: StructuralTypeId,
+        multiplicity: terminal_psi::StructuralMultiplicity,
+        access: terminal_psi::StructuralAccess,
     },
     /// A declared descriptor local's home, whose own establishment is its
     /// write authority. `qualified` records whether it declares byte
@@ -423,7 +421,7 @@ pub(crate) fn emit_content_store(
 ) -> Result<OperationKind, LoweringError> {
     let destination = match &root {
         StoreRoot::Parameter(parameter) => parameter.place,
-        StoreRoot::Reference { place, .. } | StoreRoot::Owned { place, .. } => *place,
+        StoreRoot::Local { place, .. } => *place,
         StoreRoot::DescriptorHome { .. } => {
             return unsupported("a descriptor home holds no owned byte contents");
         }
@@ -455,82 +453,37 @@ pub(crate) fn emit_content_store(
                         structural_types,
                     )?
                 }
-                StoreRoot::Reference {
-                    structural_type, ..
-                } => {
-                    if !structural_types.iter().any(|declaration| {
-                        declaration.id == *structural_type
-                            && matches!(
-                                declaration.shape,
-                                StructuralTypeShape::Reference {
-                                    access: terminal_psi::StructuralAccess::MutableBorrow,
-                                    ..
-                                }
-                            )
-                    }) {
-                        return unsupported(
-                            "byte-field local destination lost mutable reference custody",
-                        );
-                    }
-                    crate::emission::structural_scalar_store::lower_structural_field_path(
-                        identities,
-                        *structural_type,
-                        carrier_path,
-                        field_identity,
-                        structural_types,
-                    )?
-                }
                 StoreRoot::DescriptorHome { .. } => {
                     return unsupported("a descriptor home has no byte field");
                 }
-                StoreRoot::Owned {
-                    place,
+                StoreRoot::Local {
                     structural_type,
+                    multiplicity,
+                    access,
+                    ..
                 } => {
-                    // Resolve an existing whole local, never a fabricated formal
-                    // or a type-only promise that its fields are initialized.
-                    // Its establishment may carry field predicates: those are
-                    // not loans or claims. Checking proved this replacement's
-                    // membership; emission must preserve the established home,
-                    // not require an unqualified initializer to write it.
-                    // Replacing its unrestricted byte field neither copies nor
-                    // disposes the enclosing owner. Affine/linear custody and
-                    // claims stay on that home and its ordinary continuation.
-                    let produced = operations
-                        .operations
-                        .iter()
-                        .filter_map(|operation| operation.result.structural())
-                        .find(|result| result.place == *place)
-                        .ok_or(LoweringError::Unsupported(
-                            "byte-field owned destination has no completed producer",
-                        ))?;
-                    if produced.structural_type != *structural_type
-                        || !locals.iter().any(
-                            |crate::expression_preparation::bindings::StructuralLocalBinding {
-                                 argument: local,
-                                 ..
-                             }| {
-                                local.place == *place
-                                    && local.access == terminal_psi::StructuralAccess::Owned
-                                    && local.path.is_empty()
-                            },
-                        )
-                        || !structural_types.iter().any(|declaration| {
-                            declaration.id == *structural_type
-                                && matches!(declaration.shape, StructuralTypeShape::Record { .. })
-                        })
-                    {
-                        return unsupported(
-                            "byte-field local destination lost owned record custody",
-                        );
-                    }
-                    crate::emission::structural_scalar_store::lower_structural_field_path(
-                        identities,
+                    let (path, field) =
+                        crate::emission::structural_scalar_store::lower_structural_field_path(
+                            identities,
+                            *structural_type,
+                            carrier_path,
+                            field_identity,
+                            structural_types,
+                        )?;
+                    // The local resolver authenticated this occurrence's home.
+                    // Owning a descriptor still cannot grant mutation through
+                    // a shared pointer anywhere in the selected carrier path.
+                    if !terminal_semantics::reference_source_projection_accessible(
+                        structural_types.iter(),
                         *structural_type,
-                        carrier_path,
-                        field_identity,
-                        structural_types,
-                    )?
+                        *multiplicity,
+                        *access,
+                        &path,
+                        terminal_psi::StructuralAccess::WriteOnlyBorrow,
+                    ) {
+                        return unsupported("byte-field local projection has no write authority");
+                    }
+                    (path, field)
                 }
             };
             if !matches!(
@@ -677,13 +630,10 @@ pub(crate) fn prepare_descriptor_store(
                 structural_types,
             )?,
         ),
-        StoreRoot::Reference {
+        StoreRoot::Local {
             place,
             structural_type,
-        }
-        | StoreRoot::Owned {
-            place,
-            structural_type,
+            ..
         } => (
             *place,
             *structural_type,
@@ -772,12 +722,14 @@ fn emit_literal(
     destination: semantic_vocabulary::PlaceId,
     structural_type: StructuralTypeId,
     bytes: &[u8],
-    qualifications: Vec<semantic_vocabulary::StructuralDomainId>,
+    mut qualifications: Vec<semantic_vocabulary::StructuralDomainId>,
     operations: &mut OperationBuffer,
 ) -> semantic_vocabulary::OperationId {
     operations
         .literal_types
         .push((destination, structural_type));
+    qualifications.sort();
+    qualifications.dedup();
     let id = operations.allocate();
     operations.push(Operation {
         id,
@@ -1085,7 +1037,7 @@ fn emit_concatenation(
     left: ByteSequenceOperand,
     right: ByteSequenceOperand,
     structural_type: StructuralTypeId,
-    qualifications: Vec<semantic_vocabulary::StructuralDomainId>,
+    mut qualifications: Vec<semantic_vocabulary::StructuralDomainId>,
     next_obligation: &mut u64,
     operations: &mut OperationBuffer,
 ) -> Result<
@@ -1095,6 +1047,10 @@ fn emit_concatenation(
     ),
     LoweringError,
 > {
+    // Source-domain order does not imply allocated Terminal-domain order.
+    // Publish the membership set in the identity namespace it now belongs to.
+    qualifications.sort();
+    qualifications.dedup();
     let id = operations.allocate();
     let result = terminal_psi::StructuralOperationResult {
         place,

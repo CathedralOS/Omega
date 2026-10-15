@@ -1,0 +1,4 @@
+// A transition's value target owes the same result access as a terminal value.
+machine middle(items: &mut [i32; 3]) -> &mut [i32] {
+    transition { _ -> (items[1..2]) }
+}

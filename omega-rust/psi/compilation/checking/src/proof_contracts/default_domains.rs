@@ -42,7 +42,9 @@ pub(crate) use where_fact_intervals::{
     FieldLiteralBound, data_where_field_literal_bounds, stored_field_where_interval,
     where_fact_interval,
 };
-pub use where_fact_intervals::{case_where_field_intervals, impossible_variant, data_where_field_intervals};
+pub use where_fact_intervals::{
+    case_where_field_intervals, data_where_field_intervals, impossible_variant,
+};
 
 use diagnostics::Diagnostic;
 use typed_trees::data::DataDefinition;

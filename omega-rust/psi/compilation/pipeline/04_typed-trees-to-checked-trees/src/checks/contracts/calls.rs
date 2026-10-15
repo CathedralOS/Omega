@@ -86,10 +86,14 @@ pub(super) fn check_call_requires(
     {
         let context = facts.semantic.contexts.get(requires_context);
         for fact in facts.semantic.context_view(context).facts() {
-            let captured_contexts = super::call_values::membership_contexts(
+            let membership = super::call_values::membership_evidence(
                 program, facts, state_flow, call_flow, fact,
             );
-            let requirement_contexts = captured_contexts.as_deref().unwrap_or(&entry_contexts);
+            let requirement_contexts = membership
+                .as_ref()
+                .map_or(entry_contexts.as_slice(), |evidence| {
+                    evidence.contexts.as_slice()
+                });
             let captured_judgment = captured_boolean::judgment(
                 program,
                 facts,
@@ -165,6 +169,9 @@ pub(super) fn check_call_requires(
                         call_flow,
                         requirement_contexts,
                         fact,
+                        membership
+                            .as_ref()
+                            .and_then(|evidence| evidence.referents.as_deref()),
                         call_frames,
                     ) || proven_predicates_grant_domain(
                         program,

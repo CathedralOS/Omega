@@ -142,18 +142,28 @@ pub(crate) fn referent(
     }
 }
 
-/// Resolve an unqualified owned affine carrier's current declaration, without
-/// granting authority over its backing. Consumers independently check its
-/// reference shape and live loan, including suspended and released permissions.
-pub fn unqualified_owned_reference_carrier(
+/// Resolve the declared access of an unqualified carrier through its stored
+/// pointers. Owning the carrier is not required to write its referent. This
+/// declaration walk supplies no availability or live-loan evidence.
+pub fn unqualified_reference_projection(
     function: &PsiOptimizationFunction,
+    types: &[terminal_psi::StructuralTypeDeclaration],
     destination: PlaceId,
+    path: &[terminal_psi::StructuralPathSegment],
+    required_access: terminal_psi::StructuralAccess,
 ) -> Option<StructuralTypeId> {
     let source = structural_source_contract(function, destination)?;
-    (source.access == terminal_psi::StructuralAccess::Owned
-        && source.multiplicity == terminal_psi::StructuralMultiplicity::Affine
+    (source.multiplicity != terminal_psi::StructuralMultiplicity::Linear
         && source.is_unqualified()
         && !source.has_result_evidence()
+        && terminal_semantics::reference_source_projection_accessible(
+            types.iter(),
+            source.structural_type,
+            source.multiplicity,
+            source.access,
+            path,
+            required_access,
+        )
         && function
             .entry_claim_declarations
             .iter()
@@ -396,6 +406,51 @@ pub(crate) fn storage_projection(
     )
 }
 
+/// Authenticate the supplying authority independently of its endpoint type.
+/// Inline storage has no nominal leaf; that must neither prevent a lawful
+/// loan nor bypass root custody and each stored reference's access ceiling.
+pub(crate) fn reference_source_accessible(
+    function: &PsiOptimizationFunction,
+    types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
+    source: &terminal_psi::StructuralArgument,
+) -> bool {
+    if source.access == terminal_psi::StructuralAccess::Owned {
+        return false;
+    }
+    let Some(contract) = structural_source_contract(function, source.place) else {
+        return false;
+    };
+    if contract.multiplicity == terminal_psi::StructuralMultiplicity::Linear
+        || contract.has_result_evidence()
+    {
+        return false;
+    }
+    let path = terminal_semantics::reference_source_storage_path(
+        types.values().copied(),
+        contract.structural_type,
+        &source.path,
+    );
+    if !terminal_semantics::reference_source_projection_accessible(
+        types.values().copied(),
+        contract.structural_type,
+        contract.multiplicity,
+        contract.access,
+        path,
+        source.access,
+    ) {
+        return false;
+    }
+    path.contains(&terminal_psi::StructuralPathSegment::Referent)
+        || (function
+            .entry_claim_declarations
+            .iter()
+            .all(|claim| claim.input != source.place)
+            && function
+                .content_entry_claims
+                .iter()
+                .all(|claim| claim.input.root != source.place))
+}
+
 /// Direct storage loans use the same contract for arrival parameters and local
 /// operation results. Their field/index paths never dereference a permission
 /// carrier; those projections end in `Referent` and retain their own checks.
@@ -404,14 +459,15 @@ pub(crate) fn reference_source_type(
     types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
     source: &terminal_psi::StructuralArgument,
 ) -> Option<StructuralTypeId> {
-    if !matches!(
-        source.access,
-        terminal_psi::StructuralAccess::SharedBorrow
-            | terminal_psi::StructuralAccess::MutableBorrow
-            | terminal_psi::StructuralAccess::WriteOnlyBorrow
-    ) {
+    if !reference_source_accessible(function, types, source) {
         return None;
     }
+    let contract = structural_source_contract(function, source.place)?;
+    let path = terminal_semantics::reference_source_storage_path(
+        types.values().copied(),
+        contract.structural_type,
+        &source.path,
+    );
     if !source
         .path
         .contains(&terminal_psi::StructuralPathSegment::Referent)
@@ -445,7 +501,12 @@ pub(crate) fn reference_source_type(
             _ => None,
         });
     }
-    projected_carrier_type(function, types, source)
+    let source = terminal_psi::StructuralArgument {
+        place: source.place,
+        access: source.access,
+        path: path.to_vec(),
+    };
+    projected_carrier_type(function, types, &source)
 }
 
 fn direct_reference_parameter<'a>(
@@ -628,7 +689,6 @@ pub(crate) fn validate_function_references(
                     }
             ) || result.multiplicity != terminal_psi::StructuralMultiplicity::Affine
                 || !result.qualifications.is_empty()
-                || !result.projected_qualifications.is_empty()
                 || !result.claims.is_empty())
         {
             return Err(invalid());
@@ -659,7 +719,6 @@ pub(crate) fn validate_function_references(
                 terminal_psi::StructuralMultiplicity::Unrestricted
             }
             || !parameter.qualifications.is_empty()
-            || !parameter.projected_qualifications.is_empty()
             || !constructible(types, parameter.structural_type)
             || function
                 .entry_claim_declarations
@@ -673,18 +732,22 @@ pub(crate) fn validate_function_references(
             return Err(invalid());
         }
     }
-    // A block parameter may hold a whole owned reference record: the same
-    // eligibility as an incoming parameter. The replay's live-reference rows
-    // re-home onto the bound place at each edge, so edge custody, not the
-    // parameter shape, carries the loan's exact evidence.
+    // A block parameter holds a moved carrier or an independent shared copy.
+    // Current replay checks the actual source's multiplicity and complete
+    // shared-leaf roster for every unrestricted copy. The receiving annotation
+    // cannot authorize copying an exclusive descriptor. Affine arrivals re-home
+    // existing live-reference rows instead of minting permission.
     for parameter in function
         .block_structural_parameters()
         .filter(|parameter| contains_reference(types, parameter.structural_type))
     {
         if parameter.access != terminal_psi::StructuralAccess::Owned
-            || parameter.multiplicity != terminal_psi::StructuralMultiplicity::Affine
+            || !matches!(
+                parameter.multiplicity,
+                terminal_psi::StructuralMultiplicity::Affine
+                    | terminal_psi::StructuralMultiplicity::Unrestricted
+            )
             || !parameter.qualifications.is_empty()
-            || !parameter.projected_qualifications.is_empty()
             || !constructible(types, parameter.structural_type)
         {
             return Err(invalid());
@@ -734,7 +797,6 @@ pub(crate) fn validate_function_references(
     }
     if result.multiplicity != terminal_psi::StructuralMultiplicity::Affine
         || !result.qualifications.is_empty()
-        || !result.projected_qualifications.is_empty()
     {
         return Err(invalid());
     }

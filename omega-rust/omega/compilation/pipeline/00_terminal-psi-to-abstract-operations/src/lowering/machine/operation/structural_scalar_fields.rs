@@ -145,15 +145,7 @@ fn lower_store(
         // an entry parameter, or a join-completed block parameter all
         // carry the loan's authority on the type, not on a producer
         // identity only an operation result has.
-        let (carrier_type, multiplicity) = match &destination {
-            StructuralScalarStoreDestination::OwnedResult { result, .. } => {
-                (result.structural_type, result.multiplicity)
-            }
-            StructuralScalarStoreDestination::Parameter(parameter)
-            | StructuralScalarStoreDestination::OwnedBlockParameter { parameter, .. } => {
-                (parameter.structural_type, parameter.multiplicity)
-            }
-        };
+        let carrier_type = destination.structural_type();
         let Some(StructuralTypeShape::Reference {
             referent,
             access: StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow,
@@ -163,8 +155,17 @@ fn lower_store(
         else {
             return Err(invalid());
         };
-        if multiplicity != StructuralMultiplicity::Affine
-            || find_structural_type(structural_types, *referent).is_none()
+        if find_structural_type(structural_types, *referent).is_none()
+            || !terminal_semantics::reference_source_projection_accessible(
+                structural_types.iter(),
+                carrier_type,
+                destination.multiplicity(),
+                destination
+                    .parameter()
+                    .map_or(StructuralAccess::Owned, |parameter| parameter.access),
+                path,
+                StructuralAccess::WriteOnlyBorrow,
+            )
         {
             return Err(invalid());
         }

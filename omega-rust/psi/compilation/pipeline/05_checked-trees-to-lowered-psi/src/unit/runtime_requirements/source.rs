@@ -114,14 +114,11 @@ fn validate_membership_source<'clause>(
             "scalar entry membership needs its declared theory evidence owner",
         ),
     )?;
-    let predicates = validation::scalar_membership_predicates(
-        &checked.typed,
-        membership,
-        &witness.subject,
-    )
-    .ok_or(LoweringError::Unsupported(
-        "scalar entry membership has no complete predicate projection",
-    ))?;
+    let predicates =
+        validation::scalar_membership_predicates(&checked.typed, membership, &witness.subject)
+            .ok_or(LoweringError::Unsupported(
+                "scalar entry membership has no complete predicate projection",
+            ))?;
     for _ in predicates {
         let actual = retained.next().ok_or(LoweringError::Unsupported(
             "scalar entry membership lost a declared predicate",

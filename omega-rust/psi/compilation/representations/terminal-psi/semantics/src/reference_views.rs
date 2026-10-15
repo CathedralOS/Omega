@@ -7,6 +7,38 @@
 
 use semantic_vocabulary::{ScalarType, StructuralTypeId};
 
+/// Shared references can be copied even when their materialized carriers have
+/// affine retirement custody. Fixed arrays inherit this distinction from their
+/// elements, including nested arrays; the referent itself is never copied.
+/// Nominal payloads do not inherit copy permission from their physical fields
+/// or cleanup metadata. Their ordinary multiplicity remains authoritative.
+/// This declaration judgment does not establish live backing, fresh carrier
+/// identity, memberships or parent loans; each copy still checks those.
+pub fn is_shared_reference_carrier<'types>(
+    types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+    mut structural_type: StructuralTypeId,
+) -> bool {
+    // Every step descends one stored array element. A walk longer than the
+    // catalog is cyclic; absent or ambiguous identities also fail closed.
+    for _ in 0..types.clone().count() {
+        let mut matching = types.clone().filter(|row| row.id == structural_type);
+        let Some(declaration) = matching.next() else {
+            return false;
+        };
+        if matching.next().is_some() || declaration.quotient_carrier.is_some() {
+            return false;
+        }
+        match declaration.shape {
+            StructuralTypeShape::Reference { access, .. } => {
+                return access == StructuralAccess::SharedBorrow;
+            }
+            StructuralTypeShape::FixedArray { element, .. } => structural_type = element,
+            _ => return false,
+        }
+    }
+    false
+}
+
 /// Resolve the declaration of one retained storage interpretation. This checks
 /// its vocabulary and codec only, never source representation validity, extent,
 /// access or lifetime. Result custody must match it to an actual admitted
@@ -41,8 +73,13 @@ pub fn reference_source_storage_path<'types, 'path>(
     path: &'path [terminal_psi::StructuralPathSegment],
 ) -> &'path [terminal_psi::StructuralPathSegment] {
     if let Some((terminal_psi::StructuralPathSegment::Referent, prefix)) = path.split_last()
-        && crate::runtime_structural_path_tip(types, root, prefix)
-            .is_some_and(|tip| !matches!(tip.shape, StructuralTypeShape::Reference { .. }))
+        && (crate::runtime_structural_path_tip(types.clone(), root, prefix).is_some_and(|tip| {
+            !matches!(
+                tip.shape,
+                terminal_psi::StructuralTypeShape::Reference { .. }
+            )
+        }) || crate::runtime_structural_field(types, root, prefix)
+            .is_some_and(|field| field.field_type.byte_sequence_carrier().is_some()))
     {
         prefix
     } else {
@@ -50,6 +87,216 @@ pub fn reference_source_storage_path<'types, 'path>(
     }
 }
 
+/// Join an exact projected storage endpoint to a reference representation.
+/// Inline owners have no nominal leaf type: compare their carrier directly
+/// without replacing the root or inventing a catalog declaration. Membership,
+/// access and lifetime admission remain independent of this geometry.
+pub fn reference_source_projection_compatible<'types>(
+    types: impl Iterator<Item = &'types terminal_psi::StructuralTypeDeclaration> + Clone,
+    root: StructuralTypeId,
+    path: &[terminal_psi::StructuralPathSegment],
+    reference: StructuralTypeId,
+) -> bool {
+    let path = reference_source_storage_path(types.clone(), root, path);
+    // Shared formation observes a restricted inline scalar through its read
+    // carrier. It does not require a standalone declaration for that field,
+    // nor may it manufacture a stronger receiving restriction. Exclusive
+    // formation still retains the exact receiving contract below.
+    if let Some(StructuralTypeShape::Reference {
+        access: StructuralAccess::SharedBorrow,
+        referent,
+    }) = types
+        .clone()
+        .find(|row| row.id == reference)
+        .map(|row| &row.shape)
+        && let Some(target) = types.clone().find(|row| row.id == *referent)
+        && matches!(target.shape, StructuralTypeShape::PrimitiveScalar(_))
+    {
+        let Some(source) = crate::borrowed_primitive_projection_declaration(
+            types.clone(),
+            root,
+            path,
+            Some(*referent),
+        ) else {
+            return false;
+        };
+        return (source == *referent || target.scalar_restriction.is_none())
+            && reference_source_compatible(types, source, reference);
+    }
+    if let Some(source) = crate::runtime_structural_path_tip(types.clone(), root, path) {
+        return reference_source_compatible(types, source.id, reference);
+    }
+    if let Some(source) = crate::primitive_projection_declaration(types.clone(), root, path) {
+        return reference_source_compatible(types, source, reference);
+    }
+    let Some(field) = crate::runtime_structural_field(types.clone(), root, path) else {
+        return false;
+    };
+    let Some(terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity }) =
+        field.field_type.byte_sequence_carrier()
+    else {
+        return false;
+    };
+    let Some(terminal_psi::StructuralTypeShape::Reference { referent, .. }) = types
+        .clone()
+        .find(|row| row.id == reference)
+        .map(|row| &row.shape)
+    else {
+        return false;
+    };
+    types
+        .clone()
+        .find(|row| row.id == *referent)
+        .is_some_and(|row| {
+            row.shape
+                == terminal_psi::StructuralTypeShape::ByteSequence(
+                    terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity },
+                )
+        })
+}
+
+/// Authenticate declared access independently of the selected endpoint's
+/// nominal identity. Owning a shared descriptor does not own its backing;
+/// reference and indexed-view crossings retain their own access ceilings.
+/// Availability, active cases, bounds, memberships and live loans are separate
+/// operation judgments, not consequences of this declaration walk.
+pub fn reference_source_projection_accessible<'types>(
+    types: impl Iterator<Item = &'types terminal_psi::StructuralTypeDeclaration> + Clone,
+    root: StructuralTypeId,
+    multiplicity: terminal_psi::StructuralMultiplicity,
+    mut authority: terminal_psi::StructuralAccess,
+    path: &[terminal_psi::StructuralPathSegment],
+    requested: terminal_psi::StructuralAccess,
+) -> bool {
+    use terminal_psi::{
+        ByteSequenceCarrier, StructuralAccess, StructuralPathSegment, StructuralTypeShape,
+    };
+    if authority == StructuralAccess::Owned
+        && multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
+        && crate::descriptor_results::is_shared_descriptor(types.clone(), root)
+    {
+        authority = StructuralAccess::SharedBorrow;
+    }
+    if !requested.admits(authority) {
+        return false;
+    }
+    let path = reference_source_storage_path(types.clone(), root, path);
+    let mut region_start = 0;
+    for (position, segment) in path.iter().enumerate() {
+        let prefix = &path[..position];
+        match segment {
+            StructuralPathSegment::Referent => {
+                let Some(StructuralTypeShape::Reference { access, .. }) =
+                    crate::runtime_structural_path_tip(types.clone(), root, prefix)
+                        .map(|declaration| &declaration.shape)
+                else {
+                    return false;
+                };
+                if !StructuralAccess::SharedBorrow.admits(authority)
+                    || !requested.admits_referent(*access)
+                {
+                    return false;
+                }
+                authority = *access;
+                region_start = position + 1;
+            }
+            StructuralPathSegment::FixedIndex(_) | StructuralPathSegment::RuntimeIndex { .. } => {
+                let declaration = crate::runtime_structural_path_tip(types.clone(), root, prefix);
+                // A formal or crossed reference has explicit backing access.
+                // A directly contained ElementView has no field-local access
+                // contract. This declaration walk cannot grant exclusive use
+                // without the selected descriptor occurrence's authority.
+                if position != region_start
+                    && declaration.is_some_and(|row| {
+                        matches!(row.shape, StructuralTypeShape::ElementView { .. })
+                    })
+                    && requested != StructuralAccess::SharedBorrow
+                {
+                    return false;
+                }
+                // Inline fields carry their own access contract. Their
+                // canonical geometry declaration can erase that access, so it
+                // must not replace the selected field's backing authority.
+                let carrier = crate::runtime_structural_field(types.clone(), root, prefix)
+                    .and_then(|field| field.field_type.byte_sequence_carrier())
+                    .or_else(|| {
+                        declaration.and_then(|row| match row.shape {
+                            StructuralTypeShape::ByteSequence(carrier) => Some(carrier),
+                            _ => None,
+                        })
+                    });
+                if let Some(
+                    ByteSequenceCarrier::BorrowedView {
+                        access: Some(access),
+                    }
+                    | ByteSequenceCarrier::BoundedView {
+                        access: Some(access),
+                        ..
+                    },
+                ) = carrier
+                    && !requested.admits_referent(access)
+                {
+                    return false;
+                }
+            }
+            _ => {}
+        }
+    }
+    true
+}
+
+/// An inline bounded owner has predicate storage, not a nominal membership
+/// roster. Capturing its address may present those predicates as primitive,
+/// route-free referent domains. Exclusive loans must preserve the complete
+/// field invariant; shared loans may observe a weaker contract. This relation
+/// neither proves live access nor creates an invariant window for field writes.
+pub fn reference_byte_field_compatible<'types, 'domains>(
+    types: impl Iterator<Item = &'types terminal_psi::StructuralTypeDeclaration> + Clone,
+    domains: impl Iterator<Item = &'domains terminal_psi::StructuralDomainDeclaration> + Clone,
+    root: StructuralTypeId,
+    path: &[terminal_psi::StructuralPathSegment],
+    reference: StructuralTypeId,
+    memberships: &[terminal_psi::StructuralPathQualification],
+) -> bool {
+    let Some(terminal_psi::StructuralTypeShape::Reference { referent, access }) = types
+        .clone()
+        .find(|declaration| declaration.id == reference)
+        .map(|declaration| &declaration.shape)
+    else {
+        return false;
+    };
+    let Some(terminal_psi::StructuralTypeShape::ByteSequence(
+        terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity },
+    )) = types
+        .clone()
+        .find(|declaration| declaration.id == *referent)
+        .map(|declaration| &declaration.shape)
+    else {
+        return false;
+    };
+    let Some(field) = crate::runtime_structural_field(types, root, path) else {
+        return false;
+    };
+    if field.field_type.byte_sequence_carrier()
+        != Some(terminal_psi::ByteSequenceCarrier::BoundedOwned {
+            capacity: *capacity,
+        })
+        || memberships
+            .iter()
+            .any(|row| row.path != [terminal_psi::StructuralPathSegment::Referent])
+    {
+        return false;
+    }
+    let qualifications = memberships.iter().map(|row| row.domain).collect::<Vec<_>>();
+    let Some(required) =
+        crate::byte_qualification_predicates_in(domains, *referent, &qualifications)
+    else {
+        return false;
+    };
+    let predicates = field.field_type.byte_predicates();
+    predicates.implies(required)
+        && (*access == terminal_psi::StructuralAccess::SharedBorrow || required.implies(predicates))
+}
 /// Exact byte footprint of a closed scalar storage interpretation. This is
 /// independent of the logical reference type and grants no access authority.
 pub fn reference_storage_byte_width(stored: ScalarType) -> Option<u8> {
@@ -337,6 +584,16 @@ pub fn reference_source_compatible<'types>(
         return false;
     };
     if source == *referent {
+        return true;
+    }
+    if matches!(
+        source_shape,
+        StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BoundedOwned { .. })
+    ) && types
+        .clone()
+        .find(|row| row.id == *referent)
+        .is_some_and(|row| row.shape == *source_shape)
+    {
         return true;
     }
     if *access != StructuralAccess::SharedBorrow {

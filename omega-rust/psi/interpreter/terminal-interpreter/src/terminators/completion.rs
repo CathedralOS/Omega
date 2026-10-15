@@ -37,6 +37,9 @@ impl TerminalExecution<'_> {
                 // siblings remain observable until this frame completes.
                 // The checked cleanup schedule has now finished; retire its
                 // bindings without pruning backing retained by outgoing values.
+                // Retiring views before this point would erase homes still
+                // named by explicit cleanup or by a suspended cleanup hook.
+                self.retire_plain_locals();
                 self.structural_values.clear();
                 self.finish_return(result)
             }
@@ -77,7 +80,6 @@ impl TerminalExecution<'_> {
     }
 
     fn restore_return_caller(&mut self, caller: SuspendedCall) -> SuspendedCallResult {
-        self.retire_plain_locals();
         self.placed_view_occurrences = caller.placed_view_occurrences;
         self.values = caller.values;
         self.structural_values = caller.structural_values;
@@ -102,7 +104,6 @@ impl TerminalExecution<'_> {
             if completed.destination.is_some() {
                 return Err(malformed());
             }
-            self.retire_plain_locals();
             self.result = Some(completed.value.clone());
             return Ok(TerminatorFlow::Yield(TerminalExecutionStatus::Complete(
                 completed.value,
@@ -200,24 +201,5 @@ impl TerminalExecution<'_> {
                 Ok(TerminatorFlow::Continue)
             }
         }
-    }
-
-    /// Borrowed and unrestricted inputs are frame bindings, not owed owned roots.
-    /// The completed result has already been removed before this retirement.
-    pub(super) fn retire_return_inputs(&mut self) {
-        if let Some(machine) = self.program.machines().get(&self.current_machine) {
-            for parameter in machine
-                .structural_parameters
-                .iter()
-                .chain(machine.block_structural_parameters())
-            {
-                if parameter.multiplicity == StructuralMultiplicity::Unrestricted
-                    || parameter.access != StructuralAccess::Owned
-                {
-                    self.structural_values.remove(&parameter.place);
-                }
-            }
-        }
-        self.retire_plain_locals();
     }
 }

@@ -357,7 +357,18 @@ impl Builder<'_, '_> {
         {
             return self.quotient_call_value(expression, expected);
         }
-        let kind = if let Some(value) = self.shared_carrier_reborrow(expression, expected) {
+        let kind = if let Some(primitive) = self.program.primitive_type_reference(expected) {
+            // Scalar storage is independent of its containing record, array,
+            // or argument. Keep the complete receiving type on this node;
+            // lowering owes its restriction when it establishes the home.
+            let value = self.expression(expression, primitive)?;
+            self.plans.nodes.get_mut(value).authored_root = expression;
+            self.push_scalar_root(
+                CheckedScalarExpressionRole::StructuralScalarValue { expression },
+                value,
+            )?;
+            CheckedStructuralValueKind::Scalar { value }
+        } else if let Some(value) = self.shared_carrier_reborrow(expression, expected) {
             value
         } else if let Some(value) = self.same_carrier_structural_cast(expression, expected) {
             value

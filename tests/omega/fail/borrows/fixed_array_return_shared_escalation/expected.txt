@@ -1,3 +1,3 @@
-machine `invalid` returns a view whose access cannot be supplied by matching input `matrix`
-machine `explicit` returns a view whose access cannot be supplied by matching input `matrix`
-machine `generic` returns a view whose access cannot be supplied by matching input `matrix`
+machine `invalid` state `entry` return value requires mutable source access; shared or immutable storage cannot supply it
+machine `explicit` state `entry` return value requires mutable source access; shared or immutable storage cannot supply it
+machine `generic` state `entry` return value requires mutable source access; shared or immutable storage cannot supply it

@@ -34,25 +34,37 @@ fn reference_store_carrier<'path>(
         .rposition(|segment| *segment == terminal_psi::StructuralPathSegment::Referent)?;
     let suffix = &path[crossing + 1..];
     let structural_type = structural_place_type(machine, destination)?;
-    let parameter = machine.structural_parameter(destination);
-    let exact = if let Some(parameter) = parameter {
-        parameter.multiplicity == StructuralMultiplicity::Affine
-            && parameter.qualifications.is_empty()
-            && parameter.projected_qualifications.is_empty()
+    let (multiplicity, access) = if let Some(parameter) = machine.structural_parameter(destination)
+    {
+        if !parameter.qualifications.is_empty() || !parameter.projected_qualifications.is_empty() {
+            return None;
+        }
+        (parameter.multiplicity, parameter.access)
     } else {
-        machine
+        let result = machine
             .operations()
             .filter_map(|operation| operation.result.structural())
-            .any(|result| {
+            .find(|result| {
                 result.place == destination
                     && result.structural_type == structural_type
-                    && result.multiplicity == StructuralMultiplicity::Affine
                     && result.qualifications.is_empty()
                     && result.projected_qualifications.is_empty()
                     && result.claims.is_empty()
-            })
+            })?;
+        (result.multiplicity, terminal_psi::StructuralAccess::Owned)
     };
-    if !exact {
+    // Descriptor ownership and referent access are different contracts. A
+    // borrowed aggregate is unrestricted but can carry an exclusive reference.
+    // Check the declared access along every crossing, not whether the root
+    // happened to be produced as an affine owned reference value.
+    if !terminal_semantics::reference_source_projection_accessible(
+        module.structural_types.iter(),
+        structural_type,
+        multiplicity,
+        access,
+        path,
+        terminal_psi::StructuralAccess::WriteOnlyBorrow,
+    ) {
         return None;
     }
     let StructuralTypeShape::Reference {
@@ -75,35 +87,56 @@ fn reference_store_carrier<'path>(
         .then_some((referent, suffix))
 }
 
-/// Canonical formation retains an existing owned record's producer and type.
+/// Canonical formation retains an existing owned home's producer and type.
 /// It does not prove establishment or dominance; receiving verification checks
-/// those independently before a store can mutate the home.
-fn owned_record_store_carrier(
+/// those independently before a store can mutate the home. Shape does not grant
+/// mutation: every reference crossing retains its own access ceiling.
+fn owned_store_carrier(
     module: &TerminalModule,
     machine: &TerminalMachine,
     destination: semantic_vocabulary::PlaceId,
+    path: &[terminal_psi::StructuralPathSegment],
 ) -> Option<semantic_vocabulary::StructuralTypeId> {
-    let StructuralPlaceKind::OperationResult {
-        producer,
+    let (structural_type, multiplicity) =
+        if let Some(parameter) = terminal_semantics::arrival_parameter(machine, destination) {
+            if parameter.access != terminal_psi::StructuralAccess::Owned
+                || !parameter.qualifications.is_empty()
+                || !parameter.projected_qualifications.is_empty()
+            {
+                return None;
+            }
+            (parameter.structural_type, parameter.multiplicity)
+        } else {
+            let StructuralPlaceKind::OperationResult {
+                producer,
+                structural_type,
+            } = machine.structural_place(destination)?.kind
+            else {
+                return None;
+            };
+            let mut producers = machine
+                .operations()
+                .filter(|operation| operation.id == producer);
+            let result = producers.next()?.result.structural()?;
+            if producers.next().is_some()
+                || result.place != destination
+                || result.structural_type != structural_type
+            {
+                return None;
+            }
+            (structural_type, result.multiplicity)
+        };
+    // This authenticates the home and declared access, not copy/disposal
+    // permission. Field replacement preserves its owner's custody and
+    // predicates; receiving verification checks the selected write.
+    terminal_semantics::reference_source_projection_accessible(
+        module.structural_types.iter(),
         structural_type,
-    } = machine.structural_place(destination)?.kind
-    else {
-        return None;
-    };
-    let mut producers = machine
-        .operations()
-        .filter(|operation| operation.id == producer);
-    let result = producers.next()?.result.structural()?;
-    (producers.next().is_none()
-        && result.place == destination
-        && result.structural_type == structural_type
-        // This authenticates the home and record shape, not copy/disposal
-        // permission. Field replacement preserves its owner's custody and
-        // predicates; receiving verification checks the selected write.
-        && module
-            .structural_types
-            .iter()
-            .any(|declaration| declaration.id == structural_type && declaration.is_record_shape()))
+        multiplicity,
+        terminal_psi::StructuralAccess::Owned,
+        path,
+        terminal_psi::StructuralAccess::WriteOnlyBorrow,
+    )
     .then_some(structural_type)
 }
 
@@ -180,23 +213,32 @@ pub(super) fn validate_establish_reference(
     let Some(source_type) = structural_place_type(machine, source.place) else {
         return malformed("reference establishment source is unknown");
     };
-    // Shared formation observes the original scalar field, using the same
-    // endpoint law as a shared call. Its receiving restriction stays on the
-    // field; exclusive formation still requires the complete storage type.
-    let observed = (source.access == terminal_psi::StructuralAccess::SharedBorrow)
-        .then(|| {
-            terminal_semantics::borrowed_primitive_projection_declaration(
-                module.structural_types.iter(),
-                source_type,
-                &source.path,
-                None,
+    let source_path = terminal_semantics::reference_source_storage_path(
+        module.structural_types.iter(),
+        source_type,
+        &source.path,
+    );
+    let inline_owner = storage.is_none()
+        && terminal_semantics::runtime_structural_field(
+            module.structural_types.iter(),
+            source_type,
+            source_path,
+        )
+        .is_some_and(|field| {
+            matches!(
+                field.field_type.byte_sequence_carrier(),
+                Some(terminal_psi::ByteSequenceCarrier::BoundedOwned { .. })
             )
-        })
-        .flatten();
-    let source_type = match observed {
-        Some(observed) => observed,
-        None => validate_structural_path(module, source_type, &source.path)?,
-    };
+        });
+    let field_compatible = inline_owner
+        && terminal_semantics::reference_byte_field_compatible(
+            module.structural_types.iter(),
+            module.structural_domains.iter(),
+            source_type,
+            source_path,
+            result.structural_type,
+            &result.projected_qualifications,
+        );
     if let Some(storage) = storage {
         let offset_type = machine
             .parameters
@@ -218,21 +260,72 @@ pub(super) fn validate_establish_reference(
         }
     }
     let compatible = match storage {
-        Some(storage) => terminal_semantics::reference_storage_source_compatible(
+        Some(storage) => {
+            // An explicit storage interpretation still observes a shared
+            // restricted scalar through its read carrier. The stored codec,
+            // offset and receiving interpretation remain independent checks.
+            let observed = (*access == terminal_psi::StructuralAccess::SharedBorrow)
+                .then(|| {
+                    terminal_semantics::borrowed_primitive_projection_declaration(
+                        module.structural_types.iter(),
+                        source_type,
+                        source_path,
+                        None,
+                    )
+                })
+                .flatten();
+            let source_type = match observed {
+                Some(observed) => observed,
+                None => validate_structural_path(module, source_type, source_path)?,
+            };
+            terminal_semantics::reference_storage_source_compatible(
+                module.structural_types.iter(),
+                source_type,
+                result.structural_type,
+                storage.stored_scalar,
+            )
+        }
+        None => terminal_semantics::reference_source_projection_compatible(
             module.structural_types.iter(),
             source_type,
-            result.structural_type,
-            storage.stored_scalar,
-        ),
-        None => terminal_semantics::reference_source_compatible(
-            module.structural_types.iter(),
-            source_type,
+            source_path,
             result.structural_type,
         ),
     };
+    // Inline owner predicates belong to the field, not the root's nominal
+    // membership roster. Carrier compatibility cannot replace their handback
+    // obligation, including when the result advertises no qualifications.
+    let memberships_match = if inline_owner {
+        field_compatible
+    } else {
+        structural_fields::declared_memberships(machine, source.place).is_some_and(
+            |(whole, projected)| {
+                let (whole, projected) = terminal_psi::StructuralPathQualification::select(
+                    whole,
+                    projected,
+                    source_path,
+                );
+                let mut captured = Vec::new();
+                terminal_psi::StructuralPathQualification::append_under(
+                    &whole,
+                    &projected,
+                    &[terminal_psi::StructuralPathSegment::Referent],
+                    &mut captured,
+                );
+                result.projected_qualifications.iter().all(|row| captured.contains(row))
+                // Mutable formation retains preservation obligations, not just
+                // optional observations. Erasing a row cannot erase a debt.
+                && (*access == terminal_psi::StructuralAccess::SharedBorrow
+                    || captured.iter().all(|row| result.projected_qualifications.contains(row)))
+            },
+        )
+    };
     if result.multiplicity != StructuralMultiplicity::Affine
         || !result.qualifications.is_empty()
-        || !result.projected_qualifications.is_empty()
+        || ((inline_owner
+            || !result.projected_qualifications.is_empty()
+            || *access != terminal_psi::StructuralAccess::SharedBorrow)
+            && !memberships_match)
         || !result.claims.is_empty()
         || *access != source.access
         || source.access == terminal_psi::StructuralAccess::Owned

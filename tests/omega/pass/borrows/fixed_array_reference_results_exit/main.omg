@@ -8,6 +8,8 @@ machine attenuate(matrix: &mut [[u64 in Wrapping; 13]; 33], depth: u64 in Wrappi
 requires depth < 33 { &matrix[depth] }
 machine forward_row(matrix: &mut [[u64 in Wrapping; 13]; 33], depth: u64 in Wrapping) -> &mut [u64 in Wrapping; 13]
 requires depth < 33 { forward(select_row(matrix, depth)) }
+machine transition_row(matrix: &mut [[u64 in Wrapping; 13]; 33], depth: u64 in Wrapping) -> &mut [u64 in Wrapping; 13]
+requires depth < 33 { transition { _ -> select_row(matrix, depth) } }
 machine shared_row(matrix: &[[u64 in Wrapping; 13]; 33], depth: u64 in Wrapping) -> &[u64 in Wrapping; 13]
 requires depth < 33 { &matrix[depth] }
 machine read_row(row: &[u64 in Wrapping; 13]) -> u64 in Wrapping { row[1] }
@@ -30,7 +32,7 @@ machine Main::main(main: &mut Main) crashes Trap {
     requires depth < 33 && richness < 13 {
         let row: &mut [u64 in Wrapping; 13] = forward_row(&mut main.weights, depth);
         accumulate(row, richness, 4);
-        accumulate(select_row(&mut main.weights, 2), 0, 7);
+        accumulate(transition_row(&mut main.weights, 2), 0, 7);
         let selected: &[u64 in Wrapping; 13] = shared_row(&main.weights, 2);
         let observed: u64 in Wrapping = read_row(selected);
         let attenuated: &[u64 in Wrapping; 13] = attenuate(&mut main.weights, 2);

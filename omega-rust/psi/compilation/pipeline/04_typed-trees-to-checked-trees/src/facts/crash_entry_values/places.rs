@@ -158,11 +158,7 @@ fn entry_parameter_place_at_write_boundary(
         }
     };
     let machine = program.machine(machine_symbol)?;
-    let entry = validation::activation_target_state_index(
-        program,
-        machine,
-        machine_symbol,
-    )?;
+    let entry = validation::activation_target_state_index(program, machine, machine_symbol)?;
     let parameters = program.state_parameters(program.machine_states(machine).get(entry)?);
     let mut reference = parameters
         .get(usize::try_from(position).ok()?)?

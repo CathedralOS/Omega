@@ -409,6 +409,7 @@ impl Builder<'_, '_> {
                     self.state,
                     self.flow.control.calls.get(source_call),
                     expression,
+                    owner_type,
                 )?;
             }
             match self.program.type_multiplicity(owner_type) {

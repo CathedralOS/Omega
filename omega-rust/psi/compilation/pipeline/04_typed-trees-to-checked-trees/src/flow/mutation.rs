@@ -27,7 +27,7 @@ pub(crate) use ceiling::signature_ceiling_places;
 pub(crate) use local_origins::close_storage_places_over_aliases;
 pub(crate) use local_origins::place_from_origin_path;
 pub(crate) use local_origins::rebase_exact_local_place;
-pub(crate) use local_origins::{origin_place, sole_local_referent_origin};
+pub(crate) use local_origins::{OriginPrecision, origin_place, sole_local_referent_origin};
 pub(in crate::flow) use receiver::local_jump_data_argument;
 pub(crate) use receiver::{
     call_receiver_is_mutable, call_receiver_mutated_place, canonical_receiver_place_for_call_site,
@@ -44,6 +44,15 @@ pub(super) enum WritePlaceNamespace {
     Storage,
 }
 
+/// One possible write retains the callee storage path that supplied it.
+/// Equal caller footprints reached through different formals remain distinct:
+/// one writer's restored contract cannot excuse another writer's corruption.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(in crate::flow) struct CallMutationWrite {
+    pub place: CanonicalPlace,
+    pub source: Option<CanonicalPlace>,
+}
+
 /// Caller storage footprint. `None` requires full invalidation; an empty
 /// complete footprint preserves facts. Neither may be represented by an
 /// unresolved reference-binding root.
@@ -58,6 +67,27 @@ pub(crate) fn call_mutated_places(
     state_mutation_summaries: &StateMutationSummaryCache,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<CanonicalPlace>> {
+    call_mutation_writes(
+        program,
+        caller_machine_symbol,
+        caller_state_symbol,
+        borrow,
+        borrow_call,
+        state_mutation_summaries,
+        call_frames,
+    )
+    .map(|writes| writes.into_iter().map(|write| write.place).collect())
+}
+
+pub(in crate::flow) fn call_mutation_writes(
+    program: &dyn ::validation::CheckingInput,
+    caller_machine_symbol: SymbolHandle,
+    caller_state_symbol: SymbolHandle,
+    borrow: &BorrowFacts,
+    borrow_call: &BorrowCallFact,
+    state_mutation_summaries: &StateMutationSummaryCache,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
+) -> Option<Vec<CallMutationWrite>> {
     let site = find_call_site(
         program,
         caller_machine_symbol,
@@ -105,6 +135,7 @@ pub(crate) fn call_mutated_places(
             borrow_call,
             call_frames,
         )
+        .map(unattributed_writes)
     })
 }
 
@@ -139,6 +170,9 @@ pub(crate) fn call_write_accesses(
         loan,
     )
     .expect("access-route projection always retains the ownership fallback")
+    .into_iter()
+    .map(|write| write.place)
+    .collect()
 }
 
 /// The subset of `call_write_accesses` a call writes through its implicit
@@ -185,7 +219,7 @@ fn call_write_places(
     namespace: WritePlaceNamespace,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
     loan: Option<&CanonicalPlace>,
-) -> Option<Vec<CanonicalPlace>> {
+) -> Option<Vec<CallMutationWrite>> {
     let summarized_places = instantiate_known_call_mutation_summary_places(
         program,
         caller_machine_symbol,
@@ -197,19 +231,11 @@ fn call_write_places(
         call_frames,
         loan,
     );
-    let use_mutable_argument_fallback = summarized_places.is_none();
-    let known_target_summary = summarized_places.is_some();
-    let mut places = Vec::new();
-
     if let Some(summarized_places) = summarized_places {
-        for place in summarized_places {
-            if !places.contains(&place) {
-                places.push(place);
-            }
-        }
+        return Some(summarized_places);
     }
-
-    if use_mutable_argument_fallback {
+    let mut places = Vec::new();
+    {
         for access in borrow.argument_accesses.span_or_empty(borrow_call.accesses) {
             if access.kind.is_exclusive() && access.root.is_valid() {
                 let mut place = CanonicalPlace {
@@ -257,8 +283,7 @@ fn call_write_places(
         }
     }
 
-    if !known_target_summary
-        && borrow_call.has_receiver
+    if borrow_call.has_receiver
         && call_receiver_is_mutable(program, borrow, borrow_call)
         && let Some(place) = call_receiver_mutated_place(
             program,
@@ -271,7 +296,7 @@ fn call_write_places(
         places.push(place);
     }
 
-    if !known_target_summary && matches!(namespace, WritePlaceNamespace::Storage) {
+    if matches!(namespace, WritePlaceNamespace::Storage) {
         let boundary_target = program.traits().iter().any(|definition| {
             definition.is_boundary
                 && program
@@ -289,7 +314,8 @@ fn call_write_places(
                 borrow,
                 borrow_call,
                 call_frames,
-            );
+            )
+            .map(unattributed_writes);
         }
         if places.is_empty() {
             return call_is_storage_free_asm_intrinsic(program, borrow_call).then(Vec::new);
@@ -309,10 +335,20 @@ fn call_write_places(
                 }
             }
         }
-        Some(storage)
+        Some(unattributed_writes(storage))
     } else {
-        Some(places)
+        Some(unattributed_writes(places))
     }
+}
+
+fn unattributed_writes(places: Vec<CanonicalPlace>) -> Vec<CallMutationWrite> {
+    places
+        .into_iter()
+        .map(|place| CallMutationWrite {
+            place,
+            source: None,
+        })
+        .collect()
 }
 
 fn shared_call_storage_places(

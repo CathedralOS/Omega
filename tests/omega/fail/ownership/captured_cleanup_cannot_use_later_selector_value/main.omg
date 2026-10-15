@@ -1,0 +1,17 @@
+// A later guarantee about mutable storage cannot describe an earlier selector.
+data Token { value: u64; }
+machine Token::drop(token: &mut Token) { token.value = 0; }
+machine replacement(position: &mut u64) -> Token ensures position == 1 {
+    position = 1;
+    Token { value: 19 }
+}
+machine replace(mut tokens: [Token; 2], mut position: u64)
+requires position < 2
+{
+    let first: Token = tokens[0];
+    tokens[position] = replacement(&mut position);
+}
+machine main() {
+    let tokens: [Token; 2] = [Token { value: 11 }, Token { value: 7 }];
+    replace(tokens, 0);
+}

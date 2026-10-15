@@ -26,7 +26,8 @@ mod custody_flow;
 mod projected_transfers;
 
 pub(crate) use projected_transfers::{
-    operands as structural_operands, owned_extractions, partitioned_roots,
+    copied_operand_roots, operands as structural_operands, owned_extractions, partitioned_roots,
+    transfers_custody,
 };
 
 /// Join source-authorized no-code type capability to this closure's existing
@@ -124,7 +125,8 @@ fn complete_carriers(
         .collect::<Vec<_>>();
     // A partial transfer retains root storage and its independently selected
     // residual disposal. The whole-home solver must not replace that schedule.
-    let partial_transfers = partitioned_roots(blocks, extractions)
+    let copied_roots = copied_operand_roots(entry_parameters, blocks);
+    let partial_transfers = partitioned_roots(blocks, extractions, &copied_roots)
         .into_iter()
         .collect::<Vec<_>>();
     let mut births = blocks

@@ -216,12 +216,13 @@ pub(super) fn observe_reference_custody(
             }
         }
         if !further_crossing {
+            // This walk establishes descriptor custody and addressability,
+            // not the call's endpoint type. Inline fields retain their own
+            // storage contract; the consuming call checks its presentation.
             if origins.is_empty() && !absent_case_descriptors
-                || crate::structural_inputs::structural_reference_input::runtime_borrowed_projection(
+                || crate::structural_inputs::structural_reference_input::reference_formation_geometry(
                     referent,
                     &argument.path[position + 1..],
-                    argument.access,
-                    None,
                     types,
                 )
                 .is_none()

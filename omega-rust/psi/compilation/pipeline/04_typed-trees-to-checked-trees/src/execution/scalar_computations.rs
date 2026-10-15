@@ -164,8 +164,15 @@ pub(crate) fn build_checked_value_computation_plans(
                 };
                 // A closed primitive array whose elements the scalar route
                 // enumerates owns one scalar root per element.
-                let scalar_elements =
-                    construction_destination.and_then(|(expression, expected)| {
+                let scalar_elements = construction_destination
+                    .or_else(|| {
+                        let assignment = statement.as_assignment()?;
+                        validation::assignment_stored_value_type(
+                            program, machine, state, assignment,
+                        )
+                        .map(|expected| (assignment.value, expected))
+                    })
+                    .and_then(|(expression, expected)| {
                         validation::scalar_array_elements(
                             program,
                             machine.symbol,
@@ -390,10 +397,10 @@ pub(crate) fn build_checked_value_computation_plans(
                     // (`self.copy = self.items[0]` over a `[copy]` record), is
                     // established whole and replaces its field through the
                     // statement sequence's window pair. An array literal of
-                    // structural elements registers each element as its own
-                    // value node, as a `let` initializer does; the sequence
-                    // establishes the elements and replaces the array one
-                    // element window at a time.
+                    // structural elements completes the same owned array as
+                    // a `let` initializer. Replacement consumes that completed
+                    // value, retaining each child's custody beneath its index;
+                    // it does not reopen the constructor's source expressions.
                     // Keep the destination's complete declared type. Carrier
                     // classifiers may inspect its underlying shape, but value
                     // custody must still distinguish arithmetic policies and
@@ -413,19 +420,9 @@ pub(crate) fn build_checked_value_computation_plans(
                         frames.assignment_replaces_reference_binding(machine, statement)
                             == Some(true)
                     });
-                    let written = validation::expression_type_reference_in_state(
-                        program,
-                        state.symbol,
-                        statement_index,
-                        assignment.target,
-                    )
-                    .map(|destination| {
-                        if replaces_reference {
-                            destination
-                        } else {
-                            validation::assignment_value_type(program, destination)
-                        }
-                    });
+                    let written = validation::assignment_stored_value_type(
+                        program, machine, state, assignment,
+                    );
                     if let Some(expected) = written
                         && (replaces_reference
                             || structural_values::is_record_value(

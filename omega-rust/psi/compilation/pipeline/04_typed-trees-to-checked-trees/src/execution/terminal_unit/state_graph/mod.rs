@@ -10,16 +10,15 @@
 //! `local_results`). Finally the parameter custody of live states and the
 //! provider attachment requirements are checked.
 use super::{
-    CheckFacts, CheckedByteSequenceCarrier, CheckedComposedUnitControlMachinePlan,
-    CheckedComposedUnitControlStatePlan, CheckedComposedUnitControlTerminatorPlan,
-    CheckedGuardedJumpPlan, CheckedScalarExpressionRole, CheckedStructuralAccess,
-    CheckedStructuralControlSuccessorPlan, CheckedStructuralControlTransferPlan,
-    CheckedStructuralScalarArgumentPlan, CheckedStructuralScalarParameterPlan,
-    CheckedUnitEffectOperationPlan, CheckedUnitStructuralArgumentPlan,
-    CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralParameterPlan,
-    CheckedUnitStructuralPathSegment, ExpressionNode, Multiplicity, PermissionEventKind,
-    PermissionEventSource, StatementNode, TransitionExit, TransitionGuardNode,
-    TransitionTargetNode, TypeReferenceNode,
+    CheckFacts, CheckedComposedUnitControlMachinePlan, CheckedComposedUnitControlStatePlan,
+    CheckedComposedUnitControlTerminatorPlan, CheckedGuardedJumpPlan, CheckedScalarExpressionRole,
+    CheckedStructuralAccess, CheckedStructuralControlSuccessorPlan,
+    CheckedStructuralControlTransferPlan, CheckedStructuralScalarArgumentPlan,
+    CheckedStructuralScalarParameterPlan, CheckedUnitEffectOperationPlan,
+    CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralArgumentSourcePlan,
+    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment, ExpressionNode,
+    Multiplicity, PermissionEventKind, PermissionEventSource, StatementNode, TransitionExit,
+    TransitionGuardNode, TransitionTargetNode, TypeReferenceNode,
 };
 use crate::execution::terminal_unit::ScalarCalleeClosure;
 use crate::execution::terminal_unit::calls::{
@@ -27,7 +26,6 @@ use crate::execution::terminal_unit::calls::{
 };
 use crate::execution::terminal_unit::providers::checked_composed_provider_attachment_requirements;
 use crate::execution::terminal_unit::types::{ShapeCollector, machine_binders, state_flow};
-use crate::execution::terminal_unit::types::{borrowed_slice_view_element, byte_sequence_carrier};
 use crate::execution::terminal_unit::{composed_control, control};
 
 mod closed_sum;
@@ -506,6 +504,7 @@ pub(super) fn build_traced(
         result_custody::account(
             program,
             facts,
+            shapes,
             owner,
             state,
             structural,
@@ -656,74 +655,16 @@ pub(super) fn build_traced(
                         );
                         return None;
                     }
-                    let reference = reference();
-                    // Qualifications restrict the arriving value, not the
-                    // carrier its loan lends. Inspect the declared shell once;
-                    // access and qualification transport remain checked above
-                    // and by each successor's custody judgment.
-                    let borrowed_shell = validation::reference_shell(program, reference);
-                    let borrowed_carrier = borrowed_shell
-                        .map(|shell| validation::peel_declared_constraints(program, shell.referee));
-                    // A primitive referent is storage just like a record leaf.
-                    // State arrivals retain the loan's declared access; they
-                    // do not need readable contents to carry its address.
-                    let borrowed_primitive_referent = matches!(
-                        shapes
-                            .types
-                            .get(&parameter.type_identity)
-                            .map(|plan| &plan.shape),
-                        Some(checked_trees::CheckedUnitStructuralTypeShape::PrimitiveScalar(_))
-                    );
-                    // A nominal referent, including a generic data
-                    // application such as `&FixedBuffer<2>` in a
-                    // specialization.
-                    let borrowed_named_referent = matches!(
-                        borrowed_carrier
-                            .map(|carrier| program.type_reference_table.type_reference(carrier)),
-                        Some(TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. })
-                    );
-                    // Fixed arrays have structural rather than nominal
-                    // identity. Their registered shape and plain owned
-                    // contents admit the same loan across a state edge as
-                    // across an ordinary call; access and qualifications
-                    // remain checked above and by each successor transfer.
-                    let borrowed_array_referent = matches!(
-                                        borrowed_shell,
-                                        Some(shell)
-                                            if matches!(
-                                                borrowed_carrier.map(|carrier| program.type_reference_table.type_reference(carrier)),
-                                                Some(TypeReferenceNode::FixedArray { .. })
-                                            ) && validation::has_contents(
-                        program,
-                        shell.referee,
-                        &[],
-                        validation::ContentsRequirement::NumericOwned
-                    )
-                                    )
-                        && matches!(
-                            shapes
-                                .types
-                                .get(&parameter.type_identity)
-                                .map(|plan| &plan.shape),
-                            Some(checked_trees::CheckedUnitStructuralTypeShape::FixedArray { .. })
-                        );
-                    // A borrowed bounded owner (`&[u8; N] in Utf8`) names the
-                    // owner's carrier; the reference is this parameter's loan.
-                    if !borrowed_named_referent
-                        && !borrowed_primitive_referent
-                        && !borrowed_array_referent
-                        && parameter.binding_carrier.is_none()
-                        && !byte_sequence_carrier(program, reference, &[]).is_some_and(|carrier| {
-                            carrier.is_borrowed()
-                                || matches!(
-                                    carrier,
-                                    CheckedByteSequenceCarrier::BoundedOwned { .. }
-                                )
-                        })
-                        && borrowed_slice_view_element(program, reference, &[]).is_none()
-                    {
+                    // Signature construction already registers the exact
+                    // lent carrier. State arrivals transport that same loan,
+                    // not a fresh value whose contents must be numeric or
+                    // nominal. Successor custody owns access, lifetime and
+                    // qualification correspondence; a second source-family
+                    // whitelist here rejected qualified array elements even
+                    // though their ordinary call contract was complete.
+                    if !shapes.types.contains_key(&parameter.type_identity) {
                         trace.phase(
-                            "state graph: state signature: parameter custody shape: borrowed non-view carrier",
+                            "state graph: state signature: parameter custody shape: unregistered borrowed carrier",
                         );
                         return None;
                     }

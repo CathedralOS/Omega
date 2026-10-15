@@ -40,6 +40,47 @@ pub(crate) fn storage_path_compatibility(
     place_segments_compatibility(program, left, right, &premises, &mut Some(lookup))
 }
 
+/// Cleanup must separate its selected receiver from moved storage in every
+/// incoming occurrence. Only immutable captured-value relations supplement the
+/// context-free spatial judgment; current mutable selector facts cannot do so.
+pub(crate) fn captured_storage_paths_are_disjoint(
+    program: &dyn ::validation::CheckingInput,
+    facts: &checked_trees::CheckFacts,
+    state: &checked_trees::FlowStateFact,
+    contexts: &[(usize, Vec<facts::FactContextHandle>)],
+    left: &[facts::PlaceSegment],
+    right: &[facts::PlaceSegment],
+) -> bool {
+    let mut lookup = Some(validation::ImmutableBoundLookup::new(program));
+    let captures = StorageSelectorFacts {
+        flow: &facts.flow,
+        semantic: &facts.semantic,
+    };
+    let Some(frames) = validation::CallFrameResolver::new(program) else {
+        return false;
+    };
+    !contexts.is_empty()
+        && contexts.iter().all(|(statement, contexts)| {
+            // One occurrence carries a conjunction of retained constraint
+            // contexts (entry, stores, calls), not alternative executions.
+            // Distinct incoming occurrences remain separate in the outer all.
+            let bound_lookup =
+                lookup.get_or_insert_with(|| validation::ImmutableBoundLookup::new(program));
+            let mut premises =
+                captured_values::equalities(program, captures, left, right, bound_lookup);
+            premises.extend(self::premises::captured_call_premises(
+                program,
+                facts,
+                state,
+                *statement,
+                contexts,
+                &frames,
+                bound_lookup,
+            ));
+            !place_segments_compatibility(program, left, right, &premises, &mut lookup).0
+        })
+}
+
 pub(super) fn captured_place_compatibility<'p>(
     program: &'p dyn ::validation::CheckingInput,
     left: &checked_trees::CapturedPlace,

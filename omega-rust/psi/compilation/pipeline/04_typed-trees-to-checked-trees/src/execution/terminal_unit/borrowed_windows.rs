@@ -169,11 +169,19 @@ pub(super) fn capture_assignment_destination(
     assignment: &typed_trees::statement::TableAssignment,
 ) -> Option<CheckedUnitEffectOperationPlan> {
     let ordinal = usize::try_from(statement_index).ok()?;
+    // A region captures its collection prefix. Selected element coordinates
+    // are descendants of that one capture, not independently evaluated targets.
+    let collection = program
+        .expression_table
+        .indexed_node(assignment.target)
+        .filter(|indexed| program.expression_table.range_node(indexed.index).is_some())
+        .map(|indexed| indexed.collection);
+    let target = collection.unwrap_or(assignment.target);
     let access = validation::canonical_place_from_expression_in_state(
         program,
         state.symbol,
         ordinal,
-        assignment.target,
+        target,
     )?;
     let owned_source = owned_assignment_source(
         program,
@@ -218,19 +226,13 @@ pub(super) fn capture_assignment_destination(
                 machine,
                 state,
                 statement_index,
-                assignment.target,
+                target,
                 &place,
             )?,
         )
     } else {
-        let selectors = TargetSelectors::resolve(
-            program,
-            facts,
-            machine,
-            state,
-            statement_index,
-            assignment.target,
-        )?;
+        let selectors =
+            TargetSelectors::resolve(program, facts, machine, state, statement_index, target)?;
         let place = window_place(
             program,
             state,
@@ -243,9 +245,12 @@ pub(super) fn capture_assignment_destination(
         )?;
         (place.source, place.path)
     };
-    let declared =
-        validation::declared_place_type_raw(program, machine, Some(state), assignment.target)?;
-    let stored = validation::assignment_stored_value_type(program, machine, state, assignment)?;
+    let declared = validation::declared_place_type_raw(program, machine, Some(state), target)?;
+    let stored = if collection.is_some() {
+        validation::assignment_value_type(program, declared)
+    } else {
+        validation::assignment_stored_value_type(program, machine, state, assignment)?
+    };
     if !path.is_empty()
         && validation::reference_shell(program, declared).is_some()
         && stored != declared
@@ -696,31 +701,145 @@ impl OpenWindows {
         produced: &CheckedUnitStructuralResultBindingPlan,
         displaced_ordinal: u32,
         value: CheckedUnitStructuralArgumentPlan,
-    ) -> Option<FieldReplacement> {
-        self.replace_element(
-            program,
-            facts,
-            shapes,
-            machine,
-            state,
-            structural_parameters,
-            statement_index,
-            assignment,
-            &[],
-            produced,
-            displaced_ordinal,
-            value,
-        )
+    ) -> Option<ValueReplacement> {
+        let ordinal = usize::try_from(statement_index).ok()?;
+        let mut parts = Vec::new();
+        let range = program
+            .expression_table
+            .indexed_node(assignment.target)
+            .filter(|indexed| program.expression_table.range_node(indexed.index).is_some());
+        if let Some(indexed) = range {
+            if !assignment.receiving_type.is_valid() {
+                return None;
+            }
+            let shape = validation::array_window_shape(
+                program,
+                machine,
+                state,
+                assignment.target,
+                &mut validation::ImmutableBoundLookup::new(program),
+            )?;
+            let length = u64::try_from(shape.length()?).ok()?;
+            let start = shape.start?;
+            let declared = shapes.types.get(&produced.type_identity)?;
+            let checked_trees::CheckedUnitStructuralTypeShape::FixedArray {
+                element_type_identity,
+                length: source_length,
+            } = declared.shape
+            else {
+                return None;
+            };
+            // Geometry does not grant reception. The receiving declaration and
+            // completed source must retain the same full element identity.
+            if source_length.literal() != Some(length)
+                || validation::stored_structural_type_identity(
+                    program,
+                    assignment.receiving_type,
+                    &[],
+                    &[],
+                ) != produced.type_identity
+                || validation::stored_structural_type_identity(
+                    program,
+                    shape.element_type,
+                    &[],
+                    &[],
+                ) != element_type_identity
+            {
+                return None;
+            }
+            let collection = validation::canonical_place_from_expression_in_state(
+                program,
+                state.symbol,
+                ordinal,
+                indexed.collection,
+            )?;
+            let mut next_displacement = displaced_ordinal;
+            for element_ordinal in 0..length {
+                let mut destination = collection.clone();
+                destination.segments.push(PlaceSegment::FixedIndex {
+                    index: start.checked_add(usize::try_from(element_ordinal).ok()?)?,
+                });
+                let mut element = value.clone();
+                element
+                    .path
+                    .push(CheckedUnitStructuralPathSegment::FixedIndex(
+                        element_ordinal,
+                    ));
+                element.type_identity = element_type_identity;
+                let produced_element = CheckedUnitStructuralResultBindingPlan {
+                    type_identity: element_type_identity,
+                    multiplicity: crate::checks::type_multiplicity(program, shape.element_type),
+                    ..produced.clone()
+                };
+                let replacement = self.replace_place(
+                    program,
+                    facts,
+                    shapes,
+                    machine,
+                    state,
+                    structural_parameters,
+                    statement_index,
+                    indexed.collection,
+                    destination,
+                    &produced_element,
+                    next_displacement,
+                    element,
+                    vec![CheckedUnitStructuralPathSegment::FixedIndex(
+                        element_ordinal,
+                    )],
+                )?;
+                next_displacement =
+                    next_displacement.checked_add(u32::from(replacement.move_out.is_some()))?;
+                parts.push(replacement);
+            }
+        } else {
+            let destination = validation::canonical_place_from_expression_in_state(
+                program,
+                state.symbol,
+                ordinal,
+                assignment.target,
+            )?;
+            parts.push(self.replace_place(
+                program,
+                facts,
+                shapes,
+                machine,
+                state,
+                structural_parameters,
+                statement_index,
+                assignment.target,
+                destination,
+                produced,
+                displaced_ordinal,
+                value.clone(),
+                Vec::new(),
+            )?);
+        }
+        // Commit restoration only once the entire region is representable.
+        // A refusal in a later element must leave earlier debts intact.
+        self.open.retain(|open| {
+            !parts.iter().any(|part| {
+                part.store.store().is_some_and(|store| {
+                    matches!(
+                        store.destination.leaf,
+                        checked_trees::CheckedStoreLeaf::StructuralStore {
+                            opening_binding: Some(binding), ..
+                        } if binding == open.opening_binding
+                    )
+                })
+            })
+        });
+        Some(ValueReplacement {
+            source: Some(value),
+            parts,
+        })
     }
 
-    /// Store `produced` into the element of the fixed array the assignment's
-    /// target names at literal `indices`: the same window pair `replace`
-    /// builds, over the target's place extended by those indices. A
-    /// whole-array literal replaces its array one element at a time this way,
-    /// so each element keeps its own exact displacement and disposal.
+    /// Replace one selected subtree. Selection comes from the destination
+    /// region, never from a constructor leaf or a synthetic source expression.
     #[allow(clippy::too_many_arguments)]
-    pub(super) fn replace_element(
-        &mut self,
+    fn replace_place(
+        &self,
         program: &dyn ::validation::CheckingInput,
         facts: &CheckFacts,
         shapes: &super::types::ShapeCollector<'_>,
@@ -728,24 +847,14 @@ impl OpenWindows {
         state: &typed_trees::state::State,
         structural_parameters: &[CheckedUnitStructuralParameterPlan],
         statement_index: u32,
-        assignment: &typed_trees::statement::TableAssignment,
-        indices: &[u64],
+        selector_target: ExpressionHandle,
+        destination_place: CanonicalPlace,
         produced: &CheckedUnitStructuralResultBindingPlan,
         displaced_ordinal: u32,
         value: CheckedUnitStructuralArgumentPlan,
+        receiver_path: Vec<CheckedUnitStructuralPathSegment>,
     ) -> Option<FieldReplacement> {
         let index = usize::try_from(statement_index).ok()?;
-        let mut destination_place = validation::canonical_place_from_expression_in_state(
-            program,
-            state.symbol,
-            index,
-            assignment.target,
-        )?;
-        for element in indices {
-            destination_place.segments.push(PlaceSegment::FixedIndex {
-                index: usize::try_from(*element).ok()?,
-            });
-        }
         let access_place = destination_place.clone();
         let owned_source = owned_assignment_source(
             program,
@@ -785,7 +894,7 @@ impl OpenWindows {
                     machine,
                     state,
                     statement_index,
-                    assignment.target,
+                    selector_target,
                     &destination_place,
                 )?;
                 let occupied = slot_occupied(facts, machine, state, index, &destination_place)
@@ -802,10 +911,36 @@ impl OpenWindows {
                 let opening = self
                     .open
                     .iter()
-                    .position(|open| {
+                    .find(|open| {
                         same_storage_place(program, facts, &open.storage, &destination_place)
                     })
-                    .map(|position| self.open.remove(position).opening_binding);
+                    .map(|open| open.opening_binding);
+                // No selected death is not proof of vacancy. Construction may
+                // establish an absent slot, but the custody producer must name
+                // that exact occurrence. In particular a runtime projection
+                // with unavailable cleanup facts cannot silently skip hooks.
+                if !occupied
+                    && opening.is_none()
+                    && produced.multiplicity != Multiplicity::Unrestricted
+                    && !facts.contextual_cleanup.storage_establishments.iter().any(
+                        |(_, establishment)| {
+                            establishment.machine == machine.symbol
+                                && establishment.state == state.symbol
+                                && establishment.source
+                                    == language_semantics::PermissionEventSource::Statement {
+                                        statement_index: index,
+                                    }
+                                && establishment.destination.root == destination_place.root
+                                && facts
+                                    .contextual_cleanup
+                                    .segments
+                                    .span_or_empty(establishment.destination.segments)
+                                    == destination_place.segments
+                        },
+                    )
+                {
+                    return None;
+                }
                 (source, path, opening, false, occupied)
             } else {
                 let selectors = TargetSelectors::resolve(
@@ -814,7 +949,7 @@ impl OpenWindows {
                     machine,
                     state,
                     statement_index,
-                    assignment.target,
+                    selector_target,
                 )?;
                 let place = window_place(
                     program,
@@ -826,12 +961,11 @@ impl OpenWindows {
                     language_semantics::ReferenceAccess::WriteOnly,
                     &|expression| selectors.runtime_segment(expression),
                 )?;
-                let opening_binding = match self.open.iter().position(|open| {
-                    same_storage_place(program, facts, &open.storage, &place.storage)
-                }) {
-                    Some(position) => Some(self.open.remove(position).opening_binding),
-                    None => None,
-                };
+                let opening_binding = self
+                    .open
+                    .iter()
+                    .find(|open| same_storage_place(program, facts, &open.storage, &place.storage))
+                    .map(|open| open.opening_binding);
                 // Intact replacement needs no observation when the exact
                 // source type grants no-code disposal. Affine incoming values
                 // still transfer once; nominal cleanup and conserved contents
@@ -908,6 +1042,7 @@ impl OpenWindows {
         } else {
             checked_trees::CheckedStoreLeaf::StructuralStore {
                 type_identity,
+                multiplicity: produced.multiplicity,
                 opening_binding,
             }
         };
@@ -922,7 +1057,7 @@ impl OpenWindows {
                         local: Default::default(),
                     },
                     source: place.clone(),
-                    expression: assignment.target,
+                    expression: selector_target,
                 }
             }),
             cleanup: needs_cleanup.then(|| {
@@ -932,11 +1067,7 @@ impl OpenWindows {
                         statement_index,
                         destination: place.clone(),
                         old_value: old_value.clone(),
-                        receiver_path: indices
-                            .iter()
-                            .copied()
-                            .map(checked_trees::CheckedUnitStructuralPathSegment::FixedIndex)
-                            .collect(),
+                        receiver_path,
                     },
                     // This storage marker is completed from the authoritative
                     // death disposition once the hook catalog exists. Owned
@@ -973,20 +1104,73 @@ impl OpenWindows {
 
 /// One store, with displacement and disposal only when its destination was
 /// occupied. A vacant destination is repaired without inventing an old value.
-pub(super) struct FieldReplacement {
-    pub(super) move_out: Option<CheckedUnitEffectOperationPlan>,
-    pub(super) store: CheckedUnitEffectOperationPlan,
-    pub(super) cleanup: Option<CheckedUnitEffectOperationPlan>,
+struct FieldReplacement {
+    move_out: Option<CheckedUnitEffectOperationPlan>,
+    store: CheckedUnitEffectOperationPlan,
+    cleanup: Option<CheckedUnitEffectOperationPlan>,
 }
 
-impl FieldReplacement {
-    /// Preserve the authored replacement lifecycle independently of the RHS's
-    /// producer: displacement if borrowed, selected old-value death, then store.
+/// One complete replacement value, distributed over the selected destination
+/// region. Its producer's disposal debt is consumed once, even when several
+/// projected stores install its elements. This plan owns no source evaluation.
+pub(super) struct ValueReplacement {
+    pub(super) source: Option<CheckedUnitStructuralArgumentPlan>,
+    parts: Vec<FieldReplacement>,
+}
+
+impl ValueReplacement {
+    pub(super) fn from_store(store: CheckedUnitEffectOperationPlan) -> Self {
+        Self {
+            source: store.installed_value().cloned(),
+            parts: vec![FieldReplacement {
+                move_out: None,
+                cleanup: None,
+                store,
+            }],
+        }
+    }
+
+    pub(super) fn displaced_bindings(&self) -> usize {
+        self.parts
+            .iter()
+            .filter(|part| part.move_out.is_some())
+            .count()
+    }
+
+    pub(super) fn consume_source(
+        &self,
+        operations: &mut [CheckedUnitEffectOperationPlan],
+    ) -> Option<()> {
+        if let Some(source) = &self.source
+            && let Some(binding) = source.source_structural_result_binding_ordinal()
+        {
+            super::control::statement_sequence::consume_result(
+                operations,
+                binding,
+                source.access,
+                !source.path.is_empty(),
+            )?;
+        }
+        Some(())
+    }
+
+    /// All RHS values already exist. Displace, clean up every old value, then
+    /// install: no later element may observe an earlier installation's effects.
     pub(super) fn into_operations(self) -> impl Iterator<Item = CheckedUnitEffectOperationPlan> {
-        self.move_out
+        let mut displacements = Vec::new();
+        let mut cleanup = Vec::new();
+        let mut stores = Vec::new();
+        for part in self.parts {
+            displacements.extend(part.move_out);
+            cleanup.extend(part.cleanup);
+            stores.push(part.store);
+        }
+        // Array elements die in decreasing index order. Each cleanup operation
+        // retains its own internal child schedule; reverse groups, not actions.
+        displacements
             .into_iter()
-            .chain(self.cleanup)
-            .chain(std::iter::once(self.store))
+            .chain(cleanup.into_iter().rev())
+            .chain(stores)
     }
 }
 

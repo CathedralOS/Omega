@@ -28,6 +28,7 @@ use checked_trees::{
 pub(super) fn account(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
+    shapes: &super::ShapeCollector<'_>,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     structural_parameters: &[CheckedUnitStructuralParameterPlan],
@@ -186,8 +187,38 @@ pub(super) fn account(
         {
             return None;
         }
+        // Scheduling and accounting join the same captured holder. A whole
+        // reference retirement realizes that holder's selected exit disposal;
+        // it cannot also receive a second lexical disposal below. Transfers
+        // and distinct physical retirement rows remain independent owners.
+        let reference_releases = if result.multiplicity != Multiplicity::Unrestricted {
+            control::statement_sequence::captured_reference_result(
+                program,
+                facts,
+                machine.symbol,
+                state.symbol,
+                structural_results,
+                operation,
+                operations,
+            )
+            .map_or(0, |captured| {
+                operations[producer_index + 1..]
+                    .iter()
+                    .filter(|operation| {
+                        control::statement_sequence::release_matches(
+                            operation,
+                            captured.result,
+                            captured.loans,
+                        )
+                    })
+                    .count()
+            })
+        } else {
+            0
+        };
         let permits_disposal = |statement: Option<u32>, continuation: bool| {
             !retired_whole
+                && reference_releases == 0
                 && local_results::permits_disposal(
                     program,
                     facts,
@@ -371,14 +402,48 @@ pub(super) fn account(
         // storage; custody moved into the field, which owns it after
         // this state. Count it with the terminator exits: a disposable
         // local stored into a hole is not a second consumption. A copy
-        // of an `Unrestricted` value moves into its field the same way.
-        let stored = operations[producer_index + 1..].iter().any(|operation| {
-            operation.installed_value().is_some_and(|value| {
-                value.source_structural_result_binding_ordinal() == Some(result.binding_ordinal)
-                    && value.access == CheckedStructuralAccess::Owned
-                    && value.path.is_empty()
+        // of an `Unrestricted` value has no transfer debt, including a
+        // selected child: copying does not require consuming its siblings.
+        // Match the producer occurrence, not a named home's historical origin:
+        // rebinding already transferred that result, and later stores from the
+        // receiving home must not count as a second result disposition.
+        let mut stored_parts = operations
+            .iter()
+            .skip(producer_index + 1)
+            .filter_map(|operation| {
+                operation.installed_value().filter(|value| {
+                    value.access == CheckedStructuralAccess::Owned
+                        && value.source_structural_result_binding_ordinal()
+                            == Some(result.binding_ordinal)
+                })
             })
-        });
+            .collect::<Vec<_>>();
+        let stored = if result.multiplicity == Multiplicity::Unrestricted {
+            !stored_parts.is_empty()
+        } else if let [whole] = stored_parts.as_slice()
+            && whole.path.is_empty()
+            && whole.type_identity == result.type_identity
+        {
+            true
+        } else {
+            stored_parts.sort_by(|left, right| left.path.cmp(&right.path));
+            let mut remaining = stored_parts.as_slice();
+            !remaining.is_empty()
+                && producer_claim_paths(program, facts, operation).is_some_and(|claims| {
+                    stored_parts.iter().all(|part| {
+                        claims.iter().all(|claim| {
+                            part.path.len() <= claim.len() || !part.path.starts_with(claim)
+                        })
+                    })
+                })
+                && stored_partition(
+                    shapes,
+                    result.type_identity,
+                    &mut Vec::new(),
+                    &mut remaining,
+                )
+                && remaining.is_empty()
+        };
         // A returning arm owns the result when its call or construction
         // consumes it, or when the return retires it. Abnormal completion
         // abandons custody; it must not invent a normal disposal obligation
@@ -609,35 +674,6 @@ pub(super) fn account(
         } else {
             construction_count
         };
-        // Scheduling and accounting must join the same captured holder.
-        // A constructor, selected value and call can all materialize a
-        // descriptor; producer family does not choose its lifetime owner.
-        // Referent aliases remain unrestricted observations and use their
-        // dominance disposition, not a second owner for lexical weakening.
-        let reference_releases = if result.multiplicity != Multiplicity::Unrestricted {
-            control::statement_sequence::captured_reference_result(
-                program,
-                facts,
-                machine.symbol,
-                state.symbol,
-                structural_results,
-                operation,
-            )
-            .map_or(0, |(captured_result, loans)| {
-                operations[producer_index + 1..]
-                    .iter()
-                    .filter(|operation| {
-                        control::statement_sequence::release_matches(
-                            operation,
-                            captured_result,
-                            loans,
-                        )
-                    })
-                    .count()
-            })
-        } else {
-            0
-        };
         // A view result's custody is also its loan's release: the loan
         // minted at the establishment ends in exactly one Consume row —
         // on the selected edge that carries it when control moves, or at
@@ -681,18 +717,20 @@ pub(super) fn account(
         } else {
             (false, 0)
         };
-        // A named view's lexical cleanup retires the actual descriptor at
-        // the same boundary as its source loan. Anonymous descriptors without
-        // a captured source loan owe only physical cleanup. Rejoin the exact
-        // holder above before sharing these receipts; another operand or a
-        // returned child's Consume must never discharge this result.
-        let cleanup_realizes_view_release = retired_whole && has_captured_view_loans;
-        if cleanup_realizes_view_release && view_releases != 1 {
+        // Whole cleanup and a scheduled reference release are physical
+        // realizations of the captured holder's semantic loan disposition.
+        // Both joins above resolve this exact storage occurrence and its loan
+        // roster; another operand or returned child's Consume cannot discharge
+        // it. Keep physical receipts separately counted, so two retirements
+        // still fail even when they name the same semantic release.
+        let retirement_realizes_view_release =
+            (retired_whole || reference_releases != 0) && has_captured_view_loans;
+        if retirement_realizes_view_release && view_releases != 1 {
             trace.phase("state graph: view cleanup has no unique captured loan disposition");
             trace.statement(Some(result.statement_index));
             return None;
         }
-        let independent_view_releases = if cleanup_realizes_view_release {
+        let independent_view_releases = if retirement_realizes_view_release {
             0
         } else {
             view_releases
@@ -732,19 +770,23 @@ pub(super) fn account(
                         && argument.path.is_empty()
                 });
         // A whole local rebind retires the previous unrestricted occurrence
-        // at the store, before any exit observes the replacement. Such a
-        // carrier has no affine cleanup receipt; demanding exit disposal
-        // would instead ask the new occupant to retire the old producer.
+        // at the store, before any exit observes the replacement.
         let replaced_unrestricted =
             result.multiplicity == Multiplicity::Unrestricted && occurrence_end.is_some();
-        let total = usize::from(
-            consumed
-                || stored
-                || copied_into_construction
-                || copied_into_byte_store
-                || observed_by_call
-                || replaced_unrestricted,
-        ) + call_transfers
+        let implicit_disposition = consumed
+            || stored
+            || copied_into_construction
+            || copied_into_byte_store
+            || observed_by_call
+            || replaced_unrestricted;
+        // Unrestricted copies and observations leave the supplying occurrence
+        // in place. Its explicit whole cleanup, when present, realizes the same
+        // disposal otherwise accounted by dominance or rebinding. This does
+        // not merge affine transfers or separate physical cleanup receipts.
+        let implicit_disposition = implicit_disposition
+            && !(result.multiplicity == Multiplicity::Unrestricted && retired_whole);
+        let total = usize::from(implicit_disposition)
+            + call_transfers
             + cleanup_discards
             + construction_transfers
             + reference_releases
@@ -769,6 +811,93 @@ pub(super) fn account(
         *discard_result_on_return = true;
     }
     Some(())
+}
+
+/// Use the actual producer's claim frontier; storage shape alone cannot tell
+/// whether a containing claim forbids moving an otherwise ordinary child.
+fn producer_claim_paths(
+    program: &dyn ::validation::CheckingInput,
+    facts: &CheckFacts,
+    producer: &CheckedUnitEffectOperationPlan,
+) -> Option<Vec<Vec<checked_trees::CheckedUnitStructuralPathSegment>>> {
+    if let Some(call) = producer.call() {
+        return Some(
+            call.structural_custody()?
+                .result_claims
+                .iter()
+                .map(|claim| claim.path.clone())
+                .collect(),
+        );
+    }
+    let CheckedUnitEffectOperationPlan::EstablishLocal(
+        checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { value, .. },
+    ) = producer
+    else {
+        return None;
+    };
+    if !facts.values.structural_values.nodes.is_valid(*value) {
+        return None;
+    }
+    let actual_type = facts
+        .values
+        .structural_values
+        .nodes
+        .get(*value)
+        .type_reference;
+    validation::linear_claim_frontier(program, actual_type)
+        .into_iter()
+        .map(|claim| validation::structural_claim_path(program, actual_type, &claim.path).ok())
+        .collect()
+}
+
+/// A completed store partition accounts for exactly one whole incoming value.
+/// Arrays own their elements, so all of an array's children can transfer its
+/// custody. Other values remain indivisible here: covering a record's fields
+/// does not discharge its own nominal cleanup. The caller separately preserves
+/// containing claims. Consume sorted actual operands, checking child identities
+/// and rejecting duplicates, missing siblings and overlapping whole/child moves.
+fn stored_partition(
+    shapes: &super::ShapeCollector<'_>,
+    identity: typed_trees::type_identity::TypeIdentityId,
+    prefix: &mut Vec<checked_trees::CheckedUnitStructuralPathSegment>,
+    remaining: &mut &[&CheckedUnitStructuralArgumentPlan],
+) -> bool {
+    let Some(first) = remaining.first() else {
+        return false;
+    };
+    if first.path == *prefix {
+        if first.type_identity != identity {
+            return false;
+        }
+        *remaining = &remaining[1..];
+        return true;
+    }
+    let Some(checked_trees::CheckedUnitStructuralTypeShape::FixedArray {
+        element_type_identity,
+        length,
+    }) = shapes.types.get(&identity).map(|plan| &plan.shape)
+    else {
+        return false;
+    };
+    // A declared extent never authorizes work proportional to an unchecked
+    // integer. Each nonempty child needs at least one actual store operand.
+    let Some(length) = length.literal() else {
+        return false;
+    };
+    if length == 0 || u64::try_from(remaining.len()).map_or(true, |count| count < length) {
+        return false;
+    }
+    for index in 0..length {
+        prefix.push(checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(
+            index,
+        ));
+        let complete = stored_partition(shapes, *element_type_identity, prefix, remaining);
+        prefix.pop();
+        if !complete {
+            return false;
+        }
+    }
+    true
 }
 
 /// Statement coordinates can contain several independent formations: an

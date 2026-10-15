@@ -51,7 +51,6 @@ pub(super) fn project_call(
                 *psi_operation,
                 argument.root_structural_type,
                 &argument.path,
-                argument.access,
                 &unit.structural_types,
             )?,
             semantic: terminal_psi::StructuralArgument {
@@ -216,7 +215,6 @@ pub(super) fn project_normalized_foreign_call(
                         operation,
                         argument.root_structural_type,
                         &argument.path,
-                        argument.access,
                         &plan.structural_types,
                     )
                 })

@@ -206,8 +206,9 @@ pub struct CheckedStructuralCallCustodyPlan {
     /// owned descriptor transfers do not retain their former holder.
     pub retained_reference_inputs: Vec<u32>,
     /// Exact ingress leaves forwarded by a terminal call with no local holder.
-    /// Checking decides these from the authored call.
-    pub forwarded_reference_sources: Vec<crate::CheckedReferenceResultSourcePlan>,
+    /// The checked return occurrence owns symbolic backing geometry; it is not
+    /// a recipe for forming one descriptor per possible runtime element.
+    pub forwarded_reference_sources: Vec<crate::CheckedReturnedReferencePlan>,
     pub result_qualifications: Vec<SemanticDomainId>,
     pub claim_transfers: Vec<CheckedUnitClaimTransferPlan>,
     /// Canonical path order; empty exactly when the result type carries no

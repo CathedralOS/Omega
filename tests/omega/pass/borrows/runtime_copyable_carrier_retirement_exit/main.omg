@@ -1,0 +1,54 @@
+// Expected exit: 0.
+data Cell { value: i32; }
+data Held [copy] { target: &Cell; stamp: i32; }
+machine array_leaves() -> bool {
+    let mut first: Cell = Cell { value: 17 };
+    let mut second: Cell = Cell { value: 23 };
+    let held: [&Cell; 2] = [&first, &second];
+    let observed: i32 = held[0].value;
+    first.value = 31;
+    let other: i32 = held[1].value;
+    second.value = 37;
+    observed == 17 && other == 23 && first.value == 31 && second.value == 37
+}
+machine early_leaf() -> bool {
+    let mut cell: Cell = Cell { value: 17 };
+    let held: Held = Held { target: &cell, stamp: 29 };
+    let observed: i32 = held.target.value;
+    cell.value = 31;
+    observed == 17 && held.stamp == 29 && cell.value == 31
+}
+machine borrowed_storage() -> bool {
+    let mut cell: Cell = Cell { value: 17 };
+    let held: Held = Held { target: &cell, stamp: 29 };
+    let stamp: &i32 = &held.stamp;
+    let observed: i32 = held.target.value;
+    cell.value = 31;
+    observed == 17 && stamp == 29 && cell.value == 31
+}
+machine swap(first: Held, second: Held) -> bool {
+    transition { _ -> rotate(first, second, 3) }
+    state rotate(first: Held, second: Held, remaining: u64) -> bool
+    requires remaining <= 3
+    {
+        transition remaining == 0 {
+            true -> inspect(first, second)
+            false -> rotate(second, first, remaining - 1)
+        }
+    }
+    state inspect(first: Held, second: Held) -> bool {
+        first.target.value == 23 && first.stamp == 7
+            && second.target.value == 17 && second.stamp == 3
+    }
+}
+machine main() crashes Trap {
+    let first: Cell = Cell { value: 17 };
+    let second: Cell = Cell { value: 23 };
+    let swapped: bool = swap(Held { target: &first, stamp: 3 }, Held { target: &second, stamp: 7 });
+    transition array_leaves() && early_leaf() && borrowed_storage() && swapped {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

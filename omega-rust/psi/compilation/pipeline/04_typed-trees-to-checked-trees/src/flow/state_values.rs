@@ -66,11 +66,7 @@ fn entry_state<'program>(
     program: &'program dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
 ) -> Option<&'program typed_trees::state::State> {
-    let index = validation::activation_target_state_index(
-        program,
-        machine,
-        machine.symbol,
-    )?;
+    let index = validation::activation_target_state_index(program, machine, machine.symbol)?;
     program.machine_states(machine).get(index)
 }
 
@@ -411,12 +407,8 @@ pub(super) fn append_entry_context(
     fields::append(program, semantic, &input.fields, machine, state, point);
     qualifications::append(semantic, &input.qualifications, point);
     predicates::append(semantic, &input.predicates, point);
-    if let Some(entry) = validation::activation_target_state_index(
-        program,
-        machine,
-        machine.symbol,
-    )
-    .and_then(|index| program.machine_states(machine).get(index))
+    if let Some(entry) = validation::activation_target_state_index(program, machine, machine.symbol)
+        .and_then(|index| program.machine_states(machine).get(index))
     {
         crate::facts::boolean_predicates::seed_entry_paths(
             semantic,

@@ -81,8 +81,6 @@ pub(super) fn establishment(
                 declarations,
             )
         || result.multiplicity != StructuralMultiplicity::Affine
-        || !result.qualifications.is_empty()
-        || !result.projected_qualifications.is_empty()
         || !result.qualification_establishments.is_empty()
         || !result.claims.is_empty()
         || super::aggregate_result_input::home(function, result.place)
@@ -121,12 +119,12 @@ pub(super) fn establishment(
     };
     let mut projection_root = root;
     let mut segment_start = 0;
-    let geometry = crate::structural_inputs::structural_reference_input::borrowed_source_geometry(
-        root,
-        path,
-        declarations,
-        source.access,
-    )?;
+    let geometry =
+        crate::structural_inputs::structural_reference_input::reference_formation_geometry(
+            root,
+            path,
+            declarations,
+        )?;
     if !crate::structural_inputs::structural_reference_input::runtime_indices_match(
         indices,
         &geometry.elements,
@@ -154,14 +152,38 @@ pub(super) fn establishment(
         segment_start = position + 1;
     }
     let projection_path = &path[segment_start..];
-    let selected = geometry.selected;
     let byte_offset = geometry.byte_offset;
-    let selected_shape = &declarations
-        .iter()
-        .find(|declaration| declaration.id == selected)?
-        .shape;
+    // An inline owner keeps its declaration-local field contract; it must not
+    // acquire a nominal identity from a same-shaped catalog entry. Only scalar
+    // or structural endpoints need a declaration for codec/schema handling.
+    let selected = match geometry.selected.as_ref() {
+        terminal_psi::StructuralFieldType::Structural(identity) => Some(*identity),
+        field => {
+            let contract = if source.access == StructuralAccess::SharedBorrow {
+                field
+                    .shared_observation_type()
+                    .filter(|observed| observed.scalar_type().is_some())
+                    .or_else(|| field.canonical_leaf_type())
+            } else {
+                field.canonical_leaf_type()
+            };
+            contract.and_then(|contract| {
+                contract
+                    .leaf_declaration(declarations.iter())
+                    .map(|row| row.id)
+            })
+        }
+    };
+    let selected_shape = selected.and_then(|identity| {
+        declarations
+            .iter()
+            .find(|row| row.id == identity)
+            .map(|row| &row.shape)
+    });
     let (actual, mut load_pointer) = match selected_shape {
-        StructuralTypeShape::Reference { referent, .. } if through_referent => (*referent, true),
+        Some(StructuralTypeShape::Reference { referent, .. }) if through_referent => {
+            (Some(*referent), true)
+        }
         _ => (selected, false),
     };
     // Borrowed scalar ingress carries an address-and-codec descriptor. A new
@@ -188,12 +210,12 @@ pub(super) fn establishment(
             .filter(|plan| plan.carrier == referent);
         match (plans.next(), plans.next()) {
             (Some(plan), None) => {
-                actual == correspondence.schema
+                actual == Some(correspondence.schema)
                     && terminal_semantics::placed_ram_plan_correspondence(
                         declarations.as_slice(),
                         declarations.placed_views(),
                         plan,
-                        actual,
+                        correspondence.schema,
                     )
                     .is_ok_and(|expected| &expected == correspondence)
             }
@@ -201,15 +223,18 @@ pub(super) fn establishment(
         }
     } else {
         match storage {
-            Some(storage) => terminal_semantics::reference_storage_source_compatible(
+            Some(storage) => actual.is_some_and(|actual| {
+                terminal_semantics::reference_storage_source_compatible(
+                    declarations.iter(),
+                    actual,
+                    result.structural_type,
+                    storage.stored_scalar,
+                )
+            }),
+            None => terminal_semantics::reference_source_projection_compatible(
                 declarations.iter(),
-                actual,
-                result.structural_type,
-                storage.stored_scalar,
-            ),
-            None => terminal_semantics::reference_source_compatible(
-                declarations.iter(),
-                actual,
+                root,
+                &source.path,
                 result.structural_type,
             ),
         }
@@ -356,32 +381,56 @@ pub(super) fn referent_projection<'path>(
     let crossing = path
         .iter()
         .rposition(|segment| *segment == StructuralPathSegment::Referent)?;
-    let structural_type =
+    let (structural_type, multiplicity, access) =
         if let Some((_, result)) = super::aggregate_result_input::home(function, place) {
-            if result.multiplicity != StructuralMultiplicity::Affine
-                || !result.qualifications.is_empty()
-                || !result.projected_qualifications.is_empty()
-                || !result.qualification_establishments.is_empty()
-                || !result.claims.is_empty()
-            {
+            if !result.qualification_establishments.is_empty() || !result.claims.is_empty() {
                 return None;
             }
-            result.structural_type
+            (
+                result.structural_type,
+                result.multiplicity,
+                StructuralAccess::Owned,
+            )
         } else {
-            let (_, parameter) = super::aggregate_result_input::block_home(function, place)?;
-            if parameter.multiplicity != StructuralMultiplicity::Affine
-                || !parameter.qualifications.is_empty()
+            let parameter = super::arrival_parameter_input::parameter(function, place)?;
+            if !parameter.qualifications.is_empty()
                 || !parameter.projected_qualifications.is_empty()
+                || function
+                    .structural
+                    .as_ref()?
+                    .entry_claims
+                    .iter()
+                    .any(|claim| claim.input == place)
             {
                 return None;
             }
-            parameter.structural_type
+            (
+                parameter.structural_type,
+                parameter.multiplicity,
+                parameter.access,
+            )
         };
+    let declarations = &function.structural.as_ref()?.structural_types;
+    // Keep the incoming carrier's authority distinct from the referent's.
+    // Fragmented writes request mutable access because they read sibling bits.
+    if multiplicity == StructuralMultiplicity::Linear
+        || !terminal_semantics::reference_source_projection_accessible(
+            declarations.iter(),
+            structural_type,
+            multiplicity,
+            access,
+            path,
+            required_access,
+        )
+    {
+        return None;
+    }
     let projection = crate::structural_inputs::structural_reference_input::reference_projection(
         structural_type,
         &path[..=crossing],
         required_access,
-        &function.structural.as_ref()?.structural_types,
+        None,
+        declarations,
     )?;
     Some((projection.selected, &path[crossing + 1..]))
 }
@@ -403,7 +452,9 @@ pub(super) fn store_destination<'path>(
             super::aggregate_result_input::block_home(function, parameter.place)
                 == Some((*block, parameter))
         }
-        abstract_operations::StructuralScalarStoreDestination::Parameter(_) => false,
+        abstract_operations::StructuralScalarStoreDestination::Parameter(parameter) => {
+            super::arrival_parameter_input::store_destination(function, parameter)
+        }
     };
     if !admitted {
         return None;
@@ -458,6 +509,7 @@ pub(super) fn borrowed_argument(
         root,
         &argument.path,
         argument.access,
+        Some(target.structural_type),
         declarations,
     )?;
     let selected = projection.selected;
@@ -503,29 +555,4 @@ pub(super) struct BorrowedReferenceAddress {
     pub(super) indices: Vec<legalized_operations::LegalizedRuntimeIndexOperand>,
     pub(super) referent_offset: u32,
     pub(super) scalar_descriptor: bool,
-}
-
-fn carrier_referent(
-    function: &LegalizedScalarFunction,
-    result: &terminal_psi::StructuralOperationResult,
-) -> Option<(StructuralTypeId, StructuralAccess)> {
-    if result.multiplicity != StructuralMultiplicity::Affine
-        || !result.qualifications.is_empty()
-        || !result.projected_qualifications.is_empty()
-        || !result.qualification_establishments.is_empty()
-        || !result.claims.is_empty()
-    {
-        return None;
-    }
-    match function
-        .structural
-        .as_ref()?
-        .structural_types
-        .iter()
-        .find(|declaration| declaration.id == result.structural_type)?
-        .shape
-    {
-        StructuralTypeShape::Reference { referent, access } => Some((referent, access)),
-        _ => None,
-    }
 }

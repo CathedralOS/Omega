@@ -8,7 +8,9 @@
 //! rebuilding records field by field and discarding non-scalar evidence.
 
 use super::super::{Builder, ExpressionHandle, ExpressionNode, TypeReferenceNode};
-use super::place_types::{needs_copied_place_root, projection_root_expression};
+use super::place_types::{
+    needs_copied_place_root, projection_root_expression, readable_place_type,
+};
 use checked_trees::CheckedStructuralValueKind;
 use typed_trees::types::TypeReferenceHandle;
 
@@ -169,21 +171,20 @@ impl Builder<'_, '_> {
                 selectors.push((*expression, self.index_selector(*expression)?));
             }
         }
-        let (projected, mut path) =
-            crate::execution::terminal_unit::calls::projected_argument_path(
-                self.program,
-                self.state,
-                self.statement_index,
-                &place,
-                Some(self.machine),
-                Some(&|expression| {
-                    selectors.iter().find_map(|(selector, value)| {
-                        (*selector == expression).then_some(
-                            checked_trees::CheckedUnitStructuralPathSegment::ComputedIndex(*value),
-                        )
-                    })
-                }),
-            )?;
+        let (_, mut path) = crate::execution::terminal_unit::calls::projected_argument_path(
+            self.program,
+            self.state,
+            self.statement_index,
+            &place,
+            Some(self.machine),
+            Some(&|expression| {
+                selectors.iter().find_map(|(selector, value)| {
+                    (*selector == expression).then_some(
+                        checked_trees::CheckedUnitStructuralPathSegment::ComputedIndex(*value),
+                    )
+                })
+            }),
+        )?;
         // A local owns its descriptor, whereas a borrowed formal already
         // denotes its referent. Selecting below the local crosses that stored
         // address; copying the whole descriptor does not cross it. View
@@ -208,9 +209,13 @@ impl Builder<'_, '_> {
             crossings.append(&mut path);
             path = crossings;
         }
-        if !validation::declared_carriers_match(self.program, projected, expected) {
-            return None;
-        }
+        let projected = readable_place_type(
+            self.program,
+            self.state,
+            self.statement_index,
+            &place,
+            expected,
+        )?;
         // Copying a leaf lends its stored carrier. Its declared qualification
         // remains on `projected` and in the comparison above, while descriptors
         // and bounded-byte shapes follow the same registry rule as owned values.

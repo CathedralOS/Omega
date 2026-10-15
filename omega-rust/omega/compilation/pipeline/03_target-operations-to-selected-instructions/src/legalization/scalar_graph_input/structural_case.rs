@@ -311,16 +311,10 @@ pub(in crate::legalization) fn leaf_copy_layout(
     // into fresh storage the successor takes custody of.
     let owned_case_copy = matches!(path, abstract_operations::StructuralCopyPath::Case(_))
         && result.multiplicity == terminal_psi::StructuralMultiplicity::Affine;
-    let shared_descriptor = find_structural_type(&plan.structural_types, result.structural_type)
-        .is_some_and(|declaration| {
-            matches!(
-                declaration.shape,
-                StructuralTypeShape::Reference {
-                    access: terminal_psi::StructuralAccess::SharedBorrow,
-                    ..
-                }
-            )
-        });
+    let shared_descriptor = terminal_semantics::is_shared_reference_carrier(
+        plan.structural_types.iter(),
+        result.structural_type,
+    );
     if (result.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
         && !owned_case_copy
         && !(result.multiplicity == terminal_psi::StructuralMultiplicity::Affine

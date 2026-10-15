@@ -8,23 +8,41 @@ use crate::flow::canonical_place_from_symbol;
 use crate::flow::mutation::local_origins::place_from_origin_path;
 use crate::flow::place_segment_has_unresolved_identity;
 
-/// The boolean reports whether every source segment survived the projection;
-/// an unresolved runtime index truncates the place, and only an exact result
-/// may feed value transport such as returned-reference evidence re-anchoring.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum OriginPrecision {
+    Exact,
+    /// Every structural dimension is retained, but an element is unknown.
+    MaySelect,
+    /// Only an enclosing region survived. Descendant projection is unsound.
+    Enclosing,
+}
+
+/// Precision separates complete structural projection from exact identity.
+/// A runtime element selector retains its known field suffix for conservative
+/// overlap, but cannot feed value transport or
+/// returned-reference evidence re-anchoring as a current selector value.
 pub(crate) fn origin_place(
     program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     statement_index: usize,
     origin: &validation::LocalWriteOrigin,
-) -> Option<(CanonicalPlace, bool)> {
+) -> Option<(CanonicalPlace, OriginPrecision)> {
     let source = origin.source.as_ref()?;
     if source.collection_coarse
         && let Some(place) = structural_origin(program, state, statement_index, source)
     {
         return Some(place);
     }
-    place_from_origin_path(program, state, statement_index, &source.path)
-        .map(|place| (place, !source.collection_coarse))
+    place_from_origin_path(program, state, statement_index, &source.path).map(|place| {
+        (
+            place,
+            if source.collection_coarse {
+                OriginPrecision::Enclosing
+            } else {
+                OriginPrecision::Exact
+            },
+        )
+    })
 }
 
 fn structural_origin(
@@ -32,24 +50,41 @@ fn structural_origin(
     state: &typed_trees::state::State,
     statement_index: usize,
     source: &validation::LocalWriteSource,
-) -> Option<(CanonicalPlace, bool)> {
+) -> Option<(CanonicalPlace, OriginPrecision)> {
     let mut place = canonical_place_from_symbol(source.root)?;
     canonical_place_type_reference(program, state.symbol, statement_index, &place)?;
+    let mut exact = true;
     for segment in &source.segments {
         if place_segment_has_unresolved_identity(*segment) {
             return None;
         }
-        // A runtime selector was evaluated at binding formation. Its current
-        // expression value cannot narrow a later write through that binding.
-        let segment = match segment {
-            facts::PlaceSegment::Index { .. } => return Some((place, false)),
-            _ => *segment,
-        };
-        place.segments.push(segment);
+        if let facts::PlaceSegment::Index { expression } = segment
+            && (!program.expression_table.expression_is_valid(*expression)
+                || program.expression_table.range_node(*expression).is_some())
+        {
+            // A window retains the collection dimension; an erased selector
+            // does not establish whether it was a window or one element.
+            // Stop before that coordinate rather than shifting later fields
+            // or indexes onto the wrong dimension of the backing storage.
+            return Some((place, OriginPrecision::Enclosing));
+        }
+        // Overlap treats a runtime selector as any element, independently of
+        // its later value. Keep the known descendant fields: an unknown row
+        // does not make a write to its second field touch its first field.
+        // Exact consumers must still refuse this captured selector identity.
+        exact &= !matches!(segment, facts::PlaceSegment::Index { .. });
+        place.segments.push(*segment);
         crate::flow::compose_captured_view_segments(&mut place.segments)?;
         origin_type_reference(program, state, statement_index, &place)?;
     }
-    Some((place, true))
+    Some((
+        place,
+        if exact {
+            OriginPrecision::Exact
+        } else {
+            OriginPrecision::MaySelect
+        },
+    ))
 }
 
 /// A frozen window is an exact descriptor origin, not an unknown element.

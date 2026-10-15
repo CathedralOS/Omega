@@ -479,9 +479,14 @@ pub(in crate::checks::borrows) fn append_call_premises<'p>(
         .flow
         .semantic_constraint_contexts(statement_flow.entry_constraints)
         .collect();
-    for guarantee in
-        call_guarantees::available(program, facts, state_flow, statement, &contexts, frames)
-    {
+    for guarantee in call_guarantees::available(
+        program,
+        facts,
+        state_flow,
+        call_guarantees::GuaranteeUse::StatementEntry(statement),
+        &contexts,
+        frames,
+    ) {
         let (result, result_mutable) = guarantee
             .result_binding(program, &facts.semantic, &contexts, state)
             .unwrap_or_default();
@@ -499,6 +504,52 @@ pub(in crate::checks::borrows) fn append_call_premises<'p>(
             premises,
         );
     }
+}
+
+/// Captured paths may use immutable result facts established during operand
+/// evaluation, never facts about the current contents of mutable storage.
+/// Bind results to their invocation even when a local originally received
+/// them: reassignment cannot retarget the captured result occurrence.
+pub(super) fn captured_call_premises(
+    program: &dyn ::validation::CheckingInput,
+    facts: &checked_trees::CheckFacts,
+    state: &checked_trees::FlowStateFact,
+    statement: usize,
+    contexts: &[facts::FactContextHandle],
+    frames: &validation::CallFrameResolver<'_>,
+    lookup: &validation::ImmutableBoundLookup<'_>,
+) -> Vec<StatedOrderingPremise> {
+    let mut premises = Vec::new();
+    for guarantee in call_guarantees::available(
+        program,
+        facts,
+        state,
+        call_guarantees::GuaranteeUse::EvaluatedContext(statement),
+        contexts,
+        frames,
+    ) {
+        decompose_premise_expression(
+            program,
+            lookup,
+            PremiseScope::Call {
+                guarantee: &guarantee,
+                result: Default::default(),
+                result_mutable: false,
+            },
+            guarantee.expression,
+            false,
+            &None,
+            &mut premises,
+        );
+    }
+    let captured = |bound: &NormalizedBound| {
+        !matches!(
+            bound,
+            NormalizedBound::Storage { .. } | NormalizedBound::StorageProjected { .. }
+        )
+    };
+    premises.retain(|premise| captured(&premise.left) && captured(&premise.right));
+    premises
 }
 
 /// Decompose one `requires` expression into atomic ordering premises.

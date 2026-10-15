@@ -58,6 +58,8 @@ pub(crate) fn emit(
             }
             LoweredScalarEffect::EstablishReference {
                 storage,
+                backing_type,
+                qualification_decisions,
                 state,
                 statement,
                 expression,
@@ -74,11 +76,15 @@ pub(crate) fn emit(
                         state: *state,
                         statement_index: *statement as usize,
                         expression: *expression,
+                        backing_type: *backing_type,
+                        qualification_decisions: *qualification_decisions,
+                        domain_ids: calls.domain_ids,
                     },
                     *structural_type,
                     source.clone(),
                     storage,
                     calls.structural_types,
+                    std::iter::empty(),
                     *place,
                     operations,
                 )?;
@@ -203,6 +209,27 @@ pub(crate) fn emit(
                     next_value,
                     &mut calls.next_obligation_identity,
                     operations,
+                )?;
+            }
+            LoweredScalarEffect::EstablishScalarHome {
+                place,
+                structural_type,
+                value,
+            } => {
+                use crate::unit::attached_unit::primitive_locals;
+                let initialized = emit_direct_expression(value, values, next_value, operations);
+                let obligation = primitive_locals::initialization_obligation(
+                    calls.structural_types,
+                    *structural_type,
+                    &mut calls.next_obligation_identity,
+                )?;
+                primitive_locals::establish_at(
+                    *place,
+                    operations,
+                    initialized,
+                    *structural_type,
+                    calls.structural_types,
+                    obligation,
                 )?;
             }
             LoweredScalarEffect::EstablishScalarArray(array) => {

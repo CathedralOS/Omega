@@ -241,6 +241,7 @@ pub(crate) fn for_exit_regions(
             )?);
             Ok((storage.place, storage.path))
         },
+        |place| evaluation.carrier_multiplicity(place, operations),
         |cleanup, place, structural_type, path| {
             let mut action = crate::unit::unit_cleanup::lower_nominal_cleanup_action(
                 cleanup,

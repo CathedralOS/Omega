@@ -286,7 +286,7 @@ pub(super) fn validate(
                             || terminal_semantics::scalar_field_requires_evidence(&declared.field_type) != range_obligation.is_some()
                             || range_obligation.is_some_and(|obligation|
                                 !unit.accepted_obligation_facts.iter().any(|fact| fact.machine == optimized.machine
-                                    && fact.operation == *psi_operation && fact.obligation == obligation)
+                                    && fact.owner == optimization_unit::PsiProvenance::Operation(*psi_operation) && fact.obligation == obligation)
                                 || !optimized.facts.iter().any(|fact| matches!(fact,
                                     optimization_unit::OptimizationFact::OperationObligationReference { obligation: retained, support }
                                     if *retained == obligation && support == psi_operation)))

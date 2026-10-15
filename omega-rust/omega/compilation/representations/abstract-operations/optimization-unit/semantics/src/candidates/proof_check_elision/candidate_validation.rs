@@ -254,7 +254,7 @@ pub(crate) fn validate_proof_certified_scalar_identity_candidate(
     }) || !input.accepted_obligation_facts.iter().any(|fact| {
         fact.identity == obligation_fact
             && fact.machine == function.machine
-            && fact.operation == shape.source_operation
+            && fact.owner == optimization_unit::PsiProvenance::Operation(shape.source_operation)
             && fact.obligation == shape.obligation
     }) {
         return Err(OptimizationUnitValidationError::CandidateAcceptedObligationFactMismatch);

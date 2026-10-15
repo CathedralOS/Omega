@@ -229,12 +229,7 @@ pub(in crate::legalization::scalar_graph_input) fn reconstruct_at_owner(
     let indices = if elements.is_empty() {
         Vec::new()
     } else {
-        target::control_flow::sources::call_indices(
-            native,
-            caller,
-            owner.operation().ok_or(LegalizationError::custody())?,
-            &elements,
-        )?
+        target::control_flow::sources::call_indices(native, caller, owner, &elements)?
     };
     let shape = crate::structural_inputs::structural_reference_input::internal_borrow_shape(
         selected,

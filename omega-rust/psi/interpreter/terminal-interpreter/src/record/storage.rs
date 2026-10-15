@@ -19,7 +19,10 @@ use terminal_psi::{StructuralPathSegment, StructuralTypeShape};
 
 pub(crate) enum ConstructorValue<'execution> {
     Placed(TerminalStructuralValue),
-    ScalarArray(&'execution crate::scalar_array::TerminalScalarArrayValue),
+    PackedScalars {
+        structural_type: StructuralTypeId,
+        elements: &'execution [TerminalScalarValue],
+    },
 }
 
 impl<'execution> ConstructorValue<'execution> {
@@ -28,12 +31,45 @@ impl<'execution> ConstructorValue<'execution> {
         argument: &terminal_psi::StructuralArgument,
     ) -> Result<Self, TerminalInterpretError> {
         if let Some(array) = execution.scalar_array_values.get(&argument.place) {
-            if !argument.path.is_empty()
-                || execution.structural_values.contains_key(&argument.place)
-            {
+            if execution.structural_values.contains_key(&argument.place) {
                 return Err(malformed());
             }
-            return Ok(Self::ScalarArray(array));
+            let types = execution.program.structural_types();
+            let mut structural_type = array.structural_type;
+            let mut elements = array.elements.as_slice();
+            // A packed tree's static child is a contiguous row-major span.
+            // Select the actual source span before any receiving declaration
+            // is consulted; neither a referent nor byte window owns this data.
+            for segment in &argument.path {
+                let StructuralPathSegment::FixedIndex(index) = segment else {
+                    return Err(malformed());
+                };
+                let StructuralTypeShape::FixedArray { element, length } =
+                    types.get(&structural_type).ok_or_else(malformed)?.shape
+                else {
+                    return Err(malformed());
+                };
+                if *index >= length {
+                    return Err(malformed());
+                }
+                let length = usize::try_from(length).map_err(|_| malformed())?;
+                if elements.len() % length != 0 {
+                    return Err(malformed());
+                }
+                let count = elements.len() / length;
+                let start = usize::try_from(*index)
+                    .map_err(|_| malformed())?
+                    .checked_mul(count)
+                    .ok_or_else(malformed)?;
+                elements = elements
+                    .get(start..start.checked_add(count).ok_or_else(malformed)?)
+                    .ok_or_else(malformed)?;
+                structural_type = element;
+            }
+            return Ok(Self::PackedScalars {
+                structural_type,
+                elements,
+            });
         }
         resolve_single_structural_argument(
             &execution.program.structural_types(),
@@ -46,8 +82,128 @@ impl<'execution> ConstructorValue<'execution> {
     pub(crate) fn structural_type(&self) -> StructuralTypeId {
         match self {
             Self::Placed(value) => value.structural_type,
-            Self::ScalarArray(value) => value.structural_type,
+            Self::PackedScalars {
+                structural_type, ..
+            } => *structural_type,
         }
+    }
+
+    /// Snapshot a scalar tree and resolve its receiving cells in the original
+    /// owner before any store. Packed arrays and placed values differ only in
+    /// how their completed payload is read, never in where replacement writes.
+    /// Non-scalar subtrees retain their descriptor/case transplant transaction.
+    pub(crate) fn replacement_writes(
+        &self,
+        execution: &TerminalExecution,
+        source: &terminal_psi::StructuralArgument,
+        destination: semantic_vocabulary::PlaceId,
+        destination_path: &[StructuralPathSegment],
+    ) -> Result<Option<crate::primitive_storage::PrimitiveStorageWrites>, TerminalInterpretError>
+    {
+        let mut writes = crate::primitive_storage::PrimitiveStorageWrites::default();
+        let supported =
+            self.visit_scalar_leaves(execution, source, |selectors, scalar_type, value| {
+                let mut path = destination_path.to_vec();
+                path.extend_from_slice(selectors);
+                let (storage, actual, _) = execution.primitive_access(destination, true, &path)?;
+                if actual != scalar_type {
+                    return Err(malformed());
+                }
+                writes.stage(execution, destination, storage, scalar_type, value)
+            })?;
+        Ok(supported.map(|_| writes))
+    }
+
+    /// Read the completed scalar leaves once in row-major order. Consumers
+    /// stage copies or writes without reconstructing producer-specific storage.
+    pub(crate) fn visit_scalar_leaves(
+        &self,
+        execution: &TerminalExecution,
+        source: &terminal_psi::StructuralArgument,
+        mut visit: impl FnMut(
+            &[StructuralPathSegment],
+            semantic_vocabulary::ScalarType,
+            TerminalScalarValue,
+        ) -> Result<(), TerminalInterpretError>,
+    ) -> Result<Option<semantic_vocabulary::ScalarType>, TerminalInterpretError> {
+        let types = execution.program.structural_types();
+        let root = self.structural_type();
+        let (scalar_type, count) = match types.get(&root).ok_or_else(malformed)?.shape {
+            StructuralTypeShape::PrimitiveScalar(scalar_type) => (scalar_type, 1),
+            StructuralTypeShape::FixedArray { .. } => {
+                let Some(shape) = terminal_semantics::scalar_array_leaf_shape(types.values(), root)
+                else {
+                    return Ok(None);
+                };
+                shape
+            }
+            _ => return Ok(None),
+        };
+        if let Self::PackedScalars { elements, .. } = self
+            && u64::try_from(elements.len()).ok() != Some(count)
+        {
+            return Err(malformed());
+        }
+        // The shape query validates every dimension, including below a zero
+        // extent. Enumerating leaves instead of nested dimensions avoids work
+        // proportional to a huge outer array whose inner arrays are empty.
+        let mut dimensions = Vec::new();
+        let mut current = root;
+        while let StructuralTypeShape::FixedArray { element, length } =
+            types.get(&current).ok_or_else(malformed)?.shape
+        {
+            dimensions.push(length);
+            current = element;
+        }
+        let mut selectors = vec![0; dimensions.len()];
+        for leaf_ordinal in 0..count {
+            let mut remaining = leaf_ordinal;
+            for (selector, length) in selectors.iter_mut().zip(&dimensions).rev() {
+                *selector = remaining.checked_rem(*length).ok_or_else(malformed)?;
+                remaining = remaining.checked_div(*length).ok_or_else(malformed)?;
+            }
+            let value = match self {
+                Self::PackedScalars { elements, .. } => *elements
+                    .get(usize::try_from(leaf_ordinal).map_err(|_| malformed())?)
+                    .ok_or_else(malformed)?,
+                Self::Placed(value) => {
+                    let (storage, actual, shared) = if dimensions.is_empty() {
+                        // An owned primitive parameter is a completed payload,
+                        // not an ordinary whole-root borrowing operation.
+                        execution.primitive_view_access(value, &[], scalar_type, false)?
+                    } else {
+                        // A borrowed array can be presented by opaque metadata
+                        // while its bytes remain in a suspended caller. Keep
+                        // the actual operand's home/path to follow that loan.
+                        let mut path = source.path.clone();
+                        path.extend(
+                            selectors
+                                .iter()
+                                .copied()
+                                .map(StructuralPathSegment::FixedIndex),
+                        );
+                        execution.primitive_access(source.place, false, &path)?
+                    };
+                    execution.read_primitive_storage(
+                        source.place,
+                        storage,
+                        actual,
+                        scalar_type,
+                        shared,
+                    )?
+                }
+            };
+            if value.scalar_type() != scalar_type || !terminal_scalar_belongs_to_type(value) {
+                return Err(malformed());
+            }
+            let path = selectors
+                .iter()
+                .copied()
+                .map(StructuralPathSegment::FixedIndex)
+                .collect::<Vec<_>>();
+            visit(&path, scalar_type, value)?;
+        }
+        Ok(Some(scalar_type))
     }
 
     /// Relocate the selected value's actual memberships with its storage.
@@ -189,16 +345,14 @@ impl ConstructorStorage {
             ConstructorValue::Placed(value) => {
                 self.stage_placed(execution, argument, value, destination, transfers_custody)
             }
-            ConstructorValue::ScalarArray(array) => {
+            ConstructorValue::PackedScalars {
+                structural_type,
+                elements,
+            } => {
                 if transfers_custody {
                     return Err(malformed());
                 }
-                self.stage_array(
-                    execution,
-                    array.structural_type,
-                    &array.elements,
-                    destination,
-                )
+                self.stage_array(execution, *structural_type, elements, destination)
             }
         }
     }

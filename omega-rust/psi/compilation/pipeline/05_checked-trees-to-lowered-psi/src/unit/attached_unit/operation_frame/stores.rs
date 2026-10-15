@@ -121,6 +121,7 @@ impl OperationFrame<'_, '_> {
             CheckedStoreLeaf::SumField => self.sum_field_store(identities, store),
             CheckedStoreLeaf::StructuralStore {
                 type_identity,
+                multiplicity,
                 opening_binding,
             } => {
                 let Some(value) = store.installed_value() else {
@@ -143,6 +144,7 @@ impl OperationFrame<'_, '_> {
                     &place,
                     *opening_binding,
                     value,
+                    *multiplicity,
                 )
             }
             CheckedStoreLeaf::OwnedRebind { type_identity } => {
@@ -367,24 +369,18 @@ impl OperationFrame<'_, '_> {
                 }
             }
             checked_trees::CheckedStoreRoot::Local { symbol } => {
-                let (place, structural_type) = self.local_home(symbol)?;
-                if self
-                    .structural_types
-                    .declarations()
-                    .iter()
-                    .any(|declaration| {
-                        declaration.id == structural_type && declaration.is_record_shape()
-                    })
-                {
-                    StoreRoot::Owned {
-                        place,
-                        structural_type,
-                    }
-                } else {
-                    StoreRoot::Reference {
-                        place,
-                        structural_type,
-                    }
+                let home = crate::emission::store_destination::local_store_root(
+                    symbol,
+                    &self.evaluation.structural_locals,
+                    self.evaluation.structural_root_parameters(),
+                    self.operations,
+                )?;
+                home.require_unqualified()?;
+                StoreRoot::Local {
+                    place: home.argument.place,
+                    structural_type: home.structural_type,
+                    multiplicity: home.multiplicity,
+                    access: home.argument.access,
                 }
             }
         };

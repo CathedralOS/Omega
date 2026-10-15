@@ -276,6 +276,7 @@ pub enum CheckedUnitEffectOperationPlan {
         /// Exact checked formation occurrence. The emitter retains its
         /// completed address; later crossings never replay this expression.
         formation_expression: typed_trees::expression::ExpressionHandle,
+        backing_type: typed_trees::types::TypeReferenceHandle,
         result: CheckedUnitStructuralResultBindingPlan,
         source: CheckedUnitStructuralArgumentPlan,
         storage: super::CheckedReferenceStorage,

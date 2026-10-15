@@ -99,14 +99,41 @@ impl ElementView {
     /// already been evaluated by the operation-wide runtime-index owner.
     pub(crate) fn structural_projection(
         &self,
+        types: &crate::program::ProgramDeclarations<'_, terminal_psi::StructuralTypeDeclaration>,
         path: &[StructuralPathSegment],
         writing: bool,
     ) -> Result<(TerminalStructuralValue, Vec<StructuralPathSegment>), TerminalInterpretError> {
         let ElementViewBacking::Structural { collection } = &self.backing else {
             return Err(malformed());
         };
-        if writing && self.access != StructuralAccess::MutableBorrow {
+        let requested = if writing {
+            StructuralAccess::WriteOnlyBorrow
+        } else {
+            StructuralAccess::SharedBorrow
+        };
+        if !requested.admits_referent(self.access) {
             return Err(malformed());
+        }
+        if path.is_empty() {
+            // A fixed-array formal uses this descriptor as a storage companion,
+            // not as an unsized view. Only its exact complete collection can be
+            // replaced whole; a slice descriptor never owns its backing array.
+            let home = self.descriptor_home.as_ref().ok_or_else(malformed)?;
+            let StructuralTypeShape::FixedArray { length, .. } = types
+                .get(&collection.structural_type)
+                .ok_or_else(malformed)?
+                .shape
+            else {
+                return Err(malformed());
+            };
+            if home.structural_type != collection.structural_type
+                || self.window.start != 0
+                || u64::try_from(self.window.end).ok() != Some(length)
+                || self.home.is_none()
+            {
+                return Err(malformed());
+            }
+            return Ok((collection.clone(), Vec::new()));
         }
         let Some((StructuralPathSegment::FixedIndex(index), suffix)) = path.split_first() else {
             return Err(malformed());
@@ -228,7 +255,12 @@ impl ElementView {
         (crate::primitive_storage::PrimitiveStorage, ScalarType, bool),
         TerminalInterpretError,
     > {
-        if writing && self.access != StructuralAccess::MutableBorrow {
+        let requested = if writing {
+            StructuralAccess::WriteOnlyBorrow
+        } else {
+            StructuralAccess::SharedBorrow
+        };
+        if !requested.admits_referent(self.access) {
             return Err(malformed());
         }
         let Some((StructuralPathSegment::FixedIndex(element_index), suffix)) = path.split_first()
@@ -258,12 +290,7 @@ impl ElementView {
         end: usize,
         access: StructuralAccess,
     ) -> Option<Self> {
-        if start > end
-            || end > self.len()
-            || !matches!(access, terminal_psi::reading_borrow_pair_pattern!())
-            || !matches!(self.access, terminal_psi::reading_borrow_pair_pattern!())
-            || (access == StructuralAccess::MutableBorrow && self.access != access)
-        {
+        if start > end || end > self.len() || !access.admits_referent(self.access) {
             return None;
         }
         Some(Self {

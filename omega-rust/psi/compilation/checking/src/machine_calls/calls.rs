@@ -83,8 +83,8 @@ pub(crate) use write_frames::machine_state_by_symbol;
 pub(crate) use write_frames::named_state_transition_subgraph_is_acyclic;
 pub use write_frames::{
     AssignmentWriteTarget, CallFrameResolver, CallWriteOrigins, LocalWriteOrigin, LocalWriteSource,
-    RecastSource, ScalarStorageCoordinate, assignment_stored_value_type, frame_coordinate_path,
-    frame_length_coordinate_path, frame_paths_overlap, operand_call_plans,
+    RecastSource, ReferenceResultLeafOrigin, ScalarStorageCoordinate, assignment_stored_value_type,
+    frame_coordinate_path, frame_length_coordinate_path, frame_paths_overlap, operand_call_plans,
     state_reference_parameter_binding_is_stable,
 };
 pub(crate) use write_frames::{CallFrameCaches, InvocationReferenceSubject};

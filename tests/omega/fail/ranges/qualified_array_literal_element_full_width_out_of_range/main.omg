@@ -1,0 +1,4 @@
+// Full-width carrier fit does not prove the element's narrower declared range.
+machine bad(values: &write [u64 [0..=9223372036854775808u64]; 1]) {
+    values = [18446744073709551615u64];
+}

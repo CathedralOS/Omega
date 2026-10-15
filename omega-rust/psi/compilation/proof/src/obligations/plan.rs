@@ -498,6 +498,17 @@ pub enum ProofObligationOwner {
         field: Identifier,
         statement_index: usize,
     },
+    /// A literal element's first store. Keep its parent and ordinal as well
+    /// as the statement: sibling operands may observe different live facts.
+    ArrayElement {
+        machine_symbol: SymbolHandle,
+        machine: Identifier,
+        state_symbol: SymbolHandle,
+        state: Identifier,
+        statement_index: usize,
+        construction: ExpressionHandle,
+        element_index: usize,
+    },
 }
 
 impl ProofObligationOwner {
@@ -513,6 +524,12 @@ impl ProofObligationOwner {
                 ..
             }
             | Self::ConstructorField {
+                machine_symbol,
+                state_symbol,
+                statement_index,
+                ..
+            }
+            | Self::ArrayElement {
                 machine_symbol,
                 state_symbol,
                 statement_index,
@@ -565,6 +582,15 @@ impl fmt::Display for ProofObligationOwner {
             } => write!(
                 formatter,
                 "machine `{machine}` state `{state}` constructor field `{field}`"
+            ),
+            Self::ArrayElement {
+                machine,
+                state,
+                element_index,
+                ..
+            } => write!(
+                formatter,
+                "machine `{machine}` state `{state}` array element {element_index}"
             ),
         }
     }

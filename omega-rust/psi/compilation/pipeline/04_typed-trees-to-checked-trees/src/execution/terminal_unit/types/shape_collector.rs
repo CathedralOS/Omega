@@ -486,10 +486,11 @@ impl<'program> ShapeCollector<'program> {
             let referee = substituted_formal_type(self.program, shell.referee, substitutions);
             if matches!(
                 self.program.type_reference_table.type_reference(referee),
-                TypeReferenceNode::Constrained { .. } | TypeReferenceNode::Reference { .. }
+                TypeReferenceNode::Reference { .. }
             ) {
-                // Reference shapes have no referent qualification slot, and
-                // nested reference shells must not collapse after substitution.
+                // Nested reference shells must not collapse after substitution.
+                // Referent domains belong to occurrence-relative Referent
+                // qualification rows, not the descriptor's type or root.
                 return None;
             }
             return self.add_view_type_for_substitutions(
@@ -1142,7 +1143,13 @@ impl<'program> ShapeCollector<'program> {
                 },
             }
         } else if let Some(carrier) =
-            byte_sequence_carrier(self.program, field_type_reference, substitutions)
+            byte_sequence_carrier(self.program, field_type_reference, substitutions).filter(|_| {
+                !validation::stores_reference_shape(
+                    self.program,
+                    field_type_reference,
+                    substitutions,
+                )
+            })
         {
             let declared = typed_trees::byte_predicates::type_reference_domain_predicates(
                 self.program,

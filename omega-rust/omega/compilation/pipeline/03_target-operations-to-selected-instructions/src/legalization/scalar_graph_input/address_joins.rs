@@ -6,7 +6,7 @@
 //! reconstructs both from the optimized function alone, without reading the
 //! target's classification:
 //!
-//! - every edge into the join lends a non-linear, unqualified root at exactly
+//! - every edge into the join lends a non-linear root at exactly
 //!   the permitted access, whose owner dominates the edge (a local producer, an owned block arrival,
 //!   a machine parameter or an earlier address join), through a static
 //!   projection naming exactly the join's referent type;
@@ -16,6 +16,8 @@
 //!
 //! Loan duration is not decided here: the unit's current-ownership replay pins
 //! each lending root while a join can access it, including write-only loans.
+//! Qualification correspondence belongs to abstract semantic admission; those
+//! memberships add no words to the independently reconstructed address.
 
 use super::{AbstractOperation, AbstractOperationPlan, CallPlan, PsiOptimizationFunction};
 use crate::LegalizationError;
@@ -125,7 +127,7 @@ pub(in crate::legalization) fn call_argument(
         indices: super::target::control_flow::sources::call_indices(
             native,
             caller,
-            call_operation,
+            target_operations::CallSiteOwner::Operation(call_operation),
             &elements,
         )?,
         source: target_operations::TargetStructuralArgumentSource::BlockParameter {
@@ -220,43 +222,6 @@ pub(in crate::legalization) fn edge_bindings(
                 ) {
                     return true;
                 }
-                if abstract_operations::control_flow::owner_loans::is_bounded_owner_loan_in(
-                    declaration,
-                    &plan.structural_types,
-                ) {
-                    // A whole argument lends a completed owner or keeps the
-                    // identical-declaration forward; a projection names the byte
-                    // leaf whose carrier is the loan's referent — the same
-                    // storage either spelling reaches.
-                    return binding.parameter == declaration.place
-                        && binding.argument.access == declaration.access
-                        && if binding.argument.path.is_empty() {
-                            bounded_owner_source(
-                                function,
-                                source_block,
-                                binding.argument.place,
-                                declaration,
-                                plan,
-                            )
-                        } else {
-                            abstract_operations::control_flow::address_joins::is_address_projection(
-                                &binding.argument.path,
-                            ) && root_type(
-                                function,
-                                source_block,
-                                binding.argument.place,
-                                &binding.argument.path,
-                                declaration.access,
-                                plan,
-                            )
-                            .and_then(|root| {
-                                abstract_operations::control_flow::address_joins::borrowed_referent_type(plan.structural_types.iter(), root, &binding.argument.path, binding.argument.access)
-                            })
-                            .is_some_and(|referent| {
-                                referent == declaration.structural_type
-                            })
-                        };
-                }
                 binding.parameter == declaration.place
                     && binding.argument.access == declaration.access
                     && abstract_operations::control_flow::address_joins::is_address_projection(
@@ -271,42 +236,15 @@ pub(in crate::legalization) fn edge_bindings(
                         plan,
                     )
                     .and_then(|root| {
-                        abstract_operations::control_flow::address_joins::borrowed_referent_type(plan.structural_types.iter(), root, &binding.argument.path, binding.argument.access)
+                        abstract_operations::control_flow::address_joins::borrowed_referent_type(
+                            plan.structural_types.iter(),
+                            root,
+                            &binding.argument.path,
+                            binding.argument.access,
+                        )
                     })
                     .is_some_and(|referent| referent == declaration.structural_type)
             })
-}
-
-/// A bounded owner loan transports the address of its exact carrier. Completed
-/// local results and forwarded parameters share that layout; the former must
-/// dominate this edge, and the latter retain their incoming contract. Predicate
-/// admission belongs to the checked abstract unit, not an instruction selector.
-fn bounded_owner_source(
-    function: &PsiOptimizationFunction,
-    block: BlockId,
-    place: PlaceId,
-    declaration: &StructuralParameterDeclaration,
-    plan: &AbstractOperationPlan,
-) -> bool {
-    if let Some((producer, structural_type)) =
-        super::byte_views::owned_byte_result(function, place, &plan.structural_types)
-    {
-        return structural_type == declaration.structural_type
-            && operation_block(function, producer)
-                .is_some_and(|owner| owner == block || dominates(function, owner, block));
-    }
-    let identical = |source: &StructuralParameterDeclaration| {
-        source.structural_type == declaration.structural_type
-            && source.access == declaration.access
-            && source.multiplicity == declaration.multiplicity
-            && source.qualifications == declaration.qualifications
-            && source.projected_qualifications.is_empty()
-    };
-    if let Some(source) = function.structural_parameter(place) {
-        return identical(source);
-    }
-    parameter(function, place, plan)
-        .is_some_and(|(owner, source)| identical(source) && dominates(function, owner, block))
 }
 
 /// Root attenuation for an argument lent by an existing address join. Its
@@ -324,7 +262,7 @@ fn loan_access_permitted(source: StructuralAccess, destination: StructuralAccess
     )
 }
 
-/// The non-linear, unqualified root type `place` names on an edge leaving
+/// The non-linear root type `place` names on an edge leaving
 /// `block`, with sufficient access and an owner that dominates that edge.
 fn root_type(
     function: &PsiOptimizationFunction,
@@ -334,11 +272,6 @@ fn root_type(
     access: StructuralAccess,
     plan: &AbstractOperationPlan,
 ) -> Option<semantic_vocabulary::StructuralTypeId> {
-    let plain = |multiplicity, qualifications: &[_], projected: &[_]| {
-        multiplicity != StructuralMultiplicity::Linear
-            && qualifications.is_empty()
-            && projected.is_empty()
-    };
     let permitted = |source: &StructuralParameterDeclaration| {
         abstract_operations::control_flow::address_joins::loan_access_permitted(
             plan.structural_types.iter(),
@@ -351,13 +284,8 @@ fn root_type(
     if let Some(source) = function.structural_parameter(place) {
         // Explicit parameters lend their declared referents. Namespace
         // attachment neither supplies a root nor changes its authority.
-        return (permitted(source)
-            && plain(
-                source.multiplicity,
-                &source.qualifications,
-                &source.projected_qualifications,
-            ))
-        .then_some(source.structural_type);
+        return (permitted(source) && source.multiplicity != StructuralMultiplicity::Linear)
+            .then_some(source.structural_type);
     }
     if let Some((owner, joined)) = parameter(function, place, plan) {
         return ((owner == block || dominates(function, owner, block)) && permitted(joined))
@@ -419,11 +347,7 @@ fn root_type(
     };
     let owner = operation_block(function, operation)?;
     (result.claims.is_empty()
-        && plain(
-            result.multiplicity,
-            &result.qualifications,
-            &result.projected_qualifications,
-        )
+        && result.multiplicity != StructuralMultiplicity::Linear
         && (owner == block || dominates(function, owner, block)))
     .then_some(result.structural_type)
 }

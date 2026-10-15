@@ -1,0 +1,11 @@
+// A stored mutable reference cannot forget its supplying field's stronger
+// invariant, even when the callee restores the reference's weaker domain.
+domain [u8; 8]::Utf8(bytes) requires valid_utf8(bytes);
+domain [u8; 8]::Ascii(bytes) requires ascii_only(bytes);
+data Container { bytes: [u8; 8] in Ascii & Utf8; }
+data Held { bytes: &mut [u8; 8] in Utf8; }
+machine replace(bytes: &mut [u8; 8] in Utf8) -> bool { bytes = "éééé"; true }
+machine bad(container: &mut Container) -> bool {
+    let held: Held = Held { bytes: &mut container.bytes };
+    replace(held.bytes)
+}

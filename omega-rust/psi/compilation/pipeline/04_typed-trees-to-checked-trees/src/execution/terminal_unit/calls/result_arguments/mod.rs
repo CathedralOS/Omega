@@ -73,6 +73,8 @@ pub(super) fn argument(
     {
         trace.phase("call operation: result argument: current storage home");
         let source_state = program.state_by_symbol(state)?;
+        trace.phase("call result argument: current local storage");
+        trace.statement(u32::try_from(call.statement_index).ok());
         argument.source =
             super::super::local_storage::source(program, source_state, operations, symbol)?;
     }
@@ -94,7 +96,30 @@ fn argument_contract(
     operations: &[checked_trees::CheckedUnitEffectOperationPlan],
     trace: &super::super::control::LocalConstructionTrace,
 ) -> Option<CheckedUnitStructuralArgumentPlan> {
+    let phase = |name| {
+        trace.phase(name);
+        trace.statement(u32::try_from(call.statement_index).ok());
+    };
+    phase("call result argument: producer contract");
     let (source_machine, source_state) = validation::find_state(program, state)?;
+    // This is the completed owner's type, independently of the selected
+    // argument or receiving formal. Both loan settlement and final producer
+    // correspondence consume this same retained construction identity.
+    let produced_type = place.root.as_expression().and_then(|source| {
+        facts
+            .values
+            .structural_values
+            .root_for_expression(state, result.statement_index, source)
+            .map(|root| root.type_reference)
+            .or_else(|| {
+                validation::declared_place_type_raw(
+                    program,
+                    source_machine,
+                    Some(source_state),
+                    source,
+                )
+            })
+    });
     if let Some(argument) = super::super::reference_results::record_argument(
         program,
         facts,
@@ -129,6 +154,7 @@ fn argument_contract(
             result,
             parameter,
             target_identity,
+            trace,
         );
     }
     // Anonymous producers publish the same stored descriptor as named locals.
@@ -177,6 +203,7 @@ fn argument_contract(
                 result,
                 parameter,
                 target_identity,
+                trace,
             );
         }
     }
@@ -196,6 +223,7 @@ fn argument_contract(
     ) {
         return Some(argument);
     }
+    phase("call result argument: storage presentation");
     let access = structural_access_for_type_reference(program, parameter.type_reference)?;
     let formal_type = parameter.type_reference;
     let projected = !place.segments.is_empty();
@@ -443,6 +471,7 @@ fn argument_contract(
     } else {
         Vec::new()
     };
+    phase("call result argument: captured loan access");
     let (value_expression, referent) = match access {
         CheckedStructuralAccess::Owned => (expression, formal_type),
         CheckedStructuralAccess::SharedBorrow => {
@@ -478,7 +507,15 @@ fn argument_contract(
                     {
                         return None;
                     }
-                    validate_shared_temporary(program, &facts.flow, machine, state, call, source)?;
+                    validate_shared_temporary(
+                        program,
+                        &facts.flow,
+                        machine,
+                        state,
+                        call,
+                        source,
+                        produced_type?,
+                    )?;
                 }
                 _ => return None,
             }
@@ -639,6 +676,7 @@ fn argument_contract(
         // Extraction keeps the authored storage coordinate for the transfer
         // evidence below while the call reads its newly owned result slot.
         facts::PlaceRoot::Expression(source) if source == value_expression || projected => {
+            phase("call result argument: anonymous producer correspondence");
             if usize::try_from(result.statement_index).ok()? != call.statement_index
                 || operations
                     .iter()
@@ -658,19 +696,7 @@ fn argument_contract(
             {
                 return None;
             }
-            let source_type = facts
-                .values
-                .structural_values
-                .root_for_expression(state, result.statement_index, source)
-                .map(|root| root.type_reference)
-                .or_else(|| {
-                    validation::declared_place_type_raw(
-                        program,
-                        source_machine,
-                        Some(source_state),
-                        source,
-                    )
-                })?;
+            let source_type = produced_type?;
             let source_type = if access == CheckedStructuralAccess::Owned {
                 validation::assignment_value_type(program, source_type)
             } else {

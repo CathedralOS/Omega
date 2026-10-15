@@ -80,10 +80,18 @@ pub(in crate::legalization) fn expected(
                     native,
                     plan,
                 )?;
+                let indices = crate::legalization::runtime_indices::projection(
+                    caller,
+                    unit,
+                    optimization_unit::PsiProvenance::Edge(edge),
+                    target.root_structural_type,
+                    &target.path,
+                    &unit.structural_types,
+                )?;
                 arguments.push(LegalizedScalarArgument::Structural {
                     semantic,
                     target,
-                    indices: Vec::new(),
+                    indices,
                 });
             }
             if callee.structural_parameters.is_empty() && cleanup.cleanup_receiver.is_some() {

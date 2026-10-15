@@ -23,9 +23,7 @@ use crate::object_artifact::replay::scalar::control_cleanup::{
 };
 use crate::object_artifact::replay::scalar::stack::validate_scalar_stack;
 use crate::object_artifact::replay::scalar::structural_scalar_field_store::validate_scalar_structural_scalar_field_stores;
-use crate::object_artifact::replay::structural::affine_projected_calls::{
-    exact_projected_affine_parameter,
-};
+use crate::object_artifact::replay::structural::affine_projected_calls::exact_projected_affine_parameter;
 use crate::object_artifact::replay::structural::return_record::validate_structural_return_record;
 use crate::object_artifact::replay::unit::affine_cleanup::validate_unit_affine_cleanup;
 use crate::object_artifact::replay::unit::call_custody::{

@@ -196,6 +196,7 @@ impl Emission<'_, '_, '_> {
             argument,
             storage,
             self.structural_types,
+            self.evaluation.structural_root_parameters(),
             super::super::super::place_id(super::super::super::allocate_dense(self.next_place)?),
             self.operations,
         )?;

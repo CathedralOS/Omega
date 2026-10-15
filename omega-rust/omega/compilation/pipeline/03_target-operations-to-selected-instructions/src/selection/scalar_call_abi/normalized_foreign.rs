@@ -377,6 +377,7 @@ pub(crate) fn validate(
                     argument.root_structural_type,
                     &argument.path,
                     argument.access,
+                    Some(argument.structural_type),
                     &signature.structural_types,
                 )
                 .ok_or_else(invalid)?;

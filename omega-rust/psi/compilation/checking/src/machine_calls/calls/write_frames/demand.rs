@@ -437,7 +437,7 @@ impl<'program> CallFrameResolver<'program> {
     /// coordinates and admitted-formation candidates, including re-views and
     /// state/call substitution. Publication independently joins each candidate
     /// to its captured returned loan and actual checked value formation.
-    pub(crate) fn reference_result_leaf_origins(
+    pub fn reference_result_leaf_origins(
         &self,
         state: SymbolHandle,
     ) -> Option<Vec<ReferenceResultLeafOrigin>> {
@@ -525,7 +525,7 @@ impl<'program> CallFrameResolver<'program> {
 
     /// A fully known owned value cannot observe a write through an alias.
     /// Opaque data and reference-bearing storage need independent origins.
-    pub(crate) fn value_is_reference_free(
+    pub fn value_is_reference_free(
         &self,
         reference: typed_trees::types::TypeReferenceHandle,
     ) -> bool {

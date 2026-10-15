@@ -104,7 +104,7 @@ pub(super) fn reconstruct_value_range_fact(
                 .filter(|candidate| {
                     candidate.identity == accepted
                         && candidate.machine == function.machine
-                        && candidate.operation == operation
+                        && candidate.owner == optimization_unit::PsiProvenance::Operation(operation)
                         && candidate.obligation == obligation
                         && candidate.proposition == canonical
                         && candidate.psi == unit.psi
@@ -240,7 +240,7 @@ pub(crate) fn independently_reconstruct_value_range_fact_at(
                 .iter()
                 .filter(|candidate| {
                     candidate.machine == machine
-                        && candidate.operation == operation
+                        && candidate.owner == optimization_unit::PsiProvenance::Operation(operation)
                         && candidate.obligation == obligation
                         && candidate.proposition == canonical
                         && candidate.psi == unit.psi

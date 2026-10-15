@@ -34,7 +34,7 @@ pub(super) fn project_integer_exact_cast(
             .iter()
             .find(|fact| {
                 fact.machine == optimized.machine
-                    && fact.operation == *psi_operation
+                    && fact.owner == optimization_unit::PsiProvenance::Operation(*psi_operation)
                     && fact.obligation == *obligation
             })
             .ok_or(Error::custody())?;
@@ -239,7 +239,7 @@ fn accepted_nonzero_divisor_fact(
 ) -> Result<optimization_core::AcceptedObligationFactIdentity, LegalizationError> {
     let mut facts = unit.accepted_obligation_facts.iter().filter(|fact| {
         fact.machine == optimized.machine
-            && fact.operation == psi_operation
+            && fact.owner == optimization_unit::PsiProvenance::Operation(psi_operation)
             && fact.obligation == obligation
     });
     let fact = facts.next().ok_or(Error::custody())?;
@@ -357,7 +357,7 @@ pub(super) fn project_shift(
             .iter()
             .find(|fact| {
                 fact.machine == optimized.machine
-                    && fact.operation == psi_operation
+                    && fact.owner == optimization_unit::PsiProvenance::Operation(psi_operation)
                     && fact.obligation == obligation
             })
             .ok_or(Error::custody())?;
@@ -402,7 +402,7 @@ fn project_exact_integer_arithmetic(
         .iter()
         .find(|fact| {
             fact.machine == optimized.machine
-                && fact.operation == psi_operation
+                && fact.owner == optimization_unit::PsiProvenance::Operation(psi_operation)
                 && fact.obligation == obligation
         })
         .ok_or(Error::custody())?;

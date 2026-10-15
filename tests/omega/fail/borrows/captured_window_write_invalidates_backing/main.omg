@@ -1,0 +1,7 @@
+// A dynamic window preserves a collection dimension. Writing its second column
+// must invalidate that column in the backing, not a spurious extra dimension.
+domain u64::Positive(value) requires 0 < value;
+machine corrupt(rows: &mut [[u64 in Positive; 2]; 2], start: u64 [0..=1]) {
+    let window: &mut [[u64; 2]] = &mut rows[start..2];
+    window[0][1] = 0;
+}

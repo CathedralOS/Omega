@@ -688,6 +688,7 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                         &validation::CanonicalPlace { root: owner, segments: Vec::new() },
                         owner, root.type_reference, &result,
                         target_parameters.get(target.position as usize)?, target.type_identity,
+                        trace,
                     )?
                 } else {
                     CheckedUnitStructuralArgumentPlan {
@@ -847,6 +848,7 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                                 result,
                                 target_parameters.get(target.position as usize)?,
                                 target.type_identity,
+                                trace,
                             )?;
                             if matches!(subject.source, CheckedUnitStructuralArgumentSourcePlan::StructuralResult { .. }) {
                                 subject.source = super::super::local_storage::source(

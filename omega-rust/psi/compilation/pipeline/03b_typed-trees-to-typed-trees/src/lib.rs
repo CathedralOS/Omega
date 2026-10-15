@@ -6,6 +6,7 @@
 //! The 03b directory inserts this transform between typing and checking
 //! without renumbering the existing downstream stages.
 
+mod assignment_destinations;
 mod conformance;
 mod constructed_results;
 mod monomorphization;

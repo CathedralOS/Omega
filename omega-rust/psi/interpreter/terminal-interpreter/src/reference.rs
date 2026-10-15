@@ -37,6 +37,7 @@ pub(crate) struct ReferenceReferent {
     pub(crate) placed_ram: Option<PlacedRamReference>,
     pub(crate) view: TerminalStructuralValue,
     pub(crate) primitive_loan: Option<crate::primitive_storage::PrimitiveLoan>,
+    pub(crate) byte_owner: Option<crate::byte_sequences::binding::ByteSequenceBinding>,
     pub(crate) byte_region: Option<ReferenceByteRegion>,
     /// A typed re-view of aggregate storage with identical geometry: `view`
     /// keeps the backing under its own declaration, and this names the
@@ -62,9 +63,9 @@ pub(crate) enum AggregateViewTip {
 /// One resolved endpoint in its actual backing declaration. A byte snapshot
 /// also needs the final field's storage identity, not its rendered name or an
 /// identity looked up against the original (possibly reference-valued) root.
-struct ResolvedStructuralProjection {
+pub(crate) struct ResolvedStructuralProjection {
     placed_ram: Option<PlacedRamReference>,
-    value: TerminalStructuralValue,
+    pub(crate) value: TerminalStructuralValue,
     view_tip: Option<AggregateViewTip>,
     endpoint_field: Option<semantic_vocabulary::StructuralFieldId>,
     primitive_storage: Option<crate::primitive_storage::PrimitiveStorage>,
@@ -337,6 +338,46 @@ impl TerminalExecution<'_> {
         let mut byte_region = None;
         let mut region_referent = None;
         let mut aggregate_view = None;
+        let field_compatible = storage.is_none()
+            && terminal_semantics::reference_byte_field_compatible(
+                self.program.structural_types().values(),
+                self.program.catalogs.structural_domains.iter(),
+                self.live_structural_type(source.place)?,
+                &source.path,
+                result.structural_type,
+                &result.projected_qualifications,
+            );
+        // Inline owners keep the ordinary call binding's parent, case namespace
+        // and field identity. Capturing a reference must not mint an owned copy
+        // or pretend that the field has an independent nominal storage cell.
+        let byte_owner_loan = if field_compatible {
+            let (qualifications, projected_qualifications) =
+                terminal_psi::StructuralPathQualification::select(
+                    &[],
+                    &result.projected_qualifications,
+                    &[StructuralPathSegment::Referent],
+                );
+            let parameter = StructuralParameterDeclaration {
+                place: source.place,
+                position: 0,
+                structural_type: referent_type,
+                multiplicity: StructuralMultiplicity::Unrestricted,
+                access,
+                qualifications,
+                projected_qualifications,
+            };
+            Some(
+                self.prepare_byte_sequence_loan(
+                    &parameter,
+                    source,
+                    &mut identity_cursor,
+                    &mut BTreeMap::new(),
+                )?
+                .ok_or_else(malformed)?,
+            )
+        } else {
+            None
+        };
         let primitive_loan = if matches!(
             self.program
                 .structural_types()
@@ -423,7 +464,7 @@ impl TerminalExecution<'_> {
             loan.access = access;
             Some(loan)
         } else {
-            if storage.is_none() {
+            if storage.is_none() && byte_owner_loan.is_none() {
                 let (backing, tip) =
                     self.resolve_live_view_projection(source.place, &source.path, source.access)?;
                 if let Some(AggregateViewTip::Aggregate {
@@ -588,6 +629,9 @@ impl TerminalExecution<'_> {
         let mut placed_ram = None;
         let referent = match &primitive_loan {
             Some(loan) => loan.referent.clone(),
+            None if byte_owner_loan.is_some() => {
+                byte_owner_loan.as_ref().ok_or_else(malformed)?.0.clone()
+            }
             None if region_referent.is_some() => region_referent.ok_or_else(malformed)?,
             None => {
                 let (view, captured) = self.resolve_live_placed_projection(source)?;
@@ -602,19 +646,27 @@ impl TerminalExecution<'_> {
             }
             ram.access = access;
         }
+        let mut captured_memberships = Vec::new();
+        terminal_psi::StructuralPathQualification::append_under(
+            &referent.qualifications,
+            &referent.projected_qualifications,
+            &[StructuralPathSegment::Referent],
+            &mut captured_memberships,
+        );
         if !access_covers(source.access, access)
             || result.multiplicity != StructuralMultiplicity::Affine
             || !result.qualifications.is_empty()
-            || !result.projected_qualifications.is_empty()
+            || result.projected_qualifications.iter().any(|row| !captured_memberships.contains(row))
+            || (access != StructuralAccess::SharedBorrow
+                && captured_memberships.iter().any(|row| !result.projected_qualifications.contains(row)))
             || !result.claims.is_empty()
             // The storage judgment above admitted an aggregate re-view.
-            || (aggregate_view.is_none()
+            || (aggregate_view.is_none() && !field_compatible
                 && !terminal_semantics::reference_source_compatible(
                     self.program.structural_types().values(),
                     referent.structural_type,
                     result.structural_type,
                 ))
-            || !referent.qualifications.is_empty()
             || self.structural_values.contains_key(&result.place)
             || self.live_affine_discard_at(result.place).is_some()
         {
@@ -622,11 +674,12 @@ impl TerminalExecution<'_> {
         }
         self.local_structural_identities
             .commit_cursor(identity_cursor);
-        let carrier = TerminalStructuralValue::minted(
+        let mut carrier = TerminalStructuralValue::minted(
             self.local_structural_identities.allocate()?,
             result.structural_type,
             Vec::new(),
         );
+        carrier.projected_qualifications = result.projected_qualifications.clone();
         self.reference_referents.insert(
             StructuralRuntimePlace::from(&carrier),
             ReferenceReferent {
@@ -635,6 +688,7 @@ impl TerminalExecution<'_> {
                     .map_or(referent, |ram| ram.source.clone()),
                 placed_ram,
                 primitive_loan,
+                byte_owner: byte_owner_loan.map(|(_, binding)| binding),
                 byte_region,
                 aggregate_view,
             },
@@ -687,6 +741,21 @@ impl TerminalExecution<'_> {
             self.structural_values.remove(&source);
         }
         Ok(())
+    }
+
+    /// Rejoin the storage association retained by an inline-owner capture.
+    /// The projected value supplies identity; equal carrier types alone never
+    /// select a field, and moving the descriptor does not move its backing.
+    pub(crate) fn captured_byte_owner_binding(
+        &self,
+        selected: &TerminalStructuralValue,
+    ) -> Option<&crate::byte_sequences::binding::ByteSequenceBinding> {
+        self.reference_referents.values().find_map(|capture| {
+            (StructuralRuntimePlace::from(&capture.view) == StructuralRuntimePlace::from(selected)
+                && capture.view.structural_type == selected.structural_type)
+                .then_some(capture.byte_owner.as_ref())
+                .flatten()
+        })
     }
 
     pub(crate) fn resolve_reference_call_arguments(
@@ -871,6 +940,23 @@ impl TerminalExecution<'_> {
         ) -> Option<terminal_psi::StructuralFieldType>,
     ) -> Result<ResolvedStructuralProjection, TerminalInterpretError> {
         let owner = self.structural_values.get(&place).ok_or_else(malformed)?;
+        self.resolve_storage_projection_with_leaf_type(place, owner, path, access, leaf_type)
+    }
+
+    /// Project an already selected storage home. A packed array transaction
+    /// stages its identity before publishing it, so resolving its cells must
+    /// not rediscover that identity through the placed-value map. Descriptor
+    /// crossings and aggregate re-views still use the same authority checks.
+    pub(crate) fn resolve_storage_projection_with_leaf_type(
+        &self,
+        place: PlaceId,
+        owner: &TerminalStructuralValue,
+        path: &[StructuralPathSegment],
+        access: StructuralAccess,
+        leaf_type: fn(
+            &terminal_psi::StructuralFieldType,
+        ) -> Option<terminal_psi::StructuralFieldType>,
+    ) -> Result<ResolvedStructuralProjection, TerminalInterpretError> {
         if path.contains(&StructuralPathSegment::Referent) {
             let authority = self.reference_carrier_access(place, owner, path)?;
             if !access_covers(authority, access) {
@@ -1104,6 +1190,7 @@ impl TerminalExecution<'_> {
                         return Err(malformed());
                     }
                     let (collection, selected) = view.structural_projection(
+                        &types,
                         &remaining[boundary..boundary + 1],
                         access.is_some_and(|required| required != StructuralAccess::SharedBorrow),
                     )?;

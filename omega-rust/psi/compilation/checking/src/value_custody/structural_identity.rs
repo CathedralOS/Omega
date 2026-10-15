@@ -106,16 +106,22 @@ pub fn structural_type_identity(
 }
 
 /// Whether a stored value of `type_reference` keeps its loan as a `Reference`
-/// shape: a borrow that is neither a byte carrier nor a `[T]` view. Those two
-/// store their own descriptors; any other loan stores a pointer to a referent
-/// that stays where it lives.
+/// shape: a borrow that does not already store a byte or `[T]` view descriptor.
+/// A loan of a bounded byte owner points at that owner's live storage; it must
+/// not inline the owner merely because formal ingress presents its byte shape.
 pub fn stores_reference_shape(
     program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
 ) -> bool {
     reference_shell(program, type_reference).is_some()
-        && byte_sequence_carrier(program, type_reference, substitutions).is_none()
+        && !matches!(
+            byte_sequence_carrier(program, type_reference, substitutions),
+            Some(
+                CheckedByteSequenceCarrier::BorrowedView { .. }
+                    | CheckedByteSequenceCarrier::BoundedView { .. }
+            )
+        )
         && slice_view_shell(program, type_reference, substitutions).is_none()
 }
 

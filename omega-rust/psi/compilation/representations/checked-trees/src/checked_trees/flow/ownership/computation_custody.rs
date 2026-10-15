@@ -588,7 +588,8 @@ impl<'facts> CallTransfers<'facts> {
                 .iter()
                 .map(|element| self.computation(*element))
                 .sum(),
-            CheckedStructuralValueKind::ZeroedScalarArray { element, .. } => {
+            CheckedStructuralValueKind::Scalar { value: element }
+            | CheckedStructuralValueKind::ZeroedScalarArray { element, .. } => {
                 self.computation(*element)
             }
             CheckedStructuralValueKind::Projection { source, .. }

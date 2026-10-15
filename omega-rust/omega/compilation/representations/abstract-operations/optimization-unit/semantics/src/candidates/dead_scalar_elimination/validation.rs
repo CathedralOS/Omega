@@ -74,7 +74,7 @@ pub(super) fn validate_dead_scalar_node_candidate(
             }) || !input.accepted_obligation_facts.iter().any(|fact| {
                 fact.identity == identity
                     && fact.machine == function.machine
-                    && fact.operation == source_operation
+                    && fact.owner == optimization_unit::PsiProvenance::Operation(source_operation)
                     && fact.obligation == obligation
             }) {
                 return Err(

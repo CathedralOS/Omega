@@ -378,8 +378,18 @@ impl StateGraphEmission<'_, '_> {
                                         checked, state: state.state,
                                         statement_index: edge.statement_ordinal as usize,
                                         expression: formation_expression,
+                                        backing_type: validation::expression_type_reference_in_state(
+                                            &checked.typed,
+                                            state.state,
+                                            edge.statement_ordinal as usize,
+                                            validation::reference_formation_source(&checked.typed, formation_expression)
+                                                .map_or(formation_expression, |formation| formation.source),
+                                        ).ok_or(LoweringError::Unsupported("state loan lost its supplying type"))?,
+                                        qualification_decisions: Default::default(),
+                                        domain_ids: &self.catalogs.domain_ids,
                                     },
                                     carrier_type, source, crate::unit::attached_unit::reference_results::PublishedReferenceStorage::Declared, &self.catalogs.structural_types,
+                                    edge_evaluation.structural_root_parameters(),
                                     place_id(allocate_dense(&mut self.catalogs.next_place)?), operations,
                                 )?;
                                 captured_loans.push((group, carrier.id));
@@ -1011,7 +1021,7 @@ impl StateGraphEmission<'_, '_> {
             .iter()
             .any(|region| !region.conditions.is_empty() || region.selected_region.is_some())
         {
-            edge_evaluation.capture_cleanup_arguments(
+            edge_evaluation.capture_structural_arguments(
                 identities,
                 self.checked,
                 &mut structural_arguments,

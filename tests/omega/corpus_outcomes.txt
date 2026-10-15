@@ -623,13 +623,11 @@ fail/borrows/fixed_array_return_overlapping rejected 1119ms expected @b7c17b88b5
 	state `select` receives `matrix` while local borrow `first` is still active (borrowed at statement 0; its last use is at statement 2)
 	statement 1 creates local borrow `second` while local borrow `first` is still active (borrowed at statement 0; its last use is at statement 2)
 	statement 2 mutates `first[0]` while local borrow `second` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
-fail/borrows/fixed_array_return_shared_escalation rejected 1352ms expected @b7c17b88b59d
-	machine `invalid` returns a view whose access cannot be supplied by matching input `matrix`
-	machine `explicit` returns a view whose access cannot be supplied by matching input `matrix`
-	machine `generic` returns a view whose access cannot be supplied by matching input `matrix`
-	machine `generic$specialized$fc8f4b55248111c1$0` returns a view whose access cannot be supplied by matching input `matrix`
-	statement 2 cannot resolve the complete borrowed destination of `row[0]`
-	statement 4 cannot resolve the complete borrowed destination of `generic_row[0]`
+fail/borrows/fixed_array_return_shared_escalation rejected 171ms expected @694602bba069+wt
+	machine `invalid` state `entry` return value requires mutable source access; shared or immutable storage cannot supply it
+	machine `explicit` state `entry` return value requires mutable source access; shared or immutable storage cannot supply it
+	machine `generic` state `entry` return value requires mutable source access; shared or immutable storage cannot supply it
+	machine `generic$specialized$fc8f4b55248111c1$0` state `entry` return value requires mutable source access; shared or immutable storage cannot supply it
 fail/borrows/fixed_array_slice_state_immutable_rejected rejected 805ms expected @a9ae30e1c334+wt
 	mutable argument `values` for state `write` is not writable in this state; the source cannot lend the requested exclusive access
 fail/borrows/fixed_element_reference_return_out_of_bounds rejected 1613ms expected @a9ae30e1c334+wt
@@ -3444,6 +3442,8 @@ fail/ownership/borrowed_window_selector_alias_write rejected 1202ms expected @a9
 	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `misplaced`, state `entry` (statement 2): `tokens[index]` must hold a value again before this state's exits consume the borrow
 fail/ownership/boundary_cycle_reuses_consumed_owner rejected 600ms expected @8df1d091a810
 	cannot use `token` in machine `main` state `cycle` (statement 2) after `token` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `token` first
+fail/ownership/captured_cleanup_cannot_use_later_selector_value rejected 336ms expected @65a791f12e28+wt
+	cleanup effect dependency in `replace` has no exact structural residual disposition
 fail/ownership/computed_window_selector_keeps_snapshot rejected 1147ms expected @a9ae30e1c334+wt
 	cannot store `tokens[index]` while `tokens[index]` is absent: the value moved out of borrowed storage at statement 3 must be restored as a whole
 	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `misplaced`, state `entry` (statement 3): `tokens[index]` must hold a value again before this state's exits consume the borrow
@@ -4215,6 +4215,10 @@ fail/slices/bare_range_at_mutable_field rejected 218ms expected @0421c3e6f7c9+wt
 	construction of `Window` field `cells` receives a bare range that forms a shared view; `bare-range-reference-access` spells the mutable subrange `&mut collection[start..end]`
 fail/slices/bare_range_at_mutable_local rejected 263ms expected @0421c3e6f7c9+wt
 	machine `write` state `entry` local `window` receives a bare range that forms a shared view; `bare-range-reference-access` spells the mutable subrange `&mut collection[start..end]`
+fail/slices/bare_range_at_mutable_return rejected 166ms expected @694602bba069+wt
+	machine `middle` state `entry` return value receives a bare range that forms a shared view; `bare-range-reference-access` spells the mutable subrange `&mut collection[start..end]`
+fail/slices/bare_range_at_mutable_transition_return rejected 152ms expected @694602bba069+wt
+	machine `middle` state `entry` return value receives a bare range that forms a shared view; `bare-range-reference-access` spells the mutable subrange `&mut collection[start..end]`
 fail/slices/bare_subslice_call_cannot_lend_mutable rejected 240ms expected @9c4d1c444502+wt
 	argument `items` for state `entry` is declared `&mut` (`&mut [i32]`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
 fail/slices/byte_view_element_reference_without_bound rejected 1727ms expected @a9ae30e1c334+wt
@@ -7177,6 +7181,7 @@ pass/ownership/runtime_borrowed_window_crash_exit checked 11064ms check-target:m
 pass/ownership/runtime_captured_construction_selector_exit checked 11041ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/ownership/runtime_captured_replacement_selector_exit checked 10842ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/ownership/runtime_captured_selector_call_exit checked 11584ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/ownership/runtime_captured_selector_partial_cleanup_exit checked 5294ms check-target:macos_arm64 @65a791f12e28+wt
 pass/ownership/runtime_carried_loan_field_replacement_exit checked 12208ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/ownership/runtime_case_alternative_custody_exit checked 14038ms check-target:macos_arm64 @55ccf9be57c4
 pass/ownership/runtime_computed_selector_snapshot_window_exit checked 10843ms check-target:macos_arm64 @a9ae30e1c334+wt

@@ -415,6 +415,7 @@ impl TerminalExecution<'_> {
                 view: backing,
                 primitive_loan: None,
                 byte_region: None,
+                byte_owner: None,
                 aggregate_view: None,
                 placed_ram: Some(captured),
             },

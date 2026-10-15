@@ -1,0 +1,64 @@
+// Expected exit: 0. Qualified array elements retain their complete referee
+// contract through indexed write-only calls, captures, fields and state arrivals.
+// Qualification retains the exact eight-byte carrier, never a live-length owner.
+domain [u8; 8]::Utf8(bytes) requires valid_utf8(bytes);
+data Container { entries: [[u8; 8] in Utf8; 2]; }
+
+machine initialize(bytes: &write [u8; 8] in Utf8) { bytes = "éééé"; }
+machine indexed(entries: &mut [[u8; 8] in Utf8; 2], position: u64 [0..=1]) {
+    initialize(&write entries[position]);
+}
+machine captured(entries: &mut [[u8; 8] in Utf8; 2]) {
+    let destination: &write [u8; 8] in Utf8 = &write entries[1];
+    initialize(&write destination);
+}
+machine field(container: &mut Container) {
+    initialize(&write container.entries[1]);
+}
+machine relay(entries: &write [[u8; 8] in Utf8; 2]) {
+    transition { _ -> finish(&write entries) }
+    state finish(entries: &write [[u8; 8] in Utf8; 2]) {
+        initialize(&write entries[1]);
+    }
+}
+machine relay_owner(bytes: &write [u8; 8] in Utf8) {
+    transition { _ -> finish(&write bytes) }
+    state finish(bytes: &write [u8; 8] in Utf8) {
+        initialize(&write bytes);
+    }
+}
+machine overwrite(entries: &write [[u8; 8] in Utf8; 2]) {
+    entries = ["kept....", "éééé"];
+}
+machine bounded(values: &write [u64 [0..=2]; 2], value: u64 [0..=2]) {
+    values = [value, 2];
+}
+machine main() crashes Trap {
+    let mut direct: [[u8; 8] in Utf8; 2] = ["kept....", "old....."];
+    let mut local: [[u8; 8] in Utf8; 2] = ["kept....", "old....."];
+    let mut container: Container = Container { entries: ["kept....", "old....."] };
+    let mut arrived: [[u8; 8] in Utf8; 2] = ["kept....", "old....."];
+    let mut arrived_owner: [u8; 8] in Utf8 = "old.....";
+    let mut replaced: [[u8; 8] in Utf8; 2] = ["kept....", "old....."];
+    let mut bounds: [u64 [0..=2]; 2] = [0, 1];
+    indexed(&mut direct, 1);
+    captured(&mut local);
+    field(&mut container);
+    relay(&write arrived);
+    relay_owner(&write arrived_owner);
+    overwrite(&write replaced);
+    bounded(&write bounds, 1);
+    transition direct[0] == "kept...." && direct[1] == "éééé" && direct[1].len == 8
+        && local[0] == "kept...." && local[1] == "éééé" && local[1].len == 8
+        && container.entries[0] == "kept...." && container.entries[1] == "éééé"
+        && container.entries[1].len == 8
+        && arrived[0] == "kept...." && arrived[1] == "éééé" && arrived[1].len == 8
+        && arrived_owner == "éééé" && arrived_owner.len == 8
+        && replaced[0] == "kept...." && replaced[1] == "éééé" && replaced[1].len == 8
+        && bounds[0] == 1 && bounds[1] == 2 {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

@@ -208,6 +208,7 @@ impl Fixture {
             StatementNode::Assignment(TableAssignment {
                 target: target_field,
                 value: poison,
+                ..TableAssignment::default()
             }),
         );
         program.statement_table.push_statement(
@@ -252,7 +253,11 @@ impl Fixture {
             .program
             .expression_table
             .insert(ExpressionNode::Float(FloatLiteral::parse(value).unwrap()));
-        self.push(StatementNode::Assignment(TableAssignment { target, value }));
+        self.push(StatementNode::Assignment(TableAssignment {
+            target,
+            value,
+            ..TableAssignment::default()
+        }));
     }
 
     fn range(&self, statement_index: usize) -> Option<FloatRange> {
@@ -322,10 +327,12 @@ fn reaching_float_store_loses_unknown_parent_and_call_writes() {
             0 => StatementNode::Assignment(TableAssignment {
                 target: fixture.value,
                 value: fixture.other,
+                ..TableAssignment::default()
             }),
             1 => StatementNode::Assignment(TableAssignment {
                 target: fixture.root,
                 value: fixture.root,
+                ..TableAssignment::default()
             }),
             _ => StatementNode::Call(fixture.mutating_call()),
         };
@@ -413,6 +420,7 @@ fn reaching_float_store_invalidates_alias_rebinding_and_origin_writes() {
             fixture.push(StatementNode::Assignment(TableAssignment {
                 target: alias,
                 value: fixture.replacement,
+                ..TableAssignment::default()
             }));
         } else {
             fixture.store(original_value, "2.0f32");

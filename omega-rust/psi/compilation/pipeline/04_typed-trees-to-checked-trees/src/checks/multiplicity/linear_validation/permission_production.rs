@@ -532,8 +532,9 @@ pub(crate) fn apply_statement_permission_production(
     // Calls have already joined their branch-local custody. Replaying their
     // flattened event roster here would import transfers from sibling arms.
     let replacement_custody = remaining.clone();
-    if written_targets.is_empty()
-        && let Some(mut establishment) = projected_affine::append_replacement(
+    let mut storage_establishments: Vec<StorageEstablishment> = Vec::new();
+    if written_targets.is_empty() {
+        for mut establishment in projected_affine::append_replacement(
             program,
             facts,
             machine_symbol,
@@ -543,12 +544,12 @@ pub(crate) fn apply_statement_permission_production(
             places,
             &replacement_custody,
             permission_events,
-        )
-    {
-        // The producer returns its exact index in the shared event vector;
-        // both cleanup consumers replay this statement's event slice.
-        establishment.event_ordinal -= event_start;
-        storage_establishments.push(establishment);
+        ) {
+            // The producer returns its exact index in the shared event vector;
+            // both cleanup consumers replay this statement's event slice.
+            establishment.event_ordinal -= event_start;
+            storage_establishments.push(establishment);
+        }
     }
 
     establish_targets(

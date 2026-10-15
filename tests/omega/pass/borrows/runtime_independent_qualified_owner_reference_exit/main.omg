@@ -1,0 +1,31 @@
+// Expected exit: 0. Independent owned arguments copied from one source have
+// distinct homes through calls and state arrivals. A relayed stored reference
+// mutates only the selected home, not a suspended caller's detached snapshot.
+domain [u8; 8]::Utf8(bytes) requires valid_utf8(bytes);
+data Held { bytes: &mut [u8; 8] in Utf8; }
+machine replace(bytes: &mut [u8; 8] in Utf8) -> bool { bytes = "é"; true }
+machine relay(held: Held) -> bool { replace(held.bytes) }
+machine pair(first: [u8; 8] in Utf8, mut second: [u8; 8] in Utf8) -> bool {
+    let held: Held = Held { bytes: &mut second };
+    let changed: bool = relay(held);
+    changed && first == "before" && second == "é" && second.len == 2
+}
+machine state_pair(first: [u8; 8] in Utf8, second: [u8; 8] in Utf8) -> bool {
+    transition { _ -> inspect(first, second) }
+    state inspect(first: [u8; 8] in Utf8, mut second: [u8; 8] in Utf8) -> bool {
+        let held: Held = Held { bytes: &mut second };
+        let changed: bool = relay(held);
+        changed && first == "before" && second == "é" && second.len == 2
+    }
+}
+machine main() crashes Trap {
+    let bytes: [u8; 8] in Utf8 = "before";
+    let correct: bool = pair(bytes, bytes);
+    let state_correct: bool = state_pair(bytes, bytes);
+    transition correct && state_correct && bytes == "before" && bytes.len == 6 {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

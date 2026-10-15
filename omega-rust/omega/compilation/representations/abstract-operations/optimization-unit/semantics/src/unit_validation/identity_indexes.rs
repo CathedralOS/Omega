@@ -25,8 +25,8 @@ pub(super) fn validate_identity_and_fact_indexes(
         .iter()
         .any(|fact| fact.psi != unit.psi || !fact.has_canonical_identity())
         || unit.accepted_obligation_facts.windows(2).any(|pair| {
-            (pair[0].machine, pair[0].operation, pair[0].obligation)
-                >= (pair[1].machine, pair[1].operation, pair[1].obligation)
+            (pair[0].machine, pair[0].owner, pair[0].obligation)
+                >= (pair[1].machine, pair[1].owner, pair[1].obligation)
         })
     {
         return Err(OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch);

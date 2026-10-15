@@ -327,8 +327,7 @@ pub fn nominal_cleanup_machine_for_type<'program>(
         ..TypeIdentityRequest::ordinary(reference)
     });
     let mut selected = None;
-    let Some(candidates) = nominal_cleanup_candidates(program).get(&owner).cloned()
-    else {
+    let Some(candidates) = nominal_cleanup_candidates(program).get(&owner).cloned() else {
         return None;
     };
     for candidate in candidates {
@@ -360,9 +359,7 @@ pub fn nominal_cleanup_machine_for_type<'program>(
 /// when that owner's origin specializes the generic `owner` base.
 fn nominal_cleanup_candidates(
     program: &dyn crate::CheckingInput,
-) -> std::sync::Arc<
-    symbols::SymbolKeyMap<symbols::SymbolHandle, Vec<symbols::SymbolHandle>>,
-> {
+) -> std::sync::Arc<symbols::SymbolKeyMap<symbols::SymbolHandle, Vec<symbols::SymbolHandle>>> {
     crate::frozen_program::frozen_memo(
         program,
         |memos| &memos.nominal_cleanup_machine_index,
@@ -372,8 +369,7 @@ fn nominal_cleanup_candidates(
                 Vec<symbols::SymbolHandle>,
             > = Default::default();
             for machine in program.machines() {
-                let Some(candidate_owner) = nominal_cleanup_owner(program, machine.symbol)
-                else {
+                let Some(candidate_owner) = nominal_cleanup_owner(program, machine.symbol) else {
                     continue;
                 };
                 index
@@ -387,10 +383,7 @@ fn nominal_cleanup_candidates(
                         program.type_reference_table.type_reference(origin)
                     && *base_symbol != candidate_owner
                 {
-                    index
-                        .entry(*base_symbol)
-                        .or_default()
-                        .push(machine.symbol);
+                    index.entry(*base_symbol).or_default().push(machine.symbol);
                 }
             }
             index

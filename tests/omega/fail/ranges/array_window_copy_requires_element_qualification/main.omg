@@ -1,0 +1,4 @@
+// Copying established elements cannot manufacture their destination bounds.
+machine bad(destination: &mut [u64 [0..=2]; 2], source: [u64; 1]) {
+    destination[0..1] = source;
+}

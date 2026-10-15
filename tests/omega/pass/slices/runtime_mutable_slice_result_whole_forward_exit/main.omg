@@ -1,5 +1,6 @@
 machine middle(items: &mut [i32; 3]) -> &mut [i32] { &mut items[1..2] }
-machine forward(items: &mut [i32]) -> &mut [i32] { items }
+// A transition returns the already formed mutable loan without a new borrow.
+machine forward(items: &mut [i32]) -> &mut [i32] { transition { _ -> (items) } }
 machine write(items: &mut [i32]) requires items.len > 0 { items[0] = 27; }
 machine main() crashes Trap {
  let mut items: [i32; 3]; items[0]=11; items[1]=39; items[2]=13;

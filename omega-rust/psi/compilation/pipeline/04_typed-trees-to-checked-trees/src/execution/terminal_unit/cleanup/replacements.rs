@@ -107,9 +107,45 @@ pub(super) fn actions(
     );
     let carrier_discard = if let Some((carrier, _)) = carrier_death {
         let declaration = shapes.types.get(&destination.type_identity)?;
-        if !matches!(declaration.shape,
-            checked_trees::CheckedUnitStructuralTypeShape::Reference { referent_identity, access }
-                if referent_identity == carrier.source.type_identity && access == carrier.source.access)
+        // Loan provenance names the full source type; stored views use the
+        // shared storage identity with access on their occurrence. Rejoin both
+        // identities through the exact assigned declaration, not a catalog
+        // search for a same-shaped descriptor.
+        let view_matches = || {
+            let reference = validation::canonical_place_type_reference(
+                program,
+                state,
+                *statement_index as usize,
+                replaced_place.as_ref()?,
+            )?;
+            let shell = validation::reference_shell(program, reference)?;
+            Some(
+                program.normalized_type_identity(reference) == carrier.source.type_identity
+                    && checked_trees::CheckedStructuralAccess::from(shell.access)
+                        == carrier.source.access
+                    && validation::stored_structural_type_identity(program, reference, &[], &[])
+                        == destination.type_identity
+                    && carrier.source.path == destination.path,
+            )
+        };
+        let carrier_matches = match declaration.shape {
+            checked_trees::CheckedUnitStructuralTypeShape::Reference {
+                referent_identity,
+                access,
+            } => {
+                referent_identity == carrier.source.type_identity && access == carrier.source.access
+            }
+            checked_trees::CheckedUnitStructuralTypeShape::BorrowedSliceView { .. } => {
+                view_matches() == Some(true)
+            }
+            checked_trees::CheckedUnitStructuralTypeShape::ByteSequence(bytes)
+                if bytes.is_borrowed() =>
+            {
+                view_matches() == Some(true)
+            }
+            _ => false,
+        };
+        if !carrier_matches
             || !declaration.descriptor_cleanup
             || old_value.type_identity != destination.type_identity
         {
@@ -180,11 +216,10 @@ pub(super) fn actions(
             )?
             .1
         };
-        // A death can cover the replaced place or an enclosing value: a
-        // whole-array store composes one displacing store per element, while
-        // the old array dies once at the statement. Each store takes the
-        // death's actions within its own place; sibling elements' actions
-        // belong to their own stores.
+        // A death can cover the replaced place or an enclosing value. Keep
+        // only actions within the destination; replacing a whole array keeps
+        // all of its child actions, while an indexed replacement excludes
+        // sibling elements. Action paths still select the actual old values.
         if !path.starts_with(&destination.path) && !destination.path.starts_with(&path) {
             continue;
         }

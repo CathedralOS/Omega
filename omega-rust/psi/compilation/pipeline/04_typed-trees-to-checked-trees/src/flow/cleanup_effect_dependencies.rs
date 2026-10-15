@@ -85,6 +85,41 @@ pub(crate) fn selected_cleanup_leaves(
     if disposition.zero_image {
         return Some(Vec::new());
     }
+    let state = facts.flow.control.states.iter().find_map(|(_, state)| {
+        (state.machine_symbol == disposition.machine && state.state_symbol == disposition.state)
+            .then_some(state)
+    });
+    let contexts = state.and_then(|state| {
+        crate::facts::contextual_cleanup::occurrence_contexts(program, facts, state, disposition)
+    });
+    // Distinct selector spellings are not proof that moved storage lies
+    // outside this death. A runtime-selected region needs disjointness from
+    // every exclusion not represented by its exact prefix; otherwise its
+    // residual cannot be scheduled without observing dynamic liveness.
+    for excluded in &removed {
+        if !excluded.starts_with(path)
+            && !path.starts_with(excluded)
+            && crate::checks::storage_path_compatibility(
+                program,
+                crate::checks::StorageSelectorFacts {
+                    flow: &facts.flow,
+                    semantic: &facts.semantic,
+                },
+                path,
+                excluded,
+            )
+            .0
+            && !state
+                .zip(contexts.as_ref())
+                .is_some_and(|(state, contexts)| {
+                    crate::checks::captured_storage_paths_are_disjoint(
+                        program, facts, state, contexts, path, excluded,
+                    )
+                })
+        {
+            return None;
+        }
+    }
     let remaining = removed
         .iter()
         .filter_map(|removed| removed.strip_prefix(path))
@@ -97,22 +132,6 @@ pub(crate) fn selected_cleanup_leaves(
             event_type_reference(program, disposition.state, statement, disposition.root, &[])?;
         select_type(program, reference, &[], path)?
     };
-    let contexts = facts
-        .flow
-        .control
-        .states
-        .iter()
-        .find(|(_, state)| {
-            state.machine_symbol == disposition.machine && state.state_symbol == disposition.state
-        })
-        .and_then(|(_, state)| {
-            crate::facts::contextual_cleanup::occurrence_contexts(
-                program,
-                facts,
-                state,
-                disposition,
-            )
-        });
     // The occurrence's source facts decide which alternatives can hold a
     // payload here. Without contexts every alternative remains possible.
     let inactive_case = |segments: &[PlaceSegment]| {
@@ -703,13 +722,20 @@ fn select_type(
             element_type,
             length,
         } => {
-            let length = program.closed_array_extent(length, substitutions)?;
-            let PlaceSegment::FixedIndex { index } = path[0] else {
-                return None;
-            };
-            return (index < length)
-                .then(|| select_type(program, *element_type, substitutions, &path[1..]))
-                .flatten();
+            match path[0] {
+                PlaceSegment::FixedIndex { index } => {
+                    if index >= program.closed_array_extent(length, substitutions)? {
+                        return None;
+                    }
+                }
+                PlaceSegment::Index { expression }
+                    if program.expression_table.range_node(expression).is_none() => {}
+                _ => return None,
+            }
+            // Every selected element has the declared element type. Runtime
+            // bounds belong to the captured place's admission; discovering its
+            // cleanup dependencies neither evaluates nor fixes that selector.
+            return select_type(program, *element_type, substitutions, &path[1..]);
         }
         TypeReferenceNode::Named { symbol, .. } => (*symbol, substitutions.to_vec()),
         TypeReferenceNode::Generic {

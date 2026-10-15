@@ -36,6 +36,33 @@ pub fn call_sources(
     Captures { program, facts }.target_sources(target, &mut Vec::new())
 }
 
+/// A terminal call has no expression-local holder. Its normal-return capture
+/// owns the same ingress relation as an expression return, selected by the
+/// exact flow occurrence rather than reconstructed from argument syntax.
+pub(super) fn terminal_call_sources(
+    program: &dyn crate::CheckingInput,
+    facts: &CheckFacts,
+    state: &typed_trees::state::State,
+    call: &checked_trees::FlowCallFact,
+) -> Option<Vec<CheckedReturnedReferencePlan>> {
+    let captures = Captures { program, facts };
+    let flow = captures.flow(state.symbol)?;
+    let mut occurrences = facts
+        .flow
+        .control
+        .calls
+        .span(flow.calls)?
+        .iter()
+        .filter(|candidate| {
+            candidate.statement_index == call.statement_index
+                && !candidate.authored_expression.is_valid()
+        });
+    if occurrences.next()? != call || occurrences.next().is_some() {
+        return None;
+    }
+    captures.normal_returns(state, &mut vec![state.symbol], Some(call.statement_index))
+}
+
 /// Actual captures can remove inactive formal case slots, never create loans.
 pub(super) fn call_result_paths(
     program: &dyn crate::CheckingInput,
@@ -76,7 +103,7 @@ impl Captures<'_> {
             return None;
         }
         active.push(state.symbol);
-        let result = self.normal_returns(state, active);
+        let result = self.normal_returns(state, active, None);
         active.pop();
         result
     }
@@ -85,6 +112,7 @@ impl Captures<'_> {
         &self,
         state: &typed_trees::state::State,
         active: &mut Vec<SymbolHandle>,
+        selected_statement: Option<usize>,
     ) -> Option<Vec<CheckedReturnedReferencePlan>> {
         let mut states = self
             .facts
@@ -118,6 +146,9 @@ impl Captures<'_> {
         let mut output = Vec::new();
         let mut completed = false;
         for (statement_index, statement) in statements.iter().enumerate() {
+            if selected_statement.is_some_and(|selected| selected != statement_index) {
+                continue;
+            }
             let expression = match statement {
                 StatementNode::Expression(expression)
                     if statement_index + 1 == statements.len() =>
@@ -1068,11 +1099,29 @@ impl Captures<'_> {
         mut segments: &[facts::PlaceSegment],
     ) -> Option<(Vec<CheckedReferenceOriginProjection>, TypeReferenceHandle)> {
         let mut output = Vec::new();
+        // Cross-call loan summaries erase callee-local selectors. The absent
+        // coordinate still denotes one typed element; it is not a dangling
+        // expression or a surviving range expression. Bounds and the evaluated
+        // address remain with the invocation's captured descriptor.
+        let is_element_selection = |expression: ExpressionHandle| {
+            !expression.is_valid()
+                || self
+                    .program
+                    .expression_table
+                    .expression_is_valid(expression)
+                    && self
+                        .program
+                        .expression_table
+                        .range_node(expression)
+                        .is_none()
+        };
         loop {
             let selection = segments.iter().position(|segment| {
                 matches!(
                     segment,
-                    facts::PlaceSegment::Index { .. } | facts::PlaceSegment::FixedIndex { .. }
+                    facts::PlaceSegment::Index { .. }
+                        | facts::PlaceSegment::FixedIndex { .. }
+                        | facts::PlaceSegment::FixedRange { .. }
                 )
             });
             let prefix_length = selection.unwrap_or(segments.len());
@@ -1100,16 +1149,44 @@ impl Captures<'_> {
                 return None;
             };
             selected = *element_type;
-            output.push(match segments[position] {
-                facts::PlaceSegment::FixedIndex { index } => {
+            let (projection, consumed) = match segments[position] {
+                facts::PlaceSegment::FixedIndex { index } => (
                     CheckedReferenceOriginProjection::Exact(
                         CheckedUnitStructuralPathSegment::FixedIndex(u64::try_from(index).ok()?),
-                    )
+                    ),
+                    1,
+                ),
+                facts::PlaceSegment::Index { expression } if is_element_selection(expression) => {
+                    (CheckedReferenceOriginProjection::Element, 1)
                 }
-                facts::PlaceSegment::Index { .. } => CheckedReferenceOriginProjection::Element,
+                facts::PlaceSegment::FixedRange { start, end } => {
+                    // A view window and its element selector share one array
+                    // dimension. This is provenance, not a new address: the
+                    // descriptor retains its captured window, selector and
+                    // bound. Never consult the selector's later value here.
+                    let projection = match segments.get(position.checked_add(1)?)? {
+                        facts::PlaceSegment::Index { expression }
+                            if start < end && is_element_selection(*expression) =>
+                        {
+                            CheckedReferenceOriginProjection::Element
+                        }
+                        facts::PlaceSegment::FixedIndex { index }
+                            if *index < end.checked_sub(start)? =>
+                        {
+                            CheckedReferenceOriginProjection::Exact(
+                                CheckedUnitStructuralPathSegment::FixedIndex(
+                                    u64::try_from(start.checked_add(*index)?).ok()?,
+                                ),
+                            )
+                        }
+                        _ => return None,
+                    };
+                    (projection, 2)
+                }
                 _ => return None,
-            });
-            segments = &segments[position + 1..];
+            };
+            output.push(projection);
+            segments = &segments[position + consumed..];
         }
     }
 

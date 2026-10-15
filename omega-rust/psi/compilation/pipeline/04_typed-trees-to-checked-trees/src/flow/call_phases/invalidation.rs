@@ -2,9 +2,9 @@ use validation::CanonicalPlace;
 
 use crate::flow::FlowBuildContext;
 use crate::flow::appended_span_since;
-use crate::flow::call_mutated_places;
 use crate::flow::filter_contexts_after_place_mutations;
 use crate::flow::mutation::close_storage_places_over_aliases;
+use crate::flow::mutation::{CallMutationWrite, call_mutation_writes};
 use crate::flow::project_constraint_refs_to_active_contexts;
 use arena::HandleSpan;
 use checked_trees::{
@@ -19,6 +19,14 @@ pub(in crate::flow) struct CallInvalidationResult {
     pub(in crate::flow) invalidations: HandleSpan<FlowInvalidationFact>,
 }
 
+/// One immutable invocation footprint supplies both overlap invalidation and
+/// attributed handback. Retaining them together avoids recomputing the same
+/// alias closure while preserving which parameter contributed each write.
+pub(in crate::flow) struct CallStorageWrites {
+    pub(in crate::flow) places: Vec<CanonicalPlace>,
+    pub(in crate::flow) contributions: Vec<CallMutationWrite>,
+}
+
 pub(in crate::flow) fn call_storage_writes(
     program: &dyn ::validation::CheckingInput,
     borrow: &BorrowFacts,
@@ -26,7 +34,7 @@ pub(in crate::flow) fn call_storage_writes(
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     borrow_call: &BorrowCallFact,
-) -> Option<std::rc::Rc<Vec<CanonicalPlace>>> {
+) -> Option<std::rc::Rc<CallStorageWrites>> {
     let occurrence = (
         machine.symbol,
         state.symbol,
@@ -43,7 +51,34 @@ pub(in crate::flow) fn call_storage_writes(
     // The footprint is source-derived, not a judgment about the current
     // incoming values. Retain it beside the existing occurrence lookup across
     // sweeps; each consumer still filters its own live contexts below.
-    let writes = call_mutated_places(
+    let writes = call_storage_mutations(program, borrow, build, machine, state, borrow_call).map(
+        |contributions| {
+            std::rc::Rc::new(CallStorageWrites {
+                places: contributions
+                    .iter()
+                    .map(|write| write.place.clone())
+                    .collect(),
+                contributions,
+            })
+        },
+    );
+    build
+        .call_sites
+        .entry(occurrence)
+        .or_default()
+        .storage_writes = Some(writes.clone());
+    writes
+}
+
+fn call_storage_mutations(
+    program: &dyn ::validation::CheckingInput,
+    borrow: &BorrowFacts,
+    build: &mut FlowBuildContext,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    borrow_call: &BorrowCallFact,
+) -> Option<Vec<CallMutationWrite>> {
+    let writes = call_mutation_writes(
         program,
         machine.symbol,
         state.symbol,
@@ -51,29 +86,33 @@ pub(in crate::flow) fn call_storage_writes(
         borrow_call,
         build.state_mutation_summary_cache,
         build.call_frames,
-    )
-    .and_then(|places| {
+    )?;
+    let mut result = Vec::new();
+    for write in writes {
         // When the resolver cannot enumerate this state's local origins (a
         // reference local of finite candidate origins is such a state),
         // borrow exclusivity already forbids a second live alias of the
         // written storage, so the places stand without the closure.
-        close_storage_places_over_aliases(
+        let places = close_storage_places_over_aliases(
             program,
             machine.symbol,
             state.symbol,
             borrow_call.statement_index,
-            places.clone(),
+            vec![write.place.clone()],
             build.call_frames,
         )
-        .or(Some(places))
-    })
-    .map(std::rc::Rc::new);
-    build
-        .call_sites
-        .entry(occurrence)
-        .or_default()
-        .storage_writes = Some(writes.clone());
-    writes
+        .unwrap_or_else(|| vec![write.place]);
+        for place in places {
+            let contribution = CallMutationWrite {
+                place,
+                source: write.source.clone(),
+            };
+            if !result.contains(&contribution) {
+                result.push(contribution);
+            }
+        }
+    }
+    Some(result)
 }
 
 pub(in crate::flow) fn apply_call_invalidations(

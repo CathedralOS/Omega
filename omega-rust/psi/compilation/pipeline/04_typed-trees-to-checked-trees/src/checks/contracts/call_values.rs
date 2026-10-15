@@ -337,18 +337,24 @@ pub(crate) fn captured_arithmetic_observation(
     }
 }
 
-/// Select the evidence epoch of a declared membership's exact formal. A
+#[derive(Default)]
+pub(super) struct MembershipEvidence {
+    pub contexts: Vec<FactContextHandle>,
+    pub referents: Option<Vec<CanonicalPlace>>,
+}
+
+/// Bind the subject and evidence epoch of a declared membership's exact formal. A
 /// copied argument retains completion facts even when a later operand writes
 /// its source; borrowed arguments retain the ordinary invocation-live rules.
 /// The declaration's subject and its substituted place must agree with the
 /// same argument occurrence. A missing capture supplies no evidence.
-pub(crate) fn membership_contexts(
+pub(super) fn membership_evidence(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     state: &FlowStateFact,
     call: &FlowCallFact,
     requirement: &facts::Fact,
-) -> Option<Vec<FactContextHandle>> {
+) -> Option<MembershipEvidence> {
     let facts::FactPayload::ContractDomainMembership {
         value,
         fact: source_fact,
@@ -366,7 +372,7 @@ pub(crate) fn membership_contexts(
         call.statement_index,
         call.call_ordinal,
     ) else {
-        return Some(Vec::new());
+        return Some(MembershipEvidence::default());
     };
     let mut position = None;
     for reference in facts
@@ -387,28 +393,28 @@ pub(crate) fn membership_contexts(
         ) {
             Ok(Some(bound)) => bound,
             Ok(None) => return None,
-            Err(()) => return Some(Vec::new()),
+            Err(()) => return Some(MembershipEvidence::default()),
         };
         if position.is_some_and(|position| position != bound) {
-            return Some(Vec::new());
+            return Some(MembershipEvidence::default());
         }
         position = Some(bound);
     }
     let Some(position) = position else {
-        return Some(Vec::new());
+        return Some(MembershipEvidence::default());
     };
     let Some(actual) = actual_at(program, state, call, position, declared.segments) else {
-        return Some(Vec::new());
+        return Some(MembershipEvidence::default());
     };
     let Some(place) = requirement.place.as_place() else {
-        return Some(Vec::new());
+        return Some(MembershipEvidence::default());
     };
     let Some(required) = crate::flow::canonical_place_from_semantic_place(
         program,
         &facts.semantic,
         facts.semantic.places.get(place),
     ) else {
-        return Some(Vec::new());
+        return Some(MembershipEvidence::default());
     };
     let Some(expected) = actual.argument.and_then(|argument| {
         crate::semantic::facts::projected_argument_place(
@@ -420,7 +426,7 @@ pub(crate) fn membership_contexts(
             &actual.path,
         )
     }) else {
-        return Some(Vec::new());
+        return Some(MembershipEvidence::default());
     };
     if required.root != expected.root
         || required.segments.len() != expected.segments.len()
@@ -432,9 +438,52 @@ pub(crate) fn membership_contexts(
                 crate::flow::canonical_place_segments_equal(program, *left, *right)
             })
     {
-        return Some(Vec::new());
+        return Some(MembershipEvidence::default());
     }
-    Some(actual_contexts(program, facts, state, call, &actual))
+    let Some(values) = captured_values(program, facts, state, call, &actual) else {
+        return Some(MembershipEvidence::default());
+    };
+    let contexts = match values.as_slice() {
+        [captured] => crate::flow::operand_contexts(
+            program,
+            &facts.flow,
+            &facts.semantic,
+            captured.observation,
+            captured.observation_type,
+            call.entry_constraints,
+        ),
+        _ => Vec::new(),
+    };
+    let referents = (!values.is_empty()
+        && values
+            .iter()
+            .all(|value| crate::flow::operand_binds_live_view(program, value.type_reference)))
+    .then(|| {
+        values
+            .iter()
+            .map(|value| {
+                // Missing address capture is not an authenticated backing
+                // place. Do not reconstruct it from initializer syntax.
+                if value.operand.referents.is_empty() {
+                    return None;
+                }
+                crate::flow::captured_value_places(program, &facts.flow, value)
+            })
+            .collect::<Option<Vec<_>>>()
+            .unwrap_or_default()
+            .into_iter()
+            .flatten()
+            .map(|place| place.projected)
+            .collect()
+    });
+    // A stored view carries the address captured when it was formed, while
+    // its membership is tested in the invocation's live context. Rebinding
+    // only the context leaves record-held views stranded at the descriptor
+    // slot and misses elementwise evidence on their actual backing storage.
+    Some(MembershipEvidence {
+        contexts,
+        referents,
+    })
 }
 
 /// A projected field observes its own completed child. A stored aggregate

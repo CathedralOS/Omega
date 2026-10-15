@@ -99,6 +99,7 @@ impl TerminalExecution<'_> {
                     return Ok(None);
                 };
                 view.structural_projection(
+                    &types,
                     &[StructuralPathSegment::FixedIndex(index)],
                     backing.access != StructuralAccess::SharedBorrow,
                 )?
@@ -161,6 +162,7 @@ impl TerminalExecution<'_> {
                 return Ok(None);
             };
             let (collection, path) = view.structural_projection(
+                &self.program.structural_types(),
                 &[StructuralPathSegment::FixedIndex(index)],
                 access != StructuralAccess::SharedBorrow,
             )?;

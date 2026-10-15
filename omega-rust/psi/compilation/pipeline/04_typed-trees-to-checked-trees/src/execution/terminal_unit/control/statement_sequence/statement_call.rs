@@ -94,7 +94,7 @@ pub(super) fn plan(
         completes_machine,
         result,
         mut structural_result,
-        result_stores: mut call_result_stores,
+        result_stores: call_result_stores,
     } = statement_call;
     // Guard-group markers beneath the statement phase keep the statement
     // position that `phase` resets.
@@ -210,9 +210,11 @@ pub(super) fn plan(
         return Some(());
     }
     let mut structural_store_bindings = 0;
+    let mut structural_replacement = None;
     if let Some(result) = &mut structural_result {
         result.binding_ordinal = u32::try_from(*structural_count).ok()?;
         if let StatementNode::Assignment(assignment) = statement {
+            call_phase("statement sequence: call: replacement destination");
             let replacement = super::assignments::call_result_replacement(
                 program,
                 facts,
@@ -227,8 +229,8 @@ pub(super) fn plan(
                 result,
                 trace,
             )?;
-            structural_store_bindings = usize::from(replacement.move_out.is_some());
-            call_result_stores.extend(replacement.into_operations());
+            structural_store_bindings = replacement.displaced_bindings();
+            structural_replacement = Some(replacement);
         }
     }
     call_phase("statement sequence: call: call operation");
@@ -259,6 +261,7 @@ pub(super) fn plan(
         && !result.local.is_named()
         && !completes_machine
         && call_result_stores.is_empty()
+        && structural_replacement.is_none()
     {
         // An explicit discard still invokes the value-returning machine.
         // Its anonymous result cannot enter the named-local operand roster.
@@ -282,6 +285,7 @@ pub(super) fn plan(
             state.symbol,
             structural_results,
             &operation,
+            operations,
         )
         .is_some();
         // Any call with a structural result, ordinary or boundary.
@@ -365,6 +369,12 @@ pub(super) fn plan(
         // consumption so an affine producer sheds its return-edge disposal.
         consume_results(&mut *operations, &store)?;
         operations.push(store);
+    }
+    if let Some(replacement) = structural_replacement {
+        // The complete result transfers once; projected region stores must
+        // not independently retire that same producer's disposal debt.
+        replacement.consume_source(&mut *operations)?;
+        operations.extend(replacement.into_operations());
     }
     *structural_count = structural_count.checked_add(structural_store_bindings)?;
     super::super::super::cleanup::anonymous::append_continuation(

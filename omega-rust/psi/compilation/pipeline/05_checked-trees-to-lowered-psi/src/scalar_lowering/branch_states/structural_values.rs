@@ -549,7 +549,7 @@ impl Preparation<'_> {
             source,
             source_value,
             storage,
-            ..
+            backing_type,
         } = &node.kind
         {
             let argument = if source_value.is_valid() {
@@ -591,6 +591,8 @@ impl Preparation<'_> {
             self.steps.push(Step::Establish {
                 effect: LoweredScalarEffect::EstablishReference {
                     storage: *storage,
+                    backing_type: *backing_type,
+                    qualification_decisions: node.qualification_decisions,
                     state: node.state,
                     statement: node.statement_index,
                     expression: node.expression,
@@ -862,6 +864,38 @@ impl Preparation<'_> {
                         claims: claims_below_path(&self.claims, claim_path),
                     },
                 ),
+                prefix: self.prefix.clone(),
+            });
+            return Ok(place);
+        }
+        if let CheckedStructuralValueKind::Scalar { value: scalar } = &node.kind {
+            let result_type = computations::computation_value_type(
+                identities,
+                self.checked,
+                self.qualifications,
+                *scalar,
+                self.bindings,
+                &self.prefix,
+            )?;
+            let initialized = LoweredDirectExpression::Parameter {
+                position: self.prefix.len(),
+                scalar_type: result_type.scalar_type,
+            };
+            self.steps.push(Step::Scalar {
+                role: CheckedScalarExpressionRole::StructuralScalarValue {
+                    expression: node.expression,
+                },
+                result_type,
+                prefix: self.prefix.clone(),
+            });
+            self.prefix.push(result_type);
+            let place = self.reserved.place(value)?;
+            self.steps.push(Step::Establish {
+                effect: LoweredScalarEffect::EstablishScalarHome {
+                    place,
+                    structural_type: declaration.id,
+                    value: initialized,
+                },
                 prefix: self.prefix.clone(),
             });
             return Ok(place);

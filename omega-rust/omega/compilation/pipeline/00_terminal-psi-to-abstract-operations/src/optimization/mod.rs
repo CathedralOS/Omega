@@ -22,12 +22,12 @@ pub fn build_verified_psi_optimization_unit(
     let context = input.context();
     optimization_unit::attach_verified_module_context(&mut seed, context.module())
         .map_err(VerifiedPsiOptimizationUnitBuildError::MissingStructuralCatalogMachine)?;
-    let facts = source_checked_operation_facts(&seed);
+    let facts = source_checked_obligation_facts(&seed);
     let unit = optimization_unit::attach_accepted_obligation_facts(seed, facts)?;
     Ok(VerifiedPsiOptimizationUnit { input, unit })
 }
 
-fn source_checked_operation_facts(
+fn source_checked_obligation_facts(
     unit: &optimization_unit::PsiOptimizationUnit,
 ) -> Vec<optimization_unit::AcceptedObligationFact> {
     let mut coordinates = BTreeSet::new();
@@ -41,12 +41,13 @@ fn source_checked_operation_facts(
             else {
                 continue;
             };
-            if coordinates.insert((function.machine, *support, *obligation)) {
+            let owner = optimization_unit::PsiProvenance::Operation(*support);
+            if coordinates.insert((function.machine, owner, *obligation)) {
                 let fact = optimization_unit::AcceptedObligationFact::new(
                     unit.psi,
                     [0; 32],
                     function.machine,
-                    *support,
+                    owner,
                     *obligation,
                     Vec::new(),
                 );
@@ -101,6 +102,32 @@ fn source_checked_operation_facts(
                     Some(receiving) => fact.with_scalar_receiving(receiving),
                     None => fact,
                 });
+            }
+        }
+        // Bounds already checked for a captured cleanup place belong to its
+        // edge, not to a fabricated instruction or a later replacement store.
+        // Several actions may use the same capture; the edge/obligation key
+        // retains that one source judgment just as an operation's paths do.
+        for node in function.block_nodes() {
+            for (edge, actions) in node.operation.cleanup_rosters() {
+                for (_, obligation) in actions.iter().flat_map(|action| {
+                    action
+                        .path()
+                        .iter()
+                        .filter_map(terminal_psi::StructuralPathSegment::runtime_index)
+                }) {
+                    let owner = optimization_unit::PsiProvenance::Edge(edge);
+                    if coordinates.insert((function.machine, owner, obligation)) {
+                        facts.push(optimization_unit::AcceptedObligationFact::new(
+                            unit.psi,
+                            [0; 32],
+                            function.machine,
+                            owner,
+                            obligation,
+                            Vec::new(),
+                        ));
+                    }
+                }
             }
         }
     }

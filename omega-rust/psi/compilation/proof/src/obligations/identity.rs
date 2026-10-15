@@ -329,6 +329,36 @@ fn owner_identity(
                 atom("state-local-statement", statement_index.to_string()),
             ],
         ),
+        ProofObligationOwner::ArrayElement {
+            machine_symbol,
+            state_symbol,
+            statement_index,
+            construction,
+            element_index,
+            ..
+        } => compound(
+            "owner",
+            [
+                atom("array-machine", symbol_identity(program, *machine_symbol)),
+                atom("array-state", symbol_identity(program, *state_symbol)),
+                atom("array-statement", statement_index.to_string()),
+                atom(
+                    "array-construction",
+                    expression_identity(program, *construction),
+                ),
+                atom(
+                    "array-occurrence",
+                    expression_occurrence_identity(
+                        program,
+                        *machine_symbol,
+                        *state_symbol,
+                        *statement_index,
+                        *construction,
+                    ),
+                ),
+                atom("array-element", element_index.to_string()),
+            ],
+        ),
         ProofObligationOwner::ConstructorField {
             machine_symbol,
             state_symbol,
@@ -348,6 +378,35 @@ fn owner_identity(
             ],
         ),
     }
+}
+
+/// Canonical position, not an arena allocation number or source span. Two
+/// identical literals in one statement can straddle an effectful operand.
+/// Encoding their position preserves that distinction across cache reuse.
+fn expression_occurrence_identity(
+    program: &dyn ::validation::CheckingInput,
+    machine: SymbolHandle,
+    state: SymbolHandle,
+    statement_index: usize,
+    expression: ExpressionHandle,
+) -> String {
+    let occurrence = (|| {
+        let (_, state) = program.machine_state(machine, state)?;
+        let statement = program
+            .statement_table
+            .statements(state.statement_nodes)
+            .get(statement_index)?;
+        let mut expressions = Vec::new();
+        validation::expression_traversal::collect_statement_expression_trees(
+            program,
+            statement,
+            &mut expressions,
+        );
+        expressions
+            .iter()
+            .position(|candidate| *candidate == expression)
+    })();
+    format!("{occurrence:?}")
 }
 
 fn constraints_identity(

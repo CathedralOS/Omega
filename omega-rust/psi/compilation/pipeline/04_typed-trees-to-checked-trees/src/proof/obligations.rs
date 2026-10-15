@@ -35,6 +35,11 @@ pub(crate) fn lower_proof_obligation(
                     machine_symbol,
                     state_symbol,
                     ..
+                }
+                | proof::obligations::ProofObligationOwner::ArrayElement {
+                    machine_symbol,
+                    state_symbol,
+                    ..
                 } => (*machine_symbol, *state_symbol),
                 _ => (
                     symbols::SymbolHandle::invalid(),
@@ -138,6 +143,11 @@ pub(crate) fn proof_obligation_owner(
             ..
         }
         | proof::obligations::ProofObligationOwner::ConstructorField {
+            machine_symbol,
+            state_symbol,
+            ..
+        }
+        | proof::obligations::ProofObligationOwner::ArrayElement {
             machine_symbol,
             state_symbol,
             ..

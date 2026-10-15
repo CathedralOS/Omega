@@ -13,8 +13,8 @@ use semantic_vocabulary::{BlockId, OperationId, PlaceId, StructuralPlaceKind, St
 use std::collections::{BTreeSet, VecDeque};
 use terminal_psi::{
     Block, OperationKind, StructuralAccess, StructuralAffineDiscard, StructuralArgument,
-    StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceDeclaration,
-    StructuralTypeDeclaration, TerminalAffineCleanupAction, Terminator,
+    StructuralMultiplicity, StructuralParameterDeclaration, StructuralPathSegment,
+    StructuralPlaceDeclaration, StructuralTypeDeclaration, TerminalAffineCleanupAction, Terminator,
 };
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -111,6 +111,46 @@ pub(crate) fn owned_extractions(
     Ok(extractions)
 }
 
+pub(crate) fn copied_operand_roots(
+    parameters: &[StructuralParameterDeclaration],
+    blocks: &[Block],
+) -> BTreeSet<PlaceId> {
+    // Operand ownership is not itself a move: unrestricted source occurrences
+    // copy their payload and retain custody. Decide from actual declarations,
+    // never the receiving parameter. Explicit extraction and reference release
+    // still vacate storage, even when that storage supports ordinary copies.
+    parameters
+        .iter()
+        .chain(blocks.iter().flat_map(|block| &block.structural_parameters))
+        .filter(|parameter| {
+            parameter.access == StructuralAccess::Owned
+                && parameter.multiplicity == StructuralMultiplicity::Unrestricted
+        })
+        .map(|parameter| parameter.place)
+        .chain(
+            blocks
+                .iter()
+                .flat_map(|block| &block.operations)
+                .filter_map(|operation| {
+                    operation
+                        .result
+                        .structural()
+                        .filter(|result| {
+                            result.multiplicity == StructuralMultiplicity::Unrestricted
+                        })
+                        .map(|result| result.place)
+                }),
+        )
+        .collect()
+}
+
+pub(crate) fn transfers_custody(
+    argument: &StructuralArgument,
+    copied_roots: &BTreeSet<PlaceId>,
+) -> bool {
+    argument.access == StructuralAccess::Owned && !copied_roots.contains(&argument.place)
+}
+
 pub(super) fn complete(
     parameters: &[StructuralParameterDeclaration],
     local_places: &[StructuralPlaceDeclaration],
@@ -119,7 +159,8 @@ pub(super) fn complete(
     types: &[StructuralTypeDeclaration],
     extractions: &[(OperationId, StructuralArgument)],
 ) -> Result<(), LoweringError> {
-    if partitioned_roots(blocks, extractions).is_empty() {
+    let copied_roots = copied_operand_roots(parameters, blocks);
+    if partitioned_roots(blocks, extractions, &copied_roots).is_empty() {
         return Ok(());
     }
     let roots = parameters
@@ -157,7 +198,7 @@ pub(super) fn complete(
         let mut frontier = incoming[position].clone().expect("queued frontier");
         for operation in &blocks[position].operations {
             for argument in operands(&operation.kind) {
-                transfer(&mut frontier, argument)?;
+                transfer(&mut frontier, argument, &copied_roots)?;
             }
             if let Some((_, extraction)) = extractions
                 .iter()
@@ -177,7 +218,7 @@ pub(super) fn complete(
                     });
                     frontier.sort_by_key(|root| root.place);
                 } else {
-                    transfer(&mut frontier, extraction)?;
+                    remove_path(&mut frontier, extraction.place, &extraction.path)?;
                 }
             }
             if let OperationKind::ReleaseReference { source, path } = &operation.kind {
@@ -225,7 +266,7 @@ pub(super) fn complete(
                 ..
             } => {
                 for argument in structural_arguments {
-                    transfer(&mut frontier, argument)?;
+                    transfer(&mut frontier, argument, &copied_roots)?;
                 }
                 complete_actions(&mut frontier, cleanup_actions, &roots, types)?;
                 successors.push((*target, frontier));
@@ -238,7 +279,7 @@ pub(super) fn complete(
                 for edge in [when_true, when_false] {
                     let mut branch = frontier.clone();
                     for argument in &edge.structural_arguments {
-                        transfer(&mut branch, argument)?;
+                        transfer(&mut branch, argument, &copied_roots)?;
                     }
                     complete_actions(&mut branch, &mut edge.cleanup_actions, &roots, types)?;
                     successors.push((edge.target, branch));
@@ -315,6 +356,7 @@ pub(super) fn complete(
 pub(crate) fn partitioned_roots(
     blocks: &[Block],
     extractions: &[(OperationId, StructuralArgument)],
+    copied_roots: &BTreeSet<PlaceId>,
 ) -> BTreeSet<PlaceId> {
     let mut roots = extractions
         .iter()
@@ -333,7 +375,7 @@ pub(crate) fn partitioned_roots(
                     .flatten(),
             )
         {
-            if argument.access == StructuralAccess::Owned && !argument.path.is_empty() {
+            if transfers_custody(argument, copied_roots) && !argument.path.is_empty() {
                 roots.insert(argument.place);
             }
         }
@@ -376,8 +418,12 @@ pub(crate) fn operands(kind: &OperationKind) -> impl Iterator<Item = &Structural
         .chain(call_structural_arguments(kind))
 }
 
-fn transfer(frontier: &mut Frontier, argument: &StructuralArgument) -> Result<(), LoweringError> {
-    if argument.access != StructuralAccess::Owned {
+fn transfer(
+    frontier: &mut Frontier,
+    argument: &StructuralArgument,
+    copied_roots: &BTreeSet<PlaceId>,
+) -> Result<(), LoweringError> {
+    if !transfers_custody(argument, copied_roots) {
         return Ok(());
     }
     remove_path(frontier, argument.place, &argument.path)
@@ -395,12 +441,17 @@ fn remove_path(
         return Ok(());
     }
     if let Some(root) = frontier.iter_mut().find(|root| root.place == place) {
-        if root
+        if let Some(earlier) = root
             .paths
             .iter()
-            .any(|earlier| earlier.starts_with(path) || path.starts_with(earlier))
+            .find(|earlier| earlier.starts_with(path) || path.starts_with(earlier.as_slice()))
         {
-            return unsupported("projected custody overlaps an earlier transfer or release");
+            return Err(LoweringError::OverlappingProjectedCustody {
+                reason: "projected custody overlaps an earlier transfer or release",
+                place,
+                earlier: earlier.clone(),
+                requested: path.to_vec(),
+            });
         }
         root.paths.insert(path.to_vec());
     } else {
@@ -424,10 +475,15 @@ fn restore_path(frontier: &mut Frontier, place: PlaceId, path: &[StructuralPathS
         return;
     }
     let root = &mut frontier[position];
-    // The establishing store replaces this entire region. Dispositions below
-    // it describe the old occurrence, while a moved ancestor and outside
-    // siblings still belong to the containing owner's outstanding frontier.
-    root.paths.retain(|removed| !removed.starts_with(path));
+    // Installing a complete subtree restores its previously retired children
+    // too. Their old descriptor holes cannot survive into the new occurrence.
+    // Sibling holes and a containing hole remain outstanding; a child store
+    // cannot restore storage it did not supply. Match captured coordinates,
+    // not the distinct bounds witnesses carried by two uses of that location.
+    root.paths.retain(|hole| {
+        hole.len() < path.len()
+            || !terminal_semantics::structural_paths_select_same_location(path, &hole[..path.len()])
+    });
     if root.paths.is_empty() {
         frontier.remove(position);
     }

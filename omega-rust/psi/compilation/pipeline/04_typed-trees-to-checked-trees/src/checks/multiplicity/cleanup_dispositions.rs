@@ -329,6 +329,19 @@ impl RemainingCustody {
             {
                 debug_assert_eq!(event.kind, PermissionEventKind::Establish);
                 debug_assert_eq!(event.root, establishment.destination.root);
+                output.storage_establishments.append(
+                    checked_trees::ContextualStorageEstablishment {
+                        machine: event.machine_symbol,
+                        state: event.state_symbol,
+                        source: event.source,
+                        destination: Place {
+                            root: establishment.destination.root,
+                            segments: output
+                                .segments
+                                .insert_many(establishment.destination.segments.iter().copied()),
+                        },
+                    },
+                );
                 self.establish_storage(
                     program,
                     establishment.destination.root,

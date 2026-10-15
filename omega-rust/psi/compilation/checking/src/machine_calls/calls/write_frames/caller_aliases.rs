@@ -124,7 +124,7 @@ pub struct LocalWriteSource {
 /// construction evidence for origin publication, not a new lifetime or loan.
 /// Unresolved leaves are unavailable, never an empty result roster.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct ReferenceResultLeafOrigin {
+pub struct ReferenceResultLeafOrigin {
     pub result_path: Vec<facts::PlaceSegment>,
     pub source: LocalWriteSource,
 }

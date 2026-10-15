@@ -211,23 +211,49 @@ pub(super) fn referent_projection(
     path: &[StructuralPathSegment],
     required_access: StructuralAccess,
 ) -> Option<ReferentProjection> {
-    let home = live.structural_homes.get(&carrier)?;
-    if home.access() != StructuralAccess::Owned
-        || home.multiplicity() != StructuralMultiplicity::Affine
-        || !home.qualifications().is_empty()
-        || !home.projected_qualifications().is_empty()
-        || home.operation_result().is_some_and(|(_, result)| {
-            !result.qualification_establishments.is_empty() || !result.claims.is_empty()
-        })
+    let (root_type, multiplicity, access) =
+        if let Some(parameter) = function.arrival_parameter(carrier) {
+            if !parameter.qualifications.is_empty()
+                || !parameter.projected_qualifications.is_empty()
+                || function
+                    .entry_claims
+                    .iter()
+                    .any(|claim| claim.input == carrier)
+            {
+                return None;
+            }
+            (
+                parameter.structural_type,
+                parameter.multiplicity,
+                parameter.access,
+            )
+        } else {
+            let home = live.structural_homes.get(&carrier)?;
+            if !home.qualifications().is_empty()
+                || !home.projected_qualifications().is_empty()
+                || home.operation_result().is_some_and(|(_, result)| {
+                    !result.qualification_establishments.is_empty() || !result.claims.is_empty()
+                })
+            {
+                return None;
+            }
+            (home.structural_type(), home.multiplicity(), home.access())
+        };
+    // Borrowing an aggregate does not own its descriptors. Their actual access
+    // path governs writes; the live roster below still authenticates custody.
+    if multiplicity == StructuralMultiplicity::Linear
+        || !terminal_semantics::reference_source_projection_accessible(
+            types.values().copied(),
+            root_type,
+            multiplicity,
+            access,
+            path,
+            required_access,
+        )
     {
         return None;
     }
-    let projected = window_projection(function, live, types, carrier, path, required_access)?;
-    matches!(
-        types.get(&projected.referent)?.shape,
-        StructuralTypeShape::Record { .. }
-    )
-    .then_some(projected)
+    window_projection(function, live, types, carrier, path, required_access)
 }
 
 /// Resolve a window through the exact stored descriptor; its enclosing home
@@ -256,6 +282,7 @@ pub(super) fn window_projection(
         root_type,
         path,
         required_access,
+        None,
         types,
     )
     .ok()?;
@@ -290,16 +317,12 @@ pub(super) fn reference_call_argument(
     if argument.access == StructuralAccess::Owned
         || argument.access != declaration.access
         || declaration.multiplicity != StructuralMultiplicity::Unrestricted
-        || !declaration.qualifications.is_empty()
-        || !declaration.projected_qualifications.is_empty()
     {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     let (root_type, source) = if let Some(home) = live.structural_homes.get(&argument.place) {
         if home.has_claims()
             || home.multiplicity() == StructuralMultiplicity::Linear
-            || !home.qualifications().is_empty()
-            || !home.projected_qualifications().is_empty()
             || home
                 .operation_result()
                 .is_some_and(|(_, result)| !result.qualification_establishments.is_empty())
@@ -325,6 +348,7 @@ pub(super) fn reference_call_argument(
             root_type,
             &argument.path,
             argument.access,
+            Some(declaration.structural_type),
             types,
         )?;
     let indices = super::scalar_sources::runtime_indices(
@@ -859,7 +883,17 @@ fn normalized_direct_source(
         // The runtime source stays the retained carrier. Custody is inherited
         // from that carrier, while typed descendants select its live backing;
         // an initializer or a guessed origin never supplies the address.
-        if leaf_type(types, leaf.referent, suffix).is_none() {
+        // A projected inline field need not have a standalone declaration.
+        // Preserve the same storage correspondence as a direct borrow; the
+        // live descriptor above still supplies custody and the actual pointer.
+        if optimization_unit_semantics::structural_borrowed_storage_projection(
+            types.values().copied(),
+            leaf.referent,
+            suffix,
+            source.access,
+        )
+        .is_none()
+        {
             return Err(LoweringError::unsupported_control_flow(function.machine));
         }
         Ok(leaf.root.projected(suffix))
@@ -954,7 +988,7 @@ pub(super) fn establish(
     };
     let referent = referent(types, result.structural_type)
         .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
-    if !result.is_affine_plain()
+    if result.multiplicity != StructuralMultiplicity::Affine
         || live.structural_homes.contains_key(&result.place)
         || live
             .references
@@ -963,20 +997,27 @@ pub(super) fn establish(
     {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
-    let actual = reference_source_type(function, live, types, source);
-    if !actual.is_some_and(|actual| match storage {
-        Some(storage) => terminal_semantics::reference_storage_source_compatible(
-            types.values().copied(),
-            actual,
-            result.structural_type,
-            storage.stored_scalar,
-        ),
-        None => terminal_semantics::reference_source_compatible(
-            types.values().copied(),
-            actual,
-            result.structural_type,
-        ),
-    }) {
+    let compatible = match storage {
+        Some(storage) => {
+            reference_source_type(function, live, types, source).is_some_and(|actual| {
+                terminal_semantics::reference_storage_source_compatible(
+                    types.values().copied(),
+                    actual,
+                    result.structural_type,
+                    storage.stored_scalar,
+                )
+            })
+        }
+        None => source_contract(function, live, source.place).is_some_and(|root| {
+            terminal_semantics::reference_source_projection_compatible(
+                types.values().copied(),
+                root,
+                &source.path,
+                result.structural_type,
+            )
+        }),
+    };
+    if !compatible {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     // EstablishReference always borrows, including a projection through an

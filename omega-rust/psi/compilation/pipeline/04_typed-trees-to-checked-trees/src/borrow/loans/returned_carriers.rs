@@ -1,5 +1,6 @@
-//! Returned carrier loans are declaration-derived lifetime transfers, not
-//! storage-frame inference. Source selectors and result selectors are distinct.
+//! Returned carrier loans retain the declaration's complete lifetime frontier.
+//! A body relation may refine its backing geometry, but cannot invent a lifetime
+//! source. Source selectors and result selectors are distinct.
 //! Resolve the complete producer relation before selecting result leaves, then
 //! translate those leaves into the destination's checked storage paths. Runtime
 //! carrier equality erases regions and cannot equate prepared member symbols.
@@ -151,16 +152,21 @@ fn completed_field_sources(
     fields: &[ViewReturnFieldSource],
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<Result<Vec<(ViewReturnFieldSource, Vec<facts::PlaceSegment>)>, usize>> {
-    use checked_trees::CheckedUnitStructuralArgumentSourcePlan;
-    use validation::reference_result_custody::{loan_place_segments, returned_reference_sources};
-
     let (machine, state) = validation::find_state(program, target)?;
     if machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
         || !machine.body_is_present
     {
         return None;
     }
-    let sources = returned_reference_sources(program, state, call_frames)?;
+    let prepared_frames;
+    let call_frames = match call_frames {
+        Some(call_frames) => call_frames,
+        None => {
+            prepared_frames = validation::CallFrameResolver::new(program)?;
+            &prepared_frames
+        }
+    };
+    let sources = call_frames.reference_result_leaf_origins(state.symbol)?;
     let parameters = program.state_parameters(state);
     let declared_paths = fields
         .iter()
@@ -174,43 +180,73 @@ fn completed_field_sources(
     let mut output = Vec::with_capacity(sources.len());
     let mut covered = vec![false; fields.len()];
     for source in sources {
-        let CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } =
-            source.source.source
-        else {
+        // Presentation coordinates require their checked formation/codec at
+        // executable publication. A pre-flow lifetime relation cannot use
+        // them as physical projections; retain its declared region instead.
+        if !source.source.recasts.is_empty() || source.source.representation.is_some() {
             return None;
-        };
-        let (position, parameter) = parameters
+        }
+        let (parameter_index, parameter) = parameters
             .iter()
             .enumerate()
-            .filter(|(_, parameter)| {
-                !parameter.is_const
-                    && program
-                        .primitive_type_reference(parameter.type_reference)
-                        .is_none()
-            })
-            .nth(parameter_index as usize)?;
-
-        let parameter_index = position;
-        let owner_path = &source.path;
-        let kind = source.source.access.borrow_access_kind()?;
+            .find(|(_, parameter)| parameter.symbol == source.source.root)?;
+        let owner_path = structural_owner_path(
+            program,
+            &super::owner_paths::owner_path_from_place_segments(program, &source.result_path),
+        )?;
+        let result_leaf = validation::project_type_reference_from_segments(
+            program,
+            state.return_type,
+            &source.result_path,
+        )?;
+        let kind = reference_borrow_access_kind(program, result_leaf)?;
         let (source_path, projection) = if is_reference_type(program, parameter.type_reference) {
+            // A dynamic selector describes one element family below borrowed
+            // storage, not one loan per possible array slot. Its expression
+            // belongs to the callee, so erase that coordinate before transport:
+            // only the actual invocation supplies an evaluated selector.
             (
                 Vec::new(),
-                loan_place_segments(program, parameter.type_reference, &source.source.path)?,
+                source
+                    .source
+                    .segments
+                    .iter()
+                    .map(|segment| match segment {
+                        facts::PlaceSegment::Index { expression }
+                            if program.expression_table.expression_is_valid(*expression)
+                                && program.expression_table.range_node(*expression).is_none() =>
+                        {
+                            facts::PlaceSegment::Index {
+                                expression: ExpressionHandle::invalid(),
+                            }
+                        }
+                        // A window is not one element. Keep its kind visible
+                        // to conservative origin reconstruction rather than
+                        // laundering it through an erased element coordinate.
+                        segment => *segment,
+                    })
+                    .collect(),
             )
         } else {
-            let (last, path) = source.source.path.split_last()?;
-            if *last != checked_trees::CheckedUnitStructuralPathSegment::Referent {
-                return None;
-            }
-            (path.to_vec(), Vec::new())
+            // An owned input lends an existing descriptor, whose exact owner
+            // path is its identity. An unknown element cannot stand in for it.
+            (
+                structural_owner_path(
+                    program,
+                    &super::owner_paths::owner_path_from_place_segments(
+                        program,
+                        &source.source.segments,
+                    ),
+                )?,
+                Vec::new(),
+            )
         };
         // Join paths under the same declared input and result by schema identity:
         // generic preparation and declaration traversal can own distinct field
         // symbols. Body precision still cannot invent a lifetime source or
         // amplify the declaration's checked access relation.
         let Some((index, field)) = fields.iter().enumerate().find(|(index, field)| {
-            declared_paths[*index].0 == *owner_path
+            declared_paths[*index].0 == owner_path
                 && declared_paths[*index].1 == source_path
                 && field.parameter_index == parameter_index
                 && field.kind == kind

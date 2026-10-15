@@ -280,6 +280,16 @@ impl TerminalExecution<'_> {
                 .map(|_| capture(binding))
                 .ok_or_else(malformed);
         }
+        if let Some(binding) = self.captured_byte_owner_binding(selected) {
+            // A by-value owner observation snapshots its bytes; it does not
+            // request ownership from the older loan that identifies this home.
+            // Explicit borrowed observations retain their existing access.
+            let observation_access = match argument.access {
+                StructuralAccess::Owned => StructuralAccess::SharedBorrow,
+                access => access,
+            };
+            return self.reborrow_byte_sequence_binding(binding, selected, observation_access);
+        }
         // Inline byte fields have declaration-keyed cells rather than array
         // cells. Resolve the parent first so reference crossings and captured
         // selectors retain the same actual home as the descriptor observation.

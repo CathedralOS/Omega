@@ -283,8 +283,9 @@ pub(in crate::execution::terminal_unit) fn append_continuation(
                     state.symbol,
                     results,
                     producer,
+                    operations,
                 )
-                .is_some_and(|(captured, _)| captured == result)
+                .is_some_and(|captured| captured.result == result)
             }) {
                 continue;
             }

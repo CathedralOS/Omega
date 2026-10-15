@@ -14,7 +14,7 @@ mod emission;
 pub(crate) mod field_carrier;
 pub(crate) mod fixed_array;
 mod locals;
-mod member_memberships;
+pub(super) mod member_memberships;
 mod operand_claims;
 pub(crate) mod record;
 pub(crate) mod structural_case;

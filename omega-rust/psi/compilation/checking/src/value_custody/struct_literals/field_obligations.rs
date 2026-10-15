@@ -76,44 +76,18 @@ pub(super) fn enforce_construction_field_obligations(
             field.name.as_str()
         );
         if crate::value_custody::reference_access::is_reference_destination(program, field_type) {
-            use crate::value_custody::reference_access::ReferenceAccessRefusal;
             let prior_statements =
                 &program.statement_table.statements(state.statement_nodes)[..statement_index];
-            if let Some(refusal) =
-                crate::value_custody::reference_access::receiving_reference_access_refusal(
-                    program,
-                    machine,
-                    Some(state),
-                    prior_statements,
-                    field.value,
-                    field_type,
-                )
-            {
-                let reason = match refusal {
-                    ReferenceAccessRefusal::ExplicitWriteOnlyRequired => {
-                        "requires explicit write-only attenuation; pass `&write ...`"
-                    }
-                    ReferenceAccessRefusal::WriteOnlyMayNotRead => {
-                        "may read, but the source supplies only write-only authority"
-                    }
-                    ReferenceAccessRefusal::ExclusiveBorrowSourceRequired { access, .. } => {
-                        if access == language_semantics::ReferenceAccess::WriteOnly {
-                            "requires exclusive source access; shared or immutable storage cannot supply it"
-                        } else {
-                            "requires mutable source access; shared or immutable storage cannot supply it"
-                        }
-                    }
-                    ReferenceAccessRefusal::MutableSourceRequired => {
-                        "requires mutable source access; shared or immutable storage cannot supply it"
-                    }
-                    ReferenceAccessRefusal::NamedPlaceRequired { .. } => {
-                        "requires a named source place; a temporary cannot lend exclusive access"
-                    }
-                    ReferenceAccessRefusal::BareRangeFormsSharedView => {
-                        "receives a bare range that forms a shared view; `bare-range-reference-access` spells the mutable subrange `&mut collection[start..end]`"
-                    }
-                };
-                diagnostics.push(Diagnostic::error(format!("{slot_context} {reason}")));
+            if crate::value_custody::reference_access::report_reference_access_conflict(
+                program,
+                machine,
+                Some(state),
+                prior_statements,
+                field.value,
+                field_type,
+                &slot_context,
+                diagnostics,
+            ) {
                 continue;
             }
             if !crate::value_custody::expression_types::argument_matches_carrier(
@@ -297,6 +271,9 @@ pub(super) fn enforce_construction_field_obligations(
 
 /// Standalone array checking owns one observation batch; nested construction
 /// checks borrow the state-wide batch prepared by their caller.
+/// Selected arms retain the destination; explicit borrows retain the referee
+/// destination. Each scalar consumes its own occurrence environment, just as
+/// a construction field does.
 pub(crate) fn validate_array_literal_elements(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
@@ -517,13 +494,28 @@ fn check_array_literal_elements_for_shape(
                     )));
                     continue;
                 }
-                scalar_values::validate(
+                let Some(scalar) = scalar_values::validate(
                     program,
                     machine,
                     state,
                     observations,
                     *element,
                     element_type,
+                    &owner,
+                    diagnostics,
+                ) else {
+                    continue;
+                };
+                // Closed receiving bounds belong to the bounded-initializer
+                // obligations, including values beyond the i64 analysis
+                // interval. Symbolic endpoints consume this exact environment.
+                crate::proof_contracts::arithmetic_domains::enforce_symbolic_range(
+                    program,
+                    machine,
+                    Some(state),
+                    element_type,
+                    *element,
+                    &scalar.environment,
                     &owner,
                     diagnostics,
                 );

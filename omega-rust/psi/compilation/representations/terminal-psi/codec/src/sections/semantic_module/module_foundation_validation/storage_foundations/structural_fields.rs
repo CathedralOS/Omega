@@ -29,12 +29,9 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
             // copyable. The copy retains backing and parent obligations;
             // ordinary affine payloads still require an owned transfer.
             && !(result.multiplicity == StructuralMultiplicity::Affine
-                && module.structural_types.iter().any(|declaration| {
-                    declaration.id == result.structural_type
-                        && matches!(declaration.shape, StructuralTypeShape::Reference {
-                            access: terminal_psi::StructuralAccess::SharedBorrow, ..
-                        })
-                })))
+                && terminal_semantics::is_shared_reference_carrier(
+                    module.structural_types.iter(), result.structural_type,
+                )))
             || !result.qualification_establishments.is_empty()
             || !result.claims.is_empty()
     }) {
@@ -478,7 +475,7 @@ fn window_memberships(
         })
 }
 
-fn declared_memberships(
+pub(super) fn declared_memberships(
     machine: &TerminalMachine,
     place: semantic_vocabulary::PlaceId,
 ) -> Option<(

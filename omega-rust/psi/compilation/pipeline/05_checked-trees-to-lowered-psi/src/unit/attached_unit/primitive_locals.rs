@@ -102,7 +102,7 @@ pub(super) fn register_mut_formal_storage_homes(
 /// initializer's completed SSA value. A declaration supplies the goal, never
 /// the fact that initialization satisfied it. Record fields and primitive homes
 /// use the same scalar receiving predicate; no source proof is replayed here.
-fn initialization_obligation(
+pub(crate) fn initialization_obligation(
     declarations: &[StructuralTypeDeclaration],
     structural_type: semantic_vocabulary::StructuralTypeId,
     next_obligation: &mut u64,
@@ -146,6 +146,9 @@ pub(super) fn push_established_local(
     Ok((place, declaration))
 }
 
+/// Establish a completed scalar in a reserved home. Locals and aggregate
+/// children owe the same receiving restriction on the actual initialized value;
+/// reserving the home before a continuation does not establish its contents.
 pub(crate) fn establish_at(
     place: semantic_vocabulary::PlaceId,
     operations: &mut crate::emission::operation_emission::buffer::OperationBuffer,

@@ -24,10 +24,8 @@ pub(in crate::legalization) fn scalar_store_destination(
         path,
         terminal_psi::StructuralAccess::WriteOnlyBorrow,
     )?;
-    (destination.parameter().is_none()
-        && destination.multiplicity() == terminal_psi::StructuralMultiplicity::Affine
-        && resolved.carrier_type == destination.structural_type())
-    .then(|| (destination.clone(), path.to_vec()))
+    (resolved.carrier_type == destination.structural_type())
+        .then(|| (destination.clone(), path.to_vec()))
 }
 
 pub(in crate::legalization) fn replacement(
@@ -90,21 +88,11 @@ pub(in crate::legalization) fn replacement(
         _ => return None,
     };
     let semantic_path = path.clone();
-    // Whole-field replacement may address the exact completed owned record.
+    // Whole-field replacement may address the exact completed owned home.
     // Indexed writes retain their existing borrowed-storage contract.
-    let owned_result = source.and_then(|_| {
-        super::structural_case::source_result(function, *destination)
-            .ok()
-            .filter(|(_, result)| {
-                types.iter().any(|declaration| {
-                    declaration.id == result.structural_type
-                        && matches!(
-                            declaration.shape,
-                            terminal_psi::StructuralTypeShape::Record { .. }
-                        )
-                })
-            })
-    });
+    let owned_result = source
+        .filter(|_| !path.contains(&terminal_psi::StructuralPathSegment::Referent))
+        .and_then(|_| super::structural_case::source_result(function, *destination).ok());
     // An owned record, an arrival loan and a returned-reference carrier retain
     // distinct custody. Only the reference route crosses into its referent.
     let (root, root_type, access, path) = if let Some((producer, result)) = owned_result {
@@ -128,11 +116,12 @@ pub(in crate::legalization) fn replacement(
             path.clone(),
         )
     } else if let Some(parameter) = function.arrival_parameter(*destination) {
-        if !matches!(
+        if !(matches!(
             parameter.access,
             terminal_psi::StructuralAccess::MutableBorrow
                 | terminal_psi::StructuralAccess::WriteOnlyBorrow
-        ) || parameter.multiplicity == terminal_psi::StructuralMultiplicity::Linear
+        ) || source.is_some() && parameter.access == terminal_psi::StructuralAccess::Owned)
+            || parameter.multiplicity == terminal_psi::StructuralMultiplicity::Linear
             || !parameter.qualifications.is_empty()
             || !parameter.projected_qualifications.is_empty()
         {
@@ -160,7 +149,29 @@ pub(in crate::legalization) fn replacement(
             resolved.path,
         )
     };
-    if !terminal_psi::is_static_structural_scalar_store_path(&path)
+    let (declared_type, multiplicity, declared_access) =
+        if let Some(parameter) = function.arrival_parameter(*destination) {
+            (
+                parameter.structural_type,
+                parameter.multiplicity,
+                parameter.access,
+            )
+        } else {
+            let (_, result) = super::structural_case::source_result(function, *destination).ok()?;
+            (
+                result.structural_type,
+                result.multiplicity,
+                terminal_psi::StructuralAccess::Owned,
+            )
+        };
+    if !terminal_semantics::reference_source_projection_accessible(
+        types.iter(),
+        declared_type,
+        multiplicity,
+        declared_access,
+        &semantic_path,
+        terminal_psi::StructuralAccess::WriteOnlyBorrow,
+    ) || !terminal_psi::is_static_structural_scalar_store_path(&path)
         || source == Some(*destination)
         || function
             .entry_claim_declarations

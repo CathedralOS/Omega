@@ -119,11 +119,20 @@ impl AvailableGuarantee<'_> {
     }
 }
 
+/// Statement entry excludes every call in that statement. An evaluated use
+/// may consume same-statement guarantees, but only those present in its exact
+/// retained flow context (for example the pre-store frontier after operands).
+#[derive(Clone, Copy)]
+pub(in crate::checks) enum GuaranteeUse {
+    StatementEntry(usize),
+    EvaluatedContext(usize),
+}
+
 pub(in crate::checks) fn available<'program>(
     program: &'program dyn ::validation::CheckingInput,
     facts: &checked_trees::CheckFacts,
     caller: &FlowStateFact,
-    statement: usize,
+    use_point: GuaranteeUse,
     contexts: &[facts::FactContextHandle],
     frames: &validation::CallFrameResolver<'_>,
 ) -> Vec<AvailableGuarantee<'program>> {
@@ -158,7 +167,10 @@ pub(in crate::checks) fn available<'program>(
         if fact.origin != FactOrigin::CallEnsures
             || machine_symbol != caller.machine_symbol
             || state_symbol != caller.state_symbol
-            || statement_index >= statement
+            || match use_point {
+                GuaranteeUse::StatementEntry(statement) => statement_index >= statement,
+                GuaranteeUse::EvaluatedContext(statement) => statement_index > statement,
+            }
         {
             continue;
         }

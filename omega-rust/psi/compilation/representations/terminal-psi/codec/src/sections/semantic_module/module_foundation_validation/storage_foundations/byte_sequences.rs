@@ -96,8 +96,7 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
     let reference = reference_store_carrier(module, machine, *destination, path);
     let (destination_type, carrier_path) = if let Some(reference) = reference {
         reference
-    } else if let Some(structural_type) = owned_record_store_carrier(module, machine, *destination)
-    {
+    } else if let Some(structural_type) = owned_store_carrier(module, machine, *destination, path) {
         (structural_type, path.as_slice())
     } else {
         let Some(parameter) = terminal_semantics::arrival_parameter(machine, *destination) else {

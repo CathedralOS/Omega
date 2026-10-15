@@ -43,7 +43,7 @@ pub(super) fn emit(
         ) || target.access != semantic.access
             || target.place != semantic.place
             || target.path != semantic.path
-            || !indices.is_empty()
+            || indices.len() != target.indices.len()
             || !matches!(
                 target.shape.class,
                 ValueClass::BorrowedReference | ValueClass::BorrowedScalarReference
@@ -80,16 +80,26 @@ pub(super) fn emit(
     let mut operands = Vec::new();
     for argument in &call.arguments {
         let LegalizedScalarArgument::Structural {
-            semantic, target, ..
+            semantic,
+            target,
+            indices,
         } = argument
         else {
             return Err(SelectedInstructionError::custody());
         };
-        operands.push(super::structural::place_pointer_at_site(
+        let pointer = super::structural::place_pointer_at_site(
             builder,
             provenance.clone(),
             semantic.place,
             target.source_byte_offset,
+        )?;
+        operands.push(super::structural::runtime_address::scale_at_site(
+            builder,
+            provenance.clone(),
+            semantic.place,
+            target.source_byte_offset,
+            pointer,
+            indices,
         )?);
     }
     builder.transport.calls.push(SelectedCallContract {

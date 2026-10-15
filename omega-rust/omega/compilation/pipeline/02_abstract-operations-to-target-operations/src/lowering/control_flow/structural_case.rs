@@ -278,14 +278,12 @@ pub(super) fn lower(
         // ownership liveness; the validated abstract graph remains the
         // custody authority.
         let mut edge_live = live.clone();
-        if !super::terminator::plain_home_cleanup(
+        super::terminator::plain_home_cleanup(
             function,
             &mut edge_live,
             structural_types,
             &case.cleanup_actions,
-        )? {
-            return Err(LoweringError::unsupported_control_flow(function.machine));
-        }
+        )?;
         reference_exits.push(edge_live.reference_edge_exit(case.target));
         let fields = declared
             .fields

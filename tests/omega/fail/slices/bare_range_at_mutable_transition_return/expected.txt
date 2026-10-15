@@ -1,0 +1,1 @@
+machine `middle` state `entry` return value receives a bare range that forms a shared view; `bare-range-reference-access` spells the mutable subrange

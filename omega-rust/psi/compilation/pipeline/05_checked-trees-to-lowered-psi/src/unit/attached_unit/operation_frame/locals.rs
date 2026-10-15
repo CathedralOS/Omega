@@ -804,8 +804,115 @@ impl OperationFrame<'_, '_> {
         destination: &CheckedUnitStructuralArgumentPlan,
         opening_binding: Option<u32>,
         value: &CheckedUnitStructuralArgumentPlan,
+        multiplicity: language_semantics::Multiplicity,
     ) -> Result<(), LoweringError> {
-        let repair = self.owned_structural_value(value)?;
+        let mut root = value.clone();
+        root.path.clear();
+        let mut repair = self.owned_structural_value(&root)?;
+        if !value.path.is_empty() {
+            let path = crate::expression_preparation::bindings::structural_paths::lower_static_argument_path(
+                identities, &value.path, repair.structural_type, self.structural_types.declarations(),
+            )?;
+            // Owning a descriptor never owns its referent. Owned operand
+            // completion selects storage children, not borrowed byte windows.
+            if path.iter().any(|segment| {
+                matches!(
+                    segment,
+                    terminal_psi::StructuralPathSegment::Referent
+                        | terminal_psi::StructuralPathSegment::FixedByteRange { .. }
+                )
+            }) {
+                return unsupported("owned store operand crosses borrowed storage");
+            }
+            let selected = terminal_semantics::runtime_structural_path_tip(
+                self.structural_types.declarations().iter(),
+                repair.structural_type,
+                &path,
+            )
+            .ok_or(LoweringError::Unsupported(
+                "owned store operand has no declared subtree",
+            ))?
+            .id;
+            if selected != lookup_type_id(self.type_ids, &value.type_identity)? {
+                return unsupported("owned store operand changes its selected source type");
+            }
+            let source_contract = self
+                .evaluation
+                .structural_root_parameters()
+                .chain(self.parameters.iter())
+                .find(|parameter| parameter.place == repair.place)
+                .map(|parameter| {
+                    (
+                        parameter.qualifications.clone(),
+                        parameter.projected_qualifications.clone(),
+                    )
+                })
+                .or_else(|| {
+                    self.operations.iter().find_map(|operation| {
+                        operation
+                            .result
+                            .structural()
+                            .filter(|result| result.place == repair.place)
+                            .map(|result| {
+                                (
+                                    result.qualifications.clone(),
+                                    result.projected_qualifications.clone(),
+                                )
+                            })
+                    })
+                })
+                .ok_or(LoweringError::Unsupported(
+                    "owned store operand lost its producer contract",
+                ))?;
+            let (qualifications, projected_qualifications) =
+                terminal_psi::StructuralPathQualification::select(
+                    &source_contract.0,
+                    &source_contract.1,
+                    &path,
+                );
+            let declaration = terminal_psi::StructuralParameterDeclaration {
+                place: repair.place,
+                position: 0,
+                structural_type: selected,
+                multiplicity: crate::terminal_identities::structural_multiplicity(multiplicity),
+                access: StructuralAccess::Owned,
+                qualifications,
+                projected_qualifications,
+            };
+            let mut arguments = vec![terminal_psi::StructuralArgument {
+                place: repair.place,
+                path,
+                access: StructuralAccess::Owned,
+            }];
+            // A store consumes a completed value. Use the same argument edge
+            // as a continuation: it transfers the selected custody and keeps
+            // the parent's remaining children at their original home. No
+            // borrowed extraction debt or replacement-specific copy exists.
+            self.evaluation.capture_structural_arguments(
+                identities,
+                self.checked,
+                &mut arguments,
+                &[declaration],
+                self.values,
+                self.next_place,
+                self.private_places,
+                self.next_value,
+                self.next_block,
+                self.next_edge,
+                self.operations,
+            )?;
+            let captured = self
+                .evaluation
+                .block_structural_parameters
+                .last()
+                .ok_or(LoweringError::Unsupported(
+                    "owned store operand has no completed arrival",
+                ))?
+                .clone();
+            repair.place = captured.place;
+            repair.structural_type = captured.structural_type;
+            self.parameters.to_mut().push(captured);
+        }
         // The result roster keeps the extraction's identity even if its
         // detached value has already transferred or been disposed. This is
         // a debt reference, not a second ownership use of that value.
@@ -1098,6 +1205,7 @@ impl OperationFrame<'_, '_> {
                 storage.path.extend(crate::expression_preparation::bindings::structural_paths::lower_typed_argument_path(identities, selected_path, storage.selected_type, self.structural_types.declarations(), None, &mut std::iter::empty(), None)?);
                 Ok((storage.place, storage.path))
             },
+            |place| self.evaluation.carrier_multiplicity(place, self.operations),
             |cleanup, place, structural_type, path| {
                 let mut action = crate::unit::unit_cleanup::lower_nominal_cleanup_action(
                     cleanup,

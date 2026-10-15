@@ -167,6 +167,20 @@ impl Emission<'_, '_, '_> {
         if memberships.is_empty() {
             return Ok(source);
         }
+        // Source memberships qualify a reference's referent, not its affine
+        // permission descriptor. Rejoin the already captured rows at that
+        // boundary; a decision cannot mint a domain on the pointer carrier.
+        let mut membership_path = source.path.clone();
+        let membership_carrier =
+            match terminal_psi::find_structural_type(self.structural_types, self.structural_type)
+                .map(|declaration| &declaration.shape)
+            {
+                Some(terminal_psi::StructuralTypeShape::Reference { referent, .. }) => {
+                    membership_path.push(terminal_psi::StructuralPathSegment::Referent);
+                    *referent
+                }
+                _ => self.structural_type,
+            };
         let (qualifications, projected_qualifications) = self
             .completed_memberships(source.place)
             .ok_or(LoweringError::Unsupported(
@@ -175,14 +189,14 @@ impl Emission<'_, '_, '_> {
         let (qualifications, _) = terminal_psi::StructuralPathQualification::select(
             qualifications,
             projected_qualifications,
-            &source.path,
+            &membership_path,
         );
         let mut missing = false;
         for decision in memberships {
             let domain = crate::terminal_identities::lookup_domain_id_for_carrier(
                 self.domain_ids,
                 decision.semantic_domain,
-                self.structural_type,
+                membership_carrier,
             )?;
             missing |= !qualifications.contains(&domain);
         }

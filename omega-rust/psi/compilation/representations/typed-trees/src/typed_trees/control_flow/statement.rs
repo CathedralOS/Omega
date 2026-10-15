@@ -213,6 +213,7 @@ impl StatementTable {
                     StatementNode::Assignment(TableAssignment {
                         target: target_expressions.copy_from(source_expressions, assignment.target),
                         value: target_expressions.copy_from(source_expressions, assignment.value),
+                        receiving_type: crate::types::TypeReferenceHandle::invalid(),
                     })
                 }
                 StatementNode::Call(call) => {
@@ -405,6 +406,9 @@ impl StatementTable {
                 StatementNode::Assignment(assignment) => {
                     expressions.remap_symbols_in(assignment.target, symbols);
                     expressions.remap_symbols_in(assignment.value, symbols);
+                    if let StatementNode::Assignment(copied) = self.statement_mut(handle) {
+                        copied.receiving_type = crate::types::TypeReferenceHandle::invalid();
+                    }
                 }
                 StatementNode::Call(call) => {
                     expressions.remap_call_static_applications(
@@ -770,10 +774,17 @@ impl Default for StatementNode {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct TableAssignment {
     pub target: crate::expression::ExpressionHandle,
     pub value: crate::expression::ExpressionHandle,
+    /// Complete receiving value type, prepared after specialization. A range
+    /// receives an array of its selected width, not its backing array or a
+    /// borrowed view. This is a construction destination, never evidence that
+    /// the source value satisfies it. Copied bodies prepare their own instance.
+    /// Rewriting either operand requires preparation again: the RHS determines
+    /// whether a reference assignment replaces its descriptor or its referent.
+    pub receiving_type: crate::types::TypeReferenceHandle,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

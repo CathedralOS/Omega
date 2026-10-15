@@ -1,1 +1,1 @@
-returns a view whose access cannot be supplied by matching input `values`
+machine `forbid` state `entry` return value requires mutable source access; shared or immutable storage cannot supply it

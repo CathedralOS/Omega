@@ -212,6 +212,7 @@ pub(super) fn store_field(
                 full
             },
             disposition.required_access(),
+            None,
             types,
         )?;
     // The value must be a complete owned value of the declared field type

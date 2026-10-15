@@ -160,8 +160,8 @@ pub(super) fn cleanup(
         // Their receiver regions overlap by design; storage geometry cannot
         // replace the source checker's obligation and ordering decisions.
         let selected_type = |root| {
-            terminal_semantics::canonical_static_projection(structural_types.iter(), root, path)
-                .map(|(_, declaration)| declaration.id)
+            terminal_semantics::runtime_structural_path_tip(structural_types.iter(), root, path)
+                .map(|declaration| declaration.id)
         };
         match action {
             terminal_psi::TerminalAffineCleanupAction::RetireHome(place) => owner(*place).is_some(),
@@ -457,15 +457,12 @@ pub(in crate::legalization) fn call_argument(
             &plan.structural_types,
         );
     }
-    if plan.structural_types.iter().any(|declaration| {
-        declaration.id == destination.structural_type
-            && matches!(
-                declaration.shape,
-                StructuralTypeShape::Record { .. }
-                    | terminal_psi::sum_or_mixed_shape_pattern!()
-                    | StructuralTypeShape::FixedArray { .. }
-            )
-    }) && argument.access != terminal_psi::StructuralAccess::Owned
+    if argument.access != terminal_psi::StructuralAccess::Owned
+        && crate::structural_inputs::structural_reference_input::owned_storage_shape(
+            destination.structural_type,
+            &plan.structural_types,
+        )
+        .is_some()
     {
         return borrowed_arguments::reconstruct(
             argument,

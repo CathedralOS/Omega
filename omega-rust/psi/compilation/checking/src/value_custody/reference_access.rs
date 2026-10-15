@@ -1,6 +1,6 @@
 //! Receiving a reference value cannot manufacture the source's access.
 //!
-//! Calls, local initialization and field construction share this judgment at the exact
+//! Calls, local initialization, returns and field construction share this judgment at the exact
 //! receiving leaf. A mutable slot or byte-compatible shape is not authority
 //! over its referent. Declared reference forwarding preserves every enclosing
 //! access, while lifetime, exclusivity, element/domain correspondence and
@@ -44,7 +44,7 @@ pub(crate) enum ReferenceAccessRefusal {
 
 /// The shared access rule for every receiving reference leaf; it grants no
 /// loan and never derives permission from a destination type. A local
-/// initializer, a call or state argument and a constructed field all receive
+/// initializer, a call or state argument, return and constructed field all receive
 /// under the same judgment: the declared `&mut` of the destination is never
 /// the loan's spelling.
 pub(crate) fn receiving_reference_access_refusal(
@@ -141,6 +141,61 @@ pub(crate) fn is_reference_destination(
     required: TypeReferenceHandle,
 ) -> bool {
     declared_reference_access(program, required).is_some()
+}
+
+/// Report the same receiving obligation at storage and return destinations.
+/// The caller supplies only diagnostic ownership, never reference permission.
+/// Returning a value forwards the access it already has; neither return syntax
+/// nor the declared result inserts a borrow. Loan lifetime and result-region
+/// correspondence remain with their independent custody owners.
+pub(crate) fn report_reference_access_conflict(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: Option<&State>,
+    prior_statements: &[typed_trees::statement::StatementNode],
+    value: ExpressionHandle,
+    required: TypeReferenceHandle,
+    owner: &str,
+    diagnostics: &mut Vec<diagnostics::Diagnostic>,
+) -> bool {
+    if !is_reference_destination(program, required) {
+        return false;
+    }
+    let Some(refusal) = receiving_reference_access_refusal(
+        program,
+        machine,
+        state,
+        prior_statements,
+        value,
+        required,
+    ) else {
+        return false;
+    };
+    let reason = match refusal {
+        ReferenceAccessRefusal::ExplicitWriteOnlyRequired => {
+            "requires explicit write-only attenuation; pass `&write ...`"
+        }
+        ReferenceAccessRefusal::WriteOnlyMayNotRead => {
+            "may read, but the source supplies only write-only authority"
+        }
+        ReferenceAccessRefusal::ExclusiveBorrowSourceRequired { access, .. }
+            if access == language_semantics::ReferenceAccess::WriteOnly =>
+        {
+            "requires exclusive source access; shared or immutable storage cannot supply it"
+        }
+        ReferenceAccessRefusal::ExclusiveBorrowSourceRequired { .. }
+        | ReferenceAccessRefusal::MutableSourceRequired => {
+            "requires mutable source access; shared or immutable storage cannot supply it"
+        }
+        ReferenceAccessRefusal::NamedPlaceRequired { .. } => {
+            "requires a named source place; a temporary cannot lend exclusive access"
+        }
+        ReferenceAccessRefusal::BareRangeFormsSharedView => {
+            "receives a bare range that forms a shared view; `bare-range-reference-access` spells the mutable subrange `&mut collection[start..end]`"
+        }
+    };
+    diagnostics.push(diagnostics::Diagnostic::error(format!("{owner} {reason}")));
+    true
 }
 
 /// A completed borrowing operation: its exact storage source and the access

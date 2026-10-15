@@ -10,6 +10,12 @@
 //! checked entry constraint. Neither judgment requires a future last-use
 //! release: a carrier may instead move or be replaced after evaluating a RHS.
 //! Retirement alone consumes weakening boundaries and must preserve their phase.
+//!
+//! Runtime element origins are symbolic relations, not an enumeration of every
+//! slot or a recipe for forming descriptors. Expression and named-transition
+//! returns both consume captured normal-return custody. Static argument paths
+//! remain separate because selecting an existing descriptor requires its exact
+//! owner identity, not a possible backing region.
 
 use crate::type_applications::DeclarationScopes;
 use checked_trees::{
@@ -30,10 +36,9 @@ mod call_reception;
 pub use call_reception::{RecordCallReception, record_call_reception};
 mod captured_returns;
 mod declared_returns;
-pub use declared_returns::returned_sources as declared_return_sources;
-mod origin_paths;
 pub use captured_returns::call_sources as call_return_sources;
 pub use captured_returns::returned_sources as captured_return_sources;
+pub use declared_returns::returned_sources as declared_return_sources;
 
 // An owned formal has a compact type DAG but its returned-origin roster is
 // materialized by path. Bound that expansion before semantic classification or
@@ -534,204 +539,8 @@ fn nominal_member_owner_type<'p>(
     }
 }
 
-/// The expression producing a state's returned value: the tail expression
-/// statement, or the exit arm of a terminal return transition.
-pub fn tail_return_expression(
-    program: &dyn crate::CheckingInput,
-    state: &typed_trees::state::State,
-) -> Option<typed_trees::expression::ExpressionHandle> {
-    let last = program
-        .statement_table
-        .statements(state.statement_nodes)
-        .last()?;
-    match last {
-        StatementNode::Expression(expression) => Some(*expression),
-        StatementNode::Transition(transition)
-            if matches!(
-                transition.guard,
-                typed_trees::statement::TransitionGuardNode::Always
-            ) && transition.exit == typed_trees::statement::TransitionExit::Ordinary
-                && !transition.continuation.is_valid() =>
-        {
-            match program.statement_table.transition_target(transition.target) {
-                typed_trees::statement::TransitionTargetNode::Value(expression) => {
-                    Some(*expression)
-                }
-                _ => None,
-            }
-        }
-        _ => None,
-    }
-}
-
-/// Compose the origin relation of a value, independently of how it is returned
-/// or stored. Captured local custody comes from the borrow ledger, not this
-/// body's possible return relation. Control alternatives union origins at the
-/// same result path; aggregate children prefix that path instead.
-fn expression_sources(
-    program: &dyn crate::CheckingInput,
-    state: &typed_trees::state::State,
-    expression: typed_trees::expression::ExpressionHandle,
-    reference: TypeReferenceHandle,
-    active_origins: &mut Vec<SymbolHandle>,
-    call_frames: Option<&crate::CallFrameResolver<'_>>,
-) -> Option<Vec<checked_trees::CheckedReferenceResultSourcePlan>> {
-    if stored_loan_parts(program, reference).is_some()
-        && let Some(source) = initializer_source(program, state, expression, reference)
-    {
-        return Some(vec![checked_trees::CheckedReferenceResultSourcePlan {
-            path: Vec::new(),
-            source,
-        }]);
-    }
-    if crate::has_contents(
-        program,
-        reference,
-        &[],
-        crate::value_custody::storage_contents::ContentsRequirement::NumericOwned,
-    ) {
-        return Some(Vec::new());
-    }
-    if let Some(dispatch) = program.expression_table.match_node(expression) {
-        let arms = program.expression_table.match_arms(dispatch.arms);
-        if arms.is_empty() {
-            return None;
-        }
-        let mut sources = Vec::new();
-        for arm in arms {
-            // Every alternative must supply its complete relation. Selecting
-            // an arm does not prove which input loan obligations can end;
-            // declaration-level lifetime candidates remain live separately.
-            for source in expression_sources(
-                program,
-                state,
-                arm.value,
-                reference,
-                active_origins,
-                call_frames,
-            )? {
-                if !sources.contains(&source) {
-                    sources.push(source);
-                    if sources.len() > MAX_REFERENCE_ORIGIN_LEAVES {
-                        return None;
-                    }
-                }
-            }
-        }
-        return Some(sources);
-    }
-    if matches!(
-        program.expression_table.expression(expression),
-        ExpressionNode::Member(_) | ExpressionNode::Indexed(_)
-    ) {
-        return projected_construction_sources(
-            program,
-            state,
-            expression,
-            reference,
-            active_origins,
-            call_frames,
-        );
-    }
-    if stored_loan_parts(program, reference).is_none() && !is_reference_record(program, reference) {
-        return None;
-    }
-    if crate::exact_case_reference_owner(program, expression).is_some() {
-        return aggregate_construction_sources(
-            program,
-            state,
-            expression,
-            reference,
-            active_origins,
-            call_frames,
-        );
-    }
-    if let Some(name) = program.expression_table.name_path_node(expression) {
-        let [spelling] = program.expression_table.name_path_members(name.members) else {
-            return None;
-        };
-        if let Some((_, local)) = program.state_local_declaration(state, name.symbol) {
-            if local.is_mutable
-                || name.head_symbol != name.symbol
-                || local.name != *spelling
-                || program.symbols.get(name.symbol).parent != state.symbol
-                || program.normalized_type_identity(local.type_reference)
-                    != program.normalized_type_identity(reference)
-                || active_origins.contains(&local.symbol)
-            {
-                return None;
-            }
-            active_origins.push(local.symbol);
-            let sources = expression_sources(
-                program,
-                state,
-                local.initial_value,
-                reference,
-                active_origins,
-                call_frames,
-            );
-            active_origins.pop();
-            return sources;
-        }
-        let (ordinal, parameter) = program
-            .state_parameters(state)
-            .iter()
-            .filter(|parameter| is_mutable_structural_parameter(program, parameter))
-            .enumerate()
-            .find(|(_, parameter)| parameter.symbol == name.symbol)?;
-        if name.head_symbol != name.symbol
-            || program.symbols.get(name.symbol).parent != state.symbol
-            || parameter.name != *spelling
-            || program
-                .normalized_type_identity(input_carrier_type(program, parameter.type_reference)?)
-                != program.normalized_type_identity(reference)
-        {
-            return None;
-        }
-        return record_carrier_sources(
-            program,
-            reference,
-            checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
-                parameter_index: u32::try_from(ordinal).ok()?,
-            },
-        )
-        .map(|mut sources| {
-            if crate::reference_shell(program, parameter.type_reference).is_some() {
-                for source in &mut sources {
-                    source
-                        .source
-                        .path
-                        .insert(0, checked_trees::CheckedUnitStructuralPathSegment::Referent);
-                }
-            }
-            sources
-        });
-    }
-    if let Some(call) = program.expression_table.call_node(expression) {
-        call_sources(
-            program,
-            state,
-            call.target_symbol,
-            program.expression_table.expression_handles(call.arguments),
-            reference,
-            active_origins,
-            call_frames,
-        )
-    } else {
-        aggregate_construction_sources(
-            program,
-            state,
-            expression,
-            reference,
-            active_origins,
-            call_frames,
-        )
-    }
-}
-
 struct AggregateProjection {
     root: typed_trees::expression::ExpressionHandle,
-    root_type: TypeReferenceHandle,
     path: Vec<checked_trees::CheckedUnitStructuralPathSegment>,
     selected_type: TypeReferenceHandle,
 }
@@ -867,162 +676,9 @@ fn aggregate_projection(
     }
     Some(AggregateProjection {
         root,
-        root_type,
         path,
         selected_type: selected,
     })
-}
-
-/// Selecting an existing value preserves its source-only returned origins.
-/// The projection removes the selected owner prefix; captured descriptor
-/// custody remains independently available in the borrow ledger.
-fn projected_construction_sources(
-    program: &dyn crate::CheckingInput,
-    state: &typed_trees::state::State,
-    expression: typed_trees::expression::ExpressionHandle,
-    reference: TypeReferenceHandle,
-    active_origins: &mut Vec<SymbolHandle>,
-    call_frames: Option<&crate::CallFrameResolver<'_>>,
-) -> Option<Vec<checked_trees::CheckedReferenceResultSourcePlan>> {
-    let projection = aggregate_projection(program, state, expression)?;
-    if program.normalized_type_identity(projection.selected_type)
-        != program.normalized_type_identity(reference)
-    {
-        return None;
-    }
-    let sources = expression_sources(
-        program,
-        state,
-        projection.root,
-        projection.root_type,
-        active_origins,
-        call_frames,
-    )?;
-    Some(
-        sources
-            .into_iter()
-            .filter_map(|mut source| {
-                let suffix = source.path.strip_prefix(projection.path.as_slice())?;
-                source.path = suffix.to_vec();
-                Some(source)
-            })
-            .collect(),
-    )
-}
-
-/// Substitute returned permission leaves through the exact resolved invocation.
-/// Expression and terminal calls share this owner; neither creates a local loan.
-fn call_sources(
-    program: &dyn crate::CheckingInput,
-    state: &typed_trees::state::State,
-    target: SymbolHandle,
-    arguments: &[typed_trees::expression::ExpressionHandle],
-    reference: TypeReferenceHandle,
-    active_origins: &mut Vec<SymbolHandle>,
-    call_frames: Option<&crate::CallFrameResolver<'_>>,
-) -> Option<Vec<checked_trees::CheckedReferenceResultSourcePlan>> {
-    let (machine, destination) =
-        crate::machine_calls::calls::machine_state_by_symbol(program, target).or_else(|| {
-            let machine = program.machine_by_symbol(target)?;
-            Some((machine, program.machine_states(machine).first()?))
-        })?;
-    if machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody {
-        return None;
-    }
-    if active_origins.contains(&destination.symbol)
-        || program.normalized_type_identity(destination.return_type)
-            != program.normalized_type_identity(reference)
-    {
-        return None;
-    }
-    let parameters = program.state_parameters(destination);
-    if parameters.len() != arguments.len() || parameters.iter().any(|parameter| parameter.is_const)
-    {
-        return None;
-    }
-    active_origins.push(destination.symbol);
-    let sources = returned_sources(program, destination, active_origins, call_frames);
-    active_origins.pop();
-    let mut output = Vec::new();
-    for source in sources? {
-        let checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } =
-            source.source.source
-        else {
-            return None;
-        };
-        let (position, parameter) = parameters
-            .iter()
-            .enumerate()
-            .filter(|(_, parameter)| {
-                program
-                    .primitive_type_reference(parameter.type_reference)
-                    .is_none()
-            })
-            .nth(parameter_index as usize)?;
-        let actual_sources = expression_sources(
-            program,
-            state,
-            *arguments.get(position)?,
-            parameter.type_reference,
-            active_origins,
-            call_frames,
-        )?;
-        let borrowed_formal = stored_loan_parts(program, parameter.type_reference);
-        let selected_path = if let Some((referent, access)) = borrowed_formal {
-            if !reference_access_can_supply(access, source.source.access) {
-                return None;
-            }
-            // The callee's source reconstruction already authenticates each
-            // projected declaration and its final referent type. Substitution
-            // requires the actual to supply that exact formal referent; its
-            // existing backing path then precedes the callee's projection.
-            let identity = program.normalized_type_identity(referent);
-            if actual_sources.iter().any(|actual| {
-                !actual.path.is_empty()
-                    || actual.source.type_identity != identity
-                    || !reference_access_can_supply(actual.source.access, access)
-            }) {
-                return None;
-            }
-            &[][..]
-        } else {
-            let (last, path) = source.source.path.split_last()?;
-            if *last != checked_trees::CheckedUnitStructuralPathSegment::Referent
-                || !is_reference_record(program, parameter.type_reference)
-            {
-                return None;
-            }
-            // An owned carrier's stored reference supplies its captured
-            // origin. Its field path selects a permission leaf; it is not
-            // an address projection to append to that captured origin.
-            path
-        };
-        // Compose the retained origin relation by selected carrier path. A
-        // closed actual may not contain a formal's guarded case slot; that
-        // contributes no origin, not a missing permission to manufacture.
-        // Whole-reference actuals independently require a nonempty origin.
-        for mut actual in actual_sources
-            .into_iter()
-            .filter(|actual| actual.path == selected_path)
-        {
-            if !reference_access_can_supply(actual.source.access, source.source.access) {
-                return None;
-            }
-            if borrowed_formal.is_some() {
-                actual.source.path.extend_from_slice(&source.source.path);
-                actual.source.type_identity = source.source.type_identity.clone();
-            } else if actual.source.type_identity != source.source.type_identity {
-                return None;
-            }
-            actual.path = source.path.clone();
-            actual.source.access = source.source.access;
-            output.push(actual);
-            if output.len() > MAX_REFERENCE_ORIGIN_LEAVES {
-                return None;
-            }
-        }
-    }
-    Some(output)
 }
 
 fn reference_access_can_supply(
@@ -1039,11 +695,11 @@ fn reference_access_can_supply(
         )
 }
 
-/// Convert the shared complete result relation to executable custody without
-/// interpreting its display footprint. Internal-state substitution has already
-/// preserved every source and actual prefix. This boundary independently checks
-/// the exact declaration selectors, reference crossings and returned access;
-/// it neither creates a holder nor grants permission to borrow the backing.
+/// Exact source correspondences for descriptor forwarding and static argument
+/// transport. Runtime element families are borrowing origins, not a roster of
+/// resident descriptors: they stay in the frame relation and captured result
+/// publication. Decline them here rather than expanding an array's capacity.
+/// Each exact path still checks its reference crossings and returned access.
 fn whole_reference_sources(
     program: &dyn crate::CheckingInput,
     state: &typed_trees::state::State,
@@ -1078,78 +734,18 @@ fn whole_reference_sources(
             .filter(|parameter| is_mutable_structural_parameter(program, parameter))
             .enumerate()
             .find(|(_, parameter)| parameter.symbol == origin.root)?;
-        for segments in
-            origin_paths::fixed_backing_paths(program, parameter.type_reference, &origin.segments)?
-        {
-            let mut selected = parameter.type_reference;
-            let mut borrowed = false;
-            let mut path = Vec::with_capacity(origin.segments.len() + 1);
-            if let Some((referee, parameter_access)) = stored_loan_parts(program, selected) {
-                if !reference_access_can_supply(parameter_access, access) {
-                    return None;
-                }
-                selected = referee;
-                borrowed = true;
+        let segments = &origin.segments;
+        let mut selected = parameter.type_reference;
+        let mut borrowed = false;
+        let mut path = Vec::with_capacity(origin.segments.len() + 1);
+        if let Some((referee, parameter_access)) = stored_loan_parts(program, selected) {
+            if !reference_access_can_supply(parameter_access, access) {
+                return None;
             }
-            for segment in &segments {
-                if let Some((referee, leaf_access)) = stored_loan_parts(program, selected) {
-                    if !reference_access_can_supply(leaf_access, access) {
-                        return None;
-                    }
-                    path.push(checked_trees::CheckedUnitStructuralPathSegment::Referent);
-                    selected = referee;
-                    borrowed = true;
-                }
-                match segment {
-                    facts::PlaceSegment::Field { symbol } => {
-                        // The nominal lookup also peels reference shells. Every
-                        // crossing here must instead be admitted explicitly above
-                        // so an unsupported nested carrier cannot lose its access
-                        // check or its Referent step during field lookup.
-                        if crate::reference_shell(program, selected).is_some() {
-                            return None;
-                        }
-                        let data = nominal_member_owner_type(program, selected)?;
-                        let field =
-                            program
-                                .data_members(data)
-                                .iter()
-                                .find_map(|member| match member {
-                                    typed_trees::data::DataMember::Field(field)
-                                        if field.symbol == *symbol
-                                            && !field.relevance.is_erased() =>
-                                    {
-                                        Some(field)
-                                    }
-                                    _ => None,
-                                })?;
-                        path.push(checked_trees::CheckedUnitStructuralPathSegment::Field(
-                            checked_trees::CheckedMemberIdentity::of_member(
-                                field.identity,
-                                field.name.clone(),
-                            ),
-                        ));
-                        selected = field.type_reference;
-                    }
-                    facts::PlaceSegment::FixedIndex { index } => {
-                        selected = loop {
-                            match program.type_reference_table.type_reference(selected) {
-                                TypeReferenceNode::Constrained { base_type, .. } => {
-                                    selected = *base_type
-                                }
-                                TypeReferenceNode::FixedArray { element_type, .. } => {
-                                    break *element_type;
-                                }
-                                _ => return None,
-                            }
-                        };
-                        path.push(checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(
-                            u64::try_from(*index).ok()?,
-                        ));
-                    }
-                    _ => return None,
-                }
-            }
+            selected = referee;
+            borrowed = true;
+        }
+        for segment in segments {
             if let Some((referee, leaf_access)) = stored_loan_parts(program, selected) {
                 if !reference_access_can_supply(leaf_access, access) {
                     return None;
@@ -1158,123 +754,89 @@ fn whole_reference_sources(
                 selected = referee;
                 borrowed = true;
             }
-            if !borrowed
-                || program.normalized_type_identity(selected)
-                    != program.normalized_type_identity(referent)
-            {
+            match segment {
+                facts::PlaceSegment::Field { symbol } => {
+                    // The nominal lookup also peels reference shells. Every
+                    // crossing here must instead be admitted explicitly above
+                    // so an unsupported nested carrier cannot lose its access
+                    // check or its Referent step during field lookup.
+                    if crate::reference_shell(program, selected).is_some() {
+                        return None;
+                    }
+                    let data = nominal_member_owner_type(program, selected)?;
+                    let field =
+                        program
+                            .data_members(data)
+                            .iter()
+                            .find_map(|member| match member {
+                                typed_trees::data::DataMember::Field(field)
+                                    if field.symbol == *symbol && !field.relevance.is_erased() =>
+                                {
+                                    Some(field)
+                                }
+                                _ => None,
+                            })?;
+                    path.push(checked_trees::CheckedUnitStructuralPathSegment::Field(
+                        checked_trees::CheckedMemberIdentity::of_member(
+                            field.identity,
+                            field.name.clone(),
+                        ),
+                    ));
+                    selected = field.type_reference;
+                }
+                facts::PlaceSegment::FixedIndex { index } => {
+                    selected = loop {
+                        match program.type_reference_table.type_reference(selected) {
+                            TypeReferenceNode::Constrained { base_type, .. } => {
+                                selected = *base_type
+                            }
+                            TypeReferenceNode::FixedArray { element_type, .. } => {
+                                break *element_type;
+                            }
+                            _ => return None,
+                        }
+                    };
+                    path.push(checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(
+                        u64::try_from(*index).ok()?,
+                    ));
+                }
+                _ => return None,
+            }
+        }
+        if let Some((referee, leaf_access)) = stored_loan_parts(program, selected) {
+            if !reference_access_can_supply(leaf_access, access) {
                 return None;
             }
-            let source = checked_trees::CheckedUnitStructuralArgumentPlan {
-                source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
-                    parameter_index: u32::try_from(parameter_index).ok()?,
-                },
-                path,
-                type_identity: program.normalized_type_identity(referent),
-                access,
-            };
-            let source = checked_trees::CheckedReferenceResultSourcePlan {
-                path: Vec::new(),
-                source,
-            };
-            if !sources.contains(&source) {
-                if sources.len() == MAX_REFERENCE_ORIGIN_LEAVES {
-                    return None;
-                }
-                sources.push(source);
+            path.push(checked_trees::CheckedUnitStructuralPathSegment::Referent);
+            selected = referee;
+            borrowed = true;
+        }
+        if !borrowed
+            || program.normalized_type_identity(selected)
+                != program.normalized_type_identity(referent)
+        {
+            return None;
+        }
+        let source = checked_trees::CheckedUnitStructuralArgumentPlan {
+            source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                parameter_index: u32::try_from(parameter_index).ok()?,
+            },
+            path,
+            type_identity: program.normalized_type_identity(referent),
+            access,
+        };
+        let source = checked_trees::CheckedReferenceResultSourcePlan {
+            path: Vec::new(),
+            source,
+        };
+        if !sources.contains(&source) {
+            if sources.len() == MAX_REFERENCE_ORIGIN_LEAVES {
+                return None;
             }
+            sources.push(source);
         }
     }
     Some(sources)
-}
-
-fn returned_sources(
-    program: &dyn crate::CheckingInput,
-    state: &typed_trees::state::State,
-    active_origins: &mut Vec<SymbolHandle>,
-    call_frames: Option<&crate::CallFrameResolver<'_>>,
-) -> Option<Vec<checked_trees::CheckedReferenceResultSourcePlan>> {
-    if stored_loan_parts(program, state.return_type).is_some() {
-        return whole_reference_sources(program, state, call_frames);
-    }
-    let mut sources = Vec::new();
-    let mut has_normal_completion = false;
-    for statement in program.statement_table.statements(state.statement_nodes) {
-        let Some(transition) = statement.as_transition() else {
-            continue;
-        };
-        // A crash has no normal result and therefore contributes no origin.
-        // Ordinary continuations still require their own completion analysis.
-        if matches!(transition.exit, TransitionExit::Crash(_)) {
-            continue;
-        }
-        if transition.continuation.is_valid() {
-            return None;
-        }
-        let returned = match program.statement_table.transition_target(transition.target) {
-            TransitionTargetNode::Value(expression) => expression_sources(
-                program,
-                state,
-                *expression,
-                state.return_type,
-                active_origins,
-                call_frames,
-            )?,
-            TransitionTargetNode::Named {
-                path, arguments, ..
-            } => call_sources(
-                program,
-                state,
-                path.symbol,
-                program.statement_table.expression_handles(*arguments),
-                state.return_type,
-                active_origins,
-                call_frames,
-            )?,
-            TransitionTargetNode::Terminal => return None,
-        };
-        has_normal_completion = true;
-        for source in returned {
-            if !sources.iter().any(
-                |existing: &checked_trees::CheckedReferenceResultSourcePlan| existing == &source,
-            ) {
-                sources.push(source);
-            }
-        }
-    }
-    if let Some(StatementNode::Expression(expression)) = program
-        .statement_table
-        .statements(state.statement_nodes)
-        .last()
-    {
-        has_normal_completion = true;
-        for source in expression_sources(
-            program,
-            state,
-            *expression,
-            state.return_type,
-            active_origins,
-            call_frames,
-        )? {
-            if !sources.iter().any(|existing| existing == &source) {
-                sources.push(source);
-            }
-        }
-    }
-    // A normal completion can return a payload-free alternative of a type
-    // whose other cases store references. Its complete origin relation is
-    // empty; absence of a supported completion remains a different failure.
-    has_normal_completion.then_some(sources)
-}
-
-/// Borrow an already prepared compilation resolver through every substituted
-/// origin query. Standalone consumers prepare their own resolver; source
-/// checks must not rebuild whole-program symbol tables for each returned view.
-pub fn returned_reference_sources(
-    program: &dyn crate::CheckingInput,
-    state: &typed_trees::state::State,
-    call_frames: Option<&crate::CallFrameResolver<'_>>,
-) -> Option<Vec<checked_trees::CheckedReferenceResultSourcePlan>> {
-    returned_sources(program, state, &mut vec![state.symbol], call_frames)
 }
 
 /// A terminal invocation forwards its reference directly to the state's return.
@@ -1282,10 +844,11 @@ pub fn returned_reference_sources(
 /// is therefore the custody, rather than a fabricated local loan handle.
 pub fn terminal_call_reference_sources(
     program: &dyn crate::CheckingInput,
+    facts: &CheckFacts,
     state: &typed_trees::state::State,
     call: &checked_trees::FlowCallFact,
     result: &CheckedUnitStructuralResultBindingPlan,
-) -> Option<Vec<checked_trees::CheckedReferenceResultSourcePlan>> {
+) -> Option<Vec<checked_trees::CheckedReturnedReferencePlan>> {
     if call.authored_expression.is_valid()
         || call.statement_index != result.statement_index as usize
         || stored_loan_parts(program, state.return_type).is_none()
@@ -1300,9 +863,8 @@ pub fn terminal_call_reference_sources(
     if transition.exit != TransitionExit::Ordinary || transition.continuation.is_valid() {
         return None;
     }
-    let TransitionTargetNode::Named {
-        path, arguments, ..
-    } = program.statement_table.transition_target(transition.target)
+    let TransitionTargetNode::Named { path, .. } =
+        program.statement_table.transition_target(transition.target)
     else {
         return None;
     };
@@ -1323,15 +885,7 @@ pub fn terminal_call_reference_sources(
     {
         return None;
     }
-    call_sources(
-        program,
-        state,
-        target.symbol,
-        program.statement_table.expression_handles(*arguments),
-        state.return_type,
-        &mut vec![state.symbol],
-        None,
-    )
+    captured_returns::terminal_call_sources(program, facts, state, call)
 }
 
 /// A stored carrier transports its existing borrowed leaves. Reference leaves
@@ -1549,137 +1103,6 @@ pub fn input_carrier_type(
     }
 }
 
-fn aggregate_construction_sources(
-    program: &dyn crate::CheckingInput,
-    state: &typed_trees::state::State,
-    expression: typed_trees::expression::ExpressionHandle,
-    reference: TypeReferenceHandle,
-    active_origins: &mut Vec<SymbolHandle>,
-    call_frames: Option<&crate::CallFrameResolver<'_>>,
-) -> Option<Vec<checked_trees::CheckedReferenceResultSourcePlan>> {
-    // Enumerate semantic children once, then compose every child's captured
-    // loans through its exact stored path. A field and an array slot differ
-    // in their projection, not in the ownership of the reference they hold.
-    let mut children = Vec::new();
-    if let TypeReferenceNode::FixedArray {
-        element_type,
-        length: typed_trees::types::FixedArrayLength::Literal(length),
-    } = program.type_reference_table.type_reference(reference)
-    {
-        let literal = program.expression_table.array_literal_node(expression)?;
-        let elements = program.expression_table.expression_handles(*literal);
-        if elements.len() != *length {
-            return None;
-        }
-        for (index, expression) in elements.iter().enumerate() {
-            children.push((
-                vec![checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(
-                    u64::try_from(index).ok()?,
-                )],
-                *expression,
-                *element_type,
-            ));
-        }
-    } else if let Some(constructor) =
-        crate::structural_case_constructor(program, expression, reference)
-    {
-        let data = program.closed_data_definition(constructor.type_reference)?;
-        let case = program
-            .data_members(data)
-            .iter()
-            .find_map(|member| match member {
-                typed_trees::data::DataMember::Variant(case) if case.symbol == constructor.case => {
-                    Some(case)
-                }
-                _ => None,
-            })?;
-        for (symbol, expression, reference) in constructor.fields {
-            let (field, mut path) = if let Some(field) = program
-                .data_payload_fields(case)
-                .iter()
-                .find(|field| field.symbol == symbol)
-            {
-                (
-                    field,
-                    vec![checked_trees::CheckedUnitStructuralPathSegment::Case(
-                        checked_trees::CheckedMemberIdentity::of_member(
-                            case.identity,
-                            case.name.clone(),
-                        ),
-                    )],
-                )
-            } else {
-                let field = program
-                    .data_members(data)
-                    .iter()
-                    .find_map(|member| match member {
-                        typed_trees::data::DataMember::Field(field) if field.symbol == symbol => {
-                            Some(field)
-                        }
-                        _ => None,
-                    })?;
-                (field, Vec::new())
-            };
-            path.push(checked_trees::CheckedUnitStructuralPathSegment::Field(
-                checked_trees::CheckedMemberIdentity::of_member(field.identity, field.name.clone()),
-            ));
-            children.push((path, expression, reference));
-        }
-    } else {
-        let literal = program.expression_table.struct_literal_node(expression)?;
-        let data = program.closed_data_constructor_definition(reference, literal.type_symbol)?;
-        if literal.case_symbol.is_some() {
-            return None;
-        }
-        let initializers = program.expression_table.struct_fields(literal.fields);
-        let fields = program.data_members(data);
-        if initializers.len() != fields.len() {
-            return None;
-        }
-        for member in fields {
-            let field = member.as_field()?;
-            let mut matching = initializers.iter().filter(|initializer| {
-                program
-                    .closed_data_constructor_field(
-                        reference,
-                        literal.type_symbol,
-                        initializer.field_symbol,
-                    )
-                    .is_some_and(|selected| selected.symbol == field.symbol)
-            });
-            let initializer = matching.next()?;
-            if matching.next().is_some() {
-                return None;
-            }
-            children.push((
-                vec![checked_trees::CheckedUnitStructuralPathSegment::Field(
-                    checked_trees::CheckedMemberIdentity::of_member(
-                        field.identity,
-                        field.name.clone(),
-                    ),
-                )],
-                initializer.value,
-                field.type_reference,
-            ));
-        }
-    }
-    let mut output = Vec::new();
-    for (path, expression, reference) in children {
-        for mut source in expression_sources(
-            program,
-            state,
-            expression,
-            reference,
-            active_origins,
-            call_frames,
-        )? {
-            source.path.splice(0..0, path.iter().cloned());
-            output.push(source);
-        }
-    }
-    Some(output)
-}
-
 /// Whether a local of type `reference` must join its stored
 /// carrier leaves to captured loans (`local_record_loans`). Record loans
 /// belong to a locally constructed record holding reference carriers. A bare
@@ -1872,15 +1295,17 @@ pub fn replaced_reference_carrier(
     let [group] = groups.as_slice() else {
         return None;
     };
-    // Pointer carriers cross their stored reference shell. A slice leaf instead
-    // names its view descriptor directly and keeps its existing view cleanup.
+    // Pointer carriers cross their stored reference shell; a slice leaf names
+    // its descriptor directly. Both retire the exact prior carrier occurrence,
+    // never the referent or a descendant loan that survives this replacement.
     if group.0.path != selection
-        || group
-            .0
-            .source
-            .path
-            .strip_suffix(&[checked_trees::CheckedUnitStructuralPathSegment::Referent])
-            != Some(selection)
+        || (group.0.source.path != selection
+            && group
+                .0
+                .source
+                .path
+                .strip_suffix(&[checked_trees::CheckedUnitStructuralPathSegment::Referent])
+                != Some(selection))
         || !facts.borrow.loan_group(group.1)?.all(|(handle, _)| {
             loan_weakening(facts, machine, state.symbol, handle).is_some_and(|weakening| {
                 weakening.reason == checked_trees::FlowBorrowWeakeningReason::LocalReassigned

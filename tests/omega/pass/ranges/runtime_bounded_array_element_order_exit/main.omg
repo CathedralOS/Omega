@@ -1,0 +1,29 @@
+// Expected exit: 0. Scalar homes snapshot each element before the next call,
+// including construction inside a scalar-returning machine.
+machine replace(value: &mut u64 [0..=9223372036854775808u64])
+    -> u64 [0..=9223372036854775808u64] {
+    value = 8;
+    9223372036854775808u64
+}
+
+machine ordered(value: &mut u64 [0..=9223372036854775808u64]) -> u64 {
+    let values: [u64 [0..=9223372036854775808u64]; 2] =
+        [value, replace(&mut value)];
+    values[0]
+}
+
+machine main() crashes Trap {
+    let mut value: u64 [0..=9223372036854775808u64] = 7;
+    let captured: u64 = ordered(&mut value);
+    let mut original: [u64 [0..=9223372036854775808u64]; 2] =
+        [value, replace(&mut value)];
+    let copied: [u64 [0..=9223372036854775808u64]; 2] = original;
+    original[0] = 9;
+    transition captured == 7 && value == 8 && original[0] == 9
+        && copied[0] == 8 && copied[1] == 9223372036854775808u64 {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

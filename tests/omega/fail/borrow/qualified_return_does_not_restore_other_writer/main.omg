@@ -1,0 +1,24 @@
+// Returning one qualified actual cannot repair a different writer's storage.
+domain [u8; 8]::Utf8(bytes) requires valid_utf8(bytes);
+machine replace_and_corrupt(valid: &write [u8; 8] in Utf8, raw: &mut [u8; 8]) {
+    valid = "new";
+    raw[0] = 255;
+}
+machine corrupt(entries: &mut [[u8; 8] in Utf8; 2]) {
+    replace_and_corrupt(&write entries[0], &mut entries[1]);
+}
+
+// A stored pointer crosses away from the aggregate's inline qualified field.
+// Restoring that field cannot restore a stronger predicate on the pointer's
+// actual backing, even when the pointer's weaker Utf8 contract still holds.
+domain [u8; 8]::Ascii(bytes) requires ascii_only(bytes);
+data Bundle { inline: [u8; 8] in Ascii & Utf8; raw: &mut [u8; 8] in Utf8; }
+machine replace_pointer(bytes: &mut [u8; 8] in Utf8) { bytes = "é"; }
+machine restore_inline(bundle: &mut Bundle) {
+    bundle.inline = "ok";
+    replace_pointer(bundle.raw);
+}
+machine corrupt_through_stored_reference(entries: &mut [[u8; 8] in Ascii & Utf8; 2]) {
+    let mut bundle: Bundle = Bundle { inline: "ok", raw: &mut entries[1] };
+    restore_inline(&mut bundle);
+}

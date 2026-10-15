@@ -11,10 +11,12 @@ use target_operations::{TargetBooleanExpression, TargetScalarExpression, Termina
 use target_operations::{TargetControlSuccessor, TargetControlTerminator};
 use terminal_psi::{StructuralAccess, StructuralMultiplicity, TerminalAffineCleanupAction};
 
-/// A materialized descriptor owns its affine carrier, not the borrowed backing.
+/// A materialized descriptor owns its carrier, not the borrowed backing.
 /// The live definition is installed only after view/access reconstruction; rejoin
 /// its exact producer and result contract before accepting a no-code discard.
-fn affine_view_carrier(
+/// Copyability permits independent descriptors; it does not keep a replaced
+/// descriptor alive or authorize disposal of a linear carrier.
+fn disposable_view_carrier(
     live: &LiveDefinitions,
     function: &AbstractFunction,
     types: &StructuralTypeLookup<'_>,
@@ -23,8 +25,10 @@ fn affine_view_carrier(
     let Some(result) = live.view_result(function, place) else {
         return false;
     };
-    result.multiplicity == StructuralMultiplicity::Affine
-        && result.claims.is_empty()
+    matches!(
+        result.multiplicity,
+        StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+    ) && result.claims.is_empty()
         && result.qualifications.is_empty()
         && result.projected_qualifications.is_empty()
         && result.qualification_establishments.is_empty()
@@ -94,7 +98,7 @@ pub(super) fn plain_home_cleanup(
     live: &mut LiveDefinitions,
     structural_types: &StructuralTypeLookup<'_>,
     actions: &[TerminalAffineCleanupAction],
-) -> Result<bool, LoweringError> {
+) -> Result<(), LoweringError> {
     // The checked action stream owns semantic disposition and ordering. A
     // nominal hook retires its own obligation before descendant hooks run;
     // invoking it is not destruction of every field in its receiver region.
@@ -109,9 +113,13 @@ pub(super) fn plain_home_cleanup(
                 // captured by another carrier.
                 if owned_root_type(live, function, *place).is_none()
                     && !live.retired_reference_roots.contains(place)
-                    && !affine_view_carrier(live, function, structural_types, *place)
+                    && !disposable_view_carrier(live, function, structural_types, *place)
                 {
-                    return Ok(false);
+                    return Err(LoweringError::InvalidStructuralValueInput {
+                        machine: function.machine,
+                        place: *place,
+                        reason: "home retirement has no owned home or materialized view carrier",
+                    });
                 }
                 // Retire the carrier's remaining metadata, not its pointees.
                 // A signature roster includes inactive alternatives after a
@@ -125,8 +133,16 @@ pub(super) fn plain_home_cleanup(
             }
             TerminalAffineCleanupAction::DiscardRoot(place) => {
                 if live.views.contains_key(place) {
-                    if !affine_view_carrier(live, function, structural_types, *place) {
-                        return Ok(false);
+                    if !live
+                        .view_result(function, *place)
+                        .is_some_and(|result| result.multiplicity == StructuralMultiplicity::Affine)
+                        || !disposable_view_carrier(live, function, structural_types, *place)
+                    {
+                        return Err(LoweringError::InvalidStructuralValueInput {
+                            machine: function.machine,
+                            place: *place,
+                            reason: "view discard has no affine descriptor carrier",
+                        });
                     }
                     // Keep the dominating definition available for sibling-edge
                     // reconstruction. The target cleanup action retires this
@@ -145,13 +161,21 @@ pub(super) fn plain_home_cleanup(
                     continue;
                 }
                 if !live_home_or_arrival(live, function, *place) {
-                    return Ok(false);
+                    return Err(LoweringError::InvalidStructuralValueInput {
+                        machine: function.machine,
+                        place: *place,
+                        reason: "root discard has no live home or arrival",
+                    });
                 }
                 super::references::discard_owned(function, structural_types, live, *place)?;
             }
             TerminalAffineCleanupAction::DiscardResidual(discard) => {
                 if !residual_cleanup(function, live, structural_types, discard) {
-                    return Ok(false);
+                    return Err(LoweringError::InvalidStructuralValueInput {
+                        machine: function.machine,
+                        place: discard.place,
+                        reason: "residual discard does not match the owned storage subtree",
+                    });
                 }
                 super::references::discard_subtree(
                     function,
@@ -168,12 +192,16 @@ pub(super) fn plain_home_cleanup(
                     .and_then(|root| structural_types.subtree(root, &cleanup.path))
                     != Some(cleanup.structural_type)
                     || !cleanup.requirement_obligations.is_empty()
-                    || !abstract_operations::control_flow::address_joins::is_static_projection(
-                        &cleanup.path,
-                    )
                 {
-                    return Ok(false);
+                    return Err(LoweringError::InvalidStructuralValueInput {
+                        machine: function.machine,
+                        place: cleanup.place,
+                        reason: "nominal cleanup receiver or requirement obligations are not realized",
+                    });
                 }
+                // The ordinary borrowed call above already transports runtime
+                // selectors. Cleanup retains that captured receiver rather
+                // than requiring a second, static-only address route.
                 // Normal hook completion retires the same owner's embedded
                 // loans before the next action or successor. Physical storage
                 // stays live through the edge-owned call selected above.
@@ -187,7 +215,7 @@ pub(super) fn plain_home_cleanup(
             }
         }
     }
-    Ok(true)
+    Ok(())
 }
 
 pub(super) fn lower_terminator(
@@ -213,10 +241,10 @@ pub(super) fn lower_terminator(
     // Owned parameters owe the same no-code disposition after observation;
     // current ownership validation, not their physical home kind, establishes
     // availability and exact disposal order.
-    let cleanup = |live: &mut LiveDefinitions, actions: &[TerminalAffineCleanupAction]| {
-        if !plain_home_cleanup(function, live, structural_types, actions)? {
-            return Err(LoweringError::unsupported_control_flow(function.machine));
-        }
+    let cleanup = |live: &mut LiveDefinitions,
+                   actions: &[TerminalAffineCleanupAction]|
+     -> Result<Vec<TerminalAffineCleanupAction>, LoweringError> {
+        plain_home_cleanup(function, live, structural_types, actions)?;
         Ok(actions.to_vec())
     };
     let successor = |live: &mut LiveDefinitions,
@@ -354,9 +382,7 @@ pub(super) fn lower_terminator(
                 .result
                 .structural()
                 .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
-            if !plain_home_cleanup(function, live, structural_types, cleanup_actions)? {
-                return Err(LoweringError::unsupported_control_flow(function.machine));
-            }
+            plain_home_cleanup(function, live, structural_types, cleanup_actions)?;
             let cleanup_actions = cleanup_actions.clone();
             if terminal_semantics::descriptor_results::is_shared_descriptor(
                 structural_types.values().copied(),
@@ -379,12 +405,14 @@ pub(super) fn lower_terminator(
                             .get(source)
                             .filter(|_| {
                                 result.multiplicity == StructuralMultiplicity::Unrestricted
-                                    || affine_view_carrier(
+                                    || (live.view_result(function, *source).is_some_and(|source| {
+                                        source.multiplicity == StructuralMultiplicity::Affine
+                                    }) && disposable_view_carrier(
                                         live,
                                         function,
                                         structural_types,
                                         *source,
-                                    )
+                                    ))
                             })
                             .map(|(_, identity)| *identity)
                     })
@@ -515,13 +543,10 @@ pub(super) fn lower_terminator(
                 .result
                 .scalar()
                 .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
-            if *result != expected.value
-                || *scalar_type != expected.scalar_type
-                || (!cleanup_actions.is_empty()
-                    && !plain_home_cleanup(function, live, structural_types, cleanup_actions)?)
-            {
+            if *result != expected.value || *scalar_type != expected.scalar_type {
                 return Err(LoweringError::unsupported_control_flow(function.machine));
             }
+            plain_home_cleanup(function, live, structural_types, cleanup_actions)?;
             let expression = if matches!(scalar_type, ScalarType::IeeeFloat(_)) {
                 TargetScalarExpression::IeeeFloat(super::scalar_sources::source(
                     *value, function, live,
@@ -561,9 +586,7 @@ pub(super) fn lower_terminator(
             // Current ownership validation owns the exact live frontier and
             // action order. Native admission retains each original owner home;
             // executable actions use the independently reconstructed call ABI.
-            if !plain_home_cleanup(function, live, structural_types, cleanup_actions)? {
-                return Err(LoweringError::unsupported_control_flow(function.machine));
-            }
+            plain_home_cleanup(function, live, structural_types, cleanup_actions)?;
             provenance.edges.push(*psi_edge);
             Ok(TargetControlTerminator::Return {
                 psi_edge: *psi_edge,

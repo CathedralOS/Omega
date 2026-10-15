@@ -72,7 +72,7 @@ pub(crate) fn independently_accepted_operation_fact(
                 .iter()
                 .find(|fact| {
                     fact.machine == function.machine
-                        && fact.operation == operation
+                        && fact.owner == optimization_unit::PsiProvenance::Operation(operation)
                         && fact.obligation == obligation
                 })
                 .map(|fact| fact.identity)

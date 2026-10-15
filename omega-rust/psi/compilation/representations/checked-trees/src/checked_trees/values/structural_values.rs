@@ -98,6 +98,12 @@ pub enum CheckedStructuralValueKind {
         license: CheckedQuotientAdaptationLicense,
     },
 
+    /// An evaluated scalar established in its declared structural storage.
+    /// The scalar computation supplies the value; the receiving type supplies
+    /// an independent initialization obligation, just as for a primitive local.
+    Scalar {
+        value: CheckedScalarComputationHandle,
+    },
     /// Capture borrowed storage into an owned permission carrier.
     /// A record field consumes this carrier, never a scalar referent snapshot.
     Reference {

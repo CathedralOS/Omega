@@ -554,7 +554,10 @@ pub(super) fn project(
                                 .iter()
                                 .find(|fact| {
                                     fact.machine == optimized.machine
-                                        && fact.operation == *psi_operation
+                                        && fact.owner
+                                            == optimization_unit::PsiProvenance::Operation(
+                                                *psi_operation,
+                                            )
                                         && fact.obligation == *obligation
                                 })
                                 .ok_or(Error::custody())?

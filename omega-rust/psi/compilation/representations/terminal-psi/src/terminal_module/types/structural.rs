@@ -454,6 +454,17 @@ impl StructuralFieldType {
         access: crate::StructuralAccess,
         expected: Option<&StructuralTypeDeclaration>,
     ) -> Option<Self> {
+        if access != crate::StructuralAccess::Owned
+            && let Some(carrier @ ByteSequenceCarrier::BoundedOwned { .. }) =
+                self.byte_sequence_carrier()
+            && let Some(expected) = expected
+            && expected.shape == StructuralTypeShape::ByteSequence(carrier)
+        {
+            // The call explicitly supplies this presentation. The field keeps
+            // its own storage identity and predicates; equal-shaped catalog
+            // entries cannot choose a nominal identity on its behalf.
+            return Some(Self::Structural(expected.id));
+        }
         if expected.is_some_and(|expected| expected.scalar_restriction.as_ref() == Some(self)) {
             return self.canonical_leaf_type();
         }

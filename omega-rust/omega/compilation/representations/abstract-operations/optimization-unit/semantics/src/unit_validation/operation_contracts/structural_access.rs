@@ -110,6 +110,46 @@ impl StructuralSourceContract<'_> {
                 self.carries_qualification(&selected, qualification.domain)
             })
     }
+
+    pub(crate) fn selected_qualifications(
+        &self,
+        path: &[terminal_psi::StructuralPathSegment],
+    ) -> (
+        Vec<StructuralDomainId>,
+        Vec<terminal_psi::StructuralPathQualification>,
+    ) {
+        terminal_psi::StructuralPathQualification::select(
+            self.qualifications,
+            self.projected_qualifications,
+            path,
+        )
+    }
+
+    /// A loan receives the selected occurrence's memberships. Exclusive
+    /// receivers also retain every obligation they must restore; neither a
+    /// call nor a state edge can erase those obligations by changing carriers.
+    pub(crate) fn borrowed_qualifications_match(
+        &self,
+        path: &[terminal_psi::StructuralPathSegment],
+        parameter: &terminal_psi::StructuralParameterDeclaration,
+    ) -> bool {
+        let (whole, projected) = self.selected_qualifications(path);
+        parameter
+            .qualifications
+            .iter()
+            .all(|domain| whole.contains(domain))
+            && parameter
+                .projected_qualifications
+                .iter()
+                .all(|row| projected.contains(row))
+            && (parameter.access == terminal_psi::StructuralAccess::SharedBorrow
+                || (whole
+                    .iter()
+                    .all(|domain| parameter.qualifications.contains(domain))
+                    && projected
+                        .iter()
+                        .all(|row| parameter.projected_qualifications.contains(row))))
+    }
 }
 
 pub(crate) fn structural_arguments_match<'declaration, Formal>(
@@ -178,6 +218,56 @@ where
             return false;
         }
 
+        let Some(source) = structural_source_contract(caller, argument.place) else {
+            return false;
+        };
+        let borrowed_owner_expected = parameter.access != terminal_psi::StructuralAccess::Owned
+            && types
+                .get(&parameter.structural_type)
+                .is_some_and(|declaration| declaration.shape.is_bounded_owned_byte_sequence());
+        // Call-scoped owner loans use the current home's contract regardless
+        // of its producer. Pointer crossings retain their declared authority;
+        // inline fields retain their predicates without a nominal endpoint.
+        let bounded_owner_presentation = borrowed_owner_expected
+            && projection != StructuralProjectionPolicy::Boundary
+            && !source.has_result_evidence()
+            // Arrivals supply authenticated entry obligations. A completed
+            // owned value instead needs its current content derivation below;
+            // its advertised qualifications alone cannot establish membership.
+            && (((source.access != terminal_psi::StructuralAccess::Owned
+                || !argument.path.is_empty()
+                || caller.arrival_parameter(argument.place).is_some_and(|arrival| {
+                    abstract_operations::control_flow::owner_loans::is_owned_bounded_byte_parameter(
+                        arrival,
+                        |identity| types.get(&identity).copied(),
+                    )
+                }))
+                && terminal_semantics::bounded_byte_owner_capacity_in(
+                types.values().copied(),
+                domains.values().copied(),
+                &terminal_psi::StructuralParameterDeclaration {
+                    place: argument.place,
+                    position: parameter.position,
+                    structural_type: source.structural_type,
+                    multiplicity: source.multiplicity,
+                    access: source.access,
+                    qualifications: source.qualifications.to_vec(),
+                    projected_qualifications: source.projected_qualifications.to_vec(),
+                },
+                argument,
+                parameter,
+            )
+            .is_some())
+                || owned_bounded_owner_loan(caller, argument, parameter, &source, types, domains))
+            && !caller
+                .entry_claim_declarations
+                .iter()
+                .any(|claim| claim.input == argument.place)
+            && !caller
+                .content_entry_claims
+                .iter()
+                .any(|claim| claim.input.root == argument.place);
+
         // A projection through a reference carrier names the carrier's exact
         // primitive referent, never a byte of the carrier itself. This mirrors
         // the verified call rule: internal calls only, exact parameter match.
@@ -187,20 +277,56 @@ where
         {
             let selected =
                 crate::unit_validation::references::call_source_type(caller, types, argument);
+            // Crossing a descriptor changes coordinates, not the call's
+            // membership contract. Exclusive callees must preserve every
+            // selected obligation as well as receive their requested facts.
             let admitted = !matches!(projection, StructuralProjectionPolicy::Boundary)
-                && selected == Some(parameter.structural_type)
                 && argument.access == parameter.access
                 && parameter.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
-                && parameter.qualifications.is_empty()
-                && parameter.projected_qualifications.is_empty();
+                && (bounded_owner_presentation
+                    || (selected == Some(parameter.structural_type)
+                        && source.borrowed_qualifications_match(&argument.path, parameter)));
             if !admitted {
                 return false;
             }
             continue;
         }
-        let Some(source) = structural_source_contract(caller, argument.place) else {
-            return false;
-        };
+        // Moving or exclusively lending a descriptor does not own its referent. Keep obligations
+        // below exclusive pointer boundaries even when the receiving aggregate
+        // would otherwise be allowed to forget ordinary value memberships.
+        if argument.access != terminal_psi::StructuralAccess::SharedBorrow
+            && parameter.access != terminal_psi::StructuralAccess::SharedBorrow
+        {
+            let (_, selected) = source.selected_qualifications(&argument.path);
+            for row in selected {
+                let Some(crossing) = row
+                    .path
+                    .iter()
+                    .position(|segment| *segment == terminal_psi::StructuralPathSegment::Referent)
+                else {
+                    continue;
+                };
+                let mut descriptor = argument.path.clone();
+                descriptor.extend_from_slice(&row.path[..crossing]);
+                let needs_preservation = terminal_semantics::runtime_structural_path_tip(
+                    types.values().copied(),
+                    source.structural_type,
+                    &descriptor,
+                )
+                .is_none_or(|declaration| {
+                    !matches!(
+                        declaration.shape,
+                        terminal_psi::StructuralTypeShape::Reference {
+                            access: terminal_psi::StructuralAccess::SharedBorrow,
+                            ..
+                        }
+                    )
+                });
+                if needs_preservation && !parameter.projected_qualifications.contains(&row) {
+                    return false;
+                }
+            }
+        }
         // Moving a carrier remains a custody operation. Lending payload must
         // also fit the backing permission; Owned is not permission to mutate
         // through a returned or copied shared descriptor.
@@ -414,37 +540,6 @@ where
                 qualifications: source.qualifications.to_vec(),
                 projected_qualifications: source.projected_qualifications.to_vec(),
             })
-            && !caller
-                .entry_claim_declarations
-                .iter()
-                .any(|claim| claim.input == argument.place)
-            && !caller
-                .content_entry_claims
-                .iter()
-                .any(|claim| claim.input.root == argument.place);
-        let borrowed_owner_expected = matches!(
-            parameter.access,
-            terminal_psi::StructuralAccess::SharedBorrow
-                | terminal_psi::StructuralAccess::MutableBorrow
-                | terminal_psi::StructuralAccess::WriteOnlyBorrow
-        ) && types
-            .get(&parameter.structural_type)
-            .is_some_and(|declaration| declaration.shape.is_bounded_owned_byte_sequence());
-        let bounded_owner_presentation = borrowed_owner_expected
-            && projection != StructuralProjectionPolicy::Boundary
-            && (caller
-                .arrival_parameter(argument.place)
-                .is_some_and(|actual| {
-                    terminal_semantics::bounded_byte_owner_capacity_in(
-                        types.values().copied(),
-                        domains.values().copied(),
-                        actual,
-                        argument,
-                        parameter,
-                    )
-                    .is_some()
-                })
-                || owned_bounded_owner_loan(caller, argument, parameter, &source, types, domains))
             && !caller
                 .entry_claim_declarations
                 .iter()

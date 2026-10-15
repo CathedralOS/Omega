@@ -1,0 +1,1 @@
+array window replacement source must preserve the complete destination element type

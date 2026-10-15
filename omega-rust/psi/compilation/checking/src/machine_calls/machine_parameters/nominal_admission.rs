@@ -78,8 +78,8 @@ pub(super) fn validate_nominal_machine_selection(
     });
     let mut operand_mismatch = None::<String>;
     let mut arguments_match = |actual: &[typed_trees::types::TypeReferenceHandle],
-                           actual_owner: SymbolHandle,
-                           bindings: &mut Vec<TypeBinding>| {
+                               actual_owner: SymbolHandle,
+                               bindings: &mut Vec<TypeBinding>| {
         if actual.len() != required_arguments.len() {
             return false;
         }

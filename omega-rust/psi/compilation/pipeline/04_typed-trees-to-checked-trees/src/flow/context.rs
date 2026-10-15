@@ -33,7 +33,7 @@ struct GuardPreparation {
 #[derive(Default)]
 pub(super) struct CallPreparation<'program> {
     pub(super) site: Option<Option<validation::CallSite<'program>>>,
-    pub(super) storage_writes: Option<Option<Rc<Vec<validation::CanonicalPlace>>>>,
+    pub(super) storage_writes: Option<Option<Rc<super::call_phases::CallStorageWrites>>>,
 }
 
 /// Source-only answers for one place occurrence. The outer option records

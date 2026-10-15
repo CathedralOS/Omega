@@ -381,6 +381,27 @@ fn validate_structural_field_range_authority(
     use abstract_operations::AbstractOperation as O;
     use terminal_psi::{RecordFieldValue, StructuralTypeShape};
     for node in function.block_nodes() {
+        // Edge-owned receivers use the same immutable source-cut catalog as
+        // instruction paths. Equal numeric edge/operation IDs are distinct
+        // owners, and a bound from another edge cannot authorize this one.
+        for (edge, actions) in node.operation.cleanup_rosters() {
+            for (_, obligation) in actions.iter().flat_map(|action| {
+                action
+                    .path()
+                    .iter()
+                    .filter_map(terminal_psi::StructuralPathSegment::runtime_index)
+            }) {
+                if !unit.accepted_obligation_facts.iter().any(|fact| {
+                    fact.machine == function.machine
+                        && fact.owner == optimization_unit::PsiProvenance::Edge(edge)
+                        && fact.obligation == obligation
+                }) {
+                    return Err(
+                        OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch,
+                    );
+                }
+            }
+        }
         match &node.operation {
             O::EstablishElementView {
                 psi_operation,
@@ -430,7 +451,8 @@ fn validate_structural_field_range_authority(
                     .iter()
                     .filter(|fact| {
                         fact.machine == function.machine
-                            && fact.operation == *psi_operation
+                            && fact.owner
+                                == optimization_unit::PsiProvenance::Operation(*psi_operation)
                             && fact.obligation == *obligation
                             && fact.psi == unit.psi
                             && fact.has_canonical_identity()
@@ -478,7 +500,8 @@ fn validate_structural_field_range_authority(
                     .iter()
                     .filter(|fact| {
                         fact.machine == function.machine
-                            && fact.operation == *psi_operation
+                            && fact.owner
+                                == optimization_unit::PsiProvenance::Operation(*psi_operation)
                             && fact.obligation == *obligation
                             && fact.psi == unit.psi
                             && fact.has_canonical_identity()
@@ -551,7 +574,8 @@ fn validate_structural_field_range_authority(
                     .iter()
                     .filter(|fact| {
                         fact.machine == function.machine
-                            && fact.operation == *psi_operation
+                            && fact.owner
+                                == optimization_unit::PsiProvenance::Operation(*psi_operation)
                             && fact.obligation == *obligation
                             && fact.psi == unit.psi
                             && fact.has_canonical_identity()
@@ -613,7 +637,8 @@ fn validate_structural_field_range_authority(
                     .iter()
                     .filter(|fact| {
                         fact.machine == function.machine
-                            && fact.operation == *psi_operation
+                            && fact.owner
+                                == optimization_unit::PsiProvenance::Operation(*psi_operation)
                             && fact.obligation == *capacity_obligation
                             && fact.psi == unit.psi
                             && fact.has_canonical_identity()
@@ -659,7 +684,8 @@ fn validate_structural_field_range_authority(
                     .iter()
                     .filter(|fact| {
                         fact.machine == function.machine
-                            && fact.operation == *psi_operation
+                            && fact.owner
+                                == optimization_unit::PsiProvenance::Operation(*psi_operation)
                             && fact.obligation == *obligation
                             && fact.psi == unit.psi
                             && fact.has_canonical_identity()
@@ -725,7 +751,8 @@ fn validate_structural_field_range_authority(
                         .iter()
                         .filter(|fact| {
                             fact.machine == function.machine
-                                && fact.operation == *psi_operation
+                                && fact.owner
+                                    == optimization_unit::PsiProvenance::Operation(*psi_operation)
                                 && fact.obligation == *obligation
                                 && fact.psi == unit.psi
                                 && fact.has_canonical_identity()
@@ -764,7 +791,8 @@ fn validate_structural_field_range_authority(
                         .iter()
                         .filter(|fact| {
                             fact.machine == function.machine
-                                && fact.operation == *psi_operation
+                                && fact.owner
+                                    == optimization_unit::PsiProvenance::Operation(*psi_operation)
                                 && Some(fact.obligation) == *range_obligation
                                 && fact.psi == unit.psi
                                 && fact.has_canonical_identity()
@@ -814,7 +842,8 @@ fn validate_structural_field_range_authority(
                         .iter()
                         .filter(|fact| {
                             fact.machine == function.machine
-                                && fact.operation == *psi_operation
+                                && fact.owner
+                                    == optimization_unit::PsiProvenance::Operation(*psi_operation)
                                 && Some(fact.obligation) == *range_obligation
                                 && fact.psi == unit.psi
                                 && fact.has_canonical_identity()
@@ -992,7 +1021,7 @@ fn validate_scalar_range_authority(
         .iter()
         .filter(|fact| {
             fact.machine == machine
-                && fact.operation == operation
+                && fact.owner == optimization_unit::PsiProvenance::Operation(operation)
                 && Some(fact.obligation) == obligation
                 && fact.psi == unit.psi
                 && fact.has_canonical_identity()

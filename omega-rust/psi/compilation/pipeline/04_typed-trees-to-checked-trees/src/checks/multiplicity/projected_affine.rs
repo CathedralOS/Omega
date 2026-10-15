@@ -208,17 +208,124 @@ pub(super) fn append_replacement(
     places: &[LinearPlace],
     remaining: &super::cleanup_dispositions::RemainingCustody,
     permissions: &mut Vec<FlowPermissionEventFact>,
-) -> Option<super::cleanup_dispositions::StorageEstablishment> {
-    let assignment = statement.as_assignment()?;
-    let place = validation::canonical_place_from_expression_in_state(
+) -> Vec<super::cleanup_dispositions::StorageEstablishment> {
+    let Some(assignment) = statement.as_assignment() else {
+        return Vec::new();
+    };
+    let Some(place) = validation::canonical_place_from_expression_in_state(
         program,
         state,
         statement_index,
         assignment.target,
-    )?;
+    ) else {
+        return Vec::new();
+    };
+    // A range selects several owned subtrees, not one array-typed subtree.
+    // Publish each selected occurrence through the ordinary custody owner so
+    // its exclusions, nominal deaths and re-establishment stay authoritative.
+    let destinations = if let Some(indexed) =
+        program.expression_table.indexed_node(assignment.target)
+        && program.expression_table.range_node(indexed.index).is_some()
+    {
+        let (Some(machine_definition), Some(state_definition)) = (
+            program.machine_by_symbol(machine),
+            program.state_by_symbol(state),
+        ) else {
+            return Vec::new();
+        };
+        let mut bounds = validation::ImmutableBoundLookup::new(program);
+        let Some(shape) = validation::array_window_shape(
+            program,
+            machine_definition,
+            state_definition,
+            assignment.target,
+            &mut bounds,
+        ) else {
+            return Vec::new();
+        };
+        let (Some(start), Some(end), Some(collection)) = (
+            shape.start,
+            shape.end,
+            validation::canonical_place_from_expression_in_state(
+                program,
+                state,
+                statement_index,
+                indexed.collection,
+            ),
+        ) else {
+            return Vec::new();
+        };
+        let Some(collection_type) = validation::canonical_place_type_reference(
+            program,
+            state,
+            statement_index,
+            &collection,
+        )
+        .and_then(|reference| validation::unwrapped_type_reference(program, reference)) else {
+            return Vec::new();
+        };
+        let TypeReferenceNode::FixedArray {
+            length: typed_trees::types::FixedArrayLength::Literal(length),
+            ..
+        } = program.type_reference_table.type_reference(collection_type)
+        else {
+            return Vec::new();
+        };
+        // Bounds validation owns the diagnostic. Invalid geometry creates no
+        // death events and cannot cause unbounded enumeration outside storage.
+        if start > end || end > *length {
+            return Vec::new();
+        }
+        (start..end)
+            .map(|index| {
+                let mut segments = collection.segments.clone();
+                segments.push(facts::PlaceSegment::FixedIndex { index });
+                validation::CanonicalPlace {
+                    root: collection.root,
+                    segments,
+                }
+            })
+            .collect()
+    } else {
+        vec![place]
+    };
+    destinations
+        .into_iter()
+        .filter_map(|place| {
+            append_place_replacement(
+                program,
+                facts,
+                machine,
+                state,
+                statement_index,
+                place,
+                places,
+                remaining,
+                permissions,
+            )
+        })
+        .collect()
+}
 
+#[allow(clippy::too_many_arguments)]
+fn append_place_replacement(
+    program: &dyn ::validation::CheckingInput,
+    facts: &mut CheckFacts,
+    machine: SymbolHandle,
+    state: SymbolHandle,
+    statement_index: usize,
+    place: validation::CanonicalPlace,
+    places: &[LinearPlace],
+    remaining: &super::cleanup_dispositions::RemainingCustody,
+    permissions: &mut Vec<FlowPermissionEventFact>,
+) -> Option<super::cleanup_dispositions::StorageEstablishment> {
     let symbol = place.root.as_symbol()?;
-    if !place.has_only_positional_segments() {
+    // This occurrence replaces the captured destination, not a statically
+    // named claim. Runtime selectors retain that same path in the death and
+    // establishment events; cleanup later uses the assignment's captured
+    // coordinates rather than evaluating the selectors again. Ownership,
+    // reference crossings and residual custody below decide eligibility.
+    if place.segments.is_empty() {
         return None;
     }
     let owner = places.iter().find(|owner| {

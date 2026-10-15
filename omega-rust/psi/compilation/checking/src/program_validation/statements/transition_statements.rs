@@ -120,6 +120,20 @@ pub(super) fn validate(
             if let TransitionTargetNode::Value(return_expression) =
                 program.statement_table.transition_target(target)
             {
+                crate::value_custody::reference_access::report_reference_access_conflict(
+                    program,
+                    machine,
+                    Some(state),
+                    &program.statement_table.statements(state.statement_nodes)
+                        [..scope.statement_index],
+                    *return_expression,
+                    state.return_type,
+                    &format!(
+                        "machine `{}` state `{state_name}` return value",
+                        machine.name
+                    ),
+                    diagnostics,
+                );
                 struct_literals::validate_array_literal_elements(
                     program,
                     machine,

@@ -1,0 +1,55 @@
+// Expected exit: 0. Window replacement snapshots one complete RHS before
+// cleanup or writes, independently of its producer and destination selectors.
+data Counter { value: u64; }
+data Token { value: u64; counter: &mut Counter; }
+data Main {
+    old_first: Counter; old_middle: Counter; old_last: Counter;
+    new_middle: Counter; new_last: Counter;
+}
+machine Token::drop(token: &mut Token) { token.counter.value = token.value; }
+
+machine pair() -> [u64; 2] { [5, 6] }
+machine selecting_pair(selector: &mut u64 [0..=1]) -> [u64; 2] {
+    selector = 1;
+    [7, 9]
+}
+machine fill(destination: &write [u64; 4], source: [u64; 2]) {
+    destination[1..3] = source;
+}
+
+machine Main::main(main: &mut Main) crashes Trap {
+    let mut values: [u64; 4] = [1, 2, 3, 4];
+    values[1..3] = [values[2], values[1]];
+    let snapshot: bool = values[0] == 1 && values[1] == 3
+        && values[2] == 2 && values[3] == 4;
+    values[1..=2] = pair();
+    let called: bool = values[1] == 5 && values[2] == 6;
+    let source: [u64; 2] = [11, 13];
+    fill(&write values, source);
+    let copied: bool = values[0] == 1 && values[1] == 11
+        && values[2] == 13 && values[3] == 4 && source[0] == 11;
+
+    let mut selector: u64 [0..=1] = 0;
+    let mut nested: [[u64; 2]; 2] = [[1, 2], [3, 4]];
+    nested[selector][..] = selecting_pair(&mut selector);
+    let captured: bool = selector == 1 && nested[0][0] == 7
+        && nested[0][1] == 9 && nested[1][0] == 3 && nested[1][1] == 4;
+
+    let mut tokens: [Token; 3] = [
+        Token { value: 17, counter: &mut main.old_first },
+        Token { value: 19, counter: &mut main.old_middle },
+        Token { value: 23, counter: &mut main.old_last }
+    ];
+    tokens[1..3] = [
+        Token { value: tokens[2].value, counter: &mut main.new_middle },
+        Token { value: tokens[1].value, counter: &mut main.new_last }
+    ];
+    transition snapshot && called && copied && captured
+        && tokens[0].value == 17 && tokens[1].value == 23 && tokens[2].value == 19
+        && main.old_middle.value == 19 && main.old_last.value == 23 {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

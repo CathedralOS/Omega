@@ -802,8 +802,14 @@ impl TerminalExecution<'_> {
         if self.structural_values.contains_key(&result.place) {
             return Err(malformed());
         }
-        let selected =
-            self.structural_window_hole(source, path, field, StructuralAccess::MutableBorrow)?;
+        let storage = self.structural_values.get(&source).ok_or_else(malformed)?;
+        let selected = self.structural_window_hole(
+            source,
+            storage,
+            path,
+            field,
+            StructuralAccess::MutableBorrow,
+        )?;
         if selected.structural_type != result.structural_type
             || result
                 .qualifications
@@ -886,27 +892,57 @@ impl TerminalExecution<'_> {
             })
             .ok_or_else(malformed)?
             == StructuralMultiplicity::Unrestricted;
-        let selected =
-            self.structural_window_hole(destination, path, field, disposition.required_access())?;
+        let failure = |phase, cause| TerminalInterpretError::StructuralReplacement {
+            operation: operation.id,
+            phase,
+            cause: Box::new(cause),
+        };
+        // Packed values have an activation home rather than opaque payload
+        // cells. Reuse ordinary loan preparation's staged storage identity for
+        // geometry and custody; actual writes still resolve the pinned frame.
+        let mut identity_cursor = self.local_structural_identities.cursor();
+        let (storage, _) = self
+            .array_storage_root_staged(destination, &mut identity_cursor, &mut BTreeMap::new())
+            .map_err(|error| failure("destination home", error))?;
+        let selected = self
+            .structural_window_hole(
+                destination,
+                &storage,
+                path,
+                field,
+                disposition.required_access(),
+            )
+            .map_err(|error| failure("destination storage", error))?;
         let field_type = selected.structural_type;
         let hole = StructuralRuntimePlace::from(&selected);
-        let (required, projected_required) =
-            self.structural_window_requirements(operation, destination, path, field)?;
+        let (required, projected_required) = self
+            .structural_window_requirements(operation, destination, path, field)
+            .map_err(|error| failure("receiving memberships", error))?;
         let mut frontier = self.live_affine_frontier.clone();
         frontier.retain(|entry| entry.place != value.place);
-        self.restore_store_frontier(&mut frontier, destination, path, &hole, field_type)?;
-        let claims =
-            self.stage_window_store_claims(destination, path, &hole, value.place, &mut frontier)?;
+        self.restore_store_frontier(&mut frontier, destination, path, &hole, field_type)
+            .map_err(|error| failure("restoration frontier", error))?;
+        let claims = self
+            .stage_window_store_claims(
+                destination,
+                &storage,
+                path,
+                &hole,
+                value.place,
+                &mut frontier,
+            )
+            .map_err(|error| failure("restored claims", error))?;
         // Completed primitive arrays keep their payload outside the opaque
         // structural-place map. Resolve both representations, and stage their
         // exact typed leaves before publishing the same window transaction.
-        let child = ConstructorValue::resolve(self, value)?;
+        let child = ConstructorValue::resolve(self, value)
+            .map_err(|error| failure("completed source", error))?;
         let (qualifications, projected_qualifications) = match &child {
             ConstructorValue::Placed(child) => (
                 child.qualifications.as_slice(),
                 child.projected_qualifications.as_slice(),
             ),
-            ConstructorValue::ScalarArray(_) => (&[][..], &[][..]),
+            ConstructorValue::PackedScalars { .. } => (&[][..], &[][..]),
         };
         if child.structural_type() != field_type
             || required
@@ -957,22 +993,35 @@ impl TerminalExecution<'_> {
             }
             memberships.push((*place, repaired));
         }
-        let mut storage = ConstructorStorage::default();
-        // Replacement and construction install the same completed value.
-        // Staging only aggregate cells misses a standalone descriptor kept in
-        // the frame's view map; use the common typed value-storage transaction.
-        // Capture every source before retiring either home, without loading or
-        // disposing borrowed referents. Custody still decides copy versus move.
-        storage.stage(self, value, &child, &hole, !copies_storage)?;
-        let source = match child {
-            ConstructorValue::Placed(child) => Some(StructuralRuntimePlace::from(&child)),
-            ConstructorValue::ScalarArray(_) => None,
-        };
-        self.prune_subtree(&hole);
-        if !copies_storage && let Some(source) = source {
-            self.prune_subtree(&source);
+        // Resolve scalar writes relative to the authored loan before retiring
+        // anything. Its payload may be pinned in a suspended caller, not in the
+        // opaque maps. Descriptor-bearing values keep the construction storage
+        // transaction, including standalone view descriptors and their custody.
+        let mut destination_path = path.clone();
+        if field.is_some() {
+            let Some(segment @ StructuralPathSegment::Field(_)) = hole.path.last() else {
+                return Err(malformed());
+            };
+            destination_path.push(segment.clone());
         }
-        storage.publish(self);
+        if let Some(writes) = child
+            .replacement_writes(self, value, destination, &destination_path)
+            .map_err(|error| failure("scalar storage preparation", error))?
+        {
+            writes.commit(self)?;
+        } else {
+            let mut storage = ConstructorStorage::default();
+            storage.stage(self, value, &child, &hole, !copies_storage)?;
+            let source = match child {
+                ConstructorValue::Placed(child) => Some(StructuralRuntimePlace::from(&child)),
+                ConstructorValue::PackedScalars { .. } => None,
+            };
+            self.prune_subtree(&hole);
+            if !copies_storage && let Some(source) = source {
+                self.prune_subtree(&source);
+            }
+            storage.publish(self);
+        }
         self.structural_values.extend(memberships);
         if !copies_storage {
             self.structural_values.remove(&value.place);
@@ -982,6 +1031,8 @@ impl TerminalExecution<'_> {
         }
         self.live_affine_frontier = frontier;
         self.live_claims = claims;
+        self.local_structural_identities
+            .commit_cursor(identity_cursor);
         Ok(OperationFlow::Advance)
     }
 
@@ -1069,10 +1120,36 @@ impl TerminalExecution<'_> {
     fn structural_window_hole(
         &self,
         root: semantic_vocabulary::PlaceId,
+        storage: &TerminalStructuralValue,
         path: &[StructuralPathSegment],
         field: Option<semantic_vocabulary::StructuralFieldId>,
         required_access: StructuralAccess,
     ) -> Result<TerminalStructuralValue, TerminalInterpretError> {
+        // A view never owns its elements. Its selected element (already
+        // bounded by the view's live length) is a hole in the original
+        // collection, reached through the view's own mutable loan.
+        if let Some(view) = self.element_view_values.get(&root) {
+            if !view.matches_descriptor_home(storage)
+                || !required_access.admits_referent(view.access())
+            {
+                return Err(malformed());
+            }
+            let (collection, selected) =
+                view.structural_projection(&self.program.structural_types(), path, true)?;
+            let projection = terminal_semantics::structural_window_projection(
+                self.program.structural_types().values(),
+                collection.structural_type,
+                &selected,
+                field,
+            )
+            .ok_or_else(malformed)?;
+            let hole = crate::custody::project_structural_value(
+                &self.program.structural_types(),
+                &collection,
+                &projection.path,
+            )?;
+            return Ok(hole);
+        }
         // Resolve a reference crossing against its live runtime referent first;
         // the shared window geometry receives storage, never carrier ownership.
         let prefix_length = path
@@ -1148,7 +1225,15 @@ impl TerminalExecution<'_> {
         // extraction must reach that same original backing, not interpret a
         // descriptor's carrier bytes as inline elements. Whole-referent origin
         // authentication above and restoration custody below remain separate.
-        let selected = self.resolve_live_projection(root, path, required_access)?;
+        let selected = self
+            .resolve_storage_projection_with_leaf_type(
+                root,
+                storage,
+                path,
+                required_access,
+                terminal_psi::StructuralFieldType::canonical_leaf_type,
+            )?
+            .value;
         let projection = terminal_semantics::structural_window_projection(
             self.program.structural_types().values(),
             selected.structural_type,
@@ -1318,19 +1403,10 @@ impl TerminalExecution<'_> {
         // A shared descriptor may carry affine disposal metadata even though
         // copying its permission is admitted. Its cells retain the captured
         // backing below; no referent snapshot or parent reborrow is created.
-        let shared_descriptor = self
-            .program
-            .structural_types()
-            .get(&result.structural_type)
-            .is_some_and(|declaration| {
-                matches!(
-                    declaration.shape,
-                    StructuralTypeShape::Reference {
-                        access: StructuralAccess::SharedBorrow,
-                        ..
-                    }
-                )
-            });
+        let shared_descriptor = terminal_semantics::is_shared_reference_carrier(
+            self.program.structural_types().values(),
+            result.structural_type,
+        );
         // Other affine payloads still need their owned frontier publication.
         if matches!(operation.kind, OperationKind::StructuralCaseLeafCopy { .. })
             && result.multiplicity != StructuralMultiplicity::Unrestricted
@@ -1348,17 +1424,78 @@ impl TerminalExecution<'_> {
             return Err(malformed());
         }
         if let OperationKind::StructuralLeafCopy { source, path } = &operation.kind
-            && !self.structural_values.contains_key(source)
-            && self.scalar_array_values.contains_key(source)
+            && terminal_semantics::scalar_array_leaf_shape(
+                self.program.structural_types().values(),
+                result.structural_type,
+            )
+            .is_some()
         {
-            return self.copy_scalar_array_payload(
-                &StructuralArgument {
-                    place: *source,
-                    path: path.clone(),
-                    access: StructuralAccess::Owned,
-                },
-                result,
-            );
+            // Copy through the original source, not its opaque metadata alone:
+            // a borrowed array's payload can live in a suspended caller frame.
+            // Packed, placed and borrowed arrays establish independent completed
+            // payloads; none transfers or fabricates source ownership.
+            let argument = StructuralArgument {
+                place: *source,
+                path: path.clone(),
+                access: StructuralAccess::SharedBorrow,
+            };
+            let value = if self.scalar_array_values.contains_key(source) {
+                ConstructorValue::resolve(self, &argument)?
+            } else {
+                ConstructorValue::Placed(self.resolve_live_leaf_copy(*source, path)?.0)
+            };
+            if value.structural_type() == result.structural_type {
+                if self.scalar_array_values.contains_key(&result.place) {
+                    return Err(malformed());
+                }
+                let mut elements = Vec::new();
+                value
+                    .visit_scalar_leaves(self, &argument, |_, _, scalar| {
+                        elements.push(scalar);
+                        Ok(())
+                    })?
+                    .ok_or_else(malformed)?;
+                // Plain results retain the completed row-major batch. Besides
+                // avoiding a cell map per scalar, this makes a huge outer
+                // dimension with zero inner extent constant-size storage.
+                // Evidence-bearing results retain their placed metadata below.
+                if result.is_unrestricted_plain() {
+                    self.scalar_array_values.insert(
+                        result.place,
+                        crate::scalar_array::TerminalScalarArrayValue {
+                            structural_type: result.structural_type,
+                            elements,
+                        },
+                    );
+                    return Ok(OperationFlow::Advance);
+                }
+                let mut identity_cursor = self.local_structural_identities.cursor();
+                let copied = TerminalStructuralValue {
+                    opaque_identity: self
+                        .local_structural_identities
+                        .allocate_staged(&mut identity_cursor)?,
+                    structural_type: result.structural_type,
+                    qualifications: result.qualifications.clone(),
+                    projected_qualifications: result.projected_qualifications.clone(),
+                    path: Vec::new(),
+                };
+                let mut storage = ConstructorStorage::default();
+                storage.stage(
+                    self,
+                    &argument,
+                    &ConstructorValue::PackedScalars {
+                        structural_type: value.structural_type(),
+                        elements: &elements,
+                    },
+                    &StructuralRuntimePlace::from(&copied),
+                    false,
+                )?;
+                storage.publish(self);
+                self.structural_values.insert(result.place, copied);
+                self.local_structural_identities
+                    .commit_cursor(identity_cursor);
+                return Ok(OperationFlow::Advance);
+            }
         }
         let (leaf, source, endpoint_field, copy_path) = match &operation.kind {
             OperationKind::StructuralLeafCopy { source, path } => {
@@ -1418,10 +1555,18 @@ impl TerminalExecution<'_> {
             );
         }
         let source_place = StructuralRuntimePlace::from(&leaf);
-        if shared_descriptor && !self.reference_referents.contains_key(&source_place) {
+        if self
+            .program
+            .structural_types()
+            .get(&result.structural_type)
+            .is_some_and(|declaration| {
+                matches!(declaration.shape, StructuralTypeShape::Reference { .. })
+            })
+            && !self.reference_referents.contains_key(&source_place)
+        {
             return Err(malformed());
         }
-        // Unrestricted aggregates may also contain shared descriptor leaves.
+        // Aggregate copies retain their independently stored descriptor leaves.
         // Every copied runtime association must rejoin that exact declaration;
         // cloning storage cannot amplify an exclusive permission. Runtime paths
         // omit Case, so the stored discriminator selects the declaration rather
@@ -1579,7 +1724,6 @@ impl TerminalExecution<'_> {
         self.scalar_array_values.insert(result.place, copied);
         Ok(OperationFlow::Advance)
     }
-
     /// Mint the copied record a byte-carrier leaf copy names: the resolved
     /// leaf is the `u8` element where the overlaid region starts, and each
     /// scalar leaf of the record's fixed layout decodes little-endian out of

@@ -1,0 +1,3 @@
+// Lending a temporary array does not prove its elements' receiving bounds.
+machine accept(values: &[u64 [0..=2]; 2]) {}
+machine bad() { accept(&[0, 3]); }

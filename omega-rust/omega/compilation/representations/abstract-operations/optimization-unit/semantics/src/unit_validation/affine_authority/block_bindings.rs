@@ -193,6 +193,30 @@ fn consume_sources<'function>(
             .filter(|claim| claim.input == Some(source))
             .collect::<Vec<_>>();
         if !binding.argument.path.is_empty() {
+            if parameter.multiplicity == StructuralMultiplicity::Unrestricted {
+                let source_contract =
+                    super::super::operation_contracts::structural_source_contract(
+                        function, source,
+                    )?;
+                if source_contract.access != StructuralAccess::Owned
+                    || source_contract.multiplicity != StructuralMultiplicity::Unrestricted
+                    || !source_claims.is_empty()
+                    || frontier
+                        .owned_places
+                        .iter()
+                        .any(|owned| owned.place == source)
+                    || frontier
+                        .partial_custody
+                        .iter()
+                        .any(|custody| custody.place == source)
+                {
+                    return None;
+                }
+                // Copying has no net ownership-frontier change. The signature
+                // checks selected type/memberships, and current replay checks
+                // reads against live loans before accepting this snapshot.
+                continue;
+            }
             // A projected move takes one affine child of a claim-free affine
             // root; the root keeps the complement under partial custody.
             if parameter.multiplicity != StructuralMultiplicity::Affine

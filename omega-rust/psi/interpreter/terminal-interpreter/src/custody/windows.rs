@@ -141,6 +141,7 @@ impl TerminalExecution<'_> {
     pub(super) fn owned_window_projection(
         &self,
         root: PlaceId,
+        value: &crate::values::TerminalStructuralValue,
         path: &[StructuralPathSegment],
         hole: &StructuralRuntimePlace,
     ) -> Result<Option<StructuralArgument>, TerminalInterpretError> {
@@ -157,7 +158,6 @@ impl TerminalExecution<'_> {
         {
             return Ok(None);
         }
-        let value = self.structural_values.get(&root).ok_or_else(malformed)?;
         if hole.opaque_identity != value.opaque_identity {
             return Err(malformed());
         }
@@ -203,7 +203,8 @@ impl TerminalExecution<'_> {
                 &current.path,
             )
         };
-        if let Some(argument) = self.owned_window_projection(source, path, hole)? {
+        let storage = self.structural_values.get(&source).ok_or_else(malformed)?;
+        if let Some(argument) = self.owned_window_projection(source, storage, path, hole)? {
             let selected = self
                 .live_claims
                 .iter()
@@ -256,12 +257,13 @@ impl TerminalExecution<'_> {
     pub(crate) fn stage_window_store_claims(
         &self,
         destination: PlaceId,
+        storage: &crate::values::TerminalStructuralValue,
         path: &[StructuralPathSegment],
         hole: &StructuralRuntimePlace,
         value: PlaceId,
         frontier: &mut BTreeSet<StructuralAffineDiscard>,
     ) -> Result<BTreeMap<ClaimId, LiveClaim>, TerminalInterpretError> {
-        let destination = self.owned_window_projection(destination, path, hole)?;
+        let destination = self.owned_window_projection(destination, storage, path, hole)?;
         let mut claims = self.live_claims.clone();
         for (identity, claim) in &self.live_claims {
             if claim.place != Some(value) {

@@ -74,22 +74,22 @@ pub(super) fn replace(
     let destination_type = if let Some((referent, _)) = reference {
         referent
     } else if destination.access == StructuralAccess::Owned && field.is_some() {
-        let (_, result) =
+        // The actual home retains its type across operation production and
+        // state arrival. Field geometry below selects inside that home; its
+        // enclosing aggregate need not itself be a record.
+        if let Some(parameter) =
+            crate::selection::primitive_local_input::read_parameter(function, destination.place)
+        {
+            if parameter.access != StructuralAccess::Owned {
+                return Err(invalid());
+            }
+            parameter.structural_type
+        } else {
             crate::selection::aggregate_result_input::home(function, destination.place)
-                .ok_or_else(|| invalid())?;
-        // The established owner keeps its custody and field predicates. This
-        // operation replaces only the selected bounded field; it does not
-        // copy or dispose the enclosing record.
-        if !signature.structural_types.iter().any(|declaration| {
-            declaration.id == result.structural_type
-                && matches!(
-                    declaration.shape,
-                    terminal_psi::StructuralTypeShape::Record { .. }
-                )
-        }) {
-            return Err(invalid());
+                .ok_or_else(|| invalid())?
+                .1
+                .structural_type
         }
-        result.structural_type
     } else {
         let parameter = crate::selection::address_join_input::loan_declaration(
             function,

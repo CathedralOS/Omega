@@ -172,6 +172,10 @@ pub(crate) fn lower_checked_cleanup_regions<'action>(
         (PlaceId, Vec<terminal_psi::StructuralPathSegment>),
         LoweringError,
     >,
+    mut carrier_multiplicity: impl FnMut(
+        PlaceId,
+    )
+        -> Result<terminal_psi::StructuralMultiplicity, LoweringError>,
     mut nominal: impl FnMut(
         &CheckedUnitNominalAffineCleanupPlan,
         PlaceId,
@@ -214,7 +218,16 @@ pub(crate) fn lower_checked_cleanup_regions<'action>(
                 checked_trees::CheckedNormalCleanupAction::Discard(_)
                     if path.is_empty() && conditions.is_empty() =>
                 {
-                    terminal_psi::TerminalAffineCleanupAction::DiscardRoot(place)
+                    // The source-selected death may end a copyable descriptor
+                    // without owning an affine resource. Use its actual emitted
+                    // occurrence, not the source action's generic discard name.
+                    if carrier_multiplicity(place)?
+                        == terminal_psi::StructuralMultiplicity::Unrestricted
+                    {
+                        terminal_psi::TerminalAffineCleanupAction::RetireHome(place)
+                    } else {
+                        terminal_psi::TerminalAffineCleanupAction::DiscardRoot(place)
+                    }
                 }
                 checked_trees::CheckedNormalCleanupAction::Discard(_) => {
                     terminal_psi::TerminalAffineCleanupAction::DiscardResidual(

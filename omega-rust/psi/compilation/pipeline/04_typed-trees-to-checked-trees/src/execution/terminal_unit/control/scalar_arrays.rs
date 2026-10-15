@@ -103,6 +103,6 @@ pub(in crate::execution::terminal_unit) fn assignment_type(
     }
     validation::closed_array_store_type(
         program,
-        validation::declared_place_type_raw(program, machine, Some(state), assignment.target)?,
+        validation::assignment_stored_value_type(program, machine, state, assignment)?,
     )
 }

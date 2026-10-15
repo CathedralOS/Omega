@@ -3393,23 +3393,12 @@ of a check the same flow already performed, not the check itself.
 
   Remaining: qualify exact erased applications, clone correspondence and
   lexical owners through folding and substitution against the full check
-  corpus and focused native cohort. Attribute the 124 unsatisfied success
-  obligations in the full 4,035-fixture check at fixed producer `327898162b6`
-  (including pinned debt, not 124 new regressions). The remaining wrong-reason
-  control is `checked_boundary_operator_const_application_unselected`: an earlier
-  constant-recipe failure still masks its intended obligation; resolve it without
-  repinning to that failure. Its portable recipe dependency remains with
-  **PROVIDER-SELECTION-AFTER-TERMINAL**; target-selected folds must not become
-  checking inputs. `shared_subslice_state_cannot_lend_mutable` rejects again (`e678c5aaea1`).
-  Remove declaration-only implicit mutable range formation under
-  [explicit mutable range access](wiki/spec/language/expressions.md#borrowed-range-access).
-  Migrate mutable range initializers to `&mut collection[start..end]`, including
-  `samples/cli/probes/subslice_element_ops`; normalize access before freezing,
-  without receiving-site exceptions. Acceptance: explicit mutable subranges
-  execute and existing mutable references forward unchanged; bare ranges reject
-  at mutable local, call, state, return and field destinations, and shared
-  backing never grants mutable access. Retain the existing shared-range refusal
-  controls and bounds/loan checks. This is settled implementation work.
+  corpus and focused native cohort. Attribute remaining affected failures
+  against the recovered series' clean base; historical golden disagreements
+  are not introduced regressions. Preserve the authored exact-selection
+  refusal in `checked_boundary_operator_const_application_unselected`.
+  Its portable recipe dependency remains with **PROVIDER-SELECTION-AFTER-TERMINAL**;
+  target-selected folds must not become checking inputs.
   Keep portable callback refinement with
   **PSI-TARGET-FAMILIES**. Full qualification must retain the portable callback's
   first-member-only guarantee refusal and the inverted-distance
@@ -3465,11 +3454,18 @@ of a check the same flow already performed, not the check itself.
   replacement and mutable-domain-loss controls in full qualification. Array
   elements retain their own memberships through construction, copies, returned
   storage and loans; record/case fields cannot substitute for that evidence.
-  Remaining qualified-owner compositions: forwarding a mutable owner through
-  `Held { bytes: &mut [u8; 8] in Utf8 }` then `replace(held.bytes)` loses the
-  enclosing caller's root-domain restoration; direct `&write entries[1]` from
-  `&mut [[u8; 8] in Utf8; 2]` rejects at projected write-only admission. Both
-  are source-checking gaps, not permission to weaken the owner invariant.
+  Migrate remaining qualified-byte
+  storage fixtures' variable-fill `[u8; N] in Utf8` assumptions under
+  [qualified fixed-array storage](wiki/spec/language/domains.md): qualification
+  cannot select a different carrier or live length. Keep exact-array and explicit
+  variable-fill storage distinct while sharing their ordinary loan transport.
+  Add an observable reverse-cleanup ordering check to
+  `runtime_completed_array_window_replacement_exit`; its independent counters
+  establish disposal but not ordering. Runtime-selected collection prefixes
+  still need exact cleanup custody; missing death evidence must not imply
+  vacancy. Preserve source copy/move classification and the containing linear
+  claim while disposing the residual partition. Element restrictions and extent
+  remain fixed before checking, without a literal-specific store path.
   Include prepared lifetime-bearing field
   views, independent nested regions, repeated generic heads, authored callable
   templates, symbolic view-free arrays, inherited const arguments and complete

@@ -46,11 +46,55 @@ pub(super) fn consume_edge_sources(
         block,
     };
     let mut transferred = Vec::new();
+    let mut copied_references = Vec::new();
     for (binding, parameter) in bindings.iter().zip(&target.structural_parameters) {
         if parameter.access != StructuralAccess::Owned {
             continue;
         }
         let source = binding.argument.place;
+        // An unrestricted owned source copies its selected value. It has
+        // no frontier to consume; a receiving declaration cannot turn an
+        // affine source into a copy. Signature validation pins its type
+        // and source memberships independently.
+        if parameter.multiplicity == StructuralMultiplicity::Unrestricted {
+            let contract = crate::unit_validation::operation_contracts::structural_source_contract(
+                function, source,
+            )
+            .ok_or_else(invalid)?;
+            if contract.access != StructuralAccess::Owned
+                || contract.multiplicity != StructuralMultiplicity::Unrestricted
+                || frontier.owned_places.contains_key(&source)
+                || frontier.partial_custody_paths.contains_key(&source)
+                || frontier
+                    .claims
+                    .values()
+                    .any(|claim| claim.input == Some(source))
+            {
+                return Err(invalid());
+            }
+            let node = function
+                .block(block)
+                .and_then(|block| u32::try_from(block.nodes.len().checked_sub(1)?).ok())
+                .ok_or_else(invalid)?;
+            let copied = super::references::copy_reference_carriers(
+                function,
+                types,
+                block,
+                node,
+                &frontier.live_references,
+                source,
+                &binding.argument.path,
+                parameter.structural_type,
+                parameter.place,
+            )?;
+            let retains_source = source == parameter.place && binding.argument.path.is_empty();
+            copied_references.extend(
+                copied
+                    .into_iter()
+                    .map(|reference| (reference, retains_source)),
+            );
+            continue;
+        }
         if !binding.argument.path.is_empty() {
             transferred.extend(consume_projected_source(
                 function, types, block, frontier, binding, parameter,
@@ -107,6 +151,7 @@ pub(super) fn consume_edge_sources(
                 .zip(&target.structural_parameters)
                 .find(|(binding, parameter)| {
                     parameter.access == StructuralAccess::Owned
+                        && parameter.multiplicity != StructuralMultiplicity::Unrestricted
                         && binding.argument.access == StructuralAccess::Owned
                         && binding.argument.place == reference.carrier
                         && super::references::owned_resident(
@@ -119,6 +164,26 @@ pub(super) fn consume_edge_sources(
         };
         reference.carrier = parameter.place;
         reference.carrier_path.drain(..binding.argument.path.len());
+    }
+    for (copied, retains_source) in copied_references {
+        if retains_source
+            && frontier
+                .live_references
+                .iter()
+                .any(|reference| reference == &copied)
+        {
+            // A self edge retains the same static occurrence, not a second
+            // permission. Other arrivals must have distinct carrier identities.
+            continue;
+        }
+        if frontier.live_references.iter().any(|reference| {
+            reference.identity == copied.identity
+                || reference.carrier == copied.carrier
+                    && reference.carrier_path == copied.carrier_path
+        }) {
+            return Err(invalid());
+        }
+        frontier.live_references.push(copied);
     }
     let mut bound = Vec::with_capacity(transferred.len());
     for (binding, parameter) in bindings.iter().zip(&target.structural_parameters) {

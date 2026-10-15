@@ -1,0 +1,14 @@
+// A fact about the selector's later element cannot qualify an earlier capture.
+domain u64::Positive(value) requires 0 < value;
+data Held { value: &u64; }
+machine stale(values: &[u64; 2], position: u64 [0..=1]) {
+    let mut selector: u64 [0..=1] = position;
+    let held: Held = Held { value: &values[selector] };
+    selector = 0;
+    transition values[selector] in Positive {
+        true -> consume(held.value)
+        false -> done()
+    }
+    state consume(value: &u64) requires value in Positive {}
+    state done() {}
+}

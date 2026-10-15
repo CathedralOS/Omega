@@ -3,10 +3,10 @@ data Cursor { index: u64; calls: u64 in Wrapping; }
 
 machine Token::drop(token: &mut Token) { token.value = 0; }
 
-machine select(cursor: &mut Cursor) -> u64 ensures result == 0 {
+machine select(cursor: &mut Cursor) -> u64 ensures result == 1 {
     cursor.calls += 1;
     cursor.index = 1;
-    0
+    1
 }
 
 machine replacement(cursor: &mut Cursor) -> Token {
@@ -19,9 +19,10 @@ machine main() crashes Trap {
     let mut cursor: Cursor = Cursor { index: 0, calls: 0 };
     // The target computation executes once, before the replacement call.
     // Old cleanup and store consume its saved coordinate, not another call.
+    // A nonzero selection also exposes cleanup that loses the runtime offset.
     tokens[select(&mut cursor)] = replacement(&mut cursor);
     transition cursor.calls == 1 && cursor.index == 3
-        && tokens[0].value == 19 && tokens[1].value == 7 {
+        && tokens[0].value == 11 && tokens[1].value == 19 {
         true -> done()
         false -> bad()
     }

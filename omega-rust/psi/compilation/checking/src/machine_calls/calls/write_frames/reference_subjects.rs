@@ -143,6 +143,9 @@ pub fn assignment_stored_value_type(
     state: &State,
     assignment: &typed_trees::statement::TableAssignment,
 ) -> Option<TypeReferenceHandle> {
+    if assignment.receiving_type.is_valid() {
+        return Some(assignment.receiving_type);
+    }
     let reference = crate::value_custody::places::declared_place_type_raw(
         program,
         machine,

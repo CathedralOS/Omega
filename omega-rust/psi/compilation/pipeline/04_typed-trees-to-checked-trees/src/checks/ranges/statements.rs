@@ -167,8 +167,9 @@ pub(super) fn bound_reference_referent_extent(
     let origin =
         crate::flow::sole_local_referent_origin(call_frames?, machine, before, local_symbol)?;
     let source = origin.source.as_ref()?;
-    let (place, exact) = crate::flow::origin_place(program, state, facts.statement_index, &origin)?;
-    if !exact {
+    let (place, precision) =
+        crate::flow::origin_place(program, state, facts.statement_index, &origin)?;
+    if precision != crate::flow::OriginPrecision::Exact {
         return None;
     }
     let exact = validation::canonical_place_type_reference(

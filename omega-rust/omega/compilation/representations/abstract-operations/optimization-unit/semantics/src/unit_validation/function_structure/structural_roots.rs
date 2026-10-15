@@ -581,6 +581,26 @@ pub(crate) fn validate_structural_root_operations(
                     source,
                     storage,
                 } => {
+                    let field_compatible = storage.is_none()
+                        && crate::unit_validation::operation_contracts::structural_source_contract(
+                            function,
+                            source.place,
+                        )
+                        .is_some_and(|contract| {
+                            let path = terminal_semantics::reference_source_storage_path(
+                                structural_types.values().copied(),
+                                contract.structural_type,
+                                &source.path,
+                            );
+                            terminal_semantics::reference_byte_field_compatible(
+                                structural_types.values().copied(),
+                                structural_domains.values().copied(),
+                                contract.structural_type,
+                                path,
+                                result.structural_type,
+                                &result.projected_qualifications,
+                            )
+                        });
                     // Whole-carrier establishment: the result is an affine
                     // reference over a primitive referent and the source must
                     // retain that referent or a total shared primitive bit view,
@@ -604,9 +624,36 @@ pub(crate) fn validate_structural_root_operations(
                         }
                     });
                     let valid = expected.is_some()
+                        && crate::unit_validation::references::reference_source_accessible(function, structural_types, source)
                         && result.multiplicity == terminal_psi::StructuralMultiplicity::Affine
                         && result.qualifications.is_empty()
-                        && result.projected_qualifications.is_empty()
+                        && (field_compatible || crate::unit_validation::operation_contracts::structural_source_contract(
+                            function,
+                            source.place,
+                        )
+                        .is_some_and(|contract| {
+                            let path = terminal_semantics::reference_source_storage_path(
+                                structural_types.values().copied(),
+                                contract.structural_type,
+                                &source.path,
+                            );
+                            let (whole, projected) = contract.selected_qualifications(path);
+                            let mut captured = Vec::new();
+                            terminal_psi::StructuralPathQualification::append_under(
+                                &whole,
+                                &projected,
+                                &[terminal_psi::StructuralPathSegment::Referent],
+                                &mut captured,
+                            );
+                            result
+                                .projected_qualifications
+                                .iter()
+                                .all(|row| captured.contains(row))
+                                && (source.access == terminal_psi::StructuralAccess::SharedBorrow
+                                    || captured
+                                        .iter()
+                                        .all(|row| result.projected_qualifications.contains(row)))
+                        }))
                         && result.claims.is_empty()
                         && matches!(
                             place_kinds.get(&result.place),
@@ -621,7 +668,7 @@ pub(crate) fn validate_structural_root_operations(
                             terminal_psi::StructuralAccess::MutableBorrow
                                 | terminal_psi::StructuralAccess::SharedBorrow
                         )
-                        && crate::unit_validation::references::reference_source_type(
+                        && (field_compatible || crate::unit_validation::references::reference_source_type(
                             function,
                             structural_types,
                             source,
@@ -640,7 +687,7 @@ pub(crate) fn validate_structural_root_operations(
                                 actual,
                                 result.structural_type,
                             ),
-                        })
+                        }))
                         && crate::unit_validation::references::leaf_access_within(
                             structural_types,
                             result.structural_type,
@@ -822,16 +869,9 @@ pub(crate) fn validate_structural_root_operations(
                             );
                     let shared_descriptor_copy = result.multiplicity
                         == terminal_psi::StructuralMultiplicity::Affine
-                        && structural_types.get(&result.structural_type).is_some_and(
-                            |declaration| {
-                                matches!(
-                                    declaration.shape,
-                                    terminal_psi::StructuralTypeShape::Reference {
-                                        access: terminal_psi::StructuralAccess::SharedBorrow,
-                                        ..
-                                    }
-                                )
-                            },
+                        && terminal_semantics::is_shared_reference_carrier(
+                            structural_types.values().copied(),
+                            result.structural_type,
                         );
                     let valid =
                         crate::unit_validation::operation_contracts::structural_source_contract(

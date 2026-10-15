@@ -7,7 +7,7 @@ use target_operations::TargetUnitScalarArgumentSource as Source;
 pub(in crate::legalization::scalar_graph_input) fn call_indices(
     native: &target_operations::TargetOperationPlan,
     caller: &PsiOptimizationFunction,
-    call_operation: semantic_vocabulary::OperationId,
+    owner: target_operations::CallSiteOwner,
     elements: &[crate::structural_inputs::structural_reference_input::RuntimeElement],
 ) -> Result<Vec<target_operations::TargetStructuralRuntimeIndex>, crate::LegalizationError> {
     if elements.is_empty() {
@@ -24,10 +24,15 @@ pub(in crate::legalization::scalar_graph_input) fn call_indices(
             block
                 .operations
                 .iter()
-                .position(|operation| {
-                    matches!(operation, TargetUnitOperation::Call { psi_operation, .. }
-                        | TargetUnitOperation::NormalizedForeignCall { psi_operation, .. }
-                    if *psi_operation == call_operation)
+                .position(|operation| match operation {
+                    TargetUnitOperation::Call { psi_operation, .. }
+                    | TargetUnitOperation::NormalizedForeignCall { psi_operation, .. } => {
+                        owner == target_operations::CallSiteOwner::Operation(*psi_operation)
+                    }
+                    TargetUnitOperation::CleanupCall {
+                        owner: candidate, ..
+                    } => *candidate == owner,
+                    _ => false,
                 })
                 .map(|position| (block, position))
         })

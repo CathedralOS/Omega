@@ -26,6 +26,7 @@ machine main() crashes Trap {
     write_owner(&mut empty[1]);
     transition changed && observe(&entries) == 2 && observe(&before) == 4
         && nested(&container) == 2 && observe(&empty) == 2
+        && entries[1].len == 2 && before[1].len == 4 && empty[1].len == 2
         && was_empty {
         true -> done()
         false -> bad()

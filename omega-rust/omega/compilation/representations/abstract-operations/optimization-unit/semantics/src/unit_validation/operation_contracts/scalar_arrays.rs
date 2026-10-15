@@ -130,12 +130,32 @@ pub(crate) fn structural_array_establishment_matches(
     else {
         return false;
     };
+    let mut projected = Vec::new();
+    for (position, argument) in elements.iter().enumerate() {
+        let Some(source) =
+            super::structural_access::structural_source_contract(function, argument.place)
+        else {
+            return false;
+        };
+        let Ok(position) = u64::try_from(position) else {
+            return false;
+        };
+        let (whole, children) = source.selected_qualifications(&argument.path);
+        terminal_psi::StructuralPathQualification::append_under(
+            &whole,
+            &children,
+            &[terminal_psi::StructuralPathSegment::FixedIndex(position)],
+            &mut projected,
+        );
+    }
+    projected.sort();
+    projected.dedup();
     matches!(
         result.multiplicity,
         terminal_psi::StructuralMultiplicity::Unrestricted
             | terminal_psi::StructuralMultiplicity::Affine
     ) && result.qualifications.is_empty()
-        && result.projected_qualifications.is_empty()
+        && result.projected_qualifications == projected
         && result.qualification_establishments.is_empty()
         && result.claims.is_empty()
         && u64::try_from(elements.len()).ok() == Some(*length)

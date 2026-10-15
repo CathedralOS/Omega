@@ -93,8 +93,7 @@ pub(super) fn check_call_result_qualifications(
                     domain_symbol,
                     semantic_domain,
                     site,
-                    state_symbol,
-                    statement_index,
+                    fact.point,
                 );
             }
             let (PlaceRoot::Expression(expression), validation::CallSite::Expression { call, .. }) =
@@ -322,7 +321,7 @@ pub(super) fn check_call_result_qualifications(
 /// `DomainMembership` claim rooted at an exact argument place rather than the
 /// result expression. The claim joins when the callable declares
 /// `ensures <parameter> in <domain>` for the exact non-self parameter whose
-/// argument canonicalizes to this place and the claim is either owed by the
+/// completed argument denotes this place and the claim is either owed by the
 /// callee's checked body or minted through an `established by` boundary
 /// requirement on an exact mutable parameter — immutable parameters stay
 /// caller premises, so no boundary route may establish into them.
@@ -336,9 +335,17 @@ fn call_parameter_qualification_join(
     domain_symbol: SymbolHandle,
     semantic_domain: language_semantics::SemanticDomainId,
     site: validation::CallSite<'_>,
-    state_symbol: SymbolHandle,
-    statement_index: usize,
+    point: ProgramPoint,
 ) -> Option<()> {
+    let ProgramPoint::CallEnsures {
+        machine_symbol,
+        state_symbol,
+        statement_index,
+        call_ordinal,
+    } = point
+    else {
+        return None;
+    };
     let call_target = match site {
         validation::CallSite::Expression { call, .. } => call.target_symbol,
         validation::CallSite::Statement(call) => call.target_symbol,
@@ -352,30 +359,85 @@ fn call_parameter_qualification_join(
     }
     let parameters = validation::call_target_parameters(program, call_target)?;
     let arguments = validation::call_site_argument_expressions(program, &site);
-    let position = parameters.iter().enumerate().find_map(|(position, _)| {
-        let argument = arguments.get(position)?;
-        let canonical = validation::canonical_place_from_expression_in_state(
-            program,
-            state_symbol,
-            statement_index,
-            *argument,
-        )?;
-        (canonical.root == root && canonical.segments.as_slice() == path).then_some(position)
+    let state_flow = facts.flow.control.states.iter().find_map(|(_, state)| {
+        (state.machine_symbol == machine_symbol && state.state_symbol == state_symbol)
+            .then_some(state)
     })?;
-    if !crate::flow::call_parameter_qualification_identities(program, call_target)
+    let call_flow = facts
+        .flow
+        .control
+        .calls
+        .span(state_flow.calls)?
         .iter()
-        .any(|(declared, symbol, identity, from_declared_type)| {
-            // An AUTHORED `ensures` is what a content rejoin reads; a claim
-            // derived from a mutable parameter's declared type carries no
-            // routed provenance of its own.
-            !*from_declared_type
-                && *declared == position
-                && *symbol == domain_symbol
-                && *identity == semantic_domain
-        })
+        .find(|call| {
+            call.statement_index == statement_index
+                && call.call_ordinal == call_ordinal
+                && call.target_symbol == call_target
+        })?;
+    let operands = facts.flow.control.operands.span(call_flow.operands)?;
+    let receiver = match site {
+        validation::CallSite::Expression { call, .. } if call.receiver.is_valid() => {
+            Some(call.receiver)
+        }
+        _ => None,
+    };
+    if parameters.len() != arguments.len()
+        || !operands
+            .iter()
+            .map(|operand| operand.expression)
+            .eq(receiver.into_iter().chain(arguments.iter().copied()))
     {
         return None;
     }
+    let identities = crate::flow::call_parameter_qualification_identities(program, call_target);
+    let position = parameters
+        .iter()
+        .enumerate()
+        .find_map(|(position, parameter)| {
+            // Declared mutable domains are validity obligations, not new routed
+            // authority. Only an authored ensures can rejoin content provenance.
+            if !identities
+                .iter()
+                .any(|(declared, symbol, identity, from_declared_type)| {
+                    !*from_declared_type
+                        && *declared == position
+                        && *symbol == domain_symbol
+                        && *identity == semantic_domain
+                })
+            {
+                return None;
+            }
+            let argument = arguments.get(position)?;
+            if crate::flow::operand_binds_live_view(program, parameter.type_reference) {
+                // Join the same completed reference used by flow publication.
+                // Its descriptor spelling may name different storage, or may
+                // already have been replaced by a later operand's evaluation.
+                let operand = operands.get(position + usize::from(receiver.is_some()))?;
+                return facts
+                    .flow
+                    .control
+                    .operand_referents
+                    .span(operand.referents)?
+                    .iter()
+                    .any(|referent| {
+                        referent.root == root
+                            && facts
+                                .flow
+                                .control
+                                .operand_referent_segments
+                                .span(referent.segments)
+                                .is_some_and(|segments| segments == path)
+                    })
+                    .then_some(position);
+            }
+            let canonical = validation::canonical_place_from_expression_in_state(
+                program,
+                state_symbol,
+                statement_index,
+                *argument,
+            )?;
+            (canonical.root == root && canonical.segments.as_slice() == path).then_some(position)
+        })?;
     // Checked bodies owe their authored parameter claims at every exit.
     if validation::find_state(program, call_target)
         .is_some_and(|(machine, _)| machine.body_is_present)

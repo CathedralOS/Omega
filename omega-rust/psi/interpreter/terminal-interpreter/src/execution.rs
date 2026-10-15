@@ -611,12 +611,11 @@ impl<'artifact> TerminalExecution<'artifact> {
         handler: &mut impl TerminalEffectHandler,
     ) -> Result<TerminalExecutionStatus, TerminalInterpretError> {
         self.resume_operations(meter, handler).map_err(|error| {
-            if error != TerminalInterpretError::VerifiedOperationMalformed {
-                return error;
-            }
             // Report the execution cursor that declined the operation, including
             // failures reached in a callee. A missing operation means the block
             // terminator failed; source-free execution retains canonical IDs.
+            // Preserve the cause for every refusal, not only malformed rows:
+            // a missing home needs its consuming operation or cleanup edge.
             let operation = self
                 .program
                 .machines()
@@ -624,10 +623,11 @@ impl<'artifact> TerminalExecution<'artifact> {
                 .and_then(|machine| machine.block(&self.current))
                 .and_then(|block| block.operations.get(self.next_operation))
                 .map(|operation| operation.id);
-            TerminalInterpretError::VerifiedExecutionMalformed {
+            TerminalInterpretError::ExecutionSite {
                 machine: self.current_machine,
                 block: self.current,
                 operation,
+                cause: Box::new(error),
             }
         })
     }

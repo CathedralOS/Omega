@@ -893,7 +893,7 @@ impl AbstractOperation {
     /// Operations without a projection (scalar arithmetic, control, literal
     /// establishment) carry none.
     pub fn structural_paths(&self) -> Vec<&[StructuralPathSegment]> {
-        match self {
+        let mut paths = match self {
             Self::AtomicEvent { event, .. } => event
                 .location()
                 .map(|location| vec![location.path.as_slice()])
@@ -980,7 +980,15 @@ impl AbstractOperation {
                 .map(|argument| argument.path.as_slice())
                 .collect(),
             _ => Vec::new(),
-        }
+        };
+        // A terminator's cleanup invokes real receivers. Their selectors are
+        // scalar uses even when no later store mentions the captured place.
+        paths.extend(
+            self.cleanup_rosters()
+                .into_iter()
+                .flat_map(|(_, actions)| actions.iter().map(TerminalAffineCleanupAction::path)),
+        );
+        paths
     }
 
     /// The authored Terminal operation this row realizes, or `None` for a

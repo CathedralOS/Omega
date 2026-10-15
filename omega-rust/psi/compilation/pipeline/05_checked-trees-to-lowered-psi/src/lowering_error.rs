@@ -18,6 +18,10 @@ pub enum LoweringError {
     AmbiguousMachineName(String),
     /// A closure names storage absent from its retained type catalog.
     MissingUnitStructuralType(String),
+    MissingUnitStructuralDomainCarrier {
+        domain: language_semantics::SemanticDomainId,
+        carrier: semantic_vocabulary::StructuralTypeId,
+    },
     DebugSourceFileCountOverflow,
     DebugSourceLengthOverflow,
     MissingDebugSourceFile(usize),
@@ -38,6 +42,14 @@ pub enum LoweringError {
     },
     Unsupported(&'static str),
     InvalidSealedAccessorDeclaration(Diagnostic),
+    /// A second transfer or disposal overlaps storage already removed from
+    /// this occurrence. Keep both paths so the failing ownership join is visible.
+    OverlappingProjectedCustody {
+        reason: &'static str,
+        place: PlaceId,
+        earlier: Vec<terminal_psi::StructuralPathSegment>,
+        requested: Vec<terminal_psi::StructuralPathSegment>,
+    },
     /// A borrowed-storage restoration window the checked facts do not pin to
     /// one exact place, or whose restoration is missing on a path. `place` is
     /// the authored-facing spelling of the moved or stored place.

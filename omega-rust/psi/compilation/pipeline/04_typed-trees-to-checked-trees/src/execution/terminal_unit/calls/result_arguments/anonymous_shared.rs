@@ -1,6 +1,9 @@
 //! A shared call retains its complete temporary owner through normal completion.
 //! Admission rejoins the published loan and each exact claim occurrence;
 //! source checking owns eligibility and contextual hook requirements.
+//! The completed producer supplies its retained storage type. Re-inferring
+//! that type from a literal's leaves loses contextual construction identity;
+//! the receiving reference formal must not supply a replacement owner type.
 use super::{Multiplicity, SymbolHandle};
 use crate::execution::terminal_unit::MachineSupplyMode;
 use crate::execution::terminal_unit::{
@@ -14,6 +17,7 @@ pub(crate) fn validate(
     state: SymbolHandle,
     consumer: &checked_trees::FlowCallFact,
     expression: typed_trees::expression::ExpressionHandle,
+    owner_type: typed_trees::types::TypeReferenceHandle,
 ) -> Option<()> {
     let target = program.machine_by_symbol(
         validation::find_state(program, consumer.target_symbol)?
@@ -61,16 +65,6 @@ pub(crate) fn validate(
     if operands.next().is_some() {
         return None;
     }
-    let owner = validation::CanonicalPlace {
-        root,
-        segments: Vec::new(),
-    };
-    let owner_type = validation::canonical_place_type_reference(
-        program,
-        state,
-        consumer.statement_index,
-        &owner,
-    )?;
     // Construction has already admitted each reference leaf and retained its
     // exact source. Lending the containing home neither copies those referents
     // nor transports their permissions into the callee. A borrow-free contents

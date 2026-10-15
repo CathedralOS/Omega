@@ -281,7 +281,7 @@ impl TerminalExecution<'_> {
                 &placed_view_occurrences,
             )?;
         }
-        let aggregate_payload = self.stage_owned_aggregate_arguments(
+        let aggregate_payload = self.stage_owned_value_arguments(
             &prepared_arguments.descriptor_parameters,
             &mut structural_values,
             &mut identity_cursor,

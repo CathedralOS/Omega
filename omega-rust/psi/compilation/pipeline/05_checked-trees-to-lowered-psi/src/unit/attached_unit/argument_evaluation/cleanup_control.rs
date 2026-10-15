@@ -53,18 +53,38 @@ impl Evaluation {
         }
     }
 
-    /// Releasing a descriptor ends its own home, not its borrowed backing.
-    /// The emitted carrier decides whether that also disposes affine custody;
-    /// qualifications do not turn an unrestricted value into an affine owner.
-    pub(crate) fn descriptor_retirement(
+    /// Rejoin the actual emitted carrier, independently of source copyability
+    /// or referent multiplicity. Cleanup actions and descriptor releases use
+    /// this same contract when choosing disposal versus home retirement.
+    pub(crate) fn carrier_multiplicity(
         &self,
         place: semantic_vocabulary::PlaceId,
         operations: &OperationBuffer,
-    ) -> Result<TerminalAffineCleanupAction, LoweringError> {
+    ) -> Result<terminal_psi::StructuralMultiplicity, LoweringError> {
         let mut multiplicities = self
             .structural_root_parameters()
             .filter(|parameter| parameter.place == place)
             .map(|parameter| parameter.multiplicity)
+            // Branches inherit the transported owner frontier, not their
+            // parent's completed blocks. These are the actual receiving-home
+            // declarations retained by transport, not inferred source types.
+            .chain(
+                self.structural_value_owners
+                    .iter()
+                    .filter(|owner| owner.value.place == place)
+                    .map(|owner| owner.value.multiplicity),
+            )
+            // Anonymous backing is an emitted result without an authored
+            // local binding. Its declaration is authoritative too, including
+            // when only one selected branch establishes that home.
+            .chain(
+                operations
+                    .iter()
+                    .chain(self.blocks.iter().flat_map(|block| block.operations.iter()))
+                    .filter_map(|operation| operation.result.structural())
+                    .filter(|result| result.place == place)
+                    .map(|result| result.multiplicity),
+            )
             .chain(
                 operations
                     .structural_values
@@ -82,7 +102,17 @@ impl Evaluation {
                 "descriptor retirement has inconsistent carrier declarations",
             ));
         }
-        match multiplicity {
+        Ok(multiplicity)
+    }
+
+    /// Releasing a descriptor ends its own home, not its borrowed backing.
+    /// Qualifications do not turn an unrestricted value into an affine owner.
+    pub(crate) fn descriptor_retirement(
+        &self,
+        place: semantic_vocabulary::PlaceId,
+        operations: &OperationBuffer,
+    ) -> Result<TerminalAffineCleanupAction, LoweringError> {
+        match self.carrier_multiplicity(place, operations)? {
             terminal_psi::StructuralMultiplicity::Unrestricted => {
                 Ok(TerminalAffineCleanupAction::RetireHome(place))
             }
@@ -216,9 +246,11 @@ impl Evaluation {
         Ok(regions)
     }
 
-    /// Bind outgoing structural operands before cleanup can retire their old
-    /// homes. The later edge forwards these whole captures, not their old paths.
-    pub(crate) fn capture_cleanup_arguments(
+    /// Complete selected structural operands at ordinary receiving bindings.
+    /// Cleanup and stores share this edge transport: it copies unrestricted
+    /// values or transfers selected custody, retaining the source complement.
+    /// Declarations carry the actual source contracts, not receiving guesses.
+    pub(crate) fn capture_structural_arguments(
         &mut self,
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         checked: &checked_trees::CheckedTrees,

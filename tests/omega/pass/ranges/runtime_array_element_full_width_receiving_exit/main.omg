@@ -1,0 +1,78 @@
+// Expected exit: 0. Literal element stores use the complete receiving range,
+// whether the array is local, a field, a result or an argument.
+data Bounds { values: [u64 [0..=9223372036854775808u64]; 2]; }
+
+machine fill(values: &write [u64 [0..=9223372036854775808u64]; 2],
+             value: u64 [0..=9223372036854775808u64]) {
+    values = [value, 9223372036854775808u64];
+    values[0..1] = [value];
+}
+machine returned(value: u64 [0..=9223372036854775808u64])
+    -> [u64 [0..=9223372036854775808u64]; 2] {
+    [value, 9223372036854775808u64]
+}
+machine replace_row(rows: &mut [[u64 [0..=9223372036854775808u64]; 2]],
+                    incoming: [u64 [0..=9223372036854775808u64]; 2])
+requires rows.len >= 1
+{
+    rows[0] = incoming;
+}
+machine clear_empty(values: &write [u64; 0]) { values = []; }
+machine borrowed_copy(values: &mut [u64 [0..=9223372036854775808u64]; 2])
+    -> [u64 [0..=9223372036854775808u64]; 2] {
+    let snapshot: [u64 [0..=9223372036854775808u64]; 2] = values;
+    values[0] = 17;
+    snapshot
+}
+machine plain_copy(values: &mut [u64; 2]) -> [u64; 2] {
+    let snapshot: [u64; 2] = values;
+    values[0] = 17;
+    snapshot
+}
+machine first(values: [u64 [0..=9223372036854775808u64]; 2]) -> u64 {
+    values[0]
+}
+machine borrowed(values: &[u64 [0..=9223372036854775808u64]; 2]) -> u64 {
+    values[1]
+}
+machine relay(value: u64 [0..=9223372036854775808u64]) -> u64 {
+    transition { _ -> finish([value, 9223372036854775808u64]) }
+    state finish(values: [u64 [0..=9223372036854775808u64]; 2]) -> u64 {
+        values[1]
+    }
+}
+machine main() crashes Trap {
+    let mut values: [u64 [0..=9223372036854775808u64]; 2] = [0, 0];
+    fill(&write values, 9223372036854775808u64);
+    let result: [u64 [0..=9223372036854775808u64]; 2] = returned(7);
+    let mut rows: [[u64 [0..=9223372036854775808u64]; 2]; 2] = [[1, 2], [3, 4]];
+    replace_row(&mut rows[1..2], result);
+    let snapshot: [u64 [0..=9223372036854775808u64]; 2] = borrowed_copy(&mut rows[1]);
+    let mut plain: [u64; 2] = [7, 9223372036854775808u64];
+    let plain_snapshot: [u64; 2] = plain_copy(&mut plain);
+    let mut empty: [u64; 0] = [];
+    clear_empty(&write empty);
+    let record: Bounds = Bounds { values: [7, 9223372036854775808u64] };
+    let nested: [[u64 [0..=9223372036854775808u64]; 2]; 1] =
+        [[7, 9223372036854775808u64]];
+    let argument: u64 = first([7, 9223372036854775808u64]);
+    let loan: u64 = borrowed(&[7, 9223372036854775808u64]);
+    let arrived: u64 = relay(7);
+    transition values[0] == 9223372036854775808u64
+        && values[1] == 9223372036854775808u64
+        && result[0] == 7 && result[1] == 9223372036854775808u64
+        && rows[0][0] == 1 && rows[0][1] == 2
+        && rows[1][0] == 17 && rows[1][1] == 9223372036854775808u64
+        && snapshot[0] == 7 && snapshot[1] == 9223372036854775808u64
+        && plain[0] == 17 && plain[1] == 9223372036854775808u64
+        && plain_snapshot[0] == 7 && plain_snapshot[1] == 9223372036854775808u64
+        && record.values[0] == 7 && record.values[1] == 9223372036854775808u64
+        && nested[0][0] == 7 && nested[0][1] == 9223372036854775808u64
+        && argument == 7 && loan == 9223372036854775808u64
+        && arrived == 9223372036854775808u64 {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

@@ -166,10 +166,15 @@ impl TerminalExecution<'_> {
         self.structural_values.insert(result.place, value);
         Ok(())
     }
-    /// Stage independent aggregate payloads for each owned unrestricted occurrence. The
-    /// supplied descriptors and allocation cursor belong to the caller's
-    /// uncommitted transaction; source fields remain untouched even in swaps.
-    pub(crate) fn stage_owned_aggregate_arguments(
+    /// Give each independent owned copy its own storage identity. Composite
+    /// payloads are staged here; byte binding already detached the live prefix.
+    /// Both must stop naming the caller's storage before a reference can capture
+    /// the new home. Otherwise a nested call can resolve the callee's loan to
+    /// the suspended caller's independent snapshot. Borrowed descriptors retain
+    /// their original backing identity.
+    /// The values and cursor belong to the uncommitted call or successor edge;
+    /// source storage remains untouched even in swaps.
+    pub(crate) fn stage_owned_value_arguments(
         &self,
         parameters: &[StructuralParameterDeclaration],
         values: &mut BTreeMap<semantic_vocabulary::PlaceId, TerminalStructuralValue>,
@@ -179,12 +184,19 @@ impl TerminalExecution<'_> {
         for parameter in parameters {
             if parameter.access != StructuralAccess::Owned
                 || parameter.multiplicity != StructuralMultiplicity::Unrestricted
-                || !self
-                    .program
-                    .structural_types()
-                    .get(&parameter.structural_type)
-                    .is_some_and(|declaration| declaration.shape.is_composite_shape())
             {
+                continue;
+            }
+            let types = self.program.structural_types();
+            let declaration = types
+                .get(&parameter.structural_type)
+                .ok_or_else(malformed)?;
+            let composite = declaration.shape.is_composite_shape();
+            let primitive = match declaration.shape {
+                StructuralTypeShape::PrimitiveScalar(scalar_type) => Some(scalar_type),
+                _ => None,
+            };
+            if !composite && primitive.is_none() && !declaration.is_bounded_owned_byte_sequence() {
                 continue;
             }
             let value = values.get_mut(&parameter.place).ok_or(
@@ -192,15 +204,36 @@ impl TerminalExecution<'_> {
             )?;
             let source = StructuralRuntimePlace::from(&*value);
             let identity = self.local_structural_identities.allocate_staged(cursor)?;
-            payload.stage_subtree(
-                self,
-                &source,
-                &StructuralRuntimePlace {
-                    opaque_identity: identity,
-                    path: Vec::new(),
-                },
-                false,
-            )?;
+            if let Some(scalar_type) = primitive {
+                let (storage, actual, shared_view) =
+                    self.primitive_view_access(value, &[], scalar_type, false)?;
+                let scalar = self.read_primitive_storage(
+                    parameter.place,
+                    storage,
+                    actual,
+                    scalar_type,
+                    shared_view,
+                )?;
+                payload.stage_scalar_endpoint(
+                    &crate::primitive_storage::PrimitiveStorageEndpoint::Scalar(
+                        StructuralRuntimePlace {
+                            opaque_identity: identity,
+                            path: Vec::new(),
+                        },
+                    ),
+                    scalar,
+                )?;
+            } else if composite {
+                payload.stage_subtree(
+                    self,
+                    &source,
+                    &StructuralRuntimePlace {
+                        opaque_identity: identity,
+                        path: Vec::new(),
+                    },
+                    false,
+                )?;
+            }
             value.opaque_identity = identity;
             value.path.clear();
         }

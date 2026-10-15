@@ -1,0 +1,9 @@
+// A stored mutable reference may not corrupt its referent and return without
+// restoring its invariant. The explicit bound isolates the handback obligation.
+domain [u8; 8]::Utf8(bytes) requires valid_utf8(bytes);
+data Held { bytes: &mut [u8; 8] in Utf8; }
+machine corrupt(held: &mut Held)
+requires 0 < held.bytes.len
+{
+    held.bytes[0] = 255;
+}

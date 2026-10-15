@@ -309,8 +309,9 @@ impl TerminalExecution<'_> {
         convert_scalar(stored, logical_scalar)
     }
 
-    pub(super) fn store_encoded_primitive(
-        &mut self,
+    pub(super) fn prepare_encoded_primitive(
+        &self,
+        writes: &mut super::PrimitiveStorageWrites,
         destination: PlaceId,
         endpoint: &PrimitiveStorageEndpoint,
         stored_scalar: ScalarType,
@@ -331,7 +332,8 @@ impl TerminalExecution<'_> {
                 } else {
                     convert_scalar(decode(stored_scalar, bits)?, original.scalar_type())?
                 };
-                self.store_primitive_storage(
+                writes.stage(
+                    self,
                     destination,
                     PrimitiveStorage::canonical(endpoint.clone()),
                     original.scalar_type(),
@@ -341,23 +343,16 @@ impl TerminalExecution<'_> {
             _ => {
                 let width = terminal_semantics::reference_storage_byte_width(stored_scalar)
                     .ok_or_else(malformed)?;
-                // Validate the complete footprint before the first write. The
-                // endpoint's owner frame and type are checked on every access.
-                for byte_index in 0..usize::from(width) {
-                    self.read_primitive_storage(
-                        destination,
-                        PrimitiveStorage::canonical(shifted_byte_endpoint(endpoint, byte_index)?),
-                        byte_type()?,
-                        byte_type()?,
-                        false,
-                    )?;
-                }
+                // Resolve every destination byte without reading its contents.
+                // The enclosing transaction publishes only after all endpoints
+                // and encodings have been prepared, including later leaves.
                 for byte_index in 0..usize::from(width) {
                     let byte = TerminalScalarValue::Integer {
                         scalar_type: byte_integer_type()?,
                         value: IntegerValue::Unsigned((bits >> (byte_index * 8)) & 255),
                     };
-                    self.store_primitive_storage(
+                    writes.stage(
+                        self,
                         destination,
                         PrimitiveStorage::canonical(shifted_byte_endpoint(endpoint, byte_index)?),
                         byte_type()?,

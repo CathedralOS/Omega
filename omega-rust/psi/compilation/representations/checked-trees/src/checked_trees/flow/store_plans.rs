@@ -186,6 +186,8 @@ pub enum CheckedStoreLeaf {
     /// storage requires unrestricted contents with no cleanup obligation.
     StructuralStore {
         type_identity: TypeIdentityId,
+        /// Custody of the completed incoming value, including a selected child.
+        multiplicity: language_semantics::Multiplicity,
         /// Result coordinate of the extraction that opened this hole. The
         /// source checker establishes storage equality; lowering must not
         /// infer it from selector evaluation coordinates. None denotes an

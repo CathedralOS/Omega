@@ -33,7 +33,7 @@ pub(crate) fn plan(planner: StatementPlanner<'_, '_>, statement: &StatementNode)
             symbols::SymbolHandle::invalid(),
         )),
         StatementNode::Assignment(assignment) => {
-            validation::declared_place_type_raw(program, machine, Some(state), assignment.target)
+            validation::assignment_stored_value_type(program, machine, state, assignment)
                 .and_then(|declared| validation::closed_array_store_type(program, declared))
                 .map(|expected| (assignment.value, expected, symbols::SymbolHandle::invalid()))
         }

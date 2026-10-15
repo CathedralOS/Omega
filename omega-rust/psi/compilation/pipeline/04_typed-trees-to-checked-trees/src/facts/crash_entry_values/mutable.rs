@@ -412,12 +412,8 @@ fn transition_may_overwrite(
                 let internal = program
                     .machine_by_symbol(machine_symbol)
                     .is_some_and(|machine| {
-                        validation::activation_target_state_index(
-                            program,
-                            machine,
-                            path.symbol,
-                        )
-                        .is_some()
+                        validation::activation_target_state_index(program, machine, path.symbol)
+                            .is_some()
                     });
                 (!internal
                     && call_arguments_may_overwrite(

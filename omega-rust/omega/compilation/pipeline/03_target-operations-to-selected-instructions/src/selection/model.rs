@@ -102,6 +102,7 @@ pub enum SelectedInstructionError {
         function: usize,
         machine: Option<semantic_vocabulary::MachineId>,
         operation: Option<semantic_vocabulary::OperationId>,
+        site: optimization_core::CompilerCheckSite,
     },
     AmbiguousSourceShape {
         function: usize,
@@ -165,11 +166,13 @@ pub enum SelectedInstructionError {
 impl SelectedInstructionError {
     /// A shape refusal raised inside `function`, before its entrance
     /// attributes it to a machine and operation.
-    pub(crate) const fn unsupported_shape(function: usize) -> Self {
+    #[track_caller]
+    pub(crate) fn unsupported_shape(function: usize) -> Self {
         Self::UnsupportedSourceShape {
             function,
             machine: None,
             operation: None,
+            site: optimization_core::CompilerCheckSite::caller(),
         }
     }
 
@@ -187,10 +190,12 @@ impl SelectedInstructionError {
                 function,
                 machine: None,
                 operation: None,
+                site,
             } => Self::UnsupportedSourceShape {
                 function,
                 machine: Some(machine),
                 operation,
+                site,
             },
             Self::SourceCustodyMismatch {
                 machine: None,

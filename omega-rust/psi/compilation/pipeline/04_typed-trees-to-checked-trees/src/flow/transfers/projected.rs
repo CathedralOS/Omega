@@ -311,8 +311,8 @@ pub(super) fn bound_reference_referent_place(
     // The walk records the referent beside the local's own storage entry;
     // only an origin rooted in different storage can be the referent.
     let origin = crate::flow::sole_local_referent_origin(resolver, machine, before, local_symbol)?;
-    let (place, exact) = origin_place(program, state, statement_index, &origin)?;
-    if !exact {
+    let (place, precision) = origin_place(program, state, statement_index, &origin)?;
+    if precision != crate::flow::OriginPrecision::Exact {
         return None;
     }
     Some(crate::semantic::places::append_place(

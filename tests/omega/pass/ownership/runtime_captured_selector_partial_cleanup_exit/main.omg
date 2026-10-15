@@ -1,0 +1,19 @@
+// Expected exit: 0. Captured result guarantees separate cleanup from moved storage.
+data Token { value: u64; }
+machine Token::drop(token: &mut Token) { token.value = 0; }
+machine select() -> u64 ensures result == 1 { 1 }
+
+machine main() crashes Trap {
+    let mut tokens: [Token; 2] = [Token { value: 11 }, Token { value: 7 }];
+    let first: Token = tokens[0];
+    tokens[select()] = Token { value: 19 };
+    let selected: u64 = select();
+    tokens[selected] = Token { value: 23 };
+    tokens[0] = first;
+    transition tokens[0].value == 11 && tokens[1].value == 23 {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

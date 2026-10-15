@@ -428,6 +428,7 @@ pub(super) fn plan(
         structural_local_symbols.push(local.symbol);
         operations.push(CheckedUnitEffectOperationPlan::EstablishReference {
             formation_expression: local.initial_value,
+            backing_type: capture.backing_type,
             result,
             source: capture.source,
             storage: capture.storage,

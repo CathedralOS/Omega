@@ -28,12 +28,27 @@ machine state_constructor_reflexivity(value: u32, tail: Seq<u64>) {
     {}
 }
 
+// A returned record's descriptor dies on the selected edge: one branch moves
+// the record to its successor, while the other disposes it in this state.
+machine observe_selected_view(keep: bool) -> bool {
+    let values: [u64; 3] = [17, 25, 31];
+    let items: &[u64] = &values;
+    let view: BagView = Bag(items);
+    transition keep {
+        true -> inspect(view)
+        false -> done()
+    }
+    state inspect(view: BagView) -> bool { view.items.len == 3 }
+    state done() -> bool { true }
+}
+
 // Expected exit: 0. The checked library also supplies the runtime view.
 machine main() crashes Trap {
     let values: [u64; 3] = [17, 25, 31];
     let items: &[u64] = &values;
     let view: BagView = Bag(items);
-    transition view.items.len == 3 {
+    transition view.items.len == 3
+        && observe_selected_view(true) && observe_selected_view(false) {
         true -> inspect(view.items)
         false -> failed()
     }

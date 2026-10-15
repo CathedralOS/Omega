@@ -441,6 +441,7 @@ pub(in crate::legalization) fn structural_argument_at(
                 root_type,
                 &semantic.path,
                 semantic.access,
+                Some(declaration_parameter.structural_type),
                 declarations,
             )
             .ok_or(LegalizationError::custody())?;
@@ -606,7 +607,7 @@ pub(in crate::legalization) fn structural_argument_at(
         indices: super::target::control_flow::sources::call_indices(
             target_plan,
             optimized,
-            call_operation,
+            target_operations::CallSiteOwner::Operation(call_operation),
             &elements,
         )?,
         source,

@@ -56,7 +56,6 @@ pub(crate) fn access_referent_tail(
     }
     let signature = structural_source_contract(function, source.place)?;
     if signature.multiplicity == terminal_psi::StructuralMultiplicity::Linear
-        || !signature.is_unqualified()
         || signature.has_result_evidence()
     {
         return None;

@@ -218,6 +218,9 @@ fn expression_static_index(
     program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<usize> {
+    if !program.expression_table.expression_is_valid(expression) {
+        return None;
+    }
     program
         .expression_table
         .constant_integer_value(expression)
@@ -243,6 +246,13 @@ fn index_expressions_may_overlap(
     left: ExpressionHandle,
     right: ExpressionHandle,
 ) -> bool {
+    // Cross-call frames may erase a selector handle while retaining its
+    // collection dimension. The arena's dummy expression is not index zero.
+    if !program.expression_table.expression_is_valid(left)
+        || !program.expression_table.expression_is_valid(right)
+    {
+        return true;
+    }
     if left == right {
         return true;
     }

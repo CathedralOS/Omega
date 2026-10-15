@@ -175,9 +175,12 @@ pub(crate) fn lookup_domain_id_for_carrier(
     let mut matches = ids
         .iter()
         .filter(|row| row.semantic_domain == source && row.carrier == carrier);
-    let first = matches.next().ok_or(LoweringError::Unsupported(
-        "Unit closure references an unlowered structural domain carrier",
-    ))?;
+    let first = matches
+        .next()
+        .ok_or(LoweringError::MissingUnitStructuralDomainCarrier {
+            domain: source,
+            carrier,
+        })?;
     if matches.next().is_some() {
         return Err(LoweringError::Unsupported(
             "Unit closure repeats a structural domain carrier binding",
