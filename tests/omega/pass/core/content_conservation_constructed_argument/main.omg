@@ -1,5 +1,4 @@
 use omega::language::core::content;
-use omega::language::core::binding;
 use omega::language::core::nat;
 
 pub data ByteUnit {}
@@ -18,13 +17,13 @@ pub boundary trait Join {
         == Held::content(&result);
 }
 pub boundary trait Sink { machine accept(value: Chunk in Held); }
-pub machine combine(join: &Binding<Join>, sink: &Binding<Sink>, left: Chunk in Held, right: Chunk in Held)
+pub machine combine(left: Chunk in Held, right: Chunk in Held)
 reaches Join, Sink
-    invokes join;
-    invokes sink;
+    invokes Join;
+    invokes Sink;
 {
-    let joined: Chunk in Held = join.merge(Pair { left: left, right: right });
-    sink.accept(joined);
+    let joined: Chunk in Held = Join::merge(Pair { left: left, right: right });
+    Sink::accept(joined);
 }
 machine main() {}
 
@@ -34,11 +33,11 @@ pub boundary trait NestedJoin {
     ensures separate(Held::content(old(&shell.parts.left)), Held::content(old(&shell.parts.right)))
         == Held::content(&result);
 }
-pub machine nested(join: &Binding<NestedJoin>, sink: &Binding<Sink>, left: Chunk in Held, right: Chunk in Held)
+pub machine nested(left: Chunk in Held, right: Chunk in Held)
 reaches NestedJoin, Sink
-    invokes join;
-    invokes sink;
+    invokes NestedJoin;
+    invokes Sink;
 {
-    let joined: Chunk in Held = join.merge(Shell { parts: Pair { left: left, right: right } });
-    sink.accept(joined);
+    let joined: Chunk in Held = NestedJoin::merge(Shell { parts: Pair { left: left, right: right } });
+    Sink::accept(joined);
 }

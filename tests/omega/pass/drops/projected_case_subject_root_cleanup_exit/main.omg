@@ -5,7 +5,6 @@
 // a returning arm runs it at the return (C). Counting the field dispatch as
 // the record's consumer refused every forwarding arm ("structural result has
 // no selected disposition").
-use omega::language::core::binding;
 use omega::language::core::external_binding;
 
 // This fixture explicitly assumes finite, normal completion of one byte write
@@ -77,51 +76,51 @@ windows_x86_64 machine ConsoleNativeProvider::exit_process(return_code: i32)
 
 
 data Kind [copy] { case Keep; case Pass; }
-data Item<'binding> { console: &'binding Binding<Console>; ready: bool; kind: Kind; byte: i32; }
+data Item { ready: bool; kind: Kind; byte: i32; }
 
-machine Item::drop(item: &mut Item<'binding>)
+machine Item::drop(item: &mut Item)
 requires item.ready
 reaches Console
 {
-    Console::write_byte(item.console, item.byte);
+    Console::write_byte(item.byte);
     item.ready = false;
 }
 
-machine route(console: &Binding<Console>, kind: Kind, byte: i32) reaches Console {
-    let item: Item = Item { console: console, ready: true, kind: kind, byte: byte };
+machine route(kind: Kind, byte: i32) reaches Console {
+    let item: Item = Item { ready: true, kind: kind, byte: byte };
     transition item.kind {
-        Kind::Pass -> take(console, item)
-        _ -> skip(console)
+        Kind::Pass -> take(item)
+        _ -> skip()
     }
-    state take(console: &Binding<Console>, item: Item)
+    state take(item: Item)
     requires item.ready
     {
-        Console::write_byte(console, 80);
+        Console::write_byte(80);
     }
-    state skip(console: &Binding<Console>) { Console::write_byte(console, 83); }
+    state skip() { Console::write_byte(83); }
 }
 
-machine pick(console: &Binding<Console>, kind: Kind, byte: i32) -> i32 reaches Console {
-    let item: Item = Item { console: console, ready: true, kind: kind, byte: byte };
+machine pick(kind: Kind, byte: i32) -> i32 reaches Console {
+    let item: Item = Item { ready: true, kind: kind, byte: byte };
     transition item.kind {
-        Kind::Pass -> take(console, item)
+        Kind::Pass -> take(item)
         Kind::Keep -> (71)
     }
-    state take(console: &Binding<Console>, item: Item) -> i32
+    state take(item: Item) -> i32
     requires item.ready
     {
-        Console::write_byte(console, 80);
+        Console::write_byte(80);
         70
     }
 }
 
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Console {
-    route(&main.console, Kind::Pass, 65);
-    route(&main.console, Kind::Keep, 66);
-    let kept: i32 = pick(&main.console, Kind::Keep, 67);
-    let passed: i32 = pick(&main.console, Kind::Pass, 68);
-    main.console.write_byte(kept);
-    main.console.write_byte(passed);
-    main.console.write_byte(10);
+    route(Kind::Pass, 65);
+    route(Kind::Keep, 66);
+    let kept: i32 = pick(Kind::Keep, 67);
+    let passed: i32 = pick(Kind::Pass, 68);
+    Console::write_byte(kept);
+    Console::write_byte(passed);
+    Console::write_byte(10);
 }

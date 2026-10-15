@@ -7081,7 +7081,7 @@ pass/modules/runtime_named_extent_generic_copy_exit checked 20629ms check-target
 pass/modules/runtime_nominal_constant_lexical_ownership_exit checked 16334ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/modules/runtime_public_generic_dependency_exit checked 3592ms check-target:macos_arm64 @92558d90488a+wt
 pass/modules/runtime_qualified_static_mutation_exit checked 11682ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/modules/same_name_requirement_field_calls_exit checked 5527ms check-target:macos_arm64 @7c1edd43e7e4+wt
+pass/modules/same_name_requirement_calls_exit checked 5527ms check-target:macos_arm64 @7c1edd43e7e4+wt
 pass/modules/same_name_service_callback_exit checked 5515ms check-target:macos_arm64 @a27dad2ed102+wt
 pass/modules/selected_constant_array_alias_computed_extent checked 1803ms @a9ae30e1c334+wt
 pass/modules/selected_constant_array_alias_computed_extent_exit checked 4674ms check-target:macos_arm64 @589aedee8ebc+wt

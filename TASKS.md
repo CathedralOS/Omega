@@ -389,12 +389,15 @@ helper that passes does not close an item.
     A boundary requirement call spells `Requirement::operation(arguments)` and
     demands one exact static provider slot; checking accepts that form, and a
     leading `Binding<R>` operand is the only remaining receiver-lane entry.
-    Migrate source and fixtures: 67 test and 23 sample files still name
-    `Binding<`. The test remainder pins Binding-specific refusals or mixes
-    bindings across files. An inherited requirement is called through its declaring trait
-    (`Parent::reset`), not the refining child's name, and an applied one
-    as `Parent<u64>::read()`. Then delete
-    `source/library/core/binding.omg`, Binding type recognition, entry-field
+    Migrate source and fixtures: 40 test and 7 sample files still name
+    `Binding<`. The test remainder pins Binding-specific refusals and
+    receiver lanes; the sample remainder is four probes plus `file_journal`,
+    `note_vault` and `private_issuer_provider_result`, which move with std's
+    `Filesystem` carrier under **FILESYSTEM-PLATFORM-SERVICES**. Deleting the
+    carrier waits for that record: std must keep checking. An inherited
+    requirement is called through its declaring trait (`Parent::reset`), not
+    the refining child's name, and an applied one as `Parent<u64>::read()`.
+    Then delete `source/library/core/binding.omg`, Binding type recognition, entry-field
     establishment, receiver/leading-argument paths and source-visible routing
     custody. Add fail controls for `Binding<R>` in fields, locals and parameters
     and for ambiguous provider supply; provider admission already rejects a
@@ -3197,7 +3200,7 @@ crash and native exit behavior.
     closure missing a checked plan), `pass/capabilities/windows_provides_import_exit`
     (external evaluation not build-time admissible),
     `pass/generics/open_computed_quantity_result` (const parameter
-    materialization), `pass/modules/same_name_requirement_field_calls_exit`
+    materialization), `pass/modules/same_name_requirement_calls_exit`
     (Unit services with empty or duplicate canonical identities).
   - Cross-host control: Linux records still reject
     `pass/text/local_bounded_text_case_result_loan_exit` and mark
@@ -3826,7 +3829,7 @@ execution and retained outputs.
   no longer describes this defect. Do not recreate those removed lookups.
   Extend a same-name-module runtime customer through field-type lookup before
   changing it; the existing `pass/providers/same_name_requirement{,_right}_dispatch_exit`
-  and `pass/modules/same_name_requirement_field_calls_exit` (exit 70) are
+  and `pass/modules/same_name_requirement_calls_exit` (exit 70) are
   regression controls, not evidence that the remaining branch is exercised.
   Acceptance: the new customer reaches the repaired lookup and executes its
   authored result, closed applications retain their exact fields, and a target
@@ -6544,10 +6547,11 @@ report a missing runtime leg explicitly.
     adapter body, as in `pass/host/runtime_foreign_scalar_loan_writeback_exit`)
     or scope the oracle to its bound hosts; `expected_stdout.txt` has no
     per-target form.
-  - `tests/omega/pass/filesystem/windows_set_file_time_exit` still carries the
-    retired `Binding<FilesystemHost>` source shape; migrate it to the applicable
-    static raw-family requirement and add `expected_native_exit` so it must call
-    SetFileTime then `_stat64`, read back Unix time 1,500,000,000 and exit 70.
+  - `tests/omega/pass/filesystem/windows_set_file_time_exit` calls the mixed
+    `FilesystemHost` directly and stops at provider supply; migrate it to the
+    applicable static raw-family requirement and add `expected_native_exit` so
+    it must call SetFileTime then `_stat64`, read back Unix time 1,500,000,000
+    and exit 70.
 
 - **MACOS-X64-HOST-PROFILE.** Cover Intel macOS: Mach-O entry/exit, hosted
   receiver and provider/import pairing. `macos_x86_64` emits and runs under
@@ -6658,13 +6662,11 @@ construction stays on `TASKS_BOOTSTRAP.md`.
     import. `core/option.omg`'s `zero_value<Optional<T>>()` observation has no
     specified source meaning; resolve that contract instead of importing the
     Rust parser's contextual recognition. `std/build.omg` needs its build
-    context's `Build`. The product entry's console closure also needs the
-    settled static provider call form: `Console::read_byte()` creates the exact
-    `Console` slot demand
+    context's `Build`. The product entry calls `Console::read_byte()` directly,
+    the settled static provider call form that creates the exact `Console`
+    slot demand
     ([expressions](wiki/spec/language/expressions.md#calls-places-and-temporaries),
-    [boundary calls](wiki/spec/terminal-psi/boundary_calls.md)). Migrate
-    `source/omega/main.omg`; its Binding fields and receiver/leading-argument
-    calls are migration debt, not accepted syntax. Reconcile std target
+    [boundary calls](wiki/spec/terminal-psi/boundary_calls.md)). Reconcile std target
     providers' undocumented `Owner::provider_defaults` / provider-data
     convention with named implementation selection in
     [provider selection](wiki/spec/build/provider_selection.md).

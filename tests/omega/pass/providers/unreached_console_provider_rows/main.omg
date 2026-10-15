@@ -1,15 +1,13 @@
 // The selected Console provider's checked adapters (`read_line`, `write`,
 // `write_line`) call the hosted byte leaves `read_byte`/`write_byte`, and the
 // std package arrives as a reviewed package, so those intrinsic rows close
-// only through an accepted Console binding. This program establishes a
-// `Binding<Console>` it never reads and resolves no Console call, so no
-// binding is accepted and no adapter is in the entry's execution scope: the
-// uncalled rows must not demand a closed native catalog identity.
+// only through an accepted Console binding. This program reaches Console but
+// makes no Console call, so no Console binding is accepted and no adapter is
+// in the entry's execution scope: the uncalled rows must not demand a closed
+// native catalog identity.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
     count: u64;
 }
 

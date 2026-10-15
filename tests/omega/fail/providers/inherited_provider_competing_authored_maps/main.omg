@@ -1,4 +1,3 @@
-use omega::language::core::binding;
 // Equal realizer bodies do not permit mixing selecting owners. The Child
 // choice owns Parent's entire roster; another authored Parent map competes.
 pub boundary trait Parent { machine read() -> i32; }
@@ -14,8 +13,8 @@ macos_arm64 machine TargetProviders::provider_defaults(defaults: &mut TargetProv
     TargetProviders::select_provider<Child, ChildMap>(defaults);
     TargetProviders::select_provider<Parent, ParentMap>(defaults);
 }
-data Main { child: Binding<Child>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Child + Parent {
-    let chosen: i32 = Child::choose(&main.child);
-    let read: i32 = Parent::read(&main.child);
+    let chosen: i32 = Child::choose();
+    let read: i32 = Parent::read();
 }

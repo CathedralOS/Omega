@@ -8,8 +8,8 @@ exits 66, making a wrong-owner call observable.
 Prepare the package through ordinary review, then run both engines:
 
 ```sh
-omega update --project tests/omega/pass/modules/same_name_requirement_field_calls_exit --target macos_arm64
-omega run --both tests/omega/pass/modules/same_name_requirement_field_calls_exit/main.omg
+omega update --project tests/omega/pass/modules/same_name_requirement_calls_exit --target macos_arm64
+omega run --both tests/omega/pass/modules/same_name_requirement_calls_exit/main.omg
 ```
 
 Before the service publication repair, this program failed with `Unit services

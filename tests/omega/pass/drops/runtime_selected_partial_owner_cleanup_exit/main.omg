@@ -1,4 +1,3 @@
-use omega::language::core::binding;
 use omega::language::core::external_binding;
 
 // This fixture explicitly assumes finite, normal completion of one byte write
@@ -79,90 +78,90 @@ reaches Console
 
 // Each selected transfer consumes its exact region. The skipped region stays
 // behind younger roots until normal death, including after condition mutation.
-data Token { console: &Binding<Console>; value: u64; byte: i32; }
+data Token { value: u64; byte: i32; }
 data Pair<Value> { first: Value; second: Value; }
-machine Token::drop(token: &mut Token) reaches Console { Console::write_byte(token.console, token.byte); }
+machine Token::drop(token: &mut Token) reaches Console { Console::write_byte(token.byte); }
 machine consume(token: Token) -> u64 reaches Console { token.value }
 
-machine partial_record(console: &Binding<Console>, enabled: bool) -> bool reaches Console {
+machine partial_record(enabled: bool) -> bool reaches Console {
     let mut selected: bool = enabled;
-    let pair: Pair<Token> = Pair { first: Token { console: console, value: 9, byte: 65 }, second: Token { console: console, value: 10, byte: 66 } };
+    let pair: Pair<Token> = Pair { first: Token { value: 9, byte: 65 }, second: Token { value: 10, byte: 66 } };
     let observed: bool = selected && consume(pair.first) == 9;
     selected = !selected;
-    let youngest: Token = Token { console: console, value: 11, byte: 67 };
+    let youngest: Token = Token { value: 11, byte: 67 };
     (observed == enabled) && selected != enabled && pair.second.value == 10 && youngest.value == 11
 }
 
-machine partial_array(console: &Binding<Console>, enabled: bool) -> bool reaches Console {
+machine partial_array(enabled: bool) -> bool reaches Console {
     let mut selected: bool = enabled;
-    let tokens: [Token; 2] = [Token { console: console, value: 9, byte: 65 }, Token { console: console, value: 10, byte: 66 }];
+    let tokens: [Token; 2] = [Token { value: 9, byte: 65 }, Token { value: 10, byte: 66 }];
     let observed: bool = selected && consume(tokens[0]) == 9;
     selected = !selected;
-    let youngest: Token = Token { console: console, value: 11, byte: 67 };
+    let youngest: Token = Token { value: 11, byte: 67 };
     (observed == enabled) && selected != enabled && tokens[1].value == 10 && youngest.value == 11
 }
 
-machine replaced_field(console: &Binding<Console>, enabled: bool) -> bool reaches Console {
+machine replaced_field(enabled: bool) -> bool reaches Console {
     let mut selected: bool = enabled;
-    let mut pair: Pair<Token> = Pair { first: Token { console: console, value: 9, byte: 65 }, second: Token { console: console, value: 10, byte: 66 } };
+    let mut pair: Pair<Token> = Pair { first: Token { value: 9, byte: 65 }, second: Token { value: 10, byte: 66 } };
     let observed: bool = selected && consume(pair.first) == 9;
     selected = !selected;
-    Console::write_byte(console, 88);
-    pair.first = Token { console: console, value: 12, byte: 68 };
-    let youngest: Token = Token { console: console, value: 11, byte: 67 };
+    Console::write_byte(88);
+    pair.first = Token { value: 12, byte: 68 };
+    let youngest: Token = Token { value: 11, byte: 67 };
     (observed == enabled) && selected != enabled && pair.first.value == 12
         && pair.second.value == 10 && youngest.value == 11
 }
 
-machine replaced_element(console: &Binding<Console>, enabled: bool) -> bool reaches Console {
+machine replaced_element(enabled: bool) -> bool reaches Console {
     let mut selected: bool = enabled;
-    let mut tokens: [Token; 2] = [Token { console: console, value: 9, byte: 65 }, Token { console: console, value: 10, byte: 66 }];
+    let mut tokens: [Token; 2] = [Token { value: 9, byte: 65 }, Token { value: 10, byte: 66 }];
     let observed: bool = selected && consume(tokens[0]) == 9;
     selected = !selected;
-    Console::write_byte(console, 88);
-    tokens[0] = Token { console: console, value: 12, byte: 68 };
-    let youngest: Token = Token { console: console, value: 11, byte: 67 };
+    Console::write_byte(88);
+    tokens[0] = Token { value: 12, byte: 68 };
+    let youngest: Token = Token { value: 11, byte: 67 };
     (observed == enabled) && selected != enabled && tokens[0].value == 12
         && tokens[1].value == 10 && youngest.value == 11
 }
 
-machine replaced_owner(console: &Binding<Console>, enabled: bool) -> bool reaches Console {
+machine replaced_owner(enabled: bool) -> bool reaches Console {
     let mut selected: bool = enabled;
-    let mut token: Token = Token { console: console, value: 9, byte: 65 };
+    let mut token: Token = Token { value: 9, byte: 65 };
     let observed: bool = selected && consume(token) == 9;
     selected = !selected;
-    Console::write_byte(console, 88);
-    token = Token { console: console, value: 12, byte: 68 };
-    let youngest: Token = Token { console: console, value: 11, byte: 67 };
+    Console::write_byte(88);
+    token = Token { value: 12, byte: 68 };
+    let youngest: Token = Token { value: 11, byte: 67 };
     (observed == enabled) && selected != enabled && token.value == 12 && youngest.value == 11
 }
 
-machine multiple_regions(console: &Binding<Console>, enabled: bool) -> bool reaches Console {
-    let pair: Pair<Token> = Pair { first: Token { console: console, value: 9, byte: 65 }, second: Token { console: console, value: 10, byte: 66 } };
+machine multiple_regions(enabled: bool) -> bool reaches Console {
+    let pair: Pair<Token> = Pair { first: Token { value: 9, byte: 65 }, second: Token { value: 10, byte: 66 } };
     let first: bool = enabled && consume(pair.first) == 9;
     let second: bool = !enabled && consume(pair.second) == 10;
-    let youngest: Token = Token { console: console, value: 11, byte: 67 };
+    let youngest: Token = Token { value: 11, byte: 67 };
     (first == enabled) && (second != enabled) && youngest.value == 11
 }
 
-machine replaced_container(console: &Binding<Console>, enabled: bool) -> bool reaches Console {
-    let mut pair: Pair<Token> = Pair { first: Token { console: console, value: 9, byte: 65 }, second: Token { console: console, value: 10, byte: 66 } };
+machine replaced_container(enabled: bool) -> bool reaches Console {
+    let mut pair: Pair<Token> = Pair { first: Token { value: 9, byte: 65 }, second: Token { value: 10, byte: 66 } };
     let observed: bool = enabled && consume(pair.first) == 9;
-    Console::write_byte(console, 88);
-    pair = Pair { first: Token { console: console, value: 12, byte: 68 }, second: Token { console: console, value: 13, byte: 69 } };
-    let youngest: Token = Token { console: console, value: 11, byte: 67 };
+    Console::write_byte(88);
+    pair = Pair { first: Token { value: 12, byte: 68 }, second: Token { value: 13, byte: 69 } };
+    let youngest: Token = Token { value: 11, byte: 67 };
     (observed == enabled) && pair.first.value == 12 && pair.second.value == 13 && youngest.value == 11
 }
 
 // An ordinary complement surrounds the selected subtree in declaration order.
 data Triple { first: Token; middle: Token; last: Token; }
-machine middle_region(console: &Binding<Console>, enabled: bool) -> bool reaches Console {
+machine middle_region(enabled: bool) -> bool reaches Console {
     let triple: Triple = Triple {
-        first: Token { console: console, value: 9, byte: 65 }, middle: Token { console: console, value: 10, byte: 66 },
-        last: Token { console: console, value: 12, byte: 68 }
+        first: Token { value: 9, byte: 65 }, middle: Token { value: 10, byte: 66 },
+        last: Token { value: 12, byte: 68 }
     };
     let observed: bool = enabled && consume(triple.middle) == 10;
-    let youngest: Token = Token { console: console, value: 11, byte: 67 };
+    let youngest: Token = Token { value: 11, byte: 67 };
     (observed == enabled) && triple.first.value == 9 && triple.last.value == 12 && youngest.value == 11
 }
 
@@ -176,10 +175,10 @@ machine consume_choice(choice: ReceiptChoice) -> u64 reaches Console {
     }
     state finish(receipt: Receipt, token: Token) -> u64 { receipt.value }
 }
-machine optional_record(console: &Binding<Console>, enabled: bool, slot: ReceiptChoice, expected: u64) -> bool reaches Console {
+machine optional_record(enabled: bool, slot: ReceiptChoice, expected: u64) -> bool reaches Console {
     let holder: ReceiptHolder = ReceiptHolder { slot: slot };
     let observed: bool = enabled && consume_choice(holder.slot) == expected;
-    let youngest: Token = Token { console: console, value: 11, byte: 67 };
+    let youngest: Token = Token { value: 11, byte: 67 };
     (observed == enabled) && youngest.value == 11
 }
 
@@ -196,35 +195,35 @@ machine linear_replacement(enabled: bool) -> bool {
     (observed == enabled) && pair.first.value == 12 && pair.second.value == 10
 }
 
-machine verify(console: &Binding<Console>, accepted: bool) reaches Console crashes Trap {
-    Console::write_byte(console, 10);
+machine verify(accepted: bool) reaches Console crashes Trap {
+    Console::write_byte(10);
     transition accepted { true -> done() false -> bad() }
     state done() {}
     state bad() { crash Trap; }
 }
 
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Console crashes Trap {
-    verify(&main.console, partial_record(&main.console, false));
-    verify(&main.console, partial_record(&main.console, true));
-    verify(&main.console, partial_array(&main.console, false));
-    verify(&main.console, partial_array(&main.console, true));
-    verify(&main.console, replaced_field(&main.console, false));
-    verify(&main.console, replaced_field(&main.console, true));
-    verify(&main.console, replaced_element(&main.console, false));
-    verify(&main.console, replaced_element(&main.console, true));
-    verify(&main.console, replaced_owner(&main.console, false));
-    verify(&main.console, replaced_owner(&main.console, true));
-    verify(&main.console, multiple_regions(&main.console, false));
-    verify(&main.console, multiple_regions(&main.console, true));
-    verify(&main.console, replaced_container(&main.console, false));
-    verify(&main.console, replaced_container(&main.console, true));
-    verify(&main.console, middle_region(&main.console, false));
-    verify(&main.console, middle_region(&main.console, true));
-    verify(&main.console, optional_record(&main.console, false, ReceiptChoice::Empty, 0));
-    verify(&main.console, optional_record(&main.console, true, ReceiptChoice::Empty, 0));
-    verify(&main.console, optional_record(&main.console, false, ReceiptChoice::Held { receipt: Receipt { value: 9 }, token: Token { console: &main.console, value: 9, byte: 65 } }, 9));
-    verify(&main.console, optional_record(&main.console, true, ReceiptChoice::Held { receipt: Receipt { value: 9 }, token: Token { console: &main.console, value: 9, byte: 65 } }, 9));
-    verify(&main.console, linear_replacement(false));
-    verify(&main.console, linear_replacement(true));
+    verify(partial_record(false));
+    verify(partial_record(true));
+    verify(partial_array(false));
+    verify(partial_array(true));
+    verify(replaced_field(false));
+    verify(replaced_field(true));
+    verify(replaced_element(false));
+    verify(replaced_element(true));
+    verify(replaced_owner(false));
+    verify(replaced_owner(true));
+    verify(multiple_regions(false));
+    verify(multiple_regions(true));
+    verify(replaced_container(false));
+    verify(replaced_container(true));
+    verify(middle_region(false));
+    verify(middle_region(true));
+    verify(optional_record(false, ReceiptChoice::Empty, 0));
+    verify(optional_record(true, ReceiptChoice::Empty, 0));
+    verify(optional_record(false, ReceiptChoice::Held { receipt: Receipt { value: 9 }, token: Token { value: 9, byte: 65 } }, 9));
+    verify(optional_record(true, ReceiptChoice::Held { receipt: Receipt { value: 9 }, token: Token { value: 9, byte: 65 } }, 9));
+    verify(linear_replacement(false));
+    verify(linear_replacement(true));
 }

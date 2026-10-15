@@ -1,0 +1,13 @@
+// RUN CANARY (exit 70). Two modules each declare a boundary trait `Sink`
+// whose requirement `emit` is resultless, a provider satisfying it, and a
+// `Runner` whose machine calls `Sink::emit` as a statement in the entry
+// state and again in a named state. Each call names the `Sink` its own
+// module declares. The entry is `right::Runner::run`, the later of the two
+// same-spelled runners, so a lookup that took the first `Runner` or `Sink`
+// by its spelling would name `left::Sink::emit`. Resolved exactly, the calls reach
+// `right::Provider`, which writes each byte it receives: "R" from the entry
+// state, then the newline from `deliver`, which exits 70. A call that
+// crossed into `left::Sink::emit` runs `left::Provider`, which exits 66;
+// `left`'s own runner would exit 65.
+use left;
+use right;

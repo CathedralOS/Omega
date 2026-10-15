@@ -1,4 +1,3 @@
-use omega::language::core::binding;
 use omega::language::core::external_binding;
 
 pub boundary trait DescriptorIo {
@@ -7,7 +6,7 @@ pub boundary trait DescriptorIo {
 }
 pub data DescriptorImports {}
 pub data Receipt [copy] { moved: i64; }
-data Main { io: Binding<DescriptorIo>; }
+data Main { }
 
 pub macos_arm64 machine read_binding() -> ForeignBinding<26, 5, 0> {
     ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
@@ -42,19 +41,19 @@ macos_arm64 boundary machine DescriptorImports::write(descriptor: i32, words: &[
 linux_x86_64 boundary machine DescriptorImports::write(descriptor: i32, words: &[u16; 3], count: u64) -> i64
     satisfies DescriptorIo::write via linux_x86_64_write_binding();
 
-machine receive(io: &Binding<DescriptorIo>, words: &mut [u16; 3]) -> Receipt reaches DescriptorIo blocks; {
-    transition { _ -> read(io, words) }
-    state read(io: &Binding<DescriptorIo>, words: &mut [u16; 3]) {
-        let moved: i64 = block io.read(0, words, 6);
+machine receive(words: &mut [u16; 3]) -> Receipt reaches DescriptorIo blocks; {
+    transition { _ -> read(words) }
+    state read(words: &mut [u16; 3]) {
+        let moved: i64 = block DescriptorIo::read(0, words, 6);
         Receipt { moved: moved }
     }
 }
 
 machine Main::main(main: &mut Main) reaches DescriptorIo blocks; crashes Trap {
     let mut words: [u16; 3] = [21845, 21845, 11442];
-    let receipt: Receipt = block receive(&main.io, &mut words);
-    let at_end: i64 = block main.io.read(0, &mut words, 6);
-    let written: i64 = main.io.write(1, &words, 4);
+    let receipt: Receipt = block receive(&mut words);
+    let at_end: i64 = block DescriptorIo::read(0, &mut words, 6);
+    let written: i64 = DescriptorIo::write(1, &words, 4);
     transition receipt.moved == 4 && at_end == 0 && written == 4
         && words[0] == 25185 && words[1] == 2659 && words[2] == 11442 {
         true -> done()

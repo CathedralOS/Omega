@@ -1,7 +1,6 @@
-module left;
+module right;
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 pub boundary trait Sink {
     machine emit(byte: i32)
@@ -14,18 +13,18 @@ machine Provider::emit(byte: i32) satisfies Sink::emit
 reaches
     Console
 {
-    Console::exit_process(66);
+    Console::write_byte(byte);
 }
 
-pub data Runner { sink: Binding<Sink>; console: Binding<Console>; }
+pub data Runner { }
 pub machine Runner::run(runner: &mut Runner) reaches Sink, Console
 invokes Sink;
 invokes Console;
 {
-    runner.sink.emit(76);
-    transition { _ -> deliver(runner, 65) }
+    Sink::emit(82);
+    transition { _ -> deliver(runner, 70) }
     state deliver(runner: &mut Runner, code: i32) {
-        runner.sink.emit(10);
-        runner.console.exit_process(code);
+        Sink::emit(10);
+        Console::exit_process(code);
     }
 }

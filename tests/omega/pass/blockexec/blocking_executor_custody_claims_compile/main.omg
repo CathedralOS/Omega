@@ -1,4 +1,3 @@
-use omega::language::core::binding;
 use omega::language::core::drop;
 
 // BLOCKEXEC — concrete custody/claim pin for the blocking-executor contract
@@ -116,11 +115,10 @@ data SubmissionSlot {
 
 // One executor instance: the wait word producers and workers park on and
 // the routed worker-provider service worker activations run under.
-// `Binding<WorkerProvider>` is the held selected capability — established
-// by build composition, never package-authored.
+// `WorkerProvider` is the selected boundary worker activations call —
+// established by build composition, never package-authored.
 data Executor [linear] {
     wait_word: u64;
-    runtime: Binding<WorkerProvider>;
     open: bool;
 }
 

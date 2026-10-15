@@ -1,6 +1,6 @@
 // RUN CANARY (exit 70) -- the raw WindowsFilesystemHost family natively on
 // windows_x86_64: CreateFileW (UTF-8 path transcoded to UTF-16LE),
-// WriteFile, CloseHandle through Binding<WindowsFilesystemHost>.
+// WriteFile, CloseHandle through direct WindowsFilesystemHost calls.
 //   create_file("omega_fswin_native.bin", GENERIC_WRITE, share 0,
 //               CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL) != 0
 //   write_file(handle, "winnat") == 6
@@ -8,28 +8,25 @@
 // exits: 70 ok; 71 create_file returned 0; 72 write_file != 6; 73 close != 0.
 use omega_language_std::windows_filesystem_host;
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
-    fs: Binding<WindowsFilesystemHost>;
     handle: u64;
     written: i64;
     rc: i32;
 }
 
 machine Main::main(main: &mut Main) reaches Console + WindowsFilesystemHost {
-    main.handle = main.fs.create_file("omega_fswin_native.bin", 1073741824, 0, 2, 128);
+    main.handle = WindowsFilesystemHost::create_file("omega_fswin_native.bin", 1073741824, 0, 2, 128);
     transition main.handle != 0 { true -> write(main) _ -> bad(main, 71) }
 
     state write(main: &mut Main) {
-        main.written = main.fs.write_file(main.handle, "winnat");
+        main.written = WindowsFilesystemHost::write_file(main.handle, "winnat");
         transition main.written == 6 { true -> close_it(main) _ -> bad(main, 72) }
     }
     state close_it(main: &mut Main) {
-        main.rc = main.fs.close_handle(main.handle);
+        main.rc = WindowsFilesystemHost::close_handle(main.handle);
         transition main.rc == 0 { true -> good(main) _ -> bad(main, 73) }
     }
-    state good(main: &mut Main) { main.console.exit_process(70); }
-    state bad(main: &mut Main, code: i32) { main.console.exit_process(code); }
+    state good(main: &mut Main) { Console::exit_process(70); }
+    state bad(main: &mut Main, code: i32) { Console::exit_process(code); }
 }
