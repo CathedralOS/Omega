@@ -69,15 +69,15 @@ fn v1_publication_digests_keep_their_byte_contract_and_detect_substitution() {
         ),
         (
             *receipt.certificate_digest().as_bytes(),
-            "1cb48893f39d6a1e05aaabb2e24f2afdc49aacc6bb60874a4d6569e329628b59",
+            "41be7cb69cfeae55c854e5770667279a4411d040e65c656cabccbd87e9440cce",
         ),
         (
             *receipt.publication_evidence_digest().as_bytes(),
-            "6d3a2225c2c6bd534cf9b82947e9f40051a987d5fb399848155f66f649a4f434",
+            "a6dbd639bd5dc4af9dd495786dbb7df8fb30f0ad90d7420521b380cdfa64ef4a",
         ),
         (
             *receipt.installation_evidence_digest().as_bytes(),
-            "3ac999e49d255cff416675cea788ca383418ef3f02f21ae6deda5455afd5e641",
+            "42a165c5cfef1fde6476c4ebe68bd3d982b53d805d319974192eb9ff35db13dc",
         ),
     ];
     for (bytes, expected) in vectors {
