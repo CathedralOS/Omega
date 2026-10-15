@@ -354,7 +354,7 @@ pass/borrows/runtime_selected_indexed_reference_exit rejected 17777ms @6c49683ce
 	target legalization failed: SourceCustodyMismatch { machine: Some(MachineId(5)), operation: None, site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }
 pass/borrows/runtime_selected_reference_child_retirement_exit built 14805ms exit:0 @6c49683ce714
 pass/borrows/runtime_selected_reference_nested_restoration_exit built 17628ms exit:0 @6c49683ce714
-pass/borrows/runtime_selected_reference_record_helper_exit timeout 120000ms @6c49683ce714
+pass/borrows/runtime_selected_reference_record_helper_exit built 103186ms exit:0 @909c94d50bd2
 pass/borrows/runtime_selected_shared_descriptor_store built 17945ms exit:0 @6c49683ce714
 pass/borrows/runtime_selected_shared_reference_cohort_exit built 15500ms exit:0 @6c49683ce714
 pass/borrows/runtime_selected_stored_carrier_child_exit built 17873ms exit:0 @6c49683ce714
@@ -2534,7 +2534,7 @@ pass/float/admitted_float_conversion_crash rejected 32507ms @6c49683ce714
 	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(ConsoleNativeProvider::write_byte),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
 pass/float/admitted_float_lower_boundary_crash rejected 33697ms @6c49683ce714
 	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(ConsoleNativeProvider::write_byte),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
-pass/float/admitted_numeric_imports_preserve_semantics timeout 120000ms @6c49683ce714
+pass/float/admitted_numeric_imports_preserve_semantics built 237830ms exit:70 @909c94d50bd2
 pass/float/authored_heterogeneous_float_operator checked 3474ms @6c49683ce714
 pass/float/boundary_call_guard_result built 32855ms exit:0 @6c49683ce714
 pass/float/build_runtime_semantics_twins_windows_x64 rejected 514924ms @6c49683ce714
@@ -2544,7 +2544,7 @@ pass/float/build_runtime_semantics_twins_x86_baseline rejected 529991ms @6c49683
 pass/float/builtin_extrema_field_store_exit built 35066ms exit:70 @6c49683ce714
 pass/float/closed_integer_conversion_predicate_proof_exit built 34622ms exit:0 @6c49683ce714
 pass/float/closed_integer_conversion_trapping_source_no_normal_result built 34760ms exit:signal signal:4 @6c49683ce714
-pass/float/coherent_field_energy_scattering_exit timeout 120000ms @6c49683ce714
+pass/float/coherent_field_energy_scattering_exit built 60974ms exit:0 @909c94d50bd2
 pass/float/computed_comparison_literal_landing_exit built 34436ms exit:0 @6c49683ce714
 pass/float/computed_float_bare_literal_comparison built 34734ms exit:0 @6c49683ce714
 pass/float/constructor_requirement_result_policy_exit built 34056ms exit:0 @6c49683ce714
@@ -2900,7 +2900,7 @@ pass/layouts/empty_cases_sum_layout_compile checked 3561ms @6c49683ce714
 pass/layouts/empty_record_layout_queries_compile checked 3668ms @6c49683ce714
 pass/layouts/five_element_array_layout_compile checked 3598ms @6c49683ce714
 pass/layouts/float_member_layout_queries_compile checked 3471ms @6c49683ce714
-pass/layouts/guarded_policy_state_premise timeout 120000ms @6c49683ce714
+pass/layouts/guarded_policy_state_premise checked 94108ms @909c94d50bd2
 pass/layouts/integer_at_owned_local_borrow_call_exit built 18004ms exit:0 @6c49683ce714
 pass/layouts/invariant_record_layout_compile checked 3453ms @6c49683ce714
 pass/layouts/layout_queries checked 17975ms @6c49683ce714
