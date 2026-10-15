@@ -8,9 +8,11 @@
 //!
 //! The recipe is UEFI-specific, not generic: it exists because the
 //! `UefiX64` `ProgramStorageApplication` slot hands the generated bridge two
-//! indirect Extent arrivals (image handle and system-table pointers under
-//! Microsoft-x64) that must be copied into caller-owned storage before the
-//! semantic continuation runs. Every hosted profile — both shipped AArch64
+//! indirect Extent arguments under Microsoft-x64 that must be copied into
+//! caller-owned storage before the semantic continuation runs. These are
+//! already-established roots, not the physical image handle and system table:
+//! the source-authored bootstrap must establish that separate crossing.
+//! Every hosted profile — both shipped AArch64
 //! profiles (`linux_arm64`, `macos_arm64`) and the three hosted x86-64
 //! profiles — selects a `HostedApplication` slot instead: its authored
 //! physical entry arrives on the platform calling convention's

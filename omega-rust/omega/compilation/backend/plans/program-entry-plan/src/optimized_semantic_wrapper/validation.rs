@@ -42,7 +42,6 @@ pub(super) fn receiver_storage(
             if receiver.byte_count() == 0
                 || !receiver.alignment().is_power_of_two()
                 || receiver.alignment() > 16
-                || receiver.byte_count() > u16::MAX as u32
             {
                 return Err(ProgramStorageEntryDiagnostic(
                     "optimized semantic ProgramStorage wrapper receiver requires a checked layout within one aligned slot"
@@ -53,6 +52,14 @@ pub(super) fn receiver_storage(
                 "optimized semantic ProgramStorage wrapper receiver layout overflowed its slot"
                     .into(),
             ))?;
+            // Frame coordinates are u32 throughout this plan. The ISA owner
+            // separately checks its signed immediate limit; neither bound is
+            // evidence that firmware supplied the required stack backing.
+            RECEIVER_SLOT_BYTE_OFFSET.checked_add(slot_byte_count)
+                .and_then(|end| end.checked_add(super::recipe::RECEIVER_FRAME_TAIL_PAD))
+                .ok_or(ProgramStorageEntryDiagnostic(
+                    "optimized semantic ProgramStorage wrapper receiver frame overflowed".into(),
+                ))?;
             Ok(Some(OptimizedProgramStorageSemanticReceiverStorage {
                 byte_count: receiver.byte_count(),
                 alignment: receiver.alignment(),

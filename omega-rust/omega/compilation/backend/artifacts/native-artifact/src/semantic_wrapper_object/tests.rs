@@ -119,15 +119,15 @@ fn composed() -> OptimizedProgramStorageSemanticWrapperObjectPlan {
 #[test]
 fn composition_prefixes_resolved_wrapper_and_shifts_terminal_symbols() {
     let object = composed();
-    assert_eq!(object.text_bytes.len(), 91);
-    assert_eq!(object.text_bytes[90], 0xc3);
+    assert_eq!(object.text_bytes.len(), 97);
+    assert_eq!(object.text_bytes[96], 0xc3);
     assert_eq!(object.symbols.len(), 2);
     assert_eq!(object.symbols[0].machine, None);
     assert_eq!(object.symbols[0].name, WRAPPER_SYMBOL_NAME);
-    assert_eq!(object.symbols[1].section_offset, 90);
+    assert_eq!(object.symbols[1].section_offset, 96);
     assert_eq!(object.continuation_symbol, object.symbols[1].symbol);
-    assert_eq!(object.call_resolution.continuation_section_offset, 90);
-    assert_eq!(object.call_resolution.displacement, 5);
+    assert_eq!(object.call_resolution.continuation_section_offset, 96);
+    assert_eq!(object.call_resolution.displacement, 8);
     assert_eq!(object.relocation_record_count, 0);
 }
 
