@@ -125,7 +125,9 @@ pub data BoundarySignature where shape_count <= 256, field_count <= 256,
     result: u64;
 }
 
-pub data MachineRegister {
+// Register names are plan values, not ownership of live hardware registers.
+// A policy may copy a name while assembling placements and clobber sets.
+pub data MachineRegister [copy] {
     case X86Rax;
     case X86Rcx;
     case X86Rdx;

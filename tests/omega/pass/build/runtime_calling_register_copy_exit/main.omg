@@ -1,0 +1,25 @@
+// Expected exit: 0. Reusing register names copies plan metadata; it does not
+// remove a clobber entry or make a placement an alias of the clobber array.
+use omega_language_std::calling;
+
+machine xmm_index(register: MachineRegister) -> u64 {
+    transition register {
+        MachineRegister::X86Xmm { index } -> index
+        _ -> 0u64
+    }
+}
+
+machine main() crashes Trap {
+    let mut plan: BoundaryEntryPlan;
+    plan.call.ordinary_clobbers.registers[0] = MachineRegister::X86Xmm { index: 7 };
+    let first: u64 = xmm_index(plan.call.ordinary_clobbers.registers[0]);
+    let repeated: u64 = xmm_index(plan.call.ordinary_clobbers.registers[0]);
+    plan.call.ordinary_clobbers.registers[0] = MachineRegister::X86Xmm { index: 9 };
+    let replaced: u64 = xmm_index(plan.call.ordinary_clobbers.registers[0]);
+    transition first == 7 && repeated == 7 && replaced == 9 {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
