@@ -33,9 +33,19 @@ pub(super) fn close(program: &mut TypedTrees) -> Result<Vec<SymbolHandle>, Vec<D
         // providers. Retain symbolic Source operands independently of whether
         // closing a provider rewrites an executable entry.
         let declaration = program
-            .symbols
-            .get(invocation.requirements[0].parameter)
-            .parent;
+            .machine_parameter_signature(invocation.target)
+            .map(|_| invocation.target)
+            .or_else(|| {
+                program
+                    .trait_machine_signature(invocation.target)
+                    .map(|_| invocation.target)
+            })
+            .unwrap_or_else(|| {
+                program
+                    .symbols
+                    .get(invocation.requirements[0].parameter)
+                    .parent
+            });
         let retained = program
             .expression_table
             .static_machine_application_mut(application);

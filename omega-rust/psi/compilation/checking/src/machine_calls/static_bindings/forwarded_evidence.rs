@@ -4,7 +4,6 @@
 
 use diagnostics::Diagnostic;
 use typed_trees::{
-    machine::Machine,
     static_applications::{
         StaticMachineApplication, StaticMachineBinding, StaticMachineBindingValue,
         StaticMachineLifetimeBinding,
@@ -14,7 +13,7 @@ use typed_trees::{
 
 pub(super) fn validate(
     program: &dyn crate::CheckingInput,
-    machine: &Machine,
+    machine: &super::StaticDeclaration<'_>,
     application: &StaticMachineApplication,
     bindings: &[StaticMachineBinding],
     lifetimes: &[StaticMachineLifetimeBinding],
@@ -57,7 +56,7 @@ pub(super) fn validate(
         arguments: &operands,
         lifetimes: &regions,
     };
-    for required in &machine.conformance_bounds {
+    for required in machine.conformance_bounds {
         let Some(selected) = bindings.iter().find_map(|binding| {
             if binding.parameter != required.binder {
                 return None;

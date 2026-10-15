@@ -146,6 +146,22 @@ pub(super) fn retain_call(
     if !application.is_valid() {
         return;
     }
+    let authored = program
+        .expression_table
+        .static_machine_application(application)
+        .registration_operation;
+    if authored.is_valid()
+        && program.symbols.get(authored).kind == symbols::SymbolKind::MachineParameter
+    {
+        // The callable parameter owns the authored invocation telescope. Its
+        // selected provider has an independent instance tuple; rewriting the
+        // call cannot replace the requirement's binders with that provider's.
+        program
+            .expression_table
+            .static_machine_application_mut(application)
+            .binding_declaration = authored;
+        return;
+    }
     program
         .expression_table
         .static_machine_application_mut(application)

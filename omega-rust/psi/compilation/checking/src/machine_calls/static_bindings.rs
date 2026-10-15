@@ -12,13 +12,54 @@ use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::data::{TypeParameter, TypeParameterKind};
 use typed_trees::expression::ExpressionNode;
-use typed_trees::machine::{GenericConformanceBound, Machine};
+use typed_trees::machine::GenericConformanceBound;
+use typed_trees::name::Identifier;
 use typed_trees::statement::StatementNode;
 use typed_trees::static_applications::{
     StaticMachineApplication, StaticMachineApplicationHandle, StaticMachineBinding,
     StaticMachineBindingValue,
 };
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+
+/// The authored telescope belongs to a callable declaration, including a trait
+/// requirement reached through a machine parameter. Executable machine rosters
+/// do not own those requirement binders and cannot substitute for their scope.
+struct StaticDeclaration<'program> {
+    symbol: SymbolHandle,
+    name: &'program Identifier,
+    parameters: &'program [TypeParameter],
+    lifetime_parameters: &'program [Identifier],
+    conformance_bounds: &'program [GenericConformanceBound],
+}
+
+impl<'program> StaticDeclaration<'program> {
+    fn find(program: &'program dyn crate::CheckingInput, symbol: SymbolHandle) -> Option<Self> {
+        if let Some(machine) = program.machine_by_symbol(symbol) {
+            return Some(Self {
+                symbol: machine.symbol,
+                name: &machine.name,
+                parameters: program.machine_type_parameters(machine),
+                lifetime_parameters: &machine.lifetime_parameters,
+                conformance_bounds: &machine.conformance_bounds,
+            });
+        }
+        let signature = program
+            .trait_machine_signature(symbol)
+            .map(|(_, signature)| signature)
+            .or_else(|| {
+                program
+                    .retained_static_machine_contract(symbol)
+                    .map(|view| view.signature())
+            })?;
+        Some(Self {
+            symbol: signature.symbol,
+            name: &signature.name,
+            parameters: program.state_signature_type_parameters(signature),
+            lifetime_parameters: &signature.lifetime_parameters,
+            conformance_bounds: &[],
+        })
+    }
+}
 
 pub fn validate_static_machine_bindings(
     program: &dyn crate::CheckingInput,
@@ -91,8 +132,8 @@ pub fn validate_static_machine_bindings(
             .expression_table
             .static_machine_application_lifetimes(handle);
         if !lifetimes.is_empty() {
-            let declared = program.machine_by_symbol(application.binding_declaration);
-            let owner = program.machine_by_symbol(application.lexical_owner);
+            let declared = StaticDeclaration::find(program, application.binding_declaration);
+            let owner = StaticDeclaration::find(program, application.lexical_owner);
             if declared.zip(owner).is_none_or(|(declared, owner)| {
                 // Ordinary calls may infer only the used part of a lifetime
                 // telescope. Applied provider views separately require a
@@ -120,7 +161,8 @@ pub fn validate_static_machine_bindings(
         if bindings.is_empty() {
             continue;
         }
-        let Some(machine) = program.machine_by_symbol(application.binding_declaration) else {
+        let Some(machine) = StaticDeclaration::find(program, application.binding_declaration)
+        else {
             diagnostics.push(Diagnostic::error(format!(
                 "static tuple for `{}` lost its original binding declaration",
                 application.target,
@@ -149,7 +191,7 @@ pub fn validate_static_machine_bindings(
             continue;
         }
         judged.push((machine.symbol, scope, handle));
-        let parameters = program.machine_type_parameters(machine);
+        let parameters = machine.parameters;
         let scope_parameters: &[TypeParameter] = program
             .machine_by_symbol(application.lexical_owner)
             .map_or(&[], |owner| program.machine_type_parameters(owner));
@@ -190,7 +232,7 @@ pub fn validate_static_machine_bindings(
                     validate_const_binding(
                         program,
                         application,
-                        machine,
+                        &machine,
                         parameter,
                         *actual,
                         &mut diagnostics,
@@ -234,7 +276,7 @@ pub fn validate_static_machine_bindings(
         });
         forwarded_evidence::validate(
             program,
-            machine,
+            &machine,
             application,
             bindings,
             program
@@ -245,7 +287,7 @@ pub fn validate_static_machine_bindings(
         if complete {
             validate_conformance_bindings(
                 program,
-                machine,
+                &machine,
                 application,
                 bindings,
                 program
@@ -265,7 +307,7 @@ pub fn validate_static_machine_bindings(
 fn validate_const_binding(
     program: &dyn crate::CheckingInput,
     application: &StaticMachineApplication,
-    machine: &Machine,
+    machine: &StaticDeclaration<'_>,
     parameter: &TypeParameter,
     actual: TypeReferenceHandle,
     diagnostics: &mut Vec<Diagnostic>,
@@ -311,13 +353,13 @@ fn validate_const_binding(
 
 fn validate_conformance_bindings(
     program: &dyn crate::CheckingInput,
-    machine: &Machine,
+    machine: &StaticDeclaration<'_>,
     call: &StaticMachineApplication,
     bindings: &[StaticMachineBinding],
     lifetimes: &[typed_trees::static_applications::StaticMachineLifetimeBinding],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    for bound in &machine.conformance_bounds {
+    for bound in machine.conformance_bounds {
         let Some(StaticMachineBinding {
             value: StaticMachineBindingValue::Conformance(argument),
             ..
@@ -376,7 +418,7 @@ fn validate_conformance_bindings(
 
 fn conformance_arguments_match(
     program: &dyn crate::CheckingInput,
-    machine: &Machine,
+    machine: &StaticDeclaration<'_>,
     lexical_owner: SymbolHandle,
     bindings: &[StaticMachineBinding],
     lifetimes: &[typed_trees::static_applications::StaticMachineLifetimeBinding],
