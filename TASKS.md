@@ -3459,9 +3459,7 @@ of a check the same flow already performed, not the check itself.
   [qualified fixed-array storage](wiki/spec/language/domains.md): qualification
   cannot select a different carrier or live length. Keep exact-array and explicit
   variable-fill storage distinct while sharing their ordinary loan transport.
-  Add an observable reverse-cleanup ordering check to
-  `runtime_completed_array_window_replacement_exit`; its independent counters
-  establish disposal but not ordering. Runtime-selected collection prefixes
+  Runtime-selected collection prefixes
   still need exact cleanup custody; missing death evidence must not imply
   vacancy. Preserve source copy/move classification and the containing linear
   claim while disposing the residual partition. Element restrictions and extent

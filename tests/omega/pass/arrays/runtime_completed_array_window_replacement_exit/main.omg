@@ -1,12 +1,69 @@
-// Expected exit: 0. Window replacement snapshots one complete RHS before
-// cleanup or writes, independently of its producer and destination selectors.
+// Expected exit: 0. Expected stdout: "[CB]EDA\n".
+// Window replacement snapshots one complete RHS before cleanup or writes,
+// independently of its producer and destination selectors. The trace observes
+// displaced slots in reverse order (CB), then the surviving array (EDA).
+use omega::language::core::external_binding;
+
+// As in the nominal-cleanup fixtures, this test explicitly assumes finite,
+// normal byte writes. It does not strengthen the standard Console contract.
+// exit_process belongs to the harness's reviewed Console slot but is not called.
+pub boundary trait Console {
+    machine write_byte(byte: i32) reaches Console terminates;
+    machine exit_process(return_code: i32) reaches Console;
+}
+pub data ConsoleNativeProvider {}
+macos_arm64 boundary machine ConsoleNativeProvider::write_byte(byte: i32)
+    satisfies Console::write_byte;
+macos_arm64 boundary machine ConsoleNativeProvider::exit_process(return_code: i32)
+    satisfies Console::exit_process;
+linux_x86_64 boundary machine ConsoleNativeProvider::write_byte(byte: i32)
+    satisfies Console::write_byte;
+linux_x86_64 boundary machine ConsoleNativeProvider::exit_process(return_code: i32)
+    satisfies Console::exit_process;
+linux_arm64 boundary machine ConsoleNativeProvider::write_byte(byte: i32)
+    satisfies Console::write_byte;
+linux_arm64 boundary machine ConsoleNativeProvider::exit_process(return_code: i32)
+    satisfies Console::exit_process;
+
+data WindowsConsoleIo {}
+boundary requirement WindowsConsoleIo::write(descriptor: i32, buffer: &mut i32, count: u32) -> i32
+terminates;
+reaches Console;
+data WindowsConsoleImports {}
+windows_x86_64 machine console_write_binding() -> ForeignBinding<10, 6, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::PeByName { library: "msvcrt.dll", export: "_write" },
+    }
+}
+windows_x86_64 machine WindowsConsoleImports::write(descriptor: i32, buffer: &mut i32, count: u32) -> i32
+    satisfies WindowsConsoleIo::write
+    via console_write_binding();
+windows_x86_64 machine ConsoleNativeProvider::write_byte(byte: i32)
+    satisfies Console::write_byte
+reaches Console
+{
+    let mut cell: i32 = byte;
+    let written: i32 = WindowsConsoleIo::write(1, &mut cell, 1);
+}
+windows_x86_64 machine exit_process_binding() -> ForeignBinding<12, 11, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::PeByName { library: "kernel32.dll", export: "ExitProcess" },
+    }
+}
+windows_x86_64 machine ConsoleNativeProvider::exit_process(return_code: i32)
+    satisfies Console::exit_process
+    via exit_process_binding();
+
 data Counter { value: u64; }
-data Token { value: u64; counter: &mut Counter; }
+data Token { value: u64; marker: i32; counter: &mut Counter; }
 data Main {
     old_first: Counter; old_middle: Counter; old_last: Counter;
     new_middle: Counter; new_last: Counter;
 }
-machine Token::drop(token: &mut Token) { token.counter.value = token.value; }
+machine Token::drop(token: &mut Token) reaches Console {
+    token.counter.value = token.value;
+    Console::write_byte(token.marker);
+}
 
 machine pair() -> [u64; 2] { [5, 6] }
 machine selecting_pair(selector: &mut u64 [0..=1]) -> [u64; 2] {
@@ -17,7 +74,7 @@ machine fill(destination: &write [u64; 4], source: [u64; 2]) {
     destination[1..3] = source;
 }
 
-machine Main::main(main: &mut Main) crashes Trap {
+machine Main::main(main: &mut Main) reaches Console crashes Trap {
     let mut values: [u64; 4] = [1, 2, 3, 4];
     values[1..3] = [values[2], values[1]];
     let snapshot: bool = values[0] == 1 && values[1] == 3
@@ -36,20 +93,22 @@ machine Main::main(main: &mut Main) crashes Trap {
         && nested[0][1] == 9 && nested[1][0] == 3 && nested[1][1] == 4;
 
     let mut tokens: [Token; 3] = [
-        Token { value: 17, counter: &mut main.old_first },
-        Token { value: 19, counter: &mut main.old_middle },
-        Token { value: 23, counter: &mut main.old_last }
+        Token { value: 17, marker: 65, counter: &mut main.old_first },
+        Token { value: 19, marker: 66, counter: &mut main.old_middle },
+        Token { value: 23, marker: 67, counter: &mut main.old_last }
     ];
+    Console::write_byte(91);
     tokens[1..3] = [
-        Token { value: tokens[2].value, counter: &mut main.new_middle },
-        Token { value: tokens[1].value, counter: &mut main.new_last }
+        Token { value: tokens[2].value, marker: 68, counter: &mut main.new_middle },
+        Token { value: tokens[1].value, marker: 69, counter: &mut main.new_last }
     ];
+    Console::write_byte(93);
     transition snapshot && called && copied && captured
         && tokens[0].value == 17 && tokens[1].value == 23 && tokens[2].value == 19
         && main.old_middle.value == 19 && main.old_last.value == 23 {
         true -> done()
         false -> bad()
     }
-    state done() {}
+    state done() { Console::write_byte(10); }
     state bad() { crash Trap; }
 }
