@@ -1,9 +1,8 @@
 // Complete reproduction: conversions are owned by an ordinary domain module.
 use omega_language_std::console;
-use omega::language::core::binding;
 use calculation;
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Console {
     let converted: i32 = calculation::sample();
-    main.console.exit_process(converted);
+    Console::exit_process(converted);
 }

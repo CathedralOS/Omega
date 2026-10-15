@@ -1,21 +1,20 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 
-data Invalid { console: Binding<Console>; }
+data Invalid { }
 machine unchecked_base(reference: &[u8; 8], position: u64) -> u8 {
     reference[position]
 }
 machine Invalid::main(entry: &mut Invalid) reaches Console {
     let mut input: [u8; 8];
-    let observed: ByteRead = block entry.console.read_byte();
+    let observed: ByteRead = block Console::read_byte();
     transition observed {
         ByteRead::Byte { value } -> index(entry, &input, value as u64)
         ByteRead::Eof -> done(entry)
     }
     state index(entry: &mut Invalid, input: &[u8; 8], position: u64) {
         let base: u8 = unchecked_base(input, position);
-        entry.console.write_byte(base as i32);
+        Console::write_byte(base as i32);
         transition { _ -> done(entry) }
     }
-    state done(entry: &mut Invalid) { entry.console.exit_process(0); }
+    state done(entry: &mut Invalid) { Console::exit_process(0); }
 }

@@ -2,16 +2,15 @@
 // Expected exit: 2.
 // Expected output contains: invalid input
 use omega_language_std::console;
-use omega::language::core::binding;
 use chronology::model;
 use chronology::solver;
 use chronology::input;
 
 // The application owns the input backing across the blocking provider call.
-data Main { console: Binding<Console>; bytes: [u8; 32]; }
+data Main { bytes: [u8; 32]; }
 
 machine Main::main(main: &mut Main) reaches Console {
-    let read: LineReadResult = block main.console.read_line(&mut main.bytes);
+    let read: LineReadResult = block Console::read_line(&mut main.bytes);
     transition read {
         LineReadResult::LineComplete { count } -> input(main, count)
         LineReadResult::EndOfInput { count } -> input(main, count)
@@ -34,9 +33,9 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
     state feasible(main: &mut Main, result: &Reconciliation) {
-        main.console.write("feasible count=");
+        Console::write("feasible count=");
         number(main, result.count);
-        main.console.write_line("");
+        Console::write_line("");
         transition { _ -> event(main, result, 0) }
     }
     state event(main: &mut Main, result: &Reconciliation, index: i32 in Wrapping) {
@@ -49,29 +48,29 @@ machine Main::main(main: &mut Main) reaches Console {
     requires index >= 0
     requires index < 3
     {
-        main.console.write("event ");
+        Console::write("event ");
         number(main, index);
-        main.console.write(" range=");
+        Console::write(" range=");
         number(main, result.lower[index] as i32 in Wrapping);
-        main.console.write("..");
+        Console::write("..");
         number(main, result.upper[index] as i32 in Wrapping);
-        main.console.write_line("");
+        Console::write_line("");
         transition { _ -> event(main, result, index + 1) }
     }
     state witness(main: &mut Main, model: &mut Chronology, result: &mut Reconciliation) {
         contradiction(model, result);
-        main.console.write("infeasible witness bounds+edges=");
+        Console::write("infeasible witness bounds+edges=");
         number(main, model.enabled[0] as i32 in Wrapping);
         number(main, model.enabled[1] as i32 in Wrapping);
         number(main, model.enabled[2] as i32 in Wrapping);
         number(main, model.enabled[3] as i32 in Wrapping);
-        main.console.write_line(" count=0");
-        main.console.exit_process(0);
+        Console::write_line(" count=0");
+        Console::exit_process(0);
     }
-    state success(main: &mut Main) { main.console.exit_process(0); }
+    state success(main: &mut Main) { Console::exit_process(0); }
     state invalid(main: &mut Main) {
-        main.console.write_line("invalid input");
-        main.console.exit_process(2);
+        Console::write_line("invalid input");
+        Console::exit_process(2);
     }
 }
 
@@ -95,7 +94,7 @@ machine number(main: &mut Main, value: i32 in Wrapping) reaches Console {
     state emit(main: &mut Main, value: i32 in Wrapping, divisor: i32 in Wrapping, digit: i32 in Wrapping)
     requires divisor > 0
     {
-        main.console.write_byte((digit + 48) as i32);
+        Console::write_byte((digit + 48) as i32);
         transition { _ -> digit(main, value % divisor, divisor / 10, true) }
     }
     state done() { }

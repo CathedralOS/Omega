@@ -1,10 +1,9 @@
 // Complete intended-invalid application. Rail history has two slots;
 // selecting slot two violates the documented exclusive upper bound.
 use omega_language_std::console;
-use omega::language::core::binding;
-data Main { console: Binding<Console>; history: [f64; 2]; }
+data Main { history: [f64; 2]; }
 machine Main::main(main: &mut Main) reaches Console {
     main.history[2] = 1.0;
-    main.console.write_line("unreachable invalid rail history write");
-    main.console.exit_process(0);
+    Console::write_line("unreachable invalid rail history write");
+    Console::exit_process(0);
 }

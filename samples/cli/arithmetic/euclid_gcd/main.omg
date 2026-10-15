@@ -8,14 +8,12 @@
 // Expected output contains: result: the GCD, 12 for (48, 36) (the exit code)
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
 }
 
 machine Main::main(context: &mut Main) reaches Console {
-    context.console.write_line("euclid_gcd: Euclid's algorithm on (48, 36) via the remainder loop");
+    Console::write_line("euclid_gcd: Euclid's algorithm on (48, 36) via the remainder loop");
     transition {
         _ -> step(context, 48, 36)
     }
@@ -36,10 +34,10 @@ machine Main::main(context: &mut Main) reaches Console {
     }
 
     state done(context: &mut Main, result: i32 in Wrapping) {
-        context.console.write_line("result: the GCD, 12 for (48, 36) (the exit code)");
-        context.console.write_line("[press Enter to close]");
+        Console::write_line("result: the GCD, 12 for (48, 36) (the exit code)");
+        Console::write_line("[press Enter to close]");
         let mut pause: [u8; 256];
-        _ = block context.console.read_line(&mut pause);
-        context.console.exit_process(result as i32);
+        _ = block Console::read_line(&mut pause);
+        Console::exit_process(result as i32);
     }
 }

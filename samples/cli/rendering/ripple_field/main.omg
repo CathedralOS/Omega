@@ -14,7 +14,6 @@
 // Expected output contains: #
 use omega_language_std::console;
 use omega_language_std::clock;
-use omega::language::core::binding;
 
 domain [u8]::Utf8(bytes)
 requires
@@ -34,8 +33,6 @@ requires
 // where joins drop the loop guards, and the ramp level folds through `% 8`
 // (modulo bounds by the divisor).
 data Main {
-    console: Binding<Console>;
-    clock: Binding<Clock>;
     line: [u8; 30] in Utf8;   // one rendered row
     ramp: [u8; 8] in Utf8;    // " .:-=+*#"  dim -> bright
     home: [u8; 3] in Utf8;    // ESC [ H  (cursor home)
@@ -51,7 +48,7 @@ data Main {
 }
 
 machine Main::main(main: &mut Main) reaches Clock + Console {
-    main.console.write_line("ripple_field: 60 frames of concentric diamond ripples shaded per cell");
+    Console::write_line("ripple_field: 60 frames of concentric diamond ripples shaded per cell");
     main.line = "                              ";
     main.ramp = " .:-=+*#";
     main.home = "XXX";
@@ -65,7 +62,7 @@ machine Main::main(main: &mut Main) reaches Clock + Console {
         transition main.frame < 60 { true -> frame_start(main) _ -> finish(main) }
     }
     state frame_start(main: &mut Main) {
-        main.console.write(main.home);
+        Console::write(main.home);
         main.y = 0;
         transition { _ -> row_loop(main) }
     }
@@ -142,7 +139,7 @@ machine Main::main(main: &mut Main) reaches Clock + Console {
     // y_bump is what proves the increment (y < 16 always holds inside the row
     // loop, so the else arm is unreachable).
     state emit_row(main: &mut Main) {
-        main.console.write_line(main.line);
+        Console::write_line(main.line);
         transition main.y < 16 { true -> y_bump(main) _ -> bad(main) }
     }
     state y_bump(main: &mut Main) {
@@ -151,7 +148,7 @@ machine Main::main(main: &mut Main) reaches Clock + Console {
     }
 
     state after_frame(main: &mut Main) {
-        main.clock.sleep(40);
+        Clock::sleep(40);
         // re-guard so the increment's edge carries the frame bound (the keystone
         // reads the DIRECT incoming edge; frame_loop's guard is far upstream).
         transition main.frame < 60 { true -> advance(main) _ -> finish(main) }
@@ -162,15 +159,15 @@ machine Main::main(main: &mut Main) reaches Clock + Console {
     }
 
     state finish(main: &mut Main) {
-        main.console.write_line("PASS: 60 ripple frames rendered (exit 0)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(0);
+        Console::write_line("PASS: 60 ripple frames rendered (exit 0)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(0);
     }
     state bad(main: &mut Main) {
-        main.console.write_line("FAIL: cell index bounds guard tripped (exit 1)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(1);
+        Console::write_line("FAIL: cell index bounds guard tripped (exit 1)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(1);
     }
 }

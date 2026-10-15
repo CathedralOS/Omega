@@ -1,9 +1,8 @@
 use omega_language_std::console;
-use omega::language::core::binding;
-data Main { console: Binding<Console>; symbols: [i32; 4]; }
+data Main { symbols: [i32; 4]; }
 // Complete program deliberately attempts a fifth symbol in a four-symbol frame.
 // The documented bounds rule must reject this access, before any execution.
 machine Main::main(main: &mut Main) reaches Console {
     main.symbols[4] = 2;
-    main.console.exit_process(0);
+    Console::exit_process(0);
 }

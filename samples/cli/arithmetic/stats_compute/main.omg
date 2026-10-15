@@ -20,7 +20,6 @@
 
 use omega::language::core::float_operations;
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Stats [copy] {
     // Running accumulator for sum and sum-of-squares.
@@ -35,7 +34,6 @@ data Stats [copy] {
 }
 
 data Main {
-    console: Binding<Console>;
     s: Stats;
     pause: [u8; 256];
 }
@@ -72,7 +70,7 @@ machine Main::add_weighted(main: &mut Main, x: f64, w: f64) {
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    main.console.write_line("stats_compute: f64 mean, variance, and weighted sum over 8 samples");
+    Console::write_line("stats_compute: f64 mean, variance, and weighted sum over 8 samples");
     // Phase 1: accumulate the 8 data values.
     Main::add(main, 2.0);
     Main::add(main, 4.0);
@@ -118,10 +116,10 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state bad_mean_low(main: &mut Main) {
-        main.console.write_line("FAIL: mean fell below 4.9, expected 5.0 (exit 71)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(71);
+        Console::write_line("FAIL: mean fell below 4.9, expected 5.0 (exit 71)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(71);
     }
 
     state check_mean_upper(main: &mut Main) {
@@ -132,10 +130,10 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state bad_mean_high(main: &mut Main) {
-        main.console.write_line("FAIL: mean rose above 5.1, expected 5.0 (exit 72)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(72);
+        Console::write_line("FAIL: mean rose above 5.1, expected 5.0 (exit 72)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(72);
     }
 
     // Verify variance: should be 4.0.
@@ -147,10 +145,10 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state bad_var_low(main: &mut Main) {
-        main.console.write_line("FAIL: variance fell below 3.9, expected 4.0 (exit 73)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(73);
+        Console::write_line("FAIL: variance fell below 3.9, expected 4.0 (exit 73)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(73);
     }
 
     state check_var_high(main: &mut Main) {
@@ -161,10 +159,10 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state bad_var_high(main: &mut Main) {
-        main.console.write_line("FAIL: variance rose above 4.1, expected 4.0 (exit 74)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(74);
+        Console::write_line("FAIL: variance rose above 4.1, expected 4.0 (exit 74)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(74);
     }
 
     // Verify weighted sum: should be 82.5.
@@ -176,10 +174,10 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state bad_weighted_low(main: &mut Main) {
-        main.console.write_line("FAIL: weighted sum fell below 82.0, expected 82.5 (exit 75)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(75);
+        Console::write_line("FAIL: weighted sum fell below 82.0, expected 82.5 (exit 75)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(75);
     }
 
     state check_weighted_high(main: &mut Main) {
@@ -190,16 +188,16 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state bad_weighted_high(main: &mut Main) {
-        main.console.write_line("FAIL: weighted sum rose above 83.0, expected 82.5 (exit 76)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(76);
+        Console::write_line("FAIL: weighted sum rose above 83.0, expected 82.5 (exit 76)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(76);
     }
 
     state good(main: &mut Main) {
-        main.console.write_line("PASS: mean=5.0, variance=4.0, weighted sum=82.5 all in tolerance (exit 70)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(70);
+        Console::write_line("PASS: mean=5.0, variance=4.0, weighted sum=82.5 all in tolerance (exit 70)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(70);
     }
 }

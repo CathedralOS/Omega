@@ -1,8 +1,7 @@
 use omega_language_std::console;
-use omega::language::core::binding;
-data InvalidMain { console: Binding<Console>; values: [i32; 2]; }
+data InvalidMain { values: [i32; 2]; }
 machine InvalidMain::main(context: &mut InvalidMain) reaches Console {
     context.values = [3, 4];
     let outside: i32 = context.values[2];
-    context.console.exit_process(outside);
+    Console::exit_process(outside);
 }

@@ -1,6 +1,6 @@
 // `suspends` is a declared machine axis: `machine
 // Main::main(main: &mut Main) suspends; reaches
-// Scheduler` — and `suspend main.scheduler.park()`
+// Scheduler` — and `suspend Scheduler::park()`
 // performs the suspension at a call site, after the
 // last use of a borrow-carrying record.
 //
@@ -13,7 +13,6 @@
 // Compile-checked only: no standard-library dependency, no
 // ProcessExit provider.
 
-use omega::language::core::binding;
 
 data Cell {
     value: i32;
@@ -31,7 +30,6 @@ data InlineScheduler {}
 machine InlineScheduler::park() satisfies Scheduler::park { }
 
 data Main {
-    scheduler: Binding<Scheduler>;
     cell: Cell;
     hits: i32 in Wrapping;
 }
@@ -50,7 +48,7 @@ machine Main::main(main: &mut Main) suspends; reaches Scheduler {
         _ -> fail(main)
     }
     state park_last(main: &mut Main) {
-        suspend main.scheduler.park();
+        suspend Scheduler::park();
     }
     state fail(main: &mut Main) { main.hits = -1; }
 }

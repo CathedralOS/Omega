@@ -1,10 +1,8 @@
-use omega::language::core::binding;
 use terrain::model;
 use terrain::stitch;
 use omega_language_std::console;
 use omega::language::core::numeric_conversion;
 data Main {
-    console: Binding<Console>;
     input: [u8; 16];
     terrain: Terrain;
     graph: Contours;
@@ -12,47 +10,47 @@ data Main {
 }
 // Four decimal digits are sufficient for coordinates <= 5040 and counts <=16.
 machine number(value: i32 in Wrapping, context: &mut Main) reaches Console {
-    context.console.write_byte((value / 1000 % 10 + 48) as i32);
-    context.console.write_byte((value / 100 % 10 + 48) as i32);
-    context.console.write_byte((value / 10 % 10 + 48) as i32);
-    context.console.write_byte((value % 10 + 48) as i32);
+    Console::write_byte((value / 1000 % 10 + 48) as i32);
+    Console::write_byte((value / 100 % 10 + 48) as i32);
+    Console::write_byte((value / 10 % 10 + 48) as i32);
+    Console::write_byte((value % 10 + 48) as i32);
 }
 machine report(context: &mut Main) reaches Console {
-    context.console.write("TOPO segments=");
+    Console::write("TOPO segments=");
     number(narrow_u64_to_i32_wrapping(context.graph.count) as i32 in Wrapping, context);
-    context.console.write(" paths=");
+    Console::write(" paths=");
     number(narrow_u64_to_i32_wrapping(context.paths.count) as i32 in Wrapping, context);
-    context.console.write(" loops=");
+    Console::write(" loops=");
     number(narrow_u64_to_i32_wrapping(context.paths.loops as u64) as i32 in Wrapping, context);
-    context.console.write(" exits=");
+    Console::write(" exits=");
     number(narrow_u64_to_i32_wrapping(context.paths.boundary as u64) as i32 in Wrapping, context);
-    context.console.write(" saddles=");
+    Console::write(" saddles=");
     number(narrow_u64_to_i32_wrapping(context.graph.saddles as u64) as i32 in Wrapping, context);
-    context.console.write_line("");
+    Console::write_line("");
     transition { _ -> segment(context, 0) }
     state segment(context: &mut Main, segment: u64) {
         transition segment < context.graph.count && segment < 8 { true -> segment_emit(context, segment) false -> path(context, 0) }
     }
     state segment_emit(context: &mut Main, segment: u64) requires segment < 8 {
-        context.console.write("SEG ");
+        Console::write("SEG ");
         number(narrow_u64_to_i32_wrapping(context.graph.owner[segment]) as i32 in Wrapping, context);
-        context.console.write(" ");
+        Console::write(" ");
         number(narrow_u64_to_i32_wrapping(context.graph.first[segment]) as i32 in Wrapping, context);
-        context.console.write(" ");
+        Console::write(" ");
         number(narrow_u64_to_i32_wrapping(context.graph.second[segment]) as i32 in Wrapping, context);
-        context.console.write_line("");
+        Console::write_line("");
         transition { _ -> segment(context, segment + 1) }
     }
     state path(context: &mut Main, path: u64) {
         transition path < context.paths.count && path < 8 { true -> header(context, path) false -> done() }
     }
     state header(context: &mut Main, path: u64) requires path < 8 {
-        context.console.write("PATH ");
+        Console::write("PATH ");
         number(narrow_u64_to_i32_wrapping(path) as i32 in Wrapping, context);
         transition context.paths.closed[path] { true -> closed(context, path) false -> open(context, path) }
     }
-    state closed(context: &mut Main, path: u64) { context.console.write(" closed"); transition { _ -> vertex(context, path, 0) } }
-    state open(context: &mut Main, path: u64) { context.console.write(" open"); transition { _ -> vertex(context, path, 0) } }
+    state closed(context: &mut Main, path: u64) { Console::write(" closed"); transition { _ -> vertex(context, path, 0) } }
+    state open(context: &mut Main, path: u64) { Console::write(" open"); transition { _ -> vertex(context, path, 0) } }
     state vertex(context: &mut Main, path: u64, index: u64) {
         transition path < 8 { true -> length(context, path, index) false -> done() }
     }
@@ -71,16 +69,16 @@ machine report(context: &mut Main) reaches Console {
         transition edge < 12 { true -> emit(context, path, index, edge) false -> done() }
     }
     state emit(context: &mut Main, path: u64, index: u64, edge: u64) requires edge < 12 {
-        context.console.write(" ");
+        Console::write(" ");
         number(narrow_u64_to_i32_wrapping(edge) as i32 in Wrapping, context);
-        context.console.write(":");
+        Console::write(":");
         number(context.graph.x[edge], context);
-        context.console.write(",");
+        Console::write(",");
         number(context.graph.y[edge], context);
         transition { _ -> vertex(context, path, index + 1) }
     }
     state next(context: &mut Main, path: u64) {
-        context.console.write_line("");
+        Console::write_line("");
         transition { _ -> path(context, path + 1) }
     }
     state done() { }

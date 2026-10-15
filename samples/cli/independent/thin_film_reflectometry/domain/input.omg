@@ -2,14 +2,13 @@
 // with digits on both sides. No exponent, NaN or infinity spelling is accepted.
 // The total budget includes separators. EOF after a complete token is valid.
 use omega_language_std::console;
-use omega::language::core::binding;
 use omega::language::core::float_operations;
-pub data Reader { console: Binding<Console>; consumed: i32; }
+pub data Reader { consumed: i32; }
 pub data Number [copy] { valid: bool; value: f64; }
 machine character(reader: &mut Reader) -> i32 reaches Console {
     transition reader.consumed >= 0 && reader.consumed < 4096 { true -> read(reader) _ -> -2 }
     state read(reader: &mut Reader) -> i32 requires reader.consumed >= 0 && reader.consumed < 4096 {
-        let byte: ByteRead = block reader.console.read_byte();
+        let byte: ByteRead = block Console::read_byte();
         transition byte { ByteRead::Eof -> -1 ByteRead::Byte { value } -> counted(reader, value) }
     }
     state counted(reader: &mut Reader, value: i32) -> i32 requires reader.consumed >= 0 && reader.consumed < 4096 {

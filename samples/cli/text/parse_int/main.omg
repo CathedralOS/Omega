@@ -20,7 +20,6 @@ requires
     valid_utf8(bytes);
 use omega_language_std::console;
 use omega::language::core::numeric_conversion;
-use omega::language::core::binding;
 // Parsing borrows its input. Only the cursor and accumulator cross state edges;
 // the byte and widened digit exist for one iteration.
 machine parse_decimal(text: &[u8; 8] in Utf8) -> i32 in Wrapping {
@@ -64,14 +63,14 @@ machine parse_decimal(text: &[u8; 8] in Utf8) -> i32 in Wrapping {
 
 }
 
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Console {
-    Console::write_line(&main.console, "parse_int: atoi over a text carrier, digit by digit");
+    Console::write_line("parse_int: atoi over a text carrier, digit by digit");
     let text: [u8; 8] in Utf8 = "150";
     let result: i32 in Wrapping = parse_decimal(&text);
-    Console::write_line(&main.console, "result: the parsed value of the text 150 (the exit code)");
-    Console::write_line(&main.console, "[press Enter to close]");
+    Console::write_line("result: the parsed value of the text 150 (the exit code)");
+    Console::write_line("[press Enter to close]");
     let mut pause: [u8; 256];
-    _ = block Console::read_line(&main.console, &mut pause);
-    Console::exit_process(&main.console, result as i32);
+    _ = block Console::read_line(&mut pause);
+    Console::exit_process(result as i32);
 }

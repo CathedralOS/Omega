@@ -1,9 +1,8 @@
 // Complete intended-invalid source: a declared positive-delay obligation fails.
 use omega_language_std::console;
-use omega::language::core::binding;
-data Main { console: Binding<Console>; }
+data Main { }
 machine positive_delay(delay: u64) requires delay > 0; { }
 machine Main::main(main: &mut Main) reaches Console {
     positive_delay(0);
-    main.console.exit_process(0);
+    Console::exit_process(0);
 }

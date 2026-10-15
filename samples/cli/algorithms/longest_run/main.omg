@@ -11,21 +11,19 @@ domain [u8; 16]::Utf8(text)
 requires
     valid_utf8(text);
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
 }
 
 machine Main::main(context: &mut Main) reaches Console {
-    context.console.write_line("longest_run: finding the longest run of equal bytes in aaabbbbccdaa");
+    Console::write_line("longest_run: finding the longest run of equal bytes in aaabbbbccdaa");
     let text: [u8; 16] in Utf8 = "aaabbbbccdaa";
     let maximum: i32 in Wrapping = longest_run(&text);
-    context.console.write_line("result: the longest run length, 4 (the bbbb) for this text (the exit code)");
-    context.console.write_line("[press Enter to close]");
+    Console::write_line("result: the longest run length, 4 (the bbbb) for this text (the exit code)");
+    Console::write_line("[press Enter to close]");
     let mut pause: [u8; 256];
-    _ = block context.console.read_line(&mut pause);
-    context.console.exit_process(maximum as i32);
+    _ = block Console::read_line(&mut pause);
+    Console::exit_process(maximum as i32);
 }
 
 machine longest_run(text: &[u8; 16] in Utf8) -> i32 in Wrapping {

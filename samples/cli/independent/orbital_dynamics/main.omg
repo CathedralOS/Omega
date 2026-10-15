@@ -10,8 +10,8 @@ machine Main::main(main: &mut Main) reaches Console {
     let valid: bool = block Protocol::read(&mut main.protocol);
     transition valid { true -> validate(main) false -> syntax(main) }
     state syntax(main: &mut Main) {
-        main.protocol.console.write_line("ERROR syntax: seven finite decimal fields, maximum 512 bytes, EOF");
-        main.protocol.console.exit_process(64);
+        Console::write_line("ERROR syntax: seven finite decimal fields, maximum 512 bytes, EOF");
+        Console::exit_process(64);
     }
     state validate(main: &mut Main) {
         transition main.protocol.fields[0] > 0.0 && main.protocol.fields[0] <= 1000000.0
@@ -26,8 +26,8 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
     state range(main: &mut Main) {
-        main.protocol.console.write_line("ERROR range: positive mu/dt, nonzero radius, bounded coordinates/velocity, integer steps 1..4096");
-        main.protocol.console.exit_process(65);
+        Console::write_line("ERROR range: positive mu/dt, nonzero radius, bounded coordinates/velocity, integer steps 1..4096");
+        Console::exit_process(65);
     }
     state count(main: &mut Main, count: f64)
     requires count == count && count >= 1.0 && count <= 4096.0 {
@@ -66,31 +66,31 @@ machine Main::main(main: &mut Main) reaches Console {
         Orbit::diagnostics(&mut main.orbit);
         main.orbit.initial_energy = main.orbit.energy;
         main.orbit.initial_momentum = main.orbit.momentum;
-        main.protocol.console.write_line("checkpoint,step,time,x,y,vx,vy,energy,angular_momentum,energy_drift,angular_momentum_drift");
+        Console::write_line("checkpoint,step,time,x,y,vx,vy,energy,angular_momentum,energy_drift,angular_momentum_drift");
         transition { _ -> checkpoint(main) }
     }
     state checkpoint(main: &mut Main) {
-        main.protocol.console.write("checkpoint,");
+        Console::write("checkpoint,");
         Protocol::integer(&mut main.protocol, main.step);
-        main.protocol.console.write(",");
+        Console::write(",");
         Protocol::number(&mut main.protocol, main.time);
-        main.protocol.console.write(",");
+        Console::write(",");
         Protocol::number(&mut main.protocol, main.orbit.x);
-        main.protocol.console.write(",");
+        Console::write(",");
         Protocol::number(&mut main.protocol, main.orbit.y);
-        main.protocol.console.write(",");
+        Console::write(",");
         Protocol::number(&mut main.protocol, main.orbit.vx);
-        main.protocol.console.write(",");
+        Console::write(",");
         Protocol::number(&mut main.protocol, main.orbit.vy);
-        main.protocol.console.write(",");
+        Console::write(",");
         Protocol::number(&mut main.protocol, main.orbit.energy);
-        main.protocol.console.write(",");
+        Console::write(",");
         Protocol::number(&mut main.protocol, main.orbit.momentum);
-        main.protocol.console.write(",");
+        Console::write(",");
         Protocol::number(&mut main.protocol, main.orbit.energy - main.orbit.initial_energy);
-        main.protocol.console.write(",");
+        Console::write(",");
         Protocol::number(&mut main.protocol, main.orbit.momentum - main.orbit.initial_momentum);
-        main.protocol.console.write_line("");
+        Console::write_line("");
         transition main.step < main.steps { true -> advance(main) false -> done(main) }
     }
     state advance(main: &mut Main) {
@@ -103,18 +103,18 @@ machine Main::main(main: &mut Main) reaches Console {
         transition main.orbit.periapsis { true -> event(main) false -> checkpoint(main) }
     }
     state event(main: &mut Main) {
-        main.protocol.console.write("periapsis,");
+        Console::write("periapsis,");
         let time: f64 = main.time - main.orbit.timestep + main.orbit.event_fraction * main.orbit.timestep;
         Protocol::number(&mut main.protocol, time);
-        main.protocol.console.write_line("");
+        Console::write_line("");
         transition { _ -> checkpoint(main) }
     }
     state collision(main: &mut Main) {
-        main.protocol.console.write_line("status,collision_threshold");
-        main.protocol.console.exit_process(2);
+        Console::write_line("status,collision_threshold");
+        Console::exit_process(2);
     }
     state done(main: &mut Main) {
-        main.protocol.console.write_line("status,complete");
-        main.protocol.console.exit_process(0);
+        Console::write_line("status,complete");
+        Console::exit_process(0);
     }
 }

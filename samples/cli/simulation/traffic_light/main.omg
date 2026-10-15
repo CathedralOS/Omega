@@ -9,7 +9,6 @@
 // Expected exit: 70.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 // The three traffic-light phases. ZII (zero-initialized) is Red.
 // [copy] is required so Phase can be a field inside a [copy] aggregate.
@@ -28,13 +27,12 @@ data Light [copy] {
 }
 
 data Main {
-    console: Binding<Console>;
     light: Light;
     pause: [u8; 256];
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    main.console.write_line("traffic_light: cycles Red -> Green -> Yellow through 4 advances");
+    Console::write_line("traffic_light: cycles Red -> Green -> Yellow through 4 advances");
     // Start: Red (zero-initialized), advances = 0.
     Main::advance(main);  // Red    -> Green,  advances = 1
     Main::advance(main);  // Green  -> Yellow, advances = 2
@@ -55,24 +53,24 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state good(main: &mut Main) {
-        main.console.write_line("PASS: 4 advances landed on Green as expected (exit 70)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(70);
+        Console::write_line("PASS: 4 advances landed on Green as expected (exit 70)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(70);
     }
 
     state bad_count(main: &mut Main) {
-        main.console.write_line("FAIL: the advance count was not 4 (exit 71)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(71);
+        Console::write_line("FAIL: the advance count was not 4 (exit 71)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(71);
     }
 
     state bad_phase(main: &mut Main) {
-        main.console.write_line("FAIL: the final phase was not Green (exit 72)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(72);
+        Console::write_line("FAIL: the final phase was not Green (exit 72)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(72);
     }
 }
 

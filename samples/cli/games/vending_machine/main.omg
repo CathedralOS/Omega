@@ -8,7 +8,6 @@
 // verifiable end to end (expected: 70).
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 // A coin or a button press. `Insert` carries how many cents arrived; `Press`
 // carries which slot was chosen. Tag zero selects the first case, so a zeroed
@@ -28,13 +27,12 @@ data Register [copy] {
 }
 
 data Main {
-    console: Binding<Console>;
     register: Register;
     pause: [u8; 256];
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    main.console.write_line("vending_machine: folds insert/insert/press events through a coin register");
+    Console::write_line("vending_machine: folds insert/insert/press events through a coin register");
     // Three events: insert 50c, insert 25c, press slot 1 (price 75c).
     Main::apply(main, Event::Insert { cents: 50 });
     Main::apply(main, Event::Insert { cents: 25 });
@@ -55,24 +53,24 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state good_verdict(main: &mut Main) {
-        main.console.write_line("PASS: balance spent and 75c dispensed (exit 70)");
+        Console::write_line("PASS: balance spent and 75c dispensed (exit 70)");
         transition { _ -> report(main, 70) }
     }
 
     state bad_balance(main: &mut Main) {
-        main.console.write_line("FAIL: the balance was not fully spent (exit 71)");
+        Console::write_line("FAIL: the balance was not fully spent (exit 71)");
         transition { _ -> report(main, 71) }
     }
 
     state bad_dispensed(main: &mut Main) {
-        main.console.write_line("FAIL: dispensed total was not 75 cents (exit 72)");
+        Console::write_line("FAIL: dispensed total was not 75 cents (exit 72)");
         transition { _ -> report(main, 72) }
     }
 
     state report(main: &mut Main, code: i32 in Saturating) {
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(code as i32);
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(code as i32);
     }
 }
 

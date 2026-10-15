@@ -14,7 +14,6 @@
 // Expected exit: 56.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Adder {
     bytes: [i32 in Wrapping; 6];
@@ -32,13 +31,12 @@ machine Adder::fletcher(
 }
 
 data Main {
-    console: Binding<Console>;
     adder: Adder;
     pause: [u8; 256];
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    main.console.write_line("fletcher_checksum: fletcher-16 position-sensitive checksum over [1..6]");
+    Console::write_line("fletcher_checksum: fletcher-16 position-sensitive checksum over [1..6]");
     main.adder.bytes[0] = 1;
     main.adder.bytes[1] = 2;
     main.adder.bytes[2] = 3;
@@ -48,8 +46,8 @@ machine Main::main(main: &mut Main) reaches Console {
 
     let s: &[i32 in Wrapping] = &main.adder.bytes[..];
     let checksum: i32 = Adder::fletcher(s, 0, 0);
-    main.console.write_line("result: the checksum high byte sum2, 56 for this data (the exit code)");
-    main.console.write_line("[press Enter to close]");
-    _ = block main.console.read_line(&mut main.pause);
-    main.console.exit_process(checksum);
+    Console::write_line("result: the checksum high byte sum2, 56 for this data (the exit code)");
+    Console::write_line("[press Enter to close]");
+    _ = block Console::read_line(&mut main.pause);
+    Console::exit_process(checksum);
 }

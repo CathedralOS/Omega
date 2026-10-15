@@ -1,28 +1,27 @@
 // Complete bounded CLI: choose a fixture with one ASCII digit and LF.
 use omega_language_std::console;
-use omega::language::core::binding;
 use landcover::geometry;
 use landcover::resampling;
 use fixtures::catalog;
 
 data Main {
-    console: Binding<Console>; input: [u8; 4];
+    input: [u8; 4];
     config: Configuration; cell: Areas; totals: Areas; clipped: Areas;
     column: i32 in Wrapping; row: i32 in Wrapping; area: i32 in Wrapping;
     outside: i32 in Wrapping; outside_total: i32 in Wrapping;
 }
 // Bounded decimal reporting uses byte output, preserving exact integer values.
 machine number(main: &mut Main, value: i32 in Wrapping) reaches Console {
-    main.console.write_byte((value / 100 % 10 + 48) as i32);
-    main.console.write_byte((value / 10 % 10 + 48) as i32);
-    main.console.write_byte((value % 10 + 48) as i32);
+    Console::write_byte((value / 100 % 10 + 48) as i32);
+    Console::write_byte((value / 10 % 10 + 48) as i32);
+    Console::write_byte((value % 10 + 48) as i32);
 }
 machine fraction(main: &mut Main, numerator: i32 in Wrapping, denominator: i32 in Wrapping) reaches Console {
-    number(main, numerator); main.console.write("/"); number(main, denominator); main.console.write(" ");
+    number(main, numerator); Console::write("/"); number(main, denominator); Console::write(" ");
 }
 machine Main::main(main: &mut Main) reaches Console {
-    main.console.write_line("LANDCOVER exact planar area; enter fixture 1..6 (7..9 invalid)");
-    let read: LineReadResult = block main.console.read_line(&mut main.input);
+    Console::write_line("LANDCOVER exact planar area; enter fixture 1..6 (7..9 invalid)");
+    let read: LineReadResult = block Console::read_line(&mut main.input);
     transition read {
         LineReadResult::LineComplete { count } -> length(main, count)
         _ -> invalid(main)
@@ -52,7 +51,7 @@ machine Main::main(main: &mut Main) reaches Console {
         main.column = 0; main.row = 0; main.outside_total = 0;
         main.totals.forest = 0; main.totals.water = 0; main.totals.urban = 0; main.totals.nodata = 0;
         main.area = main.config.grid.width * main.config.grid.height;
-        main.console.write_line("CELL row col forest water urban nodata outside dominant (fractions of full cell)");
+        Console::write_line("CELL row col forest water urban nodata outside dominant (fractions of full cell)");
         transition { _ -> cell(main) }
     }
     state cell(main: &mut Main) {
@@ -74,10 +73,10 @@ machine Main::main(main: &mut Main) reaches Console {
         let outside: i32 in Wrapping = main.outside;
         let area: i32 in Wrapping = main.area;
         let winner: i32 in Wrapping = dominant(&main.cell);
-        main.console.write("CELL "); number(main, row); main.console.write(" "); number(main, column); main.console.write(" ");
+        Console::write("CELL "); number(main, row); Console::write(" "); number(main, column); Console::write(" ");
         fraction(main, forest, area); fraction(main, water, area);
         fraction(main, urban, area); fraction(main, nodata, area); fraction(main, outside, area);
-        number(main, winner); main.console.write_line("");
+        number(main, winner); Console::write_line("");
         main.totals.forest = main.totals.forest + main.cell.forest;
         main.totals.water = main.totals.water + main.cell.water;
         main.totals.urban = main.totals.urban + main.cell.urban;
@@ -110,13 +109,13 @@ machine Main::main(main: &mut Main) reaches Console {
         let urban: i32 in Wrapping = main.totals.urban;
         let nodata: i32 in Wrapping = main.totals.nodata;
         let outside: i32 in Wrapping = main.outside_total;
-        main.console.write("TOTAL forest water urban nodata outside area ");
-        number(main, forest); main.console.write(" "); number(main, water); main.console.write(" ");
-        number(main, urban); main.console.write(" "); number(main, nodata); main.console.write(" ");
-        number(main, outside); main.console.write(" "); number(main, total_area); main.console.write_line("");
-        main.console.write_line("AUDIT PASS: class conservation and full-area closure; tolerance=0");
-        main.console.exit_process(0);
+        Console::write("TOTAL forest water urban nodata outside area ");
+        number(main, forest); Console::write(" "); number(main, water); Console::write(" ");
+        number(main, urban); Console::write(" "); number(main, nodata); Console::write(" ");
+        number(main, outside); Console::write(" "); number(main, total_area); Console::write_line("");
+        Console::write_line("AUDIT PASS: class conservation and full-area closure; tolerance=0");
+        Console::exit_process(0);
     }
-    state invalid(main: &mut Main) { main.console.write_line("INVALID: bounded fixture input or model admission"); main.console.exit_process(64); }
-    state failed(main: &mut Main) { main.console.write_line("AUDIT FAIL"); main.console.exit_process(1); }
+    state invalid(main: &mut Main) { Console::write_line("INVALID: bounded fixture input or model admission"); Console::exit_process(64); }
+    state failed(main: &mut Main) { Console::write_line("AUDIT FAIL"); Console::exit_process(1); }
 }

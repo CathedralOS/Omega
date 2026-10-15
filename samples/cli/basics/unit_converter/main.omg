@@ -16,10 +16,8 @@
 
 use omega::language::core::float_operations;
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
 }
 
 // Temperature conversions.
@@ -47,7 +45,7 @@ machine kg_to_lbs(kg: f64) -> f64 {
 }
 
 machine Main::main(context: &mut Main) reaches Console {
-    context.console.write_line("unit_converter: f64 temperature, distance, and mass conversions");
+    Console::write_line("unit_converter: f64 temperature, distance, and mass conversions");
     // Check 1: 100°C → 212°F.
     let result: f64 = celsius_to_fahrenheit(100.0);
     transition result > 211.5 {
@@ -55,11 +53,11 @@ machine Main::main(context: &mut Main) reaches Console {
         _ -> bad_c2f_low(context)
     }
     state bad_c2f_low(context: &mut Main) {
-        context.console.write_line("FAIL: 100 C converted below 211.5 F (exit 71)");
-        context.console.write_line("[press Enter to close]");
+        Console::write_line("FAIL: 100 C converted below 211.5 F (exit 71)");
+        Console::write_line("[press Enter to close]");
         let mut pause: [u8; 256];
-        _ = block context.console.read_line(&mut pause);
-        context.console.exit_process(71);
+        _ = block Console::read_line(&mut pause);
+        Console::exit_process(71);
     }
 
     state check_c2f_upper(context: &mut Main, result: f64) {
@@ -69,11 +67,11 @@ machine Main::main(context: &mut Main) reaches Console {
         }
     }
     state bad_c2f_high(context: &mut Main) {
-        context.console.write_line("FAIL: 100 C converted above 212.5 F (exit 72)");
-        context.console.write_line("[press Enter to close]");
+        Console::write_line("FAIL: 100 C converted above 212.5 F (exit 72)");
+        Console::write_line("[press Enter to close]");
         let mut pause: [u8; 256];
-        _ = block context.console.read_line(&mut pause);
-        context.console.exit_process(72);
+        _ = block Console::read_line(&mut pause);
+        Console::exit_process(72);
     }
 
     // Check 2: 212°F → 100°C.
@@ -85,11 +83,11 @@ machine Main::main(context: &mut Main) reaches Console {
         }
     }
     state bad_f2c_low(context: &mut Main) {
-        context.console.write_line("FAIL: 212 F converted below 99.5 C (exit 73)");
-        context.console.write_line("[press Enter to close]");
+        Console::write_line("FAIL: 212 F converted below 99.5 C (exit 73)");
+        Console::write_line("[press Enter to close]");
         let mut pause: [u8; 256];
-        _ = block context.console.read_line(&mut pause);
-        context.console.exit_process(73);
+        _ = block Console::read_line(&mut pause);
+        Console::exit_process(73);
     }
 
     state check_f2c_upper(context: &mut Main, result: f64) {
@@ -99,11 +97,11 @@ machine Main::main(context: &mut Main) reaches Console {
         }
     }
     state bad_f2c_high(context: &mut Main) {
-        context.console.write_line("FAIL: 212 F converted above 100.5 C (exit 74)");
-        context.console.write_line("[press Enter to close]");
+        Console::write_line("FAIL: 212 F converted above 100.5 C (exit 74)");
+        Console::write_line("[press Enter to close]");
         let mut pause: [u8; 256];
-        _ = block context.console.read_line(&mut pause);
-        context.console.exit_process(74);
+        _ = block Console::read_line(&mut pause);
+        Console::exit_process(74);
     }
 
     // Check 3: 373.15K → 100°C.
@@ -115,11 +113,11 @@ machine Main::main(context: &mut Main) reaches Console {
         }
     }
     state bad_k2c_low(context: &mut Main) {
-        context.console.write_line("FAIL: 373.15 K converted below 99.9 C (exit 75)");
-        context.console.write_line("[press Enter to close]");
+        Console::write_line("FAIL: 373.15 K converted below 99.9 C (exit 75)");
+        Console::write_line("[press Enter to close]");
         let mut pause: [u8; 256];
-        _ = block context.console.read_line(&mut pause);
-        context.console.exit_process(75);
+        _ = block Console::read_line(&mut pause);
+        Console::exit_process(75);
     }
 
     state check_k2c_upper(context: &mut Main, result: f64) {
@@ -129,11 +127,11 @@ machine Main::main(context: &mut Main) reaches Console {
         }
     }
     state bad_k2c_high(context: &mut Main) {
-        context.console.write_line("FAIL: 373.15 K converted above 100.1 C (exit 76)");
-        context.console.write_line("[press Enter to close]");
+        Console::write_line("FAIL: 373.15 K converted above 100.1 C (exit 76)");
+        Console::write_line("[press Enter to close]");
         let mut pause: [u8; 256];
-        _ = block context.console.read_line(&mut pause);
-        context.console.exit_process(76);
+        _ = block Console::read_line(&mut pause);
+        Console::exit_process(76);
     }
 
     // Check 4: 10 km → ~6.21 miles.
@@ -145,11 +143,11 @@ machine Main::main(context: &mut Main) reaches Console {
         }
     }
     state bad_km_low(context: &mut Main) {
-        context.console.write_line("FAIL: 10 km converted below 6.1 miles (exit 77)");
-        context.console.write_line("[press Enter to close]");
+        Console::write_line("FAIL: 10 km converted below 6.1 miles (exit 77)");
+        Console::write_line("[press Enter to close]");
         let mut pause: [u8; 256];
-        _ = block context.console.read_line(&mut pause);
-        context.console.exit_process(77);
+        _ = block Console::read_line(&mut pause);
+        Console::exit_process(77);
     }
 
     state check_km_upper(context: &mut Main, result: f64) {
@@ -159,11 +157,11 @@ machine Main::main(context: &mut Main) reaches Console {
         }
     }
     state bad_km_high(context: &mut Main) {
-        context.console.write_line("FAIL: 10 km converted above 6.3 miles (exit 78)");
-        context.console.write_line("[press Enter to close]");
+        Console::write_line("FAIL: 10 km converted above 6.3 miles (exit 78)");
+        Console::write_line("[press Enter to close]");
         let mut pause: [u8; 256];
-        _ = block context.console.read_line(&mut pause);
-        context.console.exit_process(78);
+        _ = block Console::read_line(&mut pause);
+        Console::exit_process(78);
     }
 
     // Check 5: 5 kg → ~11.023 lbs.
@@ -175,11 +173,11 @@ machine Main::main(context: &mut Main) reaches Console {
         }
     }
     state bad_kg_low(context: &mut Main) {
-        context.console.write_line("FAIL: 5 kg converted below 11.0 lbs (exit 79)");
-        context.console.write_line("[press Enter to close]");
+        Console::write_line("FAIL: 5 kg converted below 11.0 lbs (exit 79)");
+        Console::write_line("[press Enter to close]");
         let mut pause: [u8; 256];
-        _ = block context.console.read_line(&mut pause);
-        context.console.exit_process(79);
+        _ = block Console::read_line(&mut pause);
+        Console::exit_process(79);
     }
 
     state check_kg_upper(context: &mut Main, result: f64) {
@@ -189,18 +187,18 @@ machine Main::main(context: &mut Main) reaches Console {
         }
     }
     state bad_kg_high(context: &mut Main) {
-        context.console.write_line("FAIL: 5 kg converted above 11.1 lbs (exit 80)");
-        context.console.write_line("[press Enter to close]");
+        Console::write_line("FAIL: 5 kg converted above 11.1 lbs (exit 80)");
+        Console::write_line("[press Enter to close]");
         let mut pause: [u8; 256];
-        _ = block context.console.read_line(&mut pause);
-        context.console.exit_process(80);
+        _ = block Console::read_line(&mut pause);
+        Console::exit_process(80);
     }
 
     state good(context: &mut Main) {
-        context.console.write_line("PASS: all five conversions landed in tolerance (exit 70)");
-        context.console.write_line("[press Enter to close]");
+        Console::write_line("PASS: all five conversions landed in tolerance (exit 70)");
+        Console::write_line("[press Enter to close]");
         let mut pause: [u8; 256];
-        _ = block context.console.read_line(&mut pause);
-        context.console.exit_process(70);
+        _ = block Console::read_line(&mut pause);
+        Console::exit_process(70);
     }
 }

@@ -1,9 +1,8 @@
 // Complete intended-invalid control: an unproved exact unsigned underflow.
 use omega_language_std::console;
-use omega::language::core::binding;
-data Invalid { console: Binding<Console>; }
+data Invalid { }
 machine Invalid::main(application: &mut Invalid) reaches Console {
     let impossible: u64 = 0 - 1;
-    application.console.write_byte(48);
-    application.console.exit_process(0);
+    Console::write_byte(48);
+    Console::exit_process(0);
 }

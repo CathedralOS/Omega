@@ -1,7 +1,6 @@
 // Expected exit: 0.
 // A scalar domain survives a foreign boundary through literals, locals,
 // fields, forwarding and a later state. The domain excludes abs(INT_MIN).
-use omega::language::core::binding;
 use omega::language::core::external_binding;
 
 pub domain i32::RepresentableMagnitude(value)
@@ -22,23 +21,23 @@ macos_arm64 machine absolute(value: i32 in RepresentableMagnitude) -> i32
     satisfies Magnitude::absolute via absolute_binding()
     requires 6 in RepresentableMagnitude;
 
-data Main { magnitude: Binding<Magnitude>; value: i32; }
+data Main { value: i32; }
 machine forward(main: &Main, value: i32 in RepresentableMagnitude) -> i32
-    reaches Magnitude { main.magnitude.absolute(value) }
+    reaches Magnitude { Magnitude::absolute(value) }
 
 machine Main::main(main: &mut Main) reaches Magnitude crashes Trap {
-    let direct: i32 = main.magnitude.absolute(-128);
+    let direct: i32 = Magnitude::absolute(-128);
     let local: i32 = -126;
-    let from_local: i32 = main.magnitude.absolute(local);
+    let from_local: i32 = Magnitude::absolute(local);
     main.value = -124;
-    let from_field: i32 = main.magnitude.absolute(main.value);
+    let from_field: i32 = Magnitude::absolute(main.value);
     let forwarded: i32 = forward(main, -122);
     transition direct == 128 && from_local == 126 && from_field == 124 && forwarded == 122 {
         true -> later(main, -120)
         false -> wrong()
     }
     state later(main: &mut Main, value: i32 in RepresentableMagnitude) {
-        let result: i32 = main.magnitude.absolute(value);
+        let result: i32 = Magnitude::absolute(value);
         transition result == 120 { true -> done() false -> wrong() }
     }
     state done() {}

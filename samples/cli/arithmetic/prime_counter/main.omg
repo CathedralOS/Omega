@@ -11,7 +11,6 @@
 // Expected exit: 8.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main
 where
@@ -19,7 +18,6 @@ where
     0 <= d, d <= 21,
     0 <= count, count <= 21,
 {
-    console: Binding<Console>;
     pause: [u8; 256];
     n: i32;
     d: i32;
@@ -28,7 +26,7 @@ where
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    main.console.write_line("prime_counter: counting primes up to 20 by trial division");
+    Console::write_line("prime_counter: counting primes up to 20 by trial division");
     main.n = 2;
     main.count = 0;
 
@@ -125,9 +123,9 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state done(main: &mut Main) {
-        main.console.write_line("result: the prime count, 8 for the primes below 21 (the exit code)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(main.count);
+        Console::write_line("result: the prime count, 8 for the primes below 21 (the exit code)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(main.count);
     }
 }

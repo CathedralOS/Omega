@@ -20,12 +20,10 @@
 // slices/recursive_subslice_element_accumulator_exit.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Adder {}
 
 data Main {
-    console: Binding<Console>;
     arr: [i32 in Wrapping; 6];
     adder: Adder;
     pause: [u8; 256];
@@ -42,7 +40,7 @@ terminates by s -> Slice::Length;
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    main.console.write_line("subslice_sum: shrinking-window recursion sums [3, 7, 12, 18, 5, 25]");
+    Console::write_line("subslice_sum: shrinking-window recursion sums [3, 7, 12, 18, 5, 25]");
     // Initialize the array.
     main.arr[0] = 3;
     main.arr[1] = 7;
@@ -61,16 +59,16 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state good(main: &mut Main) {
-        main.console.write_line("PASS: the six elements summed to 70 (exit 70)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(70);
+        Console::write_line("PASS: the six elements summed to 70 (exit 70)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(70);
     }
 
     state bad(main: &mut Main) {
-        main.console.write_line("FAIL: the recursive sum did not equal 70 (exit 71)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(71);
+        Console::write_line("FAIL: the recursive sum did not equal 70 (exit 71)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(71);
     }
 }

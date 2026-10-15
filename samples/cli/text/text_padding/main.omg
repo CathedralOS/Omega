@@ -18,7 +18,6 @@
 // Expected output contains: ALERT temp
 
 use omega_language_std::console;
-use omega::language::core::binding;
 use omega::language::core::numeric_conversion;
 
 domain [u8]::Utf8(bytes)
@@ -29,24 +28,23 @@ requires
     valid_utf8(bytes);
 
 data Main {
-    console: Binding<Console>;
     message: [u8; 32] in Utf8;
     padding: i32 in Saturating;
     pause: [u8; 256];
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    main.console.write_line("text_padding: computes right-padding to a 16-column width from carrier length");
+    Console::write_line("text_padding: computes right-padding to a 16-column width from carrier length");
     main.message = "ALERT temp";
     main.padding = 16 - (narrow_u64_to_i32_saturating(main.message.len) as i32 in Saturating);
-    main.console.write_line(main.message);
+    Console::write_line(main.message);
 
     transition { _ -> done(main) }
 
     state done(main: &mut Main) {
-        main.console.write_line("result: the padding count, 6 for this 10-char message (the exit code)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(main.padding as i32);
+        Console::write_line("result: the padding count, 6 for this 10-char message (the exit code)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(main.padding as i32);
     }
 }

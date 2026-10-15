@@ -7,7 +7,6 @@
 // Expected exit: 70.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Counter [copy] {
     value: i32 in Saturating;
@@ -15,13 +14,12 @@ data Counter [copy] {
 }
 
 data Main {
-    console: Binding<Console>;
     counter: Counter;
     pause: [u8; 256];
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    main.console.write_line("bounded_counter: saturating counter -- three add(40)s against a bound of 100");
+    Console::write_line("bounded_counter: saturating counter -- three add(40)s against a bound of 100");
     main.counter.bound = 100;
 
     Main::add(main, 40);
@@ -33,7 +31,7 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> not_hundred(main)
     }
     state good_msg(main: &mut Main) {
-        main.console.write_line("PASS: counter saturated at the bound, value == 100 (exit 70)");
+        Console::write_line("PASS: counter saturated at the bound, value == 100 (exit 70)");
         transition { _ -> report(main, 70) }
     }
     state not_hundred(main: &mut Main) {
@@ -43,17 +41,17 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
     state bad_sat_msg(main: &mut Main) {
-        main.console.write_line("FAIL: counter reached 120 -- saturation did not apply (exit 81)");
+        Console::write_line("FAIL: counter reached 120 -- saturation did not apply (exit 81)");
         transition { _ -> report(main, 81) }
     }
     state bad_other_msg(main: &mut Main) {
-        main.console.write_line("FAIL: counter holds an unexpected value -- neither 100 nor 120 (exit 82)");
+        Console::write_line("FAIL: counter holds an unexpected value -- neither 100 nor 120 (exit 82)");
         transition { _ -> report(main, 82) }
     }
     state report(main: &mut Main, code: i32) {
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(code);
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(code);
     }
 }
 

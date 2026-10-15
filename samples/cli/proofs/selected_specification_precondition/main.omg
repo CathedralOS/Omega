@@ -1,6 +1,5 @@
 // Expected exit: 70
 use omega_language_std::console;
-use omega::language::core::binding;
 use omega::language::core::nat;
 machine selected_identity<machine Modulus>(value: Nat) -> Nat
 where machine Modulus(value: Nat) -> Nat;
@@ -16,8 +15,8 @@ ensures selected_identity<Modulus>(value) == value
 }
 
 machine zero_modulus(value: Nat) -> Nat { Nat::Zero }
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Console {
     identity<zero_modulus>(Nat::Zero);
-    main.console.exit_process(70);
+    Console::exit_process(70);
 }

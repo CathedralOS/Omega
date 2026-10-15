@@ -20,27 +20,26 @@
 // as state arguments rather than fields.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Console {
-    transition { _ -> rd(&main.console, 0, 0) }
+    transition { _ -> rd(0, 0) }
 
-    state rd(console: &Binding<Console>, sum: i32 in Wrapping, n: i32 in Wrapping) {
-        let r: ByteRead = block Console::read_byte(console);
+    state rd(sum: i32 in Wrapping, n: i32 in Wrapping) {
+        let r: ByteRead = block Console::read_byte();
         transition r {
-            ByteRead::Byte { value } -> acc(console, sum, n, value)
-            _ -> fin(console, sum, n)
+            ByteRead::Byte { value } -> acc(sum, n, value)
+            _ -> fin(sum, n)
         }
     }
 
-    state acc(console: &Binding<Console>, sum: i32 in Wrapping, n: i32 in Wrapping, value: i32) {
+    state acc(sum: i32 in Wrapping, n: i32 in Wrapping, value: i32) {
         let b: i32 in Wrapping = value as i32 in Wrapping;
-        transition { _ -> rd(console, sum + b, n + 1) }
+        transition { _ -> rd(sum + b, n + 1) }
     }
 
-    state fin(console: &Binding<Console>, sum: i32 in Wrapping, n: i32 in Wrapping) {
+    state fin(sum: i32 in Wrapping, n: i32 in Wrapping) {
         let digest: i32 in Wrapping = sum + n;
-        Console::exit_process(console, digest as i32);
+        Console::exit_process(digest as i32);
     }
 }

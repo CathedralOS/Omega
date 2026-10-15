@@ -13,7 +13,6 @@ use omega_language_std::macos_gui;
 // runs (invisible from Finder). No stdin — a windowed app must never block on
 // a console.
 use omega_language_std::console;
-use omega::language::core::binding;
 // These requirements expose the shared macos_gui operations' service rows.
 // Direct-invocation declarations are separate; they do not supply a reach ceiling.
 pub boundary trait Clock {
@@ -56,11 +55,6 @@ ViewerClockProvider satisfies Clock {
 }
 
 data Main {
-    console: Binding<Console>;
-    clock: Binding<Clock>;
-    input: Binding<Input>;
-    gui: Binding<Gui>;
-    raw: Binding<PosixFilesystemHost>;
     cls: [u8; 7];
     title: [u8; 13];
     message: [u64; 6];
@@ -130,7 +124,7 @@ machine Main::main(main: &mut Main) reaches AppKit + Clock + Console + CoreGraph
     main.info[3] = 2097153;
     main.current = 0;
     // Create the owned window before loading so every failure path can release it.
-    let window: Window = main.gui.window_create(main.cls, &main.title[0], 282001408, 160, 120, 528, 551);
+    let window: Window = Gui::window_create(main.cls, &main.title[0], 282001408, 160, 120, 528, 551);
     main.hwnd = window.window;
     transition main.hwnd > 0 { true -> dc(main, window) _ -> bad(main, window) }
 
@@ -145,27 +139,27 @@ machine Main::main(main: &mut Main) reaches AppKit + Clock + Console + CoreGraph
     // parent-directory fallback. Application publication does not change cwd.
     state open0(main: &mut Main, window: Window) {
         // POSIX O_RDONLY is zero. Reads preserve binary bytes.
-        main.fd = main.raw.open("img0.bmp", 0);
+        main.fd = PosixFilesystemHost::open("img0.bmp", 0);
         transition main.fd >= 0 { true -> read_file(main, window) _ -> open0_up(main, window) }
     }
     state open0_up(main: &mut Main, window: Window) {
-        main.fd = main.raw.open("../img0.bmp", 0);
+        main.fd = PosixFilesystemHost::open("../img0.bmp", 0);
         transition { _ -> read_file(main, window) }
     }
     state open1(main: &mut Main, window: Window) {
-        main.fd = main.raw.open("img1.bmp", 0);
+        main.fd = PosixFilesystemHost::open("img1.bmp", 0);
         transition main.fd >= 0 { true -> read_file(main, window) _ -> open1_up(main, window) }
     }
     state open1_up(main: &mut Main, window: Window) {
-        main.fd = main.raw.open("../img1.bmp", 0);
+        main.fd = PosixFilesystemHost::open("../img1.bmp", 0);
         transition { _ -> read_file(main, window) }
     }
     state open2(main: &mut Main, window: Window) {
-        main.fd = main.raw.open("img2.bmp", 0);
+        main.fd = PosixFilesystemHost::open("img2.bmp", 0);
         transition main.fd >= 0 { true -> read_file(main, window) _ -> open2_up(main, window) }
     }
     state open2_up(main: &mut Main, window: Window) {
-        main.fd = main.raw.open("../img2.bmp", 0);
+        main.fd = PosixFilesystemHost::open("../img2.bmp", 0);
         transition { _ -> read_file(main, window) }
     }
     state read_file(main: &mut Main, window: Window) {
@@ -181,7 +175,7 @@ machine Main::main(main: &mut Main) reaches AppKit + Clock + Console + CoreGraph
         transition main.received < 16384 { true -> read_chunk(main, window) _ -> read_close(main, window) }
     }
     state read_chunk(main: &mut Main, window: Window) {
-        main.n = main.raw.read(main.fd, &mut main.buffer[main.received..16384], 16384 - main.received);
+        main.n = PosixFilesystemHost::read(main.fd, &mut main.buffer[main.received..16384], 16384 - main.received);
         transition main.n > 0 { true -> read_count(main, window) _ -> read_close(main, window) }
     }
     state read_count(main: &mut Main, window: Window) {
@@ -196,7 +190,7 @@ machine Main::main(main: &mut Main) reaches AppKit + Clock + Console + CoreGraph
         transition { _ -> read_close(main, window) }
     }
     state read_close(main: &mut Main, window: Window) {
-        main.rc = main.raw.close(main.fd);
+        main.rc = PosixFilesystemHost::close(main.fd);
         transition main.n == 0 && main.received == 12342 && main.rc == 0 { true -> decode_init(main, window) _ -> load_failed(main, window) }
     }
 
@@ -256,11 +250,11 @@ machine Main::main(main: &mut Main) reaches AppKit + Clock + Console + CoreGraph
 
     // Decoding and navigation reuse the same owned window.
     state decoded(main: &mut Main, window: Window) {
-        main.console.write_line("loaded BMP: 64x64 (12342 bytes)");
+        Console::write_line("loaded BMP: 64x64 (12342 bytes)");
         transition { _ -> present(main, window) }
     }
     state dc(main: &mut Main, window: Window) {
-        main.hdc = main.gui.get_dc(&window, main.hwnd);
+        main.hdc = Gui::get_dc(&window, main.hwnd);
         transition main.hdc > 0 { true -> load(main, window) _ -> bad(main, window) }
     }
 
@@ -276,7 +270,7 @@ machine Main::main(main: &mut Main) reaches AppKit + Clock + Console + CoreGraph
         transition { _ -> pump_loop(main, window) }
     }
     state pump_loop(main: &mut Main, mut window: Window) {
-        main.have = main.gui.msg_peek(&mut window, main.message);
+        main.have = Gui::msg_peek(&mut window, main.message);
         transition main.have > 0 { true -> pump_check_close(main, window) _ -> liveness(main, window) }
     }
     state pump_check_close(main: &mut Main, window: Window) {
@@ -298,8 +292,8 @@ machine Main::main(main: &mut Main) reaches AppKit + Clock + Console + CoreGraph
         transition main.message[2] >= 61536 && main.message[2] < 61552 { true -> quit_self(main, window) _ -> pump_handle(main, window) }
     }
     state pump_handle(main: &mut Main, window: Window) {
-        main.translated = main.gui.msg_translate(&window, main.message);
-        main.dispatched = main.gui.msg_dispatch(&window, main.message);
+        main.translated = Gui::msg_translate(&window, main.message);
+        main.dispatched = Gui::msg_dispatch(&window, main.message);
         transition main.pumped < 16 { true -> pump_next(main, window) _ -> liveness(main, window) }
     }
     state pump_next(main: &mut Main, window: Window) {
@@ -309,17 +303,17 @@ machine Main::main(main: &mut Main) reaches AppKit + Clock + Console + CoreGraph
 
     // --- quit paths: closed window or ESC; flip paths: RIGHT/LEFT edges ---
     state liveness(main: &mut Main, window: Window) {
-        main.alive = main.gui.is_window(&window, main.hwnd);
+        main.alive = Gui::is_window(&window, main.hwnd);
         transition main.alive > 0 { true -> focus_check(main, window) _ -> closed(main, window) }
     }
     // Key-state polling is global: without this gate, an ESC (or arrow) pressed
     // in ANY app -- even the Ctrl+Shift+Esc chord -- would drive this window.
     state focus_check(main: &mut Main, window: Window) {
-        main.fw = main.gui.foreground_window(&window);
+        main.fw = Gui::foreground_window(&window);
         transition main.fw == main.hwnd { true -> esc_check(main, window) _ -> present(main, window) }
     }
     state esc_check(main: &mut Main, window: Window) {
-        main.escape = main.input.key_state(27);
+        main.escape = Input::key_state(27);
         transition main.escape > 0 { true -> quit_self(main, window) _ -> next_check(main, window) }
     }
     state quit_self(main: &mut Main, window: Window) {
@@ -328,7 +322,7 @@ machine Main::main(main: &mut Main) reaches AppKit + Clock + Console + CoreGraph
     // Edge-detect the arrows (key_state reports HELD): flip only on the
     // 0 -> held transition, so holding the key is one flip, not sixty.
     state next_check(main: &mut Main, window: Window) {
-        main.next_key = main.input.key_state(39);
+        main.next_key = Input::key_state(39);
         transition main.next_key > 0 && main.next_held == 0 { true -> next_edge(main, window) _ -> next_level(main, window) }
     }
     state next_edge(main: &mut Main, window: Window) {
@@ -351,7 +345,7 @@ machine Main::main(main: &mut Main) reaches AppKit + Clock + Console + CoreGraph
         transition { _ -> prev_check(main, window) }
     }
     state prev_check(main: &mut Main, window: Window) {
-        main.prev_key = main.input.key_state(37);
+        main.prev_key = Input::key_state(37);
         transition main.prev_key > 0 && main.prev_held == 0 { true -> prev_edge(main, window) _ -> prev_level(main, window) }
     }
     state prev_edge(main: &mut Main, window: Window) {
@@ -376,33 +370,33 @@ machine Main::main(main: &mut Main) reaches AppKit + Clock + Console + CoreGraph
 
     // --- present + pace ---
     state present(main: &mut Main, window: Window) {
-        main.copied = main.gui.blit(&window, main.hdc, 512, 512, 64, 64, main.pixels, main.info);
+        main.copied = Gui::blit(&window, main.hdc, 512, 512, 64, 64, main.pixels, main.info);
         transition main.copied == 64 { true -> pace(main, window) _ -> present_failed(main, window) }
     }
     state present_failed(main: &mut Main, window: Window) {
         // A failed blit right after the user closed the window is the normal
         // shutdown race, not an error.
-        main.alive = main.gui.is_window(&window, main.hwnd);
+        main.alive = Gui::is_window(&window, main.hwnd);
         transition main.alive > 0 { true -> bad(main, window) _ -> closed(main, window) }
     }
     state pace(main: &mut Main, window: Window) {
-        main.clock.sleep(15);
+        Clock::sleep(15);
         transition { _ -> pump_init(main, window) }
     }
 
     state closed(main: &mut Main, window: Window) {
-        main.gui.window_destroy(window);
-        main.console.write_line("viewer closed -- goodbye (exit 0)");
-        main.console.exit_process(0);
+        Gui::window_destroy(window);
+        Console::write_line("viewer closed -- goodbye (exit 0)");
+        Console::exit_process(0);
     }
     state load_failed(main: &mut Main, window: Window) {
-        main.gui.window_destroy(window);
-        main.console.write_line("FAIL: could not load imgN.bmp -- run from the image_viewer folder (exit 1)");
-        main.console.exit_process(1);
+        Gui::window_destroy(window);
+        Console::write_line("FAIL: could not load imgN.bmp -- run from the image_viewer folder (exit 1)");
+        Console::exit_process(1);
     }
     state bad(main: &mut Main, window: Window) {
-        main.gui.window_destroy(window);
-        main.console.write_line("FAIL: window/DC creation failed or a blit failed while alive (exit 1)");
-        main.console.exit_process(1);
+        Gui::window_destroy(window);
+        Console::write_line("FAIL: window/DC creation failed or a blit failed while alive (exit 1)");
+        Console::exit_process(1);
     }
 }

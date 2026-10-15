@@ -29,7 +29,6 @@
 // Expected exit: 70.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Event {
     case Deposit(amount: i32 in Saturating);
@@ -49,7 +48,6 @@ data Log [copy] {
 }
 
 data Main {
-    console: Binding<Console>;
     log: Log;
     pause: [u8; 256];
 }
@@ -81,7 +79,7 @@ machine Main::apply(main: &mut Main, event: Event) {
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    main.console.write_line("event_log: case-payload events folding deposits/withdrawals into nested stats");
+    Console::write_line("event_log: case-payload events folding deposits/withdrawals into nested stats");
     Main::apply(main, Event::Deposit { amount: 100 });
     Main::apply(main, Event::Deposit { amount: 50 });
     Main::apply(main, Event::Withdraw { amount: 30 });
@@ -95,10 +93,10 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state bad_balance(main: &mut Main) {
-        main.console.write_line("FAIL: wrong final balance (exit 71)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(71);
+        Console::write_line("FAIL: wrong final balance (exit 71)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(71);
     }
 
     state check_deposits(main: &mut Main) {
@@ -109,10 +107,10 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state bad_deposits(main: &mut Main) {
-        main.console.write_line("FAIL: wrong deposit count (exit 72)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(72);
+        Console::write_line("FAIL: wrong deposit count (exit 72)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(72);
     }
 
     state check_withdrawals(main: &mut Main) {
@@ -123,10 +121,10 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state bad_withdrawals(main: &mut Main) {
-        main.console.write_line("FAIL: wrong withdrawal count (exit 73)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(73);
+        Console::write_line("FAIL: wrong withdrawal count (exit 73)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(73);
     }
 
     state check_count(main: &mut Main) {
@@ -137,16 +135,16 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state bad_count(main: &mut Main) {
-        main.console.write_line("FAIL: wrong event count (exit 74)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(74);
+        Console::write_line("FAIL: wrong event count (exit 74)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(74);
     }
 
     state good(main: &mut Main) {
-        main.console.write_line("PASS: balance=70, deposits=3, withdrawals=2, events=5 (exit 70)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(70);
+        Console::write_line("PASS: balance=70, deposits=3, withdrawals=2, events=5 (exit 70)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(70);
     }
 }

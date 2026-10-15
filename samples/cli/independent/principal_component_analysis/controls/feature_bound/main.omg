@@ -1,9 +1,8 @@
 // Intended invalid: a fifth feature exceeds the four-feature storage contract.
 use omega_language_std::console;
-use omega::language::core::binding;
-data Invalid { console: Binding<Console>; features: [f64; 4]; }
+data Invalid { features: [f64; 4]; }
 machine Invalid::main(main: &mut Invalid) reaches Console {
  main.features[4] = 1.0;
- main.console.write_line("UNREACHABLE feature bound");
- main.console.exit_process(0);
+ Console::write_line("UNREACHABLE feature bound");
+ Console::exit_process(0);
 }

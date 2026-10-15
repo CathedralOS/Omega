@@ -16,16 +16,14 @@
 // macOS ARM64. Other declared targets retain their matching-host obligations.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
     counter: AtomicU32;
     pause: [u8; 256];
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    main.console.write_line("atomics_cross: real LOCK xadd + LOCK cmpxchg -- store(10), fetch_add(5), compare_exchange(15,99)");
+    Console::write_line("atomics_cross: real LOCK xadd + LOCK cmpxchg -- store(10), fetch_add(5), compare_exchange(15,99)");
     main.counter.store(10, NoOrdering);
 
     let old1: u32 in Wrapping = main.counter.fetch_add(5, NoOrdering);
@@ -69,15 +67,15 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state good(main: &mut Main) {
-        main.console.write_line("PASS: RMW and every load/store ordering round-tripped (exit 70)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(70);
+        Console::write_line("PASS: RMW and every load/store ordering round-tripped (exit 70)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(70);
     }
     state bad(main: &mut Main) {
-        main.console.write_line("FAIL: an atomic RMW or ordered load/store misbehaved (exit 71)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(71);
+        Console::write_line("FAIL: an atomic RMW or ordered load/store misbehaved (exit 71)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(71);
     }
 }

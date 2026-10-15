@@ -19,7 +19,6 @@
 // Expected exit: 70.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Roller [copy] {
     rng_state: i32;
@@ -27,13 +26,12 @@ data Roller [copy] {
 }
 
 data Main {
-    console: Binding<Console>;
     roller: Roller;
     pause: [u8; 256];
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    main.console.write_line("dice_roller: five deterministic d6 rolls from an LCG seeded with 42");
+    Console::write_line("dice_roller: five deterministic d6 rolls from an LCG seeded with 42");
     // Seed the generator.
     let s0: i32 = 42;
 
@@ -76,23 +74,23 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state good(main: &mut Main) {
-        main.console.write_line("PASS: rolls 4+1+4+1+2 == 12 and the RNG chain ended at 24079 (exit 70)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(70);
+        Console::write_line("PASS: rolls 4+1+4+1+2 == 12 and the RNG chain ended at 24079 (exit 70)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(70);
     }
 
     state bad_state(main: &mut Main) {
-        main.console.write_line("FAIL: final LCG state != 24079 (exit 71)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(71);
+        Console::write_line("FAIL: final LCG state != 24079 (exit 71)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(71);
     }
 
     state bad_total(main: &mut Main) {
-        main.console.write_line("FAIL: roll total != 12 (exit 72)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(72);
+        Console::write_line("FAIL: roll total != 12 (exit 72)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(72);
     }
 }

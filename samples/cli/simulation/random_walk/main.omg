@@ -10,7 +10,6 @@
 // Expected output contains: @
 use omega_language_std::console;
 use omega_language_std::clock;
-use omega::language::core::binding;
 
 domain [u8]::Utf8(bytes)
 requires
@@ -25,8 +24,6 @@ domain [u8; 2]::Utf8(bytes)
 requires
     valid_utf8(bytes);
 data Main {
-    console: Binding<Console>;
-    clock: Binding<Clock>;
     grid: [i32; 288] in Wrapping; // 24 x 12 visited trail
     home: [u8; 3] in Utf8;
     line: [u8; 24] in Utf8;
@@ -47,7 +44,7 @@ data Main {
 }
 
 machine Main::main(main: &mut Main) reaches Clock + Console {
-    main.console.write_line("random_walk: a pseudo-random walker wanders a 24x12 grid leaving a trail");
+    Console::write_line("random_walk: a pseudo-random walker wanders a 24x12 grid leaving a trail");
     main.px = 12;
     main.py = 6;
     main.st = 2463534242; // a well-mixed xorshift seed
@@ -80,7 +77,7 @@ machine Main::main(main: &mut Main) reaches Clock + Console {
 
     // --- render trail + walker in place ---
     state show(main: &mut Main) {
-        main.console.write(main.home);
+        Console::write(main.home);
         main.ry = 0;
         transition { _ -> show_row(main) }
     }
@@ -117,12 +114,12 @@ machine Main::main(main: &mut Main) reaches Clock + Console {
         transition { _ -> show_col(main) }
     }
     state emit_row(main: &mut Main) {
-        main.console.write_line(main.line);
+        Console::write_line(main.line);
         main.ry = main.ry + 1;
         transition { _ -> show_row(main) }
     }
     state show_done(main: &mut Main) {
-        main.clock.sleep(90);
+        Clock::sleep(90);
         transition { _ -> step(main) }
     }
 
@@ -188,15 +185,15 @@ machine Main::main(main: &mut Main) reaches Clock + Console {
     }
 
     state finish(main: &mut Main) {
-        main.console.write_line("PASS: 70 random steps walked and rendered (exit 0)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(0);
+        Console::write_line("PASS: 70 random steps walked and rendered (exit 0)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(0);
     }
     state bad(main: &mut Main) {
-        main.console.write_line("FAIL: grid index out of bounds guard tripped (exit 1)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(1);
+        Console::write_line("FAIL: grid index out of bounds guard tripped (exit 1)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(1);
     }
 }

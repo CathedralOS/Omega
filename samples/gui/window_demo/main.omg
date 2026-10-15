@@ -6,7 +6,6 @@
 // Expected output contains: PASS: 60 frames blitted (exit 0)
 use omega_language_std::console;
 use omega_language_std::macos_gui;
-use omega::language::core::binding;
 // These requirements expose the shared macos_gui operations' service rows.
 // Direct-invocation declarations are separate; they do not supply a reach ceiling.
 pub boundary trait Clock {
@@ -47,9 +46,6 @@ DemoClockProvider satisfies Clock {
 }
 
 data Main {
-    console: Binding<Console>;
-    clock: Binding<Clock>;
-    gui: Binding<Gui>;
     cls: [u8; 7];
     title: [u8; 11];
     pixels: [i32; 4096];
@@ -100,11 +96,11 @@ machine Main::main(main: &mut Main) reaches AppKit + Clock + Console + CoreGraph
     // so the CLIENT area is ~256x256 without an AdjustWindowRect import.
     // The created resource is owned by the state machine, independently of
     // its borrowed rendering context. Each transition transfers that owner.
-    let window: Window = main.gui.window_create(main.cls, &main.title[0], 282001408, 200, 200, 272, 295);
+    let window: Window = Gui::window_create(main.cls, &main.title[0], 282001408, 200, 200, 272, 295);
     main.hwnd = window.window;
     transition main.hwnd > 0 { true -> dc(main, window) _ -> bad(main, window) }
     state dc(main: &mut Main, window: Window) {
-        main.hdc = main.gui.get_dc(&window, main.hwnd);
+        main.hdc = Gui::get_dc(&window, main.hwnd);
         main.frame = 0;
         transition main.hdc > 0 { true -> frame_loop(main, window) _ -> bad(main, window) }
     }
@@ -138,11 +134,11 @@ machine Main::main(main: &mut Main) reaches AppKit + Clock + Console + CoreGraph
     }
     // --- present: stretch the 64x64 buffer into the 256x256 client area ---
     state present(main: &mut Main, window: Window) {
-        main.copied = main.gui.blit(&window, main.hdc, 256, 256, 64, 64, main.pixels, main.info);
+        main.copied = Gui::blit(&window, main.hdc, 256, 256, 64, 64, main.pixels, main.info);
         transition main.copied == 64 { true -> pace(main, window) _ -> bad(main, window) }
     }
     state pace(main: &mut Main, window: Window) {
-        main.clock.sleep(25);
+        Clock::sleep(25);
         transition { _ -> pump_init(main, window) }
     }
     // --- pump: drain queued messages so the titlebar responds (drag, X) ---
@@ -151,12 +147,12 @@ machine Main::main(main: &mut Main) reaches AppKit + Clock + Console + CoreGraph
         transition { _ -> pump_loop(main, window) }
     }
     state pump_loop(main: &mut Main, mut window: Window) {
-        main.have = main.gui.msg_peek(&mut window, main.message);
+        main.have = Gui::msg_peek(&mut window, main.message);
         transition main.have > 0 { true -> pump_handle(main, window) _ -> liveness(main, window) }
     }
     state pump_handle(main: &mut Main, window: Window) {
-        main.translated = main.gui.msg_translate(&window, main.message);
-        main.dispatched = main.gui.msg_dispatch(&window, main.message);
+        main.translated = Gui::msg_translate(&window, main.message);
+        main.dispatched = Gui::msg_dispatch(&window, main.message);
         transition main.pumped < 16 { true -> pump_next(main, window) _ -> liveness(main, window) }
     }
     state pump_next(main: &mut Main, window: Window) {
@@ -165,7 +161,7 @@ machine Main::main(main: &mut Main) reaches AppKit + Clock + Console + CoreGraph
     }
     // --- liveness: if the window is destroyed, stop blitting into it ---
     state liveness(main: &mut Main, window: Window) {
-        main.alive = main.gui.is_window(&window, main.hwnd);
+        main.alive = Gui::is_window(&window, main.hwnd);
         transition main.alive > 0 { true -> next_frame(main, window) _ -> bad(main, window) }
     }
     state next_frame(main: &mut Main, window: Window) {
@@ -182,12 +178,12 @@ machine Main::main(main: &mut Main) reaches AppKit + Clock + Console + CoreGraph
         transition main.frame == 60 { true -> complete(main, window) _ -> bad(main, window) }
     }
     state complete(main: &mut Main, window: Window) {
-        main.gui.window_destroy(window);
-        main.console.write_line("PASS: 60 frames blitted (exit 0)");
-        main.console.exit_process(0);
+        Gui::window_destroy(window);
+        Console::write_line("PASS: 60 frames blitted (exit 0)");
+        Console::exit_process(0);
     }
     state bad(main: &mut Main, window: Window) {
-        main.console.write_line("FAIL: creation, rendering, or window closure before 60 frames (exit 1)");
-        main.console.exit_process(1);
+        Console::write_line("FAIL: creation, rendering, or window closure before 60 frames (exit 1)");
+        Console::exit_process(1);
     }
 }

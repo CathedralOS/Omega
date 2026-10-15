@@ -23,7 +23,7 @@ invokes Console;
         _ -> digits(reader, widened)
     }
     state negative(reader: &mut Reader, value: i64) {
-        reader.console.write_byte(45);
+        Console::write_byte(45);
         let absolute: i64 in Wrapping = 0 - (value as i64 in Wrapping);
         transition { _ -> digits(reader, absolute as i64) }
     }
@@ -46,7 +46,7 @@ invokes Console;
     requires divisor > 0
     {
         let byte: i64 in Wrapping = (value / divisor) % 10 + 48;
-        reader.console.write_byte(narrow_i64_to_i32_wrapping(byte as i64));
+        Console::write_byte(narrow_i64_to_i32_wrapping(byte as i64));
         transition divisor > 1 {
             true -> ready(reader, value, divisor / 10)
             _ -> {}
@@ -57,7 +57,7 @@ machine real(reader: &mut Reader, value: f64) reaches Console {
     let scaled: i64 in Saturating = I64::from_f64(value * 1000000000000.0 + 0.5);
     let amount: i64 in Wrapping = scaled as i64 in Wrapping;
     integer(reader, (amount / 1000000000000) as i64);
-    reader.console.write_byte(46);
+    Console::write_byte(46);
     transition { _ -> fraction(reader, amount % 1000000000000, 100000000000) }
     state fraction(reader: &mut Reader, amount: i64 in Wrapping, divisor: i64 in Wrapping) {
         transition divisor > 0 { true -> digit(reader, amount, divisor) false -> {} }
@@ -65,14 +65,14 @@ machine real(reader: &mut Reader, value: f64) reaches Console {
     state digit(reader: &mut Reader, amount: i64 in Wrapping, divisor: i64 in Wrapping)
     requires divisor > 0
     {
-        reader.console.write_byte(narrow_i64_to_i32_wrapping(((amount / divisor) % 10 + 48) as i64));
+        Console::write_byte(narrow_i64_to_i32_wrapping(((amount / divisor) % 10 + 48) as i64));
         transition { _ -> fraction(reader, amount, divisor / 10) }
     }
 }
 pub machine report(reader: &mut Reader, group: i32 in Wrapping, table: &Table) reaches Console
 invokes Console;
 {
-    reader.console.write("TABLE "); integer(reader, group as i64); reader.console.write_line("");
+    Console::write("TABLE "); integer(reader, group as i64); Console::write_line("");
     transition { _ -> row(reader, table, 0) }
     state row(reader: &mut Reader, table: &Table, index: i32 in Wrapping) {
         transition index >= 0 && index < 32 && index < table.count {
@@ -84,21 +84,21 @@ invokes Console;
     requires index >= 0 && index < 32
     {
         let position: u32 = narrow_i32_to_u32_wrapping(index as i32) as u32;
-        reader.console.write("ROW "); real(reader, row_value(&table.time[..], position)); reader.console.write(" ");
-        integer(reader, table.risk[index] as i64); reader.console.write(" ");
-        integer(reader, table.event[index] as i64); reader.console.write(" ");
-        integer(reader, table.censor[index] as i64); reader.console.write(" ");
-        real(reader, row_value(&table.survival[..], position)); reader.console.write(" ");
-        real(reader, row_value(&table.variance[..], position)); reader.console.write(" ");
-        integer(reader, table.zero[index] as i64); reader.console.write_line("");
+        Console::write("ROW "); real(reader, row_value(&table.time[..], position)); Console::write(" ");
+        integer(reader, table.risk[index] as i64); Console::write(" ");
+        integer(reader, table.event[index] as i64); Console::write(" ");
+        integer(reader, table.censor[index] as i64); Console::write(" ");
+        real(reader, row_value(&table.survival[..], position)); Console::write(" ");
+        real(reader, row_value(&table.variance[..], position)); Console::write(" ");
+        integer(reader, table.zero[index] as i64); Console::write_line("");
         transition { _ -> row(reader, table, index + 1) }
     }
     state median(reader: &mut Reader, table: &Table) {
-        reader.console.write("MEDIAN "); integer(reader, table.median_status as i64); reader.console.write(" "); real(reader, table.median); reader.console.write(" "); integer(reader, table.count as i64); reader.console.write_line("");
+        Console::write("MEDIAN "); integer(reader, table.median_status as i64); Console::write(" "); real(reader, table.median); Console::write(" "); integer(reader, table.count as i64); Console::write_line("");
     }
 }
 pub machine logrank_report(reader: &mut Reader, result: &Logrank) reaches Console
 invokes Console;
 {
-    reader.console.write("LOGRANK "); real(reader, result.observed); reader.console.write(" "); real(reader, result.expected); reader.console.write(" "); real(reader, result.variance); reader.console.write(" "); real(reader, result.statistic); reader.console.write(" "); integer(reader, result.status as i64); reader.console.write_line("");
+    Console::write("LOGRANK "); real(reader, result.observed); Console::write(" "); real(reader, result.expected); Console::write(" "); real(reader, result.variance); Console::write(" "); real(reader, result.statistic); Console::write(" "); integer(reader, result.status as i64); Console::write_line("");
 }

@@ -9,7 +9,6 @@
 //
 // Expected exit: 16
 use omega_language_std::console;
-use omega::language::core::binding;
 data Counter<T> {
     value: T;
     times: i32 in Wrapping;
@@ -25,7 +24,6 @@ machine Counter::count<T>(counter: &Counter<T>) -> i32 in Wrapping {
     transition { _ -> (counter.times) }
 }
 data Main {
-    console: Binding<Console>;
 }
 machine Main::main(main: &mut Main) reaches Console {
     let mut score: Counter<i32>;
@@ -43,7 +41,7 @@ machine Main::main(main: &mut Main) reaches Console {
     }
     state tally(main: &mut Main, total: i32, times_score: i32 in Wrapping, times_flag: i32 in Wrapping) {
         let code: i32 in Wrapping = (total as i32 in Wrapping) + times_score + 1 + times_flag;
-        main.console.exit_process(code as i32);
+        Console::exit_process(code as i32);
     }
-    state wrong(main: &mut Main) { main.console.exit_process(3); }
+    state wrong(main: &mut Main) { Console::exit_process(3); }
 }

@@ -18,10 +18,8 @@ requires
     valid_utf8(bytes);
 use omega_language_std::console;
 use omega::language::core::numeric_conversion;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
 }
 
 // Only the borrowed input, position and rolling hash survive an iteration.
@@ -64,14 +62,14 @@ machine hash_text(text: &[u8; 8] in Utf8) -> u32 in Wrapping {
 }
 
 machine Main::main(context: &mut Main) reaches Console {
-    context.console.write_line("string_hash: FNV-1a hashes the bytes of the string omega");
+    Console::write_line("string_hash: FNV-1a hashes the bytes of the string omega");
     let text: [u8; 8] in Utf8 = "omega";
     let hash: u32 in Wrapping = hash_text(&text);
     let digest: u32 in Wrapping = hash & 255;
     let output: i32 = narrow_u32_to_i32_trapping(digest as u32);
-    context.console.write_line("result: the digest's low byte, 40 for omega (the exit code)");
-    context.console.write_line("[press Enter to close]");
+    Console::write_line("result: the digest's low byte, 40 for omega (the exit code)");
+    Console::write_line("[press Enter to close]");
     let mut pause: [u8; 256];
-    _ = block context.console.read_line(&mut pause);
-    context.console.exit_process(output);
+    _ = block Console::read_line(&mut pause);
+    Console::exit_process(output);
 }

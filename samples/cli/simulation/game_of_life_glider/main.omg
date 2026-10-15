@@ -12,7 +12,6 @@
 // Expected output contains: #
 use omega_language_std::console;
 use omega_language_std::clock;
-use omega::language::core::binding;
 
 domain [u8]::Utf8(bytes)
 requires
@@ -24,13 +23,11 @@ domain [u8; 3]::Utf8(bytes)
 requires
     valid_utf8(bytes);
 data Main {
-    console: Binding<Console>;
-    clock: Binding<Clock>;
     grid: [i32; 364]; // 26 x 14, padded; real cells rows 1..12, cols 1..24
 }
 
 machine Main::main(main: &mut Main) reaches Clock + Console {
-    main.console.write_line("game_of_life_glider: a glider crossing a 24x12 field, animated in place");
+    Console::write_line("game_of_life_glider: a glider crossing a 24x12 field, animated in place");
     transition { _ -> clear_grid(main, 0) }
 
     state clear_grid(main: &mut Main, cell_index: i32) {
@@ -66,7 +63,7 @@ machine Main::main(main: &mut Main) reaches Clock + Console {
         }
     }
     state advance(main: &mut Main, generation: i32) {
-        main.clock.sleep(90);
+        Clock::sleep(90);
         let advanced: bool = advance_generation(&mut main.grid);
         transition advanced {
             true -> next_generation(main, generation)
@@ -83,18 +80,18 @@ machine Main::main(main: &mut Main) reaches Clock + Console {
         transition { _ -> generation_loop(main, generation + 1) }
     }
     state finish(main: &mut Main) {
-        main.console.write_line("PASS: 40 generations rendered (exit 0)");
-        main.console.write_line("[press Enter to close]");
+        Console::write_line("PASS: 40 generations rendered (exit 0)");
+        Console::write_line("[press Enter to close]");
         let mut pause: [u8; 256];
-        _ = block main.console.read_line(&mut pause);
-        main.console.exit_process(0);
+        _ = block Console::read_line(&mut pause);
+        Console::exit_process(0);
     }
     state bad(main: &mut Main) {
-        main.console.write_line("FAIL: internal bounds check failed (exit 1)");
-        main.console.write_line("[press Enter to close]");
+        Console::write_line("FAIL: internal bounds check failed (exit 1)");
+        Console::write_line("[press Enter to close]");
         let mut pause: [u8; 256];
-        _ = block main.console.read_line(&mut pause);
-        main.console.exit_process(1);
+        _ = block Console::read_line(&mut pause);
+        Console::exit_process(1);
     }
 }
 
@@ -213,7 +210,7 @@ machine Main::render(main: &mut Main) -> bool reaches Console {
     home[0] = 27;
     home[1] = 91;
     home[2] = 72;
-    main.console.write(home);
+    Console::write(home);
     let mut line: [u8; 24] in Utf8 = "                        ";
     transition { _ -> render_row(main, &mut line, 1) }
 
@@ -273,7 +270,7 @@ machine Main::render(main: &mut Main) -> bool reaches Console {
         transition { _ -> render_column(main, line, row, column + 1) }
     }
     state emit_row(main: &mut Main, line: &mut [u8; 24] in Utf8, row: i32) -> bool {
-        main.console.write_line(line);
+        Console::write_line(line);
         transition row >= 0 && row <= 12 {
             true -> advance_row(main, line, row)
             _ -> done()

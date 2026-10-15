@@ -17,7 +17,6 @@
 // Expected exit: 0.
 // Expected output contains: ~
 use omega_language_std::console;
-use omega::language::core::binding;
 domain [u8; 6]::Utf8(bytes)
 requires
     valid_utf8(bytes);
@@ -29,7 +28,6 @@ data Cell {
 }
 
 data Main {
-    console: Binding<Console>;
     grid: [Cell; 24];
     line: [u8; 6] in Utf8;
     r: u32 in Wrapping;   // current row
@@ -39,7 +37,7 @@ data Main {
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    main.console.write_line("dungeon_render: a 6x4 tile map of enum cells rendered as # . + ~ glyphs");
+    Console::write_line("dungeon_render: a 6x4 tile map of enum cells rendered as # . + ~ glyphs");
     main.grid = [
         Cell::Wall,  Cell::Wall,  Cell::Wall,  Cell::Wall,  Cell::Wall,  Cell::Wall,
         Cell::Wall,  Cell::Floor, Cell::Door,  Cell::Floor, Cell::Floor, Cell::Wall,
@@ -86,14 +84,14 @@ machine Main::main(main: &mut Main) reaches Console {
         transition { _ -> col_loop(main) }
     }
     state emit_row(main: &mut Main) {
-        main.console.write_line(main.line);
+        Console::write_line(main.line);
         main.r = main.r + 1;
         transition { _ -> row_loop(main) }
     }
     state done(main: &mut Main) {
-        main.console.write_line("done: 4 rows rendered -- walls, floor, door and water all classified (exit 0)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(0);
+        Console::write_line("done: 4 rows rendered -- walls, floor, door and water all classified (exit 0)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(0);
     }
 }

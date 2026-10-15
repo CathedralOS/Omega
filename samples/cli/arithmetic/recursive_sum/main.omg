@@ -29,10 +29,8 @@
 // slices/recursive_subslice_element_accumulator_exit (oracle-matched).
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
     arr: [i32 in Wrapping; 4];
     pause: [u8; 256];
 }
@@ -59,7 +57,7 @@ terminates by s -> Slice::Length;
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    main.console.write_line("recursive_sum: recursive slice sum + count via value-returning machines");
+    Console::write_line("recursive_sum: recursive slice sum + count via value-returning machines");
     // Initialize the array elements.
     main.arr[0] = 5;
     main.arr[1] = 10;
@@ -77,10 +75,10 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state bad_sum(main: &mut Main) {
-        main.console.write_line("FAIL: recursive sum did not equal 50 (exit 71)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(71);
+        Console::write_line("FAIL: recursive sum did not equal 50 (exit 71)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(71);
     }
 
     state check_count(main: &mut Main) {
@@ -96,16 +94,16 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state bad_count(main: &mut Main) {
-        main.console.write_line("FAIL: recursive count did not equal 4 (exit 72)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(72);
+        Console::write_line("FAIL: recursive count did not equal 4 (exit 72)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(72);
     }
 
     state good(main: &mut Main) {
-        main.console.write_line("PASS: sum=50 and count=4 both verified (exit 70)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(70);
+        Console::write_line("PASS: sum=50 and count=4 both verified (exit 70)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(70);
     }
 }

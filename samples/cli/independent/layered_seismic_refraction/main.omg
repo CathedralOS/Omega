@@ -71,10 +71,10 @@ machine Main::main(main: &mut Main) reaches Console {
  state compute_branch(main: &mut Main, refractor: i32 in Wrapping)
  requires refractor >= 1 && refractor < 4 {
   branch(&mut main.model, refractor);
-  main.protocol.console.write("B "); Protocol::integer(&mut main.protocol, refractor);
-  main.protocol.console.write(" "); Protocol::number(&mut main.protocol, main.model.critical[refractor]);
-  main.protocol.console.write(" "); Protocol::number(&mut main.protocol, main.model.intercept[refractor]);
-  main.protocol.console.write_line("");
+  Console::write("B "); Protocol::integer(&mut main.protocol, refractor);
+  Console::write(" "); Protocol::number(&mut main.protocol, main.model.critical[refractor]);
+  Console::write(" "); Protocol::number(&mut main.protocol, main.model.intercept[refractor]);
+  Console::write_line("");
   transition { _ -> prepare(main, refractor + 1) }
  }
  state offset(main: &mut Main, index: i32 in Wrapping) {
@@ -130,14 +130,14 @@ machine Main::main(main: &mut Main) reaches Console {
   emit(main, "F ", index, identifier, distance, time);
   transition { _ -> offset(main, index + 1) }
  }
- state success(main: &mut Main) { main.protocol.console.exit_process(0); }
- state syntax(main: &mut Main) { main.protocol.console.write_line("ERROR syntax"); main.protocol.console.exit_process(64); }
- state range(main: &mut Main) { main.protocol.console.write_line("ERROR range"); main.protocol.console.exit_process(65); }
+ state success(main: &mut Main) { Console::exit_process(0); }
+ state syntax(main: &mut Main) { Console::write_line("ERROR syntax"); Console::exit_process(64); }
+ state range(main: &mut Main) { Console::write_line("ERROR range"); Console::exit_process(65); }
 }
 machine emit(main: &mut Main, prefix: &[u8], index: i32 in Wrapping, identifier: i32 in Wrapping, distance: f64, time: f64) reaches Console {
- main.protocol.console.write(prefix); Protocol::integer(&mut main.protocol, index);
- main.protocol.console.write(" "); Protocol::integer(&mut main.protocol, identifier);
- main.protocol.console.write(" "); Protocol::number(&mut main.protocol, distance);
- main.protocol.console.write(" "); Protocol::number(&mut main.protocol, time);
- main.protocol.console.write_line("");
+ Console::write(prefix); Protocol::integer(&mut main.protocol, index);
+ Console::write(" "); Protocol::integer(&mut main.protocol, identifier);
+ Console::write(" "); Protocol::number(&mut main.protocol, distance);
+ Console::write(" "); Protocol::number(&mut main.protocol, time);
+ Console::write_line("");
 }

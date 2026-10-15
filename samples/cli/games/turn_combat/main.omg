@@ -10,7 +10,6 @@
 // Expected exit: 1.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Fighter where -100 <= hp, hp <= 100, 0 <= attack, attack <= 10 {
     hp: i32;
@@ -18,14 +17,13 @@ data Fighter where -100 <= hp, hp <= 100, 0 <= attack, attack <= 10 {
 }
 
 data Main {
-    console: Binding<Console>;
     hero: Fighter;
     monster: Fighter;
     pause: [u8; 256];
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    main.console.write_line("turn_combat: hero (30hp/7atk) and monster (25hp/5atk) trade blows");
+    Console::write_line("turn_combat: hero (30hp/7atk) and monster (25hp/5atk) trade blows");
     main.hero.hp = 30;
     main.hero.attack = 7;
     main.monster.hp = 25;
@@ -50,15 +48,15 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state hero_wins(main: &mut Main) {
-        main.console.write_line("PASS: the hero out-damaged the monster and won (exit 1)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(1);
+        Console::write_line("PASS: the hero out-damaged the monster and won (exit 1)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(1);
     }
     state monster_wins(main: &mut Main) {
-        main.console.write_line("result: the monster won this fight (exit 2)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(2);
+        Console::write_line("result: the monster won this fight (exit 2)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(2);
     }
 }

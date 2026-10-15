@@ -1,10 +1,9 @@
 // Complete negative source control: this literal start exceeds its declared
 // finite mathematical range. The checker must reject before any native run.
 use omega_language_std::console;
-use omega::language::core::binding;
-data Main { console: Binding<Console>; }
+data Main { }
 const INVALID_START: i32 [0..=20] = 21;
 machine Main::main(main: &mut Main) reaches Console {
-    main.console.write_line("INVALID SOURCE WAS ACCEPTED");
-    main.console.exit_process(INVALID_START);
+    Console::write_line("INVALID SOURCE WAS ACCEPTED");
+    Console::exit_process(INVALID_START);
 }

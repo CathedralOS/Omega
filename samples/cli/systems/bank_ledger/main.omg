@@ -23,7 +23,6 @@
 // Expected exit: 70.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Ledger [copy] {
     txns: [i32 in Saturating; 8];
@@ -32,13 +31,12 @@ data Ledger [copy] {
 }
 
 data Main {
-    console: Binding<Console>;
     ledger: Ledger;
     pause: [u8; 256];
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    main.console.write_line("bank_ledger: 6 deposits/withdrawals into a fixed transaction list, then a const-indexed balance sum");
+    Console::write_line("bank_ledger: 6 deposits/withdrawals into a fixed transaction list, then a const-indexed balance sum");
     Main::deposit(main, 500);
     Main::deposit(main, 200);
     Main::withdraw(main, 150);
@@ -68,24 +66,24 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state good(main: &mut Main) {
-        main.console.write_line("PASS: final balance 70 from 6 transactions, count 6 (exit 70)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(70);
+        Console::write_line("PASS: final balance 70 from 6 transactions, count 6 (exit 70)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(70);
     }
 
     state bad_balance(main: &mut Main) {
-        main.console.write_line("FAIL: balance != 70 -- transaction sum wrong (exit 71)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(71);
+        Console::write_line("FAIL: balance != 70 -- transaction sum wrong (exit 71)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(71);
     }
 
     state bad_count(main: &mut Main) {
-        main.console.write_line("FAIL: transaction count != 6 (exit 72)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(72);
+        Console::write_line("FAIL: transaction count != 6 (exit 72)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(72);
     }
 }
 

@@ -22,7 +22,7 @@ machine Application::main(application: &mut Application) reaches Console crashes
         _ -> invalid(application)
     }
     state invalid(application: &mut Application) {
-        application.reader.console.write_line("ERROR input or options"); application.reader.console.exit_process(10);
+        Console::write_line("ERROR input or options"); Console::exit_process(10);
     }
     state options(application: &mut Application, length: f64, threshold: f64, levels: f64) {
         let depth: i32 in Wrapping = match length == 8.0 { true -> 3 _ -> match length == 16.0 { true -> 4 _ -> match length == 32.0 { true -> 5 _ -> 6 } } };
@@ -198,7 +198,7 @@ machine Application::main(application: &mut Application) reaches Console crashes
         field(&mut application.reader, "input_energy_nano=", application.input_energy * 1000000000.0);
         field(&mut application.reader, "coefficient_energy_nano=", application.coefficient_energy * 1000000000.0);
         field(&mut application.reader, "removed_energy_nano=", (application.coefficient_energy - application.retained_energy) * 1000000000.0);
-        application.reader.console.exit_process(0);
+        Console::exit_process(0);
     }
 }
 machine soft_threshold(value: f64, threshold: f64) -> f64 {

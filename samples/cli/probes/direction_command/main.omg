@@ -13,16 +13,14 @@ domain [u8; 8]::Utf8(bytes)
 requires
     valid_utf8(bytes);
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
     command: [u8; 8] in Utf8;
     pause: [u8; 256];
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    main.console.write_line("direction_command: dispatch the command \"north\" by its first byte");
+    Console::write_line("direction_command: dispatch the command \"north\" by its first byte");
 
     main.command = "north";
 
@@ -42,33 +40,33 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state go_north(main: &mut Main) {
-        main.console.write_line("PASS: first byte 'n' classified as north (exit 1)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(1);
+        Console::write_line("PASS: first byte 'n' classified as north (exit 1)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(1);
     }
     state go_south(main: &mut Main) {
-        main.console.write_line("FAIL: classified as south -- expected north for \"north\" (exit 2)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(2);
+        Console::write_line("FAIL: classified as south -- expected north for \"north\" (exit 2)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(2);
     }
     state go_east(main: &mut Main) {
-        main.console.write_line("FAIL: classified as east -- expected north for \"north\" (exit 3)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(3);
+        Console::write_line("FAIL: classified as east -- expected north for \"north\" (exit 3)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(3);
     }
     state go_west(main: &mut Main) {
-        main.console.write_line("FAIL: classified as west -- expected north for \"north\" (exit 4)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(4);
+        Console::write_line("FAIL: classified as west -- expected north for \"north\" (exit 4)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(4);
     }
     state unknown(main: &mut Main) {
-        main.console.write_line("FAIL: first byte matched no direction -- expected 'n' (exit 0)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(0);
+        Console::write_line("FAIL: first byte matched no direction -- expected 'n' (exit 0)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(0);
     }
 }

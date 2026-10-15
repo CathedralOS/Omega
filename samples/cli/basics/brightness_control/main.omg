@@ -8,7 +8,6 @@
 // Expected exit: 65.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Command {
     case SetLevel(level: i32) where level >= 0 && level <= 100;
@@ -17,13 +16,12 @@ data Command {
 }
 
 data Main where brightness >= 0 && brightness <= 100 {
-    console: Binding<Console>;
     brightness: i32;
     command: Command;
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    main.console.write_line("brightness_control: applying a bounded SetLevel command");
+    Console::write_line("brightness_control: applying a bounded SetLevel command");
     main.brightness = 80;
     main.command = Command::SetLevel { level: 65 };
 
@@ -41,7 +39,7 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state report(main: &mut Main) {
-        main.console.write_line("brightness settled at the applied level (the exit code)");
-        main.console.exit_process(main.brightness);
+        Console::write_line("brightness settled at the applied level (the exit code)");
+        Console::exit_process(main.brightness);
     }
 }

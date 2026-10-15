@@ -16,10 +16,8 @@ requires
     valid_utf8(bytes);
 use omega_language_std::console;
 use omega::language::core::numeric_conversion;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
     data: [u8; 20] in Utf8;
     // Counters are `in Wrapping`: increments are defined arithmetic; index uses
     // stay bounded by the `i < 20` guard.
@@ -33,7 +31,7 @@ data Main {
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    main.console.write_line("run_length_encode: 20 bytes -> one line per run, exit = number of runs");
+    Console::write_line("run_length_encode: 20 bytes -> one line per run, exit = number of runs");
     main.data = "AAAABBBCCDDDDDEEEEEE";
     main.prev = main.data[0];
     main.count = 1;
@@ -67,12 +65,12 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state emit_mid(main: &mut Main) {
-        main.console.write("run: ");
-        main.console.write_byte(main.prev as i32);
-        main.console.write(" x");
+        Console::write("run: ");
+        Console::write_byte(main.prev as i32);
+        Console::write(" x");
         main.chi = narrow_u32_to_i32_trapping((main.count + 48) as u32);
-        main.console.write_byte(main.chi);
-        main.console.write_line("");
+        Console::write_byte(main.chi);
+        Console::write_line("");
         main.runs = main.runs + 1;
         main.prev = main.b;
         main.count = 1;
@@ -83,12 +81,12 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state done(main: &mut Main) {
-        main.console.write("run: ");
-        main.console.write_byte(main.prev as i32);
-        main.console.write(" x");
+        Console::write("run: ");
+        Console::write_byte(main.prev as i32);
+        Console::write(" x");
         main.chi = narrow_u32_to_i32_trapping((main.count + 48) as u32);
-        main.console.write_byte(main.chi);
-        main.console.write_line("");
+        Console::write_byte(main.chi);
+        Console::write_line("");
         main.runs = main.runs + 1;
         transition {
             _ -> finish(main)
@@ -96,8 +94,8 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state finish(main: &mut Main) {
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(main.runs as i32);
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(main.runs as i32);
     }
 }

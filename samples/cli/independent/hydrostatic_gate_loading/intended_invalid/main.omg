@@ -2,7 +2,6 @@
 // required before computing a linear slope. A reversed literal violates it.
 use omega_language_std::console;
 use omega::language::core::float_operations;
-use omega::language::core::binding;
 
 machine interval_height(lower: i64, upper: i64) -> f64
 requires upper > lower
@@ -10,12 +9,12 @@ requires upper > lower
     F64::from_i64(upper) - F64::from_i64(lower)
 }
 
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Console {
     let height: f64 = interval_height(2000, 1000);
     transition height > 0.0 {
-        true -> done(&main.console)
-        false -> done(&main.console)
+        true -> done()
+        false -> done()
     }
-    state done(console: &Binding<Console>) { Console::exit_process(console, 0); }
+    state done() { Console::exit_process(0); }
 }

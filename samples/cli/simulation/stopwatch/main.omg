@@ -23,7 +23,6 @@
 // Expected exit: 70.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Command {
     case Tick(n: i32 in Saturating);
@@ -39,13 +38,12 @@ data Watch [copy] {
 }
 
 data Main {
-    console: Binding<Console>;
     watch: Watch;
     pause: [u8; 256];
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    main.console.write_line("stopwatch: replays tick/lap/split commands against a stopwatch machine");
+    Console::write_line("stopwatch: replays tick/lap/split commands against a stopwatch machine");
     Main::send(main, Command::Tick { n: 10 });
     Main::send(main, Command::Split);
     Main::send(main, Command::Tick { n: 20 });
@@ -82,34 +80,34 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state good(main: &mut Main) {
-        main.console.write_line("PASS: total=70, split=40, lap=30, elapsed=40 all verified (exit 70)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(70);
+        Console::write_line("PASS: total=70, split=40, lap=30, elapsed=40 all verified (exit 70)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(70);
     }
     state bad_total(main: &mut Main) {
-        main.console.write_line("FAIL: total was not 70 after the command script (exit 71)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(71);
+        Console::write_line("FAIL: total was not 70 after the command script (exit 71)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(71);
     }
     state bad_split(main: &mut Main) {
-        main.console.write_line("FAIL: last split was not 40 (exit 72)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(72);
+        Console::write_line("FAIL: last split was not 40 (exit 72)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(72);
     }
     state bad_lap(main: &mut Main) {
-        main.console.write_line("FAIL: last lap was not 30 (exit 73)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(73);
+        Console::write_line("FAIL: last lap was not 30 (exit 73)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(73);
     }
     state bad_elapsed(main: &mut Main) {
-        main.console.write_line("FAIL: elapsed was not 40 (exit 74)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(74);
+        Console::write_line("FAIL: elapsed was not 40 (exit 74)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(74);
     }
 }
 

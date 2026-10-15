@@ -45,10 +45,8 @@
 // Expected output contains: BDZGO
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
     fwd_left: [i32; 26];   // rotor I    "EKMFLGDQVZNTOWYHXUSPAIBRCJ"
     fwd_mid: [i32; 26];    // rotor II   "AJDKSIRUXBLHWTMCQGZNPYFVOE"
     fwd_right: [i32; 26];  // rotor III  "BDFHJLCPRTXVZNYEIWGAKMUSQO"
@@ -268,8 +266,8 @@ machine derive_tables(main: &mut Main) reaches Console {
         transition { _ -> dt_loop(main) }
     }
     state dt_bad(main: &mut Main) {
-        main.console.write_line("FAIL: an index left its guarded range (exit 4)");
-        main.console.exit_process(4);
+        Console::write_line("FAIL: an index left its guarded range (exit 4)");
+        Console::exit_process(4);
     }
     state dt_done(main: &mut Main) {}
 }
@@ -332,17 +330,17 @@ machine press_all(main: &mut Main) reaches Console {
         requires 0 <= i && i < 5 && 0 <= c && c < 26
     {
         main.cipher[i] = c;
-        main.console.write_byte(c + 65);
+        Console::write_byte(c + 65);
         main.i = i + 1;
         transition { _ -> pa_loop(main) }
     }
     state pa_bad_char(main: &mut Main) {
-        main.console.write_line("FAIL: a pressed letter is not A-Z (exit 3)");
-        main.console.exit_process(3);
+        Console::write_line("FAIL: a pressed letter is not A-Z (exit 3)");
+        Console::exit_process(3);
     }
     state pa_bad_index(main: &mut Main) {
-        main.console.write_line("FAIL: an index left its guarded range (exit 4)");
-        main.console.exit_process(4);
+        Console::write_line("FAIL: an index left its guarded range (exit 4)");
+        Console::exit_process(4);
     }
     state pa_done(main: &mut Main) {}
 }
@@ -353,7 +351,7 @@ machine compare_all(main: &mut Main) reaches Console {
     transition { _ -> ca_init(main) }
 
     state ca_init(main: &mut Main) {
-        main.console.write_byte(10);
+        Console::write_byte(10);
         main.i = 0;
         transition { _ -> ca_loop(main) }
     }
@@ -381,14 +379,14 @@ machine compare_all(main: &mut Main) reaches Console {
         transition { _ -> ca_loop(main) }
     }
     state ca_fail(main: &mut Main) {
-        main.console.write_line("FAIL: ciphertext differs from the expected vector (exit 1)");
-        main.console.exit_process(1);
+        Console::write_line("FAIL: ciphertext differs from the expected vector (exit 1)");
+        Console::exit_process(1);
     }
     state ca_done(main: &mut Main) {}
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    main.console.write_line("enigma: Enigma I, rotors I II III, reflector B, rings AAA");
+    Console::write_line("enigma: Enigma I, rotors I II III, reflector B, rings AAA");
     main.fwd_left = [4, 10, 12, 5, 11, 6, 3, 16, 21, 25, 13, 19, 14, 22, 24, 7, 23, 20, 18, 15, 0, 8, 1, 17, 2, 9];
     main.fwd_mid = [0, 9, 3, 10, 18, 8, 17, 20, 23, 1, 11, 7, 22, 19, 12, 2, 16, 6, 25, 13, 15, 24, 5, 21, 14, 4];
     main.fwd_right = [1, 3, 5, 7, 9, 11, 2, 15, 17, 19, 23, 21, 25, 13, 24, 4, 8, 22, 6, 0, 10, 12, 20, 18, 16, 14];
@@ -409,7 +407,7 @@ machine Main::main(main: &mut Main) reaches Console {
         main.pos_right = 0;
         main.expect = [1, 3, 25, 6, 14];
         main.i = 0;
-        main.console.write_line("check 1: start AAA, no plugboard, pressing AAAAA");
+        Console::write_line("check 1: start AAA, no plugboard, pressing AAAAA");
         transition { _ -> m_press1(main) }
     }
     state m_press1(main: &mut Main) {
@@ -418,7 +416,7 @@ machine Main::main(main: &mut Main) reaches Console {
     }
     state m_verdict1(main: &mut Main) {
         compare_all(main);
-        main.console.write_line("PASS: AAAAA -> BDZGO, no plugboard");
+        Console::write_line("PASS: AAAAA -> BDZGO, no plugboard");
         transition { _ -> m_check2(main) }
     }
 
@@ -435,7 +433,7 @@ machine Main::main(main: &mut Main) reaches Console {
         main.plug[19] = 12;
         main.expect = [10, 6, 24, 17, 16];
         main.i = 0;
-        main.console.write_line("check 2: start AAA, plug AW ER MT, pressing AAAAA");
+        Console::write_line("check 2: start AAA, plug AW ER MT, pressing AAAAA");
         transition { _ -> m_press2(main) }
     }
     state m_press2(main: &mut Main) {
@@ -444,8 +442,8 @@ machine Main::main(main: &mut Main) reaches Console {
     }
     state m_verdict2(main: &mut Main) {
         compare_all(main);
-        main.console.write_line("PASS: AAAAA -> KGYRQ with plug AW ER MT");
-        main.console.write_line("enigma: both self-checks pass (exit 0)");
-        main.console.exit_process(0);
+        Console::write_line("PASS: AAAAA -> KGYRQ with plug AW ER MT");
+        Console::write_line("enigma: both self-checks pass (exit 0)");
+        Console::exit_process(0);
     }
 }

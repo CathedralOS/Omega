@@ -1,9 +1,8 @@
 // Complete valid reproduction of three runtime selectors behind a record loan.
 use omega_language_std::console;
-use omega::language::core::binding;
 use omega::language::core::float_operations;
 data Storage { cells: [[[f64;2];2];2]; }
-data Main { console: Binding<Console>; }
+data Main { }
 machine read(storage: &Storage,layer: u64,row: u64,column: u64) -> f64
 requires layer <= 1 requires row <= 1 requires column <= 1 {
     storage.cells[layer][row][column]
@@ -13,6 +12,6 @@ machine Main::main(main: &mut Main) reaches Console {
     storage.cells[1][0][1] = 41.0;
     let observed: f64 = read(&storage,1,0,1);
     transition observed == 41.0 { true -> yes(main) false -> no(main) }
-    state yes(main: &mut Main) { main.console.write_line("PROJECTION OK"); main.console.exit_process(0); }
-    state no(main: &mut Main) { main.console.write_line("PROJECTION WRONG"); main.console.exit_process(4); }
+    state yes(main: &mut Main) { Console::write_line("PROJECTION OK"); Console::exit_process(0); }
+    state no(main: &mut Main) { Console::write_line("PROJECTION WRONG"); Console::exit_process(4); }
 }

@@ -1,9 +1,8 @@
 // Complete control: constant index 2 cannot select a two-element carrier.
 use omega_language_std::console;
-use omega::language::core::binding;
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Console {
     let values: [i32; 2] = [7, 11];
     let outside: i32 = values[2];
-    main.console.exit_process(outside);
+    Console::exit_process(outside);
 }

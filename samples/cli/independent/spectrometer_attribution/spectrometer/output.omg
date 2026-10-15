@@ -13,7 +13,7 @@ machine print_integer(application: &mut Spectrometer, value: i32 in Wrapping) re
         false -> digits(application, value, 100000000)
     }
     state negative(application: &mut Spectrometer, value: i32 in Wrapping) {
-        application.console.write_byte(45);
+        Console::write_byte(45);
         transition { _ -> digits(application, 0 - value, 100000000) }
     }
     state digits(application: &mut Spectrometer, value: i32 in Wrapping,
@@ -26,7 +26,7 @@ machine print_integer(application: &mut Spectrometer, value: i32 in Wrapping) re
     state emit(application: &mut Spectrometer, value: i32 in Wrapping,
                divisor: i32 in Wrapping) {
         let digit: i32 in Wrapping = value / divisor;
-        application.console.write_byte((digit + 48) as i32);
+        Console::write_byte((digit + 48) as i32);
         transition { _ -> digits(application, value % divisor, divisor / 10) }
     }
     state finished() {}
@@ -53,9 +53,9 @@ pub machine print_report(application: &mut Spectrometer) reaches Console
 invokes Console;
 {
     let count: i32 in Wrapping = application.regions.count;
-    application.console.write("regions=");
+    Console::write("regions=");
     print_integer(application, count);
-    application.console.write_line("");
+    Console::write_line("");
     transition { _ -> region(application, 0) }
     state region(application: &mut Spectrometer, index: i32 in Wrapping) {
         transition index >= 0 && index < application.regions.count && index < 8 {
@@ -73,17 +73,17 @@ invokes Console;
             application.regions.area_fifteenths[index]);
         let candidate_count: i32 in Wrapping = application.regions.candidates[index];
         let nearest: i32 in Wrapping = application.regions.nearest[index];
-        application.console.write("region start=");
+        Console::write("region start=");
         print_integer(application, start);
-        application.console.write(" end=");
+        Console::write(" end=");
         print_integer(application, end);
-        application.console.write(" area_milli=");
+        Console::write(" area_milli=");
         print_integer(application, area_milli);
-        application.console.write(" centroid_micro=");
+        Console::write(" centroid_micro=");
         print_integer(application, centroid_micro);
-        application.console.write(" candidates=");
+        Console::write(" candidates=");
         print_integer(application, candidate_count);
-        application.console.write(" nearest=");
+        Console::write(" nearest=");
         print_integer(application, nearest);
         transition candidate_count {
             0 -> missing(application, index)
@@ -92,15 +92,15 @@ invokes Console;
         }
     }
     state missing(application: &mut Spectrometer, index: i32 in Wrapping) {
-        application.console.write(" status=missing ids=");
+        Console::write(" status=missing ids=");
         transition { _ -> identifiers(application, index, 0) }
     }
     state unique(application: &mut Spectrometer, index: i32 in Wrapping) {
-        application.console.write(" status=unique ids=");
+        Console::write(" status=unique ids=");
         transition { _ -> identifiers(application, index, 0) }
     }
     state ambiguous(application: &mut Spectrometer, index: i32 in Wrapping) {
-        application.console.write(" status=ambiguous ids=");
+        Console::write(" status=ambiguous ids=");
         transition { _ -> identifiers(application, index, 0) }
     }
     state identifiers(application: &mut Spectrometer, index: i32 in Wrapping,
@@ -121,11 +121,11 @@ invokes Console;
     state emit_id(application: &mut Spectrometer, index: i32 in Wrapping,
                   reference: i32 in Wrapping) {
         print_integer(application, reference + 1);
-        application.console.write(",");
+        Console::write(",");
         transition { _ -> identifiers(application, index, reference + 1) }
     }
     state next(application: &mut Spectrometer, index: i32 in Wrapping) {
-        application.console.write_line("");
+        Console::write_line("");
         transition { _ -> region(application, index + 1) }
     }
     state finished() {}

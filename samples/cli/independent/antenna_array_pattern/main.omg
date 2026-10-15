@@ -4,7 +4,6 @@ use omega_language_std::math;
 // Selector and phase-reduction ladders use explicit exhaustive dispatches.
 // Expected output contains: antenna_array_pattern complete
 use omega_language_std::console;
-use omega::language::core::binding;
 use omega::language::core::float_operations;
 use omega::language::core::numeric_conversion;
 use domain::array;
@@ -12,7 +11,6 @@ use data::fixtures;
 use data::expected;
 
 data Main {
-    console: Binding<Console>;
     geometry: Geometry;
     selection: i32;
     all: bool;
@@ -28,14 +26,14 @@ machine Main::number(main: &mut Main, value: f64) reaches Console {
     let integer: i32 = converted as i32;
     transition { _ -> digits(main, integer, 1000000000) }
     state digits(main: &mut Main, integer: i32, divisor: i32) {
-        main.console.write_byte(48 + (integer / divisor) % 10);
+        Console::write_byte(48 + (integer / divisor) % 10);
         transition divisor >= 10 { true -> digits(main, integer, divisor / 10) false -> done() }
     }
     state done() { }
 }
 machine Main::main(main: &mut Main) reaches Console {
-    main.console.write_line("antenna_array_pattern scalar far-field u=-1:0.25:1; powers in millionths");
-    let first: ByteRead = block main.console.read_byte();
+    Console::write_line("antenna_array_pattern scalar far-field u=-1:0.25:1; powers in millionths");
+    let first: ByteRead = block Console::read_byte();
     transition first {
         ByteRead::Eof -> suite(main)
         ByteRead::Byte { value } -> select(main, value)
@@ -60,7 +58,7 @@ machine Main::main(main: &mut Main) reaches Console {
         transition { _ -> tail(main) }
     }
     state tail(main: &mut Main) {
-        let tail: ByteRead = block main.console.read_byte();
+        let tail: ByteRead = block Console::read_byte();
         transition tail {
             ByteRead::Eof -> load(main)
             ByteRead::Byte { value } -> tail_check(main, value)
@@ -74,7 +72,7 @@ machine Main::main(main: &mut Main) reaches Console {
         transition { _ -> after_line(main) }
     }
     state after_line(main: &mut Main) {
-        let remaining: ByteRead = block main.console.read_byte();
+        let remaining: ByteRead = block Console::read_byte();
         transition remaining {
             ByteRead::Eof -> load(main)
             ByteRead::Byte { value } -> invalid_input(main)
@@ -93,12 +91,12 @@ machine Main::main(main: &mut Main) reaches Console {
         main.amplitude = Geometry::amplitude(&main.geometry);
         main.sample = 0;
         main.symmetry = 0.0;
-        main.console.write("case ");
-        main.console.write_byte(48 + main.selection % 10);
-        main.console.write(" duplicates ");
+        Console::write("case ");
+        Console::write_byte(48 + main.selection % 10);
+        Console::write(" duplicates ");
         let duplicates: i32 = Geometry::duplicates(&main.geometry);
-        main.console.write_byte(48 + duplicates % 10);
-        main.console.write_line("");
+        Console::write_byte(48 + duplicates % 10);
+        Console::write_line("");
         transition { _ -> sample_guard(main) }
     }
     state sample_guard(main: &mut Main) {
@@ -127,21 +125,21 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
     state numerical_failure(main: &mut Main) {
-        main.console.write_line("ERROR numeric: frozen raw or normalized tolerance exceeded");
-        main.console.exit_process(66);
+        Console::write_line("ERROR numeric: frozen raw or normalized tolerance exceeded");
+        Console::exit_process(66);
     }
     state report(main: &mut Main) {
-        main.console.write("sample "); main.console.write_byte(48 + main.sample % 10);
-        main.console.write(" power ");
+        Console::write("sample "); Console::write_byte(48 + main.sample % 10);
+        Console::write(" power ");
         let mut displayed_power: f64 = main.power * 1000000.0;
         Main::number(main, displayed_power);
-        main.console.write(" normalized ");
+        Console::write(" normalized ");
         let mut displayed_normalized: f64 = main.normalized * 1000000.0;
         Main::number(main, displayed_normalized);
         transition main.power < 0.0000000001 { true -> null(main) false -> nonnull(main) }
     }
-    state null(main: &mut Main) { main.console.write_line(" null 1"); transition { _ -> next_sample(main) } }
-    state nonnull(main: &mut Main) { main.console.write_line(" null 0"); transition { _ -> next_sample(main) } }
+    state null(main: &mut Main) { Console::write_line(" null 1"); transition { _ -> next_sample(main) } }
+    state nonnull(main: &mut Main) { Console::write_line(" null 0"); transition { _ -> next_sample(main) } }
     state next_sample(main: &mut Main) {
         main.sample = main.sample % 9 + 1;
         transition { _ -> sample_guard(main) }
@@ -155,10 +153,10 @@ machine Main::main(main: &mut Main) reaches Console {
         transition { _ -> symmetry_guard(main, index + 1) }
     }
     state diagnostic(main: &mut Main) {
-        main.console.write("symmetry ");
+        Console::write("symmetry ");
         let mut displayed_symmetry: f64 = main.symmetry * 1000000.0;
         Main::number(main, displayed_symmetry);
-        main.console.write_line("");
+        Console::write_line("");
         transition main.all && main.selection < 4 { true -> next_case(main) false -> complete(main) }
     }
     state next_case(main: &mut Main) {
@@ -166,12 +164,12 @@ machine Main::main(main: &mut Main) reaches Console {
         transition { _ -> load(main) }
     }
     state complete(main: &mut Main) {
-        main.console.write_line("antenna_array_pattern complete"); main.console.exit_process(0);
+        Console::write_line("antenna_array_pattern complete"); Console::exit_process(0);
     }
     state invalid_input(main: &mut Main) {
-        main.console.write_line("ERROR input: expected one selector 0..6, a, newline or EOF"); main.console.exit_process(64);
+        Console::write_line("ERROR input: expected one selector 0..6, a, newline or EOF"); Console::exit_process(64);
     }
     state invalid_geometry(main: &mut Main) {
-        main.console.write_line("ERROR geometry: position outside [-2,2] or weight outside [-2,2]"); main.console.exit_process(65);
+        Console::write_line("ERROR geometry: position outside [-2,2] or weight outside [-2,2]"); Console::exit_process(65);
     }
 }

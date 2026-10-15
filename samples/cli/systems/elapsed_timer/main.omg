@@ -17,7 +17,6 @@
 
 use omega_language_std::console;
 use omega_language_std::time;
-use omega::language::core::binding;
 
 // Text carriers are byte arrays in the Utf8 domain (declared per storage
 // type; encodings are library, not intrinsics).
@@ -28,12 +27,11 @@ domain [u8; 10]::Utf8(bytes)
 requires
     valid_utf8(bytes);
 data Main {
-    console: Binding<Console>;
     time: Time;
 }
 
 machine Main::main(context: &mut Main) reaches Console {
-    context.console.write_line("elapsed_timer: times a 50ms workload with std::time");
+    Console::write_line("elapsed_timer: times a 50ms workload with std::time");
     let start: Instant = Time::now(&mut context.time);
     let pause: Duration = Duration { seconds: 0, subsecond_nanoseconds: 50000000 };
     let slept: u32 = block Time::sleep_for(&mut context.time, pause);
@@ -62,14 +60,14 @@ machine Main::main(context: &mut Main) reaches Console {
         line[24] = digits[hundreds];
         line[25] = digits[tens];
         line[26] = digits[ones];
-        context.console.write_line(line);
+        Console::write_line(line);
         transition milliseconds >= 50 {
             true -> good(context)
             false -> fail_elapsed(context)
         }
     }
-    state good(context: &mut Main) { context.console.exit_process(70); }
-    state fail_request(context: &mut Main) { context.console.exit_process(1); }
-    state fail_elapsed(context: &mut Main) { context.console.exit_process(2); }
-    state fail_overflow(context: &mut Main) { context.console.exit_process(3); }
+    state good(context: &mut Main) { Console::exit_process(70); }
+    state fail_request(context: &mut Main) { Console::exit_process(1); }
+    state fail_elapsed(context: &mut Main) { Console::exit_process(2); }
+    state fail_overflow(context: &mut Main) { Console::exit_process(3); }
 }

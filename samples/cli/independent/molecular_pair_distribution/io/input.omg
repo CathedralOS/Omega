@@ -1,10 +1,8 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 use omega::language::core::float_operations;
 use domain::model;
 
 pub data InputReader {
-    console: Binding<Console>;
     remaining: i32 in Wrapping;
     exhausted: bool;
 }
@@ -19,7 +17,7 @@ invokes Console;
 blocks;
 crashes Trap
 {
-    let byte: ByteRead = block reader.console.read_byte();
+    let byte: ByteRead = block Console::read_byte();
     transition byte {
         ByteRead::Eof -> ByteRead::Eof
         ByteRead::Byte { value } -> capacity(reader, value)

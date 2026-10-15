@@ -8,7 +8,7 @@
 // Data layout:
 //   Inner [copy] { value: i32; bonus: i32; }
 //   Outer [copy] { inner: Inner; count: i32; multiplier: i32; }
-//   Main  { console: Binding<Console>; state: Outer; }
+//   Main  { state: Outer; }
 //
 // Scripted operations (via sub-machines):
 //   1. set_value(10)    -> state.inner.value = 10
@@ -57,7 +57,6 @@
 // Expected exit: 70.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 // FULLY EXACT -- no overflow domain anywhere: the verification ladder pins
 // value, bonus, count and multiplier with `==` guards before the final
@@ -78,7 +77,6 @@ data Outer [copy] {
 }
 
 data Main {
-    console: Binding<Console>;
     state: Outer;
     pause: [u8; 256];
 }
@@ -114,7 +112,7 @@ requires
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    main.console.write_line("nested_counters: mutating struct-in-struct fields across sub-machine calls");
+    Console::write_line("nested_counters: mutating struct-in-struct fields across sub-machine calls");
     Main::set_value(main, 10);
     Main::set_bonus(main, 20);
     Main::increment_count(main);
@@ -129,10 +127,10 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state bad_value(main: &mut Main) {
-        main.console.write_line("FAIL: wrong nested value field (exit 71)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(71);
+        Console::write_line("FAIL: wrong nested value field (exit 71)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(71);
     }
 
     state check_bonus(main: &mut Main) {
@@ -143,10 +141,10 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state bad_bonus(main: &mut Main) {
-        main.console.write_line("FAIL: wrong nested bonus field (exit 72)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(72);
+        Console::write_line("FAIL: wrong nested bonus field (exit 72)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(72);
     }
 
     state check_count(main: &mut Main) {
@@ -157,10 +155,10 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state bad_count(main: &mut Main) {
-        main.console.write_line("FAIL: wrong counter value (exit 73)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(73);
+        Console::write_line("FAIL: wrong counter value (exit 73)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(73);
     }
 
     state check_multiplier(main: &mut Main) {
@@ -171,10 +169,10 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state bad_multiplier(main: &mut Main) {
-        main.console.write_line("FAIL: wrong nested multiplier field (exit 75)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(75);
+        Console::write_line("FAIL: wrong nested multiplier field (exit 75)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(75);
     }
 
     state compute_result(main: &mut Main) {
@@ -189,16 +187,16 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state bad_result(main: &mut Main) {
-        main.console.write_line("FAIL: wrong combined result (exit 74)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(74);
+        Console::write_line("FAIL: wrong combined result (exit 74)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(74);
     }
 
     state good(main: &mut Main) {
-        main.console.write_line("PASS: 40 + 20 + 2*5 = 70 from nested fields (exit 70)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(70);
+        Console::write_line("PASS: 40 + 20 + 2*5 = 70 from nested fields (exit 70)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(70);
     }
 }

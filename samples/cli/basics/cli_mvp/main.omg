@@ -7,16 +7,14 @@
 // Expected output contains: Hello, Omega.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
     pause: [u8; 256];
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    main.console.write_line("Hello, Omega.");
-    main.console.write_line("[press Enter to close]");
-    _ = block main.console.read_line(&mut main.pause);
-    main.console.exit_process(0);
+    Console::write_line("Hello, Omega.");
+    Console::write_line("[press Enter to close]");
+    _ = block Console::read_line(&mut main.pause);
+    Console::exit_process(0);
 }

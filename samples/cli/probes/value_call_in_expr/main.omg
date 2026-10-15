@@ -4,7 +4,6 @@
 // ordinary parameters; console input buffers belong to the state using them.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 machine double_val(n: i32 in Saturating) -> i32 in Saturating {
     transition {
@@ -18,113 +17,113 @@ machine add5(n: i32 in Saturating) -> i32 in Saturating {
     }
 }
 
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Console {
-    Console::write_line(&main.console, "value_call_in_expr: value-call results used inline in arithmetic expressions");
+    Console::write_line("value_call_in_expr: value-call results used inline in arithmetic expressions");
     let base: i32 in Saturating = 10;
 
     // Verify double_val standalone = 12 (passes).
     let dv6: i32 in Saturating = double_val(6);
     transition dv6 == 12 {
-        true -> check_r1(&main.console, base)
-        _ -> bad_dv6(&main.console)
+        true -> check_r1(base)
+        _ -> bad_dv6()
     }
 
-    state bad_dv6(console: &Binding<Console>) {
-        Console::write_line(console, "FAIL: standalone double_val(6) did not return 12 (exit 76)");
-        Console::write_line(console, "[press Enter to close]");
+    state bad_dv6() {
+        Console::write_line("FAIL: standalone double_val(6) did not return 12 (exit 76)");
+        Console::write_line("[press Enter to close]");
         let mut pause: [u8; 256];
-        _ = block Console::read_line(console, &mut pause);
-        Console::exit_process(console, 76);
+        _ = block Console::read_line(&mut pause);
+        Console::exit_process(76);
     }
 
-    state check_r1(console: &Binding<Console>, base: i32 in Saturating) {
+    state check_r1(base: i32 in Saturating) {
         // 10 + double_val(6) * 3 = 10 + 36 = 46.
         let r1: i32 in Saturating = base + double_val(6) * 3;
         transition r1 == 46 {
-            true -> check_r2(console, r1)
-            _ -> bad_r1(console)
+            true -> check_r2(r1)
+            _ -> bad_r1()
         }
     }
 
-    state bad_r1(console: &Binding<Console>) {
-        Console::write_line(console, "FAIL: base + double_val(6) * 3 did not equal 46 (exit 72)");
-        Console::write_line(console, "[press Enter to close]");
+    state bad_r1() {
+        Console::write_line("FAIL: base + double_val(6) * 3 did not equal 46 (exit 72)");
+        Console::write_line("[press Enter to close]");
         let mut pause: [u8; 256];
-        _ = block Console::read_line(console, &mut pause);
-        Console::exit_process(console, 72);
+        _ = block Console::read_line(&mut pause);
+        Console::exit_process(72);
     }
 
-    state check_r2(console: &Binding<Console>, r1: i32 in Saturating) {
+    state check_r2(r1: i32 in Saturating) {
         // r1 - add5(2) + 1 = 46 - 7 + 1 = 40.
         let r2: i32 in Saturating = r1 - add5(2) + 1;
         transition r2 == 40 {
-            true -> check_inner(console, r1, r2)
-            _ -> bad_r2(console)
+            true -> check_inner(r1, r2)
+            _ -> bad_r2()
         }
     }
 
-    state bad_r2(console: &Binding<Console>) {
-        Console::write_line(console, "FAIL: r1 - add5(2) + 1 did not equal 40 (exit 73)");
-        Console::write_line(console, "[press Enter to close]");
+    state bad_r2() {
+        Console::write_line("FAIL: r1 - add5(2) + 1 did not equal 40 (exit 73)");
+        Console::write_line("[press Enter to close]");
         let mut pause: [u8; 256];
-        _ = block Console::read_line(console, &mut pause);
-        Console::exit_process(console, 73);
+        _ = block Console::read_line(&mut pause);
+        Console::exit_process(73);
     }
 
-    state check_inner(console: &Binding<Console>, r1: i32 in Saturating, r2: i32 in Saturating) {
+    state check_inner(r1: i32 in Saturating, r2: i32 in Saturating) {
         let inner: i32 in Saturating = add5(7);
         transition inner == 12 {
-            true -> check_r3(console, r1, r2, inner)
-            _ -> bad_inner(console)
+            true -> check_r3(r1, r2, inner)
+            _ -> bad_inner()
         }
     }
 
-    state bad_inner(console: &Binding<Console>) {
-        Console::write_line(console, "FAIL: add5(7) did not return 12 (exit 74)");
-        Console::write_line(console, "[press Enter to close]");
+    state bad_inner() {
+        Console::write_line("FAIL: add5(7) did not return 12 (exit 74)");
+        Console::write_line("[press Enter to close]");
         let mut pause: [u8; 256];
-        _ = block Console::read_line(console, &mut pause);
-        Console::exit_process(console, 74);
+        _ = block Console::read_line(&mut pause);
+        Console::exit_process(74);
     }
 
-    state check_r3(console: &Binding<Console>, r1: i32 in Saturating, r2: i32 in Saturating, inner: i32 in Saturating) {
+    state check_r3(r1: i32 in Saturating, r2: i32 in Saturating, inner: i32 in Saturating) {
         let r3: i32 in Saturating = r2 + double_val(inner);
         transition r3 == 64 {
-            true -> compute_final(console, r1, r2, r3)
-            _ -> bad_r3(console)
+            true -> compute_final(r1, r2, r3)
+            _ -> bad_r3()
         }
     }
 
-    state bad_r3(console: &Binding<Console>) {
-        Console::write_line(console, "FAIL: r2 + double_val(inner) did not equal 64 (exit 75)");
-        Console::write_line(console, "[press Enter to close]");
+    state bad_r3() {
+        Console::write_line("FAIL: r2 + double_val(inner) did not equal 64 (exit 75)");
+        Console::write_line("[press Enter to close]");
         let mut pause: [u8; 256];
-        _ = block Console::read_line(console, &mut pause);
-        Console::exit_process(console, 75);
+        _ = block Console::read_line(&mut pause);
+        Console::exit_process(75);
     }
 
-    state compute_final(console: &Binding<Console>, r1: i32 in Saturating, r2: i32 in Saturating, r3: i32 in Saturating) {
+    state compute_final(r1: i32 in Saturating, r2: i32 in Saturating, r3: i32 in Saturating) {
         let result: i32 in Saturating = r3 + add5(1);
         transition result == 70 {
-            true -> good(console)
-            _ -> bad_result(console)
+            true -> good()
+            _ -> bad_result()
         }
     }
 
-    state bad_result(console: &Binding<Console>) {
-        Console::write_line(console, "FAIL: r3 + add5(1) did not equal 70 (exit 71)");
-        Console::write_line(console, "[press Enter to close]");
+    state bad_result() {
+        Console::write_line("FAIL: r3 + add5(1) did not equal 70 (exit 71)");
+        Console::write_line("[press Enter to close]");
         let mut pause: [u8; 256];
-        _ = block Console::read_line(console, &mut pause);
-        Console::exit_process(console, 71);
+        _ = block Console::read_line(&mut pause);
+        Console::exit_process(71);
     }
 
-    state good(console: &Binding<Console>) {
-        Console::write_line(console, "PASS: every inline value-call expression computed correctly (exit 70)");
-        Console::write_line(console, "[press Enter to close]");
+    state good() {
+        Console::write_line("PASS: every inline value-call expression computed correctly (exit 70)");
+        Console::write_line("[press Enter to close]");
         let mut pause: [u8; 256];
-        _ = block Console::read_line(console, &mut pause);
-        Console::exit_process(console, 70);
+        _ = block Console::read_line(&mut pause);
+        Console::exit_process(70);
     }
 }

@@ -1,9 +1,8 @@
 // Complete independent negative control: unchecked access at capacity.
 use omega_language_std::console;
-use omega::language::core::binding;
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Console {
     let mut labels: [i32; 64];
     labels[64] = 1;
-    main.console.exit_process(0);
+    Console::exit_process(0);
 }

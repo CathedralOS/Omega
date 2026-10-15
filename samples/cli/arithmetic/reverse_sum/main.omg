@@ -11,10 +11,8 @@
 // Expected exit: 75.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
     // Wrapping DECLARED: the elements feed the Wrapping accumulator, and Decision
     // 17 forbids mixing domains in one expression.
     nums: [i32; 5] in Wrapping;
@@ -27,7 +25,7 @@ data Main {
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    main.console.write_line("reverse_sum: sums an array by walking it backward from the top index");
+    Console::write_line("reverse_sum: sums an array by walking it backward from the top index");
     main.nums[0] = 5;
     main.nums[1] = 10;
     main.nums[2] = 15;
@@ -58,9 +56,9 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state done(main: &mut Main) {
-        main.console.write_line("PASS: reverse sum computed, 75 for this data (the exit code)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(main.acc as i32);
+        Console::write_line("PASS: reverse sum computed, 75 for this data (the exit code)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(main.acc as i32);
     }
 }

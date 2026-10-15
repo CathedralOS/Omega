@@ -34,12 +34,10 @@
 // Exit 73 = total != 70 in do_total (binary arith miscompile -- both guards passed but sum wrong)
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Recursor {}
 
 data Main {
-    console: Binding<Console>;
     data: [i32 in Wrapping; 5];
     r: Recursor;
     pause: [u8; 256];
@@ -66,7 +64,7 @@ terminates by s -> Slice::Length;
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    main.console.write_line("dual_accumulator_recursion: two recursive reductions over [1..5] -- sum 15 + sum of squares 55");
+    Console::write_line("dual_accumulator_recursion: two recursive reductions over [1..5] -- sum 15 + sum of squares 55");
     // Populate the array: [1, 2, 3, 4, 5]
     main.data[0] = 1;
     main.data[1] = 2;
@@ -89,10 +87,10 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state bad_sum(main: &mut Main) {
-        main.console.write_line("FAIL: sum != 15 (exit 71)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(71);
+        Console::write_line("FAIL: sum != 15 (exit 71)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(71);
     }
 
     state check_sum_sq(main: &mut Main, sum_sq_result: i32 in Wrapping, sum_result: i32 in Wrapping) {
@@ -104,10 +102,10 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state bad_sum_sq(main: &mut Main) {
-        main.console.write_line("FAIL: sum of squares != 55 (exit 72)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(72);
+        Console::write_line("FAIL: sum of squares != 55 (exit 72)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(72);
     }
 
     state compute_final(main: &mut Main, sum_result: i32 in Wrapping, sum_sq_result: i32 in Wrapping) {
@@ -119,10 +117,10 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state bad_final_sum(main: &mut Main) {
-        main.console.write_line("FAIL: sum_result stale in a sibling state -- expected 15 (exit 74)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(74);
+        Console::write_line("FAIL: sum_result stale in a sibling state -- expected 15 (exit 74)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(74);
     }
 
     state check_sq_in_final(main: &mut Main, sum_sq_result: i32 in Wrapping, sum_result: i32 in Wrapping) {
@@ -134,10 +132,10 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state bad_final_sq(main: &mut Main) {
-        main.console.write_line("FAIL: sum_sq_result stale in a sibling state -- expected 55 (exit 75)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(75);
+        Console::write_line("FAIL: sum_sq_result stale in a sibling state -- expected 55 (exit 75)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(75);
     }
 
     state do_total(main: &mut Main, sum_result: i32 in Wrapping, sum_sq_result: i32 in Wrapping) {
@@ -152,16 +150,16 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state bad_final(main: &mut Main) {
-        main.console.write_line("FAIL: 15 + 55 != 70 -- combined value-call arithmetic wrong (exit 73)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(73);
+        Console::write_line("FAIL: 15 + 55 != 70 -- combined value-call arithmetic wrong (exit 73)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(73);
     }
 
     state good(main: &mut Main) {
-        main.console.write_line("PASS: sum 15 + sum of squares 55 == 70 (exit 70)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(70);
+        Console::write_line("PASS: sum 15 + sum of squares 55 == 70 (exit 70)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(70);
     }
 }

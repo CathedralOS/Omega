@@ -10,10 +10,8 @@
 use omega::language::core::float_operations;
 use omega_language_std::console;
 use omega_language_std::math;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
     dx: f64;
     dy: f64;
     ax: f64;
@@ -25,7 +23,7 @@ data Main {
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    main.console.write_line("vector_distance: |(-3, 4)| = sqrt(dx*dx + dy*dy) = 5");
+    Console::write_line("vector_distance: |(-3, 4)| = sqrt(dx*dx + dy*dy) = 5");
 
     // Direction-agnostic legs: |dx|, |dy| (a negative delta has the same length).
     main.dx = 0.0 - 3.0;
@@ -43,8 +41,8 @@ machine Main::main(main: &mut Main) reaches Console {
     // colour or coordinate would be): clamp(5, 0, 255) = 5.
     main.shown = clamp_i32(main.magi, 0, 255);
 
-    main.console.write_line("result: the magnitude, 5 for a 3-4-5 triangle (the exit code)");
-    main.console.write_line("[press Enter to close]");
-    _ = block main.console.read_line(&mut main.pause);
-    main.console.exit_process(main.shown);
+    Console::write_line("result: the magnitude, 5 for a 3-4-5 triangle (the exit code)");
+    Console::write_line("[press Enter to close]");
+    _ = block Console::read_line(&mut main.pause);
+    Console::exit_process(main.shown);
 }

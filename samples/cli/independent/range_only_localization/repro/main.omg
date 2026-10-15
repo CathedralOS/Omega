@@ -4,18 +4,17 @@
 // Expected exit: 0.
 // Expected output contains: 3456
 use omega_language_std::console;
-use omega::language::core::binding;
 
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Console {
     let bytes: [u8; 4] = [51, 52, 53, 54];
     transition true {
-        true -> emit(&main.console, &bytes)
-        false -> failed(&main.console)
+        true -> emit(&bytes)
+        false -> failed()
     }
-    state emit(console: &Binding<Console>, bytes: &[u8]) {
-        Console::write_line(console, bytes);
-        Console::exit_process(console, 0);
+    state emit(bytes: &[u8]) {
+        Console::write_line(bytes);
+        Console::exit_process(0);
     }
-    state failed(console: &Binding<Console>) { Console::exit_process(console, 1); }
+    state failed() { Console::exit_process(1); }
 }

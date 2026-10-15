@@ -6,10 +6,10 @@ use report::render;
 use omega_language_std::console;
 
 machine Application::main(application: &mut Application) reaches Console {
-    let count: Parsed = block read_number(&application.console);
-    let budget: Parsed = block read_number(&application.console);
-    let deadline: Parsed = block read_number(&application.console);
-    let risk_limit: Parsed = block read_number(&application.console);
+    let count: Parsed = block read_number();
+    let budget: Parsed = block read_number();
+    let deadline: Parsed = block read_number();
+    let risk_limit: Parsed = block read_number();
     transition count.valid && budget.valid && deadline.valid && risk_limit.valid
         && count.value <= 12 && budget.value > 0 && deadline.value > 0 && risk_limit.value <= 100 {
         true -> configure(application, count.value, budget.value, deadline.value, risk_limit.value)
@@ -30,12 +30,12 @@ machine Application::main(application: &mut Application) reaches Console {
     }
     state read_row(application: &mut Application, index: u64)
     requires index < 12 {
-        let identifier: Parsed = block read_number(&application.console);
-        let provenance: Parsed = block read_number(&application.console);
-        let cost: Parsed = block read_number(&application.console);
-        let days: Parsed = block read_number(&application.console);
-        let gain: Parsed = block read_number(&application.console);
-        let risk: Parsed = block read_number(&application.console);
+        let identifier: Parsed = block read_number();
+        let provenance: Parsed = block read_number();
+        let cost: Parsed = block read_number();
+        let days: Parsed = block read_number();
+        let gain: Parsed = block read_number();
+        let risk: Parsed = block read_number();
         let repeated: bool = duplicate(application, identifier.value, index);
         transition identifier.valid && provenance.valid && cost.valid && days.valid && gain.valid && risk.valid
             && identifier.value > 0 && provenance.value > 0 && days.value > 0 && risk.value <= 100 && !repeated {
@@ -50,15 +50,15 @@ machine Application::main(application: &mut Application) reaches Console {
         transition { _ -> load(application, index + 1) }
     }
     state trailing(application: &mut Application) {
-        let clean: bool = block only_whitespace(&application.console);
+        let clean: bool = block only_whitespace();
         transition clean { true -> accepted(application) false -> invalid(application) }
     }
     state accepted(application: &mut Application) {
         report(application);
-        application.console.exit_process(0);
+        Console::exit_process(0);
     }
     state invalid(application: &mut Application) {
-        application.console.write_line("ERROR|invalid-input");
-        application.console.exit_process(2);
+        Console::write_line("ERROR|invalid-input");
+        Console::exit_process(2);
     }
 }

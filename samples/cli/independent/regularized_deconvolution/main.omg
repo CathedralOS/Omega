@@ -160,8 +160,8 @@ machine Application::main(application: &mut Application) reaches Console crashes
         field(&mut application.reader, "residual_norm=", sqrt_f64(application.residual_norm));
         field(&mut application.reader, "roughness=", sqrt_f64(application.roughness));
         field(&mut application.reader, "objective=", application.residual_norm + application.regularization * application.roughness);
-        application.reader.console.exit_process(0);
+        Console::exit_process(0);
     }
-    state invalid(application: &mut Application) { application.reader.console.write_line("ERROR malformed input, measurements, kernel or lambda"); application.reader.console.exit_process(2); }
-    state failed(application: &mut Application) { application.reader.console.write_line("ERROR numerical convergence"); application.reader.console.exit_process(3); }
+    state invalid(application: &mut Application) { Console::write_line("ERROR malformed input, measurements, kernel or lambda"); Console::exit_process(2); }
+    state failed(application: &mut Application) { Console::write_line("ERROR numerical convergence"); Console::exit_process(3); }
 }

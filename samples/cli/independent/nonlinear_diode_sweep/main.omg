@@ -22,8 +22,8 @@ machine Main::main(main: &mut Main) reaches Console {
     let valid: bool = block Protocol::read(&mut main.protocol);
     transition valid { true -> validate(main) false -> bad_syntax(main) }
     state bad_syntax(main: &mut Main) {
-        main.protocol.console.write_line("ERROR syntax: expected nine integers, maximum 160 bytes");
-        main.protocol.console.exit_process(64);
+        Console::write_line("ERROR syntax: expected nine integers, maximum 160 bytes");
+        Console::exit_process(64);
     }
     state validate(main: &mut Main) {
         transition main.protocol.fields[0] >= -1000 && main.protocol.fields[0] <= 5000
@@ -41,8 +41,8 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
     state bad_range(main: &mut Main) {
-        main.protocol.console.write_line("ERROR range: invalid sweep or Shockley model parameters");
-        main.protocol.console.exit_process(65);
+        Console::write_line("ERROR range: invalid sweep or Shockley model parameters");
+        Console::exit_process(65);
     }
     state configure(main: &mut Main) {
         let start: f64 = main.protocol.fields[0] as f64;
@@ -68,7 +68,7 @@ machine Main::main(main: &mut Main) reaches Console {
         let upper: f64 = main.protocol.fields[7] as f64;
         main.circuit.lower = lower / 1000.0;
         main.circuit.upper = upper / 1000.0;
-        main.protocol.console.write_line("point,status,source_V,diode_V,current_A,residual_V,width_V,iterations,evaluations");
+        Console::write_line("point,status,source_V,diode_V,current_A,residual_V,width_V,iterations,evaluations");
         transition { _ -> sweep(main) }
     }
     state sweep(main: &mut Main) {
@@ -76,7 +76,7 @@ machine Main::main(main: &mut Main) reaches Console {
         let source: f64 = main.source_start + offset;
         solve(&main.circuit, &mut main.solver, source, main.budget);
         Protocol::integer(&mut main.protocol, main.position);
-        main.protocol.console.write(",");
+        Console::write(",");
         transition main.solver.status == 3 {
             true -> absent(main)
             false -> present(main)
@@ -84,9 +84,9 @@ machine Main::main(main: &mut Main) reaches Console {
     }
     state absent(main: &mut Main) {
         main.failed = main.failed + 1;
-        main.protocol.console.write("no_bracket,");
+        Console::write("no_bracket,");
         Protocol::number(&mut main.protocol, main.solver.source);
-        main.protocol.console.write(",NA,NA,NA,NA,");
+        Console::write(",NA,NA,NA,NA,");
         transition { _ -> diagnostics(main) }
     }
     state present(main: &mut Main) {
@@ -97,42 +97,42 @@ machine Main::main(main: &mut Main) reaches Console {
     }
     state converged(main: &mut Main) {
         main.converged = main.converged + 1;
-        main.protocol.console.write("converged,");
+        Console::write("converged,");
         transition { _ -> values(main) }
     }
     state limited(main: &mut Main) {
         main.failed = main.failed + 1;
-        main.protocol.console.write("iteration_limit,");
+        Console::write("iteration_limit,");
         transition { _ -> values(main) }
     }
     state values(main: &mut Main) {
         Protocol::number(&mut main.protocol, main.solver.source);
-        main.protocol.console.write(",");
+        Console::write(",");
         Protocol::number(&mut main.protocol, main.solver.voltage);
-        main.protocol.console.write(",");
+        Console::write(",");
         Protocol::number(&mut main.protocol, main.solver.current);
-        main.protocol.console.write(",");
+        Console::write(",");
         Protocol::number(&mut main.protocol, main.solver.residual);
-        main.protocol.console.write(",");
+        Console::write(",");
         Protocol::number(&mut main.protocol, main.solver.width);
-        main.protocol.console.write(",");
+        Console::write(",");
         transition { _ -> diagnostics(main) }
     }
     state diagnostics(main: &mut Main) {
         Protocol::integer(&mut main.protocol, main.solver.iterations);
-        main.protocol.console.write(",");
+        Console::write(",");
         Protocol::integer(&mut main.protocol, main.solver.evaluations);
-        main.protocol.console.write_line("");
+        Console::write_line("");
         main.position = main.position + 1;
         main.source_index = main.source_index + 1.0;
         transition main.position < main.points { true -> sweep(main) false -> done(main) }
     }
     state done(main: &mut Main) {
-        main.protocol.console.write("summary,");
+        Console::write("summary,");
         Protocol::integer(&mut main.protocol, main.converged);
-        main.protocol.console.write(",");
+        Console::write(",");
         Protocol::integer(&mut main.protocol, main.failed);
-        main.protocol.console.write_line("");
-        main.protocol.console.exit_process(0);
+        Console::write_line("");
+        Console::exit_process(0);
     }
 }

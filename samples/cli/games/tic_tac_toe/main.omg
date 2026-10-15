@@ -24,7 +24,6 @@
 // Expected exit: 70.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 // A board has at most 9 moves: the `where` bound plus the modular-counter idiom
 // keeps the increment Exact-provable with no overflow domain.
@@ -35,13 +34,12 @@ data Board [copy] where 0 <= move_count, move_count <= 9 {
 }
 
 data Main {
-    console: Binding<Console>;
     board: Board;
     pause: [u8; 256];
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    main.console.write_line("tic_tac_toe: replays a scripted game where X wins the top row");
+    Console::write_line("tic_tac_toe: replays a scripted game where X wins the top row");
     // Scripted moves.
     Main::play(main, 0, 1);  // X plays cell 0
     Main::play(main, 3, 2);  // O plays cell 3
@@ -87,24 +85,24 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state good(main: &mut Main) {
-        main.console.write_line("PASS: X owns the top row after 5 moves (exit 70)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(70);
+        Console::write_line("PASS: X owns the top row after 5 moves (exit 70)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(70);
     }
 
     state bad_count(main: &mut Main) {
-        main.console.write_line("FAIL: move count was not 5 after the script (exit 71)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(71);
+        Console::write_line("FAIL: move count was not 5 after the script (exit 71)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(71);
     }
 
     state bad_winner(main: &mut Main) {
-        main.console.write_line("FAIL: the board did not show X winning the top row (exit 72)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(72);
+        Console::write_line("FAIL: the board did not show X winning the top row (exit 72)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(72);
     }
 }
 

@@ -41,6 +41,6 @@ machine Main::main(main: &mut Main) reaches Console {
         field(&mut main.reader, "probability_pico=", main.bins[position] * 1000000000000.0);
         transition { _ -> bins(main, future, position + 1) }
     }
-    state done(main: &mut Main) { main.reader.console.write_line("status=ok"); main.reader.console.exit_process(0); }
-    state invalid(main: &mut Main) { main.reader.console.write_line("ERROR invalid_input"); main.reader.console.exit_process(64); }
+    state done(main: &mut Main) { Console::write_line("status=ok"); Console::exit_process(0); }
+    state invalid(main: &mut Main) { Console::write_line("ERROR invalid_input"); Console::exit_process(64); }
 }

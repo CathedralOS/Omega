@@ -20,9 +20,9 @@ machine Main::main(main: &mut Main) reaches Console {
     state row(main: &mut Main, input: &Input, position: i32 in Wrapping) {
         let mut result: Equilibrium;
         solve(input, input.values[position], &mut result);
-        report(&mut main.reader.console, input.values[position], &result);
+        report(input.values[position], &result);
         transition { _ -> rows(main, input, position + 1) }
     }
-    state done(main: &mut Main) { main.reader.console.write_line("status=ok"); main.reader.console.exit_process(0); }
-    state invalid(main: &mut Main) { main.reader.console.write_line("error=input: bounded ideal-equilibrium domain or decimal packet refused"); main.reader.console.exit_process(2); }
+    state done(main: &mut Main) { Console::write_line("status=ok"); Console::exit_process(0); }
+    state invalid(main: &mut Main) { Console::write_line("error=input: bounded ideal-equilibrium domain or decimal packet refused"); Console::exit_process(2); }
 }

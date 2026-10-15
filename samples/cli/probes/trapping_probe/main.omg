@@ -13,11 +13,10 @@
 // sample; it deliberately has no ordinary exit-code oracle.
 // Warnings that this computation always overflows are expected.
 use omega_language_std::console;
-use omega::language::core::binding;
-data Main { console: Binding<Console>; x: i32 in Trapping; }
+data Main { x: i32 in Trapping; }
 machine Main::main(main: &mut Main) reaches Console {
     main.x = 2147483647;
     main.x = main.x + 1;
     // unreachable: the increment above traps.
-    main.console.exit_process(70);
+    Console::exit_process(70);
 }

@@ -45,7 +45,6 @@
 // Expected exit: 70.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data State [copy] {
     // Wrapping so the value-return arithmetic below (`n * multiplier`,
@@ -58,7 +57,6 @@ data State [copy] {
 }
 
 data Main {
-    console: Binding<Console>;
     st: State;
     pause: [u8; 256];
 }
@@ -78,7 +76,7 @@ machine Main::offset_add(main: &mut Main, n: i32 in Wrapping) -> i32 {
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    main.console.write_line("self_mutation_between_calls: value calls must see freshly mutated main fields");
+    Console::write_line("self_mutation_between_calls: value calls must see freshly mutated main fields");
     // Interleave main mutations with value-call reads.
     main.st.multiplier = 3;
     let r1: i32 = Main::scale(main, 5);      // = 5 * 3 = 15
@@ -99,10 +97,10 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state bad_r1(main: &mut Main) {
-        main.console.write_line("FAIL: scale(5) with multiplier 3 did not return 15 (exit 71)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(71);
+        Console::write_line("FAIL: scale(5) with multiplier 3 did not return 15 (exit 71)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(71);
     }
 
     state check_r2(main: &mut Main, r2: i32, r3: i32, r4: i32, r1: i32) {
@@ -113,10 +111,10 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state bad_r2(main: &mut Main) {
-        main.console.write_line("FAIL: scale(4) with multiplier 7 did not return 28 (exit 72)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(72);
+        Console::write_line("FAIL: scale(4) with multiplier 7 did not return 28 (exit 72)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(72);
     }
 
     state check_r3(main: &mut Main, r3: i32, r4: i32, r1: i32, r2: i32) {
@@ -127,10 +125,10 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state bad_r3(main: &mut Main) {
-        main.console.write_line("FAIL: offset_add(10) with addend 2 did not return 12 (exit 73)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(73);
+        Console::write_line("FAIL: offset_add(10) with addend 2 did not return 12 (exit 73)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(73);
     }
 
     state check_r4(main: &mut Main, r4: i32, r1: i32, r2: i32, r3: i32) {
@@ -141,10 +139,10 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state bad_r4(main: &mut Main) {
-        main.console.write_line("FAIL: offset_add(0) with addend 15 did not return 15 (exit 74)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(74);
+        Console::write_line("FAIL: offset_add(0) with addend 15 did not return 15 (exit 74)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(74);
     }
 
     state compute_total(main: &mut Main, r1: i32, r2: i32, r3: i32, r4: i32) {
@@ -157,16 +155,16 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state bad_total(main: &mut Main) {
-        main.console.write_line("FAIL: results did not total 70 (exit 75)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(75);
+        Console::write_line("FAIL: results did not total 70 (exit 75)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(75);
     }
 
     state good(main: &mut Main) {
-        main.console.write_line("PASS: every call observed the freshly mutated main state (exit 70)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(70);
+        Console::write_line("PASS: every call observed the freshly mutated main state (exit 70)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(70);
     }
 }

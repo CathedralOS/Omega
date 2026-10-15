@@ -7,10 +7,8 @@
 
 use omega::language::core::float_operations;
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
     celsius: f64;
     fahrenheit: f64;
     result: i32;
@@ -18,7 +16,7 @@ data Main {
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    main.console.write_line("temperature_convert: 20 C to Fahrenheit with f64 arithmetic");
+    Console::write_line("temperature_convert: 20 C to Fahrenheit with f64 arithmetic");
     main.celsius = 20.0;
     main.fahrenheit = main.celsius * 1.8 + 32.0;
     // A named saturating conversion truncates the float, then the policy erases.
@@ -28,9 +26,9 @@ machine Main::main(main: &mut Main) reaches Console {
     transition { _ -> done(main) }
 
     state done(main: &mut Main) {
-        main.console.write_line("result: the Fahrenheit value truncated, 68 for 20 C (the exit code)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(main.result);
+        Console::write_line("result: the Fahrenheit value truncated, 68 for 20 C (the exit code)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(main.result);
     }
 }

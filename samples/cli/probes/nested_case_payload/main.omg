@@ -34,7 +34,6 @@
 // Expected exit: 70.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Command {
     case Run(op: i32 in Saturating, n: i32 in Saturating);
@@ -46,7 +45,6 @@ data State [copy] {
 }
 
 data Main {
-    console: Binding<Console>;
     st: State;
     pause: [u8; 256];
 }
@@ -95,7 +93,7 @@ machine Main::apply_command(main: &mut Main, cmd: Command) {
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    main.console.write_line("nested_case_payload: case-payload commands feeding a nested integer dispatch");
+    Console::write_line("nested_case_payload: case-payload commands feeding a nested integer dispatch");
     Main::apply_command(main, Command::Run { op: 0, n: 10 });
     Main::apply_command(main, Command::Noop);
     Main::apply_command(main, Command::Run { op: 2, n: 3 });
@@ -111,16 +109,16 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state good(main: &mut Main) {
-        main.console.write_line("PASS: accumulator reached 70 after 8 commands (exit 70)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(70);
+        Console::write_line("PASS: accumulator reached 70 after 8 commands (exit 70)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(70);
     }
 
     state bad(main: &mut Main) {
-        main.console.write_line("FAIL: wrong accumulator value (exit 71)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(71);
+        Console::write_line("FAIL: wrong accumulator value (exit 71)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(71);
     }
 }

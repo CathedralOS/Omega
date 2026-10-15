@@ -15,16 +15,14 @@
 // Expected exit: 12.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
     mode: i32;
     pause: [u8; 256];
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    main.console.write_line("file_permissions: unix-style permission bits built with bitwise and/or/xor");
+    Console::write_line("file_permissions: unix-style permission bits built with bitwise and/or/xor");
     main.mode = 4i32 | 2;       // READ | WRITE          -> 6
     main.mode = main.mode | 1;  // + EXEC                -> 7
     main.mode = main.mode & 6;  // revoke EXEC (mask ~1) -> 6
@@ -34,9 +32,9 @@ machine Main::main(main: &mut Main) reaches Console {
     transition { _ -> emit(main) }
 
     state emit(main: &mut Main) {
-        main.console.write_line("result: the final mode bits r-- +s, 12 for this sequence (the exit code)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(main.mode);
+        Console::write_line("result: the final mode bits r-- +s, 12 for this sequence (the exit code)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(main.mode);
     }
 }

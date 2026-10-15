@@ -2,17 +2,16 @@
 // This retains picounit resolution for small displacements without overflowing
 // a scaled i64 when strain energy or work is large.
 use omega_language_std::console;
-use omega::language::core::binding;
 use omega::language::core::float_operations;
 use domain::model;
-pub data Output { console: Binding<Console>; }
+pub data Output { }
 pub machine write_scaled(output: &mut Output, value: f64) reaches Console invokes Console; {
     transition value > -1000000000000.0 && value < 1000000000000.0 { true -> sign(output, value) false -> overflow(output) }
-    state overflow(output: &mut Output) { output.console.write_line("ERROR numerical output range"); output.console.exit_process(66); }
+    state overflow(output: &mut Output) { Console::write_line("ERROR numerical output range"); Console::exit_process(66); }
     state sign(output: &mut Output, value: f64) {
         transition value < 0.0 { true -> negative(output, value) false -> positive(output, value) }
     }
-    state negative(output: &mut Output, value: f64) { output.console.write("-"); transition { _ -> positive(output, -value) } }
+    state negative(output: &mut Output, value: f64) { Console::write("-"); transition { _ -> positive(output, -value) } }
     state positive(output: &mut Output, value: f64) {
         let converted: i64 in Saturating = I64::from_f64(value);
         let integral: i64 = converted as i64;
@@ -34,7 +33,7 @@ pub machine write_scaled(output: &mut Output, value: f64) reaches Console invoke
     }
     state emit(output: &mut Output, integral: i64, fractional: i64, divisor: i64, digit: i64)
     requires integral >= 0 requires integral < 1000000000000 requires fractional >= 0 requires fractional < 1000000000000 requires divisor >= 1 requires divisor <= 100000000000 requires digit >= 0 requires digit <= 9 {
-        output.console.write_byte((digit as i32) + 48);
+        Console::write_byte((digit as i32) + 48);
         transition { _ -> advance(output, integral, fractional, divisor, true) }
     }
     state advance(output: &mut Output, integral: i64, fractional: i64, divisor: i64, started: bool)
@@ -42,41 +41,41 @@ pub machine write_scaled(output: &mut Output, value: f64) reaches Console invoke
         transition divisor >= 10 { true -> digits(output, integral, fractional, divisor / 10, started) false -> point(output, fractional) }
     }
     state point(output: &mut Output, fractional: i64) requires fractional >= 0 requires fractional < 1000000000000 {
-        output.console.write("."); transition { _ -> fraction_digits(output, fractional, 100000000000) }
+        Console::write("."); transition { _ -> fraction_digits(output, fractional, 100000000000) }
     }
     state fraction_digits(output: &mut Output, fractional: i64, divisor: i64)
     requires fractional >= 0 requires fractional < 1000000000000 requires divisor >= 1 requires divisor <= 100000000000 {
         let digit: i64 = (fractional / divisor) % 10;
-        output.console.write_byte((digit as i32) + 48);
+        Console::write_byte((digit as i32) + 48);
         transition divisor >= 10 { true -> fraction_digits(output, fractional, divisor / 10) false -> done() }
     }
     state done() {}
 }
 pub machine report(output: &mut Output, truss: &Truss, result: &Solution) reaches Console invokes Console; {
-    output.console.write_line("planar_truss_elasticity; numeric values in consistent input units");
+    Console::write_line("planar_truss_elasticity; numeric values in consistent input units");
     transition { _ -> node(output, truss, result, 0) }
     state node(output: &mut Output, truss: &Truss, result: &Solution, index: u64) {
         transition index < truss.nodes && index < 8 { true -> node_row(output, truss, result, index) false -> bar(output, truss, result, 0) }
     }
     state node_row(output: &mut Output, truss: &Truss, result: &Solution, index: u64) requires index < 8 {
-        output.console.write("N,"); write_scaled(output, index as f64); output.console.write(",");
-        write_scaled(output, result.displacement[2 * index]); output.console.write(",");
-        write_scaled(output, result.displacement[2 * index + 1]); output.console.write(",");
-        write_scaled(output, result.reaction[2 * index]); output.console.write(",");
-        write_scaled(output, result.reaction[2 * index + 1]); output.console.write_line("");
+        Console::write("N,"); write_scaled(output, index as f64); Console::write(",");
+        write_scaled(output, result.displacement[2 * index]); Console::write(",");
+        write_scaled(output, result.displacement[2 * index + 1]); Console::write(",");
+        write_scaled(output, result.reaction[2 * index]); Console::write(",");
+        write_scaled(output, result.reaction[2 * index + 1]); Console::write_line("");
         transition { _ -> node(output, truss, result, index + 1) }
     }
     state bar(output: &mut Output, truss: &Truss, result: &Solution, index: u64) {
         transition index < truss.bars && index < 16 { true -> bar_row(output, truss, result, index) false -> totals(output, result) }
     }
     state bar_row(output: &mut Output, truss: &Truss, result: &Solution, index: u64) requires index < 16 {
-        output.console.write("B,"); write_scaled(output, index as f64); output.console.write(",");
-        write_scaled(output, result.extension[index]); output.console.write(","); write_scaled(output, result.force[index]); output.console.write_line("");
+        Console::write("B,"); write_scaled(output, index as f64); Console::write(",");
+        write_scaled(output, result.extension[index]); Console::write(","); write_scaled(output, result.force[index]); Console::write_line("");
         transition { _ -> bar(output, truss, result, index + 1) }
     }
     state totals(output: &mut Output, result: &Solution) {
-        output.console.write("S,"); write_scaled(output, result.energy); output.console.write(","); write_scaled(output, result.work);
-        output.console.write(","); write_scaled(output, result.residual); output.console.write(","); write_scaled(output, result.balance_x);
-        output.console.write(","); write_scaled(output, result.balance_y); output.console.write(","); write_scaled(output, result.moment); output.console.write_line("");
+        Console::write("S,"); write_scaled(output, result.energy); Console::write(","); write_scaled(output, result.work);
+        Console::write(","); write_scaled(output, result.residual); Console::write(","); write_scaled(output, result.balance_x);
+        Console::write(","); write_scaled(output, result.balance_y); Console::write(","); write_scaled(output, result.moment); Console::write_line("");
     }
 }

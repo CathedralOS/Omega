@@ -1,9 +1,7 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 use domain::process;
 
 data Main {
-    console: Binding<Console>;
     process: domain::process::Process;
     input: [u8; 4];
     variant: u64 in Wrapping;
@@ -16,7 +14,7 @@ data Main {
 // Processing ends after this line; trailing input is ignored.
 // The bounded line API distinguishes EOF, full buffers and complete lines.
 machine Main::main(main: &mut Main) reaches Console {
-    let result: LineReadResult = block main.console.read_line(&mut main.input);
+    let result: LineReadResult = block Console::read_line(&mut main.input);
     transition result {
         LineReadResult::LineComplete { count } -> length(main, count)
         _ -> invalid(main)
@@ -35,7 +33,7 @@ machine Main::main(main: &mut Main) reaches Console {
         main.horizon = (main.input[1] as u64 in Wrapping) - 48;
         domain::process::initialize(&mut main.process, main.variant);
         main.step = 0;
-        main.console.write_line("step healthy degraded failed survival denominator");
+        Console::write_line("step healthy degraded failed survival denominator");
         transition { _ -> row(main) }
     }
     state row(main: &mut Main) {
@@ -53,17 +51,17 @@ machine Main::main(main: &mut Main) reaches Console {
         let survival: u64 in Wrapping = main.process.healthy + main.process.degraded;
         let denominator: u64 in Wrapping = main.process.denominator;
         Main::decimal(main, step);
-        main.console.write_byte(32);
+        Console::write_byte(32);
         Main::decimal(main, healthy);
-        main.console.write_byte(32);
+        Console::write_byte(32);
         Main::decimal(main, degraded);
-        main.console.write_byte(32);
+        Console::write_byte(32);
         Main::decimal(main, failed);
-        main.console.write_byte(32);
+        Console::write_byte(32);
         Main::decimal(main, survival);
-        main.console.write_byte(32);
+        Console::write_byte(32);
         Main::decimal(main, denominator);
-        main.console.write_byte(10);
+        Console::write_byte(10);
         transition main.step < main.horizon { true -> next(main) _ -> finish(main) }
     }
     state next(main: &mut Main) {
@@ -74,20 +72,20 @@ machine Main::main(main: &mut Main) reaches Console {
     state finish(main: &mut Main) {
         let lifetime: u64 in Wrapping = main.process.lifetime;
         let denominator: u64 in Wrapping = main.process.denominator;
-        main.console.write("expected_min_lifetime ");
+        Console::write("expected_min_lifetime ");
         Main::decimal(main, lifetime);
-        main.console.write_byte(32);
+        Console::write_byte(32);
         Main::decimal(main, denominator);
-        main.console.write_byte(10);
-        main.console.exit_process(0);
+        Console::write_byte(10);
+        Console::exit_process(0);
     }
     state invalid(main: &mut Main) {
-        main.console.write_line("invalid input: expected variant 0..5 and horizon 0..8 followed by LF");
-        main.console.exit_process(64);
+        Console::write_line("invalid input: expected variant 0..5 and horizon 0..8 followed by LF");
+        Console::exit_process(64);
     }
     state failure(main: &mut Main) {
-        main.console.write_line("probability conservation failed");
-        main.console.exit_process(70);
+        Console::write_line("probability conservation failed");
+        Console::exit_process(70);
     }
 }
 // Private decimal formatting over the established byte console provider.
@@ -110,7 +108,7 @@ machine Main::decimal(main: &mut Main, number: u64 in Wrapping) reaches Console 
     }
     state write(main: &mut Main) {
         let digit: u64 in Wrapping = (main.number / main.divisor) % 10;
-        main.console.write_byte(digit as i32 + 48);
+        Console::write_byte(digit as i32 + 48);
         main.divisor = main.divisor / 10;
         transition { _ -> digit(main) }
     }

@@ -1,5 +1,4 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 use omega::language::core::numeric_conversion;
 use terrain::model;
 use terrain::crossings;
@@ -10,7 +9,7 @@ use reporting::report;
 // One bounded record: level, policy, nine row-major elevations, optional LF.
 // Examples: 10000020000 is a closed hill; 10000000000 is flat.
 machine Main::main(context: &mut Main) reaches Console {
-    let observed: LineReadResult = block context.console.read_line(&mut context.input);
+    let observed: LineReadResult = block Console::read_line(&mut context.input);
     transition observed {
         LineReadResult::LineComplete { count } -> line(context, count)
         LineReadResult::EndOfInput { count } -> eof(context, count)
@@ -55,14 +54,14 @@ machine Main::main(context: &mut Main) reaches Console {
     }
     state output(context: &mut Main) {
         report(context);
-        context.console.exit_process(0);
+        Console::exit_process(0);
     }
     state invalid(context: &mut Main) {
-        context.console.write_line("INVALID terrain record");
-        context.console.exit_process(64);
+        Console::write_line("INVALID terrain record");
+        Console::exit_process(64);
     }
     state failed(context: &mut Main) {
-        context.console.write_line("INVARIANT contour graph");
-        context.console.exit_process(70);
+        Console::write_line("INVARIANT contour graph");
+        Console::exit_process(70);
     }
 }

@@ -9,7 +9,6 @@ use omega_language_std::math;
 // Expected exit: 9.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 machine find_max(s: &[i32], current: i32) -> i32 {
     transition s.len > 0 {
@@ -18,16 +17,16 @@ machine find_max(s: &[i32], current: i32) -> i32 {
     }
 }
 
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Console {
-    Console::write_line(&main.console, "slice_maximum: tail-recursive max over the slice [3, 7, 2, 9, 4]");
+    Console::write_line("slice_maximum: tail-recursive max over the slice [3, 7, 2, 9, 4]");
     let values: [i32; 5] = [3, 7, 2, 9, 4];
 
     let s: &[i32] = &values[..];
     let m: i32 = find_max(s, 0);
-    Console::write_line(&main.console, "result: the slice maximum, 9 for this data (the exit code)");
-    Console::write_line(&main.console, "[press Enter to close]");
+    Console::write_line("result: the slice maximum, 9 for this data (the exit code)");
+    Console::write_line("[press Enter to close]");
     let mut pause: [u8; 256];
-    _ = block Console::read_line(&main.console, &mut pause);
-    Console::exit_process(&main.console, m);
+    _ = block Console::read_line(&mut pause);
+    Console::exit_process(m);
 }

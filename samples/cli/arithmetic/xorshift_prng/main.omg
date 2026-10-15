@@ -13,10 +13,8 @@
 // Expected exit: 99.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
     state: u32 in Wrapping;
     scratch: u32 in Wrapping;
     output: i32;
@@ -24,7 +22,7 @@ data Main {
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    main.console.write_line("xorshift_prng: one xorshift32 step from Marsaglia's classic seed");
+    Console::write_line("xorshift_prng: one xorshift32 step from Marsaglia's classic seed");
     main.state = 2463534242;
 
     main.scratch = main.state << 13;
@@ -42,9 +40,9 @@ machine Main::main(main: &mut Main) reaches Console {
     transition { _ -> emit(main) }
 
     state emit(main: &mut Main) {
-        main.console.write_line("result: the draw's low byte, 99 for this seed (the exit code)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(main.output);
+        Console::write_line("result: the draw's low byte, 99 for this seed (the exit code)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(main.output);
     }
 }

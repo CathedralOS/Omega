@@ -3,12 +3,10 @@
 // Expected exit: 2.
 // Expected output contains: INVALID: record
 use omega_language_std::console;
-use omega::language::core::binding;
 use omega::language::core::float_operations;
 use domain::mixture;
 
 data Main {
-    console: Binding<Console>;
     input: [u8; 15];
     result: Mixture;
 }
@@ -23,17 +21,17 @@ machine reading(hundreds: u8, tens: u8, ones: u8) -> f64 {
 machine emit_positive(main: &mut Main, value: f64) reaches Console {
     let rounded: i32 in Saturating = I32::from_f64(value + 0.5);
     let integer: i32 = rounded as i32;
-    main.console.write_byte(integer / 1000000000 % 10 + 48);
-    main.console.write_byte(integer / 100000000 % 10 + 48);
-    main.console.write_byte(integer / 10000000 % 10 + 48);
-    main.console.write_byte(integer / 1000000 % 10 + 48);
-    main.console.write_byte(integer / 100000 % 10 + 48);
-    main.console.write_byte(integer / 10000 % 10 + 48);
-    main.console.write_byte(integer / 1000 % 10 + 48);
-    main.console.write_byte(integer / 100 % 10 + 48);
-    main.console.write_byte(integer / 10 % 10 + 48);
-    main.console.write_byte(integer / 1 % 10 + 48);
-    main.console.write_byte(10);
+    Console::write_byte(integer / 1000000000 % 10 + 48);
+    Console::write_byte(integer / 100000000 % 10 + 48);
+    Console::write_byte(integer / 10000000 % 10 + 48);
+    Console::write_byte(integer / 1000000 % 10 + 48);
+    Console::write_byte(integer / 100000 % 10 + 48);
+    Console::write_byte(integer / 10000 % 10 + 48);
+    Console::write_byte(integer / 1000 % 10 + 48);
+    Console::write_byte(integer / 100 % 10 + 48);
+    Console::write_byte(integer / 10 % 10 + 48);
+    Console::write_byte(integer / 1 % 10 + 48);
+    Console::write_byte(10);
 }
 
 machine emit(main: &mut Main, value: f64) reaches Console {
@@ -42,14 +40,14 @@ machine emit(main: &mut Main, value: f64) reaches Console {
         false -> positive(main, value)
     }
     state negative(main: &mut Main, value: f64) {
-        main.console.write_byte(45);
+        Console::write_byte(45);
         emit_positive(main, 0.0 - value);
     }
     state positive(main: &mut Main, value: f64) { emit_positive(main, value); }
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    let observed: LineReadResult = block main.console.read_line(&mut main.input);
+    let observed: LineReadResult = block Console::read_line(&mut main.input);
     transition observed {
         LineReadResult::LineComplete { count } -> length(main, count)
         _ -> malformed(main)
@@ -101,43 +99,43 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
     state report(main: &mut Main) {
-        main.console.write_line("model: first_order k=2; mass=ug variance=1e-9_g2; fractions=ppm variance=nano");
+        Console::write_line("model: first_order k=2; mass=ug variance=1e-9_g2; fractions=ppm variance=nano");
         let mass_a_ug: f64 = main.result.mass_a * 1000000.0;
-        main.console.write("mass_a_ug="); emit(main, mass_a_ug);
+        Console::write("mass_a_ug="); emit(main, mass_a_ug);
         let mass_b_ug: f64 = main.result.mass_b * 1000000.0;
-        main.console.write("mass_b_ug="); emit(main, mass_b_ug);
+        Console::write("mass_b_ug="); emit(main, mass_b_ug);
         let total_ug: f64 = main.result.total * 1000000.0;
-        main.console.write("total_ug="); emit(main, total_ug);
+        Console::write("total_ug="); emit(main, total_ug);
         let mass_variance_nano_g2: f64 = main.result.mass_variance * 1000000000.0;
-        main.console.write("mass_variance_nano_g2="); emit(main, mass_variance_nano_g2);
+        Console::write("mass_variance_nano_g2="); emit(main, mass_variance_nano_g2);
         let covariance_nano_g2: f64 = main.result.covariance * 1000000000.0;
-        main.console.write("covariance_nano_g2="); emit(main, covariance_nano_g2);
+        Console::write("covariance_nano_g2="); emit(main, covariance_nano_g2);
         let total_variance_nano_g2: f64 = main.result.total_variance * 1000000000.0;
-        main.console.write("total_variance_nano_g2="); emit(main, total_variance_nano_g2);
+        Console::write("total_variance_nano_g2="); emit(main, total_variance_nano_g2);
         let fraction_a_ppm: f64 = main.result.fraction_a * 1000000.0;
-        main.console.write("fraction_a_ppm="); emit(main, fraction_a_ppm);
+        Console::write("fraction_a_ppm="); emit(main, fraction_a_ppm);
         let fraction_b_ppm: f64 = main.result.fraction_b * 1000000.0;
-        main.console.write("fraction_b_ppm="); emit(main, fraction_b_ppm);
+        Console::write("fraction_b_ppm="); emit(main, fraction_b_ppm);
         let fraction_variance_nano: f64 = main.result.fraction_variance * 1000000000.0;
-        main.console.write("fraction_variance_nano="); emit(main, fraction_variance_nano);
+        Console::write("fraction_variance_nano="); emit(main, fraction_variance_nano);
         let standard_uncertainty_ppm: f64 = main.result.uncertainty * 1000000.0;
-        main.console.write("standard_uncertainty_ppm="); emit(main, standard_uncertainty_ppm);
+        Console::write("standard_uncertainty_ppm="); emit(main, standard_uncertainty_ppm);
         let expanded_uncertainty_ppm: f64 = main.result.expanded * 1000000.0;
-        main.console.write("expanded_uncertainty_ppm="); emit(main, expanded_uncertainty_ppm);
+        Console::write("expanded_uncertainty_ppm="); emit(main, expanded_uncertainty_ppm);
         let interval_lower_ppm: f64 = main.result.lower * 1000000.0;
-        main.console.write("interval_lower_ppm="); emit(main, interval_lower_ppm);
+        Console::write("interval_lower_ppm="); emit(main, interval_lower_ppm);
         let interval_upper_ppm: f64 = main.result.upper * 1000000.0;
-        main.console.write("interval_upper_ppm="); emit(main, interval_upper_ppm);
+        Console::write("interval_upper_ppm="); emit(main, interval_upper_ppm);
         transition main.result.status == 0 {
             true -> accepted(main)
             false -> rejected(main)
         }
     }
-    state accepted(main: &mut Main) { main.console.write_line("ACCEPT"); main.console.exit_process(0); }
-    state rejected(main: &mut Main) { main.console.write_line("REJECT: guard_band"); main.console.exit_process(1); }
-    state malformed(main: &mut Main) { main.console.write_line("INVALID: record"); main.console.exit_process(2); }
-    state negative(main: &mut Main) { main.console.write_line("INVALID: negative_corrected_mass"); main.console.exit_process(3); }
-    state near_zero(main: &mut Main) { main.console.write_line("INVALID: total_below_0.01_g"); main.console.exit_process(4); }
-    state bad_units(main: &mut Main) { main.console.write_line("INVALID: inconsistent_or_unknown_units"); main.console.exit_process(5); }
-    state bad_model(main: &mut Main) { main.console.write_line("INVALID: uncertainty_model"); main.console.exit_process(6); }
+    state accepted(main: &mut Main) { Console::write_line("ACCEPT"); Console::exit_process(0); }
+    state rejected(main: &mut Main) { Console::write_line("REJECT: guard_band"); Console::exit_process(1); }
+    state malformed(main: &mut Main) { Console::write_line("INVALID: record"); Console::exit_process(2); }
+    state negative(main: &mut Main) { Console::write_line("INVALID: negative_corrected_mass"); Console::exit_process(3); }
+    state near_zero(main: &mut Main) { Console::write_line("INVALID: total_below_0.01_g"); Console::exit_process(4); }
+    state bad_units(main: &mut Main) { Console::write_line("INVALID: inconsistent_or_unknown_units"); Console::exit_process(5); }
+    state bad_model(main: &mut Main) { Console::write_line("INVALID: uncertainty_model"); Console::exit_process(6); }
 }

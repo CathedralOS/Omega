@@ -1,9 +1,8 @@
 // Complete intended-invalid control: index 2 is outside a two-element array.
 use omega_language_std::console;
-use omega::language::core::binding;
-data InvalidControl { console: Binding<Console>; }
+data InvalidControl { }
 machine InvalidControl::main(control: &mut InvalidControl) reaches Console {
     let temperatures: [i32; 2] = [25, 100];
     let invalid: i32 = temperatures[2];
-    control.console.exit_process(invalid);
+    Console::exit_process(invalid);
 }

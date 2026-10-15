@@ -2,11 +2,10 @@
 // Consume at most 256 bytes, including trailing whitespace. No decimal syntax,
 // signs, partial records, extra tokens, or silent buffer truncation.
 use omega_language_std::console;
-use omega::language::core::binding;
 use omega::language::core::float_operations;
 use domain::model;
 
-pub data Input { console: Binding<Console>; tokens: [i32; 13]; valid: bool; }
+pub data Input { tokens: [i32; 13]; valid: bool; }
 pub machine read_input(input: &mut Input) reaches Console
 invokes Console;
 blocks;
@@ -20,7 +19,7 @@ crashes Trap
     }
     state read(input: &mut Input, count: u64, value: i32, digits: u64, pending: bool, bytes: u64)
     requires count <= 13 requires value >= 0 requires value <= 99 requires digits <= 2 requires bytes < 256 {
-        let observed: ByteRead = block input.console.read_byte();
+        let observed: ByteRead = block Console::read_byte();
         transition observed {
             ByteRead::Eof -> eof(input, count, value, pending)
             ByteRead::Byte { value as byte } -> classify(input, count, value, digits, pending, bytes + 1, byte)

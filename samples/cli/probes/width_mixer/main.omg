@@ -26,7 +26,6 @@
 
 use omega_language_std::console;
 use omega::language::core::numeric_conversion;
-use omega::language::core::binding;
 
 data Readings [copy] {
     flags: u8;
@@ -35,13 +34,12 @@ data Readings [copy] {
 }
 
 data Main {
-    console: Binding<Console>;
     data: Readings;
     pause: [u8; 256];
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    main.console.write_line("width_mixer: u8, i16, and i32 fields combined through named widening");
+    Console::write_line("width_mixer: u8, i16, and i32 fields combined through named widening");
     // Set up the sub-width fields.
     main.data.flags = 5;
     main.data.offset = 0 - 300;
@@ -78,30 +76,30 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state good(main: &mut Main) {
-        main.console.write_line("PASS: 50 - 300 + 320 = 70 across three widths (exit 70)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(70);
+        Console::write_line("PASS: 50 - 300 + 320 = 70 across three widths (exit 70)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(70);
     }
 
     state bad_total(main: &mut Main) {
-        main.console.write_line("FAIL: the mixed-width total was not 70 (exit 71)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(71);
+        Console::write_line("FAIL: the mixed-width total was not 70 (exit 71)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(71);
     }
 
     state bad_flags(main: &mut Main) {
-        main.console.write_line("FAIL: the u8 flags field did not read back 5 (exit 72)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(72);
+        Console::write_line("FAIL: the u8 flags field did not read back 5 (exit 72)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(72);
     }
 
     state bad_offset(main: &mut Main) {
-        main.console.write_line("FAIL: the i16 offset field did not read back -300 (exit 73)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(73);
+        Console::write_line("FAIL: the i16 offset field did not read back -300 (exit 73)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(73);
     }
 }

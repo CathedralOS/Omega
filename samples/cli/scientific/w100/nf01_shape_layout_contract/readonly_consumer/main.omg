@@ -1,7 +1,6 @@
 use numerics::arrays::shape_layout_contract;
 use omega_language_std::console;
-use omega::language::core::binding;
-data Main { console: Binding<Console>; }
+data Main { }
 machine equals(backing: &[i32], layout: &Layout2, row: u64, column: u64, expected: i32) -> bool {
     let result: ReadResult = try_read(backing, layout, row, column);
     transition result { ReadResult::Ok { value } -> (value == expected) ReadResult::Invalid -> false }
@@ -54,6 +53,6 @@ machine Main::main(context: &mut Main) reaches Console {
             false -> bad(context)
         }
     }
-    state good(context: &mut Main) { context.console.exit_process(41); }
-    state bad(context: &mut Main) { context.console.exit_process(1); }
+    state good(context: &mut Main) { Console::exit_process(41); }
+    state bad(context: &mut Main) { Console::exit_process(1); }
 }

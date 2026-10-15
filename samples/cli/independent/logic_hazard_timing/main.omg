@@ -4,11 +4,9 @@
 // Calendar slots hold zero=absent, one=false, two=true. One gate can schedule
 // at most one value per timestamp. Equal-time deliveries use ascending node ID.
 use omega_language_std::console;
-use omega::language::core::binding;
 use model::netlist;
 
 data Main {
-    console: Binding<Console>;
     network: Network;
     calendar: [i32; 640];
     due: [u64; 9];
@@ -27,13 +25,13 @@ data Main {
 
 machine Main::number(main: &mut Main, value: u64) reaches Console {
     // All reports are below 100; two ASCII decimal digits are emitted directly.
-    main.console.write_byte(((value % 100) / 10) as i32 + 48);
-    main.console.write_byte((value % 10) as i32 + 48);
+    Console::write_byte(((value % 100) / 10) as i32 + 48);
+    Console::write_byte((value % 10) as i32 + 48);
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    main.console.write_line("logic_hazard_timing: mode 0=transport1 1=transport4 2=inertial4");
-    let input: ByteRead = block main.console.read_byte();
+    Console::write_line("logic_hazard_timing: mode 0=transport1 1=transport4 2=inertial4");
+    let input: ByteRead = block Console::read_byte();
     transition input {
         ByteRead::Byte { value } -> mode(main, value)
         _ -> bad_input(main)
@@ -109,16 +107,16 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
     state truth_report(main: &mut Main) {
-        main.console.write("truth row=");
+        Console::write("truth row=");
         let reported_row: u64 = main.row; Main::number(main, reported_row);
-        main.console.write(" value=");
+        Console::write(" value=");
         transition main.network.values[6] {
             true -> truth_one(main)
             false -> truth_zero(main)
         }
     }
-    state truth_one(main: &mut Main) { main.console.write_line("1"); transition { _ -> truth_next(main) } }
-    state truth_zero(main: &mut Main) { main.console.write_line("0"); transition { _ -> truth_next(main) } }
+    state truth_one(main: &mut Main) { Console::write_line("1"); transition { _ -> truth_next(main) } }
+    state truth_zero(main: &mut Main) { Console::write_line("0"); transition { _ -> truth_next(main) } }
     state truth_next(main: &mut Main) { main.row = (main.row % 8) + 1; transition { _ -> truth_row(main) } }
     state initial(main: &mut Main) {
         main.network.values[0] = true;
@@ -141,7 +139,7 @@ machine Main::main(main: &mut Main) reaches Console {
         transition { _ -> initialize_gates(main) }
     }
     state stimulus(main: &mut Main) {
-        main.console.write_line("initial nodes 0..8=111010111");
+        Console::write_line("initial nodes 0..8=111010111");
         main.calendar[100] = 1; // t=10, input a falls.
         main.time = 0;
         transition { _ -> clock(main) }
@@ -179,13 +177,13 @@ machine Main::main(main: &mut Main) reaches Console {
     }
     state changed(main: &mut Main, value: bool) {
         main.network.values[main.node] = value;
-        main.console.write("wave t="); let reported_time: u64 = main.time; Main::number(main, reported_time);
-        main.console.write(" node="); let reported_node: u64 = main.node; Main::number(main, reported_node);
-        main.console.write(" value=");
+        Console::write("wave t="); let reported_time: u64 = main.time; Main::number(main, reported_time);
+        Console::write(" node="); let reported_node: u64 = main.node; Main::number(main, reported_node);
+        Console::write(" value=");
         transition value { true -> emit_one(main) false -> emit_zero(main) }
     }
-    state emit_one(main: &mut Main) { main.trace = ((main.trace % 65521) * 17 + (main.time % 64) * 100 + (main.node % 10) * 2 + 1) % 65521; main.console.write_line("1"); transition { _ -> observe(main) } }
-    state emit_zero(main: &mut Main) { main.trace = ((main.trace % 65521) * 17 + (main.time % 64) * 100 + (main.node % 10) * 2) % 65521; main.console.write_line("0"); transition { _ -> observe(main) } }
+    state emit_one(main: &mut Main) { main.trace = ((main.trace % 65521) * 17 + (main.time % 64) * 100 + (main.node % 10) * 2 + 1) % 65521; Console::write_line("1"); transition { _ -> observe(main) } }
+    state emit_zero(main: &mut Main) { main.trace = ((main.trace % 65521) * 17 + (main.time % 64) * 100 + (main.node % 10) * 2) % 65521; Console::write_line("0"); transition { _ -> observe(main) } }
     state observe(main: &mut Main) {
         transition main.node == 6 { true -> observe_output(main) false -> reschedule(main) }
     }
@@ -196,10 +194,10 @@ machine Main::main(main: &mut Main) reaches Console {
     state pulse_start(main: &mut Main) { main.fall = main.time; transition { _ -> reschedule(main) } }
     state pulse_end(main: &mut Main) {
         main.glitches = (main.glitches % 64) + 1;
-        main.console.write("glitch node=06 start="); let reported_fall: u64 = main.fall; Main::number(main, reported_fall);
-        main.console.write(" end="); let reported_time: u64 = main.time; Main::number(main, reported_time);
-        main.console.write(" width="); let reported_width: u64 = ((main.time % 64) + 64 - (main.fall % 64)) % 64; Main::number(main, reported_width);
-        main.console.write_line("");
+        Console::write("glitch node=06 start="); let reported_fall: u64 = main.fall; Main::number(main, reported_fall);
+        Console::write(" end="); let reported_time: u64 = main.time; Main::number(main, reported_time);
+        Console::write(" width="); let reported_width: u64 = ((main.time % 64) + 64 - (main.fall % 64)) % 64; Main::number(main, reported_width);
+        Console::write_line("");
         transition { _ -> reschedule(main) }
     }
     state reschedule(main: &mut Main) { main.gate = 3; transition { _ -> gates(main) } }
@@ -246,8 +244,8 @@ machine Main::main(main: &mut Main) reaches Console {
             false -> failed(main)
         }
     }
-    state success(main: &mut Main) { main.console.write_line("PASS truth=08 steady=1 consensus=1"); main.console.exit_process(0); }
-    state failed(main: &mut Main) { main.console.write_line("FAIL oracle"); main.console.exit_process(1); }
-    state bad_input(main: &mut Main) { main.console.write_line("REJECT input: expected one byte 0,1,2,d"); main.console.exit_process(2); }
-    state bad_netlist(main: &mut Main) { main.console.write_line("REJECT netlist: positive delay <=8 and acyclic valid gates required"); main.console.exit_process(3); }
+    state success(main: &mut Main) { Console::write_line("PASS truth=08 steady=1 consensus=1"); Console::exit_process(0); }
+    state failed(main: &mut Main) { Console::write_line("FAIL oracle"); Console::exit_process(1); }
+    state bad_input(main: &mut Main) { Console::write_line("REJECT input: expected one byte 0,1,2,d"); Console::exit_process(2); }
+    state bad_netlist(main: &mut Main) { Console::write_line("REJECT netlist: positive delay <=8 and acyclic valid gates required"); Console::exit_process(3); }
 }

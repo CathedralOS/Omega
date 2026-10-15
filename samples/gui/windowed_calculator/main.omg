@@ -15,7 +15,6 @@ use omega_language_std::math;
 // a console.
 use omega_language_std::console;
 use omega_language_std::macos_gui;
-use omega::language::core::binding;
 // These requirements expose the shared macos_gui operations' service rows.
 // Direct-invocation declarations are separate; they do not supply a reach ceiling.
 pub boundary trait Clock {
@@ -61,10 +60,6 @@ CalcClockProvider satisfies Clock {
 }
 
 data Main {
-    console: Binding<Console>;
-    clock: Binding<Clock>;
-    input: Binding<Input>;
-    gui: Binding<Gui>;
 
     cls: [u8; 7];
     title: [u8; 11];
@@ -163,12 +158,12 @@ machine Main::main(main: &mut Main) reaches AppKit + Clock + Console + CoreGraph
     main.frame = 0;
 
     // WS_VISIBLE|WS_OVERLAPPEDWINDOW; client is approximately 512x512.
-    let window: Window = main.gui.window_create(main.cls, &main.title[0], 282001408, 160, 120, 528, 551);
+    let window: Window = Gui::window_create(main.cls, &main.title[0], 282001408, 160, 120, 528, 551);
     main.hwnd = window.window;
     transition main.hwnd > 0 { true -> dc(main, window) _ -> bad(main, window) }
 
     state dc(main: &mut Main, window: Window) {
-        main.hdc = main.gui.get_dc(&window, main.hwnd);
+        main.hdc = Gui::get_dc(&window, main.hwnd);
         transition main.hdc > 0 { true -> frame_loop(main, window) _ -> bad(main, window) }
     }
 
@@ -180,7 +175,7 @@ machine Main::main(main: &mut Main) reaches AppKit + Clock + Console + CoreGraph
     // Drain at most 16 messages so the title bar, move loop, and close button stay alive.
     state pump_init(main: &mut Main, window: Window) { main.pumped = 0; transition { _ -> pump_loop(main, window) } }
     state pump_loop(main: &mut Main, mut window: Window) {
-        main.have = main.gui.msg_peek(&mut window, main.message);
+        main.have = Gui::msg_peek(&mut window, main.message);
         transition main.have > 0 { true -> pump_check_close(main, window) _ -> liveness(main, window) }
     }
     state pump_check_close(main: &mut Main, window: Window) {
@@ -203,8 +198,8 @@ machine Main::main(main: &mut Main) reaches AppKit + Clock + Console + CoreGraph
         transition main.message[2] >= 61536 && main.message[2] < 61552 { true -> quit_self(main, window) _ -> pump_handle(main, window) }
     }
     state pump_handle(main: &mut Main, window: Window) {
-        main.translated = main.gui.msg_translate(&window, main.message);
-        main.dispatched = main.gui.msg_dispatch(&window, main.message);
+        main.translated = Gui::msg_translate(&window, main.message);
+        main.dispatched = Gui::msg_dispatch(&window, main.message);
         transition main.pumped < 16 { true -> pump_next(main, window) _ -> liveness(main, window) }
     }
     state pump_next(main: &mut Main, window: Window) {
@@ -213,21 +208,21 @@ machine Main::main(main: &mut Main) reaches AppKit + Clock + Console + CoreGraph
     }
 
     state liveness(main: &mut Main, window: Window) {
-        main.alive = main.gui.is_window(&window, main.hwnd);
+        main.alive = Gui::is_window(&window, main.hwnd);
         transition main.alive > 0 { true -> focus_check(main, window) _ -> closed(main, window) }
     }
 
     // Key-state polling is global: without this gate, typing digits (or ESC --
     // even the Ctrl+Shift+Esc chord) in ANY app would drive this calculator.
     state focus_check(main: &mut Main, window: Window) {
-        main.fw = main.gui.foreground_window(&window);
+        main.fw = Gui::foreground_window(&window);
         transition main.fw == main.hwnd { true -> input_escape(main, window) _ -> render_prepare(main, window) }
     }
 
     // Input is deliberately serialized: one accepted key per frame, with a
     // short repeat cooldown. This makes held keys visible but controlled.
     state input_escape(main: &mut Main, window: Window) {
-        main.key = main.input.key_state(27);
+        main.key = Input::key_state(27);
         transition main.key > 0 { true -> quit_self(main, window) _ -> input_cooldown(main, window) }
     }
     state input_cooldown(main: &mut Main, window: Window) {
@@ -242,87 +237,87 @@ machine Main::main(main: &mut Main) reaches AppKit + Clock + Console + CoreGraph
         transition { _ -> poll_clear(main, window) }
     }
     state poll_clear(main: &mut Main, window: Window) {
-        main.key = main.input.key_state(67);
+        main.key = Input::key_state(67);
         transition main.key > 0 { true -> hit_clear(main, window) _ -> poll_backspace(main, window) }
     }
     state poll_backspace(main: &mut Main, window: Window) {
-        main.key = main.input.key_state(8);
+        main.key = Input::key_state(8);
         transition main.key > 0 { true -> hit_backspace(main, window) _ -> poll_enter(main, window) }
     }
     state poll_enter(main: &mut Main, window: Window) {
-        main.key = main.input.key_state(13);
+        main.key = Input::key_state(13);
         transition main.key > 0 { true -> hit_equals(main, window) _ -> poll_equals_key(main, window) }
     }
     state poll_equals_key(main: &mut Main, window: Window) {
-        main.key = main.input.key_state(187);
+        main.key = Input::key_state(187);
         transition main.key > 0 { true -> hit_equals(main, window) _ -> poll_plus(main, window) }
     }
     state poll_plus(main: &mut Main, window: Window) {
-        main.key = main.input.key_state(107);
+        main.key = Input::key_state(107);
         transition main.key > 0 { true -> hit_plus(main, window) _ -> poll_minus(main, window) }
     }
     state poll_minus(main: &mut Main, window: Window) {
-        main.key = main.input.key_state(109);
+        main.key = Input::key_state(109);
         transition main.key > 0 { true -> hit_minus(main, window) _ -> poll_multiply(main, window) }
     }
     state poll_multiply(main: &mut Main, window: Window) {
-        main.key = main.input.key_state(106);
+        main.key = Input::key_state(106);
         transition main.key > 0 { true -> hit_multiply(main, window) _ -> poll_divide(main, window) }
     }
     state poll_divide(main: &mut Main, window: Window) {
-        main.key = main.input.key_state(111);
+        main.key = Input::key_state(111);
         transition main.key > 0 { true -> hit_divide(main, window) _ -> poll_sign(main, window) }
     }
     state poll_sign(main: &mut Main, window: Window) {
-        main.key = main.input.key_state(83);
+        main.key = Input::key_state(83);
         transition main.key > 0 { true -> hit_sign(main, window) _ -> poll_memory_add(main, window) }
     }
     state poll_memory_add(main: &mut Main, window: Window) {
-        main.key = main.input.key_state(77);
+        main.key = Input::key_state(77);
         transition main.key > 0 { true -> hit_memory_add(main, window) _ -> poll_memory_recall(main, window) }
     }
     state poll_memory_recall(main: &mut Main, window: Window) {
-        main.key = main.input.key_state(82);
+        main.key = Input::key_state(82);
         transition main.key > 0 { true -> hit_memory_recall(main, window) _ -> poll_digit0(main, window) }
     }
     state poll_digit0(main: &mut Main, window: Window) {
-        main.key = main.input.key_state(48);
+        main.key = Input::key_state(48);
         transition main.key > 0 { true -> hit_digit0(main, window) _ -> poll_digit1(main, window) }
     }
     state poll_digit1(main: &mut Main, window: Window) {
-        main.key = main.input.key_state(49);
+        main.key = Input::key_state(49);
         transition main.key > 0 { true -> hit_digit1(main, window) _ -> poll_digit2(main, window) }
     }
     state poll_digit2(main: &mut Main, window: Window) {
-        main.key = main.input.key_state(50);
+        main.key = Input::key_state(50);
         transition main.key > 0 { true -> hit_digit2(main, window) _ -> poll_digit3(main, window) }
     }
     state poll_digit3(main: &mut Main, window: Window) {
-        main.key = main.input.key_state(51);
+        main.key = Input::key_state(51);
         transition main.key > 0 { true -> hit_digit3(main, window) _ -> poll_digit4(main, window) }
     }
     state poll_digit4(main: &mut Main, window: Window) {
-        main.key = main.input.key_state(52);
+        main.key = Input::key_state(52);
         transition main.key > 0 { true -> hit_digit4(main, window) _ -> poll_digit5(main, window) }
     }
     state poll_digit5(main: &mut Main, window: Window) {
-        main.key = main.input.key_state(53);
+        main.key = Input::key_state(53);
         transition main.key > 0 { true -> hit_digit5(main, window) _ -> poll_digit6(main, window) }
     }
     state poll_digit6(main: &mut Main, window: Window) {
-        main.key = main.input.key_state(54);
+        main.key = Input::key_state(54);
         transition main.key > 0 { true -> hit_digit6(main, window) _ -> poll_digit7(main, window) }
     }
     state poll_digit7(main: &mut Main, window: Window) {
-        main.key = main.input.key_state(55);
+        main.key = Input::key_state(55);
         transition main.key > 0 { true -> hit_digit7(main, window) _ -> poll_digit8(main, window) }
     }
     state poll_digit8(main: &mut Main, window: Window) {
-        main.key = main.input.key_state(56);
+        main.key = Input::key_state(56);
         transition main.key > 0 { true -> hit_digit8(main, window) _ -> poll_digit9(main, window) }
     }
     state poll_digit9(main: &mut Main, window: Window) {
-        main.key = main.input.key_state(57);
+        main.key = Input::key_state(57);
         transition main.key > 0 { true -> hit_digit9(main, window) _ -> render_prepare(main, window) }
     }
 
@@ -799,7 +794,7 @@ machine Main::main(main: &mut Main) reaches AppKit + Clock + Console + CoreGraph
         transition main.col == 63 { true -> render_pump_peek(main, window) _ -> fill_loop(main, window) }
     }
     state render_pump_peek(main: &mut Main, mut window: Window) {
-        main.have = main.gui.msg_peek(&mut window, main.message);
+        main.have = Gui::msg_peek(&mut window, main.message);
         transition main.have > 0 { true -> render_pump_check_close(main, window) _ -> fill_loop(main, window) }
     }
     state render_pump_check_close(main: &mut Main, window: Window) {
@@ -813,25 +808,25 @@ machine Main::main(main: &mut Main) reaches AppKit + Clock + Console + CoreGraph
         transition main.message[2] >= 61536 && main.message[2] < 61552 { true -> quit_self(main, window) _ -> render_pump_handle(main, window) }
     }
     state render_pump_handle(main: &mut Main, window: Window) {
-        main.translated = main.gui.msg_translate(&window, main.message);
-        main.dispatched = main.gui.msg_dispatch(&window, main.message);
+        main.translated = Gui::msg_translate(&window, main.message);
+        main.dispatched = Gui::msg_dispatch(&window, main.message);
         transition { _ -> render_pump_liveness(main, window) }
     }
     state render_pump_liveness(main: &mut Main, window: Window) {
-        main.alive = main.gui.is_window(&window, main.hwnd);
+        main.alive = Gui::is_window(&window, main.hwnd);
         transition main.alive > 0 { true -> fill_loop(main, window) _ -> closed(main, window) }
     }
 
     state present(main: &mut Main, window: Window) {
-        main.copied = main.gui.blit(&window, main.hdc, 512, 512, 64, 64, main.pixels, main.info);
+        main.copied = Gui::blit(&window, main.hdc, 512, 512, 64, 64, main.pixels, main.info);
         transition main.copied == 64 { true -> pace(main, window) _ -> present_failed(main, window) }
     }
     state present_failed(main: &mut Main, window: Window) {
-        main.alive = main.gui.is_window(&window, main.hwnd);
+        main.alive = Gui::is_window(&window, main.hwnd);
         transition main.alive > 0 { true -> bad(main, window) _ -> closed(main, window) }
     }
     state pace(main: &mut Main, window: Window) {
-        main.clock.sleep(16);
+        Clock::sleep(16);
         transition main.frame >= 0 && main.frame < 16384 { true -> advance(main, window) _ -> wrap_frame(main, window) }
     }
     state advance(main: &mut Main, window: Window) {
@@ -843,14 +838,14 @@ machine Main::main(main: &mut Main) reaches AppKit + Clock + Console + CoreGraph
         transition { _ -> closed(main, window) }
     }
     state closed(main: &mut Main, window: Window) {
-        main.gui.window_destroy(window);
-        main.console.write_line("windowed calculator closed (exit 0)");
-        main.console.exit_process(0);
+        Gui::window_destroy(window);
+        Console::write_line("windowed calculator closed (exit 0)");
+        Console::exit_process(0);
     }
     state bad(main: &mut Main, window: Window) {
-        main.gui.window_destroy(window);
-        main.console.write_line("FAIL: windowed_calculator hit a renderer or host assertion (exit 1)");
-        main.console.exit_process(1);
+        Gui::window_destroy(window);
+        Console::write_line("FAIL: windowed_calculator hit a renderer or host assertion (exit 1)");
+        Console::exit_process(1);
     }
 }
 

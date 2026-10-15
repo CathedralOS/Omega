@@ -20,10 +20,8 @@ use omega_language_std::math;
 
 use omega::language::core::float_operations;
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
     nums: [f64; 6];
     i: i32;
     cur: f64;
@@ -37,7 +35,7 @@ data Main {
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    main.console.write_line("sensor_min_max: track running min/max/range over [20.5, 18, 24.5, 22, 19.5, 26]");
+    Console::write_line("sensor_min_max: track running min/max/range over [20.5, 18, 24.5, 22, 19.5, 26]");
     main.nums[0] = 20.5;
     main.nums[1] = 18.0;
     main.nums[2] = 24.5;
@@ -100,9 +98,9 @@ machine Main::main(main: &mut Main) reaches Console {
         let converted: i32 in Saturating = I32::from_f64(main.total);
         main.result = converted as i32;
 
-        main.console.write_line("result: range(8) + clamp(peak,0,25)=25 -> 33 (the exit code)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(main.result);
+        Console::write_line("result: range(8) + clamp(peak,0,25)=25 -> 33 (the exit code)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(main.result);
     }
 }

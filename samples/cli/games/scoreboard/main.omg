@@ -10,7 +10,6 @@
 // Expected exit: 70.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Player where 0 <= score, score <= 100 {
     id: i32;
@@ -18,14 +17,13 @@ data Player where 0 <= score, score <= 100 {
 }
 
 data Main {
-    console: Binding<Console>;
     players: [Player; 3];
     total: i32;
     pause: [u8; 256];
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    main.console.write_line("scoreboard: sums three player records stored in an array of structs");
+    Console::write_line("scoreboard: sums three player records stored in an array of structs");
     main.players[0].id = 1;
     main.players[0].score = 30;
     main.players[1].id = 2;
@@ -38,9 +36,9 @@ machine Main::main(main: &mut Main) reaches Console {
     transition { _ -> done(main) }
 
     state done(main: &mut Main) {
-        main.console.write_line("PASS: scores 30+25+15 total 70 (the exit code)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(main.total);
+        Console::write_line("PASS: scores 30+25+15 total 70 (the exit code)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(main.total);
     }
 }

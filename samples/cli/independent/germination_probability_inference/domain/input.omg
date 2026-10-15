@@ -1,16 +1,15 @@
 // Unsigned decimal integer tokens (1-3 digits), ASCII whitespace and EOF.
 // The complete stream is bounded to 4096 bytes, including trailing whitespace.
 use omega_language_std::console;
-use omega::language::core::binding;
 
-pub data Reader { console: Binding<Console>; consumed: i32; }
+pub data Reader { consumed: i32; }
 pub data Number [copy] { valid: bool; value: i32 in Wrapping; }
 pub data Input { values: [i32 in Wrapping; 20]; count: i32 in Wrapping; }
 machine whitespace(value: i32) -> bool { transition { _ -> (value == 32 || value == 9 || value == 10 || value == 13) } }
 machine character(reader: &mut Reader) -> i32 reaches Console {
     transition reader.consumed >= 0 && reader.consumed < 4096 { true -> read(reader) _ -> -2 }
     state read(reader: &mut Reader) -> i32 requires reader.consumed >= 0 && reader.consumed < 4096 {
-        let byte: ByteRead = block reader.console.read_byte();
+        let byte: ByteRead = block Console::read_byte();
         transition byte { ByteRead::Eof -> -1 ByteRead::Byte { value } -> counted(reader, value) }
     }
     state counted(reader: &mut Reader, value: i32) -> i32 requires reader.consumed >= 0 && reader.consumed < 4096 {

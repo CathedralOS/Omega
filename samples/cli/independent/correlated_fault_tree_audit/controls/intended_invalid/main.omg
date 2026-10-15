@@ -1,9 +1,8 @@
 // Complete entrypoint. Deliberate constant array-bound violation:
 // a three-element joint-event vector has no element at index three.
 use omega_language_std::console;
-use omega::language::core::binding;
-data Main { console: Binding<Console>; events: [i32; 3]; }
+data Main { events: [i32; 3]; }
 machine Main::main(main: &mut Main) reaches Console {
     main.events[3] = 1;
-    main.console.exit_process(0);
+    Console::exit_process(0);
 }

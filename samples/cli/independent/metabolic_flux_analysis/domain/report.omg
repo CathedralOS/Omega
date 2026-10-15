@@ -14,7 +14,7 @@ invokes Console;
         _ -> digits(reader, widened)
     }
     state negative(reader: &mut Reader, value: i64) {
-        reader.console.write_byte(45);
+        Console::write_byte(45);
         let absolute: i64 in Wrapping = 0 - (value as i64 in Wrapping);
         transition { _ -> digits(reader, absolute as i64) }
     }
@@ -37,7 +37,7 @@ invokes Console;
     requires divisor > 0
     {
         let byte: i64 in Wrapping = (value / divisor) % 10 + 48;
-        reader.console.write_byte(narrow_i64_to_i32_wrapping(byte as i64));
+        Console::write_byte(narrow_i64_to_i32_wrapping(byte as i64));
         transition divisor > 1 {
             true -> ready(reader, value, divisor / 10)
             _ -> {}
@@ -48,10 +48,10 @@ pub machine field(reader: &mut Reader, name: &[u8], value: f64)
 reaches Console
 invokes Console;
 {
-    reader.console.write(name);
+    Console::write(name);
     let narrowed: i64 in Saturating = I64::from_f64(value);
     integer(reader, narrowed as i64);
-    reader.console.write_byte(10);
+    Console::write_byte(10);
 }
 pub machine rational(reader: &mut Reader, name: &[u8], numerator: i64 in Wrapping, denominator: i64 in Wrapping)
 reaches Console invokes Console; crashes Trap {

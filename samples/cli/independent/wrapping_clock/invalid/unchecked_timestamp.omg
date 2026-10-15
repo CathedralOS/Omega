@@ -1,11 +1,10 @@
 // Complete intended-invalid control: Exact signed addition has no upper bound.
 use omega_language_std::console;
-use omega::language::core::binding;
 machine unchecked_timestamp(anchor: i64, elapsed: i64) -> i64 {
     anchor + elapsed
 }
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Console {
     let timestamp: i64 = unchecked_timestamp(9223372036854775807, 1);
-    Console::exit_process(&main.console, 0);
+    Console::exit_process(0);
 }

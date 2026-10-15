@@ -7,18 +7,16 @@
 // Expected exit: 64.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 // Only the console binding and the input buffer are program state. The shift
 // operands are computed and consumed in one body, and the recovered count is
 // the single value live across the edge, so it travels as a state argument.
 data Main {
-    console: Binding<Console>;
     pause: [u8; 256];
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    main.console.write_line("bit_shift: KiB->bytes->KiB round trip -- 64 << 10 == 65536, then >> 10 back to 64");
+    Console::write_line("bit_shift: KiB->bytes->KiB round trip -- 64 << 10 == 65536, then >> 10 back to 64");
     let kibibytes: i32 in Wrapping = 64;
     let bytes: i32 in Wrapping = kibibytes << 10;
     let recovered: i32 in Wrapping = bytes >> 10;
@@ -26,9 +24,9 @@ machine Main::main(main: &mut Main) reaches Console {
     transition { _ -> done(main, recovered) }
 
     state done(main: &mut Main, recovered: i32 in Wrapping) {
-        main.console.write_line("result: the recovered KiB count, 64 for this round trip (the exit code)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(recovered as i32);
+        Console::write_line("result: the recovered KiB count, 64 for this round trip (the exit code)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(recovered as i32);
     }
 }

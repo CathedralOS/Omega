@@ -15,7 +15,7 @@ crashes Trap
 {
     transition { _ -> begin(application) }
     state begin(application: &mut Spectrometer) -> IntegerRead {
-        transition block application.console.read_byte() {
+        transition block Console::read_byte() {
             ByteRead::Eof -> (IntegerRead::End)
             ByteRead::Byte { value } -> first(application, value)
         }
@@ -57,7 +57,7 @@ crashes Trap
     }
     state following(application: &mut Spectrometer, magnitude: i32 in Wrapping,
                     sign: i32 in Wrapping, seen: bool) -> IntegerRead {
-        transition block application.console.read_byte() {
+        transition block Console::read_byte() {
             ByteRead::Eof -> finish(magnitude, sign, seen)
             ByteRead::Byte { value } -> digit(application, value, magnitude, sign, seen)
         }

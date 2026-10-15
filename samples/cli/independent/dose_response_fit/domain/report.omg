@@ -1,5 +1,4 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 use omega::language::core::float_operations;
 use omega::language::core::numeric_conversion;
 use domain::model;
@@ -7,110 +6,110 @@ use domain::mathematics;
 
 // Fixed six-decimal reporting; bounded input makes all scaled values fit i64.
 // Round magnitude half upward and retain the sign separately.
-machine number(console: &mut Binding<Console>, value: f64) reaches Console {
+machine number(value: f64) reaches Console {
     let mut bytes: [u8; 21] = "+0000000000000.000000";
     transition value < 0.0 {
-        true -> negative(console, &mut bytes, value)
-        _ -> positive(console, &mut bytes, value)
+        true -> negative(&mut bytes, value)
+        _ -> positive(&mut bytes, value)
     }
-    state negative(console: &mut Binding<Console>, bytes: &mut [u8; 21], value: f64) {
+    state negative(bytes: &mut [u8; 21], value: f64) {
         bytes[0] = 45;
         let scaled: i64 in Saturating = I64::from_f64((0.0 - value) * 1000000.0 + 0.5);
-        transition { _ -> digits(console, bytes, scaled as i64 in Wrapping, 20) }
+        transition { _ -> digits(bytes, scaled as i64 in Wrapping, 20) }
     }
-    state positive(console: &mut Binding<Console>, bytes: &mut [u8; 21], value: f64) {
+    state positive(bytes: &mut [u8; 21], value: f64) {
         let scaled: i64 in Saturating = I64::from_f64(value * 1000000.0 + 0.5);
-        transition { _ -> digits(console, bytes, scaled as i64 in Wrapping, 20) }
+        transition { _ -> digits(bytes, scaled as i64 in Wrapping, 20) }
     }
-    state digits(console: &mut Binding<Console>, bytes: &mut [u8; 21],
+    state digits(bytes: &mut [u8; 21],
                  remaining: i64 in Wrapping, position: i32 in Wrapping) {
         transition position > 0 && position < 21 {
-            true -> separator(console, bytes, remaining, position)
-            _ -> emit(console, bytes)
+            true -> separator(bytes, remaining, position)
+            _ -> emit(bytes)
         }
     }
-    state separator(console: &mut Binding<Console>, bytes: &mut [u8; 21],
+    state separator(bytes: &mut [u8; 21],
                     remaining: i64 in Wrapping, position: i32 in Wrapping) {
         transition position == 14 {
-            true -> digits(console, bytes, remaining, position - 1)
-            _ -> store(console, bytes, remaining, position)
+            true -> digits(bytes, remaining, position - 1)
+            _ -> store(bytes, remaining, position)
         }
     }
-    state store(console: &mut Binding<Console>, bytes: &mut [u8; 21],
+    state store(bytes: &mut [u8; 21],
                 remaining: i64 in Wrapping, position: i32 in Wrapping) {
         let digit: i32 = narrow_i64_to_i32_trapping((remaining % 10 + 48) as i64);
         bytes[position] = narrow_i32_to_u8_trapping(digit);
-        transition { _ -> digits(console, bytes, remaining / 10, position - 1) }
+        transition { _ -> digits(bytes, remaining / 10, position - 1) }
     }
-    state emit(console: &mut Binding<Console>, bytes: &[u8; 21]) { console.write_line(bytes); }
+    state emit(bytes: &[u8; 21]) { Console::write_line(bytes); }
 }
-pub machine report(console: &mut Binding<Console>, observations: &Observations, fit: &Fit) reaches Console
-invokes console;
+pub machine report(observations: &Observations, fit: &Fit) reaches Console
+invokes Console;
 crashes Trap
 {
-    console.write_line("dose_response_fit synthetic bounded 4PL");
-    console.write_line("converged=true"); console.write_line("identifiable=true");
-    console.write_line("profile_confidence=0.95");
+    Console::write_line("dose_response_fit synthetic bounded 4PL");
+    Console::write_line("converged=true"); Console::write_line("identifiable=true");
+    Console::write_line("profile_confidence=0.95");
     transition observations.direction == 1 {
-        true -> activation(console, observations, fit)
-        _ -> inhibition(console, observations, fit)
+        true -> activation(observations, fit)
+        _ -> inhibition(observations, fit)
     }
-    state activation(console: &mut Binding<Console>, observations: &Observations, fit: &Fit) {
-        console.write_line("half_dose_kind=EC50");
-        transition { _ -> values(console, observations, fit) }
+    state activation(observations: &Observations, fit: &Fit) {
+        Console::write_line("half_dose_kind=EC50");
+        transition { _ -> values(observations, fit) }
     }
-    state inhibition(console: &mut Binding<Console>, observations: &Observations, fit: &Fit) {
-        console.write_line("half_dose_kind=IC50");
-        transition { _ -> values(console, observations, fit) }
+    state inhibition(observations: &Observations, fit: &Fit) {
+        Console::write_line("half_dose_kind=IC50");
+        transition { _ -> values(observations, fit) }
     }
-    state values(console: &mut Binding<Console>, observations: &Observations, fit: &Fit) {
-        console.write("half_dose="); number(console, exponential(fit.candidate.log_half));
-        console.write("lowdose_asymptote="); number(console, fit.candidate.low);
-        console.write("highdose_asymptote="); number(console, fit.candidate.high);
-        console.write("log_half_dose="); number(console, fit.candidate.log_half);
-        console.write("slope="); number(console, fit.candidate.hill);
-        console.write("signed_slope="); number(console, fit.candidate.hill * F64::from_i32(observations.direction));
-        console.write("sse="); number(console, fit.candidate.sse);
-        console.write("sigma="); number(console, observations.sigma);
-        console.write("profile_cutoff="); number(console, fit.cutoff);
-        console.write("iterations="); number(console, F64::from_i32(fit.candidate.iterations as i32));
-        console.write("lowdose_asymptote_lower="); number(console, fit.lower[0]);
-        console.write("lowdose_asymptote_upper="); number(console, fit.upper[0]);
-        console.write("highdose_asymptote_lower="); number(console, fit.lower[1]);
-        console.write("highdose_asymptote_upper="); number(console, fit.upper[1]);
-        console.write("log_half_dose_lower="); number(console, fit.lower[2]);
-        console.write("log_half_dose_upper="); number(console, fit.upper[2]);
-        console.write("slope_lower="); number(console, fit.lower[3]);
-        console.write("slope_upper="); number(console, fit.upper[3]);
-        console.write("half_dose_lower="); number(console, exponential(fit.lower[2]));
-        console.write("half_dose_upper="); number(console, exponential(fit.upper[2]));
-        transition { _ -> endpoints(console, observations, fit, 0) }
+    state values(observations: &Observations, fit: &Fit) {
+        Console::write("half_dose="); number(exponential(fit.candidate.log_half));
+        Console::write("lowdose_asymptote="); number(fit.candidate.low);
+        Console::write("highdose_asymptote="); number(fit.candidate.high);
+        Console::write("log_half_dose="); number(fit.candidate.log_half);
+        Console::write("slope="); number(fit.candidate.hill);
+        Console::write("signed_slope="); number(fit.candidate.hill * F64::from_i32(observations.direction));
+        Console::write("sse="); number(fit.candidate.sse);
+        Console::write("sigma="); number(observations.sigma);
+        Console::write("profile_cutoff="); number(fit.cutoff);
+        Console::write("iterations="); number(F64::from_i32(fit.candidate.iterations as i32));
+        Console::write("lowdose_asymptote_lower="); number(fit.lower[0]);
+        Console::write("lowdose_asymptote_upper="); number(fit.upper[0]);
+        Console::write("highdose_asymptote_lower="); number(fit.lower[1]);
+        Console::write("highdose_asymptote_upper="); number(fit.upper[1]);
+        Console::write("log_half_dose_lower="); number(fit.lower[2]);
+        Console::write("log_half_dose_upper="); number(fit.upper[2]);
+        Console::write("slope_lower="); number(fit.lower[3]);
+        Console::write("slope_upper="); number(fit.upper[3]);
+        Console::write("half_dose_lower="); number(exponential(fit.lower[2]));
+        Console::write("half_dose_upper="); number(exponential(fit.upper[2]));
+        transition { _ -> endpoints(observations, fit, 0) }
     }
-    state endpoints(console: &mut Binding<Console>, observations: &Observations, fit: &Fit, position: i32 in Wrapping) {
+    state endpoints(observations: &Observations, fit: &Fit, position: i32 in Wrapping) {
         transition position >= 0 && position < 8 {
-            true -> endpoint(console, observations, fit, position)
-            _ -> samples(console, observations, fit, 0)
+            true -> endpoint(observations, fit, position)
+            _ -> samples(observations, fit, 0)
         }
     }
-    state endpoint(console: &mut Binding<Console>, observations: &Observations, fit: &Fit, position: i32 in Wrapping) {
-        console.write("profile_endpoint_sse_"); console.write_byte((position + 48) as i32); console.write("=");
-        number(console, fit.endpoint_sse[position]);
-        transition { _ -> endpoints(console, observations, fit, position + 1) }
+    state endpoint(observations: &Observations, fit: &Fit, position: i32 in Wrapping) {
+        Console::write("profile_endpoint_sse_"); Console::write_byte((position + 48) as i32); Console::write("=");
+        number(fit.endpoint_sse[position]);
+        transition { _ -> endpoints(observations, fit, position + 1) }
     }
-    state samples(console: &mut Binding<Console>, observations: &Observations, fit: &Fit, position: i32 in Wrapping) {
+    state samples(observations: &Observations, fit: &Fit, position: i32 in Wrapping) {
         transition position >= 0 && position < 32 && position < observations.count {
-            true -> sample(console, observations, fit, position)
-            _ -> done(console)
+            true -> sample(observations, fit, position)
+            _ -> done()
         }
     }
-    state sample(console: &mut Binding<Console>, observations: &Observations, fit: &Fit, position: i32 in Wrapping) {
-        console.write("prediction_"); console.write_byte((position / 10 + 48) as i32);
-        console.write_byte((position % 10 + 48) as i32); console.write("=");
-        number(console, fit.reconstruction[position]);
-        console.write("residual_"); console.write_byte((position / 10 + 48) as i32);
-        console.write_byte((position % 10 + 48) as i32); console.write("=");
-        number(console, fit.residual[position]);
-        transition { _ -> samples(console, observations, fit, position + 1) }
+    state sample(observations: &Observations, fit: &Fit, position: i32 in Wrapping) {
+        Console::write("prediction_"); Console::write_byte((position / 10 + 48) as i32);
+        Console::write_byte((position % 10 + 48) as i32); Console::write("=");
+        number(fit.reconstruction[position]);
+        Console::write("residual_"); Console::write_byte((position / 10 + 48) as i32);
+        Console::write_byte((position % 10 + 48) as i32); Console::write("=");
+        number(fit.residual[position]);
+        transition { _ -> samples(observations, fit, position + 1) }
     }
-    state done(console: &mut Binding<Console>) { console.write_line("status=ok"); }
+    state done() { Console::write_line("status=ok"); }
 }

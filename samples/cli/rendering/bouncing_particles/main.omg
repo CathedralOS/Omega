@@ -15,7 +15,6 @@
 // Expected output contains: *
 use omega_language_std::console;
 use omega_language_std::clock;
-use omega::language::core::binding;
 
 domain [u8]::Utf8(bytes)
 requires
@@ -38,8 +37,6 @@ data Particle {
 }
 
 data Main {
-    console: Binding<Console>;
-    clock: Binding<Clock>;
     ps: [Particle; 4] in Wrapping;
     grid: [i32; 200] in Wrapping; // 20 x 10
     line: [u8; 20] in Utf8;
@@ -58,7 +55,7 @@ data Main {
 }
 
 machine Main::main(main: &mut Main) reaches Clock + Console {
-    main.console.write_line("bouncing_particles: 4 particles (array-of-structs) bouncing in a 20x10 box for 60 frames");
+    Console::write_line("bouncing_particles: 4 particles (array-of-structs) bouncing in a 20x10 box for 60 frames");
     main.ps[0].x = 2;  main.ps[0].y = 2;  main.ps[0].vx = 1;  main.ps[0].vy = 1;
     main.ps[1].x = 17; main.ps[1].y = 3;  main.ps[1].vx = 0 - 1; main.ps[1].vy = 1;
     main.ps[2].x = 8;  main.ps[2].y = 8;  main.ps[2].vx = 1;  main.ps[2].vy = 0 - 1;
@@ -111,7 +108,7 @@ machine Main::main(main: &mut Main) reaches Clock + Console {
 
     // --- render the grid in place ---
     state render_init(main: &mut Main) {
-        main.console.write(main.home);
+        Console::write(main.home);
         main.ry = 0;
         transition { _ -> render_row(main) }
     }
@@ -139,12 +136,12 @@ machine Main::main(main: &mut Main) reaches Clock + Console {
         transition { _ -> render_col(main) }
     }
     state emit_row(main: &mut Main) {
-        main.console.write_line(main.line);
+        Console::write_line(main.line);
         main.ry = main.ry + 1;
         transition { _ -> render_row(main) }
     }
     state after_render(main: &mut Main) {
-        main.clock.sleep(70);
+        Clock::sleep(70);
         transition { _ -> update_init(main) }
     }
 
@@ -217,15 +214,15 @@ machine Main::main(main: &mut Main) reaches Clock + Console {
     }
 
     state finish(main: &mut Main) {
-        main.console.write_line("done: 60 frames of the 4-particle entity system animated (exit 0)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(0);
+        Console::write_line("done: 60 frames of the 4-particle entity system animated (exit 0)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(0);
     }
     state bad(main: &mut Main) {
-        main.console.write_line("FAIL: a grid index or particle index left its guarded range (exit 1)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(1);
+        Console::write_line("FAIL: a grid index or particle index left its guarded range (exit 1)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(1);
     }
 }

@@ -10,7 +10,6 @@
 // Expected output contains: 47
 use omega_language_std::console;
 use omega::language::core::numeric_conversion;
-use omega::language::core::binding;
 
 domain [u8]::Utf8(bytes)
 requires
@@ -19,7 +18,6 @@ domain [u8; 48]::Utf8(bytes)
 requires
     valid_utf8(bytes);
 data Main {
-    console: Binding<Console>;
     marked: [i32; 50] in Wrapping; // 0 = prime candidate, 1 = composite (zero-init)
     line: [u8; 48] in Utf8;
     i: i32 in Wrapping;
@@ -35,7 +33,7 @@ data Main {
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    main.console.write_line("prime_sieve: sieve of Eratosthenes printing the primes below 50");
+    Console::write_line("prime_sieve: sieve of Eratosthenes printing the primes below 50");
     main.line = "                                                ";
     main.pos = 0;
     main.i = 2;
@@ -95,13 +93,13 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state write_out(main: &mut Main) {
-        main.console.write_line(main.line);
+        Console::write_line(main.line);
         transition { _ -> finish(main) }
     }
     state finish(main: &mut Main) {
-        main.console.write_line("PASS: primes below 50 printed (exit 0)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(0);
+        Console::write_line("PASS: primes below 50 printed (exit 0)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(0);
     }
 }

@@ -26,15 +26,15 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
     state output(main: &mut Main, result: &Fit) {
-        report(&mut main.reader.console, result);
-        main.reader.console.exit_process(0);
+        report(result);
+        Console::exit_process(0);
     }
     state invalid(main: &mut Main) {
-        main.reader.console.write_line("error=input: require exactly 15 signed integer tokens, magnitude <=1000, nonnegative profiles, <=512 bytes");
-        main.reader.console.exit_process(2);
+        Console::write_line("error=input: require exactly 15 signed integer tokens, magnitude <=1000, nonnegative profiles, <=512 bytes");
+        Console::exit_process(2);
     }
     state invalid_profile(main: &mut Main) {
-        main.reader.console.write_line("error=profile: each supplied component must have nonzero norm");
-        main.reader.console.exit_process(3);
+        Console::write_line("error=profile: each supplied component must have nonzero norm");
+        Console::exit_process(3);
     }
 }

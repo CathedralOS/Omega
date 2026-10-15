@@ -36,7 +36,6 @@ domain [u8; 16]::Utf8(bytes)
 requires
     valid_utf8(bytes);
 use omega_language_std::console;
-use omega::language::core::binding;
 
 // Bounded so `entry1.score + entry2.score` is verifiably at most 200: Exact
 // arithmetic on nested fields carries the overflow obligation, and the `where`
@@ -54,7 +53,6 @@ data Catalog {
 }
 
 data Main {
-    console: Binding<Console>;
     catalog: Catalog;
     pause: [u8; 256];
 }
@@ -87,7 +85,7 @@ machine Main::compute_total(main: &mut Main) {
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    main.console.write_line("string_catalog: bounded UTF-8 fields, concatenation, and equality guards");
+    Console::write_line("string_catalog: bounded UTF-8 fields, concatenation, and equality guards");
     Main::set_entry1(main);
     Main::set_entry2(main);
     Main::build_label(main);
@@ -100,10 +98,10 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state bad_name1(main: &mut Main) {
-        main.console.write_line("FAIL: entry1.name did not equal Alpha (exit 71)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(71);
+        Console::write_line("FAIL: entry1.name did not equal Alpha (exit 71)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(71);
     }
 
     state check_name2(main: &mut Main) {
@@ -114,10 +112,10 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state bad_name2(main: &mut Main) {
-        main.console.write_line("FAIL: entry2.name did not equal Beta (exit 72)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(72);
+        Console::write_line("FAIL: entry2.name did not equal Beta (exit 72)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(72);
     }
 
     state check_label(main: &mut Main) {
@@ -128,10 +126,10 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state bad_label(main: &mut Main) {
-        main.console.write_line("FAIL: concatenated label was not [Alpha+Beta] (exit 73)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(73);
+        Console::write_line("FAIL: concatenated label was not [Alpha+Beta] (exit 73)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(73);
     }
 
     state check_total(main: &mut Main) {
@@ -142,16 +140,16 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state bad_total(main: &mut Main) {
-        main.console.write_line("FAIL: score total was not 70 (exit 74)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(74);
+        Console::write_line("FAIL: score total was not 70 (exit 74)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(74);
     }
 
     state good(main: &mut Main) {
-        main.console.write_line("PASS: names, label [Alpha+Beta], and total 70 all verified (exit 70)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(70);
+        Console::write_line("PASS: names, label [Alpha+Beta], and total 70 all verified (exit 70)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(70);
     }
 }

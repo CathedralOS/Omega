@@ -15,7 +15,6 @@
 // Expected exit: 70.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Change {
     quarters: i32 in Wrapping;
@@ -23,7 +22,6 @@ data Change {
 }
 
 data Main {
-    console: Binding<Console>;
     sales_count: i32 in Wrapping;
     a: i32 in Wrapping;
     b: i32 in Wrapping;
@@ -99,6 +97,6 @@ machine Main::main(context: &mut Main) reaches Console {
         transition sum == 70 { true -> good(context) _ -> bad(context, 94) }
     }
 
-    state good(context: &mut Main) { context.console.exit_process(70); }
-    state bad(context: &mut Main, code: i32) { context.console.exit_process(code); }
+    state good(context: &mut Main) { Console::exit_process(70); }
+    state bad(context: &mut Main, code: i32) { Console::exit_process(code); }
 }

@@ -9,7 +9,6 @@
 // Expected exit: 120
 use omega_language_std::console;
 use omega::language::core::numeric_conversion;
-use omega::language::core::binding;
 machine fact(n: u64, acc: u64 in Wrapping)
 terminates by n;
 -> u64
@@ -19,9 +18,9 @@ terminates by n;
         false -> (acc as u64)
     }
 }
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Console {
     let result: u64 = fact(5, 1);
     let code: i32 = narrow_u64_to_i32_trapping(result);
-    Console::exit_process(&main.console, code);
+    Console::exit_process(code);
 }

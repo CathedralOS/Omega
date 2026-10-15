@@ -16,10 +16,8 @@
 // The program exits with the value it computed. Expected exit: 35.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
     // Wrapping DECLARED (program/stack/tok/a/b/acc): the operand values flow
     // through array elements, which carry no range facts yet.
     program: [i32; 16] in Wrapping;
@@ -35,7 +33,7 @@ data Main {
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    main.console.write_line("rpn_calculator: evaluates the postfix program 3 4 + 5 * on an operand stack");
+    Console::write_line("rpn_calculator: evaluates the postfix program 3 4 + 5 * on an operand stack");
     main.program[0] = 3;
     main.program[1] = 4;
     main.program[2] = 0 - 1;
@@ -178,9 +176,9 @@ machine Main::main(main: &mut Main) reaches Console {
 
     state finish(main: &mut Main) {
         // The result is the bottom of the stack.
-        main.console.write_line("result: the RPN evaluation, 35 for this program (the exit code)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(main.stack[0] as i32);
+        Console::write_line("result: the RPN evaluation, 35 for this program (the exit code)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(main.stack[0] as i32);
     }
 }

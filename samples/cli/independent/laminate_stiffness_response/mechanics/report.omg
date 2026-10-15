@@ -1,8 +1,7 @@
 // Signed fixed-point text: one numeric value per line in micro-units.
 use omega_language_std::console;
-use omega::language::core::binding;
 use omega::language::core::float_operations;
-pub data Reporter { console: Binding<Console>; }
+pub data Reporter { }
 pub machine number(reporter: &mut Reporter,value: f64) reaches Console invokes Console; crashes Trap {
     let converted: i32 in Trapping = I32::from_f64(value*1000000.0);
     let scaled: i32 = converted as i32;
@@ -15,11 +14,11 @@ pub machine number(reporter: &mut Reporter,value: f64) reaches Console invokes C
         transition value < 0 { true -> negative(reporter,value) false -> positive(reporter,value) }
     }
     state out_of_range(reporter: &mut Reporter) {
-        reporter.console.write_line("REPORT RANGE ERROR"); reporter.console.exit_process(4);
+        Console::write_line("REPORT RANGE ERROR"); Console::exit_process(4);
     }
     state negative(reporter: &mut Reporter,value: i32)
     requires value >= -1000000000 && value < 0 {
-        reporter.console.write_byte(45);
+        Console::write_byte(45);
         let magnitude: i32 = 0-value;
         transition { _ -> positive(reporter,magnitude) }
     }
@@ -40,14 +39,14 @@ pub machine number(reporter: &mut Reporter,value: f64) reaches Console invokes C
     }
     state emit(reporter: &mut Reporter,digits: &[i32;10],position: u64)
     requires position <= 9 {
-        reporter.console.write_byte(digits[position]);
+        Console::write_byte(digits[position]);
         transition position > 0 { true -> previous(reporter,digits,position) false -> done(reporter) }
     }
     state previous(reporter: &mut Reporter,digits: &[i32;10],position: u64)
     requires position > 0 && position <= 9 {
         transition { _ -> emit(reporter,digits,position-1) }
     }
-    state done(reporter: &mut Reporter) { reporter.console.write_byte(10); }
+    state done(reporter: &mut Reporter) { Console::write_byte(10); }
 }
 pub machine matrix(reporter: &mut Reporter,values: &[[f64;3];3]) reaches Console invokes Console; crashes Trap {
     transition { _ -> cell(reporter,values,0,0) }

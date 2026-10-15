@@ -1,10 +1,9 @@
 // EOF-terminated signed integers, |token| <= 1000000; at most 4095 bytes.
 use omega_language_std::console;
-use omega::language::core::binding;
 use omega::language::core::float_operations;
 
 
-pub data Input { console: Binding<Console>; tokens: [i32; 98]; count: u64; valid: bool; negative: bool; }
+pub data Input { tokens: [i32; 98]; count: u64; valid: bool; negative: bool; }
 pub machine read_input(input: &mut Input) reaches Console
 invokes Console;
 blocks;
@@ -18,7 +17,7 @@ crashes Trap
     }
     state read(input: &mut Input, count: u64, value: i32, digits: u64, pending: bool, bytes: u64)
     requires count <= 98 requires value >= 0 requires value <= 1000000 requires digits <= 7 requires bytes < 4096 {
-        let observed: ByteRead = block input.console.read_byte();
+        let observed: ByteRead = block Console::read_byte();
         transition observed {
             ByteRead::Eof -> eof(input, count, value, pending)
             ByteRead::Byte { value as byte } -> classify(input, count, value, digits, pending, bytes + 1, byte)

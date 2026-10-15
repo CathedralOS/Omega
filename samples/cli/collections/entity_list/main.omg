@@ -14,14 +14,12 @@
 // Expected exit: 35.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Monster {
     hp: i32 in Wrapping;
 }
 
 data Main {
-    console: Binding<Console>;
     monsters: [Monster; 4];
     i: i32 in Wrapping;
     scratch: i32 in Wrapping;
@@ -30,7 +28,7 @@ data Main {
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    main.console.write_line("entity_list: [Monster; 4] -- deal 10 damage to each, then sum HP");
+    Console::write_line("entity_list: [Monster; 4] -- deal 10 damage to each, then sum HP");
     main.monsters[0].hp = 30;
     main.monsters[1].hp = 12;
     main.monsters[2].hp = 25;
@@ -65,9 +63,9 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state done(main: &mut Main) {
-        main.console.write_line("result: total remaining HP is the exit code (35)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(main.total as i32);
+        Console::write_line("result: total remaining HP is the exit code (35)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(main.total as i32);
     }
 }

@@ -1,8 +1,7 @@
 // Keep independently produced trapping additions live until their sum.
 // The callee parameter makes the operands runtime values rather than constants.
 use omega_language_std::console;
-use omega::language::core::binding;
-data Main { console: Binding<Console>; }
+data Main { }
 
 machine doubled_sum(x: u64 in Trapping) -> u64 in Trapping {
     let amount: u64 in Trapping = x + 1;
@@ -10,34 +9,34 @@ machine doubled_sum(x: u64 in Trapping) -> u64 in Trapping {
 }
 
 // A later state loop retains fixed division sites after earlier real pressure.
-pub machine integer(console: &Binding<Console>, value: i32) reaches Console
+pub machine integer(value: i32) reaches Console
 invokes Console;
 {
     transition value < 0 {
-        true -> negative(console, value as i32 in Wrapping)
-        _ -> digits(console, value as i32 in Wrapping, 1000000000, false)
+        true -> negative(value as i32 in Wrapping)
+        _ -> digits(value as i32 in Wrapping, 1000000000, false)
     }
-    state negative(console: &Binding<Console>, value: i32 in Wrapping) {
-        Console::write_byte(console, 45);
-        transition { _ -> digits(console, 0 - value, 1000000000, false) }
+    state negative(value: i32 in Wrapping) {
+        Console::write_byte(45);
+        transition { _ -> digits(0 - value, 1000000000, false) }
     }
-    state digits(console: &Binding<Console>, value: i32 in Wrapping, divisor: i32 in Wrapping, started: bool) {
+    state digits(value: i32 in Wrapping, divisor: i32 in Wrapping, started: bool) {
         transition divisor > 0 {
-            true -> quotient(console, value, divisor, started)
+            true -> quotient(value, divisor, started)
             _ -> done()
         }
     }
-    state quotient(console: &Binding<Console>, value: i32 in Wrapping, divisor: i32 in Wrapping, started: bool) {
+    state quotient(value: i32 in Wrapping, divisor: i32 in Wrapping, started: bool) {
         let digit: i32 in Wrapping = value / divisor;
         transition digit != 0 {
-            true -> emit(console, value, divisor, digit)
-            _ -> digits(console, value, divisor / 10, false)
+            true -> emit(value, divisor, digit)
+            _ -> digits(value, divisor / 10, false)
         }
     }
-    state emit(console: &Binding<Console>, value: i32 in Wrapping, divisor: i32 in Wrapping, digit: i32 in Wrapping) {
-        Console::write_byte(console, (digit + 48) as i32);
+    state emit(value: i32 in Wrapping, divisor: i32 in Wrapping, digit: i32 in Wrapping) {
+        Console::write_byte((digit + 48) as i32);
         transition divisor > 1 {
-            true -> digits(console, value % divisor, divisor / 10, true)
+            true -> digits(value % divisor, divisor / 10, true)
             _ -> done()
         }
     }
@@ -50,8 +49,8 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> bad(main)
     }
     state good(main: &mut Main) {
-        integer(&main.console, 1120);
-        main.console.exit_process(70);
+        integer(1120);
+        Console::exit_process(70);
     }
-    state bad(main: &mut Main) { main.console.exit_process(71); }
+    state bad(main: &mut Main) { Console::exit_process(71); }
 }

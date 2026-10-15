@@ -1,7 +1,6 @@
 // Expected exit: 2. Empty stdin is invalid; valid problems return 0.
 // Expected output contains: INVALID quantum input
 use omega_language_std::console;
-use omega::language::core::binding;
 use omega::language::core::float_operations;
 use domain::input;
 use domain::complex;
@@ -50,7 +49,7 @@ machine Main::main(main: &mut Main) reaches Console {
         let stiffness: f64 = main.problem.timestep * (1.0 / (main.problem.spacing * main.problem.spacing) + magnitude);
         transition stiffness <= 1000.0 { true -> conditioning(main, row + 1, norm) false -> refused(main) }
     }
-    state refused(main: &mut Main) { main.reader.console.write_line("REFUSED quantum conditioning"); main.reader.console.exit_process(3); }
+    state refused(main: &mut Main) { Console::write_line("REFUSED quantum conditioning"); Console::exit_process(3); }
     state normalize(main: &mut Main, row: i32, factor: f64) {
         transition row >= 0 && row < main.problem.cells && row < 32 { true -> normalized(main, row, factor) false -> prepare(main) }
     }
@@ -60,13 +59,13 @@ machine Main::main(main: &mut Main) reaches Console {
     }
     state prepare(main: &mut Main) {
         factor(&mut main.problem);
-        main.reader.console.write_line("quantum_wavepacket_evolution hbar=m=1");
+        Console::write_line("quantum_wavepacket_evolution hbar=m=1");
         transition { _ -> checkpoint(main, 0) }
     }
     state checkpoint(main: &mut Main, iteration: i32) {
-        integer(&mut main.reader.console, iteration); main.reader.console.write(" ");
-        scaled(&mut main.reader.console, probability_norm(&main.problem)); main.reader.console.write(" ");
-        scaled(&mut main.reader.console, energy(&main.problem)); main.reader.console.write_line("");
+        integer(iteration); Console::write(" ");
+        scaled(probability_norm(&main.problem)); Console::write(" ");
+        scaled(energy(&main.problem)); Console::write_line("");
         transition { _ -> amplitudes(main, iteration, 0) }
     }
     state amplitudes(main: &mut Main, iteration: i32, row: i32) {
@@ -74,9 +73,9 @@ machine Main::main(main: &mut Main) reaches Console {
     }
     state emit(main: &mut Main, iteration: i32, row: i32) requires row >= 0 && row < 32 {
         let value: Complex = main.problem.amplitude[row];
-        scaled(&mut main.reader.console, value.real); main.reader.console.write(" ");
-        scaled(&mut main.reader.console, value.imaginary); main.reader.console.write(" ");
-        scaled(&mut main.reader.console, main.problem.spacing * squared(value)); main.reader.console.write_line("");
+        scaled(value.real); Console::write(" ");
+        scaled(value.imaginary); Console::write(" ");
+        scaled(main.problem.spacing * squared(value)); Console::write_line("");
         transition { _ -> amplitudes(main, iteration, row + 1) }
     }
     state advance(main: &mut Main, iteration: i32) {
@@ -86,7 +85,7 @@ machine Main::main(main: &mut Main) reaches Console {
         step(&mut main.problem);
         transition { _ -> checkpoint(main, iteration + 1) }
     }
-    state invalid(main: &mut Main) { main.reader.console.write_line("INVALID quantum input"); main.reader.console.exit_process(2); }
+    state invalid(main: &mut Main) { Console::write_line("INVALID quantum input"); Console::exit_process(2); }
     state done() {}
 }
 machine probability_norm(problem: &Problem) -> f64 {

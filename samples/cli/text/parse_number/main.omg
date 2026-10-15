@@ -15,10 +15,8 @@ requires
     valid_utf8(bytes);
 use omega_language_std::console;
 use omega::language::core::numeric_conversion;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
     pause: [u8; 256];
     text: [u8; 4] in Utf8;
     tens: i32;
@@ -27,7 +25,7 @@ data Main {
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    main.console.write_line("parse_number: reading the two-digit text 25 back into an integer");
+    Console::write_line("parse_number: reading the two-digit text 25 back into an integer");
     main.text = "25";
 
     main.tens = widen_u8_to_i32(main.text[0]) % 256;
@@ -39,9 +37,9 @@ machine Main::main(main: &mut Main) reaches Console {
     transition { _ -> done(main) }
 
     state done(main: &mut Main) {
-        main.console.write_line("result: the parsed value, 25 for this text (the exit code)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(main.value);
+        Console::write_line("result: the parsed value, 25 for this text (the exit code)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(main.value);
     }
 }

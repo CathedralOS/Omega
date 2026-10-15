@@ -1,7 +1,6 @@
 // All identities and objective values are input data, never array identities.
 // Twelve rows bound storage and pairwise work; certificates retain original positions.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 pub data Experiment [copy] {
     identifier: u64;
@@ -13,7 +12,6 @@ pub data Experiment [copy] {
     risk: u64;
 }
 pub data Application {
-    console: Binding<Console>;
     rows: [Experiment; 12];
     count: u64;
     budget: u64;

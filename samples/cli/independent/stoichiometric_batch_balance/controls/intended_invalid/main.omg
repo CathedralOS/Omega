@@ -1,9 +1,8 @@
 // Complete intended-invalid application. Species 3 is outside three slots.
 use omega_language_std::console;
-use omega::language::core::binding;
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(context: &mut Main) reaches Console {
     let inventory: [i64 in Wrapping; 3] = [10, 5, 0];
     let invalid: i64 in Wrapping = inventory[3];
-    context.console.exit_process(0);
+    Console::exit_process(0);
 }

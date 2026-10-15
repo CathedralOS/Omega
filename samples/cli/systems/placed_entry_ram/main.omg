@@ -92,12 +92,11 @@ machine RegPlacement::plan(schema: Schema) -> PlacementPlan {
 
 
 use omega_language_std::console;
-use omega::language::core::binding;
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main, view: &mut Placed<RegPlacement, Registers>) reaches Console {
     let observed: u32 = view.status.read(&view.status);
-    main.console.write_byte(((observed / 10) % 10) as i32 + 48);
-    main.console.write_byte((observed % 10) as i32 + 48);
-    main.console.write_byte(10);
+    Console::write_byte(((observed / 10) % 10) as i32 + 48);
+    Console::write_byte((observed % 10) as i32 + 48);
+    Console::write_byte(10);
     view.transmit.write(&mut view.transmit, 9);
 }

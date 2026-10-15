@@ -36,7 +36,6 @@
 // Expected exit: 70.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 // Whether every cell is dead (0) or alive (1), one state per cell.
 machine cells_valid(cells: &[i32; 16]) -> bool {
@@ -167,7 +166,6 @@ data Grid [copy] where cells_valid(&board) == true, cells_valid(&next) == true {
 }
 
 data Main {
-    console: Binding<Console>;
     g: Grid;
     pause: [u8; 256];
 }
@@ -722,7 +720,7 @@ machine Main::checksum(context: &mut Main) -> i32 {
 }
 
 machine Main::main(context: &mut Main) reaches Console {
-    context.console.write_line("game_of_life: one generation of a 2x2 still-life block on a 4x4 grid");
+    Console::write_line("game_of_life: one generation of a 2x2 still-life block on a 4x4 grid");
     // Seed the board with the 2x2 block still-life.
     Main::init_board(context);
 
@@ -739,16 +737,16 @@ machine Main::main(context: &mut Main) reaches Console {
     }
 
     state good(context: &mut Main) {
-        context.console.write_line("PASS: block still-life preserved, checksum 4 (exit 70)");
-        context.console.write_line("[press Enter to close]");
-        _ = block context.console.read_line(&mut context.pause);
-        context.console.exit_process(70);
+        Console::write_line("PASS: block still-life preserved, checksum 4 (exit 70)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut context.pause);
+        Console::exit_process(70);
     }
 
     state bad(context: &mut Main) {
-        context.console.write_line("FAIL: wrong checksum after one generation (exit 71)");
-        context.console.write_line("[press Enter to close]");
-        _ = block context.console.read_line(&mut context.pause);
-        context.console.exit_process(71);
+        Console::write_line("FAIL: wrong checksum after one generation (exit 71)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut context.pause);
+        Console::exit_process(71);
     }
 }

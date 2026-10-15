@@ -2,10 +2,8 @@
 // Expected output contains: status identifiable
 // Finite stdin: linear|quadratic, n k, n (setting precision) pairs, 3 predictions.
 use omega_language_std::console;
-use omega::language::core::binding;
 use design::model;
 data Main {
-    console: Binding<Console>;
     design: design::model::Design;
     tokens: [i64 in Wrapping; 29];
     used: i64 in Wrapping;
@@ -14,26 +12,26 @@ data Main {
 machine Main::number(main: &mut Main, value: i64 in Wrapping) reaches Console {
     transition value < 0 { true -> negative(main, value) _ -> digits(main, value, 100000000000000000) }
     state negative(main: &mut Main, value: i64 in Wrapping) {
-        main.console.write("-");
+        Console::write("-");
         transition { _ -> digits(main, 0-value, 100000000000000000) }
     }
     state digits(main: &mut Main, value: i64 in Wrapping, divisor: i64 in Wrapping) {
         transition divisor > 0 { true -> emit(main, value, divisor) _ -> done() }
     }
     state emit(main: &mut Main, value: i64 in Wrapping, divisor: i64 in Wrapping) {
-        main.console.write_byte(((value/divisor)%10) as i32 + 48);
+        Console::write_byte(((value/divisor)%10) as i32 + 48);
         transition { _ -> digits(main, value, divisor/10) }
     }
     state done() { }
 }
 machine Main::rational(main: &mut Main, numerator: i64 in Wrapping, denominator: i64 in Wrapping) reaches Console {
-    Main::number(main, numerator); main.console.write("/"); Main::number(main, denominator);
+    Main::number(main, numerator); Console::write("/"); Main::number(main, denominator);
 }
 machine Main::main(main: &mut Main) reaches Console {
     main.bytes = 0; main.used = 0;
     transition { _ -> mode(main) }
     state mode(main: &mut Main) {
-        let byte: ByteRead = block main.console.read_byte();
+        let byte: ByteRead = block Console::read_byte();
         main.bytes = main.bytes+1;
         transition byte { ByteRead::Byte { value } -> mode_byte(main, value) _ -> invalid(main) }
     }
@@ -45,7 +43,7 @@ machine Main::main(main: &mut Main) reaches Console {
             108 -> mode_tail(main, 1, 1) 113 -> mode_tail(main, 2, 1) _ -> invalid(main) }
     }
     state mode_tail(main: &mut Main, degree: i64 in Wrapping, position: i64 in Wrapping) {
-        let byte: ByteRead = block main.console.read_byte();
+        let byte: ByteRead = block Console::read_byte();
         main.bytes = main.bytes+1;
         transition byte { ByteRead::Byte { value } -> mode_match(main, degree, position, value) _ -> invalid(main) }
     }
@@ -70,7 +68,7 @@ machine Main::main(main: &mut Main) reaches Console {
         transition { _ -> read(main, 0, 1, 0, 0) }
     }
     state read(main: &mut Main, accumulator: i64 in Wrapping, sign: i64 in Wrapping, active: i64 in Wrapping, digits: i64 in Wrapping) {
-        let byte: ByteRead = block main.console.read_byte();
+        let byte: ByteRead = block Console::read_byte();
         main.bytes = main.bytes+1;
         transition byte {
             ByteRead::Byte { value } -> bounded(main, accumulator, sign, active, digits, value)
@@ -164,7 +162,7 @@ machine Main::main(main: &mut Main) reaches Console {
     }
     state analyze(main: &mut Main) {
         design::model::solve(&mut main.design);
-        main.console.write("selected");
+        Console::write("selected");
         transition { _ -> selected(main, 0) }
     }
     state selected(main: &mut Main, index: i64 in Wrapping) {
@@ -174,18 +172,18 @@ machine Main::main(main: &mut Main) reaches Console {
         transition main.design.selected[index] == 1 { true -> selected_emit(main, index) _ -> selected(main, index+1) }
     }
     state selected_emit(main: &mut Main, index: i64 in Wrapping) {
-        main.console.write(" "); Main::number(main, index);
+        Console::write(" "); Main::number(main, index);
         transition { _ -> selected(main, index+1) }
     }
     state information(main: &mut Main, row: i64 in Wrapping, column: i64 in Wrapping) {
         transition column == 0 { true -> information_label(main, row) _ -> information_bound(main, row, column) }
     }
     state information_label(main: &mut Main, row: i64 in Wrapping) {
-        main.console.write_byte(10);
+        Console::write_byte(10);
         transition row <= main.design.degree { true -> information_start(main, row) _ -> determinant(main) }
     }
     state information_start(main: &mut Main, row: i64 in Wrapping) {
-        main.console.write("information");
+        Console::write("information");
         transition { _ -> information_bound(main, row, 0) }
     }
     state information_bound(main: &mut Main, row: i64 in Wrapping, column: i64 in Wrapping) {
@@ -197,16 +195,16 @@ machine Main::main(main: &mut Main) reaches Console {
     }
     state information_emit(main: &mut Main, row: i64 in Wrapping, column: i64 in Wrapping, position: i64 in Wrapping) {
         let value: i64 in Wrapping = main.design.information[position];
-        main.console.write(" "); Main::number(main, value);
+        Console::write(" "); Main::number(main, value);
         transition { _ -> information(main, row, column+1) }
     }
     state determinant(main: &mut Main) {
         let value: i64 in Wrapping = main.design.determinant;
-        main.console.write("determinant "); Main::number(main, value); main.console.write_byte(10);
+        Console::write("determinant "); Main::number(main, value); Console::write_byte(10);
         transition main.design.determinant > 0 { true -> identifiable(main) _ -> singular(main) }
     }
     state identifiable(main: &mut Main) {
-        main.console.write_line("status identifiable");
+        Console::write_line("status identifiable");
         transition { _ -> covariance(main, 0, 0) }
     }
     state covariance(main: &mut Main, row: i64 in Wrapping, column: i64 in Wrapping) {
@@ -216,14 +214,14 @@ machine Main::main(main: &mut Main) reaches Console {
         transition column == 0 { true -> covariance_start(main, row) _ -> covariance_bound(main, row, column) }
     }
     state covariance_start(main: &mut Main, row: i64 in Wrapping) {
-        main.console.write("covariance");
+        Console::write("covariance");
         transition { _ -> covariance_bound(main, row, 0) }
     }
     state covariance_bound(main: &mut Main, row: i64 in Wrapping, column: i64 in Wrapping) {
         transition column <= main.design.degree { true -> covariance_index(main, row, column) _ -> covariance_next(main, row) }
     }
     state covariance_next(main: &mut Main, row: i64 in Wrapping) {
-        main.console.write_byte(10);
+        Console::write_byte(10);
         transition { _ -> covariance(main, row+1, 0) }
     }
     state covariance_index(main: &mut Main, row: i64 in Wrapping, column: i64 in Wrapping) {
@@ -233,7 +231,7 @@ machine Main::main(main: &mut Main) reaches Console {
     state covariance_emit(main: &mut Main, row: i64 in Wrapping, column: i64 in Wrapping, position: i64 in Wrapping) {
         let numerator: i64 in Wrapping = main.design.covariance[position];
         let denominator: i64 in Wrapping = main.design.determinant;
-        main.console.write(" "); Main::rational(main, numerator, denominator);
+        Console::write(" "); Main::rational(main, numerator, denominator);
         transition { _ -> covariance(main, row, column+1) }
     }
     state variances(main: &mut Main, index: i64 in Wrapping) {
@@ -242,12 +240,12 @@ machine Main::main(main: &mut Main) reaches Console {
     state variance_emit(main: &mut Main, index: i64 in Wrapping) {
         let numerator: i64 in Wrapping = main.design.variances[index];
         let denominator: i64 in Wrapping = main.design.determinant;
-        main.console.write("variance "); Main::rational(main, numerator, denominator); main.console.write_byte(10);
+        Console::write("variance "); Main::rational(main, numerator, denominator); Console::write_byte(10);
         transition { _ -> variances(main, index+1) }
     }
-    state done(main: &mut Main) { main.console.exit_process(0); }
-    state singular(main: &mut Main) { main.console.write_line("status non-identifiable"); main.console.exit_process(3); }
-    state invalid(main: &mut Main) { main.console.write_line("invalid input"); main.console.exit_process(2); }
+    state done(main: &mut Main) { Console::exit_process(0); }
+    state singular(main: &mut Main) { Console::write_line("status non-identifiable"); Console::exit_process(3); }
+    state invalid(main: &mut Main) { Console::write_line("invalid input"); Console::exit_process(2); }
 }
 machine Main::mode_character(degree: i64 in Wrapping, position: i64 in Wrapping) -> i32 {
     transition degree == 1 { true -> linear(position) _ -> quadratic(position) }

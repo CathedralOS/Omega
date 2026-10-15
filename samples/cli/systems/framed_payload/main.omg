@@ -8,7 +8,6 @@
 // Expected exit: 60.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 // Wrapping DECLARED: the checksum sums slice elements, which carry no range
 // facts yet (the elements share the domain so the accumulation is single-domain).
@@ -26,13 +25,12 @@ machine sum(s: &[i32 in Wrapping], acc: i32 in Wrapping) -> i32 in Wrapping {
 }
 
 data Main {
-    console: Binding<Console>;
     frame: Frame;
     pause: [u8; 256];
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    main.console.write_line("framed_payload: subslicing the payload out of a framed message and summing it");
+    Console::write_line("framed_payload: subslicing the payload out of a framed message and summing it");
     main.frame.bytes[0] = 255;
     main.frame.bytes[1] = 10;
     main.frame.bytes[2] = 20;
@@ -41,8 +39,8 @@ machine Main::main(main: &mut Main) reaches Console {
 
     let full: &[i32 in Wrapping] = &main.frame.bytes[..];
     let checksum: i32 = sum(full[1..4], 0) as i32;
-    main.console.write_line("result: the payload checksum, 60 for this frame (the exit code)");
-    main.console.write_line("[press Enter to close]");
-    _ = block main.console.read_line(&mut main.pause);
-    main.console.exit_process(checksum);
+    Console::write_line("result: the payload checksum, 60 for this frame (the exit code)");
+    Console::write_line("[press Enter to close]");
+    _ = block Console::read_line(&mut main.pause);
+    Console::exit_process(checksum);
 }

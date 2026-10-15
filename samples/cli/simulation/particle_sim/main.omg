@@ -22,7 +22,6 @@
 
 use omega::language::core::float_operations;
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Particle [copy] {
     position: f64;
@@ -31,13 +30,12 @@ data Particle [copy] {
 }
 
 data Main {
-    console: Binding<Console>;
     p: Particle;
     pause: [u8; 256];
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    main.console.write_line("particle_sim: 5 Euler steps of position/velocity/acceleration in f64");
+    Console::write_line("particle_sim: 5 Euler steps of position/velocity/acceleration in f64");
     // Initialize.
     main.p.velocity = 1.0;
     main.p.acceleration = 0.5;
@@ -64,17 +62,17 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state good(main: &mut Main) {
-        main.console.write_line("PASS: position landed at 10.0 after 5 steps (exit 70)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(70);
+        Console::write_line("PASS: position landed at 10.0 after 5 steps (exit 70)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(70);
     }
 
     state bad(main: &mut Main) {
-        main.console.write_line("FAIL: position outside (9.5, 10.5) after 5 steps (exit 71)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(71);
+        Console::write_line("FAIL: position outside (9.5, 10.5) after 5 steps (exit 71)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(71);
     }
 }
 

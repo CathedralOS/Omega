@@ -15,9 +15,7 @@
 //
 // Expected exit: 189
 use omega_language_std::console;
-use omega::language::core::binding;
 data Main {
-    console: Binding<Console>;
 }
 data Matrices {
     a: [[i32 in Wrapping; 3]; 3];
@@ -64,6 +62,6 @@ machine Main::main(context: &mut Main) reaches Console {
     state checksum(context: &mut Main, matrices: &Matrices) {
         let total: i32 in Wrapping = matrices.c[0][0] + matrices.c[1][1] + matrices.c[2][2];
         let code: i32 in Wrapping = total % 256;
-        context.console.exit_process(code as i32);
+        Console::exit_process(code as i32);
     }
 }

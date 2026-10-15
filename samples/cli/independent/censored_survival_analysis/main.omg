@@ -58,7 +58,7 @@ machine Main::main(main: &mut Main) reaches Console crashes Trap {
     }
     state done(main: &mut Main) {
         logrank_report(&mut main.reader, &main.logrank);
-        main.reader.console.exit_process(0);
+        Console::exit_process(0);
     }
-    state invalid(main: &mut Main) { main.reader.console.write_line("ERROR invalid input"); main.reader.console.exit_process(2); }
+    state invalid(main: &mut Main) { Console::write_line("ERROR invalid input"); Console::exit_process(2); }
 }

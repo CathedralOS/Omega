@@ -10,10 +10,8 @@
 // so the number is valid. Exits 70 on valid, 71 on invalid.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
     pause: [u8; 256];
     digits: [i32; 11];
     r: i32;
@@ -23,7 +21,7 @@ data Main {
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    main.console.write_line("luhn_checksum: validating 79927398713 with the credit-card check-digit rule");
+    Console::write_line("luhn_checksum: validating 79927398713 with the credit-card check-digit rule");
     main.digits = [7, 9, 9, 2, 7, 3, 9, 8, 7, 1, 3];
     main.r = 10;
     main.sum = 0;
@@ -75,15 +73,15 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
     state valid(main: &mut Main) {
-        main.console.write_line("PASS: Luhn sum 70 is a multiple of 10, number valid (exit 70)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(70);
+        Console::write_line("PASS: Luhn sum 70 is a multiple of 10, number valid (exit 70)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(70);
     }
     state invalid(main: &mut Main) {
-        main.console.write_line("FAIL: Luhn sum not a multiple of 10, number invalid (exit 71)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(71);
+        Console::write_line("FAIL: Luhn sum not a multiple of 10, number invalid (exit 71)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(71);
     }
 }

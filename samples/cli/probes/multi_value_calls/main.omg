@@ -24,10 +24,8 @@
 // Expected exit: 70.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
     offset: i32 in Saturating;
     pause: [u8; 256];
 }
@@ -52,7 +50,7 @@ machine clamp_low(n: i32 in Saturating, min_val: i32 in Saturating) -> i32 in Sa
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    main.console.write_line("multi_value_calls: three value-returning calls combined into one total");
+    Console::write_line("multi_value_calls: three value-returning calls combined into one total");
     // Set up a field to test that it doesn't interfere with call results.
     main.offset = 38;
 
@@ -70,10 +68,10 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state bad_total(main: &mut Main) {
-        main.console.write_line("FAIL: wrong combined total (exit 71)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(71);
+        Console::write_line("FAIL: wrong combined total (exit 71)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(71);
     }
 
     state check_r1(main: &mut Main, r1: i32 in Saturating, r2: i32 in Saturating, r3: i32 in Saturating) {
@@ -84,10 +82,10 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state bad_r1(main: &mut Main) {
-        main.console.write_line("FAIL: double_val(15) != 30 (exit 72)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(72);
+        Console::write_line("FAIL: double_val(15) != 30 (exit 72)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(72);
     }
 
     state check_r2(main: &mut Main, r2: i32 in Saturating, r3: i32 in Saturating) {
@@ -98,10 +96,10 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state bad_r2(main: &mut Main) {
-        main.console.write_line("FAIL: add3(5,10,7) != 22 (exit 73)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(73);
+        Console::write_line("FAIL: add3(5,10,7) != 22 (exit 73)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(73);
     }
 
     state check_r3(main: &mut Main, r3: i32 in Saturating) {
@@ -112,16 +110,16 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state bad_r3(main: &mut Main) {
-        main.console.write_line("FAIL: clamp_low(18,20) != 20 (exit 74)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(74);
+        Console::write_line("FAIL: clamp_low(18,20) != 20 (exit 74)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(74);
     }
 
     state good(main: &mut Main) {
-        main.console.write_line("PASS: 30 + 22 - 20 + 38 = 70, all results intact (exit 70)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(70);
+        Console::write_line("PASS: 30 + 22 - 20 + 38 = 70, all results intact (exit 70)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(70);
     }
 }

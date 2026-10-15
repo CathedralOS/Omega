@@ -10,13 +10,10 @@
 use omega_language_std::console;
 use omega_language_std::clock;
 use omega_language_std::time;
-use omega::language::core::binding;
 domain [u8; 12]::Utf8(bytes)
 requires
     valid_utf8(bytes);
 data Main {
-    console: Binding<Console>;
-    clock: Binding<Clock>;
     time: Time;
     line: [u8; 12] in Utf8;
     frame: u32 in Wrapping;
@@ -25,7 +22,7 @@ data Main {
     pause: [u8; 256];
 }
 machine Main::main(main: &mut Main) reaches Clock + Console {
-    main.console.write_line("tick_marquee: a # sweeps 24 frames, then real elapsed time is asserted");
+    Console::write_line("tick_marquee: a # sweeps 24 frames, then real elapsed time is asserted");
     main.t_start = Time::now(&mut main.time);
     main.frame = 0;
     transition { _ -> frame_loop(main) }
@@ -39,8 +36,8 @@ machine Main::main(main: &mut Main) reaches Clock + Console {
     }
     state put(main: &mut Main) {
         main.line[main.pos] = 35;
-        main.console.write_line(main.line);
-        main.clock.sleep(15);
+        Console::write_line(main.line);
+        Clock::sleep(15);
         main.frame = main.frame + 1;
         transition { _ -> frame_loop(main) }
     }
@@ -55,15 +52,15 @@ machine Main::main(main: &mut Main) reaches Clock + Console {
         transition subsecond_nanoseconds >= 100000000 { true -> ok(main) _ -> bad(main) }
     }
     state ok(main: &mut Main)  {
-        main.console.write_line("PASS: 24 frames drawn and elapsed time >= 100ms (exit 0)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(0);
+        Console::write_line("PASS: 24 frames drawn and elapsed time >= 100ms (exit 0)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(0);
     }
     state bad(main: &mut Main) {
-        main.console.write_line("FAIL: elapsed time came in under 100ms (exit 1)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(1);
+        Console::write_line("FAIL: elapsed time came in under 100ms (exit 1)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(1);
     }
 }

@@ -1,9 +1,7 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 use omega::language::core::float_operations;
 
 data Protocol {
-    console: Binding<Console>;
     fields: [f64; 7];
     position: i32 in Wrapping;
     length: i32 in Wrapping;
@@ -27,7 +25,7 @@ machine Protocol::read(protocol: &mut Protocol) -> bool reaches Console blocks; 
         transition protocol.length < 512 { true -> observe(protocol) false -> rejected() }
     }
     state observe(protocol: &mut Protocol) -> bool {
-        let observed: ByteRead = block protocol.console.read_byte();
+        let observed: ByteRead = block Console::read_byte();
         protocol.length = protocol.length + 1;
         transition observed {
             ByteRead::Eof -> commit(protocol, true)
@@ -128,7 +126,7 @@ reaches Console {
         false -> digits(protocol, value, 1000000000, false)
     }
     state negative(protocol: &mut Protocol, value: i32 in Wrapping) {
-        protocol.console.write_byte(45);
+        Console::write_byte(45);
         transition { _ -> digits(protocol, 0 - value, 1000000000, false) }
     }
     state digits(protocol: &mut Protocol, value: i32 in Wrapping,
@@ -146,7 +144,7 @@ reaches Console {
         remainder: i32 in Wrapping, divisor: i32 in Wrapping)
     requires divisor >= 1
     {
-        protocol.console.write_byte((digit + 48) as i32);
+        Console::write_byte((digit + 48) as i32);
         transition { _ -> next(protocol, remainder, divisor, true) }
     }
     state next(protocol: &mut Protocol, value: i32 in Wrapping,
@@ -178,7 +176,7 @@ reaches Console {
         false -> digits(protocol, value, 1000000000000000000, false)
     }
     state negative(protocol: &mut Protocol, value: i64 in Wrapping) {
-        protocol.console.write_byte(45);
+        Console::write_byte(45);
         transition { _ -> digits(protocol, 0 - value, 1000000000000000000, false) }
     }
     state digits(protocol: &mut Protocol, value: i64 in Wrapping,
@@ -203,7 +201,7 @@ reaches Console {
         remainder: i64 in Wrapping, divisor: i64 in Wrapping)
     requires divisor >= 1 && digit >= 0 && digit <= 9
     {
-        protocol.console.write_byte((digit + 48) as i32);
+        Console::write_byte((digit + 48) as i32);
         transition { _ -> next(protocol, remainder, divisor, true) }
     }
     state next(protocol: &mut Protocol, value: i64 in Wrapping,
@@ -226,8 +224,8 @@ reaches Console {
         }
     }
     state invalid(protocol: &mut Protocol) {
-        protocol.console.write_line("ERROR numeric: invalid decimal digit");
-        protocol.console.exit_process(66);
+        Console::write_line("ERROR numeric: invalid decimal digit");
+        Console::exit_process(66);
     }
     state done() { }
 }
@@ -240,7 +238,7 @@ reaches Console {
         true -> zero(protocol)
         false -> sign(protocol, value)
     }
-    state zero(protocol: &mut Protocol) { protocol.console.write("0"); }
+    state zero(protocol: &mut Protocol) { Console::write("0"); }
     state sign(protocol: &mut Protocol, value: f64) {
         transition value < 0.0 {
             true -> negative(protocol, value)
@@ -248,7 +246,7 @@ reaches Console {
         }
     }
     state negative(protocol: &mut Protocol, value: f64) {
-        protocol.console.write_byte(45);
+        Console::write_byte(45);
         transition { _ -> normalize(protocol, 0.0 - value, 0) }
     }
     state normalize(protocol: &mut Protocol, value: f64, exponent: i32 in Wrapping) {
@@ -275,11 +273,11 @@ reaches Console {
     {
         let mantissa: i64 = I64::from_f64(scaled);
         Protocol::wide_integer(protocol, mantissa as i64 in Wrapping);
-        protocol.console.write("e");
+        Console::write("e");
         Protocol::integer(protocol, exponent - 15);
     }
     state invalid(protocol: &mut Protocol) {
-        protocol.console.write_line("ERROR numeric: reporting value outside finite model envelope");
-        protocol.console.exit_process(66);
+        Console::write_line("ERROR numeric: reporting value outside finite model envelope");
+        Console::exit_process(66);
     }
 }

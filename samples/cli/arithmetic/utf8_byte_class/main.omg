@@ -15,16 +15,14 @@
 
 use omega_language_std::console;
 use omega::language::core::numeric_conversion;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
     byte: u8 in Wrapping;
     pause: [u8; 256];
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    main.console.write_line("utf8_byte_class: classify a byte by its leading bits using shift/cast guards");
+    Console::write_line("utf8_byte_class: classify a byte by its leading bits using shift/cast guards");
     main.byte = 226; // 0xE2 = 11100010, a 3-byte-sequence lead
 
     // High bit clear -> ASCII (0xxxxxxx). Unsigned `>>` in a guard subject.
@@ -50,25 +48,25 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state ascii(main: &mut Main) {
-        main.console.write_line("class: ASCII (0xxxxxxx) -- exit 1");
+        Console::write_line("class: ASCII (0xxxxxxx) -- exit 1");
         transition { _ -> done1(main) }
     }
     state continuation(main: &mut Main) {
-        main.console.write_line("class: continuation byte (10xxxxxx) -- exit 4");
+        Console::write_line("class: continuation byte (10xxxxxx) -- exit 4");
         transition { _ -> done4(main) }
     }
     state lead2(main: &mut Main) {
-        main.console.write_line("class: 2-byte sequence lead (110xxxxx) -- exit 2");
+        Console::write_line("class: 2-byte sequence lead (110xxxxx) -- exit 2");
         transition { _ -> done2(main) }
     }
     state lead3(main: &mut Main) {
-        main.console.write_line("class: 3-byte sequence lead (1110xxxx) -- exit 3");
+        Console::write_line("class: 3-byte sequence lead (1110xxxx) -- exit 3");
         transition { _ -> done3(main) }
     }
     state unreachable(main: &mut Main) {
         // A high-bit-set byte that is non-negative as i8 is impossible; guard the
         // dispatch anyway (no silent fall-through) and report the contradiction.
-        main.console.write_line("class: IMPOSSIBLE -- high bit set but non-negative as i8 -- exit 99");
+        Console::write_line("class: IMPOSSIBLE -- high bit set but non-negative as i8 -- exit 99");
         transition { _ -> done99(main) }
     }
 
@@ -78,9 +76,9 @@ machine Main::main(main: &mut Main) reaches Console {
     state done4(main: &mut Main) { transition { _ -> finish4(main) } }
     state done99(main: &mut Main) { transition { _ -> finish99(main) } }
 
-    state finish1(main: &mut Main) { main.console.write_line("[press Enter to close]"); _ = block main.console.read_line(&mut main.pause); main.console.exit_process(1); }
-    state finish2(main: &mut Main) { main.console.write_line("[press Enter to close]"); _ = block main.console.read_line(&mut main.pause); main.console.exit_process(2); }
-    state finish3(main: &mut Main) { main.console.write_line("[press Enter to close]"); _ = block main.console.read_line(&mut main.pause); main.console.exit_process(3); }
-    state finish4(main: &mut Main) { main.console.write_line("[press Enter to close]"); _ = block main.console.read_line(&mut main.pause); main.console.exit_process(4); }
-    state finish99(main: &mut Main) { main.console.write_line("[press Enter to close]"); _ = block main.console.read_line(&mut main.pause); main.console.exit_process(99); }
+    state finish1(main: &mut Main) { Console::write_line("[press Enter to close]"); _ = block Console::read_line(&mut main.pause); Console::exit_process(1); }
+    state finish2(main: &mut Main) { Console::write_line("[press Enter to close]"); _ = block Console::read_line(&mut main.pause); Console::exit_process(2); }
+    state finish3(main: &mut Main) { Console::write_line("[press Enter to close]"); _ = block Console::read_line(&mut main.pause); Console::exit_process(3); }
+    state finish4(main: &mut Main) { Console::write_line("[press Enter to close]"); _ = block Console::read_line(&mut main.pause); Console::exit_process(4); }
+    state finish99(main: &mut Main) { Console::write_line("[press Enter to close]"); _ = block Console::read_line(&mut main.pause); Console::exit_process(99); }
 }

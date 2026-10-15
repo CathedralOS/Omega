@@ -1,10 +1,9 @@
 // Complete intended-invalid control: a correction declared nonnegative
 // receives a negative exact integer mass. Rejection must name the obligation.
 use omega_language_std::console;
-use omega::language::core::binding;
 domain i32::Nonnegative(value) requires value >= 0;
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Console {
     let corrected: i32 in Nonnegative = 0 - 1;
-    main.console.exit_process(corrected);
+    Console::exit_process(corrected);
 }

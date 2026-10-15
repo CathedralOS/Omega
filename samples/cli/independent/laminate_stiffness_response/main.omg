@@ -1,7 +1,6 @@
 // Complete finite laminate workflow. Input selects one declared synthetic stack.
 // Expected exit: 0 (valid 0..4); singular 5 exits 3; invalid input exits 2.
 use omega_language_std::console;
-use omega::language::core::binding;
 use omega::language::core::float_operations;
 use mechanics::model;
 use mechanics::solve;
@@ -10,7 +9,7 @@ use mechanics::checks;
 use mechanics::fixtures;
 data Main { reporter: Reporter; model: Laminate; input: [u8; 4]; }
 machine Main::main(main: &mut Main) reaches Console {
-    let observed: LineReadResult = block main.reporter.console.read_line(&mut main.input);
+    let observed: LineReadResult = block Console::read_line(&mut main.input);
     transition observed {
         LineReadResult::LineComplete { count } -> input_count(main,count)
         LineReadResult::EndOfInput { count } -> eof(main,count)
@@ -72,27 +71,27 @@ machine Main::main(main: &mut Main) reaches Console {
         transition accepted { true -> accepted_report(main) false -> numeric_failure(main) }
     }
     state numeric_failure(main: &mut Main) {
-        main.reporter.console.write_line("NUMERIC CHECK FAILED"); main.reporter.console.exit_process(4);
+        Console::write_line("NUMERIC CHECK FAILED"); Console::exit_process(4);
     }
     state accepted_report(main: &mut Main) {
-        main.reporter.console.write_line("LAMINATE micro-units v1");
+        Console::write_line("LAMINATE micro-units v1");
         transition { _ -> stiffness_report(main,0) }
     }
     state stiffness_report(main: &mut Main,layer_index: u64)
     requires layer_index <= 3 {
-        main.reporter.console.write_line("Q");
+        Console::write_line("Q");
         matrix(&mut main.reporter,&main.model.stiffness[layer_index]);
         let next: u64 = layer_index+1;
         transition next < main.model.count && next <= 3 { true -> stiffness_report(main,next) false -> assembled_report(main) }
     }
     state assembled_report(main: &mut Main) {
-        main.reporter.console.write_line("A"); matrix(&mut main.reporter,&main.model.a);
-        main.reporter.console.write_line("B"); matrix(&mut main.reporter,&main.model.b);
-        main.reporter.console.write_line("D"); matrix(&mut main.reporter,&main.model.d);
+        Console::write_line("A"); matrix(&mut main.reporter,&main.model.a);
+        Console::write_line("B"); matrix(&mut main.reporter,&main.model.b);
+        Console::write_line("D"); matrix(&mut main.reporter,&main.model.d);
         transition main.model.singular { true -> singular(main) false -> stresses(main) }
     }
     state stresses(main: &mut Main) {
-        main.reporter.console.write_line("RESPONSE");
+        Console::write_line("RESPONSE");
         transition { _ -> response_report(main,0) }
     }
     state response_report(main: &mut Main,index: u64) requires index <= 5 {
@@ -101,15 +100,15 @@ machine Main::main(main: &mut Main) reaches Console {
         transition next <= 5 { true -> response_report(main,next) false -> stress_report(main,0) }
     }
     state stress_report(main: &mut Main,layer_index: u64) requires layer_index <= 3 {
-        main.reporter.console.write_line("STRESS");
+        Console::write_line("STRESS");
         number(&mut main.reporter,main.model.stress[layer_index][0]);
         number(&mut main.reporter,main.model.stress[layer_index][1]);
         number(&mut main.reporter,main.model.stress[layer_index][2]);
         let next: u64 = layer_index+1;
         transition next < main.model.count && next <= 3 { true -> stress_report(main,next) false -> done(main) }
     }
-    state singular(main: &mut Main) { main.reporter.console.write_line("SINGULAR"); main.reporter.console.exit_process(3); }
-    state bad_input(main: &mut Main) { main.reporter.console.write_line("INVALID INPUT"); main.reporter.console.exit_process(2); }
-    state bad_model(main: &mut Main) { main.reporter.console.write_line("INVALID MODEL"); main.reporter.console.exit_process(2); }
-    state done(main: &mut Main) { main.reporter.console.write_line("OK"); main.reporter.console.exit_process(0); }
+    state singular(main: &mut Main) { Console::write_line("SINGULAR"); Console::exit_process(3); }
+    state bad_input(main: &mut Main) { Console::write_line("INVALID INPUT"); Console::exit_process(2); }
+    state bad_model(main: &mut Main) { Console::write_line("INVALID MODEL"); Console::exit_process(2); }
+    state done(main: &mut Main) { Console::write_line("OK"); Console::exit_process(0); }
 }

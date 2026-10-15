@@ -19,13 +19,13 @@ machine Application::main(application: &mut Application) reaches Console crashes
         true -> counts(application, standards.value, unknowns.value) _ -> invalid(application)
     }
     state invalid(application: &mut Application) {
-        application.reader.console.write_line("ERROR malformed or out-of-range input"); application.reader.console.exit_process(10);
+        Console::write_line("ERROR malformed or out-of-range input"); Console::exit_process(10);
     }
     state degenerate(application: &mut Application) {
-        application.reader.console.write_line("ERROR rank-deficient or nonnegative calibration slope"); application.reader.console.exit_process(11);
+        Console::write_line("ERROR rank-deficient or nonnegative calibration slope"); Console::exit_process(11);
     }
     state numerical(application: &mut Application) {
-        application.reader.console.write_line("ERROR nonrepresentable calibration or inversion"); application.reader.console.exit_process(12);
+        Console::write_line("ERROR nonrepresentable calibration or inversion"); Console::exit_process(12);
     }
     state counts(application: &mut Application, standards: f64, unknowns: f64) {
         let count: i32 in Saturating = I32::from_f64(standards);
@@ -151,5 +151,5 @@ machine Application::main(application: &mut Application) reaches Console crashes
         field(&mut application.reader, "interval_extrapolated=", match lower < application.minimum_x - 0.000000000001 || upper > application.maximum_x + 0.000000000001 { true -> 1.0 _ -> 0.0 });
         application.index = application.index + 1; transition { _ -> quantify(application) }
     }
-    state done(application: &mut Application) { application.reader.console.exit_process(0); }
+    state done(application: &mut Application) { Console::exit_process(0); }
 }

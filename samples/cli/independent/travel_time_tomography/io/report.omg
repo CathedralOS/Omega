@@ -1,10 +1,9 @@
 // Signed micro-units avoid dependence on a floating-point text library.
 // Values truncate toward zero; validation allows one micro-unit quantization.
 use omega_language_std::console;
-use omega::language::core::binding;
 use omega::language::core::float_operations;
 use domain::model;
-pub data Output { console: Binding<Console>; }
+pub data Output { }
 pub machine write_scaled(output: &mut Output, value: f64) reaches Console
 invokes Console;
 {
@@ -12,7 +11,7 @@ invokes Console;
     let units: i64 = (converted as i64) % 2000000000000000;
     transition units < 0 { true -> negative(output, units) false -> positive(output, units) }
     state negative(output: &mut Output, units: i64) requires units > -2000000000000000 requires units < 0 {
-        output.console.write("-");
+        Console::write("-");
         transition { _ -> digits(output, 0 - units, 1000000000000000, false) }
     }
     state positive(output: &mut Output, units: i64) requires units >= 0 requires units < 2000000000000000 {
@@ -28,76 +27,76 @@ invokes Console;
     }
     state emit(output: &mut Output, units: i64, divisor: i64, digit: i64)
     requires units >= 0 requires units < 2000000000000000 requires divisor >= 1 requires divisor <= 1000000000000000 requires digit >= 0 requires digit <= 9 {
-        output.console.write_byte((digit as i32) + 48);
+        Console::write_byte((digit as i32) + 48);
         transition { _ -> advance(output, units, divisor, true) }
     }
     state advance(output: &mut Output, units: i64, divisor: i64, started: bool)
     requires units >= 0 requires units < 2000000000000000 requires divisor >= 1 requires divisor <= 1000000000000000 {
         transition divisor >= 10 { true -> digits(output, units, divisor / 10, started) false -> done(output) }
     }
-    state done(output: &mut Output) { output.console.write_line(""); }
+    state done(output: &mut Output) { Console::write_line(""); }
 }
 pub machine report(output: &mut Output, problem: &Problem, fit: &Fit) reaches Console
 invokes Console;
 {
-    output.console.write_line("travel_time_tomography synthetic two-cell model; numeric fields in micro-units");
-    output.console.write("cell_first_micro="); write_scaled(output, fit.first);
-    output.console.write("cell_second_micro="); write_scaled(output, fit.second);
-    output.console.write("residual_0_micro="); write_scaled(output, residual(&problem.rays[0], fit.first, fit.second));
-    output.console.write("residual_1_micro="); write_scaled(output, residual(&problem.rays[1], fit.first, fit.second));
-    output.console.write("residual_2_micro="); write_scaled(output, residual(&problem.rays[2], fit.first, fit.second));
-    output.console.write("sse_micro="); write_scaled(output, fit.objective);
-    output.console.write("null_first_micro="); write_scaled(output, fit.null_first);
-    output.console.write("null_second_micro="); write_scaled(output, fit.null_second);
+    Console::write_line("travel_time_tomography synthetic two-cell model; numeric fields in micro-units");
+    Console::write("cell_first_micro="); write_scaled(output, fit.first);
+    Console::write("cell_second_micro="); write_scaled(output, fit.second);
+    Console::write("residual_0_micro="); write_scaled(output, residual(&problem.rays[0], fit.first, fit.second));
+    Console::write("residual_1_micro="); write_scaled(output, residual(&problem.rays[1], fit.first, fit.second));
+    Console::write("residual_2_micro="); write_scaled(output, residual(&problem.rays[2], fit.first, fit.second));
+    Console::write("sse_micro="); write_scaled(output, fit.objective);
+    Console::write("null_first_micro="); write_scaled(output, fit.null_first);
+    Console::write("null_second_micro="); write_scaled(output, fit.null_second);
     transition fit.rank == 2 { true -> full(output, problem, fit) false -> deficient(output, problem, fit) }
     state full(output: &mut Output, problem: &Problem, fit: &Fit) {
-        output.console.write_line("rank=2; nullity=0; identifiable=yes");
+        Console::write_line("rank=2; nullity=0; identifiable=yes");
         transition { _ -> first_bound(output, problem, fit) }
     }
     state deficient(output: &mut Output, problem: &Problem, fit: &Fit) {
         transition fit.rank == 1 { true -> one(output, problem, fit) false -> zero(output, problem, fit) }
     }
     state one(output: &mut Output, problem: &Problem, fit: &Fit) {
-        output.console.write_line("rank=1; nullity=1; identifiable=no; null vector reported above");
+        Console::write_line("rank=1; nullity=1; identifiable=no; null vector reported above");
         transition { _ -> first_bound(output, problem, fit) }
     }
     state zero(output: &mut Output, problem: &Problem, fit: &Fit) {
-        output.console.write_line("rank=0; nullity=2; identifiable=no; second null vector=(0,1)");
+        Console::write_line("rank=0; nullity=2; identifiable=no; second null vector=(0,1)");
         transition { _ -> first_bound(output, problem, fit) }
     }
     state first_bound(output: &mut Output, problem: &Problem, fit: &Fit) {
         transition fit.first == problem.low_first { true -> first_low(output, problem, fit) false -> first_upper_test(output, problem, fit) }
     }
     state first_low(output: &mut Output, problem: &Problem, fit: &Fit) {
-        output.console.write_line("active_first=lower"); transition { _ -> second_bound(output, problem, fit) }
+        Console::write_line("active_first=lower"); transition { _ -> second_bound(output, problem, fit) }
     }
     state first_upper_test(output: &mut Output, problem: &Problem, fit: &Fit) {
         transition fit.first == problem.high_first { true -> first_high(output, problem, fit) false -> first_free(output, problem, fit) }
     }
     state first_high(output: &mut Output, problem: &Problem, fit: &Fit) {
-        output.console.write_line("active_first=upper"); transition { _ -> second_bound(output, problem, fit) }
+        Console::write_line("active_first=upper"); transition { _ -> second_bound(output, problem, fit) }
     }
     state first_free(output: &mut Output, problem: &Problem, fit: &Fit) {
-        output.console.write_line("active_first=free"); transition { _ -> second_bound(output, problem, fit) }
+        Console::write_line("active_first=free"); transition { _ -> second_bound(output, problem, fit) }
     }
     state second_bound(output: &mut Output, problem: &Problem, fit: &Fit) {
         transition fit.second == problem.low_second { true -> second_low(output, fit) false -> second_upper_test(output, problem, fit) }
     }
     state second_low(output: &mut Output, fit: &Fit) {
-        output.console.write_line("active_second=lower"); transition { _ -> consistency(output, fit) }
+        Console::write_line("active_second=lower"); transition { _ -> consistency(output, fit) }
     }
     state second_upper_test(output: &mut Output, problem: &Problem, fit: &Fit) {
         transition fit.second == problem.high_second { true -> second_high(output, fit) false -> second_free(output, fit) }
     }
     state second_high(output: &mut Output, fit: &Fit) {
-        output.console.write_line("active_second=upper"); transition { _ -> consistency(output, fit) }
+        Console::write_line("active_second=upper"); transition { _ -> consistency(output, fit) }
     }
     state second_free(output: &mut Output, fit: &Fit) {
-        output.console.write_line("active_second=free"); transition { _ -> consistency(output, fit) }
+        Console::write_line("active_second=free"); transition { _ -> consistency(output, fit) }
     }
     state consistency(output: &mut Output, fit: &Fit) {
         transition fit.objective < 0.000000000001 { true -> exact(output) false -> inconsistent(output) }
     }
-    state exact(output: &mut Output) { output.console.write_line("fit=consistent_within_1e-12_sse"); }
-    state inconsistent(output: &mut Output) { output.console.write_line("fit=inconsistent_or_bound_limited"); }
+    state exact(output: &mut Output) { Console::write_line("fit=consistent_within_1e-12_sse"); }
+    state inconsistent(output: &mut Output) { Console::write_line("fit=inconsistent_or_bound_limited"); }
 }

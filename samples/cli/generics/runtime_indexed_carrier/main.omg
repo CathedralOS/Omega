@@ -2,7 +2,6 @@
 // Authored inputs: (index, payload) = (7, 31), (13, 39).
 // Each payload is checked separately before their sum becomes the exit code.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Indexed<Limit: u32> { value: u32; }
 
@@ -25,16 +24,16 @@ machine static_control(value: u32) -> u32 {
     match indexed.Limit == 9 { true -> indexed.value, false -> 0 }
 }
 
-data Main { console: Binding<Console>; }
+data Main { }
 
 machine Main::main(context: &mut Main) reaches Console {
     let first: u32 = preserve(7, 31);
     let second: u32 = preserve(13, 39);
     let control: u32 = static_control(9);
     transition first == 31 && second == 39 && control == 9 {
-        true -> accepted(&context.console)
-        _ -> rejected(&context.console)
+        true -> accepted()
+        _ -> rejected()
     }
-    state accepted(console: &Binding<Console>) { Console::exit_process(console, 70); }
-    state rejected(console: &Binding<Console>) { Console::exit_process(console, 1); }
+    state accepted() { Console::exit_process(70); }
+    state rejected() { Console::exit_process(1); }
 }

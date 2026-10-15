@@ -10,7 +10,6 @@
 
 use omega_language_std::console;
 use omega_language_std::math;
-use omega::language::core::binding;
 
 // Wrapping DECLARED: the accumulator sums an unbounded number of clamped steps.
 machine clamp_sum(s: &[i32 in Wrapping], acc: i32 in Wrapping) -> i32 in Wrapping {
@@ -21,18 +20,17 @@ machine clamp_sum(s: &[i32 in Wrapping], acc: i32 in Wrapping) -> i32 in Wrappin
 }
 
 data Main {
-    console: Binding<Console>;
 }
 
 machine Main::main(context: &mut Main) reaches Console {
-    context.console.write_line("clamp_sum: clamp readings [80, -5, 50, 200, 30] to [0, 60] and sum them");
+    Console::write_line("clamp_sum: clamp readings [80, -5, 50, 200, 30] to [0, 60] and sum them");
     let values: [i32 in Wrapping; 5] = [80, -5, 50, 200, 30];
 
     let slice: &[i32 in Wrapping] = &values[..];
     let total: i32 = clamp_sum(slice, 0) as i32;
-    context.console.write_line("result: the clamped sum, 200 for these readings (the exit code)");
-    context.console.write_line("[press Enter to close]");
+    Console::write_line("result: the clamped sum, 200 for these readings (the exit code)");
+    Console::write_line("[press Enter to close]");
     let mut pause: [u8; 256];
-    _ = block context.console.read_line(&mut pause);
-    context.console.exit_process(total);
+    _ = block Console::read_line(&mut pause);
+    Console::exit_process(total);
 }

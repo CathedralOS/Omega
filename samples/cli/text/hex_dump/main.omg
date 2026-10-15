@@ -16,10 +16,8 @@ requires
     valid_utf8(bytes);
 use omega_language_std::console;
 use omega::language::core::numeric_conversion;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
     data: [u8; 16] in Utf8;
     // Counters are `in Wrapping`: increments are defined arithmetic; the index
     // uses stay bounded by the `i < 16` loop guards.
@@ -33,8 +31,8 @@ data Main {
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    main.console.write_line("hex_dump: 16 bytes as one canonical dump line (offset, hex pairs, gutter)");
-    main.console.write("0000: ");
+    Console::write_line("hex_dump: 16 bytes as one canonical dump line (offset, hex pairs, gutter)");
+    Console::write("0000: ");
     main.data = "Omega PCC tape!!";
     main.data[3] = 0;
     main.data[9] = 127;
@@ -82,7 +80,7 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state write_hi(main: &mut Main) {
-        main.console.write_byte(main.chi);
+        Console::write_byte(main.chi);
         transition {
             _ -> lo_digit(main)
         }
@@ -110,8 +108,8 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state write_lo(main: &mut Main) {
-        main.console.write_byte(main.chi);
-        main.console.write_byte(32);
+        Console::write_byte(main.chi);
+        Console::write_byte(32);
         main.i = main.i + 1;
         transition {
             _ -> hex_loop(main)
@@ -119,7 +117,7 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state gutter_start(main: &mut Main) {
-        main.console.write(" ");
+        Console::write(" ");
         main.i = 0;
         transition {
             _ -> gutter_loop(main)
@@ -143,7 +141,7 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state keep_glyph(main: &mut Main) {
-        main.console.write_byte(main.b as i32);
+        Console::write_byte(main.b as i32);
         main.i = main.i + 1;
         transition {
             _ -> gutter_loop(main)
@@ -151,7 +149,7 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state dot_glyph(main: &mut Main) {
-        main.console.write_byte(46);
+        Console::write_byte(46);
         main.i = main.i + 1;
         transition {
             _ -> gutter_loop(main)
@@ -159,9 +157,9 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state finish(main: &mut Main) {
-        main.console.write_line("");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(0);
+        Console::write_line("");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(0);
     }
 }

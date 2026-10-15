@@ -16,13 +16,8 @@ use omega_language_std::windows_filesystem_host;
 use wav_output::wav_output;
 use audio_playback::audio_playback;
 use omega::language::core::numeric_conversion;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
-    out: Binding<WavOutput>;
-    play: Binding<AudioPlayback>;
-    exit: Binding<ProcessExit>;
     n: i64;
     rc: i32;
     magnitude: i64;
@@ -33,7 +28,7 @@ data Main {
 }
 
 machine Main::main(main: &mut Main) reaches Console + WavOutput + AudioPlayback + PosixFilesystemHost + WindowsFilesystemHost + ProcessExit {
-    main.console.write_line("square_tone: 444 Hz square wave, 8-bit unsigned mono PCM at 8000 Hz, 1 s");
+    Console::write_line("square_tone: 444 Hz square wave, 8-bit unsigned mono PCM at 8000 Hz, 1 s");
 
     // Canonical 44-byte WAV header, little-endian fields.
     main.buffer[0] = 82;  // R
@@ -95,39 +90,39 @@ machine Main::main(main: &mut Main) reaches Console + WavOutput + AudioPlayback 
     }
 
     state write_file(main: &mut Main) {
-        main.n = main.out.write_wav("square_tone.wav", &main.buffer);
+        main.n = WavOutput::write_wav("square_tone.wav", &main.buffer);
         transition main.n == 8044 { true -> play_it(main) _ -> bad(main) }
     }
     state play_it(main: &mut Main) {
-        main.rc = block main.play.play(&main.buffer[0], 8044, &main.buffer[44], 8000);
+        main.rc = block AudioPlayback::play(&main.buffer[0], 8044, &main.buffer[44], 8000);
         transition main.rc == 0 { true -> good(main) _ -> play_failed(main) }
     }
     state good(main: &mut Main) {
-        main.console.write_line("square_tone: wrote square_tone.wav (8000 frames)");
-        main.console.write_line("square_tone: played square_tone.wav");
-        main.exit.exit_process(0);
+        Console::write_line("square_tone: wrote square_tone.wav (8000 frames)");
+        Console::write_line("square_tone: played square_tone.wav");
+        ProcessExit::exit_process(0);
     }
     state bad(main: &mut Main) {
-        main.console.write_line("square_tone: write failed");
-        main.exit.exit_process(1);
+        Console::write_line("square_tone: write failed");
+        ProcessExit::exit_process(1);
     }
     // Bounded decimal printer for small negative provider codes (< 1000 in
     // magnitude): prints `playback failed (-NN)` then exits 2. The negate
     // and digits run in widened i64 so i32::MIN cannot overflow.
     state play_failed(main: &mut Main) {
-        main.console.write("square_tone: playback failed (-");
+        Console::write("square_tone: playback failed (-");
         main.magnitude = 0 - widen_i32_to_i64(main.rc);
         transition main.magnitude >= 100 { true -> hundreds(main) _ -> tens(main) }
     }
     state hundreds(main: &mut Main) {
         main.digit = narrow_i64_to_i32_wrapping(48 + main.magnitude / 100);
-        main.console.write_byte(main.digit);
+        Console::write_byte(main.digit);
         main.magnitude = main.magnitude % 100;
         transition { _ -> tens_after_hundreds(main) }
     }
     state tens_after_hundreds(main: &mut Main) {
         main.digit = narrow_i64_to_i32_wrapping(48 + main.magnitude / 10);
-        main.console.write_byte(main.digit);
+        Console::write_byte(main.digit);
         transition { _ -> ones(main) }
     }
     state tens(main: &mut Main) {
@@ -135,13 +130,13 @@ machine Main::main(main: &mut Main) reaches Console + WavOutput + AudioPlayback 
     }
     state tens_print(main: &mut Main) {
         main.digit = narrow_i64_to_i32_wrapping(48 + main.magnitude / 10);
-        main.console.write_byte(main.digit);
+        Console::write_byte(main.digit);
         transition { _ -> ones(main) }
     }
     state ones(main: &mut Main) {
         main.digit = narrow_i64_to_i32_wrapping(48 + main.magnitude % 10);
-        main.console.write_byte(main.digit);
-        main.console.write_line(")");
-        main.exit.exit_process(2);
+        Console::write_byte(main.digit);
+        Console::write_line(")");
+        ProcessExit::exit_process(2);
     }
 }

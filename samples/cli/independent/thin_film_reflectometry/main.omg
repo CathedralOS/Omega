@@ -26,7 +26,7 @@ machine Application::main(application: &mut Application) reaches Console crashes
         true -> options(application, ambient.value, substrate.value, layers.value, count.value)
         _ -> invalid(application)
     }
-    state invalid(application: &mut Application) { application.reader.console.write_line("ERROR input or domain"); application.reader.console.exit_process(10); }
+    state invalid(application: &mut Application) { Console::write_line("ERROR input or domain"); Console::exit_process(10); }
     state options(application: &mut Application, ambient: f64, substrate: f64, layers: f64, count: f64) {
         let layer_integer: i32 in Saturating = I32::from_f64(layers);
         let count_integer: i32 in Saturating = I32::from_f64(count);
@@ -131,6 +131,6 @@ machine Application::main(application: &mut Application) reaches Console crashes
     state done(application: &mut Application) {
         field(&mut application.reader, "minimum_R_pico=", application.minimum * 1000000000000.0);
         field(&mut application.reader, "minimum_wavelength_pico_nm=", application.minimum_wavelength * 1000000000000.0);
-        application.reader.console.exit_process(0);
+        Console::exit_process(0);
     }
 }

@@ -11,7 +11,6 @@
 // Expected output contains: #
 use omega_language_std::console;
 use omega_language_std::clock;
-use omega::language::core::binding;
 
 domain [u8]::Utf8(bytes)
 requires
@@ -28,8 +27,6 @@ requires
 // (vj/vk/val) are plain i32: they are only copied and compared, never used in
 // arithmetic, so they carry no obligation.
 data Main {
-    console: Binding<Console>;
-    clock: Binding<Clock>;
     arr: [i32; 8];
     home: [u8; 3] in Utf8;
     line: [u8; 8] in Utf8;
@@ -46,7 +43,7 @@ data Main {
 }
 
 machine Main::main(main: &mut Main) reaches Clock + Console {
-    main.console.write_line("sort_visualizer: bubble sort animated as bars settling into a staircase");
+    Console::write_line("sort_visualizer: bubble sort animated as bars settling into a staircase");
     main.arr = [5, 2, 8, 1, 7, 3, 6, 4];
     main.home = "XXX";
     main.home[0] = 27;
@@ -58,7 +55,7 @@ machine Main::main(main: &mut Main) reaches Clock + Console {
 
     // --- render the array as bars, in place ---
     state show(main: &mut Main) {
-        main.console.write(main.home);
+        Console::write(main.home);
         main.ry = 0;
         transition { _ -> show_row(main) }
     }
@@ -97,7 +94,7 @@ machine Main::main(main: &mut Main) reaches Clock + Console {
     // write_line is a CALL, so re-guard `ry < 8` afterwards to carry the bound on
     // the direct edge into the increment (ry < 8 always holds inside the row loop).
     state emit_row(main: &mut Main) {
-        main.console.write_line(main.line);
+        Console::write_line(main.line);
         transition main.ry < 8 { true -> row_bump(main) _ -> show_done(main) }
     }
     state row_bump(main: &mut Main) {
@@ -105,7 +102,7 @@ machine Main::main(main: &mut Main) reaches Clock + Console {
         transition { _ -> show_row(main) }
     }
     state show_done(main: &mut Main) {
-        main.clock.sleep(180);
+        Clock::sleep(180);
         transition { _ -> step(main) }
     }
 
@@ -158,9 +155,9 @@ machine Main::main(main: &mut Main) reaches Clock + Console {
     }
 
     state finish(main: &mut Main) {
-        main.console.write_line("PASS: 7 bubble-sort passes rendered, array sorted (exit 0)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(0);
+        Console::write_line("PASS: 7 bubble-sort passes rendered, array sorted (exit 0)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(0);
     }
 }

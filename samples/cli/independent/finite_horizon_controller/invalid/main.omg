@@ -1,11 +1,10 @@
 // Complete intended-invalid control: caller exceeds a declared horizon contract.
 use omega_language_std::console;
-use omega::language::core::binding;
-data Main { console: Binding<Console>; }
+data Main { }
 machine accepted_horizon(horizon: i32) -> i32
 requires horizon >= 1 && horizon <= 5
 { horizon }
 machine Main::main(main: &mut Main) reaches Console {
     let rejected: i32 = accepted_horizon(6);
-    main.console.exit_process(rejected);
+    Console::exit_process(rejected);
 }

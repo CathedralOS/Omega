@@ -52,19 +52,19 @@ machine Main::main(main: &mut Main) reaches Console {
         let emitted: f64 = 0.000000056703744191844294 * emitter * emitter * emitter * emitter * fraction * scale;
         let background: f64 = 0.000000056703744191844294 * ambient * ambient * ambient * ambient * background_fraction * scale;
         let net: f64 = net_exitance(emitter, ambient, main.protocol.fields[5], main.protocol.fields[6]);
-        main.protocol.console.write_line("emitted_W,ambient_W,net_W,emission_fraction");
+        Console::write_line("emitted_W,ambient_W,net_W,emission_fraction");
         Protocol::number(&mut main.protocol, emitted);
-        main.protocol.console.write(",");
+        Console::write(",");
         Protocol::number(&mut main.protocol, background);
-        main.protocol.console.write(",");
+        Console::write(",");
         Protocol::number(&mut main.protocol, net * scale);
-        main.protocol.console.write(",");
+        Console::write(",");
         Protocol::number(&mut main.protocol, fraction);
-        main.protocol.console.write_line("");
-        main.protocol.console.exit_process(0);
+        Console::write_line("");
+        Console::exit_process(0);
     }
     state invalid(main: &mut Main) {
-        main.protocol.console.write_line("ERROR invalid input");
-        main.protocol.console.exit_process(64);
+        Console::write_line("ERROR invalid input");
+        Console::exit_process(64);
     }
 }

@@ -10,7 +10,6 @@
 // Expected exit: 13.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 // FULLY EXACT -- no overflow domain: the `0 <= d <= 200` re-guard in `probe`
 // bounds the guard arithmetic `d * d` (<= 40000) and `n % d`, and the
@@ -21,13 +20,12 @@ data Trial [copy] {
 }
 
 data Main {
-    console: Binding<Console>;
     trial: Trial;
     pause: [u8; 256];
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    main.console.write_line("smallest_prime_factor: trial division finds the smallest factor of 169");
+    Console::write_line("smallest_prime_factor: trial division finds the smallest factor of 169");
     main.trial.n = 169;
     main.trial.d = 2;
 
@@ -80,16 +78,16 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state found(main: &mut Main) {
-        main.console.write_line("PASS: smallest prime factor found, 13 for n=169 (the exit code)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(main.trial.d);
+        Console::write_line("PASS: smallest prime factor found, 13 for n=169 (the exit code)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(main.trial.d);
     }
 
     state prime(main: &mut Main) {
-        main.console.write_line("result: n has no divisor up to sqrt(n), so n is prime and exits as its own factor (the exit code)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(main.trial.n);
+        Console::write_line("result: n has no divisor up to sqrt(n), so n is prime and exits as its own factor (the exit code)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(main.trial.n);
     }
 }

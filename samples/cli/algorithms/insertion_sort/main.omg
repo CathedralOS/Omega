@@ -46,14 +46,12 @@
 // Expected exit: 70.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Sorter [copy] {
     arr: [i32; 6];
 }
 
 data Main {
-    console: Binding<Console>;
     s: Sorter;
     pause: [u8; 256];
 }
@@ -168,7 +166,7 @@ machine Main::pass5(main: &mut Main) {
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    main.console.write_line("insertion_sort: bubble-sorting [5,2,8,1,3,7] with compare-and-swap passes");
+    Console::write_line("insertion_sort: bubble-sorting [5,2,8,1,3,7] with compare-and-swap passes");
     // Initialize array: [5, 2, 8, 1, 3, 7].
     main.s.arr[0] = 5;
     main.s.arr[1] = 2;
@@ -192,10 +190,10 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state bad0(main: &mut Main) {
-        main.console.write_line("FAIL: arr[0] != 1 after sorting (exit 71)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(71);
+        Console::write_line("FAIL: arr[0] != 1 after sorting (exit 71)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(71);
     }
 
     state check1(main: &mut Main) {
@@ -207,10 +205,10 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state bad1(main: &mut Main) {
-        main.console.write_line("FAIL: arr[1] != 2 after sorting (exit 72)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(72);
+        Console::write_line("FAIL: arr[1] != 2 after sorting (exit 72)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(72);
     }
 
     state check2(main: &mut Main) {
@@ -222,10 +220,10 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state bad2(main: &mut Main) {
-        main.console.write_line("FAIL: arr[2] != 3 after sorting (exit 73)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(73);
+        Console::write_line("FAIL: arr[2] != 3 after sorting (exit 73)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(73);
     }
 
     state check3(main: &mut Main) {
@@ -237,10 +235,10 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state bad3(main: &mut Main) {
-        main.console.write_line("FAIL: arr[3] != 5 after sorting (exit 74)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(74);
+        Console::write_line("FAIL: arr[3] != 5 after sorting (exit 74)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(74);
     }
 
     state check4(main: &mut Main) {
@@ -252,10 +250,10 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state bad4(main: &mut Main) {
-        main.console.write_line("FAIL: arr[4] != 7 after sorting (exit 75)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(75);
+        Console::write_line("FAIL: arr[4] != 7 after sorting (exit 75)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(75);
     }
 
     state check5(main: &mut Main) {
@@ -267,16 +265,16 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state bad5(main: &mut Main) {
-        main.console.write_line("FAIL: arr[5] != 8 after sorting (exit 76)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(76);
+        Console::write_line("FAIL: arr[5] != 8 after sorting (exit 76)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(76);
     }
 
     state good(main: &mut Main) {
-        main.console.write_line("PASS: array sorted to [1,2,3,5,7,8] (exit 70)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(70);
+        Console::write_line("PASS: array sorted to [1,2,3,5,7,8] (exit 70)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(70);
     }
 }

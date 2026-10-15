@@ -88,9 +88,9 @@ machine Application::main(application: &mut Application) reaches Console crashes
     state increment(application: &mut Application) requires application.index >= 0 && application.index < 8 {
         application.index = application.index + 1; transition { _ -> next(application) }
     }
-    state invalid(application: &mut Application) { application.reader.console.write_line("INVALID calorimetry input"); application.reader.console.exit_process(64); }
-    state failed(application: &mut Application) { application.reader.console.write_line("FAILED calorimetry convergence or conservation"); application.reader.console.exit_process(65); }
-    state done(application: &mut Application) { application.reader.console.write_line("status=ok"); }
+    state invalid(application: &mut Application) { Console::write_line("INVALID calorimetry input"); Console::exit_process(64); }
+    state failed(application: &mut Application) { Console::write_line("FAILED calorimetry convergence or conservation"); Console::exit_process(65); }
+    state done(application: &mut Application) { Console::write_line("status=ok"); }
 }
 machine valid_material(material: &Material) -> bool {
     transition { _ -> (material.mass >= 1.0 && material.capacity >= 1.0 && material.latent >= 1.0 && material.melting > 0.0) }

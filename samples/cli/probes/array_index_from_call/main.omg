@@ -23,12 +23,10 @@
 // Expected exit: 70.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Picker {}
 
 data Main {
-    console: Binding<Console>;
     table: [i32; 5];
     picker: Picker;
     pause: [u8; 256];
@@ -80,7 +78,7 @@ machine Main::read_at(main: &mut Main, idx: i32) -> i32 {
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    main.console.write_line("array_index_from_call: value-call results drive array-index dispatch (pick -> read_at chains)");
+    Console::write_line("array_index_from_call: value-call results drive array-index dispatch (pick -> read_at chains)");
     // Initialize the lookup table.
     main.table[0] = 3;
     main.table[1] = 7;
@@ -106,10 +104,10 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state bad_idx0(main: &mut Main) {
-        main.console.write_line("FAIL: pick(0) returned wrong index -- expected 0 (exit 71)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(71);
+        Console::write_line("FAIL: pick(0) returned wrong index -- expected 0 (exit 71)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(71);
     }
 
     state check_idx2(main: &mut Main, idx2: i32, v0: i32, v2: i32, v1: i32) {
@@ -120,10 +118,10 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state bad_idx2(main: &mut Main) {
-        main.console.write_line("FAIL: pick(2) returned wrong index -- expected 4 (exit 72)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(72);
+        Console::write_line("FAIL: pick(2) returned wrong index -- expected 4 (exit 72)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(72);
     }
 
     state check_v0(main: &mut Main, v0: i32, v2: i32, v1: i32) {
@@ -134,10 +132,10 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state bad_v0(main: &mut Main) {
-        main.console.write_line("FAIL: read_at(idx0) returned wrong value -- expected table[0] == 3 (exit 73)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(73);
+        Console::write_line("FAIL: read_at(idx0) returned wrong value -- expected table[0] == 3 (exit 73)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(73);
     }
 
     state compute_result(main: &mut Main, v0: i32, v2: i32, v1: i32) {
@@ -153,16 +151,16 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state bad_result(main: &mut Main) {
-        main.console.write_line("FAIL: v2 + v1 - v0 - 1 != 70 -- lookup arithmetic wrong (exit 74)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(74);
+        Console::write_line("FAIL: v2 + v1 - v0 - 1 != 70 -- lookup arithmetic wrong (exit 74)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(74);
     }
 
     state good(main: &mut Main) {
-        main.console.write_line("PASS: 60 + 14 - 3 - 1 == 70 from call-driven lookups (exit 70)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(70);
+        Console::write_line("PASS: 60 + 14 - 3 - 1 == 70 from call-driven lookups (exit 70)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(70);
     }
 }

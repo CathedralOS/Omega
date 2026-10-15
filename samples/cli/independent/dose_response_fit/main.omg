@@ -28,31 +28,31 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
     state output(main: &mut Main, observations: &Observations, result: &Fit) {
-        report(&mut main.reader.console, observations, result);
-        main.reader.console.exit_process(0);
+        report(observations, result);
+        Console::exit_process(0);
     }
     state invalid(main: &mut Main) {
-        main.reader.console.write_line("error=input: invalid or duplicate observation; require 8..32 rows, at least five sample doses, valid direction/noise/roles and <=4096 bytes");
-        main.reader.console.exit_process(2);
+        Console::write_line("error=input: invalid or duplicate observation; require 8..32 rows, at least five sample doses, valid direction/noise/roles and <=4096 bytes");
+        Console::exit_process(2);
     }
     state flat(main: &mut Main) {
-        main.reader.console.write_line("converged=true"); main.reader.console.write_line("identifiable=false");
-        main.reader.console.write_line("error=flat: fitted amplitude must exceed five supplied noise standard deviations");
-        main.reader.console.exit_process(3);
+        Console::write_line("converged=true"); Console::write_line("identifiable=false");
+        Console::write_line("error=flat: fitted amplitude must exceed five supplied noise standard deviations");
+        Console::exit_process(3);
     }
     state unidentified(main: &mut Main) {
-        main.reader.console.write_line("identifiable=false");
-        main.reader.console.write_line("error=unidentified: profile failed to close strictly within parameter bounds or nuisance minimization did not converge");
-        main.reader.console.exit_process(4);
+        Console::write_line("identifiable=false");
+        Console::write_line("error=unidentified: profile failed to close strictly within parameter bounds or nuisance minimization did not converge");
+        Console::exit_process(4);
     }
     state direction(main: &mut Main) {
-        main.reader.console.write_line("converged=true"); main.reader.console.write_line("identifiable=false");
-        main.reader.console.write_line("error=direction: fitted response contradicts requested activation or inhibition");
-        main.reader.console.exit_process(5);
+        Console::write_line("converged=true"); Console::write_line("identifiable=false");
+        Console::write_line("error=direction: fitted response contradicts requested activation or inhibition");
+        Console::exit_process(5);
     }
     state convergence(main: &mut Main) {
-        main.reader.console.write_line("converged=false"); main.reader.console.write_line("identifiable=false");
-        main.reader.console.write_line("error=convergence: bounded numerical search exhausted its iteration limit");
-        main.reader.console.exit_process(6);
+        Console::write_line("converged=false"); Console::write_line("identifiable=false");
+        Console::write_line("error=convergence: bounded numerical search exhausted its iteration limit");
+        Console::exit_process(6);
     }
 }

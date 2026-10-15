@@ -6,20 +6,20 @@ use omega_language_std::console;
 pub machine number(application: &mut Application, value: u64) reaches Console
 invokes Console;
 requires value <= 999 {
-    application.console.write_byte(((value / 100) + 48) as i32);
-    application.console.write_byte((((value / 10) % 10) + 48) as i32);
-    application.console.write_byte(((value % 10) + 48) as i32);
+    Console::write_byte(((value / 100) + 48) as i32);
+    Console::write_byte((((value / 10) % 10) + 48) as i32);
+    Console::write_byte(((value % 10) + 48) as i32);
 }
 pub machine field(application: &mut Application, value: u64) reaches Console
 invokes Console;
 requires value <= 999 {
-    application.console.write("|");
+    Console::write("|");
     number(application, value);
 }
 pub machine report(application: &mut Application) reaches Console
 invokes Console;
 {
-    application.console.write_line("PARETO|id|source|position|cost|days|gain|risk|status|certificate");
+    Console::write_line("PARETO|id|source|position|cost|days|gain|risk|status|certificate");
     transition { _ -> next(application, 0, 0) }
     state next(application: &mut Application, previous: u64, emitted: u64) {
         transition emitted < application.count && emitted < 12 {
@@ -74,7 +74,7 @@ invokes Console;
     }
     state infeasible(application: &mut Application, identifier: u64, emitted: u64, mask: u64)
     requires emitted < 12 {
-        application.console.write("|INFEASIBLE");
+        Console::write("|INFEASIBLE");
         transition mask <= 7 { true -> finish(application, identifier, emitted, mask) false -> internal_error(application) }
     }
     state feasible(application: &mut Application, identifier: u64, emitted: u64, dominator: u64)
@@ -83,24 +83,24 @@ invokes Console;
     }
     state selected(application: &mut Application, identifier: u64, emitted: u64)
     requires emitted < 12 {
-        application.console.write("|SELECTED");
+        Console::write("|SELECTED");
         transition { _ -> finish(application, identifier, emitted, 0) }
     }
     state rejected(application: &mut Application, identifier: u64, emitted: u64, dominator: u64)
     requires emitted < 12 {
-        application.console.write("|DOMINATED");
+        Console::write("|DOMINATED");
         transition dominator <= 999 { true -> finish(application, identifier, emitted, dominator) false -> internal_error(application) }
     }
     state finish(application: &mut Application, identifier: u64, emitted: u64, certificate: u64)
     requires emitted < 12
     requires certificate <= 999 {
         field(application, certificate);
-        application.console.write_line("");
+        Console::write_line("");
         transition { _ -> next(application, identifier, emitted + 1) }
     }
     state internal_error(application: &mut Application) {
-        application.console.write_line("ERROR|internal-invariant");
-        application.console.exit_process(3);
+        Console::write_line("ERROR|internal-invariant");
+        Console::exit_process(3);
     }
-    state done(application: &mut Application) { application.console.write_line("END"); }
+    state done(application: &mut Application) { Console::write_line("END"); }
 }

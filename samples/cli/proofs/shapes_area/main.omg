@@ -16,16 +16,14 @@
 // Expected exit: 70.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
     total: i32 in Saturating;
     pause: [u8; 256];
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    main.console.write_line("shapes_area: circle + rectangle + triangle areas via value-returning machines");
+    Console::write_line("shapes_area: circle + rectangle + triangle areas via value-returning machines");
     // Circle radius 3: r*r = 9, passed as scalar; callee returns 9*3 = 27.
     let rr: i32 in Saturating = 3 * 3;
     let a1: i32 in Saturating = triple(rr);
@@ -44,17 +42,17 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state good(main: &mut Main) {
-        main.console.write_line("PASS: areas 27+40+3 total 70 (exit 70)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(70);
+        Console::write_line("PASS: areas 27+40+3 total 70 (exit 70)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(70);
     }
 
     state bad(main: &mut Main) {
-        main.console.write_line("FAIL: area total did not equal 70 (exit 71)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(71);
+        Console::write_line("FAIL: area total did not equal 70 (exit 71)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(71);
     }
 }
 

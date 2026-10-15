@@ -23,7 +23,6 @@
 // Expected exit: 70.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Stack [copy] {
     slots: [i32 in Saturating; 4];
@@ -32,7 +31,6 @@ data Stack [copy] {
 }
 
 data Main {
-    console: Binding<Console>;
     stack: Stack;
     pause: [u8; 256];
 }
@@ -150,7 +148,7 @@ machine Main::mul(main: &mut Main) {
 // main: evaluate "32 4 + 2 * 2 -" = 70.
 // ---------------------------------------------------------------------------
 machine Main::main(main: &mut Main) reaches Console {
-    main.console.write_line("calculator_rpn: evaluate \"32 4 + 2 * 2 -\" on a fixed-capacity stack");
+    Console::write_line("calculator_rpn: evaluate \"32 4 + 2 * 2 -\" on a fixed-capacity stack");
     Main::push(main, 32);
     Main::push(main, 4);
     Main::add(main);       // stack: [36], sp=1
@@ -178,23 +176,23 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state good(main: &mut Main) {
-        main.console.write_line("PASS: (32+4)*2-2 == 70 and the stack drained to empty (exit 70)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(70);
+        Console::write_line("PASS: (32+4)*2-2 == 70 and the stack drained to empty (exit 70)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(70);
     }
 
     state bad_result(main: &mut Main) {
-        main.console.write_line("FAIL: RPN result != 70 (exit 71)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(71);
+        Console::write_line("FAIL: RPN result != 70 (exit 71)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(71);
     }
 
     state bad_sp(main: &mut Main) {
-        main.console.write_line("FAIL: stack pointer != 0 after pop_result (exit 72)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(72);
+        Console::write_line("FAIL: stack pointer != 0 after pop_result (exit 72)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(72);
     }
 }

@@ -9,10 +9,8 @@
 // Expected output contains: #
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
     cells: u64 in Wrapping;        // the 31-bit row (bit i = cell i), seed bit 15
     g: i32;                      // guard-proven generation counter
     i: i32;                      // render index (guard-proven)
@@ -21,7 +19,7 @@ data Main {
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    main.console.write_line("rule_30: 16 generations of a 31-cell elementary automaton packed in one word");
+    Console::write_line("rule_30: 16 generations of a 31-cell elementary automaton packed in one word");
     main.cells = 32768; // single live cell in the centre (bit 15)
     main.g = 0;
     transition { _ -> gen_loop(main) }
@@ -44,11 +42,11 @@ machine Main::main(main: &mut Main) reaches Console {
     }
     // A host call kills carried facts: re-guard the index before incrementing.
     state mark(main: &mut Main) {
-        main.console.write_byte(35);
+        Console::write_byte(35);
         transition main.i >= 0 && main.i < 31 { true -> render_bump(main) _ -> render_loop(main) }
     }
     state blank(main: &mut Main) {
-        main.console.write_byte(32);
+        Console::write_byte(32);
         transition main.i >= 0 && main.i < 31 { true -> render_bump(main) _ -> render_loop(main) }
     }
     state render_bump(main: &mut Main) {
@@ -56,7 +54,7 @@ machine Main::main(main: &mut Main) reaches Console {
         transition { _ -> render_loop(main) }
     }
     state emit(main: &mut Main) {
-        main.console.write_line("");
+        Console::write_line("");
         transition { _ -> evolve(main) }
     }
 
@@ -76,8 +74,8 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state finish(main: &mut Main) {
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(0);
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(0);
     }
 }

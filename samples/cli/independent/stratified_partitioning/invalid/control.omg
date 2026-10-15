@@ -1,8 +1,7 @@
 // Complete intended-invalid source: an unguarded seventeenth slot must fail.
 use omega_language_std::console;
-use omega::language::core::binding;
-data Main { console: Binding<Console>; records: [i32; 16]; }
+data Main { records: [i32; 16]; }
 machine Main::main(context: &mut Main) reaches Console {
     context.records[16] = 1;
-    context.console.exit_process(0);
+    Console::exit_process(0);
 }

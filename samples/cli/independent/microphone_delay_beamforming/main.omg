@@ -1,16 +1,15 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 use domain::records;
 use domain::beamforming;
 
-data Main { console: Binding<Console>; records: Beamforming; }
+data Main { records: Beamforming; }
 
 // Runtime input is a bounded 36-digit stream with optional ASCII whitespace.
 // Reject truncation and trailing digits rather than silently selecting fixtures.
 machine Main::main(context: &mut Main) reaches Console {
     transition { _ -> read(context, 0) }
     state read(context: &mut Main, position: u64) {
-        let observed: ByteRead = block context.console.read_byte();
+        let observed: ByteRead = block Console::read_byte();
         transition observed {
             ByteRead::Eof -> finish_input(context, position)
             ByteRead::Byte { value } -> classify(context, position, value)
@@ -47,30 +46,30 @@ machine Main::main(context: &mut Main) reaches Console {
         }
     }
     state reject(context: &mut Main, status: u64) {
-        context.console.write("ERROR ");
+        Console::write("ERROR ");
         print_integer(context, status as i64 in Wrapping);
-        context.console.write_line("");
-        context.console.exit_process(64);
+        Console::write_line("");
+        Console::exit_process(64);
     }
     state report(context: &mut Main) {
-        context.console.write("ACTIVE ");
+        Console::write("ACTIVE ");
         let active: i64 in Wrapping = context.records.active;
         print_integer(context, active);
-        context.console.write_line("");
+        Console::write_line("");
         transition { _ -> direction(context, 0) }
     }
     state direction(context: &mut Main, direction: u64) requires direction < 4 {
-        context.console.write("DIRECTION ");
+        Console::write("DIRECTION ");
         print_integer(context, direction as i64 in Wrapping);
-        context.console.write(" WAVE");
+        Console::write(" WAVE");
         transition { _ -> wave(context, direction, 0) }
     }
     state wave(context: &mut Main, direction: u64, position: u64)
     requires direction < 4 requires position < 4 {
-        context.console.write(" ");
+        Console::write(" ");
         let numerator: i64 in Wrapping = context.records.waveform[direction][position];
         print_integer(context, numerator);
-        context.console.write("/");
+        Console::write("/");
         let active: i64 in Wrapping = context.records.active;
         print_integer(context, active);
         let next: u64 = position + 1;
@@ -80,13 +79,13 @@ machine Main::main(context: &mut Main) reaches Console {
         }
     }
     state energy(context: &mut Main, direction: u64) requires direction < 4 {
-        context.console.write(" ENERGY ");
+        Console::write(" ENERGY ");
         let score: i64 in Wrapping = context.records.energy[direction];
         print_integer(context, score);
-        context.console.write("/");
+        Console::write("/");
         let denominator: i64 in Wrapping = context.records.active * context.records.active;
         print_integer(context, denominator);
-        context.console.write_line("");
+        Console::write_line("");
         let next: u64 = direction + 1;
         transition next < 4 {
             true -> direction(context, next)
@@ -94,7 +93,7 @@ machine Main::main(context: &mut Main) reaches Console {
         }
     }
     state ambiguities(context: &mut Main) {
-        context.console.write("WINNERS");
+        Console::write("WINNERS");
         transition { _ -> winner(context, 0) }
     }
     state winner(context: &mut Main, direction: u64) requires direction < 4 {
@@ -104,7 +103,7 @@ machine Main::main(context: &mut Main) reaches Console {
         }
     }
     state emit_winner(context: &mut Main, direction: u64) requires direction < 4 {
-        context.console.write(" ");
+        Console::write(" ");
         print_integer(context, direction as i64 in Wrapping);
         transition { _ -> next_winner(context, direction + 1) }
     }
@@ -115,8 +114,8 @@ machine Main::main(context: &mut Main) reaches Console {
         }
     }
     state done(context: &mut Main) {
-        context.console.write_line("");
-        context.console.exit_process(0);
+        Console::write_line("");
+        Console::exit_process(0);
     }
 }
 
@@ -132,10 +131,10 @@ machine print_integer(context: &mut Main, value: i64 in Wrapping) reaches Consol
             false -> digits(context, value)
         }
     }
-    state invalid(context: &mut Main) { context.console.exit_process(70); }
+    state invalid(context: &mut Main) { Console::exit_process(70); }
     state negative(context: &mut Main, value: i64 in Wrapping)
     requires value >= 0 - 576 requires value < 0 {
-        context.console.write("-");
+        Console::write("-");
         print_digits(context, 0 - value);
     }
     state digits(context: &mut Main, value: i64 in Wrapping)
@@ -153,9 +152,9 @@ reaches Console {
     }
     state hundreds(context: &mut Main, value: i64 in Wrapping)
     requires value >= 0 requires value <= 576 {
-        context.console.write_byte((value / 100 + 48) as i32);
-        context.console.write_byte((value / 10 % 10 + 48) as i32);
-        context.console.write_byte((value % 10 + 48) as i32);
+        Console::write_byte((value / 100 + 48) as i32);
+        Console::write_byte((value / 10 % 10 + 48) as i32);
+        Console::write_byte((value % 10 + 48) as i32);
     }
     state short(context: &mut Main, value: i64 in Wrapping)
     requires value >= 0 requires value <= 576 {
@@ -166,11 +165,11 @@ reaches Console {
     }
     state tens(context: &mut Main, value: i64 in Wrapping)
     requires value >= 0 requires value <= 576 {
-        context.console.write_byte((value / 10 + 48) as i32);
-        context.console.write_byte((value % 10 + 48) as i32);
+        Console::write_byte((value / 10 + 48) as i32);
+        Console::write_byte((value % 10 + 48) as i32);
     }
     state digit(context: &mut Main, value: i64 in Wrapping)
     requires value >= 0 requires value <= 576 {
-        context.console.write_byte((value + 48) as i32);
+        Console::write_byte((value + 48) as i32);
     }
 }

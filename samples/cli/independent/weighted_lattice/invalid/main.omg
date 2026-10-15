@@ -1,13 +1,12 @@
 // Complete intended-invalid control: the bin at index 9 is outside the fixed extent.
 use omega_language_std::console;
-use omega::language::core::binding;
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Console {
     let bins: [u64; 9];
     let impossible: u64 = bins[9];
     transition impossible == 0 {
-        true -> done(&main.console)
-        false -> done(&main.console)
+        true -> done()
+        false -> done()
     }
-    state done(console: &Binding<Console>) { Console::exit_process(console, 0); }
+    state done() { Console::exit_process(0); }
 }

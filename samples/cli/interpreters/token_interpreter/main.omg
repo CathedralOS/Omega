@@ -27,7 +27,6 @@
 // Expected exit: 70.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Token {
     case Literal(value: i32 in Saturating);
@@ -40,7 +39,6 @@ data Interp [copy] {
 }
 
 data Main {
-    console: Binding<Console>;
     interp: Interp;
     pause: [u8; 256];
 }
@@ -102,7 +100,7 @@ machine Main::exec(main: &mut Main, tok: Token) {
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    main.console.write_line("token_interpreter: mixed guard shapes run a literal/add/clamp token script");
+    Console::write_line("token_interpreter: mixed guard shapes run a literal/add/clamp token script");
     // Scripted token sequence:
     // Literal(10) -> acc=10; Add -> acc=20; Literal(5) -> acc=25;
     // Clamp(30) -> acc=25 (no clamp); Add -> acc=50; Literal(20) -> acc=70.
@@ -119,16 +117,16 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state good(main: &mut Main) {
-        main.console.write_line("PASS: the token script left the accumulator at 70 (exit 70)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(70);
+        Console::write_line("PASS: the token script left the accumulator at 70 (exit 70)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(70);
     }
 
     state bad(main: &mut Main) {
-        main.console.write_line("FAIL: the final accumulator was not 70 (exit 71)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(71);
+        Console::write_line("FAIL: the final accumulator was not 70 (exit 71)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(71);
     }
 }

@@ -1,5 +1,4 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 data Fraction [copy] { numerator: u64 in Wrapping; denominator: u64 in Wrapping; }
 machine make(value: u64 in Wrapping) -> Fraction { Fraction { numerator: value, denominator: 3 } }
 machine calculate(flag: bool, value: u64 in Wrapping) -> u64 in Wrapping {
@@ -12,9 +11,9 @@ machine calculate(flag: bool, value: u64 in Wrapping) -> u64 in Wrapping {
         first.numerator + second.denominator
     }
 }
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(context: &mut Main) reaches Console {
-    let byte: ByteRead = block context.console.read_byte();
+    let byte: ByteRead = block Console::read_byte();
     transition byte {
         ByteRead::Eof -> finish(context, 7)
         ByteRead::Byte { value } -> finish(context, value as u64 in Wrapping)
@@ -23,7 +22,7 @@ machine Main::main(context: &mut Main) reaches Console {
         let result: u64 in Wrapping = calculate(value > 70, value);
         transition result == value + 3 { true -> correct(context) false -> incorrect(context) }
     }
-    state correct(context: &mut Main) { context.console.exit_process(0); }
-    state incorrect(context: &mut Main) { context.console.exit_process(1);
+    state correct(context: &mut Main) { Console::exit_process(0); }
+    state incorrect(context: &mut Main) { Console::exit_process(1);
     }
 }

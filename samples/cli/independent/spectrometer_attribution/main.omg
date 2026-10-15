@@ -57,14 +57,14 @@ crashes Trap
     state report(application: &mut Spectrometer) {
         match_regions(&application.spectrum, &mut application.regions);
         print_report(application);
-        application.console.exit_process(0);
+        Console::exit_process(0);
     }
     state invalid(application: &mut Spectrometer) {
-        application.console.write_line("invalid spectrum input");
-        application.console.exit_process(2);
+        Console::write_line("invalid spectrum input");
+        Console::exit_process(2);
     }
     state capacity(application: &mut Spectrometer) {
-        application.console.write_line("region capacity exceeded");
-        application.console.exit_process(3);
+        Console::write_line("region capacity exceeded");
+        Console::exit_process(3);
     }
 }

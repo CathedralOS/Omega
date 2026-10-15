@@ -1,12 +1,11 @@
 // Entrypoint owns bounded input, private inverse solution, and reporting.
 use omega_language_std::console;
-use omega::language::core::binding;
 use domain::model;
 use domain::solver;
 use io::input;
 use io::report;
 
-data Main { console: Binding<Console>; input: Input; output: Output; }
+data Main { input: Input; output: Output; }
 machine Main::main(main: &mut Main) reaches Console {
     block read_input(&mut main.input);
     transition main.input.valid { true -> compute(main) false -> invalid(main) }
@@ -14,10 +13,10 @@ machine Main::main(main: &mut Main) reaches Console {
         let problem: Problem = problem_from_input(&main.input);
         let fit: Fit = solve(&problem);
         report(&mut main.output, &problem, &fit);
-        main.console.exit_process(0);
+        Console::exit_process(0);
     }
     state invalid(main: &mut Main) {
-        main.console.write_line("INVALID: expected 13 integers 0..99, ordered bounds, at most 255 input bytes");
-        main.console.exit_process(64);
+        Console::write_line("INVALID: expected 13 integers 0..99, ordered bounds, at most 255 input bytes");
+        Console::exit_process(64);
     }
 }

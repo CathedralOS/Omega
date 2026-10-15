@@ -9,7 +9,6 @@
 // Expected exit: 32.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Dir {
     case N;
@@ -24,7 +23,6 @@ data Vec2 [copy] {
 }
 
 data Main {
-    console: Binding<Console>;
     px: i32 in Saturating;
     py: i32 in Saturating;
     pause: [u8; 256];
@@ -48,7 +46,7 @@ machine Main::step(main: &mut Main, d: Dir) {
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    main.console.write_line("grid_walk: an enum-dispatched walk (E,E,E,S,S) accumulating a 2D position");
+    Console::write_line("grid_walk: an enum-dispatched walk (E,E,E,S,S) accumulating a 2D position");
     main.px = 0;
     main.py = 0;
 
@@ -64,9 +62,9 @@ machine Main::main(main: &mut Main) reaches Console {
 
     state report(main: &mut Main) {
         main.px = main.px * 10 + main.py;
-        main.console.write_line("result: x*10+y, 32 for this walk (the exit code)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(main.px as i32);
+        Console::write_line("result: x*10+y, 32 for this walk (the exit code)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(main.px as i32);
     }
 }

@@ -1,12 +1,11 @@
 // Complete intended-invalid control: an unguarded ordinal cannot index six nodes.
 use omega_language_std::console;
-use omega::language::core::binding;
 use nodes;
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Console {
     let mut input: [u8; 8];
-    _ = block main.console.read_line(&mut input);
+    _ = block Console::read_line(&mut input);
     let coordinates: [i64; 6] = [0,10,3,7,3,7];
     let value: i64 = nodes::unguarded(&coordinates, input[0] as i32 in Wrapping);
-    main.console.exit_process(0);
+    Console::exit_process(0);
 }

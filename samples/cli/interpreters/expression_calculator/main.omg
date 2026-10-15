@@ -14,7 +14,6 @@
 // Bytes: '(' 40, ')' 41, '*' 42, '+' 43, '-' 45, '0'..'9' 48..57, LF 10.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Token [copy] {
     case Number(value: i32 in Wrapping);
@@ -84,7 +83,6 @@ data Resume {
 }
 
 data Main {
-    console: Binding<Console>;
     tokens: [Token; 16];
     token_count: u64;
     // The number being read, and whether a digit has been seen since the last
@@ -108,7 +106,7 @@ machine Main::main(main: &mut Main) reaches Console {
 
     // --- tokenize standard input ---
     state read(main: &mut Main) {
-        let input: ByteRead = block main.console.read_byte();
+        let input: ByteRead = block Console::read_byte();
         transition input {
             ByteRead::Byte { value } -> classify(main, value)
             _ -> end_of_input(main)
@@ -146,7 +144,7 @@ machine Main::main(main: &mut Main) reaches Console {
     state flush_number(main: &mut Main, value: i32) {
         transition main.token_count < 16 {
             true -> store_number(main, value)
-            _ -> malformed(&main.console)
+            _ -> malformed()
         }
     }
 
@@ -162,7 +160,7 @@ machine Main::main(main: &mut Main) reaches Console {
         transition (value == 40 || value == 41 || value == 42 || value == 43 || value == 45)
             && main.token_count < 16 {
             true -> store_symbol(main, value)
-            _ -> malformed(&main.console)
+            _ -> malformed()
         }
     }
 
@@ -182,7 +180,7 @@ machine Main::main(main: &mut Main) reaches Console {
     state final_number(main: &mut Main) {
         transition main.token_count < 16 {
             true -> store_final_number(main)
-            _ -> malformed(&main.console)
+            _ -> malformed()
         }
     }
 
@@ -218,7 +216,7 @@ machine Main::main(main: &mut Main) reaches Console {
     state push_value(main: &mut Main, value: i32 in Wrapping) {
         transition main.values.count < 16 {
             true -> stored_value(main, value)
-            _ -> malformed(&main.console)
+            _ -> malformed()
         }
     }
 
@@ -238,7 +236,7 @@ machine Main::main(main: &mut Main) reaches Console {
     state push_open(main: &mut Main) {
         transition main.operators.count < 16 {
             true -> stored_open(main)
-            _ -> malformed(&main.console)
+            _ -> malformed()
         }
     }
 
@@ -258,7 +256,7 @@ machine Main::main(main: &mut Main) reaches Console {
     state close(main: &mut Main) {
         transition main.operators.count >= 1 && main.operators.count <= 16 {
             true -> close_top(main)
-            _ -> malformed(&main.console)
+            _ -> malformed()
         }
     }
 
@@ -277,7 +275,7 @@ machine Main::main(main: &mut Main) reaches Console {
     state pop_open(main: &mut Main) {
         transition main.operators.count >= 1 && main.operators.count <= 16 {
             true -> popped_open(main)
-            _ -> malformed(&main.console)
+            _ -> malformed()
         }
     }
 
@@ -311,7 +309,7 @@ machine Main::main(main: &mut Main) reaches Console {
     state push_operator(main: &mut Main) {
         transition main.operators.count < 16 {
             true -> stored_operator(main)
-            _ -> malformed(&main.console)
+            _ -> malformed()
         }
     }
 
@@ -339,7 +337,7 @@ machine Main::main(main: &mut Main) reaches Console {
         transition main.values.count >= 2 && main.values.count <= 16
             && main.operators.count >= 1 && main.operators.count <= 16 {
             true -> reduce(main)
-            _ -> malformed(&main.console)
+            _ -> malformed()
         }
     }
 
@@ -352,7 +350,7 @@ machine Main::main(main: &mut Main) reaches Console {
         let right: i32 in Wrapping = ValueStack::pop(&mut main.values);
         transition main.values.count >= 1 && main.values.count <= 16 {
             true -> reduce_left(main, right)
-            _ -> malformed(&main.console)
+            _ -> malformed()
         }
     }
 
@@ -375,7 +373,7 @@ machine Main::main(main: &mut Main) reaches Console {
     state push_result(main: &mut Main, result: i32 in Wrapping) {
         transition main.values.count < 16 {
             true -> stored_result(main, result)
-            _ -> malformed(&main.console)
+            _ -> malformed()
         }
     }
 
@@ -391,16 +389,16 @@ machine Main::main(main: &mut Main) reaches Console {
     state finish(main: &mut Main) {
         transition main.values.count == 1 {
             true -> report(main)
-            _ -> malformed(&main.console)
+            _ -> malformed()
         }
     }
 
     state report(main: &mut Main) {
         let result: i32 in Wrapping = ValueStack::pop(&mut main.values);
-        main.console.exit_process(result as i32);
+        Console::exit_process(result as i32);
     }
 
-    state malformed(console: &Binding<Console>) {
-        Console::exit_process(console, 1);
+    state malformed() {
+        Console::exit_process(1);
     }
 }

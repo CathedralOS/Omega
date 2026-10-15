@@ -1,14 +1,13 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 use omega::language::core::float_operations;
 data Model { z: [f64; 5]; }
-data Main { console: Binding<Console>; model: Model; }
+data Main { model: Model; }
 machine Main::main(main: &mut Main) reaches Console {
     transition { _ -> centered(main, 1.0) }
     state centered(main: &mut Main, total: f64) {
         main.model.z[0] = 0.0-total/2.0;
         transition main.model.z[0] == -0.5 { true -> good(main) false -> bad(main) }
     }
-    state good(main: &mut Main) { main.console.write_line("FLOAT STORE OK"); main.console.exit_process(0); }
-    state bad(main: &mut Main) { main.console.write_line("FLOAT STORE WRONG"); main.console.exit_process(4); }
+    state good(main: &mut Main) { Console::write_line("FLOAT STORE OK"); Console::exit_process(0); }
+    state bad(main: &mut Main) { Console::write_line("FLOAT STORE WRONG"); Console::exit_process(4); }
 }

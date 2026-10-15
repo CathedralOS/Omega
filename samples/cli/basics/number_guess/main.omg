@@ -19,7 +19,6 @@
 // Expected exit: 70.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Search [copy] {
     lo: i32 in Saturating;
@@ -30,7 +29,6 @@ data Search [copy] {
 }
 
 data Main {
-    console: Binding<Console>;
     search: Search;
     pause: [u8; 256];
 }
@@ -67,7 +65,7 @@ machine Main::step(main: &mut Main, target: i32 in Saturating) {
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    main.console.write_line("number_guess: binary-searching [1,100] for the secret number 42");
+    Console::write_line("number_guess: binary-searching [1,100] for the secret number 42");
     // Initialize search range [1, 100].
     main.search.lo = 1;
     main.search.hi = 100;
@@ -99,23 +97,23 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state good(main: &mut Main) {
-        main.console.write_line("PASS: found 42 in exactly 7 guesses (exit 70)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(70);
+        Console::write_line("PASS: found 42 in exactly 7 guesses (exit 70)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(70);
     }
 
     state not_found_error(main: &mut Main) {
-        main.console.write_line("FAIL: target never found (exit 71)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(71);
+        Console::write_line("FAIL: target never found (exit 71)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(71);
     }
 
     state bad_guesses(main: &mut Main) {
-        main.console.write_line("FAIL: wrong guess count (exit 72)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(72);
+        Console::write_line("FAIL: wrong guess count (exit 72)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(72);
     }
 }

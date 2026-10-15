@@ -1,14 +1,13 @@
 // Expected exit: 0 (input: 2 0\n).
 use omega_language_std::console;
-use omega::language::core::binding;
 use fixtures;
 use geometry;
 use graph;
 use validation;
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(main: &mut Main) reaches Console {
     let mut input: [u8; 8];
-    let result: LineReadResult = block main.console.read_line(&mut input);
+    let result: LineReadResult = block Console::read_line(&mut input);
     transition result {
         LineReadResult::LineComplete { count } -> length(main, &input, count)
         _ -> invalid(main)
@@ -30,9 +29,9 @@ machine Main::main(main: &mut Main) reaches Console {
     state plan(main: &mut Main, radius: i64 in Wrapping, variant: i32 in Wrapping) {
         let mut scene: fixtures::Scene;
         fixtures::load(&mut scene, variant);
-        main.console.write_line("clearance_route_planner");
-        main.console.write("radius="); number(main, radius); main.console.write_line("");
-        main.console.write("scene="); number(main, variant as i64 in Wrapping); main.console.write_line("");
+        Console::write_line("clearance_route_planner");
+        Console::write("radius="); number(main, radius); Console::write_line("");
+        Console::write("scene="); number(main, variant as i64 in Wrapping); Console::write_line("");
         let start: i64 in Wrapping = graph::edge(&scene, 0, 0, radius);
         let goal: i64 in Wrapping = graph::edge(&scene, 1, 1, radius);
         transition start >= 0 && goal >= 0 {
@@ -50,11 +49,11 @@ machine Main::main(main: &mut Main) reaches Console {
     state endpoint(main: &mut Main, scene: &fixtures::Scene, node: i32 in Wrapping)
     requires node >= 0 && node < 6
     {
-        main.console.write_line("status=endpoint_blocked");
-        main.console.write("node="); number(main, node as i64 in Wrapping); main.console.write_line("");
-        main.console.write("minimum_clearance_milli=");
-        number(main, graph::edge(scene, node, node, 0)); main.console.write_line("");
-        main.console.exit_process(2);
+        Console::write_line("status=endpoint_blocked");
+        Console::write("node="); number(main, node as i64 in Wrapping); Console::write_line("");
+        Console::write("minimum_clearance_milli=");
+        number(main, graph::edge(scene, node, node, 0)); Console::write_line("");
+        Console::exit_process(2);
     }
     state search(main: &mut Main, scene: &fixtures::Scene, radius: i64 in Wrapping) {
         let mut planner: graph::Planner;
@@ -74,10 +73,10 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
     state report(main: &mut Main, scene: &fixtures::Scene, planner: &graph::Planner) {
-        main.console.write_line("status=route");
-        main.console.write("cost_milli="); number(main, planner.distances[1]); main.console.write_line("");
-        main.console.write("minimum_clearance_milli="); number(main, planner.clearance); main.console.write_line("");
-        main.console.write("coordinates=");
+        Console::write_line("status=route");
+        Console::write("cost_milli="); number(main, planner.distances[1]); Console::write_line("");
+        Console::write("minimum_clearance_milli="); number(main, planner.clearance); Console::write_line("");
+        Console::write("coordinates=");
         transition { _ -> coordinates(main, scene, planner, planner.route_count - 1) }
     }
     state coordinates(main: &mut Main, scene: &fixtures::Scene, planner: &graph::Planner,
@@ -98,7 +97,7 @@ machine Main::main(main: &mut Main) reaches Console {
                           position: i32 in Wrapping, node: i32 in Wrapping)
     requires node >= 0 && node < 6
     {
-        number(main, scene.x[node]); main.console.write(","); number(main, scene.y[node]);
+        number(main, scene.x[node]); Console::write(","); number(main, scene.y[node]);
         transition position > 0 {
             true -> separator(main, scene, planner, position)
             false -> finish(main)
@@ -106,11 +105,11 @@ machine Main::main(main: &mut Main) reaches Console {
     }
     state separator(main: &mut Main, scene: &fixtures::Scene, planner: &graph::Planner,
                     position: i32 in Wrapping) {
-        main.console.write(";");
+        Console::write(";");
         transition { _ -> coordinates(main, scene, planner, position - 1) }
     }
     state finish(main: &mut Main) {
-        main.console.write_line(""); main.console.write_line("validated=1"); main.console.exit_process(0);
+        Console::write_line(""); Console::write_line("validated=1"); Console::exit_process(0);
     }
     state infeasible(main: &mut Main, scene: &fixtures::Scene, radius: i64 in Wrapping,
                      planner: &graph::Planner) {
@@ -121,16 +120,16 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
     state witness(main: &mut Main, planner: &graph::Planner) {
-        main.console.write_line("status=infeasible");
-        main.console.write("reachable_mask="); number(main, planner.witness as i64 in Wrapping);
-        main.console.write_line(""); main.console.write_line("cut_validated=1"); main.console.exit_process(2);
+        Console::write_line("status=infeasible");
+        Console::write("reachable_mask="); number(main, planner.witness as i64 in Wrapping);
+        Console::write_line(""); Console::write_line("cut_validated=1"); Console::exit_process(2);
     }
     state invalid(main: &mut Main) {
-        main.console.write_line("invalid_input: expected radius(0..5) space scene(0..1) LF");
-        main.console.exit_process(64);
+        Console::write_line("invalid_input: expected radius(0..5) space scene(0..1) LF");
+        Console::exit_process(64);
     }
     state failure(main: &mut Main) {
-        main.console.write_line("FAIL: planner certificate"); main.console.exit_process(1);
+        Console::write_line("FAIL: planner certificate"); Console::exit_process(1);
     }
 }
 machine number(main: &mut Main, value: i64 in Wrapping) reaches Console {
@@ -161,12 +160,12 @@ machine number(main: &mut Main, value: i64 in Wrapping) reaches Console {
                byte: i64 in Wrapping)
     requires byte >= 48 && byte <= 57 && scale > 0
     {
-        main.console.write_byte(byte as i32);
+        Console::write_byte(byte as i32);
         transition scale > 1 {
             true -> digit(main, value % scale, scale / 10)
             false -> done()
         }
     }
     state done() { }
-    state bad(main: &mut Main) { main.console.exit_process(1); }
+    state bad(main: &mut Main) { Console::exit_process(1); }
 }

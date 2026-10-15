@@ -22,7 +22,6 @@
 // Expected exit: 85.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Engine {
     rpm: i32;
@@ -44,12 +43,11 @@ data Dashboard {
 }
 
 data Main {
-    console: Binding<Console>;
     dash: Dashboard;
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    main.console.write_line("nested_diagnostics: read engine + battery through nested receivers");
+    Console::write_line("nested_diagnostics: read engine + battery through nested receivers");
     main.dash.engine.rpm = 3000;
     main.dash.battery.percent = 85;
 
@@ -69,12 +67,12 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state nominal(main: &mut Main) {
-        main.console.write_line("engine 3000rpm, battery 85% -> nominal (exit = battery level)");
-        main.console.exit_process(85);
+        Console::write_line("engine 3000rpm, battery 85% -> nominal (exit = battery level)");
+        Console::exit_process(85);
     }
 
     state fault(main: &mut Main) {
-        main.console.write_line("reading mismatch -> fault (exit 1)");
-        main.console.exit_process(1);
+        Console::write_line("reading mismatch -> fault (exit 1)");
+        Console::exit_process(1);
     }
 }

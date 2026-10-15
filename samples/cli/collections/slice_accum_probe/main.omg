@@ -18,7 +18,6 @@
 // Exit 71 = probe A wrong; 72 = probe B wrong.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Entry {
     value: i32 in Wrapping;
@@ -27,7 +26,6 @@ data Entry {
 data Walker {}
 
 data Main {
-    console: Binding<Console>;
     ints: [i32 in Wrapping; 7];
     entries: [Entry; 7];
     walker: Walker;
@@ -55,7 +53,7 @@ terminates by s -> Slice::Length;
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    main.console.write_line("slice_accum_probe: tail-recursive accumulation over i32 and struct slices");
+    Console::write_line("slice_accum_probe: tail-recursive accumulation over i32 and struct slices");
     main.ints[0] = 8;
     main.ints[1] = 12;
     main.ints[2] = 10;
@@ -86,10 +84,10 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state bad_a(main: &mut Main) {
-        main.console.write_line("FAIL: probe A (i32 slice) sum did not equal 70 (exit 71)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(71);
+        Console::write_line("FAIL: probe A (i32 slice) sum did not equal 70 (exit 71)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(71);
     }
 
     state check_b(main: &mut Main, b: i32) {
@@ -100,16 +98,16 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state bad_b(main: &mut Main) {
-        main.console.write_line("FAIL: probe B (struct slice) sum did not equal 70 (exit 72)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(72);
+        Console::write_line("FAIL: probe B (struct slice) sum did not equal 70 (exit 72)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(72);
     }
 
     state good(main: &mut Main) {
-        main.console.write_line("PASS: both slice accumulations summed to 70 (exit 70)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(70);
+        Console::write_line("PASS: both slice accumulations summed to 70 (exit 70)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(70);
     }
 }

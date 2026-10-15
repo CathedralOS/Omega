@@ -1,14 +1,13 @@
 // Complete intended-invalid application: the unguarded dynamic index has
 // no bound. Even a benign supplied value cannot establish the general rule.
 use omega_language_std::console;
-use omega::language::core::binding;
-data Main { console: Binding<Console>; }
+data Main { }
 machine select(records: &[u64; 3], position: u64) -> u64 {
     records[position]
 }
 machine Main::main(main: &mut Main) reaches Console {
     let records: [u64; 3] = [1, 2, 3];
     let selected: u64 = select(&records, 0);
-    main.console.write_byte((selected % 10 + 48) as i32);
-    main.console.exit_process(0);
+    Console::write_byte((selected % 10 + 48) as i32);
+    Console::exit_process(0);
 }

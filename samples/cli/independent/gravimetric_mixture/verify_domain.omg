@@ -4,16 +4,15 @@
 // Expected exit: 0.
 // Expected output contains: VERIFIED: domain_oracles
 use omega_language_std::console;
-use omega::language::core::binding;
 use omega::language::core::float_operations;
 use domain::mixture;
 
-data Main { console: Binding<Console>; result: Mixture; }
+data Main { result: Mixture; }
 
 machine Main::main(main: &mut Main) reaches Console {
     transition { _ -> case_0(main) }
     state case_0(main: &mut Main) {
-        main.console.write_line("domain case: nominal");
+        Console::write_line("domain case: nominal");
         correct(&mut main.result, 3.0, 5.0, 1.0, 1.0, true);
         transition main.result.status == 0 {
             true -> case_0_metric_0_lower(main)
@@ -190,7 +189,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
     state case_1(main: &mut Main) {
-        main.console.write_line("domain case: independent_tares");
+        Console::write_line("domain case: independent_tares");
         correct(&mut main.result, 3.0, 5.0, 1.0, 1.0, false);
         transition main.result.status == 1 {
             true -> case_1_metric_0_lower(main)
@@ -367,7 +366,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
     state case_2(main: &mut Main) {
-        main.console.write_line("domain case: equal_shared");
+        Console::write_line("domain case: equal_shared");
         correct(&mut main.result, 3.0, 3.0, 1.0, 1.0, true);
         transition main.result.status == 1 {
             true -> case_2_metric_0_lower(main)
@@ -544,7 +543,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
     state case_3(main: &mut Main) {
-        main.console.write_line("domain case: equal_independent");
+        Console::write_line("domain case: equal_independent");
         correct(&mut main.result, 3.0, 3.0, 1.0, 1.0, false);
         transition main.result.status == 1 {
             true -> case_3_metric_0_lower(main)
@@ -721,7 +720,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
     state case_4(main: &mut Main) {
-        main.console.write_line("domain case: milligrams");
+        Console::write_line("domain case: milligrams");
         correct(&mut main.result, 300.0, 500.0, 100.0, 0.001, true);
         transition main.result.status == 0 {
             true -> case_4_metric_0_lower(main)
@@ -898,7 +897,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
     state case_5(main: &mut Main) {
-        main.console.write_line("domain case: off_target");
+        Console::write_line("domain case: off_target");
         correct(&mut main.result, 3.0, 7.0, 1.0, 1.0, true);
         transition main.result.status == 1 {
             true -> case_5_metric_0_lower(main)
@@ -1075,7 +1074,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
     state case_6(main: &mut Main) {
-        main.console.write_line("domain case: large_batch");
+        Console::write_line("domain case: large_batch");
         correct(&mut main.result, 21.0, 41.0, 1.0, 1.0, true);
         transition main.result.status == 0 {
             true -> case_6_metric_0_lower(main)
@@ -1252,7 +1251,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
     state case_7(main: &mut Main) {
-        main.console.write_line("domain case: zero_component");
+        Console::write_line("domain case: zero_component");
         correct(&mut main.result, 1.0, 5.0, 1.0, 1.0, true);
         transition main.result.status == 1 {
             true -> case_7_metric_0_lower(main)
@@ -1429,7 +1428,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
     state case_8(main: &mut Main) {
-        main.console.write_line("domain case: threshold_exact");
+        Console::write_line("domain case: threshold_exact");
         correct(&mut main.result, 5.0, 7.0, 1.0, 0.001, true);
         transition main.result.status == 1 {
             true -> case_8_metric_0_lower(main)
@@ -1606,7 +1605,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
     state case_9(main: &mut Main) {
-        main.console.write_line("domain case: near_zero");
+        Console::write_line("domain case: near_zero");
         correct(&mut main.result, 1.0, 2.0, 0.0, 0.001, true);
         transition main.result.status == 4 {
             true -> case_10(main)
@@ -1614,7 +1613,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
     state case_10(main: &mut Main) {
-        main.console.write_line("domain case: zero_total");
+        Console::write_line("domain case: zero_total");
         correct(&mut main.result, 1.0, 1.0, 1.0, 1.0, true);
         transition main.result.status == 4 {
             true -> case_11(main)
@@ -1622,7 +1621,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
     state case_11(main: &mut Main) {
-        main.console.write_line("domain case: negative");
+        Console::write_line("domain case: negative");
         correct(&mut main.result, 0.0, 5.0, 1.0, 1.0, true);
         transition main.result.status == 3 {
             true -> case_12(main)
@@ -1630,7 +1629,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
     state case_12(main: &mut Main) {
-        main.console.write_line("domain case: maximum");
+        Console::write_line("domain case: maximum");
         correct(&mut main.result, 999.0, 999.0, 0.0, 1.0, true);
         transition main.result.status == 1 {
             true -> case_12_metric_0_lower(main)
@@ -1806,6 +1805,6 @@ machine Main::main(main: &mut Main) reaches Console {
             false -> bad(main)
         }
     }
-    state good(main: &mut Main) { main.console.write_line("VERIFIED: domain_oracles"); main.console.exit_process(0); }
-    state bad(main: &mut Main) { main.console.write_line("FAIL: domain_oracles"); main.console.exit_process(77); }
+    state good(main: &mut Main) { Console::write_line("VERIFIED: domain_oracles"); Console::exit_process(0); }
+    state bad(main: &mut Main) { Console::write_line("FAIL: domain_oracles"); Console::exit_process(77); }
 }

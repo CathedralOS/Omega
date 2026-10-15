@@ -15,11 +15,8 @@
 
 use left;
 use right;
-use omega::language::core::binding;
 
 data Runner {
-    left_sink: Binding<left::Sink>;
-    right_sink: Binding<right::Sink>;
 }
 
 data Main { hits: i32 in Wrapping; }

@@ -10,7 +10,6 @@ use omega_language_std::math;
 // Expected output contains: #
 use omega_language_std::console;
 use omega_language_std::clock;
-use omega::language::core::binding;
 
 domain [u8]::Utf8(bytes)
 requires
@@ -22,8 +21,6 @@ domain [u8; 4]::Utf8(bytes)
 requires
     valid_utf8(bytes);
 data Main {
-    console: Binding<Console>;
-    clock: Binding<Clock>;
     arr: [i32; 31];
     line: [u8; 31] in Utf8;   // render buffer
     chars: [u8; 4] in Utf8;   // " -*#"  excluded / range / target / mid
@@ -105,8 +102,8 @@ machine Main::main(main: &mut Main) reaches Clock + Console {
         transition { _ -> render_loop(main) }
     }
     state emit(main: &mut Main) {
-        main.console.write_line(main.line);
-        main.clock.sleep(250);
+        Console::write_line(main.line);
+        Clock::sleep(250);
         transition { _ -> probe(main) }
     }
 
@@ -133,14 +130,14 @@ machine Main::main(main: &mut Main) reaches Clock + Console {
     }
 
     state finish(main: &mut Main) {
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(0);
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(0);
     }
     state not_found(main: &mut Main) {
-        main.console.exit_process(1);
+        Console::exit_process(1);
     }
     state bad(main: &mut Main) {
-        main.console.exit_process(1);
+        Console::exit_process(1);
     }
 }

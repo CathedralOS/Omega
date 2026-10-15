@@ -13,7 +13,6 @@ domain [u8; 8]::Utf8(bytes)
 requires
     valid_utf8(bytes);
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Item {
     id: i32;
@@ -21,13 +20,12 @@ data Item {
 }
 
 data Main {
-    console: Binding<Console>;
     items: [Item; 3];
     pause: [u8; 256];
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    main.console.write_line("inventory_lookup: searching a struct table for the item named Shield");
+    Console::write_line("inventory_lookup: searching a struct table for the item named Shield");
     main.items[0].id = 10;
     main.items[0].name = "Sword";
     main.items[1].id = 20;
@@ -48,27 +46,27 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state found0(main: &mut Main) {
-        main.console.write_line("FAIL: matched the wrong slot 0, Sword (exits its id, 10)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(main.items[0].id);
+        Console::write_line("FAIL: matched the wrong slot 0, Sword (exits its id, 10)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(main.items[0].id);
     }
     state found1(main: &mut Main) {
-        main.console.write_line("PASS: found Shield at slot 1, id 20 (exit 20)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(main.items[1].id);
+        Console::write_line("PASS: found Shield at slot 1, id 20 (exit 20)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(main.items[1].id);
     }
     state found2(main: &mut Main) {
-        main.console.write_line("FAIL: matched the wrong slot 2, Potion (exits its id, 30)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(main.items[2].id);
+        Console::write_line("FAIL: matched the wrong slot 2, Potion (exits its id, 30)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(main.items[2].id);
     }
     state missing(main: &mut Main) {
-        main.console.write_line("FAIL: Shield not found in the table (exit 0)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(0);
+        Console::write_line("FAIL: Shield not found in the table (exit 0)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(0);
     }
 }

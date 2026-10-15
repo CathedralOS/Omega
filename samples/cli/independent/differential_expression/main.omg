@@ -11,7 +11,7 @@ machine Main::main(main: &mut Main) reaches Console {
     transition parsed {
  true -> metadata(main, 0, 0)
  false -> syntax(main) }
-    state syntax(main: &mut Main) { main.protocol.console.write_line("INVALID syntax"); main.protocol.console.exit_process(64); }
+    state syntax(main: &mut Main) { Console::write_line("INVALID syntax"); Console::exit_process(64); }
     state metadata(main: &mut Main, index: i32 in Wrapping, cases: i32 in Wrapping) {
         transition index >= 0 && index < 6 {
  true -> label(main, index, cases)
@@ -32,7 +32,7 @@ machine Main::main(main: &mut Main) reaches Console {
  true -> counts(main, 0)
  false -> invalid(main) }
     }
-    state invalid(main: &mut Main) { main.protocol.console.write_line("INVALID metadata_or_count_range"); main.protocol.console.exit_process(65); }
+    state invalid(main: &mut Main) { Console::write_line("INVALID metadata_or_count_range"); Console::exit_process(65); }
     state counts(main: &mut Main, index: i32 in Wrapping) {
         let field: i32 in Wrapping = index + 6;
         transition index >= 0 && index < 48 && field >= 0 && field < 54 {
@@ -55,15 +55,15 @@ machine Main::main(main: &mut Main) reaches Console {
  true -> factors(main, 0)
  false -> absent(main) }
     }
-    state absent(main: &mut Main) { main.protocol.console.write_line("EXCLUDED normalization_no_positive_gene"); main.protocol.console.exit_process(66); }
+    state absent(main: &mut Main) { Console::write_line("EXCLUDED normalization_no_positive_gene"); Console::exit_process(66); }
     state factors(main: &mut Main, index: i32 in Wrapping) {
         transition index < 6 {
  true -> factor_line(main, index)
  false -> gene(main, 0) }
     }
     state factor_line(main: &mut Main, index: i32 in Wrapping) {
-        main.protocol.console.write("factor,"); Protocol::integer(&mut main.protocol, index); main.protocol.console.write(",");
-        Protocol::number(&mut main.protocol, factor(&main.study, index)); main.protocol.console.write_line("");
+        Console::write("factor,"); Protocol::integer(&mut main.protocol, index); Console::write(",");
+        Protocol::number(&mut main.protocol, factor(&main.study, index)); Console::write_line("");
         transition { _ -> factors(main, index + 1) }
     }
     state gene(main: &mut Main, index: i32 in Wrapping) {
@@ -122,7 +122,7 @@ machine Main::main(main: &mut Main) reaches Console {
  false -> done(main) }
     }
     state row(main: &mut Main, index: i32 in Wrapping) requires index >= 0 && index < 8 {
-        main.protocol.console.write("gene,"); Protocol::integer(&mut main.protocol, index); main.protocol.console.write(",");
+        Console::write("gene,"); Protocol::integer(&mut main.protocol, index); Console::write(",");
         transition main.study.reason[index] == 0 {
  true -> result(main, index)
  false -> reason(main, index) }
@@ -132,28 +132,28 @@ machine Main::main(main: &mut Main) reaches Console {
  true -> zero(main, index)
  false -> other(main, index) }
     }
-    state zero(main: &mut Main, index: i32 in Wrapping) { main.protocol.console.write_line("all_zero"); transition { _ -> report(main, index + 1) } }
+    state zero(main: &mut Main, index: i32 in Wrapping) { Console::write_line("all_zero"); transition { _ -> report(main, index + 1) } }
     state other(main: &mut Main, index: i32 in Wrapping) requires index >= 0 && index < 8 {
         transition main.study.reason[index] == 2 {
  true -> low_count(main, index)
  false -> boundary(main, index) }
     }
-    state low_count(main: &mut Main, index: i32 in Wrapping) { main.protocol.console.write_line("low_total_count"); transition { _ -> report(main, index + 1) } }
-    state boundary(main: &mut Main, index: i32 in Wrapping) { main.protocol.console.write_line("group_zero_boundary"); transition { _ -> report(main, index + 1) } }
+    state low_count(main: &mut Main, index: i32 in Wrapping) { Console::write_line("low_total_count"); transition { _ -> report(main, index + 1) } }
+    state boundary(main: &mut Main, index: i32 in Wrapping) { Console::write_line("group_zero_boundary"); transition { _ -> report(main, index + 1) } }
     state result(main: &mut Main, index: i32 in Wrapping) requires index >= 0 && index < 8 {
-        main.protocol.console.write("tested,");
-        Protocol::number(&mut main.protocol, main.study.base[index]); main.protocol.console.write(",");
-        Protocol::number(&mut main.protocol, main.study.dispersion[index]); main.protocol.console.write(",");
-        Protocol::number(&mut main.protocol, main.study.mean_a[index]); main.protocol.console.write(",");
-        Protocol::number(&mut main.protocol, main.study.mean_b[index]); main.protocol.console.write(",");
-        Protocol::number(&mut main.protocol, main.study.fold[index]); main.protocol.console.write(",");
-        Protocol::number(&mut main.protocol, main.study.error[index]); main.protocol.console.write(",");
-        Protocol::number(&mut main.protocol, main.study.likelihood[index]); main.protocol.console.write(",");
-        Protocol::number(&mut main.protocol, main.study.p[index]); main.protocol.console.write(",");
-        Protocol::number(&mut main.protocol, main.study.q[index]); main.protocol.console.write_line("");
+        Console::write("tested,");
+        Protocol::number(&mut main.protocol, main.study.base[index]); Console::write(",");
+        Protocol::number(&mut main.protocol, main.study.dispersion[index]); Console::write(",");
+        Protocol::number(&mut main.protocol, main.study.mean_a[index]); Console::write(",");
+        Protocol::number(&mut main.protocol, main.study.mean_b[index]); Console::write(",");
+        Protocol::number(&mut main.protocol, main.study.fold[index]); Console::write(",");
+        Protocol::number(&mut main.protocol, main.study.error[index]); Console::write(",");
+        Protocol::number(&mut main.protocol, main.study.likelihood[index]); Console::write(",");
+        Protocol::number(&mut main.protocol, main.study.p[index]); Console::write(",");
+        Protocol::number(&mut main.protocol, main.study.q[index]); Console::write_line("");
         transition { _ -> report(main, index + 1) }
     }
-    state done(main: &mut Main) { main.protocol.console.exit_process(0); }
+    state done(main: &mut Main) { Console::exit_process(0); }
 }
 machine total_count(study: &Study, gene: i32 in Wrapping) -> f64 {
     count(study, gene, 0) + count(study, gene, 1) + count(study, gene, 2) + count(study, gene, 3) + count(study, gene, 4) + count(study, gene, 5)

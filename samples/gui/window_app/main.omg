@@ -6,7 +6,6 @@
 // bounded 60-frame exercise of the same shared rendering and event-pump API.
 use omega_language_std::console;
 use omega_language_std::macos_gui;
-use omega::language::core::binding;
 
 // These requirements expose the shared macos_gui operations' service rows.
 // Direct-invocation declarations are separate; they do not supply a reach ceiling.
@@ -50,10 +49,6 @@ WindowClockProvider satisfies Clock {
 }
 
 data Main {
-    console: Binding<Console>;
-    clock: Binding<Clock>;
-    input: Binding<Input>;
-    gui: Binding<Gui>;
     cls: [u8; 7];
     title: [u8; 11];
     message: [u64; 6];
@@ -106,11 +101,11 @@ machine Main::main(main: &mut Main) reaches AppKit + Clock + Console + CoreGraph
     main.info[2] = 0 - 64;
     main.info[3] = 2097153;
     // WS_VISIBLE|WS_OVERLAPPEDWINDOW; outer padded so client is roughly 256x256.
-    let window: Window = main.gui.window_create(main.cls, &main.title[0], 282001408, 200, 200, 272, 295);
+    let window: Window = Gui::window_create(main.cls, &main.title[0], 282001408, 200, 200, 272, 295);
     main.hwnd = window.window;
     transition main.hwnd > 0 { true -> dc(main, window) _ -> bad(main, window) }
     state dc(main: &mut Main, window: Window) {
-        main.hdc = main.gui.get_dc(&window, main.hwnd);
+        main.hdc = Gui::get_dc(&window, main.hwnd);
         main.frame = 0;
         transition main.hdc > 0 { true -> frame_loop(main, window) _ -> bad(main, window) }
     }
@@ -132,7 +127,7 @@ machine Main::main(main: &mut Main) reaches AppKit + Clock + Console + CoreGraph
         transition { _ -> pump_loop(main, window) }
     }
     state pump_loop(main: &mut Main, mut window: Window) {
-        main.have = main.gui.msg_peek(&mut window, main.message);
+        main.have = Gui::msg_peek(&mut window, main.message);
         transition main.have > 0 { true -> pump_check_close(main, window) _ -> liveness(main, window) }
     }
     state pump_check_close(main: &mut Main, window: Window) {
@@ -154,8 +149,8 @@ machine Main::main(main: &mut Main) reaches AppKit + Clock + Console + CoreGraph
         transition main.message[2] >= 61536 && main.message[2] < 61552 { true -> quit_self(main, window) _ -> pump_handle(main, window) }
     }
     state pump_handle(main: &mut Main, window: Window) {
-        main.translated = main.gui.msg_translate(&window, main.message);
-        main.dispatched = main.gui.msg_dispatch(&window, main.message);
+        main.translated = Gui::msg_translate(&window, main.message);
+        main.dispatched = Gui::msg_dispatch(&window, main.message);
         // guard BEFORE the increment so its edge carries the bound (keystone).
         transition main.pumped < 16 { true -> pump_next(main, window) _ -> liveness(main, window) }
     }
@@ -165,17 +160,17 @@ machine Main::main(main: &mut Main) reaches AppKit + Clock + Console + CoreGraph
     }
     // --- quit paths: closed/destroyed window detection or ESC ---
     state liveness(main: &mut Main, window: Window) {
-        main.alive = main.gui.is_window(&window, main.hwnd);
+        main.alive = Gui::is_window(&window, main.hwnd);
         transition main.alive > 0 { true -> focus_check(main, window) _ -> closed(main, window) }
     }
     // GetAsyncKeyState is GLOBAL: without this gate an ESC pressed in ANY app
     // (even the Ctrl+Shift+Esc chord) would close this window.
     state focus_check(main: &mut Main, window: Window) {
-        main.fw = main.gui.foreground_window(&window);
+        main.fw = Gui::foreground_window(&window);
         transition main.fw == main.hwnd { true -> esc_check(main, window) _ -> fill_init(main, window) }
     }
     state esc_check(main: &mut Main, window: Window) {
-        main.escape = main.input.key_state(27);
+        main.escape = Input::key_state(27);
         transition main.escape > 0 { true -> quit_self(main, window) _ -> fill_init(main, window) }
     }
     state quit_self(main: &mut Main, window: Window) {
@@ -205,17 +200,17 @@ machine Main::main(main: &mut Main) reaches AppKit + Clock + Console + CoreGraph
         transition { _ -> fill_loop(main, window) }
     }
     state present(main: &mut Main, window: Window) {
-        main.copied = main.gui.blit(&window, main.hdc, 256, 256, 64, 64, main.pixels, main.info);
+        main.copied = Gui::blit(&window, main.hdc, 256, 256, 64, 64, main.pixels, main.info);
         transition main.copied == 64 { true -> pace(main, window) _ -> present_failed(main, window) }
     }
     state present_failed(main: &mut Main, window: Window) {
         // A failed blit right after the user closed the window is the normal
         // shutdown race, not an error.
-        main.alive = main.gui.is_window(&window, main.hwnd);
+        main.alive = Gui::is_window(&window, main.hwnd);
         transition main.alive > 0 { true -> bad(main, window) _ -> closed(main, window) }
     }
     state pace(main: &mut Main, window: Window) {
-        main.clock.sleep(15);
+        Clock::sleep(15);
         // re-guard so the increment's edge carries the frame bound (keystone).
         transition main.frame < 16384 { true -> advance(main, window) _ -> wrap_frame(main, window) }
     }
@@ -224,13 +219,13 @@ machine Main::main(main: &mut Main) reaches AppKit + Clock + Console + CoreGraph
         transition { _ -> frame_loop(main, window) }
     }
     state closed(main: &mut Main, window: Window) {
-        main.gui.window_destroy(window);
-        main.console.write_line("window closed -- goodbye (exit 0)");
-        main.console.exit_process(0);
+        Gui::window_destroy(window);
+        Console::write_line("window closed -- goodbye (exit 0)");
+        Console::exit_process(0);
     }
     state bad(main: &mut Main, window: Window) {
-        main.gui.window_destroy(window);
-        main.console.write_line("FAIL: window/DC creation failed or a blit failed while alive (exit 1)");
-        main.console.exit_process(1);
+        Gui::window_destroy(window);
+        Console::write_line("FAIL: window/DC creation failed or a blit failed while alive (exit 1)");
+        Console::exit_process(1);
     }
 }

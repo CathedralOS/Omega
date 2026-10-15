@@ -1,7 +1,6 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 
-pub data InvalidEntry { console: Binding<Console>; }
+pub data InvalidEntry { }
 // This is a complete executable source control. It must fail Exact overflow
 // admission, independently of the valid application's runtime input rejection.
 pub machine InvalidEntry::main(application: &mut InvalidEntry) reaches Console
@@ -9,6 +8,6 @@ invokes Console;
 {
     let maximum: i32 = 2147483647;
     let overflow: i32 = maximum + 1;
-    application.console.write_line("must never execute");
-    application.console.exit_process(overflow);
+    Console::write_line("must never execute");
+    Console::exit_process(overflow);
 }

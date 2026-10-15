@@ -26,7 +26,6 @@
 // Expected exit: 70.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Task {
     case Compute(value: i32 in Saturating);
@@ -40,7 +39,6 @@ data Runner [copy] {
 }
 
 data Main {
-    console: Binding<Console>;
     runner: Runner;
     pause: [u8; 256];
 }
@@ -82,7 +80,7 @@ machine Main::run_task(main: &mut Main, task: Task) {
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    main.console.write_line("task_runner: nested case-payload dispatch runs a compute/double/clamp script");
+    Console::write_line("task_runner: nested case-payload dispatch runs a compute/double/clamp script");
     Main::run_task(main, Task::Compute { value: 10 });
     Main::run_task(main, Task::Compute { value: 15 });
     Main::run_task(main, Task::Double);
@@ -96,16 +94,16 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state good(main: &mut Main) {
-        main.console.write_line("PASS: the task script left the score at 70 (exit 70)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(70);
+        Console::write_line("PASS: the task script left the score at 70 (exit 70)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(70);
     }
 
     state bad(main: &mut Main) {
-        main.console.write_line("FAIL: the final score was not 70 (exit 71)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(71);
+        Console::write_line("FAIL: the final score was not 70 (exit 71)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(71);
     }
 }

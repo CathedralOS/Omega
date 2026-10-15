@@ -1,13 +1,12 @@
 // Expected exit: 0
 // Expected output contains: planar_truss_elasticity
 use omega_language_std::console;
-use omega::language::core::binding;
 use io::input;
 use io::decode;
 use io::report;
 use domain::model;
 use domain::solver;
-data Main { console: Binding<Console>; input: Input; output: Output; truss: Truss; result: Solution; }
+data Main { input: Input; output: Output; truss: Truss; result: Solution; }
 machine Main::main(main: &mut Main) reaches Console {
     block read_input(&mut main.input);
     transition main.input.valid { true -> decode_input(main) false -> invalid(main) }
@@ -21,11 +20,11 @@ machine Main::main(main: &mut Main) reaches Console {
     }
     state output(main: &mut Main) {
         report(&mut main.output, &main.truss, &main.result);
-        main.console.exit_process(0);
+        Console::exit_process(0);
     }
     state failure(main: &mut Main) {
         transition main.result.status == 65 { true -> mechanism(main) false -> invalid(main) }
     }
-    state mechanism(main: &mut Main) { main.console.write_line("MECHANISM: singular or numerically unresolved stiffness"); main.console.exit_process(65); }
-    state invalid(main: &mut Main) { main.console.write_line("INVALID: bounded integers, dimensions, indices, flags, positive EA or nonzero length required"); main.console.exit_process(64); }
+    state mechanism(main: &mut Main) { Console::write_line("MECHANISM: singular or numerically unresolved stiffness"); Console::exit_process(65); }
+    state invalid(main: &mut Main) { Console::write_line("INVALID: bounded integers, dimensions, indices, flags, positive EA or nonzero length required"); Console::exit_process(64); }
 }

@@ -1,9 +1,8 @@
 // Complete intended-invalid application: element 4 is outside a four-element extent.
 use omega_language_std::console;
-use omega::language::core::binding;
-data Invalid { console: Binding<Console>; weights: [i32; 4]; }
+data Invalid { weights: [i32; 4]; }
 machine Invalid::main(program: &mut Invalid) reaches Console {
     program.weights[4] = 1;
-    program.console.write_line("UNREACHABLE: out-of-bounds write admitted");
-    program.console.exit_process(0);
+    Console::write_line("UNREACHABLE: out-of-bounds write admitted");
+    Console::exit_process(0);
 }

@@ -29,7 +29,6 @@
 // Expected exit: 70.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Pixel [copy] {
     r: i32 in Saturating;
@@ -41,7 +40,6 @@ data Canvas [copy] {
 }
 
 data Main {
-    console: Binding<Console>;
     canvas: Canvas;
     pause: [u8; 256];
 }
@@ -105,7 +103,7 @@ machine Main::set_g(main: &mut Main, idx: i32 in Saturating, val: i32 in Saturat
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    main.console.write_line("pixel_canvas: writing r/g channels of 4 pixel structs, then summing them");
+    Console::write_line("pixel_canvas: writing r/g channels of 4 pixel structs, then summing them");
     Main::set_r(main, 0, 10);
     Main::set_g(main, 0, 5);
     Main::set_r(main, 1, 20);
@@ -128,17 +126,17 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state good(main: &mut Main) {
-        main.console.write_line("PASS: channel sum is 70 (exit 70)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(70);
+        Console::write_line("PASS: channel sum is 70 (exit 70)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(70);
     }
 
     state bad(main: &mut Main, total: i32 in Saturating) {
         // Exit with a code that encodes the wrong total for debugging.
-        main.console.write_line("FAIL: wrong channel sum (exit 71)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(71);
+        Console::write_line("FAIL: wrong channel sum (exit 71)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(71);
     }
 }

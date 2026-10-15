@@ -12,7 +12,6 @@
 use omega::language::core::float_operations;
 use omega_language_std::console;
 use omega_language_std::clock;
-use omega::language::core::binding;
 
 domain [u8]::Utf8(bytes)
 requires
@@ -25,8 +24,6 @@ requires
     valid_utf8(bytes);
 
 data Main {
-    console: Binding<Console>;
-    clock: Binding<Clock>;
     line: [u8; 24] in Utf8;
     home: [u8; 3] in Utf8;
     bx: f64;
@@ -42,7 +39,7 @@ data Main {
 }
 
 machine Main::main(main: &mut Main) reaches Clock + Console {
-    main.console.write_line("bouncing_ball_2d: a ball under gravity animated in a 24x12 box for 70 frames");
+    Console::write_line("bouncing_ball_2d: a ball under gravity animated in a 24x12 box for 70 frames");
     main.line = "                        ";
     main.home = "XXX";
     main.home[0] = 27;
@@ -61,7 +58,7 @@ machine Main::main(main: &mut Main) reaches Clock + Console {
         transition main.frame < 70 { true -> frame_start(main) _ -> finish(main) }
     }
     state frame_start(main: &mut Main) {
-        main.console.write(main.home);
+        Console::write(main.home);
         main.y = 0;
         transition { _ -> row_loop(main) }
     }
@@ -102,7 +99,7 @@ machine Main::main(main: &mut Main) reaches Clock + Console {
         transition { _ -> col_loop(main) }
     }
     state emit_row(main: &mut Main) {
-        main.console.write_line(main.line);
+        Console::write_line(main.line);
         transition main.y >= 0 && main.y < 12 { true -> y_bump(main) _ -> row_loop(main) }
     }
     state y_bump(main: &mut Main) {
@@ -156,7 +153,7 @@ machine Main::main(main: &mut Main) reaches Clock + Console {
         let row: i32 in Saturating = I32::from_f64(main.by);
         main.ball_x = column as i32;
         main.ball_y = row as i32;
-        main.clock.sleep(40);
+        Clock::sleep(40);
         transition main.frame < 70 { true -> frame_bump(main) _ -> frame_loop(main) }
     }
     state frame_bump(main: &mut Main) {
@@ -165,9 +162,9 @@ machine Main::main(main: &mut Main) reaches Clock + Console {
     }
 
     state finish(main: &mut Main) {
-        main.console.write_line("done: 70 frames of gravity-bounce animation complete (exit 0)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(0);
+        Console::write_line("done: 70 frames of gravity-bounce animation complete (exit 0)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(0);
     }
 }

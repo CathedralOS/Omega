@@ -7,7 +7,6 @@
 use omega::language::core::float_operations;
 use omega_language_std::console;
 use omega_language_std::clock;
-use omega::language::core::binding;
 
 domain [u8]::Utf8(bytes)
 requires
@@ -23,8 +22,6 @@ requires
     valid_utf8(bytes);
 
 data Main {
-    console: Binding<Console>;
-    clock: Binding<Clock>;
     row: [u8; 48] in Utf8;
     palette: [u8; 8] in Utf8;
     home: [u8; 3] in Utf8;
@@ -46,7 +43,7 @@ data Main {
 }
 
 machine Main::main(main: &mut Main) reaches Clock + Console {
-    main.console.write_line("mandelbrot_zoom: 12 animated frames zooming into seahorse valley");
+    Console::write_line("mandelbrot_zoom: 12 animated frames zooming into seahorse valley");
     main.palette = " .:-=+*#";
     main.row = "................................................";
     main.home = "XXX";
@@ -61,7 +58,7 @@ machine Main::main(main: &mut Main) reaches Clock + Console {
         transition main.frame < 12 { true -> frame_init(main) _ -> finish(main) }
     }
     state frame_init(main: &mut Main) {
-        main.console.write(main.home);
+        Console::write(main.home);
         main.y = 0;
         transition { _ -> row_loop(main) }
     }
@@ -120,7 +117,7 @@ machine Main::main(main: &mut Main) reaches Clock + Console {
     // Re-guard so the increment's direct edge proves `y + 1` lands in
     // [1..=22] (the write_line call severs the row_loop guard anyway).
     state emit_row(main: &mut Main) {
-        main.console.write_line(main.row);
+        Console::write_line(main.row);
         transition main.y >= 0 && main.y < 22 { true -> row_advance(main) _ -> frame_end(main) }
     }
     state row_advance(main: &mut Main) {
@@ -130,7 +127,7 @@ machine Main::main(main: &mut Main) reaches Clock + Console {
     // Re-guard so the increment's direct edge proves `frame + 1` lands in
     // [1..=12] (the sleep call severs the frame_loop guard anyway).
     state frame_end(main: &mut Main) {
-        main.clock.sleep(70);
+        Clock::sleep(70);
         main.span = main.span * 0.62;
         transition main.frame >= 0 && main.frame < 12 { true -> frame_advance(main) _ -> finish(main) }
     }
@@ -139,15 +136,15 @@ machine Main::main(main: &mut Main) reaches Clock + Console {
         transition { _ -> frame_loop(main) }
     }
     state finish(main: &mut Main) {
-        main.console.write_line("PASS: 12 zoom frames rendered (exit 0)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(0);
+        Console::write_line("PASS: 12 zoom frames rendered (exit 0)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(0);
     }
     state bad(main: &mut Main) {
-        main.console.write_line("FAIL: internal bounds check failed (exit 1)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(1);
+        Console::write_line("FAIL: internal bounds check failed (exit 1)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(1);
     }
 }

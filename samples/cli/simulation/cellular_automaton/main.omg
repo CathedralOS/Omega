@@ -20,7 +20,6 @@ use omega_language_std::math;
 // Expected output contains: #
 use omega_language_std::console;
 use omega_language_std::clock;
-use omega::language::core::binding;
 
 domain [u8]::Utf8(bytes)
 requires
@@ -32,8 +31,6 @@ domain [u8; 2]::Utf8(bytes)
 requires
     valid_utf8(bytes);
 data Main {
-    console: Binding<Console>;
-    clock: Binding<Clock>;
     cells: [i32; 64];       // current generation (0/1)
     next: [i32; 64];        // next generation
     line: [u8; 64] in Utf8; // render buffer
@@ -51,7 +48,7 @@ data Main {
 }
 
 machine Main::main(main: &mut Main) reaches Clock + Console {
-    main.console.write_line("cellular_automaton: Rule 90 from a single centre cell -- 32 generations draw the Sierpinski triangle");
+    Console::write_line("cellular_automaton: Rule 90 from a single centre cell -- 32 generations draw the Sierpinski triangle");
     main.line = "                                                                ";
     main.chars = " #";
     main.x = 0;
@@ -99,7 +96,7 @@ machine Main::main(main: &mut Main) reaches Clock + Console {
         transition { _ -> render_loop(main) }
     }
     state emit(main: &mut Main) {
-        main.console.write_line(main.line);
+        Console::write_line(main.line);
         transition { _ -> scan_init(main) }
     }
 
@@ -177,7 +174,7 @@ machine Main::main(main: &mut Main) reaches Clock + Console {
     // Sleep first (the host call would kill facts), then re-guard `gen < 32`
     // so the increment proves into [0..=32].
     state gen_next(main: &mut Main) {
-        main.clock.sleep(50);
+        Clock::sleep(50);
         transition main.gen < 32 { true -> gen_bump(main) _ -> gen_loop(main) }
     }
     state gen_bump(main: &mut Main) {
@@ -186,15 +183,15 @@ machine Main::main(main: &mut Main) reaches Clock + Console {
     }
 
     state finish(main: &mut Main) {
-        main.console.write_line("done: 32 generations of Rule 90 rendered (exit 0)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(0);
+        Console::write_line("done: 32 generations of Rule 90 rendered (exit 0)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(0);
     }
     state bad(main: &mut Main) {
-        main.console.write_line("FAIL: a cell value or index left its guarded range (exit 1)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(1);
+        Console::write_line("FAIL: a cell value or index left its guarded range (exit 1)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(1);
     }
 }

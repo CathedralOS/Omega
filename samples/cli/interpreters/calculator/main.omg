@@ -17,10 +17,8 @@ requires
     valid_utf8(bytes);
 use omega_language_std::console;
 use omega::language::core::numeric_conversion;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
     text: [u8; 8] in Utf8;
     // Wrapping DECLARED: parse accumulators over carrier bytes -- element reads
     // carry no range facts yet, so tens*10+ones cannot prove its bounds.
@@ -32,7 +30,7 @@ data Main {
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    main.console.write_line("calculator: parse and evaluate the expression \"12+34\" from text bytes");
+    Console::write_line("calculator: parse and evaluate the expression \"12+34\" from text bytes");
     main.text = "12+34";
 
     // First operand from text[0..1].
@@ -64,15 +62,15 @@ machine Main::main(main: &mut Main) reaches Console {
     state do_add(main: &mut Main) { main.result = main.a + main.b; transition { _ -> emit(main) } }
     state do_sub(main: &mut Main) { main.result = main.a - main.b; transition { _ -> emit(main) } }
     state unknown(main: &mut Main) {
-        main.console.write_line("FAIL: operator byte not '+' or '-' -- unknown operator (exit 0)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(0);
+        Console::write_line("FAIL: operator byte not '+' or '-' -- unknown operator (exit 0)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(0);
     }
     state emit(main: &mut Main) {
-        main.console.write_line("result: the evaluated expression, 12+34 = 46 (the exit code)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(main.result as i32);
+        Console::write_line("result: the evaluated expression, 12+34 = 46 (the exit code)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(main.result as i32);
     }
 }

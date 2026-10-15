@@ -6,7 +6,6 @@
 // Expected output contains: 081
 use omega_language_std::console;
 use omega::language::core::numeric_conversion;
-use omega::language::core::binding;
 
 domain [u8]::Utf8(bytes)
 requires
@@ -15,7 +14,6 @@ domain [u8; 3]::Utf8(bytes)
 requires
     valid_utf8(bytes);
 data Main {
-    console: Binding<Console>;
     out: [u8; 3] in Utf8;
     k: u32 in Wrapping;
     sq: u32 in Wrapping;
@@ -28,7 +26,7 @@ data Main {
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    main.console.write_line("print_squares: the squares 1..9 printed as 3-digit decimal text");
+    Console::write_line("print_squares: the squares 1..9 printed as 3-digit decimal text");
     main.out = "XXX";
     main.k = 1;
     transition { _ -> outer(main) }
@@ -64,15 +62,15 @@ machine Main::main(main: &mut Main) reaches Console {
         transition { _ -> itoa_loop(main) }
     }
     state print_row(main: &mut Main) {
-        main.console.write_line(main.out);
+        Console::write_line(main.out);
         main.k = main.k + 1;
         transition { _ -> outer(main) }
     }
 
     state finish(main: &mut Main) {
-        main.console.write_line("PASS: 9 squares printed, ending at 081 (exit 0)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(0);
+        Console::write_line("PASS: 9 squares printed, ending at 081 (exit 0)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(0);
     }
 }

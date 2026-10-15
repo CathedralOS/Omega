@@ -1,7 +1,6 @@
 // Expected exit: 0.
 // The portable binding pins an explicitly selected raw implementation map.
 // An unrelated Build selection for RawSource must not retarget that map.
-use omega::language::core::binding;
 pub data Observation { value: i32; }
 
 pub boundary trait RawSource {
@@ -47,9 +46,9 @@ machine PortableProvider::read() -> i32 satisfies PortableSource::read {
         false -> (0)
     }
 }
-data Main { source: Binding<PortableSource>; }
+data Main { }
 machine Main::main(context: &mut Main) crashes Trap {
-    let answer: i32 = PortableSource::read(&context.source);
+    let answer: i32 = PortableSource::read();
     transition answer == 41 { true -> done() false -> wrong() }
     state done() {}
     state wrong() { crash Trap; }

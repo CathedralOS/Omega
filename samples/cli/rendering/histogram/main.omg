@@ -16,10 +16,8 @@
 // The program exits with that count. Expected exit: 4.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
     pause: [u8; 256];
     samples: [u64; 8];
     // Wrapping DECLARED: the tallies accumulate values read back OUT of the
@@ -31,7 +29,7 @@ data Main {
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    main.console.write_line("histogram: counting value frequencies into a fixed-bucket array");
+    Console::write_line("histogram: counting value frequencies into a fixed-bucket array");
     main.histogram[0] = 0;
     main.histogram[1] = 0;
     main.histogram[2] = 0;
@@ -91,9 +89,9 @@ machine Main::main(main: &mut Main) reaches Console {
 
     state done(main: &mut Main) {
         main.result = main.histogram[2];
-        main.console.write_line("result: the count for category 2, 4 for this dataset (the exit code)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(main.result as i32);
+        Console::write_line("result: the count for category 2, 4 for this dataset (the exit code)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(main.result as i32);
     }
 }

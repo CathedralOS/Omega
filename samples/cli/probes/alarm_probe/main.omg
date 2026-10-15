@@ -7,7 +7,6 @@
 // If Trigger arm is unreachable or silently dropped: exit 71.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data AlarmEvent {
     case Set(hour: i32 in Saturating, minute: i32 in Saturating);
@@ -18,7 +17,6 @@ data AlarmEvent {
 }
 
 data Main {
-    console: Binding<Console>;
     fire_count: i32 in Saturating;
     pause: [u8; 256];
 }
@@ -42,7 +40,7 @@ machine Main::dispatch(main: &mut Main, event: AlarmEvent) {
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    main.console.write_line("alarm_probe: no-payload case arm after payload arms -- Trigger must fire twice");
+    Console::write_line("alarm_probe: no-payload case arm after payload arms -- Trigger must fire twice");
     Main::dispatch(main, AlarmEvent::Trigger);
     Main::dispatch(main, AlarmEvent::Trigger);
 
@@ -51,15 +49,15 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> bad(main)
     }
     state good(main: &mut Main) {
-        main.console.write_line("PASS: fire_count == 2 after two Trigger dispatches (exit 70)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(70);
+        Console::write_line("PASS: fire_count == 2 after two Trigger dispatches (exit 70)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(70);
     }
     state bad(main: &mut Main) {
-        main.console.write_line("FAIL: fire_count != 2 -- Trigger arm dropped or unreachable (exit 71)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(71);
+        Console::write_line("FAIL: fire_count != 2 -- Trigger arm dropped or unreachable (exit 71)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(71);
     }
 }

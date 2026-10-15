@@ -1,13 +1,12 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 use omega::language::core::float_operations;
 use numerics::complex::complex_carrier_ops::Complex;
 use numerics::complex::complex_carrier_ops::ComplexF64;
 // Must reject: a live mutable destination overlaps a shared input.
-data Main { console: Binding<Console>; value: Complex<f64>; other: Complex<f64>; }
+data Main { value: Complex<f64>; other: Complex<f64>; }
 machine Main::main(main: &mut Main) reaches Console {
     main.value = Complex { real: 3.0, imaginary: 4.0 };
     main.other = Complex { real: -2.0, imaginary: 0.5 };
     ComplexF64::add(&mut main.value, &main.value, &main.other);
-    main.console.exit_process(0);
+    Console::exit_process(0);
 }

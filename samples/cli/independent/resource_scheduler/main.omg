@@ -5,17 +5,16 @@
 // Expected exit: 2.
 // Expected output contains: INVALID
 use omega_language_std::console;
-use omega::language::core::binding;
 use domain::model;
 use domain::input;
 use domain::solver;
 use domain::verify;
 
-data Main { console: Binding<Console>; }
+data Main { }
 
 machine Main::main(main: &mut Main) reaches Console {
     let mut input: Input;
-    let received: LineReadResult = block main.console.read_line(&mut input.bytes);
+    let received: LineReadResult = block Console::read_line(&mut input.bytes);
     transition received {
         LineReadResult::LineComplete { count } -> length(main, &input, count)
         LineReadResult::EndOfInput { count } -> length(main, &input, count)
@@ -67,37 +66,37 @@ machine Main::main(main: &mut Main) reaches Console {
     }
     state row(main: &mut Main, problem: &Problem, result: &Schedule,
                index: i32 in Wrapping) {
-        main.console.write("TASK ");
+        Console::write("TASK ");
         print_number(main, index);
-        main.console.write(" START ");
+        Console::write(" START ");
         print_number(main, result.starts[index]);
-        main.console.write(" END ");
+        Console::write(" END ");
         print_number(main, result.ends[index]);
-        main.console.write_line("");
+        Console::write_line("");
         transition { _ -> render(main, problem, result, index + 1) }
     }
     state finish(main: &mut Main, result: &Schedule) {
-        main.console.write("MAKESPAN ");
+        Console::write("MAKESPAN ");
         print_number(main, result.makespan);
-        main.console.write_line("");
-        main.console.exit_process(0);
+        Console::write_line("");
+        Console::exit_process(0);
     }
     state invalid(main: &mut Main) {
-        main.console.write_line("INVALID");
-        main.console.exit_process(2);
+        Console::write_line("INVALID");
+        Console::exit_process(2);
     }
     state impossible(main: &mut Main) {
-        main.console.write_line("IMPOSSIBLE");
-        main.console.exit_process(3);
+        Console::write_line("IMPOSSIBLE");
+        Console::exit_process(3);
     }
     state internal_failure(main: &mut Main) {
-        main.console.write_line("INVARIANT_FAILURE");
-        main.console.exit_process(4);
+        Console::write_line("INVARIANT_FAILURE");
+        Console::exit_process(4);
     }
 }
 // The public caller prints only IDs and verified times (0..20). Two digits
 // make output comparisons unambiguous without a shared formatting dependency.
 machine print_number(main: &mut Main, value: i32 in Wrapping) reaches Console {
-    main.console.write_byte((48 + value / 10) as i32);
-    main.console.write_byte((48 + value % 10) as i32);
+    Console::write_byte((48 + value / 10) as i32);
+    Console::write_byte((48 + value % 10) as i32);
 }

@@ -18,7 +18,7 @@ machine Application::main(application: &mut Application) reaches Console crashes
         _ -> invalid(application)
     }
     state invalid(application: &mut Application) {
-        application.reader.console.write_line("ERROR input"); application.reader.console.exit_process(10);
+        Console::write_line("ERROR input"); Console::exit_process(10);
     }
     state configure(application: &mut Application, metabolites: i64 in Wrapping, reactions: i64 in Wrapping, biomass: i64 in Wrapping) {
         application.solver.metabolites = narrow_i64_to_i32_wrapping((metabolites / 1000000000) as i64) as i32 in Wrapping;
@@ -66,10 +66,10 @@ machine Application::main(application: &mut Application) reaches Console crashes
         transition application.solver.found { true -> optimal(application) _ -> infeasible(application) }
     }
     state infeasible(application: &mut Application) {
-        application.reader.console.write_line("INFEASIBLE"); application.reader.console.exit_process(11);
+        Console::write_line("INFEASIBLE"); Console::exit_process(11);
     }
     state optimal(application: &mut Application) {
-        application.reader.console.write_line("OPTIMAL");
+        Console::write_line("OPTIMAL");
         let numerator: i64 in Wrapping = read_six(&application.solver.best, application.solver.biomass);
         rational(&mut application.reader, "objective_pico=", numerator, application.solver.best_denominator);
         transition { _ -> flux(application, 0) }
@@ -103,5 +103,5 @@ machine Application::main(application: &mut Application) reaches Console crashes
         rational(&mut application.reader, "residual_pico=", sum, application.solver.best_denominator);
         transition { _ -> residual(application, row + 1, 0, 0) }
     }
-    state done(application: &mut Application) { application.reader.console.exit_process(0); }
+    state done(application: &mut Application) { Console::exit_process(0); }
 }

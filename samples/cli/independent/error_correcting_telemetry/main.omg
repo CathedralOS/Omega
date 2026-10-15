@@ -1,12 +1,11 @@
 // Expected exit: 0
 // Empty input exits normally; frozen nonempty streams and status-3 limits are in data/.
 use omega_language_std::console;
-use omega::language::core::binding;
 use omega::language::core::numeric_conversion;
 use codec::field;
 use codec::decoder;
 
-data Main { console: Binding<Console>; input: [u8; 8]; }
+data Main { input: [u8; 8]; }
 // Protocol: Eab LF or Dabcd LF. Digits 0..4 are F5 symbols; '_' is an erasure.
 // One bounded line is consumed per record, at most 2000 records. Oversized
 // lines stop with status 3 rather than interpreting their tail as a new frame.
@@ -21,7 +20,7 @@ machine Main::main(main: &mut Main) reaches Console {
     state read(main: &mut Main, records: i32)
     requires records >= 0 && records < 2000
     {
-        let observed: LineReadResult = block main.console.read_line(&mut main.input);
+        let observed: LineReadResult = block Console::read_line(&mut main.input);
         transition observed {
             LineReadResult::LineComplete { count } -> dispatch(main, records + 1, count)
             LineReadResult::EndOfInput { count } -> end(main, count)
@@ -44,9 +43,9 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
     state encoded(main: &mut Main, records: i32, frame: Frame) {
-        main.console.write("C ");
+        Console::write("C ");
         digit(main, frame.first); digit(main, frame.second); digit(main, frame.third); digit(main, frame.fourth);
-        main.console.write_line("");
+        Console::write_line("");
         transition { _ -> next(main, records) }
     }
     state decoding(main: &mut Main, records: i32) {
@@ -69,36 +68,36 @@ machine Main::main(main: &mut Main) reaches Console {
     }
     state recovered(main: &mut Main, records: i32, frame: Frame, result: Recovery) {
         let code: Frame = encode(result.intercept, result.slope);
-        main.console.write("R "); digit(main, result.intercept); digit(main, result.slope);
-        main.console.write(" L ");
+        Console::write("R "); digit(main, result.intercept); digit(main, result.slope);
+        Console::write(" L ");
         digit(main, location(frame.first, code.first)); digit(main, location(frame.second, code.second));
         digit(main, location(frame.third, code.third)); digit(main, location(frame.fourth, code.fourth));
         syndromes(main, &frame);
         transition { _ -> next(main, records) }
     }
     state unrecoverable(main: &mut Main, records: i32, frame: Frame) {
-        main.console.write("U"); syndromes(main, &frame);
+        Console::write("U"); syndromes(main, &frame);
         transition { _ -> next(main, records) }
     }
     state malformed(main: &mut Main, records: i32) {
-        main.console.write_line("M");
+        Console::write_line("M");
         transition { _ -> next(main, records) }
     }
     state end(main: &mut Main, count: u64) {
         transition count == 0 { true -> done(main) false -> truncated(main) }
     }
-    state truncated(main: &mut Main) { main.console.write_line("M"); main.console.exit_process(0); }
-    state done(main: &mut Main) { main.console.exit_process(0); }
-    state limit(main: &mut Main) { main.console.write_line("LIMIT"); main.console.exit_process(3); }
+    state truncated(main: &mut Main) { Console::write_line("M"); Console::exit_process(0); }
+    state done(main: &mut Main) { Console::exit_process(0); }
+    state limit(main: &mut Main) { Console::write_line("LIMIT"); Console::exit_process(3); }
 }
 machine symbol(byte: u8) -> i32 in Wrapping {
     transition { byte >= 48 && byte <= 52 -> ((widen_u8_to_i32(byte) as i32 in Wrapping) - 48)
         byte == 95 -> 5 _ -> 6 }
 }
 machine digit(main: &mut Main, value: i32 in Wrapping) reaches Console {
-    main.console.write_byte((value + 48) as i32);
+    Console::write_byte((value + 48) as i32);
 }
 machine syndromes(main: &mut Main, frame: &Frame) reaches Console {
-    main.console.write(" S "); digit(main, syndrome_first(frame)); digit(main, syndrome_second(frame));
-    main.console.write_line("");
+    Console::write(" S "); digit(main, syndrome_first(frame)); digit(main, syndrome_second(frame));
+    Console::write_line("");
 }

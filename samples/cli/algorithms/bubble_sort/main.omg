@@ -16,10 +16,8 @@
 // Expected exit: 10.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
     nums: [i32; 5];
     i: u64;          // guard-proven Exact counters: the loop-head bound
     j: u64;          // dominates each re-guarded increment
@@ -30,7 +28,7 @@ data Main {
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    main.console.write_line("bubble_sort: in-place sort of [29, 10, 14, 37, 13] with runtime-indexed swaps");
+    Console::write_line("bubble_sort: in-place sort of [29, 10, 14, 37, 13] with runtime-indexed swaps");
     main.nums[0] = 29;
     main.nums[1] = 10;
     main.nums[2] = 14;
@@ -117,9 +115,9 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state done(main: &mut Main) {
-        main.console.write_line("result: nums[0] after sorting -- the minimum, 10 for this dataset (the exit code)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(main.nums[0]);
+        Console::write_line("result: nums[0] after sorting -- the minimum, 10 for this dataset (the exit code)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(main.nums[0]);
     }
 }

@@ -18,10 +18,8 @@
 // Expected exit: 50
 use omega_language_std::console;
 use omega::language::core::numeric_conversion;
-use omega::language::core::binding;
 data Desc { kind: u32; pages: u64; }
 data Main {
-    console: Binding<Console>;
     buf: [u8; 48];
     descriptor_size: u32;
     total: u32 in Wrapping;
@@ -72,6 +70,6 @@ machine Main::main(main: &mut Main) reaches Console {
     }
     state done(main: &mut Main) {
         let code: i32 = narrow_u32_to_i32_trapping(main.total as u32);
-        main.console.exit_process(code);
+        Console::exit_process(code);
     }
 }

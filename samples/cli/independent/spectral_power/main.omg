@@ -25,7 +25,7 @@ machine Application::main(application: &mut Application) reaches Console crashes
         true -> options(application, sampling.value, gain.value, offset.value, size.value, overlap.value, window.value, length.value)
         _ -> invalid(application)
     }
-    state invalid(application: &mut Application) { application.reader.console.write_line("ERROR input or options"); application.reader.console.exit_process(10); }
+    state invalid(application: &mut Application) { Console::write_line("ERROR input or options"); Console::exit_process(10); }
     state options(application: &mut Application, sampling: f64, gain: f64, offset: f64, size: f64, overlap: f64, window: f64, length: f64) {
         transition sampling > 0.0 && gain > 0.0 && gain <= 10000.0 && (size == 8.0 || size == 16.0 || size == 32.0 || size == 64.0) && overlap >= 0.0 && overlap < size && (window == 0.0 || window == 1.0) && length >= size && length <= 64.0 {
             true -> configure(application, sampling, gain, offset, size, overlap, window, length)
@@ -184,7 +184,7 @@ machine Application::main(application: &mut Application) reaches Console crashes
         application.index = application.index + 1;
         transition { _ -> bin(application) }
     }
-    state done(application: &mut Application) { application.reader.console.exit_process(0); }
+    state done(application: &mut Application) { Console::exit_process(0); }
 }
 machine reverse_bits(value: i32 in Wrapping, size: i32 in Wrapping) -> i32 in Wrapping {
     transition { _ -> bits(value, size, 0) }

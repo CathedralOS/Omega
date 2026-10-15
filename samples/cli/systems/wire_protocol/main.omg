@@ -20,7 +20,6 @@
 
 use omega::language::core::fixed_vec;
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data RoomHeader {
     #0 room_id: u32;
@@ -50,7 +49,6 @@ data WireVerdict {
 }
 
 data Main {
-    console: Binding<Console>;
     buffer: [u8; 64];
     written: u64;
     read: u64;
@@ -59,7 +57,7 @@ data Main {
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    main.console.write_line("wire_protocol: encodes a nested sensor packet to bytes and decodes it back");
+    Console::write_line("wire_protocol: encodes a nested sensor packet to bytes and decodes it back");
     let msg: SensorPacketValue = SensorPacketValue {
         header: RoomHeaderValue {
             room_id: 300
@@ -99,24 +97,24 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state good(main: &mut Main) {
-        main.console.write_line("PASS: 13 bytes round-tripped with every field intact (exit 70)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(70);
+        Console::write_line("PASS: 13 bytes round-tripped with every field intact (exit 70)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(70);
     }
 
     state bad_sizes(main: &mut Main) {
-        main.console.write_line("FAIL: encode/decode sizes were not both 13 bytes (exit 71)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(71);
+        Console::write_line("FAIL: encode/decode sizes were not both 13 bytes (exit 71)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(71);
     }
 
     state bad_fields(main: &mut Main) {
-        main.console.write_line("FAIL: a decoded field did not match the original packet (exit 72)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(72);
+        Console::write_line("FAIL: a decoded field did not match the original packet (exit 72)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(72);
     }
 }
 

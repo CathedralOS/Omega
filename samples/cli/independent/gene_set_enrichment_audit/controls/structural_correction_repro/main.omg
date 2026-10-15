@@ -1,9 +1,8 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 use exact;
-data Main { console: Binding<Console>; }
+data Main { }
 machine Main::main(context: &mut Main) reaches Console {
-    let byte: ByteRead = block context.console.read_byte();
+    let byte: ByteRead = block Console::read_byte();
     transition byte {
         ByteRead::Eof -> calculate(context, 0)
         ByteRead::Byte { value } -> calculate(context, value as u64 in Wrapping)
@@ -13,8 +12,8 @@ machine Main::main(context: &mut Main) reaches Console {
         let adjusted: Fraction = correction(probability, 1, probability, 2, probability, 3);
         transition adjusted.denominator > 0 { true -> done(context) false -> bad(context) }
     }
-    state done(context: &mut Main) { context.console.exit_process(0); }
-    state bad(context: &mut Main) { context.console.exit_process(1); }
+    state done(context: &mut Main) { Console::exit_process(0); }
+    state bad(context: &mut Main) { Console::exit_process(1); }
 }
 machine correction(value: Fraction, rank: u64 in Wrapping, other: Fraction, other_rank: u64 in Wrapping, last: Fraction, last_rank: u64 in Wrapping) -> Fraction {
     let initial: Fraction = scaled(value, rank);

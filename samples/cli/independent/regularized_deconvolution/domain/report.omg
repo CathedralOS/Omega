@@ -14,7 +14,7 @@ invokes Console;
         _ -> digits(reader, widened)
     }
     state negative(reader: &mut Reader, value: i64) {
-        reader.console.write_byte(45);
+        Console::write_byte(45);
         let absolute: i64 in Wrapping = 0 - (value as i64 in Wrapping);
         transition { _ -> digits(reader, absolute as i64) }
     }
@@ -37,7 +37,7 @@ invokes Console;
     requires divisor > 0
     {
         let byte: i64 in Wrapping = (value / divisor) % 10 + 48;
-        reader.console.write_byte(narrow_i64_to_i32_wrapping(byte as i64));
+        Console::write_byte(narrow_i64_to_i32_wrapping(byte as i64));
         transition divisor > 1 {
             true -> ready(reader, value, divisor / 10)
             _ -> {}
@@ -46,9 +46,9 @@ invokes Console;
 }
 // Emit 13 significant digits in scientific notation without clipping signs.
 pub machine field(reader: &mut Reader, name: &[u8], value: f64) reaches Console invokes Console; {
-    reader.console.write(name);
+    Console::write(name);
     transition value < 0.0 { true -> negative(reader, value) _ -> normalize(reader, value, 0) }
-    state negative(reader: &mut Reader, value: f64) { reader.console.write_byte(45); transition { _ -> normalize(reader, 0.0 - value, 0) } }
+    state negative(reader: &mut Reader, value: f64) { Console::write_byte(45); transition { _ -> normalize(reader, 0.0 - value, 0) } }
     state normalize(reader: &mut Reader, value: f64, exponent: i32 in Wrapping) {
         transition value >= 10.0 { true -> normalize(reader, value * 0.1, exponent + 1) _ -> small(reader, value, exponent) }
     }
@@ -58,8 +58,8 @@ pub machine field(reader: &mut Reader, name: &[u8], value: f64) reaches Console 
     state emit(reader: &mut Reader, value: f64, exponent: i32 in Wrapping) {
         let narrowed: i64 in Saturating = I64::from_f64(value * 1000000000000.0);
         integer(reader, narrowed as i64);
-        reader.console.write_byte(101);
+        Console::write_byte(101);
         integer(reader, (exponent - 12) as i64);
-        reader.console.write_byte(10);
+        Console::write_byte(10);
     }
 }

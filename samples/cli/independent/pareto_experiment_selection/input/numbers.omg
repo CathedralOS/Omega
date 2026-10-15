@@ -1,88 +1,87 @@
 // Whitespace-separated unsigned decimal tokens, at most three digits.
 // Admission checks happen on actual bytes; no wrapping or truncation is accepted.
 use omega_language_std::console;
-use omega::language::core::binding;
 pub data Parsed [copy] { value: u64; valid: bool; }
-pub machine read_number(console: &Binding<Console>) -> Parsed
+pub machine read_number() -> Parsed
 reaches Console
-invokes console;
+invokes Console;
 blocks;
 crashes Trap
 {
-    transition { _ -> skip(console) }
-    state skip(console: &Binding<Console>) -> Parsed {
-        let observed: ByteRead = block console.read_byte();
+    transition { _ -> skip() }
+    state skip() -> Parsed {
+        let observed: ByteRead = block Console::read_byte();
         transition observed {
             ByteRead::Eof -> invalid()
-            ByteRead::Byte { value } -> start(console, value)
+            ByteRead::Byte { value } -> start(value)
         }
     }
-    state start(console: &Binding<Console>, byte: i32) -> Parsed {
+    state start(byte: i32) -> Parsed {
         transition byte == 32 || byte == 10 || byte == 13 || byte == 9 {
-            true -> skip(console)
-            false -> first(console, byte)
+            true -> skip()
+            false -> first(byte)
         }
     }
-    state first(console: &Binding<Console>, byte: i32) -> Parsed {
+    state first(byte: i32) -> Parsed {
         transition byte >= 48 && byte <= 57 {
-            true -> initial(console, byte)
+            true -> initial(byte)
             false -> invalid()
         }
     }
-    state initial(console: &Binding<Console>, byte: i32) -> Parsed
+    state initial(byte: i32) -> Parsed
     requires byte >= 48 && byte <= 57 {
-        transition { _ -> scan(console, (byte - 48) as u64, 1) }
+        transition { _ -> scan((byte - 48) as u64, 1) }
     }
-    state scan(console: &Binding<Console>, value: u64, digits: u64) -> Parsed
+    state scan(value: u64, digits: u64) -> Parsed
     requires value <= 999
     requires digits >= 1 && digits <= 3 {
-        let observed: ByteRead = block console.read_byte();
+        let observed: ByteRead = block Console::read_byte();
         transition observed {
             ByteRead::Eof -> complete(value)
-            ByteRead::Byte { value as byte } -> classify(console, value, digits, byte)
+            ByteRead::Byte { value as byte } -> classify(value, digits, byte)
         }
     }
-    state classify(console: &Binding<Console>, value: u64, digits: u64, byte: i32) -> Parsed
+    state classify(value: u64, digits: u64, byte: i32) -> Parsed
     requires value <= 999
     requires digits >= 1 && digits <= 3 {
         transition byte == 32 || byte == 10 || byte == 13 || byte == 9 {
             true -> complete(value)
-            false -> digit(console, value, digits, byte)
+            false -> digit(value, digits, byte)
         }
     }
-    state digit(console: &Binding<Console>, value: u64, digits: u64, byte: i32) -> Parsed {
+    state digit(value: u64, digits: u64, byte: i32) -> Parsed {
         transition byte >= 48 && byte <= 57 && value <= 99 && digits >= 1 && digits < 3 {
-            true -> append(console, value, digits, byte)
+            true -> append(value, digits, byte)
             false -> invalid()
         }
     }
-    state append(console: &Binding<Console>, value: u64, digits: u64, byte: i32) -> Parsed
+    state append(value: u64, digits: u64, byte: i32) -> Parsed
     requires value <= 99
     requires digits >= 1 && digits < 3
     requires byte >= 48 && byte <= 57 {
-        transition { _ -> scan(console, value * 10 + ((byte - 48) as u64), digits + 1) }
+        transition { _ -> scan(value * 10 + ((byte - 48) as u64), digits + 1) }
     }
     state complete(value: u64) -> Parsed { Parsed { value: value, valid: true } }
     state invalid() -> Parsed { Parsed { value: 0, valid: false } }
 }
 
-pub machine only_whitespace(console: &Binding<Console>) -> bool
+pub machine only_whitespace() -> bool
 reaches Console
-invokes console;
+invokes Console;
 blocks;
 crashes Trap
 {
-    transition { _ -> scan(console) }
-    state scan(console: &Binding<Console>) -> bool {
-        let observed: ByteRead = block console.read_byte();
+    transition { _ -> scan() }
+    state scan() -> bool {
+        let observed: ByteRead = block Console::read_byte();
         transition observed {
             ByteRead::Eof -> true
-            ByteRead::Byte { value } -> check(console, value)
+            ByteRead::Byte { value } -> check(value)
         }
     }
-    state check(console: &Binding<Console>, byte: i32) -> bool {
+    state check(byte: i32) -> bool {
         transition byte == 32 || byte == 10 || byte == 13 || byte == 9 {
-            true -> scan(console)
+            true -> scan()
             false -> false
         }
     }

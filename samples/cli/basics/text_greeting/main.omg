@@ -9,7 +9,6 @@
 // Expected output contains: Hello, Ada!
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 domain [u8]::Utf8(bytes)
 requires
@@ -22,17 +21,16 @@ requires
     valid_utf8(bytes);
 
 data Main {
-    console: Binding<Console>;
     name: [u8; 8] in Utf8;
     greeting: [u8; 32] in Utf8;
     pause: [u8; 256];
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    main.console.write_line("text_greeting: builds Hello, Ada! by carrier concatenation");
+    Console::write_line("text_greeting: builds Hello, Ada! by carrier concatenation");
     main.name = "Ada";
     main.greeting = "Hello, " + main.name + "!";
-    main.console.write_line(main.greeting);
+    Console::write_line(main.greeting);
 
     transition main.greeting == "Hello, Ada!" {
         true -> ok(main)
@@ -40,15 +38,15 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state ok(main: &mut Main) {
-        main.console.write_line("PASS: the greeting matched Hello, Ada! exactly (exit 70)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(70);
+        Console::write_line("PASS: the greeting matched Hello, Ada! exactly (exit 70)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(70);
     }
     state mismatch(main: &mut Main) {
-        main.console.write_line("FAIL: the concatenated greeting did not match (exit 71)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(71);
+        Console::write_line("FAIL: the concatenated greeting did not match (exit 71)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(71);
     }
 }

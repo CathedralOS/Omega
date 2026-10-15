@@ -1,56 +1,55 @@
 // Complete stdin application. Input: replication header, eight digit/m slots, EOF.
 // Expected output contains: crossed_gauge_study: exact crossed random-effects sample; all numbers /32
 use omega_language_std::console;
-use omega::language::core::binding;
 use study::model;
 
-data Main { console: Binding<Console>; study: study::model::Study; }
+data Main { study: study::model::Study; }
 
 machine Main::number(main: &mut Main, value: i32 in Wrapping) reaches Console {
     transition value < 0 { true -> negative(main, value) _ -> leading(main, value) }
     state negative(main: &mut Main, value: i32 in Wrapping) {
-        main.console.write("-");
+        Console::write("-");
         transition { _ -> leading(main, 0-value) }
     }
     state leading(main: &mut Main, value: i32 in Wrapping) {
         transition value >= 10000 { true -> ten_thousands(main, value) _ -> check_thousands(main, value) }
     }
     state ten_thousands(main: &mut Main, value: i32 in Wrapping) {
-        main.console.write_byte((value / 10000 + 48) as i32);
+        Console::write_byte((value / 10000 + 48) as i32);
         transition { _ -> thousands(main, value) }
     }
     state check_thousands(main: &mut Main, value: i32 in Wrapping) {
         transition value >= 1000 { true -> thousands(main, value) _ -> check_hundreds(main, value) }
     }
     state thousands(main: &mut Main, value: i32 in Wrapping) {
-        main.console.write_byte((value / 1000 % 10 + 48) as i32);
+        Console::write_byte((value / 1000 % 10 + 48) as i32);
         transition { _ -> hundreds(main, value) }
     }
     state check_hundreds(main: &mut Main, value: i32 in Wrapping) {
         transition value >= 100 { true -> hundreds(main, value) _ -> check_tens(main, value) }
     }
     state hundreds(main: &mut Main, value: i32 in Wrapping) {
-        main.console.write_byte((value / 100 % 10 + 48) as i32);
+        Console::write_byte((value / 100 % 10 + 48) as i32);
         transition { _ -> tens(main, value) }
     }
     state check_tens(main: &mut Main, value: i32 in Wrapping) {
         transition value >= 10 { true -> tens(main, value) _ -> ones(main, value) }
     }
     state tens(main: &mut Main, value: i32 in Wrapping) {
-        main.console.write_byte((value / 10 % 10 + 48) as i32);
+        Console::write_byte((value / 10 % 10 + 48) as i32);
         transition { _ -> ones(main, value) }
     }
     state ones(main: &mut Main, value: i32 in Wrapping) {
-        main.console.write_byte((value % 10 + 48) as i32);
-        main.console.write_line("");
+        Console::write_byte((value % 10 + 48) as i32);
+        Console::write_line("");
     }
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    main.console.write_line("crossed_gauge_study: exact crossed random-effects sample; all numbers /32");
+    Console::write_line("crossed_gauge_study: exact crossed random-effects sample; all numbers /32");
     transition { _ -> header(main) }
     state header(main: &mut Main) {
-        let byte: ByteRead = block main.console.read_byte();
+        let byte: ByteRead = block Console::read_byte();
         transition byte {
             ByteRead::Byte { value } -> header_byte(main, value)
             _ -> invalid(main)
@@ -67,7 +66,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
     state read(main: &mut Main, index: i32 in Wrapping) {
-        let byte: ByteRead = block main.console.read_byte();
+        let byte: ByteRead = block Console::read_byte();
         transition byte {
             ByteRead::Byte { value } -> token(main, index, value)
             ByteRead::Eof -> finish(main, index)
@@ -115,66 +114,66 @@ machine Main::main(main: &mut Main) reaches Console {
         transition status { 0 -> report(main) 3 -> missing_cell(main) 5 -> insufficient(main) _ -> unequal(main) }
     }
     state report(main: &mut Main) {
-        main.console.write_line("identifiable: parts=2 operators=2 repeats=2; df=1,1,1,4 total=7");
-        main.console.write("ss_part=");
+        Console::write_line("identifiable: parts=2 operators=2 repeats=2; df=1,1,1,4 total=7");
+        Console::write("ss_part=");
         let part_sum_of_squares: i32 in Wrapping = main.study.part;
         Main::number(main, part_sum_of_squares);
-        main.console.write("ss_operator=");
+        Console::write("ss_operator=");
         let operator_sum_of_squares: i32 in Wrapping = main.study.operator_effect;
         Main::number(main, operator_sum_of_squares);
-        main.console.write("ss_interaction=");
+        Console::write("ss_interaction=");
         let interaction_sum_of_squares: i32 in Wrapping = main.study.interaction;
         Main::number(main, interaction_sum_of_squares);
-        main.console.write("ss_error=");
+        Console::write("ss_error=");
         let error_sum_of_squares: i32 in Wrapping = main.study.error;
         Main::number(main, error_sum_of_squares);
-        main.console.write("ss_total=");
+        Console::write("ss_total=");
         let total_sum_of_squares: i32 in Wrapping = main.study.total;
         Main::number(main, total_sum_of_squares);
-        main.console.write("ms_error=");
+        Console::write("ms_error=");
         let error_mean_square: i32 in Wrapping = main.study.repeatability;
         Main::number(main, error_mean_square);
-        main.console.write("raw_part=");
+        Console::write("raw_part=");
         let raw_part_component: i32 in Wrapping = main.study.part_variance;
         Main::number(main, raw_part_component);
-        main.console.write("raw_operator=");
+        Console::write("raw_operator=");
         let raw_operator_component: i32 in Wrapping = main.study.operator_variance;
         Main::number(main, raw_operator_component);
-        main.console.write("raw_interaction=");
+        Console::write("raw_interaction=");
         let raw_interaction_component: i32 in Wrapping = main.study.interaction_variance;
         Main::number(main, raw_interaction_component);
-        main.console.write("repeatability=");
+        Console::write("repeatability=");
         let repeatability_component: i32 in Wrapping = main.study.repeatability;
         Main::number(main, repeatability_component);
-        main.console.write("part_variance=");
+        Console::write("part_variance=");
         let clamped_part_component: i32 in Wrapping = study::model::nonnegative(main.study.part_variance);
         Main::number(main, clamped_part_component);
-        main.console.write("operator_variance=");
+        Console::write("operator_variance=");
         let clamped_operator_component: i32 in Wrapping = study::model::nonnegative(main.study.operator_variance);
         Main::number(main, clamped_operator_component);
-        main.console.write("interaction_variance=");
+        Console::write("interaction_variance=");
         let clamped_interaction_component: i32 in Wrapping = study::model::nonnegative(main.study.interaction_variance);
         Main::number(main, clamped_interaction_component);
-        main.console.write("gauge_variance=");
+        Console::write("gauge_variance=");
         let gauge_component: i32 in Wrapping = main.study.repeatability + study::model::nonnegative(main.study.operator_variance) + study::model::nonnegative(main.study.interaction_variance);
         Main::number(main, gauge_component);
-        main.console.write_line("interaction: retained; negative components clamped individually; no pooling");
-        main.console.exit_process(0);
+        Console::write_line("interaction: retained; negative components clamped individually; no pooling");
+        Console::exit_process(0);
     }
     state invalid(main: &mut Main) {
-        main.console.write_line("invalid input: expected header 2 and exactly eight digit/m slots");
-        main.console.exit_process(2);
+        Console::write_line("invalid input: expected header 2 and exactly eight digit/m slots");
+        Console::exit_process(2);
     }
     state insufficient(main: &mut Main) {
-        main.console.write_line("not identifiable: one repeat cannot separate interaction from repeatability");
-        main.console.exit_process(5);
+        Console::write_line("not identifiable: one repeat cannot separate interaction from repeatability");
+        Console::exit_process(5);
     }
     state missing_cell(main: &mut Main) {
-        main.console.write_line("not identifiable: missing part/operator cell; balanced ANOVA refused");
-        main.console.exit_process(3);
+        Console::write_line("not identifiable: missing part/operator cell; balanced ANOVA refused");
+        Console::exit_process(3);
     }
     state unequal(main: &mut Main) {
-        main.console.write_line("not identifiable: unequal replication; balanced ANOVA refused");
-        main.console.exit_process(4);
+        Console::write_line("not identifiable: unequal replication; balanced ANOVA refused");
+        Console::exit_process(4);
     }
 }

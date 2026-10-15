@@ -1,11 +1,9 @@
 module spectrometer::model;
 use omega_language_std::console;
-use omega::language::core::binding;
 
 // Fixed capacities bound memory and work: sixteen bins and four reference lines.
 // Zero initialization means no open region and no matching candidates.
 pub data Spectrometer {
-    console: Binding<Console>;
     raw: [i32 in Wrapping; 27];
     spectrum: Spectrum;
     regions: Regions;

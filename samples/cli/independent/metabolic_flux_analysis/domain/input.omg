@@ -2,10 +2,9 @@
 // The byte budget includes separators and trailing whitespace. EOF is accepted
 // only after a complete token; malformed, truncated and over-budget input reject.
 use omega_language_std::console;
-use omega::language::core::binding;
 
 
-pub data Reader { console: Binding<Console>; consumed: i32; }
+pub data Reader { consumed: i32; }
 pub data Number [copy] { valid: bool; value: i64 in Wrapping; }
 
 machine character(reader: &mut Reader) -> i32 reaches Console {
@@ -14,7 +13,7 @@ machine character(reader: &mut Reader) -> i32 reaches Console {
         _ -> -2
     }
     state read(reader: &mut Reader) -> i32 requires reader.consumed >= 0 && reader.consumed < 4096 {
-        let byte: ByteRead = block reader.console.read_byte();
+        let byte: ByteRead = block Console::read_byte();
         transition byte { ByteRead::Eof -> -1 ByteRead::Byte { value } -> counted(reader, value) }
     }
     state counted(reader: &mut Reader, value: i32) -> i32 requires reader.consumed >= 0 && reader.consumed < 4096 {

@@ -17,10 +17,8 @@ requires
     valid_utf8(bytes);
 use omega_language_std::console;
 use omega::language::core::numeric_conversion;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
     text: [u8; 16] in Utf8;
     pat: [u8; 8] in Utf8;
     i: u32 in Wrapping;
@@ -33,7 +31,7 @@ data Main {
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    main.console.write_line("substring_search: naive search finds cad inside abracadabra");
+    Console::write_line("substring_search: naive search finds cad inside abracadabra");
     main.text = "abracadabra";
     main.pat = "cad";
     main.i = 0;
@@ -91,9 +89,9 @@ machine Main::main(main: &mut Main) reaches Console {
         transition { _ -> outer(main) }
     }
     state done(main: &mut Main) {
-        main.console.write_line("result: the match index, 4 for cad in abracadabra (the exit code)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(main.found as i32);
+        Console::write_line("result: the match index, 4 for cad in abracadabra (the exit code)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(main.found as i32);
     }
 }
