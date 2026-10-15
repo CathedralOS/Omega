@@ -1,0 +1,43 @@
+// A constructor stored into a parameter's field snapshots `holder.amount`
+// before and after a call that guarantees its new value, then the whole field
+// is copied into a sibling. Each stored copy owes the callee requirement from
+// the producer's completion guarantee as well as from its own storage, so
+// both observations prove `value.first == initial` and
+// `value.second == replacement`.
+data Captured [copy] { first: i32; replaced: bool; second: i32; }
+data Holder { amount: i32; }
+data Snapshot { value: Captured; spare: Captured; }
+
+machine replace(holder: &mut Holder, replacement: i32) -> bool
+ensures holder.amount == replacement {
+    holder.amount = replacement;
+    true
+}
+
+machine observe(value: Captured, initial: i32, replacement: i32)
+requires value.first == initial, value.second == replacement
+crashes Trap {
+    transition value.replaced && value.first == initial && value.second == replacement {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
+
+machine exercise(snapshot: &mut Snapshot, initial: i32, replacement: i32) crashes Trap {
+    let mut holder: Holder = Holder { amount: initial };
+    snapshot.value = Captured {
+        first: holder.amount,
+        replaced: replace(&mut holder, replacement),
+        second: holder.amount,
+    };
+    observe(snapshot.value, initial, replacement);
+    snapshot.spare = snapshot.value;
+    observe(snapshot.spare, initial, replacement);
+}
+
+machine main() crashes Trap {
+    let mut snapshot: Snapshot;
+    exercise(&mut snapshot, 41, 9);
+}

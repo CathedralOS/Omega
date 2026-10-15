@@ -275,6 +275,7 @@ pub(crate) fn captured_arithmetic_observation(
                 state,
                 call,
                 &captured,
+                CaptureEvidence::Observation,
                 primitive,
                 &contexts,
                 &mut Vec::new(),
@@ -508,22 +509,61 @@ pub(crate) fn actual_contexts(
     )
 }
 
+/// Which completed value a stored copy's predicate is judged against. The
+/// copy is stable (`reaching_store_values` admits only stable copies), so its
+/// current storage and the producer it copied hold one value: guards on the
+/// storage and guarantees at the producer's completion are both evidence.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum CaptureEvidence {
+    /// The storage the call observes, with guards established on it later.
+    Observation,
+    /// The producer the stored copy took its value from, at its own epoch.
+    Producer,
+}
+
+impl CaptureEvidence {
+    fn select<'value, 'capture>(
+        self,
+        captured: &'value crate::flow::CapturedValue<'capture>,
+    ) -> (
+        &'capture checked_trees::FlowOperandFact,
+        typed_trees::types::TypeReferenceHandle,
+        &'value crate::flow::LiteralValueProjection,
+    ) {
+        match self {
+            Self::Observation => (
+                captured.observation,
+                captured.observation_type,
+                &captured.observation_projection,
+            ),
+            Self::Producer => (
+                captured.operand,
+                captured.type_reference,
+                &captured.projection,
+            ),
+        }
+    }
+}
+
 /// Rebind a selected actual expression to exact current storage. Local slots
 /// denote stored values; their initializer expressions are never replayed.
+#[allow(clippy::too_many_arguments)]
 fn current_actual(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     state: &FlowStateFact,
     call: &FlowCallFact,
     captured: &crate::flow::CapturedValue<'_>,
+    evidence: CaptureEvidence,
     primitive: typed_trees::types::PrimitiveType,
     contexts: &[FactContextHandle],
     bindings: &mut Vec<crate::facts::boolean_predicates::BoundObservation>,
 ) -> Option<CheckedScalarExpression> {
     let (machine, body) =
         validation::machine_state_by_symbols(program, state.machine_symbol, state.state_symbol)?;
-    let expression = captured.observation_projection.expression;
-    if captured.observation_projection.remaining.is_empty() {
+    let (capture, _, projection) = evidence.select(captured);
+    let expression = projection.expression;
+    if projection.remaining.is_empty() {
         if !validation::has_builtin_bound_expression_meaning(
             program,
             machine,
@@ -536,7 +576,7 @@ fn current_actual(
             program,
             &facts.operators,
             body,
-            captured.observation.statement_index,
+            capture.statement_index,
             expression,
             primitive,
             |place, primitive| {
@@ -561,11 +601,11 @@ fn current_actual(
     // already carry their own exact observation and completion epoch.
     let mut place = validation::canonical_place_from_expression_in_state(
         program,
-        captured.observation.state_symbol,
-        captured.observation.statement_index,
+        capture.state_symbol,
+        capture.statement_index,
         expression,
     )?;
-    place.extend_segments(&captured.observation_projection.remaining);
+    place.extend_segments(&projection.remaining);
     bind_current(
         program, facts, state, call, place, primitive, contexts, bindings,
     )
@@ -700,6 +740,51 @@ pub(crate) fn proves_bound_predicate<'program>(
     frames: Option<&validation::CallFrameResolver<'_>>,
     actual: &impl Fn(&crate::facts::boolean_predicates::BoundObservation) -> Option<Actual<'program>>,
 ) -> bool {
+    // A stored stable copy and its producer denote one value. Guards on the
+    // copy's storage live in its observation namespace; call guarantees about
+    // the value it copied live at the producer's completion epoch. Either
+    // side's evidence proves the predicate; judging only one side loses the
+    // other's facts. The producer pass runs only when some copy differs.
+    let mut copied = false;
+    proves_bound_predicate_from(
+        program,
+        facts,
+        state,
+        call,
+        contexts,
+        predicate,
+        frames,
+        actual,
+        CaptureEvidence::Observation,
+        &mut copied,
+    ) || (copied
+        && proves_bound_predicate_from(
+            program,
+            facts,
+            state,
+            call,
+            contexts,
+            predicate,
+            frames,
+            actual,
+            CaptureEvidence::Producer,
+            &mut copied,
+        ))
+}
+
+#[allow(clippy::too_many_arguments)]
+fn proves_bound_predicate_from<'program>(
+    program: &'program dyn ::validation::CheckingInput,
+    facts: &CheckFacts,
+    state: &FlowStateFact,
+    call: &FlowCallFact,
+    contexts: &[FactContextHandle],
+    predicate: &crate::facts::boolean_predicates::BoundPredicate,
+    frames: Option<&validation::CallFrameResolver<'_>>,
+    actual: &impl Fn(&crate::facts::boolean_predicates::BoundObservation) -> Option<Actual<'program>>,
+    evidence: CaptureEvidence,
+    copied: &mut bool,
+) -> bool {
     let mut selected_contexts: Option<Vec<FactContextHandle>> = None;
     let mut binding_epochs: Vec<&checked_trees::FlowOperandFact> = Vec::new();
     let mut current = predicate.clone();
@@ -708,13 +793,14 @@ pub(crate) fn proves_bound_predicate<'program>(
         let observation = predicate.binding(&operand)?;
         let actual = actual(observation)?;
         let captured = captured_value(program, facts, state, call, &actual)?;
-        let capture = captured.observation;
+        *copied |= !std::ptr::eq(captured.observation, captured.operand);
+        let (capture, capture_type, _) = evidence.select(&captured);
         let operand_contexts = crate::flow::operand_contexts(
             program,
             &facts.flow,
             &facts.semantic,
             capture,
-            captured.observation_type,
+            capture_type,
             call.entry_constraints,
         );
         if let Some(selected) = &mut selected_contexts {
@@ -722,7 +808,7 @@ pub(crate) fn proves_bound_predicate<'program>(
         } else {
             selected_contexts = Some(operand_contexts.clone());
         }
-        let epoch = if crate::flow::operand_binds_live_view(program, captured.observation_type) {
+        let epoch = if crate::flow::operand_binds_live_view(program, capture_type) {
             facts.flow.control.operands.span(call.operands)?.last()?
         } else {
             capture
@@ -734,6 +820,7 @@ pub(crate) fn proves_bound_predicate<'program>(
             state,
             call,
             &captured,
+            evidence,
             operand.primitive_type()?,
             &operand_contexts,
             &mut current.bindings,
