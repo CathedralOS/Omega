@@ -17,7 +17,7 @@ use omega::language::core::numeric_conversion;
 domain [u8]::Utf8(bytes)
 requires
     valid_utf8(bytes);
-domain [u8; 4]::Utf8(bytes)
+domain [u8; 3]::Utf8(bytes)
 requires
     valid_utf8(bytes);
 data Main {
@@ -29,7 +29,7 @@ data Main {
     i: i32;
     elem: i32 in Wrapping;
     sum: i32 in Wrapping;
-    out: [u8; 4] in Utf8;
+    out: [u8; 3] in Utf8;
     digit: i32 in Wrapping;
     ch: u8;
     pause: [u8; 256];

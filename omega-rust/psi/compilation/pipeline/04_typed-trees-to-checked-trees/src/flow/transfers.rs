@@ -71,6 +71,93 @@ pub(super) fn propagate_statement_transfers(
     };
     let stable_value_target = write.stable_value_target;
 
+    if let Some(source) = source_place {
+        let source = semantic.places.get(source);
+        let source = CanonicalPlace {
+            root: source.root,
+            segments: semantic
+                .place_segments
+                .span_or_empty(source.segments)
+                .to_vec(),
+        };
+        if !crate::flow::place_cases_are_selected(
+            program,
+            semantic,
+            &context_handles,
+            machine_symbol,
+            state_symbol,
+            statement_index,
+            &source,
+        ) {
+            return;
+        }
+    }
+
+    let scalar_value = scalar_values::capture_statement(
+        program,
+        borrow,
+        semantic,
+        build,
+        machine_symbol,
+        state_symbol,
+        statement_index,
+        statement,
+        assignment_source_contexts,
+    );
+    let integer_bounds = if scalar_value.is_none() {
+        scalar_values::capture_bounds(
+            program,
+            borrow,
+            semantic,
+            build,
+            machine_symbol,
+            state_symbol,
+            statement_index,
+            statement,
+            assignment_source_contexts,
+        )
+    } else {
+        None
+    };
+    if let Some(assignment) = statement.as_assignment() {
+        // Each candidate either receives this class-preserving byte or keeps
+        // its existing contents. Preserve only classes live before the store;
+        // a finite choice never supplies a new value fact to every candidate.
+        let candidates = if write.target_is_exact {
+            vec![target_place]
+        } else {
+            write
+                .candidate_targets
+                .iter()
+                .map(|candidate| {
+                    crate::semantic::places::append_place(
+                        semantic,
+                        candidate.root,
+                        &candidate.segments,
+                    )
+                })
+                .collect()
+        };
+        for candidate in candidates {
+            byte_sequences::append_element_replacement_predicates(
+                program,
+                semantic,
+                build,
+                assignment_source_contexts,
+                machine_symbol,
+                state_symbol,
+                statement_index,
+                assignment.target,
+                candidate,
+                source_expression,
+                scalar_value.as_ref(),
+                integer_bounds.as_ref(),
+                point,
+                &mut refs,
+            );
+        }
+    }
+
     if !write.target_is_exact {
         // A weak store selects one captured alternative. Only membership
         // already live on a candidate can survive a proved domain-preserving
@@ -111,28 +198,6 @@ pub(super) fn propagate_statement_transfers(
             .statements
             .get_mut(statement_fact)
             .stored_destination = target_place;
-    }
-
-    if let Some(source) = source_place {
-        let source = semantic.places.get(source);
-        let source = CanonicalPlace {
-            root: source.root,
-            segments: semantic
-                .place_segments
-                .span_or_empty(source.segments)
-                .to_vec(),
-        };
-        if !crate::flow::place_cases_are_selected(
-            program,
-            semantic,
-            &context_handles,
-            machine_symbol,
-            state_symbol,
-            statement_index,
-            &source,
-        ) {
-            return;
-        }
     }
 
     context_transport::transport(
@@ -243,50 +308,6 @@ pub(super) fn propagate_statement_transfers(
             assignment_source_contexts,
             source_expression,
             target_place,
-            point,
-            &mut refs,
-        );
-    }
-
-    let scalar_value = scalar_values::capture_statement(
-        program,
-        borrow,
-        semantic,
-        build,
-        machine_symbol,
-        state_symbol,
-        statement_index,
-        statement,
-        assignment_source_contexts,
-    );
-    let integer_bounds = if scalar_value.is_none() {
-        scalar_values::capture_bounds(
-            program,
-            borrow,
-            semantic,
-            build,
-            machine_symbol,
-            state_symbol,
-            statement_index,
-            statement,
-            assignment_source_contexts,
-        )
-    } else {
-        None
-    };
-    if let Some(assignment) = statement.as_assignment() {
-        byte_sequences::append_element_replacement_predicates(
-            program,
-            semantic,
-            build,
-            assignment_source_contexts,
-            machine_symbol,
-            state_symbol,
-            statement_index,
-            assignment.target,
-            source_expression,
-            scalar_value.as_ref(),
-            integer_bounds.as_ref(),
             point,
             &mut refs,
         );

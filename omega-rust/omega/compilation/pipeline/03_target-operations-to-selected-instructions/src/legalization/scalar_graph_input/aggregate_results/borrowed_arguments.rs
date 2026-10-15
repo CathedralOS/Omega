@@ -147,7 +147,9 @@ pub(in crate::legalization::scalar_graph_input) fn reconstruct_at_owner(
                     place: declaration.place,
                 },
             )
-        } else if let Some((producer, view_type)) = element_view_producer(caller, argument.place) {
+        } else if let Some((producer, view_type)) =
+            element_view_producer(caller, argument.place, &plan.structural_types)
+        {
             // An element view is a descriptor root: the argument names its
             // establishing producer, never a storage home, and the projected
             // element offset rides on top. The descriptor's own liveness is
@@ -305,7 +307,11 @@ pub(super) fn view_arrival<'caller>(
         && (declaration.qualifications.is_empty()
             || declaration.access == terminal_psi::StructuralAccess::SharedBorrow
                 && shape.is_borrowed_byte_view())
-        && declaration.projected_qualifications.is_empty())
+        && terminal_semantics::view_descriptor_projected_qualifications(
+            structural_types.iter(),
+            declaration.structural_type,
+            &declaration.projected_qualifications,
+        ))
     .then_some((block, declaration))
 }
 
@@ -316,6 +322,7 @@ pub(super) fn view_arrival<'caller>(
 fn element_view_producer(
     caller: &PsiOptimizationFunction,
     place: semantic_vocabulary::PlaceId,
+    structural_types: &[terminal_psi::StructuralTypeDeclaration],
 ) -> Option<(
     semantic_vocabulary::OperationId,
     semantic_vocabulary::StructuralTypeId,
@@ -328,7 +335,11 @@ fn element_view_producer(
             ..
         } if *destination == place
             && result.qualifications.is_empty()
-            && result.projected_qualifications.is_empty()
+            && terminal_semantics::view_descriptor_projected_qualifications(
+                structural_types.iter(),
+                result.structural_type,
+                &result.projected_qualifications,
+            )
             && result.claims.is_empty() =>
         {
             Some((*psi_operation, result.structural_type))
@@ -339,7 +350,11 @@ fn element_view_producer(
             ..
         } if result.place == place
             && result.qualifications.is_empty()
-            && result.projected_qualifications.is_empty()
+            && terminal_semantics::view_descriptor_projected_qualifications(
+                structural_types.iter(),
+                result.structural_type,
+                &result.projected_qualifications,
+            )
             && result.claims.is_empty() =>
         {
             Some((*psi_operation, result.structural_type))

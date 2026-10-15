@@ -88,7 +88,8 @@ fn segment_covers_subject(
     }
 }
 
-/// A range obligation proves every element in declaration-derived geometry.
+/// Range and dynamic-selector obligations prove every possible element in
+/// declaration-derived geometry.
 /// Recorded facts supply membership, never the collection's extent: a
 /// contiguous prefix of writes can still leave later cells uninitialized.
 fn prove_domain_by_extent_enumeration(
@@ -98,15 +99,18 @@ fn prove_domain_by_extent_enumeration(
     subject: &CanonicalPlace,
     domain: SymbolHandle,
 ) -> bool {
-    let Some(position) = subject
-        .segments
-        .iter()
-        .position(|segment| matches!(segment, facts::PlaceSegment::FixedRange { .. }))
-    else {
+    let Some(position) = subject.segments.iter().position(|segment| {
+        matches!(segment, facts::PlaceSegment::FixedRange { .. })
+            || matches!(segment, facts::PlaceSegment::Index { expression }
+                    if !matches!(program.expression_table.expression(*expression),
+                        typed_trees::expression::ExpressionNode::Range(_)))
+    }) else {
         return false;
     };
-    let facts::PlaceSegment::FixedRange { start, end } = subject.segments[position] else {
-        return false;
+    let (start, end) = match subject.segments[position] {
+        facts::PlaceSegment::FixedRange { start, end } => (start, end),
+        facts::PlaceSegment::Index { .. } => (0, usize::MAX),
+        _ => return false,
     };
     let end = if start == 0 && end == usize::MAX {
         let mut collection = subject.clone();
@@ -188,6 +192,7 @@ pub(in crate::checks::contracts) fn prove_domain_at_place(
     domain: SymbolHandle,
 ) -> bool {
     carried_domain_membership_at_place(program, semantic, contexts, subject, domain)
+        || subslice_domain_at_place(program, semantic, contexts, subject, domain)
         || prove_domain_by_extent_enumeration(program, semantic, contexts, subject, domain)
         || AssignedValues {
             program,
@@ -195,6 +200,44 @@ pub(in crate::checks::contracts) fn prove_domain_at_place(
             contexts,
         }
         .domain(subject, domain, &mut Vec::new())
+}
+
+/// Per-byte predicates survive a window; UTF-8 and nonempty do not. Strip
+/// exactly one authenticated range selector, then prove the live base through
+/// the same occurrence facts used for every other place. Bounds and custody
+/// remain obligations of the range operation.
+fn subslice_domain_at_place(
+    program: &dyn ::validation::CheckingInput,
+    semantic: &FactPlan,
+    contexts: &[FactContextHandle],
+    subject: &CanonicalPlace,
+    domain: SymbolHandle,
+) -> bool {
+    if !validation::field_domains::domain_is_subslice_preserving(program, domain) {
+        return false;
+    }
+    let Some((selection, segments)) = subject.segments.split_last() else {
+        return false;
+    };
+    let is_window = match selection {
+        facts::PlaceSegment::FixedRange { .. } => true,
+        facts::PlaceSegment::Index { expression } => matches!(
+            program.expression_table.expression(*expression),
+            typed_trees::expression::ExpressionNode::Range(_)
+        ),
+        _ => false,
+    };
+    is_window
+        && prove_domain_at_place(
+            program,
+            semantic,
+            contexts,
+            &CanonicalPlace {
+                root: subject.root,
+                segments: segments.to_vec(),
+            },
+            domain,
+        )
 }
 
 struct AssignedValues<'a> {

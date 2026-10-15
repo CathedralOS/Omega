@@ -41,6 +41,10 @@ use semantic_vocabulary::{
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum StructuralPathSegment {
+    /// Universal element selection in qualification metadata only. This is
+    /// never an address, scalar selector, bounds proof, or loan authority.
+    /// Operand encoding and executable geometry reject this segment.
+    AllElements,
     /// Select one declared sum payload namespace. The next segment must name
     /// its field. Geometry alone grants no authority: the consuming operation
     /// independently proves this exact case active at the original root.
@@ -151,7 +155,8 @@ impl StructuralPathSegment {
     pub const fn runtime_index(&self) -> Option<(ValueId, ObligationId)> {
         match self {
             Self::RuntimeIndex { index, obligation } => Some((*index, *obligation)),
-            Self::Case(_)
+            Self::AllElements
+            | Self::Case(_)
             | Self::Field(_)
             | Self::FixedIndex(_)
             | Self::FixedByteRange { .. }
@@ -165,7 +170,9 @@ impl StructuralPathSegment {
 /// value. Consumers that key facts or layouts by path use this before
 /// treating the path as one exact place.
 pub fn is_static_structural_path(path: &[StructuralPathSegment]) -> bool {
-    path.iter().all(|segment| segment.runtime_index().is_none())
+    path.iter().all(|segment| {
+        !matches!(segment, StructuralPathSegment::AllElements) && segment.runtime_index().is_none()
+    })
 }
 
 /// Whether a `StructuralScalarFieldStore` carrier path is within the store
@@ -181,7 +188,8 @@ pub fn is_structural_scalar_store_path(path: &[StructuralPathSegment]) -> bool {
         StructuralPathSegment::Field(identity) => !identity.is_absent(),
         StructuralPathSegment::Case(_) => true,
         StructuralPathSegment::FixedIndex(_) | StructuralPathSegment::RuntimeIndex { .. } => true,
-        StructuralPathSegment::FixedByteRange { .. }
+        StructuralPathSegment::AllElements
+        | StructuralPathSegment::FixedByteRange { .. }
         | StructuralPathSegment::RepresentationView { .. }
         | StructuralPathSegment::Referent => false,
     })

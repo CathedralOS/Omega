@@ -399,40 +399,17 @@ impl<'program> LayoutBuilder<'program> {
             } => {
                 let base = self.type_descriptor(*base_type, bindings);
                 let constraint_list = self.program.type_reference_table.constraints(*constraints);
-                // An owned `[u8; N] in <named-domain>` field is the variable-fill
-                // bounded byte carrier (#66): a NAMED (text) domain over a fixed
-                // array. It becomes its own `BoundedByteBuffer` descriptor --
-                // `{len, bytes}` is a distinct layout from the always-full
-                // `FixedArray`, and the named domain does not otherwise survive to
-                // the backend (only arithmetic domains do), so the carrier needs
-                // its own variant to be recognizable downstream. The OmegaLayout
-                // family stays a PLAIN array (see the TypeLayout arm above).
-                let has_named_domain = constraint_list.iter().any(|constraint| match constraint {
-                    TypeConstraintNode::Domain(name) => {
-                        !typed_trees::wire::is_layout_domain_constraint(name)
-                            && language_semantics::CarryPermission::from_name(name.as_str())
-                                .is_none()
-                    }
-                    _ => false,
-                });
-                match base {
-                    TypeLayoutDescriptor::FixedArray {
-                        element_type,
-                        length,
-                    } if has_named_domain => TypeLayoutDescriptor::BoundedByteBuffer {
-                        element_type,
-                        capacity: length,
-                    },
-                    base => TypeLayoutDescriptor::Constrained {
-                        base_type: Box::new(base),
-                        domain: constraint_list
-                            .iter()
-                            .find_map(|constraint| match constraint {
-                                TypeConstraintNode::ArithmeticDomain(domain) => Some(*domain),
-                                _ => None,
-                            })
-                            .unwrap_or(numerics::arithmetic::ArithmeticDomain::Exact),
-                    },
+                // Qualification preserves the base descriptor, including an
+                // exact fixed array. Arithmetic policy remains separate metadata.
+                TypeLayoutDescriptor::Constrained {
+                    base_type: Box::new(base),
+                    domain: constraint_list
+                        .iter()
+                        .find_map(|constraint| match constraint {
+                            TypeConstraintNode::ArithmeticDomain(domain) => Some(*domain),
+                            _ => None,
+                        })
+                        .unwrap_or(numerics::arithmetic::ArithmeticDomain::Exact),
                 }
             }
             TypeReferenceNode::FixedArray {

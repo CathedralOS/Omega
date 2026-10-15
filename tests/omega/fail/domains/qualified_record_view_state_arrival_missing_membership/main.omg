@@ -1,0 +1,10 @@
+// An owned state arrival cannot invent its selected element's byte membership.
+domain [u8; 8]::Ascii(bytes) requires ascii_only(bytes);
+data Label [copy] { storage: [u8; 8]; }
+data Room [copy] { label: Label; }
+machine copy(rooms: &[Room]) -> [u8; 8] in Ascii
+requires rooms.len == 2
+{
+    transition { _ -> arrived(rooms[1]) }
+    state arrived(room: Room) { room.label.storage }
+}

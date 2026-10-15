@@ -1,10 +1,10 @@
 // A byte-sequence domain field operates across states: `label` fills with a
 // string literal in `fill`, gets an indexed byte write in `stamp`, and reads
 // back `main.label[0] as i32` in `done`.
-domain [u8; 8]::Utf8(bytes)
+domain [u8; 3]::Utf8(bytes)
 requires
     valid_utf8(bytes);
-data Main { label: [u8; 8] in Utf8; }
+data Main { label: [u8; 3] in Utf8; }
 machine Main::main(main: &mut Main) {
     transition {
         _ -> fill(main)

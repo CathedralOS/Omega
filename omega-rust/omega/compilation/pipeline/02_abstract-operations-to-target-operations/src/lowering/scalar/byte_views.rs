@@ -238,6 +238,26 @@ pub(in crate::lowering) fn lower_byte_observation_with_lengths(
             backings,
             source,
         )?;
+        if structural_types
+            .get(&selected)
+            .is_some_and(|row| matches!(row.shape, StructuralTypeShape::FixedArray { .. }))
+        {
+            let length =
+                terminal_semantics::fixed_byte_extent(structural_types.values().copied(), selected)
+                    .ok_or_else(invalid)?;
+            insert_value(
+                values,
+                result.value,
+                KnownScalar::Integer {
+                    scalar_type,
+                    value: KnownInteger::Immediate(semantic_vocabulary::IntegerValue::Unsigned(
+                        u128::from(length),
+                    )),
+                },
+            )?;
+            provenance.push(*psi_operation);
+            return Ok(true);
+        }
         let Some(terminal_psi::StructuralTypeDeclaration {
             shape: StructuralTypeShape::ByteSequence(carrier),
             ..
@@ -679,7 +699,11 @@ pub(in crate::lowering) fn descriptor_result<'a>(
             result.multiplicity,
             terminal_psi::nonlinear_multiplicity_pair_pattern!()
         )
-        && result.projected_qualifications.is_empty()
+        && terminal_semantics::view_descriptor_projected_qualifications(
+            types.values().copied(),
+            result.structural_type,
+            &result.projected_qualifications,
+        )
         && result.qualification_establishments.is_empty()
         && result.claims.is_empty()
         && terminal_semantics::descriptor_results::is_descriptor(
@@ -711,6 +735,12 @@ fn validate_whole_operand(
             || !indices.is_empty()
             || !structural_types.get(&selected).is_some_and(|declaration| {
                 matches!(declaration.shape, StructuralTypeShape::ByteSequence(_))
+                    || matches!(declaration.shape, StructuralTypeShape::FixedArray { .. })
+                        && terminal_semantics::fixed_byte_extent(
+                            structural_types.values().copied(),
+                            selected,
+                        )
+                        .is_some()
             })
             || !super::descriptor_operands::observes_count(function, values, *length, source, true)
         {

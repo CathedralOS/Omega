@@ -86,6 +86,7 @@ pub(crate) fn check_indexed_accesses(
 ) -> Result<
     (
         Vec<typed_trees::expression::ExpressionHandle>,
+        Vec<(typed_trees::expression::ExpressionHandle, u64)>,
         Vec<checked_trees::ConstantRecipeObligation>,
     ),
     Vec<Diagnostic>,

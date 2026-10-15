@@ -800,24 +800,55 @@ pub(crate) fn lower_projected_qualifications(
             // Case identities are local to the exact sum declaration. Resolve the
             // static qualification path against its carrier through the shared
             // typed projection route; no runtime selectors are available here.
-            let path = lower_typed_argument_path(
-                identities,
-                &row.path,
-                root,
-                structural_types,
-                None,
-                &mut std::iter::empty(),
-                None,
-            )?;
-            let carrier = terminal_semantics::runtime_structural_path_tip(
-                structural_types.iter(),
-                root,
-                &path,
-            )
-            .ok_or(LoweringError::Unsupported(
-                "projected qualification has no exact structural carrier",
-            ))?
-            .id;
+            let mut path = Vec::new();
+            let mut selected = root;
+            for (ordinal, chunk) in row
+                .path
+                .split(|step| {
+                    matches!(
+                        step,
+                        checked_trees::CheckedUnitStructuralPathSegment::AllElements
+                    )
+                })
+                .enumerate()
+            {
+                if ordinal > 0 {
+                    let declaration =
+                        terminal_psi::find_structural_type(structural_types, selected).ok_or(
+                            LoweringError::Unsupported("qualification collection type is absent"),
+                        )?;
+                    selected = match declaration.shape {
+                        terminal_psi::StructuralTypeShape::FixedArray { element, .. }
+                        | terminal_psi::StructuralTypeShape::ElementView { element, .. } => element,
+                        _ => {
+                            return unsupported(
+                                "universal qualification names no element collection",
+                            );
+                        }
+                    };
+                    path.push(terminal_psi::StructuralPathSegment::AllElements);
+                }
+                let suffix = lower_typed_argument_path(
+                    identities,
+                    chunk,
+                    selected,
+                    structural_types,
+                    None,
+                    &mut std::iter::empty(),
+                    None,
+                )?;
+                selected = terminal_semantics::runtime_structural_path_tip(
+                    structural_types.iter(),
+                    selected,
+                    &suffix,
+                )
+                .ok_or(LoweringError::Unsupported(
+                    "qualification has no exact selected carrier",
+                ))?
+                .id;
+                path.extend(suffix);
+            }
+            let carrier = selected;
             Ok(terminal_psi::StructuralPathQualification {
                 path,
                 domain: lookup_domain_id_for_carrier(domain_ids, row.domain, carrier)?,

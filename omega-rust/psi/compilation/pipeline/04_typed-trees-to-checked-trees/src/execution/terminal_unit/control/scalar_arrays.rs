@@ -101,8 +101,11 @@ pub(in crate::execution::terminal_unit) fn assignment_type(
     ) {
         return None;
     }
-    validation::closed_array_store_type(
+    let expected = validation::closed_array_store_type(
         program,
         validation::assignment_stored_value_type(program, machine, state, assignment)?,
-    )
+    )?;
+    // Packing is optional. Nested memberships require the ordinary completed
+    // array transaction, including for whole write-only replacements.
+    validation::scalar_array_preserves_memberships(program, expected).then_some(expected)
 }

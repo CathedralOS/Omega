@@ -13,7 +13,7 @@
 //! shares that expression walk but leaves declared-domain proof to their flow
 //! contract checker. `named_value_type_reference` finds the declared type
 //! of a named binder, `bounded_byte_buffer_capacity` reads the capacity of a
-//! domain-constrained `[u8; N]` text carrier, and `expression_type_name_handle`
+//! explicit bounded byte-sequence carrier, and `expression_type_name_handle`
 //! names an expression's kind in diagnostics.
 //!
 //! The module list below groups the children by role:
@@ -43,9 +43,7 @@ use std::fmt;
 use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::type_identity::TypeIdentityRequest;
-use typed_trees::types::{
-    PrimitiveType, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
-};
+use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
 // Per-expression checks the expression walk in
 // `machine_calls::calls::expression_scanning` runs. Exact coercion validation
@@ -493,25 +491,14 @@ fn argument_matches_type_reference_using(
                     required_substitutions,
                 )
         }
-        TypeReferenceNode::Constrained { base_type, .. } => {
-            // A literal may directly establish an owned bounded text carrier
-            // (`[u8; N] in Utf8`) in argument and terminal-result positions,
-            // just as it already can in field/local writes. Do this before
-            // erasing the value-domain constraint: the unconstrained base is
-            // an always-full fixed array, which correctly does NOT accept a
-            // text literal by itself.
-            (matches!(argument_node, ExpressionNode::String(literal)
-                if bounded_byte_buffer_capacity(program, type_reference)
-                    .is_some_and(|capacity| literal.len() <= capacity))
-                || argument_matches_type_reference_using(
-                    program,
-                    scope,
-                    argument,
-                    *base_type,
-                    correspondence,
-                    required_substitutions,
-                ))
-        }
+        TypeReferenceNode::Constrained { base_type, .. } => argument_matches_type_reference_using(
+            program,
+            scope,
+            argument,
+            *base_type,
+            correspondence,
+            required_substitutions,
+        ),
         TypeReferenceNode::FixedArray {
             element_type,
             length,
@@ -933,68 +920,18 @@ fn state_symbol_declared_type(
     None
 }
 
-/// Mirror the backend layout classifier for an owned variable-fill text
-/// carrier. A named value domain changes `[u8; N]` from an always-full fixed
-/// array into `{len, bytes[N]}`; layout-policy domains do not.
-/// The returned capacity is not evidence of the value's live length.
+/// Capacity belongs to an explicit variable-fill carrier, never to a domain
+/// attached to a fixed array. Share the structural carrier classification so
+/// expression admission and lowering cannot invent different storage shapes.
 pub fn bounded_byte_buffer_capacity(
     program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<usize> {
-    if let TypeReferenceNode::Reference { referee, .. } =
-        program.type_reference_table.type_reference(type_reference)
-    {
-        return bounded_byte_buffer_capacity(program, *referee);
-    }
-    let TypeReferenceNode::Constrained {
-        base_type,
-        constraints,
-    } = program.type_reference_table.type_reference(type_reference)
-    else {
-        return None;
-    };
-    if !has_value_domain(program, *constraints) {
-        return None;
-    }
-    fixed_byte_array_capacity(program, *base_type)
-}
-
-fn has_value_domain(
-    program: &dyn crate::CheckingInput,
-    constraints: arena::HandleSpan<TypeConstraintNode>,
-) -> bool {
-    program
-        .type_reference_table
-        .constraints(constraints)
-        .iter()
-        .any(|constraint| match constraint {
-            TypeConstraintNode::Domain(name) => {
-                !typed_trees::wire::is_layout_domain_constraint(name)
-                    && language_semantics::CarryPermission::from_name(name.as_str()).is_none()
-            }
-            _ => false,
-        })
-}
-
-fn fixed_byte_array_capacity(
-    program: &dyn crate::CheckingInput,
-    type_reference: TypeReferenceHandle,
-) -> Option<usize> {
-    let TypeReferenceNode::FixedArray {
-        element_type,
-        length,
-    } = program.type_reference_table.type_reference(type_reference)
-    else {
-        return None;
-    };
-    if program.type_reference_table.primitive_type(*element_type) != Some(PrimitiveType::U8) {
-        return None;
-    }
-    match length {
-        typed_trees::types::FixedArrayLength::Literal(capacity) => Some(*capacity),
-        typed_trees::types::FixedArrayLength::ConstParameter { .. }
-        | typed_trees::types::FixedArrayLength::Expression(_)
-        | typed_trees::types::FixedArrayLength::ConstCall { .. } => None,
+    match crate::byte_sequence_carrier(program, type_reference, &[])? {
+        checked_trees::CheckedByteSequenceCarrier::BoundedOwned { capacity } => {
+            usize::try_from(capacity).ok()
+        }
+        _ => None,
     }
 }
 

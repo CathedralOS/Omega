@@ -149,7 +149,7 @@ pub(crate) fn call_contract_argument_projection(
     {
         return None;
     }
-    let mut projections = crate::flow::literal_value_projections(
+    let mut projections = crate::flow::literal_expression_projections(
         program,
         *arguments.get(position)?,
         parameter.type_reference,

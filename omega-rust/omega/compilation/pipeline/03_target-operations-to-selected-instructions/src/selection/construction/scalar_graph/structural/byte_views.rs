@@ -326,29 +326,21 @@ pub(super) fn backing_pointer(
     if let Some(view) = builder.transport.view(source) {
         return Ok(view.backing_pointer);
     }
-    let descriptor = builder
-        .transport
-        .pointers
-        .iter()
-        .find(|(place, _)| *place == source)
-        .map(|(_, register)| *register)
-        .ok_or_else(|| invalid())?;
-    if crate::selection::byte_concatenation_input::owner_layout_type(function, source).is_some() {
-        let pointer = transport_register(builder, source, 8)?;
-        builder.emit_address_offset(8, descriptor, pointer, provenance(row))?;
-        return Ok(pointer);
-    }
-    let pointer = transport_register(builder, source, 0)?;
-    memory(
+    // Use the stored carrier's geometry for every whole backing too. An
+    // inline fixed array is already its payload address; loading its first
+    // word would reinterpret bytes as a pointer. Descriptor carriers retain
+    // their ordinary pointer load through this same projection operation.
+    super::descriptor_operands::backing(
+        function,
         builder,
         row,
-        source,
-        0,
-        8,
-        SelectedMemoryAccessRole::ReadPlace,
-    )?;
-    builder.emit_load64(0, descriptor, pointer, provenance(row))?;
-    Ok(pointer)
+        &terminal_psi::StructuralArgument {
+            place: source,
+            path: Vec::new(),
+            access: terminal_psi::StructuralAccess::SharedBorrow,
+        },
+        &[],
+    )
 }
 
 fn byte_sequence_length(

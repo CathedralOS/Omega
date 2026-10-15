@@ -8,9 +8,7 @@ use abstract_operations::AbstractOperation as O;
 use optimization_unit::PsiOptimizationFunction;
 use semantic_vocabulary::{BlockId, PlaceId, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
-use terminal_psi::{
-    StructuralAccess, StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape,
-};
+use terminal_psi::{StructuralAccess, StructuralPathSegment, StructuralTypeDeclaration};
 
 /// View names retain their backing's identity across calls. Unknown offsets
 /// or aliases cannot certify that an earlier field observation is current.
@@ -23,6 +21,16 @@ fn call_argument_changes(
 ) -> bool {
     use semantic_vocabulary::StructuralPlaceKind;
 
+    let may_alias = |identity, region: &[StructuralPathSegment]| {
+        terminal_semantics::runtime_structural_path_tip(types.values().copied(), identity, region)
+            .is_none_or(|selected| {
+                !crate::current_ownership::storage_cannot_retain_loan(
+                    types,
+                    selected.id,
+                    &mut BTreeMap::new(),
+                )
+            })
+    };
     let mut place = argument.place;
     let mut region = argument.path.clone();
     let mut visited = BTreeSet::new();
@@ -46,25 +54,27 @@ fn call_argument_changes(
         let Some(declaration) = function.structural_place(place) else {
             return true;
         };
+        let Some(contract) =
+            crate::unit_validation::operation_contracts::structural_source_contract(
+                function, place,
+            )
+        else {
+            return true;
+        };
         let StructuralPlaceKind::OperationResult {
             producer,
             structural_type,
         } = declaration.kind
         else {
-            return false;
+            return may_alias(contract.structural_type, &region);
         };
+        if contract.structural_type != structural_type {
+            return true;
+        }
         let Some(operation) = function
             .block_nodes()
             .map(|node| &node.operation)
             .find(|operation| operation.psi_operation() == Some(producer))
-        else {
-            return true;
-        };
-        let Some(contract) =
-            crate::unit_validation::operation_contracts::structural_source_contract(
-                function, place,
-            )
-            .filter(|contract| contract.structural_type == structural_type)
         else {
             return true;
         };
@@ -100,16 +110,11 @@ fn call_argument_changes(
                 place = source.place;
             }
             _ => {
-                return types.get(&structural_type).is_none_or(|declaration| {
-                    matches!(
-                        declaration.shape,
-                        StructuralTypeShape::Reference { .. }
-                            | StructuralTypeShape::ElementView { .. }
-                            | StructuralTypeShape::ByteSequence(
-                                terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
-                            )
-                    )
-                });
+                // Distinct owner storage does not imply distinct reachable
+                // storage: an aggregate may contain a view of the observed
+                // bytes. Preserve history only for a selected subtree proven
+                // recursively unable to retain a loan.
+                return may_alias(structural_type, &region);
             }
         }
     }
@@ -150,16 +155,25 @@ pub(super) fn structural_metadata_may_change(
             destination.place() == root
                 && terminal_semantics::structural_paths_may_overlap(path, written)
         }
-        abstract_operations::call_structural_or_boundary_call_pattern!(structural_arguments) => {
-            structural_arguments.iter().any(|argument| {
-                matches!(
-                    argument.access,
-                    StructuralAccess::MutableBorrow
-                        | StructuralAccess::WriteOnlyBorrow
-                        | StructuralAccess::Owned
-                ) && call_argument_changes(function, types, root, path, argument)
-            })
-        }
+        // Shared boundary inputs can carry checked interior authority. Without
+        // a disjoint effect footprint they are not evidence of a read-only call.
+        O::BoundaryCall {
+            structural_arguments,
+            ..
+        } => structural_arguments
+            .iter()
+            .any(|argument| call_argument_changes(function, types, root, path, argument)),
+        O::CallStructural {
+            structural_arguments,
+            ..
+        } => structural_arguments.iter().any(|argument| {
+            matches!(
+                argument.access,
+                StructuralAccess::MutableBorrow
+                    | StructuralAccess::WriteOnlyBorrow
+                    | StructuralAccess::Owned
+            ) && call_argument_changes(function, types, root, path, argument)
+        }),
         // These operations cannot alter this bounded field's live length.
         // Scalar stores target a separately validated primitive leaf, and byte
         // stores preserve length even when they replace the measured field's contents.
@@ -262,6 +276,30 @@ pub(super) fn established_on_every_path_with_edges(
     establishes_edge: impl Fn((usize, usize), &O, &optimization_unit::OptimizationEdge, PlaceId) -> bool,
     invalidates: impl Fn(&O, PlaceId) -> bool,
 ) -> bool {
+    established_on_every_path_with_entry(
+        function,
+        predecessors,
+        use_site,
+        root,
+        establishes,
+        establishes_edge,
+        |_| false,
+        invalidates,
+    )
+}
+
+/// Replay byte-content facts from either an operation or an authenticated entry
+/// contract. Entry facts still traverse every intervening write and join.
+pub(super) fn established_on_every_path_with_entry(
+    function: &PsiOptimizationFunction,
+    predecessors: &BTreeMap<BlockId, BTreeSet<BlockId>>,
+    use_site: (usize, usize),
+    root: PlaceId,
+    establishes: impl Fn((usize, usize), &O, PlaceId) -> bool,
+    establishes_edge: impl Fn((usize, usize), &O, &optimization_unit::OptimizationEdge, PlaceId) -> bool,
+    establishes_entry: impl Fn(PlaceId) -> bool,
+    invalidates: impl Fn(&O, PlaceId) -> bool,
+) -> bool {
     let mut pending = vec![(use_site.0, use_site.1, root)];
     let mut visited = BTreeSet::new();
     let mut established = false;
@@ -283,7 +321,11 @@ pub(super) fn established_on_every_path_with_edges(
             }
         } else {
             if block.id == function.entry {
-                return false;
+                if !establishes_entry(root) {
+                    return false;
+                }
+                established = true;
+                continue;
             }
             let Some(arrivals) = predecessors
                 .get(&block.id)

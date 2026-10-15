@@ -27,6 +27,8 @@ pub(super) fn home<'a>(
     else {
         return None;
     };
+    // Membership was established by the semantic operation. It does not
+    // change the zero image or require another physical layout.
     let declarations = &source.structural.as_ref()?.structural_types;
     if row.result.is_some()
         || !matches!(
@@ -34,7 +36,6 @@ pub(super) fn home<'a>(
             terminal_psi::nonlinear_multiplicity_pair_pattern!()
         )
         || !result.claims.is_empty()
-        || !result.projected_qualifications.is_empty()
         || crate::structural_inputs::structural_reference_input::shape(
             result.structural_type,
             declarations,

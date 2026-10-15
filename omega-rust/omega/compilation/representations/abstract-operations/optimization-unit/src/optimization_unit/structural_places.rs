@@ -259,6 +259,7 @@ pub(crate) fn canonicalize_ordinary_path(
     let mut canonical = Vec::with_capacity(path.len());
     for segment in path {
         match segment {
+            StructuralPathSegment::AllElements => return None,
             StructuralPathSegment::Field(identity) => {
                 let fields = match shape(unit, current)? {
                     terminal_psi::record_or_mixed_shape_pattern!(fields) => fields,
@@ -696,6 +697,7 @@ pub(crate) fn descended_type(
         .find(|entry| entry.id == current)?
         .shape;
     match segment {
+        StructuralPathSegment::AllElements => None,
         StructuralPathSegment::Case(_) | StructuralPathSegment::FixedByteRange { .. } => None,
         StructuralPathSegment::RepresentationView {
             structural_type,
@@ -1097,6 +1099,7 @@ impl<'a> Position<'a> {
     ) -> Option<Position<'a>> {
         match (self, step) {
             (Self::Type(current), PathStep::Ordinary(segment)) => match segment {
+                StructuralPathSegment::AllElements => None,
                 StructuralPathSegment::Field(identity) => {
                     descended_field(unit, current, *identity).map(|(_, next)| Self::Type(next))
                 }

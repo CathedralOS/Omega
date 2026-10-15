@@ -133,6 +133,8 @@ pub enum CheckedStoreLeaf {
     /// primitive local or borrowed primitive, or the primitive array element
     /// or plain IEEE field a primitive projection reaches.
     Primitive {
+        /// Exact indexed write's completed byte-predicate preservation judgment.
+        preserves_byte_memberships: bool,
         /// Scalar qualification constrains this source write without changing
         /// primitive storage identity. Lowering consumes its completed receiving
         /// judgment before emitting the ordinary physical store.

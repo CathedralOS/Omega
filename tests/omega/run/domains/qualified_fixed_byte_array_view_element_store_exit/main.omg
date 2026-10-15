@@ -1,0 +1,26 @@
+// Expected exit: 0
+// Replacing one borrowed element preserves zero-filled fixed bytes and siblings.
+domain [u8; 8]::Ascii(bytes) requires ascii_only(bytes);
+data Name [copy] where used <= 8 { storage: [u8; 8] in Ascii; used: u64; }
+data Item [copy] { name: Name; marker: u8; }
+data Store { items: [Item; 2]; }
+machine empty_item() -> Item { Item { name: Name { used: 0 }, marker: 37u8 } }
+machine update(store: &mut Store) crashes Trap {
+    let items: &mut [Item] = &mut store.items[..store.items.len];
+    items[0] = empty_item();
+}
+machine main() crashes Trap {
+    let mut store: Store = Store { items: [
+        Item { name: Name { storage: "omega600", used: 8 }, marker: 17u8 },
+        Item { name: Name { storage: "omega601", used: 8 }, marker: 29u8 }
+    ] };
+    update(&mut store);
+    transition store.items[0].name.storage[0] == 0 && store.items[0].name.storage[7] == 0
+        && store.items[0].name.storage.len == 8 && store.items[0].name.used == 0
+        && store.items[0].marker == 37
+        && store.items[1].name.storage == "omega601" && store.items[1].marker == 29
+        && size_of<Name>() == 16 {
+        true -> {} _ -> bad()
+    }
+    state bad() { crash Trap; }
+}

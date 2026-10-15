@@ -23,10 +23,15 @@ pub use boundary_calls::{
 };
 mod compatibility;
 mod contents;
+mod payload_history;
 pub use contents::{
     DescriptorContentsOperand, DescriptorContentsQuery, DescriptorContentsStep,
-    DescriptorContentsTransfer, descriptor_contents_query, descriptor_contents_transfers,
+    DescriptorContentsTransfer, DescriptorPayloadTarget, ElementPayloadMemberships,
+    PayloadMembershipContract, descriptor_contents_query, descriptor_contents_transfers,
+    element_payload_memberships, element_payload_memberships_in, payload_memberships,
+    terminal_payload_contract,
 };
+pub use payload_history::current_payload_contract;
 mod owned_shape;
 mod replay;
 pub use compatibility::{DescriptorCompatibilityFailure, DescriptorCompatibilityRequirement};
@@ -336,6 +341,14 @@ pub struct DescriptorMachine {
         DescriptorContentsQuery,
     >,
     pub contents_transfers: BTreeMap<DescriptorPosition, Vec<DescriptorContentsTransfer>>,
+    /// Payload writes not described by structural value derivations. These
+    /// retire value memberships independently of descriptor pointer contents.
+    pub payload_producers: BTreeMap<DescriptorPosition, PlaceId>,
+    pub payload_invalidations: BTreeMap<DescriptorPosition, Vec<Option<DescriptorContentsQuery>>>,
+    /// Nonexact value arrivals retain their actual typed read query, indexed
+    /// by successor ordinal. They supplement membership transport only: exact
+    /// address/custody bindings in `flow` remain unchanged.
+    pub payload_arrivals: BTreeMap<DescriptorPosition, Vec<Vec<PayloadMembershipBinding>>>,
     /// Unresolved writes cannot leave entry contents available for a later
     /// query. These operations require contents effects before replay is usable.
     pub unresolved_contents_writes: BTreeSet<DescriptorPosition>,
@@ -344,6 +357,11 @@ pub struct DescriptorMachine {
     pub storage_derivations: BTreeSet<(DescriptorPosition, DescriptorLocation, DescriptorLocation)>,
     pub calls: BTreeMap<DescriptorPosition, DescriptorInvocation>,
     pub normal_exits: Vec<DescriptorPosition>,
+}
+
+pub struct PayloadMembershipBinding {
+    pub parameter: PlaceId,
+    pub source: Option<DescriptorContentsQuery>,
 }
 
 /// The graph row for `id`, when the catalog covers that machine.
@@ -359,6 +377,9 @@ pub struct DescriptorInvocation {
     /// Every formal position is retained. None means its actual storage
     /// coordinate is unresolved, never that the invocation is absent.
     pub arguments: Vec<Option<DescriptorLocation>>,
+    /// Complete readable backing candidates at the invocation snapshot.
+    /// Runtime selections remain typed queries, never exact write addresses.
+    pub argument_contents: Vec<Option<DescriptorContentsQuery>>,
     pub result: Option<DescriptorLocation>,
 }
 

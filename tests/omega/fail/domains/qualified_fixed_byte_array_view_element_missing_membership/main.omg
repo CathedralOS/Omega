@@ -1,0 +1,10 @@
+// An unqualified source view cannot manufacture its elements' byte domain.
+domain [u8; 8]::Ascii(bytes) requires ascii_only(bytes);
+data Name [copy] { storage: [u8; 8]; }
+data Item [copy] { name: Name; }
+machine copy(items: &[Item]) -> [u8; 8] in Ascii
+requires items.len == 2
+{
+    let item: Item = items[1];
+    item.name.storage
+}

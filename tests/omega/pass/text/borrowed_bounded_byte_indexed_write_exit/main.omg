@@ -4,13 +4,14 @@ use omega_language_std::console;
 
 domain [u8; 8]::Ascii(bytes) requires ascii_only(bytes);
 
-machine replace(at: u64, bytes: &mut [u8; 8] in Ascii, value: u8) -> bool {
-    transition at < bytes.len && value < 128 {
+machine replace(at: u64, bytes: &mut Buffer, value: u8) -> bool {
+    transition at < bytes.used && at < 8 && value < 128 {
         true -> write(at, bytes, value, true)
         _ -> false
     }
-    state write(at: u64, bytes: &mut [u8; 8] in Ascii, value: u8, repeat: bool) -> bool {
-        bytes[at] = value;
+    state write(at: u64, bytes: &mut Buffer, value: u8, repeat: bool) -> bool
+    requires at < 8; value < 128 {
+        bytes.storage[at] = value;
         transition repeat {
             true -> write(at, bytes, value, false)
             _ -> true
@@ -23,19 +24,19 @@ machine Main::main(main: &mut Main) reaches Console {
     transition { _ -> prepare(0) }
 
     state prepare(round: u32) {
-        let original: [u8; 8] in Ascii = "ab";
-        let mut bytes: [u8; 8] in Ascii = "ab";
+        let original: Buffer = Buffer { storage: [97u8, 98u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8], used: 2 };
+        let mut bytes: Buffer = Buffer { storage: [97u8, 98u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8], used: 2 };
         let first: bool = replace(0, &mut bytes, 65);
         let second: bool = replace(1, &mut bytes, 66);
         let outside: bool = replace(2, &mut bytes, 67);
         let valid: bool = first && second && !outside
-            && original[0] == 97 && original[1] == 98;
+            && original.storage[0] == 97 && original.storage[1] == 98;
         transition { _ -> inspect(&bytes, round, valid) }
     }
     // A later state's local remains the backing of this shared state loan.
     // Re-entering prepare creates the next line only after this loan ends.
-    state inspect(bytes: &[u8; 8] in Ascii, round: u32, valid: bool) {
-        transition valid && bytes.len == 2 && bytes[0] == 65 && bytes[1] == 66 {
+    state inspect(bytes: &Buffer, round: u32, valid: bool) {
+        transition valid && bytes.used == 2 && bytes.storage[0] == 65 && bytes.storage[1] == 66 {
             true -> again(round)
             _ -> finish(71)
         }
@@ -48,3 +49,6 @@ machine Main::main(main: &mut Main) reaches Console {
     }
     state finish(code: i32) { Console::exit_process(code); }
 }
+
+// The fixed array has eight bytes; the explicit owner lends only two live bytes.
+data Buffer [copy] where used <= 8 { storage: [u8; 8] in Ascii; used: u64; }

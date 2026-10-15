@@ -1,27 +1,20 @@
-// A static entry constructs a bounded text local from a shorter literal and
-// lends it to scalar-result machines. `[u8; 8] in Utf8` is a bounded owner:
-// capacity 8, live length 3 (the literal's), never a zero-filled raw array.
-// `digit_sum` forwards the qualified shared loan across its loop states and
-// reads the live length and each byte; `live_length` reads the length in its
-// single state; `forwarded_length` reads it in a successor state. Exits 70
-// only when the digits of "150" sum to 6 and both lengths are 3; a
-// zero-filled 8-byte array would read 8.
-
+// Exact three-byte owned arrays lend ordinary qualified views.
+// Runtime indexes and state forwarding preserve the authored numerical oracle.
 domain [u8]::Utf8(bytes)
 requires
     valid_utf8(bytes);
-domain [u8; 8]::Utf8(bytes)
+domain [u8; 3]::Utf8(bytes)
 requires
     valid_utf8(bytes);
 use omega_language_std::console;
 use omega::language::core::numeric_conversion;
 
-machine digit_sum(text: &[u8; 8] in Utf8) -> i32 in Wrapping {
+machine digit_sum(text: &[u8; 3] in Utf8) -> i32 in Wrapping {
     transition {
         _ -> step(text, 0, 0)
     }
 
-    state step(text: &[u8; 8] in Utf8, index: i32, sum: i32 in Wrapping) -> i32 in Wrapping
+    state step(text: &[u8; 3] in Utf8, index: i32, sum: i32 in Wrapping) -> i32 in Wrapping
     requires index >= 0
     {
         transition index < text.len {
@@ -30,7 +23,7 @@ machine digit_sum(text: &[u8; 8] in Utf8) -> i32 in Wrapping {
         }
     }
 
-    state digit(text: &[u8; 8] in Utf8, index: i32, sum: i32 in Wrapping) -> i32 in Wrapping
+    state digit(text: &[u8; 3] in Utf8, index: i32, sum: i32 in Wrapping) -> i32 in Wrapping
     requires index >= 0
     {
         let byte: u8 = text[index];
@@ -42,7 +35,7 @@ machine digit_sum(text: &[u8; 8] in Utf8) -> i32 in Wrapping {
         }
     }
 
-    state advance(text: &[u8; 8] in Utf8, index: i32, sum: i32 in Wrapping) -> i32 in Wrapping
+    state advance(text: &[u8; 3] in Utf8, index: i32, sum: i32 in Wrapping) -> i32 in Wrapping
     requires index >= 0 && index < 8
     {
         let next_index: i32 = index + 1;
@@ -52,18 +45,18 @@ machine digit_sum(text: &[u8; 8] in Utf8) -> i32 in Wrapping {
     }
 }
 
-machine live_length(text: &[u8; 8] in Utf8) -> u64 {
+machine live_length(text: &[u8; 3] in Utf8) -> u64 {
     transition {
         _ -> (text.len)
     }
 }
 
-machine forwarded_length(text: &[u8; 8] in Utf8) -> u64 {
+machine forwarded_length(text: &[u8; 3] in Utf8) -> u64 {
     transition {
         _ -> measure(text)
     }
 
-    state measure(text: &[u8; 8] in Utf8) -> u64 {
+    state measure(text: &[u8; 3] in Utf8) -> u64 {
         transition {
             _ -> (text.len)
         }
@@ -72,7 +65,7 @@ machine forwarded_length(text: &[u8; 8] in Utf8) -> u64 {
 
 data Main { }
 machine Main::main(main: &mut Main) reaches Console {
-    let text: [u8; 8] in Utf8 = "150";
+    let text: [u8; 3] in Utf8 = "150";
     let sum: i32 in Wrapping = digit_sum(&text);
     let length: u64 = live_length(&text);
     let forwarded: u64 = forwarded_length(&text);

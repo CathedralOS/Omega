@@ -793,7 +793,8 @@ pub(crate) fn prepare_sequence_observation(
         let declaration = projection.declaration.ok_or(LoweringError::Unsupported(
             "length observation lost its sequence declaration",
         ))?;
-        let Some(carrier) = super::view_locals::ViewCarrier::of(declaration.id, declarations)
+        let Some(carrier) =
+            super::view_locals::ViewCarrier::observation_of(declaration.id, declarations)
         else {
             return Ok(None);
         };
@@ -821,38 +822,6 @@ pub(crate) fn prepare_sequence_observation(
     Ok(Some((steps, field.map(|field| field.id), carrier)))
 }
 
-/// Resolve a readable sequence through the same declared reference crossings
-/// used by field and indexed observations. Preserve the completed actual prefix.
-pub(crate) fn sequence_home(
-    mut home: terminal_psi::StructuralArgument,
-    structural_type: StructuralTypeId,
-    declarations: &[StructuralTypeDeclaration],
-) -> Result<
-    (
-        terminal_psi::StructuralArgument,
-        super::view_locals::ViewCarrier,
-    ),
-    LoweringError,
-> {
-    if !matches!(
-        home.access,
-        StructuralAccess::Owned | terminal_psi::reading_borrow_pair_pattern!()
-    ) {
-        return unsupported("sequence observation requires readable storage");
-    }
-    let (declaration, crossings) =
-        observation_paths::readable_carrier(structural_type, declarations)?;
-    let carrier = super::view_locals::ViewCarrier::of(declaration.id, declarations).ok_or(
-        LoweringError::Unsupported("sequence observation requires a descriptor"),
-    )?;
-    home.path.extend(std::iter::repeat_n(
-        terminal_psi::StructuralPathSegment::Referent,
-        crossings,
-    ));
-    home.access = StructuralAccess::SharedBorrow;
-    Ok((home, carrier))
-}
-
 pub(crate) fn sequence_length(
     home: &terminal_psi::StructuralArgument,
     carrier: super::view_locals::ViewCarrier,
@@ -865,12 +834,14 @@ pub(crate) fn sequence_length(
         .map(LoweredElementPathSegment::Static)
         .collect();
     match carrier {
-        super::view_locals::ViewCarrier::Bytes => LoweredDirectExpression::ByteSequenceLength {
-            source: home.place,
-            path,
-            access: StructuralAccess::SharedBorrow,
-            scalar_type,
-        },
+        super::view_locals::ViewCarrier::Bytes | super::view_locals::ViewCarrier::FixedBytes => {
+            LoweredDirectExpression::ByteSequenceLength {
+                source: home.place,
+                path,
+                access: StructuralAccess::SharedBorrow,
+                scalar_type,
+            }
+        }
         super::view_locals::ViewCarrier::Elements { .. } => {
             LoweredDirectExpression::ElementViewLength {
                 source: home.place,

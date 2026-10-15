@@ -1,0 +1,10 @@
+// Expected exit: 0.
+domain [u8; 8]::Ascii(bytes) requires ascii_only(bytes);
+data TextBuffer [copy] where used <= 8 { storage: [u8; 8] in Ascii; used: u64; }
+machine set_count(buffer: &mut TextBuffer, count: u64) requires count <= 8 { buffer.used = count; }
+machine main() crashes Trap {
+    let mut buffer: TextBuffer = TextBuffer { storage: "omega600", used: 0 };
+    set_count(&mut buffer, 6);
+    transition buffer.used == 6 && buffer.storage == "omega600" && buffer.storage.len == 8 { true -> done() false -> wrong() }
+    state done() {} state wrong() { crash Trap; }
+}

@@ -423,7 +423,7 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                 }
                 AbstractOperation::ByteSequenceLength { .. } => {
                     byte_operation_retained(operation, targeted)
-                        || bounded_view_length_is_static(
+                        || fixed_byte_length_is_static(
                             abstracted,
                             current
                                 .optimized_target()
@@ -671,13 +671,10 @@ fn ieee_literal_retained<'operation>(
         && matching.next().is_none()
 }
 
-/// A `ByteSequenceLength` on a bounded byte view realizes as its statically
-/// known capacity: the fold emits no scalar definition row, so retention
-/// admits the statically-known carrier directly. The source's declared type
-/// owns that extent independently of whether an arrival, literal or ordinary
-/// producer established the descriptor. Source replay still owns the complete
-/// projection and its custody; this query accounts only for the length fold.
-fn bounded_view_length_is_static(
+/// A fixed byte carrier's length folds to its declared extent without a
+/// scalar definition row. The mandatory source replay checks the exact
+/// immediate, access and projection; this query only accounts for that fold.
+fn fixed_byte_length_is_static(
     abstracted: &AbstractFunction,
     structural_types: &[terminal_psi::StructuralTypeDeclaration],
     operation: &AbstractOperation,
@@ -709,12 +706,7 @@ fn bounded_view_length_is_static(
     };
     terminal_semantics::runtime_structural_path_tip(structural_types.iter(), root, &source.path)
         .is_some_and(|declaration| {
-            matches!(
-                declaration.shape,
-                terminal_psi::StructuralTypeShape::ByteSequence(
-                    terminal_psi::ByteSequenceCarrier::BoundedView { .. }
-                )
-            )
+            terminal_semantics::fixed_byte_extent(structural_types.iter(), declaration.id).is_some()
         })
 }
 

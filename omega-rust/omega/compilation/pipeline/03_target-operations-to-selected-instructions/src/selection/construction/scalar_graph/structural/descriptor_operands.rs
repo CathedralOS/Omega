@@ -43,6 +43,22 @@ pub(super) fn backing(
     if !geometry::runtime_indices_match(indices, &geometry.elements) {
         return Err(invalid());
     }
+    // A root view can live as backing/offset SSA without a descriptor cell.
+    // The canonical projection base already resolves its actual live backing;
+    // loading a descriptor pointer here would read the first payload bytes.
+    if source.path.is_empty()
+        && ((crate::selection::established_view_input::view_type(function, source.place).is_some()
+            && builder.transport.view(source.place).is_some())
+            || (crate::selection::established_view_input::element_view_type(
+                function,
+                source.place,
+            )
+            .is_some()
+                && builder.transport.element_view(source.place).is_some()))
+    {
+        return super::runtime_address::projection_base(function, builder, row, source.place, 0)?
+            .ok_or_else(invalid);
+    }
     let (pointer, pointer_slots) = if source.path.is_empty() {
         (
             Some(place_pointer(builder, row, source.place, 0)?),
@@ -76,8 +92,19 @@ pub(super) fn backing(
         pointer,
         leaf_indices,
     )?;
-    let (pointer, displacement) =
-        super::memory_pointer(builder, row, source.place, pointer, geometry.byte_offset, 8)?;
+    let address_width = if matches!(shape, StructuralTypeShape::FixedArray { .. }) {
+        0
+    } else {
+        8
+    };
+    let (pointer, displacement) = super::memory_pointer(
+        builder,
+        row,
+        source.place,
+        pointer,
+        geometry.byte_offset,
+        address_width,
+    )?;
     let output = transport_register(builder, source.place, geometry.byte_offset)?;
     match shape {
         StructuralTypeShape::ElementView { .. }
@@ -113,6 +140,17 @@ pub(super) fn backing(
                 output,
                 provenance(row),
             )?;
+        }
+        StructuralTypeShape::FixedArray { .. }
+            if function.structural.as_ref().is_some_and(|signature| {
+                terminal_semantics::fixed_byte_extent(
+                    signature.structural_types.iter(),
+                    geometry.selected,
+                )
+                .is_some()
+            }) =>
+        {
+            builder.emit_address_offset(displacement, pointer, output, provenance(row))?;
         }
         _ => return Err(invalid()),
     }

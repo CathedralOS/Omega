@@ -1,7 +1,7 @@
 use omega_language_std::console;
 
-domain [u8; 8]::Utf8(bytes) requires valid_utf8(bytes);
-data Leaf [copy] { name: [u8; 8] in Utf8; value: u64 in Wrapping; }
+domain [u8; 3]::Utf8(bytes) requires valid_utf8(bytes);
+data Leaf [copy] { name: [u8; 3] in Utf8; value: u64 in Wrapping; }
 data Destination [copy] { first: Leaf; second: Leaf; guard: u64; }
 data Builder { generated: u64 in Wrapping; }
 data Main { builder: Builder; destination: Destination; }

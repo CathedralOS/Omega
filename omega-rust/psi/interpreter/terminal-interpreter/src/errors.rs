@@ -75,6 +75,14 @@ pub enum TerminalInterpretError {
         actual: StructuralTypeId,
     },
     StructuralQualificationsNonCanonical,
+    StructuralArgumentPreparation {
+        stage: &'static str,
+        detail: String,
+    },
+    StructuralStorePreparation {
+        stage: &'static str,
+        detail: String,
+    },
     StructuralQualificationMissing(PlaceId),
     StructuralArgumentAliasing(u64),
     StructuralPrimitiveValueCount {
@@ -179,6 +187,17 @@ impl std::error::Error for TerminalArtifactInterpretError {}
 /// closed rather than continuing on a malformed operation.
 pub(crate) fn malformed() -> TerminalInterpretError {
     TerminalInterpretError::VerifiedOperationMalformed
+}
+
+impl TerminalInterpretError {
+    /// Retain the admission stage without discarding the underlying refusal.
+    pub(crate) fn in_argument_preparation(self, stage: &'static str) -> Self {
+        let detail = match self {
+            Self::StructuralArgumentPreparation { stage, detail } => format!("{stage}: {detail}"),
+            other => format!("{other:?}"),
+        };
+        Self::StructuralArgumentPreparation { stage, detail }
+    }
 }
 
 impl From<FuelMeterError> for TerminalInterpretError {

@@ -1,29 +1,48 @@
+domain [u8]::Utf8(bytes) requires valid_utf8(bytes);
 use omega_language_std::console;
 
 domain [u8; 8]::Utf8(bytes) requires valid_utf8(bytes);
 data Tag [copy] { case First; case Second; }
-data Cell [copy] { label: [u8; 8] in Utf8; tag: Tag; value: u64; }
+data Cell [copy] { label: TextBuffer; tag: Tag; value: u64; }
 data Main { cells: [Cell; 2]; }
 
-machine fill(cell: &mut Cell, tag: Tag, value: u64) {
+machine fill(cell: &mut Cell, tag: Tag, value: u64) crashes Trap {
     cell.tag = tag;
     cell.value = value;
 }
 
-machine Main::main(main: &mut Main) reaches Console {
-    main.cells[0].label = "first";
-    main.cells[1].label = "second";
+machine Main::main(main: &mut Main) reaches Console crashes Trap {
+    main.cells[0].label = TextBuffer { storage: [102u8, 105u8, 114u8, 115u8, 116u8, 0u8, 0u8, 0u8], used: 5 };
+    main.cells[1].label = TextBuffer { storage: [115u8, 101u8, 99u8, 111u8, 110u8, 100u8, 0u8, 0u8], used: 6 };
     let view: &mut [Cell] = &mut main.cells[..];
     fill(&mut view[0], Tag::First, 31);
     fill(&mut view[1], Tag::Second, 39);
     transition main.cells[0].value == 31
         && main.cells[1].value == 39
-        && main.cells[0].label == "first"
-        && main.cells[1].label == "second"
+        && TextBuffer::equal(&main.cells[0].label, "first")
+        && TextBuffer::equal(&main.cells[1].label, "second")
         && main.cells[0].tag == Tag::First
         && main.cells[1].tag == Tag::Second {
         true -> finish(main, 70)
         false -> finish(main, 1)
     }
     state finish(main: &mut Main, code: i32) { Console::exit_process(code); }
+}
+
+
+// A variable-fill value explicitly owns its fixed storage and live length.
+// Copies retain both; an accessor borrows and checks the selected copy's prefix.
+data TextBuffer [copy] where used <= 8 { storage: [u8; 8] in Utf8; used: u64; }
+machine TextBuffer::view(buffer: &TextBuffer) -> &[u8] in Utf8 crashes Trap {
+    let bytes: &[u8] = &buffer.storage[..buffer.used];
+    transition valid_utf8(bytes) {
+        true -> checked(bytes)
+        false -> bad()
+    }
+    state checked(bytes: &[u8] in Utf8) -> &[u8] in Utf8 { bytes }
+    state bad() { crash Trap; }
+}
+machine TextBuffer::equal(buffer: &TextBuffer, expected: &[u8]) -> bool crashes Trap {
+    let bytes: &[u8] in Utf8 = TextBuffer::view(buffer);
+    bytes == expected
 }

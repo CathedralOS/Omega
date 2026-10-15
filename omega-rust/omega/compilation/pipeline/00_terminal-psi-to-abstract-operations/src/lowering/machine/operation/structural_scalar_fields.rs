@@ -143,6 +143,7 @@ fn lower_store(
     // entry ABI parameter. Preserve its own declaration whether transport uses
     // an address or a view descriptor; edge verification checked exclusivity.
     let destination = store_destination(machine, destination)
+        .or_else(|| owned_storage_destination(machine, destination))
         .ok_or_else(|| invalid("destination has no exact writable storage declaration"))?;
     let scalar_type = value_types
         .get(&value)
@@ -198,7 +199,10 @@ fn lower_store(
                 StructuralAccess::Owned
                     | StructuralAccess::MutableBorrow
                     | StructuralAccess::WriteOnlyBorrow
-            ) || !has_unqualified_storage(machine, parameter.place)
+            ) || machine
+                .content_entry_claims
+                .iter()
+                .any(|claim| claim.input.root == parameter.place)
         })
         || !terminal_psi::is_structural_scalar_store_path(storage_path)
         || !path
@@ -219,6 +223,21 @@ fn lower_store(
         field,
     )
     .ok_or_else(|| invalid("selected path has no exact field declaration"))?;
+    let (whole, projected) = match &destination {
+        StructuralScalarStoreDestination::Parameter(parameter)
+        | StructuralScalarStoreDestination::OwnedBlockParameter { parameter, .. } => (
+            &parameter.qualifications,
+            &parameter.projected_qualifications,
+        ),
+        StructuralScalarStoreDestination::OwnedResult { result, .. } => {
+            (&result.qualifications, &result.projected_qualifications)
+        }
+    };
+    let mut written = path.to_vec();
+    written.push(StructuralPathSegment::Field(declaration.identity));
+    if !terminal_semantics::structural_memberships_disjoint_from_write(whole, projected, &written) {
+        return Err(invalid("scalar field write overlaps a standing membership"));
+    }
     if terminal_semantics::scalar_field_requires_evidence(&declaration.field_type)
         != range_obligation.is_some()
         || declaration.field_type.scalar_type() != Some(scalar_type)

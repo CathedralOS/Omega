@@ -30,6 +30,11 @@
 //! parameter. Its shortened physical path and root type drive emitted access;
 //! the original evaluated path still selects memberships and identifies debt.
 //! Neither coordinate can substitute for the other or replay its selectors.
+//! Address capture does not extract the endpoint's value. It retains the full
+//! field declaration, including owner-dependent scalar bounds, without inventing
+//! a standalone structural type for that scalar. Only a real move or restoration
+//! pins a structural hole type; the final store still proves its own receiving
+//! contract against the retained root and field.
 //!
 //! The ledger fails closed. Every shape the checked facts do not pin exactly
 //! — a root without owned or exclusive mutable custody, a whole-root route
@@ -94,10 +99,9 @@ pub(crate) struct OpenBorrowedWindow {
     pub(crate) path: Vec<StructuralPathSegment>,
     /// A field extending `path`, or `None` when `path` names the whole hole.
     pub(crate) field: Option<StructuralFieldId>,
+    /// The same final field in the published path's identity namespace.
+    field_path_identity: Option<terminal_psi::TerminalIdentityIndex>,
     pub(crate) hole_type: StructuralTypeId,
-    /// The checked route is retained for overlap diagnostics, not for pairing
-    /// a restoration: its selectors name evaluation roles, not storage ids.
-    checked_path: Vec<CheckedUnitStructuralPathSegment>,
     spelling: String,
     restoration_required: bool,
 }
@@ -146,6 +150,17 @@ struct EvaluatedStoragePlace {
     original_path: Vec<StructuralPathSegment>,
 }
 
+/// Both coordinates of one already-evaluated assignment target. Memberships
+/// are relative to their own root; descriptor capture never transports a
+/// logical domain roster onto the physical backing's unrelated declaration.
+pub(crate) struct CapturedAssignmentPlace {
+    pub(crate) source: PlaceId,
+    pub(crate) root_type: StructuralTypeId,
+    pub(crate) path: Vec<StructuralPathSegment>,
+    pub(crate) original_source: PlaceId,
+    pub(crate) original_path: Vec<StructuralPathSegment>,
+}
+
 /// An indexed store consumes the descriptor and coordinate retained by the
 /// target's capture, rather than reconstructing either after the RHS.
 pub(crate) struct CapturedIndexedDestination {
@@ -154,12 +169,11 @@ pub(crate) struct CapturedIndexedDestination {
     pub(crate) coordinate: semantic_vocabulary::ValueId,
 }
 
-/// The resolved exact place a move or repair names beneath a window root:
-/// the root's declared type, the carrier's projection steps (a runtime element
-/// evaluates when the operation emits), the checked route for diagnostics,
-/// the leaf's field declaration id (`None` for a root window), and the hole's
-/// declared type.
-struct ResolvedStoragePlace {
+/// A checked storage address, independently of extracting its value. Keep
+/// the complete root and final field declaration: an inline scalar's contextual
+/// bound belongs to that field, not an invented standalone primitive type.
+/// Only an actual move/restoration subsequently pins a structural hole type.
+struct ResolvedStorageAddress {
     source: PlaceId,
     root_type: StructuralTypeId,
     root_access: StructuralAccess,
@@ -170,14 +184,14 @@ struct ResolvedStoragePlace {
     fixed_prefix: usize,
     checked_path: Vec<CheckedUnitStructuralPathSegment>,
     field: Option<terminal_psi::StructuralFieldDeclaration>,
-    hole_type: StructuralTypeId,
+    subtree_type: Option<StructuralTypeId>,
     spelling: String,
     restoration_required: bool,
     qualifications: Vec<semantic_vocabulary::StructuralDomainId>,
     projected_qualifications: Vec<terminal_psi::StructuralPathQualification>,
 }
 
-impl ResolvedStoragePlace {
+impl ResolvedStorageAddress {
     /// Opaque predicates on an ancestor cannot be preserved by replacing only
     /// a descendant. Exact hole memberships move with the hole, while sibling
     /// memberships are untouched. Geometry alone never establishes a domain.
@@ -227,7 +241,6 @@ impl BorrowedWindowLedger {
         destination_expression: typed_trees::expression::ExpressionHandle,
         parameters: &[StructuralParameterDeclaration],
         structural_types: &[StructuralTypeDeclaration],
-        type_ids: &[(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)],
         evaluation: &mut WindowEvaluation<'_, '_>,
         values: &mut Vec<terminal_psi::ValueDeclaration>,
         next_value: &mut u64,
@@ -237,7 +250,7 @@ impl BorrowedWindowLedger {
         places: &mut Vec<terminal_psi::StructuralPlaceDeclaration>,
         operations: &mut OperationBuffer,
     ) -> Result<(), LoweringError> {
-        let place = resolve_storage_place(
+        let place = resolve_storage_address(
             identities,
             destination,
             StructuralAccess::WriteOnlyBorrow,
@@ -245,7 +258,6 @@ impl BorrowedWindowLedger {
             evaluation.evaluation,
             operations,
             structural_types,
-            type_ids,
         )?;
         let indexes = runtime_elements::evaluate_selectors(
             identities,
@@ -423,18 +435,26 @@ impl BorrowedWindowLedger {
         statement_index: u32,
         source: &CheckedUnitStructuralArgumentSourcePlan,
         path: &[CheckedUnitStructuralPathSegment],
-    ) -> Result<Option<(PlaceId, Vec<StructuralPathSegment>)>, LoweringError> {
+    ) -> Result<Option<CapturedAssignmentPlace>, LoweringError> {
         let Some(capture) = self.assignment_destination(statement_index, source, path) else {
             return Ok(None);
         };
-        let mut retained = capture.path.clone();
-        retained.extend(
+        let suffix =
             crate::expression_preparation::bindings::structural_paths::lower_structural_path(
                 identities,
                 &path[capture.destination.path.len()..],
-            )?,
-        );
-        Ok(Some((capture.source, retained)))
+            )?;
+        let mut retained = capture.path.clone();
+        retained.extend_from_slice(&suffix);
+        let mut original_path = capture.original_path.clone();
+        original_path.extend(suffix);
+        Ok(Some(CapturedAssignmentPlace {
+            source: capture.source,
+            root_type: capture.root_type,
+            path: retained,
+            original_source: capture.original_source,
+            original_path,
+        }))
     }
 
     pub(crate) fn captured_indexed_destination(
@@ -489,7 +509,7 @@ impl BorrowedWindowLedger {
         capture: Option<&CapturedAssignmentDestination>,
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         plan: &CheckedUnitStructuralArgumentPlan,
-        place: &ResolvedStoragePlace,
+        place: &ResolvedStorageAddress,
         evaluation: &mut WindowEvaluation<'_, '_>,
         values: &mut Vec<terminal_psi::ValueDeclaration>,
         next_value: &mut u64,
@@ -578,7 +598,7 @@ impl BorrowedWindowLedger {
         next_edge: &mut u64,
         operations: &mut OperationBuffer,
     ) -> Result<PlaceId, LoweringError> {
-        let place = resolve_window_place(
+        let (place, hole_type) = resolve_window_place(
             identities,
             moved,
             StructuralAccess::MutableBorrow,
@@ -588,7 +608,7 @@ impl BorrowedWindowLedger {
             structural_types,
             type_ids,
         )?;
-        if lookup_type_id(type_ids, &result.type_identity)? != place.hole_type {
+        if lookup_type_id(type_ids, &result.type_identity)? != hole_type {
             return Err(unpinned(
                 &place.spelling,
                 "the moved binding's type differs from the declared field type",
@@ -619,11 +639,17 @@ impl BorrowedWindowLedger {
             place.selected_memberships(identities, &evaluated.original_path)?;
         if let Some(absent) = self.open.iter().find(|absent| {
             absent.source == evaluated.original_source
-                && paths_overlap(&absent.checked_path, &place.checked_path)
+                && paths_overlap(
+                    &absent.path,
+                    absent.field_path_identity,
+                    &evaluated.original_path,
+                    place.field.as_ref().map(|field| field.identity),
+                    &operations.scalar_index_coordinates,
+                )
         }) {
             return Err(unpinned(
                 &place.spelling,
-                if absent.checked_path == place.checked_path {
+                if absent.path == evaluated.original_path && absent.field == field {
                     "the place is already absent: repeated extraction of one open window"
                 } else {
                     "the place overlaps an open window: extraction through absent storage"
@@ -649,7 +675,7 @@ impl BorrowedWindowLedger {
             OperationResult::Structural(StructuralOperationResult {
                 qualification_establishments: Vec::new(),
                 place: moved_place,
-                structural_type: place.hole_type,
+                structural_type: hole_type,
                 multiplicity: terminal_multiplicity(result.multiplicity),
                 qualifications,
                 projected_qualifications,
@@ -666,8 +692,8 @@ impl BorrowedWindowLedger {
             source: evaluated.original_source,
             path: evaluated.original_path,
             field: place.field.as_ref().map(|field| field.id),
-            hole_type: place.hole_type,
-            checked_path: place.checked_path,
+            field_path_identity: place.field.as_ref().map(|field| field.identity),
+            hole_type,
             spelling: place.spelling,
             restoration_required: place.restoration_required,
         });
@@ -694,7 +720,7 @@ impl BorrowedWindowLedger {
         next_edge: &mut u64,
         operations: &mut OperationBuffer,
     ) -> Result<(), LoweringError> {
-        let place = resolve_window_place(
+        let (place, hole_type) = resolve_window_place(
             identities,
             destination,
             StructuralAccess::WriteOnlyBorrow,
@@ -739,7 +765,7 @@ impl BorrowedWindowLedger {
             let absent = &self.open[index];
             if absent.source != evaluated.original_source
                 || absent.field != place.field.as_ref().map(|field| field.id)
-                || absent.hole_type != place.hole_type
+                || absent.hole_type != hole_type
             {
                 return Err(unpinned(
                     &place.spelling,
@@ -785,12 +811,24 @@ impl BorrowedWindowLedger {
             && ((place.restoration_required && !discardable)
                 || self.open.iter().any(|absent| {
                     absent.source == evaluated.original_source
-                        && paths_overlap(&absent.checked_path, &place.checked_path)
+                        && paths_overlap(
+                            &absent.path,
+                            absent.field_path_identity,
+                            &evaluated.original_path,
+                            place.field.as_ref().map(|field| field.identity),
+                            &operations.scalar_index_coordinates,
+                        )
                 }))
         {
             let reason = if self.open.iter().any(|absent| {
                 absent.source == evaluated.original_source
-                    && paths_overlap(&absent.checked_path, &place.checked_path)
+                    && paths_overlap(
+                        &absent.path,
+                        absent.field_path_identity,
+                        &evaluated.original_path,
+                        place.field.as_ref().map(|field| field.identity),
+                        &operations.scalar_index_coordinates,
+                    )
             }) {
                 "the store overlaps an open window without naming its exact place"
             } else {
@@ -799,15 +837,14 @@ impl BorrowedWindowLedger {
             };
             return Err(unpinned(&place.spelling, reason));
         }
-        if value.structural_type != place.hole_type {
+        if value.structural_type != hole_type {
             return Err(unpinned(
                 &place.spelling,
                 "the repair value's type differs from the type moved out of the place",
             ));
         }
-        let (required, required_projected) =
-            place.selected_memberships(identities, &evaluated.original_path)?;
-        let (offered, offered_projected) = parameters
+        let _ = place.selected_memberships(identities, &evaluated.original_path)?;
+        let _ = parameters
             .iter()
             .filter(|parameter| parameter.place == value.place)
             .map(|parameter| {
@@ -844,16 +881,9 @@ impl BorrowedWindowLedger {
                     "the repair value has no declared membership source",
                 )
             })?;
-        if !required.iter().all(|domain| offered.contains(domain))
-            || !required_projected
-                .iter()
-                .all(|row| offered_projected.contains(row))
-        {
-            return Err(unpinned(
-                &place.spelling,
-                "the repair value does not restore the hole's exact qualifications",
-            ));
-        }
+        // Descriptor-backed copies obtain their selected memberships once the
+        // complete graph exists. The mandatory Terminal copy correspondence
+        // and restoration checks authenticate the final offered roster.
         runtime_elements::observe_element_extent(
             source,
             evaluated.root_type,
@@ -941,15 +971,44 @@ pub(crate) fn zeroed_image(multiplicity: StructuralMultiplicity) -> StructuralMu
     }
 }
 
-/// Two exact places beneath one root overlap when either names the other or
-/// an ancestor of it. The comparison runs on the checked route: distinct
-/// runtime selectors keep the authority the source checker admitted — a
-/// selector equality question belongs to the value proof, not the ledger.
+/// Compare complete original-root paths, including captured alias prefixes.
+/// Runtime selectors may alias until an independent judgment separates them.
 fn paths_overlap(
-    first: &[CheckedUnitStructuralPathSegment],
-    second: &[CheckedUnitStructuralPathSegment],
+    first: &[StructuralPathSegment],
+    first_field: Option<terminal_psi::TerminalIdentityIndex>,
+    second: &[StructuralPathSegment],
+    second_field: Option<terminal_psi::TerminalIdentityIndex>,
+    coordinates: &[(
+        semantic_vocabulary::ObligationId,
+        semantic_vocabulary::ValueId,
+        u64,
+    )],
 ) -> bool {
-    first.starts_with(second) || second.starts_with(first)
+    // Keep executable RuntimeIndex paths and their bounds intact. Only this
+    // overlap query uses the singleton proved for the exact evaluated SSA
+    // selector; unknown coordinates retain the conservative common judgment.
+    let normalize = |path: &[StructuralPathSegment]| {
+        path.iter()
+            .map(|segment| {
+                if let StructuralPathSegment::RuntimeIndex { index, obligation } = segment
+                    && let Some((_, _, coordinate)) = coordinates
+                        .iter()
+                        .find(|(occurrence, value, _)| occurrence == obligation && value == index)
+                {
+                    StructuralPathSegment::FixedIndex(*coordinate)
+                } else {
+                    segment.clone()
+                }
+            })
+            .collect::<Vec<_>>()
+    };
+    let mut first = normalize(first);
+    first.extend(first_field.map(StructuralPathSegment::Field));
+    let mut second = normalize(second);
+    second.extend(second_field.map(StructuralPathSegment::Field));
+    // Runtime selectors can alias. Only the common conservative geometry
+    // judgment may establish disjointness, including through captured aliases.
+    terminal_semantics::structural_paths_may_overlap(&first, &second)
 }
 
 /// The frame pieces a window with runtime elements evaluates its selectors
@@ -975,8 +1034,8 @@ fn resolve_window_place(
     operations: &OperationBuffer,
     structural_types: &[StructuralTypeDeclaration],
     type_ids: &[(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)],
-) -> Result<ResolvedStoragePlace, LoweringError> {
-    let place = resolve_storage_place(
+) -> Result<(ResolvedStorageAddress, StructuralTypeId), LoweringError> {
+    let place = resolve_storage_address(
         identities,
         plan,
         required_access,
@@ -984,25 +1043,76 @@ fn resolve_window_place(
         evaluation,
         operations,
         structural_types,
-        type_ids,
     )?;
-    if place
-        .field
-        .as_ref()
-        .is_some_and(|field| field.field_type.as_structural().is_none())
-    {
+    let checked_leaf_type = lookup_type_id(type_ids, &plan.type_identity)?;
+    let hole_type = if let Some(field) = &place.field {
+        field
+            .field_type
+            .as_structural()
+            .or_else(|| {
+                // The checked destination already names its exact leaf type.
+                // Equal carriers elsewhere in the roster (byte backing of the
+                // same geometry, or a `dyn` selector that is also u64 storage)
+                // cannot select that declaration or make it ambiguous, so
+                // confirm the named declaration instead of searching by shape.
+                let declaration =
+                    terminal_psi::find_structural_type(structural_types, checked_leaf_type)?;
+                let presents = match field.field_type.byte_sequence_carrier() {
+                    Some(carrier) => match declaration.shape {
+                        terminal_psi::StructuralTypeShape::ByteSequence(declared) => {
+                            terminal_semantics::byte_carrier_geometry_matches(carrier, declared)
+                        }
+                        _ => false,
+                    },
+                    // A restricted field keeps its `where` bound or refinement
+                    // on the owning field declaration, which the capture
+                    // retains; the checked destination names the carrier the
+                    // store writes, never a standalone restricted leaf.
+                    None => {
+                        field.field_type.declares_leaf(declaration)
+                            || (declaration.scalar_restriction.is_none()
+                                && matches!(
+                                    field.field_type,
+                                    terminal_psi::StructuralFieldType::BoundedInteger(_)
+                                        | terminal_psi::StructuralFieldType::RefinedScalar(_)
+                                )
+                                && field.field_type.scalar_type().is_some_and(|scalar| {
+                                    declaration.shape
+                                        == terminal_psi::StructuralTypeShape::PrimitiveScalar(
+                                            scalar,
+                                        )
+                                }))
+                    }
+                };
+                presents.then_some(checked_leaf_type)
+            })
+            .ok_or_else(|| {
+                unpinned(
+                    &place.spelling,
+                    "the field has no exact structural storage endpoint",
+                )
+            })?
+    } else {
+        place.subtree_type.ok_or_else(|| {
+            unpinned(
+                &place.spelling,
+                "the window has no exact structural endpoint",
+            )
+        })?
+    };
+    if checked_leaf_type != hole_type {
         return Err(unpinned(
             &place.spelling,
-            "the field is not a structural subtree: scalar and byte fields open no window",
+            "the checked place type differs from the declared leaf type",
         ));
     }
-    Ok(place)
+    Ok((place, hole_type))
 }
 
 /// Resolve storage geometry independently of consuming its contents. An
 /// assignment may capture a primitive endpoint although it opens no owned
 /// structural extraction window.
-fn resolve_storage_place(
+fn resolve_storage_address(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     plan: &CheckedUnitStructuralArgumentPlan,
     required_access: StructuralAccess,
@@ -1010,8 +1120,7 @@ fn resolve_storage_place(
     evaluation: &crate::unit::attached_unit::argument_evaluation::Evaluation,
     operations: &OperationBuffer,
     structural_types: &[StructuralTypeDeclaration],
-    type_ids: &[(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)],
-) -> Result<ResolvedStoragePlace, LoweringError> {
+) -> Result<ResolvedStorageAddress, LoweringError> {
     let spelling = spell_place(plan);
     let (
         source,
@@ -1078,6 +1187,12 @@ fn resolve_storage_place(
                 LoweringError::Unsupported(reason) => unpinned(&spelling, reason),
                 error => error,
             })?;
+            if !required_access.admits(root.argument.access) {
+                return Err(unpinned(
+                    &spelling,
+                    "the local lacks the required storage access",
+                ));
+            }
             (
                 root.argument.place,
                 root.structural_type,
@@ -1114,13 +1229,7 @@ fn resolve_storage_place(
             CheckedUnitStructuralArgumentSourcePlan::Parameter { .. }
         )
     {
-        if lookup_type_id(type_ids, &plan.type_identity)? != root_type {
-            return Err(unpinned(
-                &spelling,
-                "the checked place type differs from the loan's referent type",
-            ));
-        }
-        return Ok(ResolvedStoragePlace {
+        return Ok(ResolvedStorageAddress {
             source,
             root_type,
             root_access,
@@ -1129,7 +1238,7 @@ fn resolve_storage_place(
             fixed_prefix: 0,
             checked_path: Vec::new(),
             field: None,
-            hole_type: root_type,
+            subtree_type: Some(root_type),
             spelling,
             restoration_required,
             qualifications,
@@ -1158,66 +1267,15 @@ fn resolve_storage_place(
         .map(ProjectionStep::Static)
         .chain(lowered_steps)
         .collect::<Vec<_>>();
-    let checked_leaf_type = lookup_type_id(type_ids, &plan.type_identity)?;
-    let (field, hole_type) = match leaf {
-        WindowLeaf::Field(field) => {
-            let Some(hole_type) = field.field_type.as_structural().or_else(|| {
-                // The checked destination already names its exact leaf type.
-                // Equal carriers elsewhere in the roster (byte backing of the
-                // same geometry, or a `dyn` selector that is also u64 storage)
-                // cannot select that declaration or make it ambiguous, so
-                // confirm the named declaration instead of searching by shape.
-                let declaration =
-                    terminal_psi::find_structural_type(structural_types, checked_leaf_type)?;
-                let presents = match field.field_type.byte_sequence_carrier() {
-                    Some(carrier) => match declaration.shape {
-                        terminal_psi::StructuralTypeShape::ByteSequence(declared) => {
-                            terminal_semantics::byte_carrier_geometry_matches(carrier, declared)
-                        }
-                        _ => false,
-                    },
-                    // A restricted field keeps its `where` bound or refinement
-                    // on the owning field declaration, which the capture
-                    // retains; the checked destination names the carrier the
-                    // store writes, never a standalone restricted leaf.
-                    None => {
-                        field.field_type.declares_leaf(declaration)
-                            || (declaration.scalar_restriction.is_none()
-                                && matches!(
-                                    field.field_type,
-                                    terminal_psi::StructuralFieldType::BoundedInteger(_)
-                                        | terminal_psi::StructuralFieldType::RefinedScalar(_)
-                                )
-                                && field.field_type.scalar_type().is_some_and(|scalar| {
-                                    declaration.shape
-                                        == terminal_psi::StructuralTypeShape::PrimitiveScalar(
-                                            scalar,
-                                        )
-                                }))
-                    }
-                };
-                presents.then_some(checked_leaf_type)
-            }) else {
-                return Err(unpinned(
-                    &spelling,
-                    "the field has no exact declared storage endpoint",
-                ));
-            };
-            (Some(field.clone()), hole_type)
-        }
-        WindowLeaf::Subtree { structural_type } => (None, structural_type),
+    let (field, subtree_type) = match leaf {
+        WindowLeaf::Field(field) => (Some(field.clone()), None),
+        WindowLeaf::Subtree { structural_type } => (None, Some(structural_type)),
     };
-    if checked_leaf_type != hole_type {
-        return Err(unpinned(
-            &spelling,
-            "the checked place type differs from the declared leaf type",
-        ));
-    }
     let mut checked_path = plan.path.clone();
     if leading_referent {
         checked_path.insert(0, CheckedUnitStructuralPathSegment::Referent);
     }
-    Ok(ResolvedStoragePlace {
+    Ok(ResolvedStorageAddress {
         source,
         root_type,
         root_access,
@@ -1226,7 +1284,7 @@ fn resolve_storage_place(
         fixed_prefix,
         checked_path,
         field,
-        hole_type,
+        subtree_type,
         spelling,
         restoration_required,
         qualifications,
@@ -1291,6 +1349,7 @@ fn spell_place(plan: &CheckedUnitStructuralArgumentPlan) -> String {
     };
     for segment in &plan.path {
         match segment {
+            CheckedUnitStructuralPathSegment::AllElements => spelling.push_str(".[all elements]"),
             CheckedUnitStructuralPathSegment::RepresentationView { type_identity, .. } => {
                 spelling.push_str(&format!(".[view {type_identity:?}]"));
             }

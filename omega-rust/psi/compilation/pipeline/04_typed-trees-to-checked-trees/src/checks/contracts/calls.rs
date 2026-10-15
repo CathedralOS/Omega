@@ -25,9 +25,8 @@ use transition_guards::{
 
 use checked_trees::{CheckFacts, FlowCallFact, FlowStateFact};
 use diagnostics::Diagnostic;
-use facts::{FactPayload, FactPlace, PlaceSegment};
+use facts::{FactPayload, FactPlace};
 use symbols::SymbolHandle;
-use typed_trees::expression::ExpressionNode;
 
 use super::prover::semantic_contexts_prove_contract_fact;
 use crate::labels::{
@@ -330,59 +329,20 @@ fn subslice_grants_domain(
     let Some(place_handle) = place.as_place() else {
         return false;
     };
-    if !validation::field_domains::domain_is_subslice_preserving(program, domain_symbol) {
-        return false;
-    }
-    // Place canonicalization turns literal half-open ranges into FixedRange;
-    // bounds requiring runtime observations retain Index(Range). Both select
-    // a subslice of the same base, whose membership is checked below.
-    let resolved = *facts.semantic.places.get(place_handle);
-    let segments: Vec<PlaceSegment> = facts
-        .semantic
-        .place_segments
-        .span_or_empty(resolved.segments)
-        .to_vec();
-    let Some((selection, base_segments)) = segments.split_last() else {
+    let Some(subject) = crate::flow::canonical_place_from_semantic_place(
+        program,
+        &facts.semantic,
+        facts.semantic.places.get(place_handle),
+    ) else {
         return false;
     };
-    let is_subslice = match selection {
-        PlaceSegment::FixedRange { .. } => true,
-        PlaceSegment::Index { expression } => matches!(
-            program.expression_table.expression(*expression),
-            ExpressionNode::Range(_)
-        ),
-        _ => false,
-    };
-    if !is_subslice {
-        return false;
-    }
-    // The BASE place (root + base_segments) must be provably in a domain implying
-    // `domain_symbol` -- match it against the entry-context domain facts (the same
-    // discharge `value_proves_domain` uses for a domained param/field carried in).
-    entry_contexts.iter().any(|&context_handle| {
-        let context = facts.semantic.contexts.get(context_handle);
-        facts.semantic.context_view(context).facts().any(|fact| {
-            let fact_domain = match fact.payload {
-                facts::domain_membership_symbol_pattern!(domain_symbol) => domain_symbol,
-                _ => return false,
-            };
-            if !facts.semantic.domain_implies(fact_domain, domain_symbol)
-                && !validation::field_domains::domain_membership_implies(
-                    program,
-                    fact_domain,
-                    domain_symbol,
-                )
-            {
-                return false;
-            }
-            let Some(fact_place) = fact.place.as_place() else {
-                return false;
-            };
-            let base = facts.semantic.places.get(fact_place);
-            base.root == resolved.root
-                && facts.semantic.place_segments.span_or_empty(base.segments) == base_segments
-        })
-    })
+    super::prover::prove_domain_at_place(
+        program,
+        &facts.semantic,
+        entry_contexts,
+        &subject,
+        domain_symbol,
+    )
 }
 
 /// A SHARED (`&`, non-`mut`) parameter's DECLARED domain is invariant for the

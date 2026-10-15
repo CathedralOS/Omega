@@ -1,3 +1,6 @@
+mod domain_selections;
+pub(crate) use domain_selections::normalize as normalize_membership_selections;
+
 use crate::expressions::expression::{
     lower_expression_handle_from_table, lower_expression_handle_from_table_in_fact_position,
 };

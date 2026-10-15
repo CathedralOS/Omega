@@ -10,6 +10,15 @@ impl CheckedBooleanExpression {
         path: Vec<CheckedStructuralPredicatePathSegment>,
         bytes: &[u8],
     ) -> Option<Self> {
+        Self::byte_literal_equality_in_extent(root, path, bytes, None)
+    }
+
+    pub fn byte_literal_equality_in_extent(
+        root: CheckedStorageRoot,
+        path: Vec<CheckedStructuralPredicatePathSegment>,
+        bytes: &[u8],
+        maximum_length: Option<u64>,
+    ) -> Option<Self> {
         let mut equality = CheckedBooleanExpression::IntegerComparison {
             kind: CheckedIntegerComparisonKind::Equal,
             left: Box::new(CheckedScalarExpression::StructuralSequenceLength {
@@ -25,7 +34,11 @@ impl CheckedBooleanExpression {
                 PrimitiveType::U64,
             )?),
         };
-        for (index, byte) in bytes.iter().enumerate() {
+        for (index, byte) in bytes.iter().enumerate().take(
+            maximum_length
+                .and_then(|length| usize::try_from(length).ok())
+                .unwrap_or(bytes.len()),
+        ) {
             let read = CheckedScalarExpression::StructuralParameterIndexedRead {
                 root,
                 path: path.clone(),

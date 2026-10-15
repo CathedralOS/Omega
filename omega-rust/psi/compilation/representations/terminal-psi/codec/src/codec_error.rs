@@ -32,6 +32,11 @@ pub enum CodecError {
         operation: semantic_vocabulary::OperationId,
         reason: &'static str,
     },
+    MalformedStructuralOperation {
+        machine: String,
+        operation: semantic_vocabulary::OperationId,
+        reason: String,
+    },
     PlacementPlan(String),
     PlacedPlan(terminal_semantics::PlacedPlanError),
     PlacedRamCorrespondence(String),

@@ -734,19 +734,26 @@ pub(crate) fn string_literal_grants_domain(
     expression: ExpressionHandle,
     domain_symbol: SymbolHandle,
 ) -> bool {
-    let Some(literal) = program.expression_table.string_node(expression) else {
+    let Some(literal) = typed_trees::byte_predicates::literal_bytes(program, expression) else {
         return false;
     };
     typed_trees::byte_predicates::domain_byte_predicate(program, domain_symbol)
-        .is_some_and(|predicate| predicate.holds_for(literal))
+        .is_some_and(|predicate| predicate.holds_for(&literal))
 }
 
-pub(crate) fn domain_admits_empty_bytes(
+pub(crate) fn domain_admits_zero_bytes(
     program: &dyn crate::CheckingInput,
     domain_symbol: SymbolHandle,
 ) -> bool {
-    typed_trees::byte_predicates::domain_byte_predicate(program, domain_symbol)
-        .is_some_and(|predicate| predicate.holds_for(&[]))
+    program
+        .domain_definition(domain_symbol)
+        .is_some_and(|domain| {
+            crate::value_custody::field_domains::domain_admits_zero_byte_carrier(
+                program,
+                domain_symbol,
+                domain.target_type,
+            )
+        })
 }
 
 /// The `Expression` facts carried by `Ensures` contracts in `contracts`, in

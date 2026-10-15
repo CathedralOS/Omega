@@ -1,64 +1,63 @@
-// Expected exit: 0. Copy current descriptor contents into independent bounded
+// Expected exit: 0. Copy current descriptor contents into independent explicitly bounded
 // storage after proving capacity, through parameters, locals, fields and calls.
 use omega_language_std::console;
 domain [u8]::SnapshotUtf8(bytes) requires valid_utf8(bytes);
-domain [u8; 16]::OwnedUtf8(bytes) requires valid_utf8(bytes);
 data View { text: &[u8] in SnapshotUtf8; }
 
-machine through_parameter(text: &[u8] in SnapshotUtf8, output: &mut [u8; 16] in OwnedUtf8)
-requires text.len <= 16
-{ output = "" + text; }
+machine through_parameter(text: &[u8] in SnapshotUtf8, output: &mut Buffer16)
+crashes Trap
+requires text.len <= 16 { output = Buffer16::snapshot(text); }
 
-machine through_local(text: &[u8] in SnapshotUtf8, output: &mut [u8; 16] in OwnedUtf8)
-requires text.len <= 16
-{
+machine through_local(text: &[u8] in SnapshotUtf8, output: &mut Buffer16)
+crashes Trap
+requires text.len <= 16 {
     let observed: &[u8] in SnapshotUtf8 = text;
-    output = "" + observed;
+    output = Buffer16::snapshot(observed);
 }
 
-machine through_field(view: &View, output: &mut [u8; 16] in OwnedUtf8)
-requires view.text.len <= 16
-{ output = "" + view.text; }
+machine through_field(view: &View, output: &mut Buffer16)
+crashes Trap
+requires view.text.len <= 16 { output = Buffer16::snapshot(view.text); }
 
 machine identity(text: &[u8] in SnapshotUtf8) -> &[u8] in SnapshotUtf8
 requires text.len <= 16
 ensures result.len <= 16
 { text }
 
-machine through_call(text: &[u8] in SnapshotUtf8, output: &mut [u8; 16] in OwnedUtf8)
-requires text.len <= 16
-{
+machine through_call(text: &[u8] in SnapshotUtf8, output: &mut Buffer16)
+crashes Trap
+requires text.len <= 16 {
     let observed: &[u8] in SnapshotUtf8 = identity(text);
-    output = "" + observed;
+    output = Buffer16::snapshot(observed);
 }
 
 machine through_owned_local(text: &[u8] in SnapshotUtf8) -> bool
-requires text.len <= 16
-{
-    let mut line: [u8; 16] in OwnedUtf8 = "";
-    line = "" + text;
-    line == "owned"
+crashes Trap
+requires text.len <= 16 {
+    let mut line: Buffer16;
+    line = Buffer16::snapshot(text);
+    Buffer16::equal(&line, "owned")
 }
 
 machine exercise() -> i32 crashes Trap {
-    let mut output: [u8; 16] in OwnedUtf8 = "old";
+    let mut output: Buffer16 = Buffer16::snapshot("old");
     through_parameter("écho", &mut output);
-    transition output == "écho" {
+    transition Buffer16::equal(&output, "écho") {
         true -> local(&mut output)
         _ -> (71)
     }
-    state local(output: &mut [u8; 16] in OwnedUtf8) -> i32 {
+    state local(output: &mut Buffer16) -> i32 {
         through_local("local", output);
-        transition output == "local" { true -> field(output) _ -> (72) }
+        transition Buffer16::equal(&output, "local") { true -> field(output) _ -> (72) }
     }
-    state field(output: &mut [u8; 16] in OwnedUtf8) -> i32 {
+    state field(output: &mut Buffer16) -> i32 {
         let view: View = View { text: "field" };
         through_field(&view, output);
-        transition output == "field" { true -> called(output) _ -> (73) }
+        transition Buffer16::equal(&output, "field") { true -> called(output) _ -> (73) }
     }
-    state called(output: &mut [u8; 16] in OwnedUtf8) -> i32 {
+    state called(output: &mut Buffer16) -> i32 {
         through_call("call", output);
-        transition output == "call" { true -> owned() _ -> (74) }
+        transition Buffer16::equal(&output, "call") { true -> owned() _ -> (74) }
     }
     state owned() -> i32 {
         transition through_owned_local("owned") { true -> (0) _ -> (75) }
@@ -70,3 +69,65 @@ machine Main::main(main: &mut Main) reaches Console crashes Trap {
     let code: i32 = exercise();
     Console::exit_process(code);
 }
+
+// Explicit fixed capacity and live-prefix length; qualification belongs to the checked view.
+data Buffer16 [copy] where used <= 16 { storage: [u8; 16]; used: u64; }
+machine Buffer16::view(buffer: &Buffer16) -> &[u8] in SnapshotUtf8 crashes Trap {
+    let bytes: &[u8] = &buffer.storage[..buffer.used];
+    transition valid_utf8(bytes) {
+        true -> checked(bytes)
+        false -> bad()
+    }
+    state checked(bytes: &[u8] in SnapshotUtf8) -> &[u8] in SnapshotUtf8 { bytes }
+    state bad() { crash Trap; }
+}
+machine Buffer16::equal(buffer: &Buffer16, expected: &[u8]) -> bool crashes Trap {
+    let bytes: &[u8] in SnapshotUtf8 = Buffer16::view(buffer);
+    bytes == expected
+}
+
+machine Buffer16::copy(storage: &mut [u8; 16], bytes: &[u8], start: u64)
+requires start <= 16; bytes.len <= 16 - start {
+    transition { _ -> copying(storage, bytes, start, 0) }
+    state copying(storage: &mut [u8; 16], bytes: &[u8], start: u64, index: u64)
+    requires start <= 16; index <= 16 {
+        transition index < bytes.len && start + index < 16 {
+            true -> writing(storage, bytes, start, index)
+            _ -> done()
+        }
+    }
+    state writing(storage: &mut [u8; 16], bytes: &[u8], start: u64, index: u64)
+    requires start <= 16; index < 16; index < bytes.len; start + index < 16 {
+        storage[start + index] = bytes[index];
+        transition { _ -> copying(storage, bytes, start, index + 1) }
+    }
+    state done() {}
+}
+machine Buffer16::join(left: &[u8], right: &[u8]) -> Buffer16 crashes Trap {
+    transition left.len <= 16 && right.len <= 16 - left.len {
+        true -> joining(left, right)
+        _ -> bad()
+    }
+    state joining(left: &[u8], right: &[u8]) -> Buffer16
+    requires left.len <= 16; right.len <= 16 - left.len {
+    let mut result: Buffer16;
+    Buffer16::copy(&mut result.storage, left, 0);
+    Buffer16::copy(&mut result.storage, right, left.len);
+    let total: u64 = left.len + right.len;
+    transition total <= 16 {
+        true -> checked(result, total)
+        _ -> bad()
+    }
+    }
+    state checked(result: Buffer16, total: u64) -> Buffer16
+    requires total <= 16 {
+        let mut value: Buffer16 = result;
+        value.used = total;
+        value
+    }
+    state bad() { crash Trap; }
+}
+
+machine Buffer16::snapshot(text: &[u8] in SnapshotUtf8) -> Buffer16
+crashes Trap
+requires text.len <= 16 { Buffer16::join("", text) }

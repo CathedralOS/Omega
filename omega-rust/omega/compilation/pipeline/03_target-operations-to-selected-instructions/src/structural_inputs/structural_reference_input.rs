@@ -512,11 +512,10 @@ pub(crate) fn primitive_store(
         abstract_operations::StructuralScalarStoreDestination::Parameter(parameter) => {
             if !matches!(
                 parameter.access,
-                terminal_psi::StructuralAccess::MutableBorrow
+                terminal_psi::StructuralAccess::Owned
+                    | terminal_psi::StructuralAccess::MutableBorrow
                     | terminal_psi::StructuralAccess::WriteOnlyBorrow
-            ) || !parameter.qualifications.is_empty()
-                || !parameter.projected_qualifications.is_empty()
-            {
+            ) {
                 return None;
             }
         }
@@ -524,11 +523,7 @@ pub(crate) fn primitive_store(
             // Whole primitive homes are the empty declared projection. The
             // common multiplicity fence above protects whole replacement;
             // geometry below authenticates the exact scalar endpoint.
-            if !result.qualifications.is_empty()
-                || !result.projected_qualifications.is_empty()
-                || !result.qualification_establishments.is_empty()
-                || !result.claims.is_empty()
-            {
+            if !result.qualification_establishments.is_empty() || !result.claims.is_empty() {
                 return None;
             }
         }
@@ -536,10 +531,7 @@ pub(crate) fn primitive_store(
             parameter,
             ..
         } => {
-            if parameter.access != terminal_psi::StructuralAccess::Owned
-                || !parameter.qualifications.is_empty()
-                || !parameter.projected_qualifications.is_empty()
-            {
+            if parameter.access != terminal_psi::StructuralAccess::Owned {
                 return None;
             }
         }
@@ -1040,7 +1032,6 @@ pub(crate) fn collection_view_region_geometry(
                     argument.access,
                     terminal_psi::reading_borrow_pair_pattern!()
                 )))
-        || !source.projected_qualifications.is_empty()
     {
         return None;
     }
@@ -2180,7 +2171,19 @@ pub(crate) fn runtime_borrowed_projection(
             borrowed_leaf_type(access, expected),
         )
     })?;
-    Some((geometry.selected, geometry.byte_offset, geometry.elements))
+    // Attenuating a fixed byte loan from mutable to shared changes the
+    // declaration identity but keeps the same pointer residence and extent.
+    // Access admission remains with the caller's exact loan correspondence.
+    let selected = expected
+        .filter(|expected| {
+            terminal_semantics::borrowed_referent_presentation(
+                declarations.iter(),
+                geometry.selected,
+                expected.id,
+            ) == Some(terminal_semantics::BorrowedReferentPresentation::Unchanged)
+        })
+        .map_or(geometry.selected, |expected| expected.id);
+    Some((selected, geometry.byte_offset, geometry.elements))
 }
 
 fn runtime_projection_with_leaf_type(

@@ -248,11 +248,27 @@ pub(in crate::checks::contracts) fn check_result_field_domains(
                 .is_some_and(|projections| {
                     !projections.is_empty()
                         && projections.iter().all(|projection| {
+                            let expression = match projection.source {
+                                crate::flow::LiteralValueSource::Expression(expression) => {
+                                    expression
+                                }
+                                crate::flow::LiteralValueSource::OmittedZero { type_reference } => {
+                                    return projection.remaining.is_empty()
+                                    && program.domain_definition(domain_symbol).is_some_and(
+                                        |domain| domain.semantic_roles == Default::default(),
+                                    )
+                                    && validation::field_domains::domain_admits_zero_byte_carrier(
+                                        program,
+                                        domain_symbol,
+                                        type_reference,
+                                    );
+                                }
+                            };
                             canonical_place_from_expression_in_state(
                                 program,
                                 exit.state_symbol,
                                 exit.statement_index,
-                                projection.expression,
+                                expression,
                             )
                             .is_some_and(|mut subject| {
                                 if !crate::flow::place_cases_are_selected(

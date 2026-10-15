@@ -1,35 +1,54 @@
+domain [u8]::Utf8(bytes) requires valid_utf8(bytes);
 use omega_language_std::console;
 
 domain [u8; 8]::Utf8(bytes) requires valid_utf8(bytes);
 
-data Cell [copy] { text: [u8; 8] in Utf8; captured: [u8; 8] in Utf8; sibling: u64; }
+data Cell [copy] { text: TextBuffer; captured: TextBuffer; sibling: u64; }
 data Main { cell: Cell; }
 
-machine capture(cell: &mut Cell) -> [u8; 8] in Utf8 {
+machine capture(cell: &mut Cell) -> TextBuffer crashes Trap {
     cell.sibling = 29;
-    transition { _ -> "Gate" }
+    transition { _ -> TextBuffer { storage: [71u8, 97u8, 116u8, 101u8, 0u8, 0u8, 0u8, 0u8], used: 4 } }
 }
 
-machine relay(snapshot: [u8; 8] in Utf8, cell: &mut Cell) {
+machine relay(snapshot: TextBuffer, cell: &mut Cell) crashes Trap {
     transition { _ -> replace(snapshot, cell) }
-    state replace(snapshot: [u8; 8] in Utf8, cell: &mut Cell) {
-        cell.text = "é";
+    state replace(snapshot: TextBuffer, cell: &mut Cell) {
+        cell.text = TextBuffer { storage: [195u8, 169u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8], used: 2 };
         transition { _ -> observe(snapshot, cell) }
     }
-    state observe(snapshot: [u8; 8] in Utf8, cell: &mut Cell) {
+    state observe(snapshot: TextBuffer, cell: &mut Cell) {
         cell.captured = snapshot;
     }
 }
 
-machine Main::main(main: &mut Main) reaches Console {
-    main.cell.text = "Gate";
+machine Main::main(main: &mut Main) reaches Console crashes Trap {
+    main.cell.text = TextBuffer { storage: [71u8, 97u8, 116u8, 101u8, 0u8, 0u8, 0u8, 0u8], used: 4 };
     main.cell.sibling = 17;
     relay(capture(&mut main.cell), &mut main.cell);
-    transition main.cell.captured == "Gate" && main.cell.captured.len == 4
-        && main.cell.text == "é" && main.cell.text.len == 2
+    transition TextBuffer::equal(&main.cell.captured, "Gate") && main.cell.captured.used == 4
+        && TextBuffer::equal(&main.cell.text, "é") && main.cell.text.used == 2
         && main.cell.sibling == 29 {
         true -> finish(main, 70)
         _ -> finish(main, 1)
     }
     state finish(main: &mut Main, code: i32) { Console::exit_process(code); }
+}
+
+
+// A variable-fill value explicitly owns its fixed storage and live length.
+// Copies retain both; an accessor borrows and checks the selected copy's prefix.
+data TextBuffer [copy] where used <= 8 { storage: [u8; 8] in Utf8; used: u64; }
+machine TextBuffer::view(buffer: &TextBuffer) -> &[u8] in Utf8 crashes Trap {
+    let bytes: &[u8] = &buffer.storage[..buffer.used];
+    transition valid_utf8(bytes) {
+        true -> checked(bytes)
+        false -> bad()
+    }
+    state checked(bytes: &[u8] in Utf8) -> &[u8] in Utf8 { bytes }
+    state bad() { crash Trap; }
+}
+machine TextBuffer::equal(buffer: &TextBuffer, expected: &[u8]) -> bool crashes Trap {
+    let bytes: &[u8] in Utf8 = TextBuffer::view(buffer);
+    bytes == expected
 }

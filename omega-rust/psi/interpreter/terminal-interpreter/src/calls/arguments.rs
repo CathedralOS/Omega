@@ -99,6 +99,7 @@ impl TerminalExecution<'_> {
             )
             .is_some()
                 && parameter.access == StructuralAccess::Owned
+                && parameter.projected_qualifications.is_empty()
             {
                 let value = self.prepare_scalar_array_argument(machine, parameter, argument)?;
                 if scalar_arrays.insert(parameter.place, value).is_some() {
@@ -112,12 +113,14 @@ impl TerminalExecution<'_> {
         // One tuple preparation owns every descriptor, independent of its
         // neighbors. External buffer staging is a separate later operation.
         let mut prepared = self
-            .prepare_boundary_arguments(&opaque_parameters, &opaque_arguments)?
+            .prepare_boundary_arguments(&opaque_parameters, &opaque_arguments)
+            .map_err(|error| error.in_argument_preparation("resolve argument carriers"))?
             .into_call_arguments(
                 &opaque_parameters,
                 &self.program.structural_types(),
                 &self.structural_cases,
-            )?;
+            )
+            .map_err(|error| error.in_argument_preparation("admit argument carriers"))?;
         prepared.scalar_arrays = scalar_arrays;
         Ok(prepared)
     }

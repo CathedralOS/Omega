@@ -67,11 +67,14 @@ fn source_checked_obligation_facts(
                             *psi_operation,
                             *range_obligation,
                             value.value,
-                            terminal_semantics::primitive_projection_restriction(
-                                unit.structural_types.iter(),
-                                destination.structural_type(),
-                                path,
-                            )?,
+                            {
+                                let (whole, projected) = match destination {
+                                    abstract_operations::StructuralScalarStoreDestination::Parameter(parameter)
+                                    | abstract_operations::StructuralScalarStoreDestination::OwnedBlockParameter { parameter, .. } => (&parameter.qualifications, &parameter.projected_qualifications),
+                                    abstract_operations::StructuralScalarStoreDestination::OwnedResult { result, .. } => (&result.qualifications, &result.projected_qualifications),
+                                };
+                                terminal_semantics::primitive_store_restriction(unit.structural_types.iter(), unit.structural_domains.iter(), destination.structural_type(), whole, projected, path)??
+                            },
                         ),
                         abstract_operations::AbstractOperation::EstablishPrimitiveLocal {
                             psi_operation,
@@ -86,7 +89,7 @@ fn source_checked_obligation_facts(
                                 unit.structural_types.iter(),
                                 result.structural_type,
                                 &[],
-                            )?,
+                            )?.clone(),
                         ),
                         _ => return None,
                     };

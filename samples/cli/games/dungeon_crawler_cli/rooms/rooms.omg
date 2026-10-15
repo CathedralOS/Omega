@@ -1,8 +1,9 @@
+use text::buffer;
 use events::events;
 use rooms::map;
 
 data Exit [copy] {
-    command: [u8; 8] in Utf8;
+    command: ExitCommand;
     direction: Direction;
     destination: CellId;
 }
@@ -11,8 +12,8 @@ data Room [copy] {
     cell: CellId;
     depth: u32 in Wrapping;
     branch: u32 in Wrapping;
-    label: [u8; 16] in Utf8;
-    description: [u8; 64] in Utf8;
+    label: RoomLabel;
+    description: RoomDescription;
     exits: [Exit; 4];
     exit_count: u64 in Wrapping;
     event: RoomEvent;
@@ -31,10 +32,12 @@ data Level [copy] {
 // builder-owned appender would need the builder receiver at the same time.
 machine Room::append_exit(
     room: &mut Room,
-    command: [u8; 8] in Utf8,
+    command: &[u8] in Ascii,
     direction: Direction,
     destination: CellId
-) {
+)
+requires command.len <= 8
+{
     transition room.exit_count {
         0 -> append_exit_slot_0(room, command, direction, destination)
         1 -> append_exit_slot_1(room, command, direction, destination)
@@ -45,41 +48,57 @@ machine Room::append_exit(
 
     state append_exit_slot_0(
         room: &mut Room,
-        command: [u8; 8] in Utf8,
+        command: &[u8] in Ascii,
         direction: Direction,
         destination: CellId
-    ) {
-        room.exits[0] = Exit { command: command, direction: direction, destination: destination };
+    )
+    requires command.len <= 8
+    {
+        ExitCommand::set(&mut room.exits[0].command, command);
+        room.exits[0].direction = direction;
+        room.exits[0].destination = destination;
         room.exit_count = 1;
     }
 
     state append_exit_slot_1(
         room: &mut Room,
-        command: [u8; 8] in Utf8,
+        command: &[u8] in Ascii,
         direction: Direction,
         destination: CellId
-    ) {
-        room.exits[1] = Exit { command: command, direction: direction, destination: destination };
+    )
+    requires command.len <= 8
+    {
+        ExitCommand::set(&mut room.exits[1].command, command);
+        room.exits[1].direction = direction;
+        room.exits[1].destination = destination;
         room.exit_count = 2;
     }
 
     state append_exit_slot_2(
         room: &mut Room,
-        command: [u8; 8] in Utf8,
+        command: &[u8] in Ascii,
         direction: Direction,
         destination: CellId
-    ) {
-        room.exits[2] = Exit { command: command, direction: direction, destination: destination };
+    )
+    requires command.len <= 8
+    {
+        ExitCommand::set(&mut room.exits[2].command, command);
+        room.exits[2].direction = direction;
+        room.exits[2].destination = destination;
         room.exit_count = 3;
     }
 
     state append_exit_slot_3(
         room: &mut Room,
-        command: [u8; 8] in Utf8,
+        command: &[u8] in Ascii,
         direction: Direction,
         destination: CellId
-    ) {
-        room.exits[3] = Exit { command: command, direction: direction, destination: destination };
+    )
+    requires command.len <= 8
+    {
+        ExitCommand::set(&mut room.exits[3].command, command);
+        room.exits[3].direction = direction;
+        room.exits[3].destination = destination;
         room.exit_count = 4;
     }
 }

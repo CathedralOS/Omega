@@ -139,14 +139,14 @@ pub(crate) fn operation_structural_call_contract_matches(
             super::scalar_arrays::structural_array_establishment_matches(caller, operation, types)
         }
         O::EstablishScalarArray { .. } => {
-            scalar_array_establishment_matches(caller, operation, types)
+            scalar_array_establishment_matches(caller, operation, types, domains)
         }
         O::EstablishCase { .. } => case_establishment_matches(caller, operation, types, domains),
         O::EstablishRecord { .. } => {
             record_establishment_matches(caller, operation, types, domains)
         }
         O::EstablishZeroedStructural { .. } => {
-            zeroed_establishment_matches(caller, operation, types)
+            zeroed_establishment_matches(caller, operation, types, domains)
         }
         O::CallStructural {
             callee,

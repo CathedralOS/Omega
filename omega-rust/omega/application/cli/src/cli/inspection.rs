@@ -258,7 +258,7 @@ fn terminal_summary(selected_machine: &str, module: &TerminalModule) -> String {
         for (index, parameter) in machine.structural_parameters.iter().enumerate() {
             writeln!(
                 output,
-                "parameter machine=machine:{} index={} place=place:{} type={} multiplicity={:?} qualifications={}",
+                "parameter machine=machine:{} index={} place=place:{} type={} multiplicity={:?} qualifications={} projected_qualifications={:?}",
                 machine.id.get(),
                 index,
                 parameter.place.get(),
@@ -269,7 +269,8 @@ fn terminal_summary(selected_machine: &str, module: &TerminalModule) -> String {
                         .qualifications
                         .iter()
                         .map(|domain| format!("domain:{}", domain.get()))
-                )
+                ),
+                parameter.projected_qualifications,
             )
             .expect("writing to a String cannot fail");
         }
@@ -290,6 +291,14 @@ fn terminal_summary(selected_machine: &str, module: &TerminalModule) -> String {
                 proof_formals(module, &block.erased_proof_formals),
             ).expect("writing to a String cannot fail");
             for operation in &block.operations {
+                if let Some(result) = operation.result.structural() {
+                    writeln!(
+                        output,
+                        "structural_result machine=machine:{} operation=operation:{} result={result:?}",
+                        machine.id.get(),
+                        operation.id.get(),
+                    ).expect("writing to a String cannot fail");
+                }
                 write_operation_summary(
                     &mut output,
                     module,

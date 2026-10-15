@@ -9,18 +9,18 @@
 domain [u8]::Utf8(bytes)
 requires
     valid_utf8(bytes);
-domain [u8; 16]::Utf8(bytes)
+domain [u8; 11]::Utf8(bytes)
 requires
     valid_utf8(bytes);
-domain [u8; 8]::Utf8(bytes)
+domain [u8; 3]::Utf8(bytes)
 requires
     valid_utf8(bytes);
 use omega_language_std::console;
 use omega::language::core::numeric_conversion;
 
 data Main {
-    text: [u8; 16] in Utf8;
-    pat: [u8; 8] in Utf8;
+    text: [u8; 11] in Utf8;
+    pat: [u8; 3] in Utf8;
     i: u32 in Wrapping;
     j: u32 in Wrapping;
     k: u32 in Wrapping;

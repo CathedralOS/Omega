@@ -208,7 +208,7 @@ impl SelectedScalarIntervalSource for LivePlaceIntervals<'_> {
                     .map(|context| self.semantic.contexts.get(*context)),
                 &place,
             )?;
-            let bytes = self.program.expression_table.string_node(literal)?;
+            let bytes = typed_trees::byte_predicates::literal_bytes(self.program, literal)?;
             u64::try_from(bytes.len()).ok().map(BigInt::from_u64)
         });
         // A completed whole-carrier literal is the live length snapshot: it
@@ -258,7 +258,7 @@ impl SelectedScalarIntervalSource for LivePlaceIntervals<'_> {
             &place,
         )
         .and_then(|literal| {
-            let bytes = self.program.expression_table.string_node(literal)?;
+            let bytes = typed_trees::byte_predicates::literal_bytes(self.program, literal)?;
             // A singleton selects one byte. Otherwise every byte in this live
             // snapshot bounds any successful read; this does not prove the index
             // valid or turn an out-of-bounds access into a normal return.

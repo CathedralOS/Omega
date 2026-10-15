@@ -1,18 +1,36 @@
+domain [u8; 8]::Utf8(bytes) requires valid_utf8(bytes);
 use omega_language_std::console;
 
-domain [u8; 8]::Utf8(bytes) requires valid_utf8(bytes);
-data Row { text: [u8; 8] in Utf8; sibling: u64; }
+domain [u8]::Utf8(bytes) requires valid_utf8(bytes);
+// The copyable owner stores capacity and live length explicitly. Qualification
+// belongs to the borrowed prefix, whose actual bytes are validated.
+data TextBuffer [copy] where used <= 8 { storage: [u8; 8] in Utf8; used: u64; }
+machine TextBuffer::view(buffer: &TextBuffer) -> &[u8] in Utf8 crashes Trap {
+    let bytes: &[u8] = &buffer.storage[..buffer.used];
+    transition valid_utf8(bytes) {
+        true -> checked(bytes)
+        false -> bad()
+    }
+    state checked(bytes: &[u8] in Utf8) -> &[u8] in Utf8 { bytes }
+    state bad() { crash Trap; }
+}
+machine TextBuffer::equal(buffer: &TextBuffer, expected: &[u8]) -> bool crashes Trap {
+    let bytes: &[u8] in Utf8 = TextBuffer::view(buffer);
+    bytes == expected
+}
+
+data Row { text: TextBuffer; sibling: u64; }
 data Main { row: Row; }
 
-machine snapshot(row: &mut Row) -> [u8; 8] in Utf8 { row.text }
+machine snapshot(row: &mut Row) -> TextBuffer crashes Trap { row.text }
 
-machine Main::main(main: &mut Main) reaches Console {
-    main.row.text = "Gate";
+machine Main::main(main: &mut Main) reaches Console crashes Trap {
+    main.row.text = TextBuffer { storage: [71u8, 97u8, 116u8, 101u8, 0u8, 0u8, 0u8, 0u8], used: 4 };
     main.row.sibling = 17;
-    let captured: [u8; 8] in Utf8 = snapshot(&mut main.row);
-    main.row.text = "é";
-    transition captured == "Gate" && captured.len == 4
-        && main.row.text == "é" && main.row.text.len == 2 && main.row.sibling == 17 {
+    let captured: TextBuffer = snapshot(&mut main.row);
+    main.row.text = TextBuffer { storage: [195u8, 169u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8], used: 2 };
+    transition TextBuffer::equal(&captured, "Gate") && captured.used == 4
+        && TextBuffer::equal(&main.row.text, "é") && main.row.text.used == 2 && main.row.sibling == 17 {
         true -> finish(main, 70)
         false -> finish(main, 1)
     }

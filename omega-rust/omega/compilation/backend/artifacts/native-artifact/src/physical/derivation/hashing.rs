@@ -20,6 +20,7 @@ pub(crate) fn hash_structural_path(
     digest.u64(path.len() as u64);
     for segment in path {
         match segment {
+            terminal_psi::StructuralPathSegment::AllElements => digest.byte(10),
             terminal_psi::StructuralPathSegment::RepresentationView {
                 structural_type,
                 stored_scalar,

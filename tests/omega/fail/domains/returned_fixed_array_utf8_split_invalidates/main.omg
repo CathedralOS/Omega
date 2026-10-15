@@ -1,0 +1,10 @@
+// A returned reference cannot restore a predicate broken by its indexed write.
+domain [u8; 8]::Utf8(bytes) requires valid_utf8(bytes);
+machine relay(bytes: &mut [u8; 8] in Utf8) -> &mut [u8; 8] in Utf8 { bytes }
+machine length(bytes: &[u8; 8] in Utf8) -> u64 { bytes.len }
+machine corrupt() -> u64 {
+    let owner: [u8; 8] in Utf8 = "éééé";
+    let selected: &mut [u8; 8] in Utf8 = relay(&mut owner);
+    selected[0] = 65u8;
+    length(&owner)
+}

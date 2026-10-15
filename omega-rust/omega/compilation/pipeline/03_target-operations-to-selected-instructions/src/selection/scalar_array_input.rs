@@ -92,7 +92,6 @@ pub(super) fn elements(
     if row.result.is_some()
         || result.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
         || !result.claims.is_empty()
-        || !result.qualifications.is_empty()
         || !result.projected_qualifications.is_empty()
         || *established != shape
         || u64::try_from(elements.len()).ok()? != count

@@ -17,7 +17,7 @@ impl Builder<'_, '_> {
         expected: TypeReferenceHandle,
         literal: arena::HandleSpan<ExpressionHandle>,
     ) -> Option<CheckedStructuralValueKind> {
-        if validation::is_closed_primitive_array_type(self.program, expected) {
+        if validation::scalar_array_preserves_memberships(self.program, expected) {
             return None;
         }
         let reference = validation::unwrapped_type_reference(self.program, expected)?;
@@ -262,7 +262,13 @@ impl Builder<'_, '_> {
             self.publish_structural_value(
                 expression,
                 declared,
-                CheckedStructuralValueKind::ZeroedStructural {},
+                CheckedStructuralValueKind::ZeroedStructural {
+                    projected_qualifications: validation::zeroed_byte_projected_qualifications(
+                        self.program,
+                        declared,
+                    )
+                    .ok()?,
+                },
             )?
         } else {
             let (primitive_type, element_count) =
@@ -286,6 +292,20 @@ impl Builder<'_, '_> {
                 CheckedStructuralValueKind::ZeroedScalarArray {
                     element,
                     element_count,
+                    qualifications: validation::field_domains::domain_constraint_identities(
+                        self.program,
+                        declared,
+                    )
+                    .into_iter()
+                    .filter(|(domain, _)| {
+                        validation::field_domains::domain_admits_zero_byte_carrier(
+                            self.program,
+                            *domain,
+                            declared,
+                        )
+                    })
+                    .map(|(_, domain)| domain)
+                    .collect(),
                 },
             )?
         };

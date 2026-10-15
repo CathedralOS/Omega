@@ -1,1 +1,1 @@
-cannot prove the value assigned to
+cannot prove requires contract for call snapshot from copy: text in [u8]::SnapshotUtf8 in state `entry`

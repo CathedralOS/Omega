@@ -1,12 +1,9 @@
 //! A whole bounded byte owner local lends its own storage to a call.
 //!
-//! `let text: [u8; 8] in Utf8 = "150";` binds a bounded carrier: an owned
-//! capacity with a live length (wiki/spec/language/domains.md, "Byte
-//! containers and encoding domains"). `parse(&text)` against a formal
-//! `text: &[u8; 8] in Utf8` loans that owner exactly as a caller parameter of
-//! the same formal would: the callee sees the declared capacity, reads the
-//! live length the construction set, and cannot resize or replace it. The
-//! loan retains the local, so no custody moves and no claim transfers.
+//! An explicit variable-fill carrier retains its storage and live length.
+//! Lending it leaves the owner in place, so no custody moves and no claim
+//! transfers. Exact fixed arrays use ordinary fixed-array storage and loans;
+//! qualification never chooses a capacity or hidden live-length field.
 //!
 //! A shared byte-view formal may also observe the owner's live extent, using
 //! the ordinary whole-local argument or an explicit shared borrow. Other

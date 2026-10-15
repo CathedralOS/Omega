@@ -1,0 +1,18 @@
+// Expected exit: 0
+// Qualified storage and predicate erasure preserve exactly eight bytes.
+domain [u8; 8]::Utf8(bytes) requires valid_utf8(bytes);
+data Tagged { label: [u8; 8] in Utf8; }
+machine retag(tagged: &write Tagged, label: [u8; 8] in Utf8) {
+    tagged.label = label;
+}
+machine main() crashes Trap {
+    let mut tagged: Tagged;
+    retag(&write tagged, "omega600");
+    let copy: [u8; 8] = tagged.label;
+    transition copy.len == 8 && copy[0] == 111 && copy[7] == 48 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

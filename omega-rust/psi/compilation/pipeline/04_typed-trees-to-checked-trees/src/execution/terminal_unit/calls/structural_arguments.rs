@@ -368,7 +368,6 @@ pub(crate) fn structural_call_arguments(
             && !(place.segments.is_empty()
                 && custody.access == CheckedStructuralAccess::Owned
                 && custody.multiplicity == Multiplicity::Unrestricted
-                && custody.unqualified
                 && validation::is_closed_primitive_array_type(program, target.type_reference)
                 && target_access == Some(CheckedStructuralAccess::Owned))
         {

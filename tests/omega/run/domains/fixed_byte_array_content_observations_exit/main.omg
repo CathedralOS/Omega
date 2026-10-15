@@ -1,0 +1,26 @@
+// Expected exit: 0
+// Exact owned bytes, qualified fields and borrowed views share content meaning.
+domain [u8; 4]::Utf8(bytes) requires valid_utf8(bytes);
+data Row { before: u8; bytes: [u8; 4] in Utf8; after: u8; }
+machine borrowed(bytes: &[u8; 4] in Utf8) -> bool {
+    bytes.len == 4 && bytes == "Gate" && bytes != "Ga" && bytes != "Gate!"
+}
+machine plain(bytes: &[u8; 4]) -> bool {
+    bytes.len == 4 && bytes == "Gate" && bytes != "" && bytes != "Gate!"
+}
+machine compare(view: &[u8], bytes: &[u8; 4]) -> bool { view == bytes }
+machine main() crashes Trap {
+    let raw: [u8; 4] = "Gate";
+    let mut row: Row = Row { before: 17u8, bytes: "Gate", after: 29u8 };
+    let initial: bool = borrowed(&row.bytes) && plain(&raw) && compare("Gate", &raw);
+    row.bytes[0] = 76u8;
+    transition initial && row.bytes == "Late" && row.bytes != "Gate"
+        && row.bytes != "Late!" && row.bytes != "" && row.bytes.len == 4
+        && raw == "Gate" && raw != "Ga" && raw != "Gate!"
+        && row.before == 17u8 && row.after == 29u8 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

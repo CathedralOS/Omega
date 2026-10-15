@@ -575,7 +575,7 @@ fn excluded_input_at_call(
         *parameter_symbol,
     )?;
     let parameter = parameter_for_symbol(program, target, *parameter_symbol)?;
-    let mut projections = crate::flow::literal_value_projections(
+    let mut projections = crate::flow::literal_expression_projections(
         program,
         argument,
         parameter.type_reference,

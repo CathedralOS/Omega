@@ -19,7 +19,7 @@ use psi::typing::typer;
 // by reading its referent (`Typer::read_type`); a reference to a whole array
 // views it as a slice of its elements; and an exclusive-reference
 // destination lends a range slice reached through an exclusive reference. A quoted literal copies its bytes into an
-// unqualified fixed byte array of exactly its length
+// fixed byte array of exactly its length, independently of qualification
 // (wiki/spec/language/data_and_literals.md#quoted-bytes), and a range
 // slice is a view a shared-reference destination lends from wherever it
 // stands (wiki/spec/language/expressions.md#indexing-and-ranges). Of two types qualifying one carrier
@@ -93,19 +93,16 @@ crashes Trap
         let bytes: bool = element.kind == TypeKind::Builtin && element.builtin == BuiltinType::U8
             && element.domain == DomainBinding::Unqualified;
         let exact: bool = extent.kind == TypeKind::StaticInteger && extent.length == (length.magnitude as u64 in Trapping);
-        let fits: bool = extent.kind == TypeKind::StaticInteger && extent.length >= (length.magnitude as u64 in Trapping);
         transition bytes && wanted.domain == DomainBinding::Unqualified && exact {
             true -> landed()
-            _ -> bounded(bytes && fits, wanted.domain == DomainBinding::Declared)
+            _ -> qualified_copy(bytes && exact, wanted.domain == DomainBinding::Declared)
         }
     }
 
-    // A quoted literal that fits replaces the live bytes of a bounded byte
-    // array, a fixed byte array under a declared domain
-    // (wiki/spec/terminal-psi/structural_access.md, bounded byte
-    // replacement); the domain's predicates are then proved of its octets.
-    state bounded(fits: bool, declared: bool) -> Admission {
-        transition fits && declared {
+    // Named qualification proves predicates of the same exact-width bytes;
+    // it never grants padding, capacity or a replacement live length.
+    state qualified_copy(exact: bool, declared: bool) -> Admission {
+        transition exact && declared {
             true -> qualified()
             _ -> rejected()
         }

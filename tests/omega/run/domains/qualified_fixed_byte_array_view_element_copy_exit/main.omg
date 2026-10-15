@@ -1,0 +1,37 @@
+// Expected exit: 0
+domain [u8; 8]::Ascii(bytes) requires ascii_only(bytes);
+data Name [copy] where used <= 8 { storage: [u8; 8] in Ascii; used: u64; }
+data Item [copy] { name: Name; marker: u8; }
+data Output { first: u8; name: Name; last: u8; }
+data Items [copy] { items: [Item; 2]; }
+machine copy_name(items: &[Item], output: &mut Output)
+requires items.len == 2
+{
+    transition { _ -> select(items, output) }
+    state select(items: &[Item], output: &mut Output) requires items.len == 2 {
+        let item: Item = items[1];
+        transition { _ -> snapshot(item, output) }
+    }
+    state snapshot(item: Item, output: &mut Output) { output.name = item.name; }
+}
+machine length(items: &[Item]) -> u64 { items.len }
+machine main() crashes Trap {
+    let items: Items = Items { items: [
+        Item { name: Name { storage: "omega600", used: 8 }, marker: 17u8 },
+        Item { name: Name { storage: "omega601", used: 8 }, marker: 29u8 }
+    ] };
+    let view: &[Item] = &items.items[0..2];
+    let mut output: Output;
+    output.first = 31u8;
+    output.last = 47u8;
+    copy_name(view, &mut output);
+    let empty: [Item; 0];
+    let empty_view: &[Item] = &empty[0..0];
+    let empty_length: u64 = length(empty_view);
+    transition output.name.storage.len == 8 && output.name.storage == "omega601" && output.name.used == 8
+        && output.first == 31 && output.last == 47
+        && size_of<Name>() == 16 && empty_length == 0 {
+        true -> {} _ -> bad()
+    }
+    state bad() { crash Trap; }
+}

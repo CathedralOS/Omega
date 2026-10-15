@@ -17,12 +17,26 @@ use terminal_psi::{
 pub(crate) enum ViewCarrier {
     /// A byte owner or view: lengths count live bytes, reads yield `u8`.
     Bytes,
+    /// Inline fixed bytes have their own declared extent, not a descriptor.
+    FixedBytes,
     /// A borrowed element view; `element` is the scalar a read yields, absent
     /// for record elements, which have no scalar read.
     Elements { element: Option<ScalarType> },
 }
 
 impl ViewCarrier {
+    pub(crate) fn observation_of(
+        structural_type: StructuralTypeId,
+        types: &[StructuralTypeDeclaration],
+    ) -> Option<Self> {
+        Self::of(structural_type, types).or_else(|| {
+            let declaration = find_structural_type(types, structural_type)?;
+            (matches!(declaration.shape, StructuralTypeShape::FixedArray { .. })
+                && terminal_semantics::fixed_byte_extent(types.iter(), structural_type).is_some())
+            .then_some(Self::FixedBytes)
+        })
+    }
+
     /// The observation family `structural_type` declares, if it has live extent.
     pub(crate) fn of(
         structural_type: StructuralTypeId,

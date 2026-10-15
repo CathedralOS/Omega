@@ -8,12 +8,12 @@ machine Main::main(main: &mut Main) reaches Console {
     transition { _ -> render() }
 
     state render() {
-        let original: [u8; 8] in Utf8 = "ab";
-        let mut line: [u8; 8] in Utf8 = "ab";
-        line[0] = 0;
-        line[1] = 65;
-        transition line.len == 2 && line[0] == 0 && line[1] == 65
-            && original[0] == 97 && original[1] == 98 {
+        let original: Buffer = Buffer { storage: [97u8, 98u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8], used: 2 };
+        let mut line: Buffer = Buffer { storage: [97u8, 98u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8], used: 2 };
+        line.storage[0] = 0;
+        line.storage[1] = 65;
+        transition line.used == 2 && line.storage[0] == 0 && line.storage[1] == 65
+            && original.storage[0] == 97 && original.storage[1] == 98 {
             true -> finish(70)
             _ -> finish(71)
         }
@@ -23,3 +23,6 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::exit_process(code);
     }
 }
+
+// Spare bytes are real fixed-array content; used selects the live prefix.
+data Buffer [copy] where used <= 8 { storage: [u8; 8] in Utf8; used: u64; }

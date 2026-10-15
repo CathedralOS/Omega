@@ -45,6 +45,7 @@ target = { path = "../backend/target" }
 typed-trees = { path = "../../../psi/compilation/representations/typed-trees" }
 terminal-psi = { path = "../../../psi/compilation/representations/terminal-psi" }
 terminal-codec = { path = "../../../psi/compilation/representations/terminal-psi/codec" }
+terminal-semantics = { path = "../../../psi/compilation/representations/terminal-psi/semantics" }
 terminal-fuel = { path = "../../../psi/compilation/representations/terminal-psi/fuel" }
 terminal-interpreter = { path = "../../../psi/interpreter/terminal-interpreter" }
 target-operations = { path = "../representations/target-operations" }
@@ -59,6 +60,7 @@ terminal-psi-to-abstract-operations = { path = "../pipeline/00_terminal-psi-to-a
 optimization-core = { path = "../../foundation/optimization-core" }
 
 [dev-dependencies]
+platform-custody = { path = "../../foundation/platform-custody" }
 checked-interpreter = { path = "../../../psi/interpreter/checked-interpreter" }
 syntax-trees = { path = "../../../psi/compilation/representations/syntax-trees" }
 task-plans = { path = "../backend/runtime/task-plans" }

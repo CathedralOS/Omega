@@ -131,6 +131,13 @@ pub(crate) fn land_exact_fixed_byte_array_literals_for_machines(
                     {
                         destinations.push((local.initial_value, local.type_reference));
                     }
+                    StatementNode::Assignment(assignment) => {
+                        if let Some(destination) = validation::assignment_stored_value_type(
+                            program, machine, state, assignment,
+                        ) {
+                            destinations.push((assignment.value, destination));
+                        }
+                    }
                     StatementNode::Call(call) => collect_call_destinations(
                         program,
                         &state_targets,
@@ -169,7 +176,6 @@ pub(crate) fn land_exact_fixed_byte_array_literals_for_machines(
                         }
                     }
                     StatementNode::AssemblyFact(_)
-                    | StatementNode::Assignment(_)
                     | StatementNode::Expression(_)
                     | StatementNode::LocalData(_) => {}
                 }
@@ -266,16 +272,41 @@ fn land_one(
         }
         return Ok(());
     }
+    let carrier = program
+        .type_reference_table
+        .unconstrained_type_reference(destination);
+    if let (
+        ExpressionNode::ArrayLiteral(elements),
+        TypeReferenceNode::FixedArray { element_type, .. },
+    ) = (
+        program.expression_table.expression(value),
+        program.type_reference_table.type_reference(carrier),
+    ) {
+        let elements = program
+            .expression_table
+            .expression_handles(*elements)
+            .to_vec();
+        let element_type = *element_type;
+        for element in elements {
+            land_one(program, element, element_type)?;
+        }
+        return Ok(());
+    }
     let ExpressionNode::String(bytes) = program.expression_table.expression(value).clone() else {
         return Ok(());
     };
+    // Only the owned carrier selects literal geometry. Keep the original
+    // qualification on the destination for independent membership checking.
+    let mut carrier = destination;
+    while let TypeReferenceNode::Constrained { base_type, .. } =
+        program.type_reference_table.type_reference(carrier)
+    {
+        carrier = *base_type;
+    }
     let TypeReferenceNode::FixedArray {
         element_type,
         length,
-    } = program
-        .type_reference_table
-        .type_reference(destination)
-        .clone()
+    } = program.type_reference_table.type_reference(carrier).clone()
     else {
         return Ok(());
     };

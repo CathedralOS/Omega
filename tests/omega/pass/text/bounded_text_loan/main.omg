@@ -1,18 +1,16 @@
-// A bounded text local lends a qualified shared view to scalar-result
-// machines: `[u8; 8] in Utf8` is a bounded owner — capacity 8, live
-// length 3 (the literal's), not a zero-filled raw array. Callees read
-// the live `text.len` and index `text[i]` across loop states.
+// Exact three-byte owned arrays lend ordinary qualified views.
+// Runtime indexes and state forwarding preserve the authored numerical oracle.
 domain [u8]::Utf8(bytes)
 requires
     valid_utf8(bytes);
-domain [u8; 8]::Utf8(bytes)
+domain [u8; 3]::Utf8(bytes)
 requires
     valid_utf8(bytes);
-machine digit_sum(text: &[u8; 8] in Utf8) -> i32 in Wrapping {
+machine digit_sum(text: &[u8; 3] in Utf8) -> i32 in Wrapping {
     transition {
         _ -> step(text, 0, 0)
     }
-    state step(text: &[u8; 8] in Utf8, index: i32, sum: i32 in Wrapping) -> i32 in Wrapping
+    state step(text: &[u8; 3] in Utf8, index: i32, sum: i32 in Wrapping) -> i32 in Wrapping
     requires index >= 0
     {
         transition index < text.len {
@@ -20,7 +18,7 @@ machine digit_sum(text: &[u8; 8] in Utf8) -> i32 in Wrapping {
             _ -> (sum)
         }
     }
-    state digit(text: &[u8; 8] in Utf8, index: i32, sum: i32 in Wrapping) -> i32 in Wrapping
+    state digit(text: &[u8; 3] in Utf8, index: i32, sum: i32 in Wrapping) -> i32 in Wrapping
     requires index >= 0
     {
         let byte: u8 = text[index];
@@ -30,7 +28,7 @@ machine digit_sum(text: &[u8; 8] in Utf8) -> i32 in Wrapping {
             _ -> (sum + value)
         }
     }
-    state advance(text: &[u8; 8] in Utf8, index: i32, sum: i32 in Wrapping) -> i32 in Wrapping
+    state advance(text: &[u8; 3] in Utf8, index: i32, sum: i32 in Wrapping) -> i32 in Wrapping
     requires index >= 0
     {
         transition {
@@ -38,13 +36,13 @@ machine digit_sum(text: &[u8; 8] in Utf8) -> i32 in Wrapping {
         }
     }
 }
-machine live_length(text: &[u8; 8] in Utf8) -> i32 {
+machine live_length(text: &[u8; 3] in Utf8) -> i32 {
     text.len as i32
 }
 
 data Main {}
 machine Main::main(main: &mut Main) {
-    let text: [u8; 8] in Utf8 = "150";
+    let text: [u8; 3] in Utf8 = "150";
     let total: i32 in Wrapping = digit_sum(&text);
     let size: i32 = live_length(&text);
 }

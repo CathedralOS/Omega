@@ -1,31 +1,48 @@
 // Expected exit: 0. Independent owned arguments copied from one source have
 // distinct homes through calls and state arrivals. A relayed stored reference
 // mutates only the selected home, not a suspended caller's detached snapshot.
-domain [u8; 8]::Utf8(bytes) requires valid_utf8(bytes);
-data Held { bytes: &mut [u8; 8] in Utf8; }
-machine replace(bytes: &mut [u8; 8] in Utf8) -> bool { bytes = "é"; true }
-machine relay(held: Held) -> bool { replace(held.bytes) }
-machine pair(first: [u8; 8] in Utf8, mut second: [u8; 8] in Utf8) -> bool {
+domain [u8]::Utf8(bytes) requires valid_utf8(bytes);
+data Held { bytes: &mut TextBuffer; }
+machine replace(bytes: &mut TextBuffer) -> bool crashes Trap { bytes = TextBuffer { storage: [195u8, 169u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8], used: 2 }; true }
+machine relay(held: Held) -> bool crashes Trap { replace(held.bytes) }
+machine pair(first: TextBuffer, mut second: TextBuffer) -> bool crashes Trap {
     let held: Held = Held { bytes: &mut second };
     let changed: bool = relay(held);
-    changed && first == "before" && second == "é" && second.len == 2
+    changed && TextBuffer::equal(&first, "before") && TextBuffer::equal(&second, "é") && second.used == 2
 }
-machine state_pair(first: [u8; 8] in Utf8, second: [u8; 8] in Utf8) -> bool {
+machine state_pair(first: TextBuffer, second: TextBuffer) -> bool crashes Trap {
     transition { _ -> inspect(first, second) }
-    state inspect(first: [u8; 8] in Utf8, mut second: [u8; 8] in Utf8) -> bool {
+    state inspect(first: TextBuffer, mut second: TextBuffer) -> bool {
         let held: Held = Held { bytes: &mut second };
         let changed: bool = relay(held);
-        changed && first == "before" && second == "é" && second.len == 2
+        changed && TextBuffer::equal(&first, "before") && TextBuffer::equal(&second, "é") && second.used == 2
     }
 }
 machine main() crashes Trap {
-    let bytes: [u8; 8] in Utf8 = "before";
+    let bytes: TextBuffer = TextBuffer { storage: [98u8, 101u8, 102u8, 111u8, 114u8, 101u8, 0u8, 0u8], used: 6 };
     let correct: bool = pair(bytes, bytes);
     let state_correct: bool = state_pair(bytes, bytes);
-    transition correct && state_correct && bytes == "before" && bytes.len == 6 {
+    transition correct && state_correct && TextBuffer::equal(&bytes, "before") && bytes.used == 6 {
         true -> done()
         false -> bad()
     }
     state done() {}
     state bad() { crash Trap; }
+}
+
+// Variable fill owns storage and live length explicitly; qualification belongs
+// to the ordinary borrowed live prefix. Copies retain independent storage.
+data TextBuffer [copy] where used <= 8 { storage: [u8; 8]; used: u64; }
+machine TextBuffer::view(buffer: &TextBuffer) -> &[u8] in Utf8 crashes Trap {
+    let bytes: &[u8] = &buffer.storage[..buffer.used];
+    transition valid_utf8(bytes) {
+        true -> checked(bytes)
+        false -> bad()
+    }
+    state checked(bytes: &[u8] in Utf8) -> &[u8] in Utf8 { bytes }
+    state bad() { crash Trap; }
+}
+machine TextBuffer::equal(buffer: &TextBuffer, expected: &[u8]) -> bool crashes Trap {
+    let bytes: &[u8] in Utf8 = TextBuffer::view(buffer);
+    bytes == expected
 }

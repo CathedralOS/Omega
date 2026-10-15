@@ -158,6 +158,7 @@ pub(crate) fn emit(
                 )?;
             }
             LoweredScalarEffect::EstablishZeroedStructural {
+                projected_qualifications,
                 place,
                 structural_type,
                 multiplicity,
@@ -170,7 +171,14 @@ pub(crate) fn emit(
                         structural_type: *structural_type,
                         multiplicity: *multiplicity,
                         qualifications: Vec::new(),
-                        projected_qualifications: Vec::new(),
+                        projected_qualifications:
+                            crate::unit::attached_unit::parameters::lower_projected_qualifications(
+                                identities,
+                                projected_qualifications,
+                                calls.domain_ids,
+                                *structural_type,
+                                calls.structural_types,
+                            )?,
                         claims: crate::emission::claim_bindings::emit_establishment_claims(
                             claims,
                             &mut calls.claims,
@@ -236,6 +244,7 @@ pub(crate) fn emit(
             LoweredScalarEffect::EstablishScalarArray(array) => {
                 crate::scalar_lowering::computations::arrays::emit(
                     std::slice::from_ref(array),
+                    calls.domain_ids,
                     values,
                     next_value,
                     operations,

@@ -7,15 +7,11 @@
 //! certificate. Arrivals, exits and ranks share this transfer. Unknown effects
 //! retire current bindings; they cannot revive an entry fact about new storage.
 //!
-//! A collection loan's length is one value for the whole activation when the
-//! binding cannot be reseated and the loan cannot resize its referent: a slice
-//! or plain fixed array behind any reference, or anything behind a shared one.
-//! Each `bytes.len` occurrence binds as an exact projection of that value, so a
-//! `requires index < bytes.len` and a guard over the same loan relate. A
-//! mutable loan of a qualified fixed byte array is a bounded owner whose live
-//! length moves with its stores, and has no such value. Local descriptors use
-//! the same replacement and effect retirement as scalar bindings; their
-//! captured measures survive endpoint stores, never descriptor replacement.
+//! A fixed array's extent is metadata for every reference access and every
+//! qualification. A stable slice descriptor retains its observed length under
+//! the existing access and effect checks. Local descriptors use the same
+//! replacement and effect retirement as scalar bindings; their captured
+//! measures survive endpoint stores, never descriptor replacement.
 use crate::checks::unsigned;
 use crate::values::scalar::structural_fields;
 use numerics::arithmetic::ArithmeticDomain;
@@ -742,15 +738,12 @@ fn fixed_length(
     };
     let shared = *access == language_core::ReferenceAccess::Shared;
     let mut referee = *referee;
-    // A qualified fixed byte array is a bounded owner: its length is the live
-    // byte count, at most the declared capacity. Only a shared loan freezes it.
+    // Fixed-array geometry is independent of qualification and loan access.
+    // Dynamic slice observations retain their existing shared-qualified gate.
     let mut qualified = false;
     while let TypeReferenceNode::Constrained { base_type, .. } =
         program.type_reference_table.type_reference(referee)
     {
-        if !shared {
-            return None;
-        }
         qualified = true;
         referee = *base_type;
     }
@@ -758,9 +751,10 @@ fn fixed_length(
         TypeReferenceNode::FixedArray {
             length: FixedArrayLength::Literal(length),
             ..
-        } if !qualified => Some(ScopedArithmeticValue::Integer(
+        } => Some(ScopedArithmeticValue::Integer(
             numerics::bignum::BigInt::from_u64(u64::try_from(*length).ok()?),
         )),
+        TypeReferenceNode::Slice { .. } if qualified && !shared => None,
         TypeReferenceNode::FixedArray { .. } | TypeReferenceNode::Slice { .. } => {
             Some(ScopedArithmeticValue::Atom {
                 identity: identity(),
@@ -883,10 +877,22 @@ fn field_occurrence(
     }
     let (reference, identity) = frozen_field(program, machine, state, expression)?;
     let primitive = integer_carrier(program, reference)?;
-    Some(ScopedArithmeticValue::Atom {
+    let value = ScopedArithmeticValue::Atom {
         identity,
         unsigned: unsigned(primitive),
-    })
+    };
+    // Standing declaration bounds constrain this same frozen field identity.
+    // They neither replay an initializer nor import a caller's changing facts.
+    Some(
+        match validation::immutable_integer_expression_bounds(program, machine, state, expression) {
+            Some((minimum, maximum)) => ScopedArithmeticValue::BoundedInteger {
+                value: Box::new(value),
+                minimum: Some(numerics::bignum::BigInt::from_i64(minimum)),
+                maximum: Some(numerics::bignum::BigInt::from_i64(maximum)),
+            },
+            None => value,
+        },
+    )
 }
 
 /// Identity belongs to this executed store on the current state activation.

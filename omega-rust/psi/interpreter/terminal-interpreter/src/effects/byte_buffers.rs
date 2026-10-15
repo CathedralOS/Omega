@@ -75,7 +75,8 @@ impl BoundaryArguments {
                 value.absorb_qualifications(&parameter.qualifications);
             }
         }
-        let values = bind_active_structural_arguments(parameters, &self.values, types, cases)?;
+        let values = bind_active_structural_arguments(parameters, &self.values, types, cases)
+            .map_err(|error| error.in_argument_preparation("bind source memberships"))?;
         let aggregate_backings = parameters
             .iter()
             .zip(self.aggregate_backings)
@@ -106,14 +107,28 @@ impl BoundaryArguments {
             } else {
                 parameter.access == view.access()
                     && parameter.multiplicity == StructuralMultiplicity::Unrestricted
-                    && parameter.qualifications.is_empty()
-                    && parameter.projected_qualifications.is_empty()
+                    && if matches!(
+                        types.get(&parameter.structural_type).map(|row| &row.shape),
+                        Some(StructuralTypeShape::FixedArray { .. })
+                    ) {
+                        crate::scalar_array::borrowed_array_memberships_match(
+                            values.get(&parameter.place).ok_or_else(malformed)?,
+                            parameter,
+                        )
+                    } else {
+                        parameter.qualifications.is_empty()
+                            && terminal_semantics::view_descriptor_projected_qualifications(
+                                types.values(),
+                                parameter.structural_type,
+                                &parameter.projected_qualifications,
+                            )
+                    }
                     && view.matches_descriptor_home(
                         values.get(&parameter.place).ok_or_else(malformed)?,
                     )
             };
             if !admitted || element_views.insert(parameter.place, view).is_some() {
-                return Err(malformed());
+                return Err(malformed().in_argument_preparation("admit element-view companion"));
             }
         }
         for (parameter, binding) in parameters.iter().zip(self.byte_sequences) {
@@ -151,8 +166,8 @@ impl BoundaryArguments {
                         referent.qualifications != parameter.qualifications
                     }
                     ByteSequenceBinding::Immutable(_) => false,
-                    ByteSequenceBinding::MutableArray { .. } => {
-                        !parameter.qualifications.is_empty()
+                    ByteSequenceBinding::MutableArray { referent, .. } => {
+                        referent.qualifications != parameter.qualifications
                     }
                 }
                 || byte_sequences.insert(parameter.place, binding).is_some()
@@ -381,46 +396,57 @@ impl TerminalExecution<'_> {
                 continue;
             }
             resolved.primitive_loans.push(None);
-            if let Some((referent, loan)) = self.prepare_scalar_array_loan(
-                parameter,
-                argument,
-                &mut resolved.local_identity_cursor,
-                &mut local_array_roots,
-            )? {
+            if let Some((referent, loan)) = self
+                .prepare_scalar_array_loan(
+                    parameter,
+                    argument,
+                    &mut resolved.local_identity_cursor,
+                    &mut local_array_roots,
+                )
+                .map_err(|error| error.in_argument_preparation("prepare array backing loan"))?
+            {
                 resolved.values.push(referent);
                 resolved.aggregate_backings.push(None);
                 resolved.byte_sequences.push(None);
                 resolved.element_views.push(Some(loan));
                 continue;
             }
-            if let Some((referent, binding)) = self.prepare_byte_sequence_loan(
-                parameter,
-                argument,
-                &mut resolved.local_identity_cursor,
-                &mut local_array_roots,
-            )? {
+            if let Some((referent, binding)) = self
+                .prepare_byte_sequence_loan(
+                    parameter,
+                    argument,
+                    &mut resolved.local_identity_cursor,
+                    &mut local_array_roots,
+                )
+                .map_err(|error| error.in_argument_preparation("prepare byte backing loan"))?
+            {
                 resolved.values.push(referent);
                 resolved.aggregate_backings.push(None);
                 resolved.byte_sequences.push(Some(binding));
                 resolved.element_views.push(None);
                 continue;
             }
-            let (value, backing) =
-                self.present_structural_argument(argument, parameter.structural_type)?;
+            let (value, backing) = self
+                .present_structural_argument(argument, parameter.structural_type)
+                .map_err(|error| error.in_argument_preparation("resolve source storage"))?;
             let values = [value];
             resolved.aggregate_backings.push(backing);
-            let mut bytes = self.bind_byte_sequence_arguments(
-                std::slice::from_ref(parameter),
-                std::slice::from_ref(argument),
-                &values,
-            )?;
+            let mut bytes = self
+                .bind_byte_sequence_arguments(
+                    std::slice::from_ref(parameter),
+                    std::slice::from_ref(argument),
+                    &values,
+                )
+                .map_err(|error| error.in_argument_preparation("bind byte descriptor"))?;
             let binding = bytes.remove(&parameter.place);
             resolved.byte_sequences.push(binding);
-            let mut element_views = self.bind_element_view_arguments(
-                std::slice::from_ref(parameter),
-                std::slice::from_ref(argument),
-                &values,
-            )?;
+            let mut element_views = self
+                .bind_element_view_arguments(
+                    std::slice::from_ref(parameter),
+                    std::slice::from_ref(argument),
+                    &values,
+                )
+                .map_err(|error| error.in_argument_preparation("bind element descriptor"))?;
             resolved
                 .element_views
                 .push(element_views.remove(&parameter.place));

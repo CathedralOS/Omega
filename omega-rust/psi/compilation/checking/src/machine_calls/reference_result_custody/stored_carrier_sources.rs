@@ -18,7 +18,9 @@ pub enum StoredCarrierSource {
     Place(CheckedUnitStructuralArgumentPlan),
     /// A present descriptor over immutable image storage. It has no supplying
     /// activation-local holder to retire, but is not an inactive case slot.
-    Image,
+    Image {
+        value: CheckedStructuralValueHandle,
+    },
     /// A fresh loan formed in this receiving descriptor slot. Its source
     /// holder is an immediate disposal dependency, not a transported ancestor.
     Borrow {
@@ -111,7 +113,7 @@ fn select(
             // The value producer already admitted the literal's carrier and
             // predicates. Retirement needs its storage duration, not another
             // loan of a local holder or an absent-source fallback.
-            output.push(StoredCarrierSource::Image);
+            output.push(StoredCarrierSource::Image { value });
         }
         CheckedStructuralValueKind::Place(source)
         | CheckedStructuralValueKind::CopiedStructuralPlace { source, .. } => {

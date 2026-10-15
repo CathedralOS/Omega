@@ -1,7 +1,8 @@
+use text::buffer;
 use inventory::items;
 
 data Player [copy] {
-    name: [u8; 16] in Utf8;
+    name: PlayerName;
     level: u32 in Wrapping;
     xp: u32 in Wrapping;
     max_health: i32 in Wrapping;
@@ -10,3 +11,6 @@ data Player [copy] {
     defense: i32 in Wrapping;
     inventory: Inventory;
 }
+
+// Names retain their original owned sixteen-byte capacity.
+data PlayerName [copy] where used <= 16 { storage: [u8; 16] in Ascii; used: u64; }

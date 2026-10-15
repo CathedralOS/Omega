@@ -167,6 +167,18 @@ pub(super) fn check(
                                 .is_some_and(|subjects| {
                                     !subjects.is_empty()
                                         && subjects.iter().all(|place| {
+                                            // A captured empty collection has no
+                                            // child occurrences to qualify. An
+                                            // empty carrier itself still owes
+                                            // its own domain; only a strict
+                                            // pointwise ancestor is vacuous.
+                                            if pointwise_field_is_empty(
+                                                program,
+                                                captured,
+                                                &place.projected,
+                                            ) {
+                                                return true;
+                                            }
                                             // Only the authored source selects
                                             // a case. A declared field row is
                                             // conditional validity, not a read
@@ -211,6 +223,48 @@ pub(super) fn check(
             }
         }
     }
+}
+
+/// Empty pointwise ancestors contain no qualified field occurrences.
+fn pointwise_field_is_empty(
+    program: &dyn ::validation::CheckingInput,
+    captured: &crate::flow::CapturedValue<'_>,
+    place: &validation::CanonicalPlace,
+) -> bool {
+    place
+        .segments
+        .iter()
+        .enumerate()
+        .any(|(position, segment)| {
+            let PlaceSegment::FixedRange { start, end } = segment else {
+                return false;
+            };
+            if position + 1 == place.segments.len() {
+                return false;
+            }
+            if start == end {
+                return true;
+            }
+            if *start != 0 || *end != usize::MAX {
+                return false;
+            }
+            // A whole fixed-array loan need not spell an address range. Resolve
+            // the universal field dimension against its actual source declaration,
+            // whose exact extent cannot change through qualification or mutation.
+            let prefix = validation::CanonicalPlace {
+                root: place.root,
+                segments: place.segments[..position].to_vec(),
+            };
+            validation::canonical_place_type_reference(
+                program,
+                captured.operand.state_symbol,
+                captured.operand.statement_index,
+                &prefix,
+            )
+            .is_some_and(|reference| {
+                validation::fixed_array_type_length(program, reference) == Some(0)
+            })
+        })
 }
 
 /// A field qualification carries its complete domain application. Predicate

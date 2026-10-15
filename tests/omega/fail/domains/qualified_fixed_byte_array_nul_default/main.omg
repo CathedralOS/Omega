@@ -1,0 +1,2 @@
+domain [u8; 2]::NoNul(bytes) requires no_nul(bytes);
+machine main() { let bytes: [u8; 2] in NoNul; let first: u8 = bytes[0]; }

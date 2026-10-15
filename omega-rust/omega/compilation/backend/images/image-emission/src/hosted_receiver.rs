@@ -1117,7 +1117,12 @@ fn receiver_layout(
         || parameter.access != StructuralAccess::MutableBorrow
         || parameter.multiplicity == StructuralMultiplicity::Linear
         || !parameter.qualifications.is_empty()
-        || !parameter.projected_qualifications.is_empty()
+        || !terminal_semantics::zeroed_projected_byte_qualifications_hold(
+            terminal.structural_types.iter(),
+            terminal.structural_domains.iter(),
+            parameter.structural_type,
+            &parameter.projected_qualifications,
+        )
         || function.attachment.is_some()
         || target.graph.call_plan.policy != expected_policy
         || function.structural_parameters.len() != 1 + private_entry_ram.len()

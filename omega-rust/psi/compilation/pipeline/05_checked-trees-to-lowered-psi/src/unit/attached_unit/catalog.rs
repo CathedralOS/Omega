@@ -107,6 +107,17 @@ pub(crate) fn collect_value_roots(
                 .record_fields
                 .span_or_empty(*fields)
             {
+                let (_, declaration) =
+                    checked
+                        .any_field_owner(field.field)
+                        .ok_or(LoweringError::Unsupported(
+                            "structural initializer field declaration missing",
+                        ))?;
+                // Erased initializers retain checked semantic dependencies but
+                // cannot root physical types, operands or nested allocations.
+                if declaration.relevance.is_erased() {
+                    continue;
+                }
                 if let checked_trees::CheckedStructuralRecordFieldValue::Structural(nested) =
                     field.value
                 {
@@ -1022,6 +1033,11 @@ pub(super) fn lower_unit_structural_domains(
                     checked_trees::CheckedUnitLocalBindingPlan::Structural {
                         qualifications, ..
                     },
+                )
+                | CheckedUnitEffectOperationPlan::EstablishLocal(
+                    checked_trees::CheckedUnitLocalBindingPlan::ScalarArray {
+                        qualifications, ..
+                    },
                 ) => qualifications.as_slice(),
                 _ => &[],
             }))
@@ -1170,11 +1186,12 @@ pub(super) fn lower_unit_structural_domains(
     }) {
         return unsupported("Unit structural domains have duplicate canonical identities");
     }
-    let domain_ids = selected_plans
+    let mut domain_ids = selected_plans
         .iter()
         .enumerate()
         .map(|(index, plan)| {
             Ok(StructuralDomainBinding {
+                byte_predicate: None,
                 semantic_domain: plan.domain,
                 carrier: lookup_type_id(type_ids, &plan.carrier_type_identity)?,
                 domain: structural_domain_id(dense_identity(index)?),
@@ -1214,6 +1231,15 @@ pub(super) fn lower_unit_structural_domains(
             })
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
+    for (binding, declaration) in domain_ids.iter_mut().zip(&declarations) {
+        binding.byte_predicate = if declaration.content_projection.is_none()
+            && declaration.establishment_routes.is_empty()
+        {
+            declaration.byte_predicate
+        } else {
+            None
+        };
+    }
     Ok((declarations, domain_ids))
 }
 

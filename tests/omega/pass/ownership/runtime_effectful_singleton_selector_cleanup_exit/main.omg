@@ -1,0 +1,20 @@
+// Expected exit: 0. The singleton selector executes once while its guarantee proves cleanup disjointness.
+data Token { value: u64; }
+machine Token::drop(token: &mut Token) { token.value = 0; }
+machine select(count: &mut u64) -> u64 requires count < 2 ensures result == 1 { count = count + 1; 1 }
+
+machine main() crashes Trap {
+    let mut count: u64 = 0;
+    let mut tokens: [Token; 2] = [Token { value: 11 }, Token { value: 7 }];
+    let first: Token = tokens[0];
+    tokens[select(&mut count)] = Token { value: 19 };
+    let selected: u64 = 1;
+    tokens[selected] = Token { value: 23 };
+    tokens[0] = first;
+    transition count == 1 && tokens[0].value == 11 && tokens[1].value == 23 {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

@@ -1,11 +1,11 @@
-domain [u8; 16]::Utf8(bytes) requires valid_utf8(bytes);
+domain [u8; 2]::Utf8(bytes) requires valid_utf8(bytes);
 
-machine take_ascii(value: [u8; 16] in Utf8)
+machine take_ascii(value: [u8; 2] in Utf8)
 requires ascii_only(value) {}
 
-machine overwrite_copy(value: [u8; 16] in Utf8)
+machine overwrite_copy(value: [u8; 2] in Utf8)
 requires ascii_only(value) {
-    let mut saved: [u8; 16] in Utf8 = value;
+    let mut saved: [u8; 2] in Utf8 = value;
     saved = "é";
     take_ascii(saved);
 }

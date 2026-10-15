@@ -335,6 +335,33 @@ impl Captures<'_> {
         expression: Option<ExpressionHandle>,
         loans: &[checked_trees::BorrowReturnedLoanFact],
     ) -> Option<Vec<CheckedReferenceOriginSourcePlan>> {
+        let values = &self.facts.values.structural_values;
+        if let Some(expression) = expression {
+            let root = values
+                .root_for_expression(
+                    state.symbol,
+                    u32::try_from(loan.statement_index).ok()?,
+                    expression,
+                )
+                .map(|root| root.root);
+            if let Some(root) = root {
+                let sources = stored_carrier_sources(self.program, self.facts, root, &leaf.path)?;
+                if sources.iter().any(|source| match source {
+                    StoredCarrierSource::Image { value } => {
+                        let image = values.nodes.get(*value);
+                        image.state == state.symbol
+                            && image.statement_index as usize == loan.statement_index
+                            && image.expression == loan.formation_expression
+                    }
+                    _ => false,
+                }) {
+                    // This exact returned loan formed an immutable image
+                    // descriptor. It contributes no caller-relative origin;
+                    // all non-image loans still traverse the normal path.
+                    return Some(Vec::new());
+                }
+            }
+        }
         let segments = self.facts.borrow.access_segments.span(loan.segments)?;
         if let Some(source) = self.return_origin(state, loan, leaf, segments, loans) {
             return Some(source);
@@ -922,7 +949,12 @@ impl Captures<'_> {
         let mut present = false;
         for source in stored_carrier_sources(self.program, self.facts, root, path)? {
             let supplied = match source {
-                StoredCarrierSource::Borrow { .. } | StoredCarrierSource::Image => true,
+                StoredCarrierSource::Borrow { .. } => true,
+                // Image storage has no activation-relative loan to publish.
+                // The descriptor is present, and its literal producer retains
+                // the actual backing and qualifications independently. This
+                // query asks only whether a caller-relative capture is owed.
+                StoredCarrierSource::Image { .. } => false,
                 StoredCarrierSource::Place(source) => match source.source {
                     CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } => {
                         let (_, local) = self.program.state_local_declaration(state, symbol)?;

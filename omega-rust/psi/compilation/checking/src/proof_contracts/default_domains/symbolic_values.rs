@@ -443,6 +443,11 @@ pub(super) fn expression_sequence_measures(
             let measure = i128::try_from(literal.len()).ok();
             Some((measure, measure))
         }
+        ExpressionNode::ArrayLiteral(elements) => {
+            let measure =
+                i128::try_from(program.expression_table.expression_handles(*elements).len()).ok();
+            Some((measure, measure))
+        }
         _ => None,
     }
 }

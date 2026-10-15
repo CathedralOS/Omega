@@ -218,12 +218,15 @@ pub enum CheckedStructuralValueKind {
     ZeroedScalarArray {
         element: CheckedScalarComputationHandle,
         element_count: u64,
+        qualifications: Vec<language_semantics::SemanticDomainId>,
     },
     /// An omitted record field's zero value over a structural (non-scalar)
     /// member: `[Record; N]` elements or a nested record, all leaves zero.
     /// No element roster exists — `EstablishZeroedStructural` names the whole
     /// zero-constructible shape and owns its zero semantics.
-    ZeroedStructural {},
+    ZeroedStructural {
+        projected_qualifications: Vec<crate::CheckedStructuralPathQualification>,
+    },
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

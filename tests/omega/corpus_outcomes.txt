@@ -312,6 +312,8 @@ fail/arrays/borrowed_array_call_argument_wrong_extent rejected 826ms expected @a
 	argument `receipts` for state `entry` expects `&[Receipt; 2]`, got `array literal`
 fail/arrays/qualified_array_literal_rejects_element_policy_conversion rejected 811ms expected @a9ae30e1c334+wt
 	store in array literal element of type `u32` implicitly converts `u32 in Saturating` to `u32 in Wrapping` (implicit domain weakening); a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u32 in Wrapping`)
+fail/arrays/window_copy_preserves_inherited_element_policy rejected 316ms expected @308fbdc54ba0
+	array window replacement source must preserve the complete destination element type, including its qualifications
 fail/asm/backward_write_stale_ensures rejected 1050ms expected @9f1c8cc89b93+wt
 	cannot prove asm `ensures` fact at block exit in Subject::change state `change` (statement 5): subject.ready
 fail/asm/borrow_read_after_backward_write rejected 1128ms expected @9f1c8cc89b93+wt
@@ -409,6 +411,12 @@ fail/borrow/opaque_write_only_boundary rejected 831ms expected @a9ae30e1c334+wt
 	machine `write` state `entry` declares `&write`, but the current milestone proves non-observation only for checked Omega bodies; boundary, accepted, requirement, and external-provider declarations require an admitted write-only boundary claim
 fail/borrow/persistent_borrow_storage_requires_outlives rejected 1580ms expected @a9ae30e1c334+wt
 	assignment stores a borrow-carrying value in persistent field `stored` of machine `Cell::set$specialized$dcbb8209abdb6016$0`; persistent loans must be propagated through graph-state transitions before this write can be admitted
+fail/borrow/qualified_return_does_not_restore_other_writer rejected 1182ms expected @308fbdc54ba0
+	cannot prove default-domain field requirement for return from corrupt at statement 1: entries[1] requires [u8; N]::Utf8
+	cannot prove default-domain field requirement for return from corrupt_through_stored_reference at statement 2: entries[0] requires [u8; N]::Ascii
+	cannot prove default-domain field requirement for return from corrupt_through_stored_reference at statement 2: entries[0] requires [u8; N]::Utf8
+	cannot prove default-domain field requirement for return from corrupt_through_stored_reference at statement 2: entries[1] requires [u8; N]::Ascii
+	cannot prove default-domain field requirement for return from corrupt_through_stored_reference at statement 2: entries[1] requires [u8; N]::Utf8
 fail/borrow/recursive_terminal_exclusive_alias rejected 937ms expected @5acf32321f42+wt
 	state `scan` receives `first` as mutable more than once
 fail/borrow/relational_handback_false_return_guarantee rejected 1103ms expected @08e282377686+wt
@@ -595,6 +603,8 @@ fail/borrows/byte_view_shared_element_mutable_reference rejected 898ms expected 
 	mutable argument `bytes` for state `entry` is not writable in this state; the source cannot lend the requested exclusive access
 fail/borrows/call_transfer_scalar_observation rejected 1264ms @fa10277fce92
 	state `receive` receives `control` as both mutable and read-only
+fail/borrows/captured_reference_membership_ignores_later_selector rejected 1193ms expected @308fbdc54ba0
+	cannot prove requires contract for call consume from stale: held.value in u64::Positive in state `entry`
 fail/borrows/case_descriptor_scalar_sibling_keeps_live_loan rejected 694ms expected @4f0f34f3cbb6+wt
 	statement 2 mutates `storage[0]` while local borrow `packet` is still active (borrowed at statement 0; its last use is at statement 3)
 fail/borrows/case_payload_borrowed_affine_copy rejected 1111ms expected @a9ae30e1c334+wt
@@ -620,8 +630,8 @@ fail/borrows/constructor_reference_element_mismatch rejected 903ms expected @a9a
 	construction of `Choice` field `bytes` expects reference `&mut [u16]`, but the source does not supply its carrier and access
 fail/borrows/consumed_nominal_carrier_retains_backing rejected 2334ms expected @a9ae30e1c334+wt
 	statement 3 mutates `backing` while local borrow `reference` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
-fail/borrows/copied_byte_predicate_invalidated_by_destination_write rejected 1545ms expected @a9ae30e1c334+wt
-	cannot prove requires contract for call take_ascii from overwrite_copy: ascii_only(saved) (needs fact `ascii_only(value)` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/borrows/copied_byte_predicate_invalidated_by_destination_write rejected 909ms expected @ef7962801508
+	cannot prove requires contract for call take_ascii from overwrite_copy: ascii_only(saved) (needs fact `ascii_only(value)` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/borrows/copied_computed_backing_retains_nested_loan rejected 1615ms expected @a9ae30e1c334+wt
 	statement 3 mutates `original.payload` while local borrow `view` is still active (borrowed at statement 1; its last use is at statement 4)
 fail/borrows/copied_reference_cohort_live_source_write rejected 1704ms expected @a9ae30e1c334+wt
@@ -889,6 +899,8 @@ fail/borrows/reference_carrier_store_while_shared rejected 1634ms expected @a9ae
 	statement 2 mutates `carrier.destination` while local borrow `observed` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
 fail/borrows/reference_record_duplicate_mutable rejected 5388ms expected @a9ae30e1c334+wt
 	`pair` holds `main.first` as mutable more than once
+fail/borrows/reference_record_index_predicate_invalid_store rejected 251ms expected @ef7962801508
+	machine `corrupt` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
 fail/borrows/reference_record_mutable_shared_overlap rejected 5575ms expected @a9ae30e1c334+wt
 	`view` holds `main.first` as both mutable and read-only
 fail/borrows/replaced_carrier_keeps_new_backing_loan rejected 1705ms expected @a9ae30e1c334+wt
@@ -904,9 +916,8 @@ fail/borrows/returned_review_cannot_substitute_other_input rejected 492ms expect
 	machine `wrong` returns a view borrowing input `second`, which is not permitted by the declared result lifetime relation
 fail/borrows/returned_review_keeps_original_backing_loan rejected 417ms expected @22286cb27fcc
 	statement 1 mutates `main.source.second` while local borrow `held` is still active (borrowed at statement 0; its last use is at statement 2)
-fail/borrows/returned_slice_record_reference_cannot_widen_access rejected 5314ms expected @761f5fae99a7+wt
-	machine `forbid` returns a view whose access cannot be supplied by matching input `values`
-	statement 2 cannot resolve the complete borrowed destination of `chosen.count`
+fail/borrows/returned_slice_record_reference_cannot_widen_access rejected 2060ms expected @8a2c1f68d503
+	machine `forbid` state `entry` return value requires mutable source access; shared or immutable storage cannot supply it
 fail/borrows/returned_slice_record_reference_conflict rejected 5366ms expected @761f5fae99a7+wt
 	state `selected` receives `events` while local borrow `first` is still active (borrowed at statement 2; its last use is at statement 4)
 	statement 3 creates local borrow `last` while local borrow `first` is still active (borrowed at statement 2; its last use is at statement 4)
@@ -1364,10 +1375,10 @@ fail/calls/constructor_child_named_state_epochs_not_equal rejected 1603ms expect
 	cannot prove requires contract for call selected from main: constructor:4:Pair6:record17:common:name:first13:holder.amount20:common:name:replaced39:Holder.replace(mut holder, replacement)18:common:name:second13:holder.amount.first == constructor:4:Pair6:record17:common:name:first13:holder.amount20:common:name:replaced39:Holder.replace(mut holder, replacement)18:common:name:second13:holder.amount.second (needs fact `captured.first == captured.second` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/calls/constructor_projected_membership_precedes_repair rejected 1685ms expected @a9ae30e1c334+wt
 	cannot prove requires contract for call observe from main: holder.envelope.ticket in Ticket::Issued
-fail/calls/copied_argument_ensures_cannot_restore_callee_mutated_source rejected 1518ms expected @a9ae30e1c334+wt
-	cannot prove requires contract for call take_ascii from Main::main: ascii_only(main.line) (needs fact `ascii_only(value)` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
-fail/calls/copied_argument_ensures_cannot_restore_mutated_source rejected 1647ms expected @a9ae30e1c334+wt
-	cannot prove requires contract for call take_ascii from Main::main: ascii_only(main.line) (needs fact `ascii_only(value)` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/calls/copied_argument_ensures_cannot_restore_callee_mutated_source rejected 851ms expected @ef7962801508
+	cannot prove requires contract for call take_ascii from Main::main: ascii_only(main.line) (needs fact `ascii_only(value)` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `capture`
+fail/calls/copied_argument_ensures_cannot_restore_mutated_source rejected 801ms expected @ef7962801508
+	cannot prove requires contract for call take_ascii from Main::main: ascii_only(main.line) (needs fact `ascii_only(value)` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `capture`
 fail/calls/copied_argument_inherited_membership_precedes_repair rejected 1673ms expected @a9ae30e1c334+wt
 	cannot prove requires contract for call observe from main: holder.ticket in Ticket::Issued
 fail/calls/copied_argument_routed_ensures_cannot_restore_callee_mutated_source rejected 1639ms expected @a9ae30e1c334+wt
@@ -1771,12 +1782,12 @@ fail/contracts/indexed_element_requirement_wrong_collection rejected 449ms expec
 fail/contracts/indexed_element_requirement_wrong_selector rejected 451ms expected @6d847e2a233e
 fail/contracts/later_arm_call_requires_unproven rejected 1669ms expected @a9ae30e1c334+wt
 	cannot prove requires contract for call walk from walk: index + 1 <= 4 (needs fact `index <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
-fail/contracts/literal_view_extent_not_invented rejected 1801ms expected @4199cfac1ef3
+fail/contracts/literal_view_extent_not_invented rejected 876ms expected @ef7962801508
 	cannot prove requires contract for call nonempty from empty_is_not_nonempty: [].len > 0 (needs fact `bytes.len > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call one_byte from codepoints_are_not_bytes: [195, 169].len == 1 (needs fact `bytes.len == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call nonempty from replaced_descriptor_is_not_its_initializer: bytes.len > 0 (needs fact `bytes.len > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call nonempty from capacity_is_not_live_length: bytes.len > 0 (needs fact `bytes.len > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call nonempty from projected_capacity_is_not_live_length: buffer.bytes.len > 0 (needs fact `bytes.len > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call nonempty from projected_capacity_is_not_live_length: bytes.len > 0 (needs fact `bytes.len > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/contracts/machine_requires_later_state_parameter_rejected rejected 823ms expected @a9ae30e1c334+wt
 	machine `first` state `entry` arrival contract value `later_bound` is not in the state's explicit parameter scope or prior local declarations
 fail/contracts/mixed_requirement_prior_float_capture rejected 1065ms expected @cf645a79ddb2+wt
@@ -2176,6 +2187,10 @@ fail/domains/bitwise_membership_trapping_operand rejected 178ms expected @d1fa47
 fail/domains/bodyful_owner_establishment_bypass rejected 1708ms expected @a9ae30e1c334+wt
 	cannot prove ensures contract for exit from Token::zero at statement 0: result in Token::Positive
 	cannot prove ensures contract for exit from Token::zero at statement 0: result in Token::Positive
+fail/domains/byte_predicate_declared_callee_crash rejected 533ms expected @ef7962801508
+	specification call `valid_utf8` has no observation-free, reach-free, crash-free value denotation: the selected closure publishes a crash route
+fail/domains/byte_predicate_operand_callee_crash rejected 815ms expected @ef7962801508
+	call from `main` to `bytes` at statement 0 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
 fail/domains/call_requires_invalidated_by_mutation rejected 1674ms expected @a9ae30e1c334+wt
 	cannot prove requires contract for call heal from Main::main: main.player in Player::Valid (invalidated by prior mutation of main.player.health; main.player.health is part of Player::Valid)
 fail/domains/call_requires_unproven rejected 1542ms expected @a9ae30e1c334+wt
@@ -2196,8 +2211,8 @@ fail/domains/case_child_membership_requires_issuance rejected 1563ms expected @a
 fail/domains/case_payload_predicate_invalid_literal rejected 1533ms expected @a9ae30e1c334+wt
 	cannot prove default-domain field requirement for return from Main::main at statement 1: main.divisor::By.amount requires i32::NonZero
 	construction of `Divisor` field `amount` is not proven in domain `i32::NonZero`; a field declared `in i32::NonZero` requires every construction value to be established in that domain (construct with a literal its byte-predicate fact accepts, or a value already proven in the domain)
-fail/domains/checked_provider_result_without_selection rejected 5740ms expected @e5140c7a7be2+wt
-	selected ProgramEntry Binding field `Main::source` requires a selected Fused provider for boundary `Source`
+fail/domains/checked_provider_result_without_selection rejected 6477ms expected @308fbdc54ba0
+	no provider is selected for boundary requirement `Source::open`, which the program entry reaches on target `macos_arm64`
 fail/domains/checked_provider_unissued_result rejected 1596ms expected @e5140c7a7be2+wt
 	cannot prove default-domain field requirement for return from FabricatedSource::open at statement 0: Resource requires Resource::Open
 fail/domains/computed_qualification_requires_operand_facts rejected 5363ms expected @a9ae30e1c334+wt
@@ -2223,6 +2238,12 @@ fail/domains/domain_operator_competing_spelling_meanings rejected 1671ms expecte
 	ambiguous operator spelling `+` has 2 viable candidates: `Quantity::Linear::add` owned by domain `Quantity::Linear`, `Quantity::Cyclic::add` owned by domain `Quantity::Cyclic`. The static operand-domain tuple does not uniquely select one -- narrow the binding's semantic qualification or choose a clearer operation.
 fail/domains/exit_ensures_unproven rejected 1682ms expected @a9ae30e1c334+wt
 	cannot prove ensures contract for exit from Main::main at statement 0: main.player in Player::Alive
+fail/domains/fixed_byte_array_ascii_copy_no_nul rejected 818ms expected @ef7962801508
+	cannot prove default-domain field requirement for return from narrow at statement 0: source.bytes requires [u8; N]::NoNul
+fail/domains/fixed_byte_array_dynamic_candidate_membership rejected 839ms expected @bee4a8dcfd7e
+	cannot prove requires contract for call observe from main: rows[index] in [u8; N]::Utf8 in state `entry`
+fail/domains/fixed_byte_array_predicate_copy_route rejected 830ms expected @ef7962801508
+	cannot prove default-domain field requirement for return from narrow at statement 0: bytes requires [u8; N]::Issued
 fail/domains/guard_call_requires_established_membership rejected 649ms expected @dd191203ff08+wt
 	cannot prove requires contract for call amount from main: Ticket in Ticket::Issued in state `entry`
 fail/domains/implicit_semantic_domain_local_weakening rejected 828ms expected @a9ae30e1c334+wt
@@ -2264,17 +2285,69 @@ fail/domains/nested_field_domain_write_unestablished rejected 5734ms expected @a
 fail/domains/nonboolean_member_predicate rejected 841ms expected @a9ae30e1c334+wt
 	domain `Player::Odd` proof fact `player.health` must have type `bool`
 	domain `Holder::Invalid` proof fact `holder.slot.value` must have type `bool`
-fail/domains/offset_borrow_return_unestablished_field rejected 411ms expected @1e469c9b15bb
-	cannot prove default-domain field requirement for return from pick at statement 2: rows[1].labels[1].text requires [u8; N]::NonEmpty
-	cannot prove default-domain field requirement for return from pick at statement 2: bag.rows[2].labels[1].text requires [u8; N]::NonEmpty
-	cannot prove default-domain field requirement for return from pick at statement 3: bag.rows[2].labels[1].text requires [u8; N]::NonEmpty
-	cannot prove index `0` is within unknown slice length of `bag.rows[2].labels[1].text` in pick::entry
+fail/domains/offset_borrow_return_unestablished_field rejected 861ms expected @ef7962801508
+	cannot prove default-domain field requirement for return from pick at statement 2: rows[1].labels[1].text requires [u8; N]::NoNul
+	cannot prove default-domain field requirement for return from pick at statement 2: bag.rows[2].labels[1].text requires [u8; N]::NoNul
+	cannot prove default-domain field requirement for return from pick at statement 3: bag.rows[2].labels[1].text requires [u8; N]::NoNul
 fail/domains/predicate_interval_guard_too_wide rejected 1119ms expected @2012446ad74a+wt
 	cannot prove requires contract for call use_small from guarded: y in u64::Small in state `small`
 fail/domains/predicate_interval_premise_too_wide rejected 1206ms expected @2012446ad74a+wt
 	cannot prove requires contract for call use_small from relay: x in u64::Small in state `entry`
 fail/domains/predicate_interval_unread_conjunct rejected 1222ms expected @2012446ad74a+wt
 	cannot prove requires contract for call use_sparse from relay: x in u64::Sparse in state `entry`
+fail/domains/qualified_explicit_buffer_length_contract rejected 873ms expected @ef7962801508
+	cannot prove ensures contract for exit from wrong at statement 0: result.len == buffer.used
+fail/domains/qualified_explicit_buffer_write_only_invariant rejected 293ms expected @308fbdc54ba0
+	machine `corrupt` state `entry` writes through an unsupported write-only projection; accepted partial stores are a content-independent common-field path through closed invariant-free records when every field is relevant and unconstrained and the displaced leaf is an unrestricted primitive, a closed literal-ranged integer primitive proven in range at the store, an integer primitive carrying only an arithmetic-policy constraint, or a carrier qualified only by plain declared domains whose membership is proven on the stored value, a whole eligible statically discardable record or closed statically discardable material sum, or a recursively literal fixed array whose ultimate elements are unrestricted primitive scalars or statically discardable material records or sums, one relevant primitive field beneath a literal fixed-array record element, a proven-in-bounds element or statically normalized closed range of such a fixed array, or a proven-in-bounds byte element whose predicate-only fixed carrier membership is independently preserved, or a proven-in-bounds element of a direct byte slice; nested array projection, sum case/payload projection, named or non-plain domain qualification, range stores into a domain-qualified carrier, invariant-dependent, symbolic or open range, take, swap, and read-modify-write operations remain rejected
+	machine `corrupt` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
+fail/domains/qualified_explicit_buffer_write_only_replacement rejected 268ms expected @ef7962801508
+	data `Buffer` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/domains/qualified_fixed_byte_array_borrowed_short_literal rejected 70ms expected @ef7962801508
+	quoted byte literal has 5 source byte(s), but owned fixed byte array `[u8; 8][1 constraint]` requires exactly 8; fixed-array literal copying neither truncates nor pads
+fail/domains/qualified_fixed_byte_array_captured_invalid_write rejected 6932ms expected @8a2c1f68d503
+	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "write_selected", reason: "primitive write lost its exact logical byte preservation judgment", gap: None })
+fail/domains/qualified_fixed_byte_array_constructor_snapshot rejected 905ms expected @ef7962801508
+	cannot prove requires contract for call observe_after from main: row.bytes == [71, 97, 116, 101] (needs fact `bytes == "Gate"` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `checked`
+fail/domains/qualified_fixed_byte_array_constructor_stale rejected 2698ms expected @ef7962801508
+	cannot prove requires contract for call observe from main: row.bytes in [u8; N]::Utf8 in state `entry`
+fail/domains/qualified_fixed_byte_array_explicit_buffer_unbounded_count rejected 308ms expected @308fbdc54ba0
+	machine `set_count` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
+fail/domains/qualified_fixed_byte_array_immutable_parameter rejected 251ms expected @ef7962801508
+	machine `corrupt` state `entry` assignment cannot write `bytes` because it is not mutable in this state (if `bytes` is undeclared -- a typo -- no such field or local exists)
+fail/domains/qualified_fixed_byte_array_invalid_mutation rejected 840ms expected @ef7962801508
+	cannot prove default-domain field requirement for return from mutate at statement 1: bytes requires [u8; N]::Ascii
+fail/domains/qualified_fixed_byte_array_invalid_utf8 rejected 954ms expected @ef7962801508
+	cannot prove initializer of `bytes` in main is in domain `[u8; N]::Utf8`; an annotation cannot establish routed qualification
+fail/domains/qualified_fixed_byte_array_nested_zero_no_nul rejected 262ms expected @ef7962801508
+	construction of `Inner` omits gated field `bytes`: its zero-filled representation is not an established value -- initialize it explicitly
+fail/domains/qualified_fixed_byte_array_nested_zero_route rejected 251ms expected @ef7962801508
+	construction of `Inner` omits gated field `bytes`: its zero-filled representation is not an established value -- initialize it explicitly
+fail/domains/qualified_fixed_byte_array_nul_default rejected 245ms expected @ef7962801508
+	reading `bytes` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `[u8; 2][in NoNul]`
+fail/domains/qualified_fixed_byte_array_shared_local_write rejected 886ms expected @ef7962801508
+	statement 2 mutates `bytes[0]` while local borrow `view` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
+fail/domains/qualified_fixed_byte_array_short_assignment rejected 78ms expected @ef7962801508
+	quoted byte literal has 1 source byte(s), but owned fixed byte array `[u8; 2][1 constraint]` requires exactly 2; fixed-array literal copying neither truncates nor pads
+fail/domains/qualified_fixed_byte_array_short_literal rejected 72ms expected @ef7962801508
+	quoted byte literal has 3 source byte(s), but owned fixed byte array `[u8; 4][1 constraint]` requires exactly 4; fixed-array literal copying neither truncates nor pads
+fail/domains/qualified_fixed_byte_array_utf8_alias rejected 933ms expected @ef7962801508
+	cannot prove default-domain field requirement for return from mutate at statement 3: buffer.bytes requires [u8; N]::Utf8
+fail/domains/qualified_fixed_byte_array_utf8_split rejected 1034ms expected @ef7962801508
+	cannot prove default-domain field requirement for return from mutate at statement 2: buffer.bytes requires [u8; N]::Utf8
+fail/domains/qualified_fixed_byte_array_utf8_stale rejected 978ms expected @ef7962801508
+	cannot prove default-domain field requirement for return from mutate at statement 4: buffer.bytes requires [u8; N]::Utf8
+fail/domains/qualified_fixed_byte_array_view_element_missing_membership rejected 972ms expected @ef7962801508
+	cannot prove default-domain field requirement for return from copy at statement 1: item.name.storage requires [u8; N]::Ascii
+fail/domains/qualified_fixed_byte_array_write_only_invalid rejected 997ms expected @ef7962801508
+	cannot prove default-domain field requirement for return from fill at statement 2: buffer.bytes requires [u8; N]::Utf8
+fail/domains/qualified_fixed_byte_array_write_only_predicate rejected 295ms expected @ef7962801508
+	machine `inspect` state `entry` reads write-only parameter `bytes`; `&write` permits replacement or exact `&write` forwarding, never observation
+fail/domains/qualified_fixed_byte_array_write_only_read rejected 280ms expected @ef7962801508
+	machine `observe` state `entry` reads through index projection of write-only parameter `buffer`; `&write` permits admitted fixed-array element replacement but never observation
+fail/domains/qualified_fixed_byte_array_write_only_split rejected 894ms expected @ef7962801508
+	cannot prove default-domain field requirement for return from fill at statement 2: buffer.bytes requires [u8; N]::Utf8
+fail/domains/qualified_fixed_vec_byte_view_overflow rejected 3043ms expected @ef7962801508
+	cannot prove requires contract for call live from main: vector.length <= 8 (needs fact `vector.length <= 8` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/domains/qualified_mutable_invalid_field rejected 106ms expected @dca1c7cd7e6f+wt
 	reading `packet.<whole value>` crosses an open default-domain invariant window before data `Packet` is established: the zeroed representation is not yet a `Packet` (ch12's access gate) -- construct it on every path first (the cross-state must-analysis carries establishment)
 fail/domains/qualified_record_authored_arithmetic rejected 925ms expected @868a854ecd4d+wt
@@ -2306,12 +2379,18 @@ fail/domains/qualified_record_uninitialized rejected 215ms expected @868a854ecd4
 	reading `handle` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `Handle[in Open]`
 fail/domains/qualified_record_unknown_case rejected 790ms expected @868a854ecd4d+wt
 	cannot prove default-domain field requirement for return from issue_handle at statement 0: Handle requires Handle::Open
+fail/domains/qualified_record_view_state_arrival_missing_membership rejected 1256ms expected @c927cf332246
+	cannot prove default-domain field requirement for return from copy at statement 0: room.label.storage requires [u8; N]::Ascii
 fail/domains/qualified_record_wrapped_arithmetic rejected 775ms expected @868a854ecd4d+wt
 	cannot prove default-domain field requirement for return from issue_handle at statement 0: Handle requires Handle::Open
 fail/domains/qualified_scalar_field_invalid_store rejected 642ms expected @8d3a0acb500a+wt
 	cannot prove assignment value `0` satisfies bounded target `observation.count` in `main.entry`; expected 1..=2147483647
 fail/domains/qualified_scalar_record_call_unestablished rejected 1496ms expected @a9ae30e1c334+wt
 	cannot prove requires contract for call make_gauge from invalid: 5 in i32::NotFive
+fail/domains/qualified_selected_byte_write_invalid_ascii rejected 6716ms expected @308fbdc54ba0
+	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "main", reason: "primitive write lost its exact logical byte preservation judgment", gap: None })
+fail/domains/qualified_selected_byte_write_split_utf8 rejected 6517ms expected @308fbdc54ba0
+	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "main", reason: "primitive write lost its exact logical byte preservation judgment", gap: None })
 fail/domains/qualified_view_live_owner_consumed rejected 592ms expected @5797c45a64c3+wt
 	state `close` receives an owned value while local borrow `view` is still active (borrowed at statement 1; its last use is at statement 3)
 fail/domains/qualified_view_unissued rejected 592ms expected @5797c45a64c3+wt
@@ -2333,6 +2412,12 @@ fail/domains/refinement_chain_routed_provenance_forge rejected 1548ms expected @
 fail/domains/result_domain_overload_duplicate_predicate rejected 784ms expected @a9ae30e1c334+wt
 	duplicate named machine overload `convert` with parameter signature `parameter(mutable(no),const(no),named(name(i32)))` and result dispatch set `<empty>`; predicate-only result refinements do not distinguish overloads
 	machine `convert` state `entry` return value returns a value not provably within its declared range: callers rely on the declared `[a..=b]` for exact arithmetic on the result, so the returned value must be proven to honor it (decision 17). Constrain the returned value, or widen/remove the return range constraint.
+fail/domains/returned_fixed_array_ascii_write_invalidates rejected 1096ms expected @308fbdc54ba0
+	cannot prove requires contract for call length from corrupt: owner in [u8; N]::Ascii (invalidated by prior mutation of owner[0]; owner is part of [u8; N]::Ascii) in state `entry`
+fail/domains/returned_fixed_array_utf8_split_invalidates rejected 1167ms expected @8a2c1f68d503
+	cannot prove requires contract for call length from corrupt: owner in [u8; N]::Utf8 (invalidated by prior mutation of owner[0]; owner is part of [u8; N]::Utf8) in state `entry`
+fail/domains/returned_record_scalar_predicate_invalidation rejected 298ms expected @308fbdc54ba0
+	machine `corrupt` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
 fail/domains/routed_domain_as_rejected rejected 902ms expected @a9ae30e1c334+wt
 	`as ... in Issued` cannot establish a non-vacuous domain; every predicate must be proved and routed provenance must come from an exact requirement authorized by the domain
 fail/domains/routed_domain_bare_argument rejected 1275ms expected @2012446ad74a+wt
@@ -2350,6 +2435,9 @@ fail/domains/semantic_predicate_domain_call_false rejected 1154ms expected @8961
 	cannot prove requires contract for call measure from main: 0 in u64::Distance in state `entry`
 fail/domains/semantic_record_domain_call_false rejected 1254ms expected @896172b5d9d8+wt
 	cannot prove requires contract for call combine from main: Quantity in Quantity::Additive in state `entry`
+fail/domains/structural_constructor_predicate_unsatisfied rejected 1182ms expected @308fbdc54ba0
+	cannot prove default-domain field requirement for return from produce at statement 0: Payload requires Payload::Ready
+	construction value is not proven in domain `Payload::Ready`
 fail/domains/structural_predicate_cast_false rejected 1417ms expected @2012446ad74a+wt
 	`as ... in Quantity::Additive` cannot prove every domain predicate from the checked operand value; constrain that value with a guarantee or guard
 fail/domains/structural_predicate_cast_routed rejected 235ms expected @2012446ad74a+wt
@@ -3506,6 +3594,8 @@ fail/modules/private_generic_dependency rejected 5425ms expected @a9ae30e1c334+w
 	package `private_generic_dependency` (0101010101010101010101010101010101010101010101010101010101010101) selects private machine `values::Window::range$specialized$accfc01a22f6af21$0`
 fail/modules/runtime_fixed_array_index rejected 18ms expected @a9ae30e1c334+wt
 	const argument expression: machine index operand must select a constant in its original lexical scope; runtime locals, parameters and open binders cannot be evaluated
+fail/modules/same_name_record_field_extent rejected 3270ms expected @308fbdc54ba0
+	cannot prove index `3` is within length 2
 fail/modules/same_name_service_callback_wrong_owner rejected 434ms expected @a27dad2ed102+wt
 	machine argument `selected` for `apply` does not refine `Selected`: service reach `Sink` exceeds its authored ceiling
 fail/modules/selected_constant_array_alias_policy_mismatch rejected 30ms expected @a9ae30e1c334+wt
@@ -3744,6 +3834,10 @@ fail/ownership/reconstructed_case_write_keeps_linear_debt rejected 1633ms expect
 	linear value `returned.slot::Held.token` reaches scope exit without being consumed or transferred
 fail/ownership/reconstructed_unknown_case_keeps_linear_debt rejected 1557ms expected @a9ae30e1c334+wt
 	linear value `returned.slot::Held.token` reaches scope exit without being consumed or transferred
+fail/ownership/runtime_singleton_selector_moved_element rejected 2270ms expected @8a2c1f68d503
+	cannot use `tokens[index]` in machine `main` state `entry` (statement 3) after `tokens[0]` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `tokens[0]` first
+fail/ownership/runtime_unknown_selector_partial_cleanup rejected 2596ms expected @8a2c1f68d503
+	cleanup effect dependency in `replace` has no exact structural residual disposition
 fail/ownership/runtime_window_fixed_observation rejected 1190ms expected @a9ae30e1c334+wt
 	cannot use `tokens[0].byte` while `tokens[index]` is absent from borrowed storage: the value moved out at statement 1 must be restored first
 fail/ownership/scalar_return_keeps_linear_obligation rejected 435ms expected @dd6871ed0476
@@ -4144,6 +4238,17 @@ fail/providers/applied_binding_field_wrong_receiver rejected 7284ms expected @23
 	no provider is selected for boundary requirement `Reading::read`, which the program entry reaches on target `macos_arm64`
 fail/providers/applied_binding_mutable_result_live_source_write rejected 1577ms expected @a9ae30e1c334+wt
 	statement 1 mutates `value` while local borrow `borrowed` is still active (borrowed at statement 0; its last use is at statement 2 and it is released at state exit)
+fail/providers/applied_requirement_call_argument_count rejected 318ms expected @308fbdc54ba0
+	state `mutate` expects 1 argument(s), got 2
+fail/providers/applied_requirement_call_const_kind rejected 300ms expected @308fbdc54ba0
+	const parameter `Count` of `Parent` requires an integer literal argument or an in-scope const parameter, got `bool`
+fail/providers/applied_requirement_call_const_overflow rejected 329ms expected @308fbdc54ba0
+	const argument `256` for `Parent::Count` does not fit `u8`
+fail/providers/applied_requirement_call_property_bound rejected 294ms expected @308fbdc54ba0
+	type parameter `Value [copy]` of `Parent` was instantiated with `Token`, which does not satisfy `[copy]`
+fail/providers/applied_requirement_call_shared_argument_for_mutable rejected 373ms expected @308fbdc54ba0
+	argument `value` for state `touch` is declared `&mut` (`&mut i32`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
+	argument `value` for state `mutate` is declared `&mut` (`&mut i32`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
 fail/providers/applied_requirement_mutable_result_shared_source rejected 919ms expected @a9ae30e1c334+wt
 	argument `value` for state `borrow_mut` is declared `&mut` (`&mut i32`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
 fail/providers/applied_binding_unused_const_carrier rejected 868ms expected @a9ae30e1c334+wt
@@ -4162,8 +4267,8 @@ fail/providers/borrowed_binding_local_fabricated_carrier rejected 123ms expected
 	opaque boundary data `Binding` has no public constructor; a boundary provider must establish its values
 fail/providers/boundary_lent_linear_satisfier_narrowed rejected 939ms expected @a8e8aff75d6e+wt
 	machine `TokenScaleProvider::weigh` state `weigh` does not satisfy trait `TokenScale` machine `weigh` parameter `token`: expected `&Token`, got `&Token[in Token::Issued]`
-fail/providers/boundary_operator_without_provider rejected 5915ms expected @b8976916d516+wt
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(Integer::equal),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)\\,parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
+fail/providers/boundary_operator_without_provider rejected 6595ms expected @308fbdc54ba0
+	no provider is selected for boundary requirement `Integer::equal`, which the program entry reaches on target `windows_x86_64`
 fail/providers/carry_external_issuance_unadmitted rejected 294ms expected @3e583b96cb82
 	external machine `issue` cannot directly admit carry permission `Carry::AcrossSuspend`; publish it on an owner-authorized boundary trait requirement and satisfy that requirement through the provider
 fail/providers/checked_boundary_operator_const_application_unselected rejected 4143ms expected @4ffd613e37f1
@@ -4174,10 +4279,10 @@ fail/providers/checked_view_provider_wrong_extent rejected 271ms expected @71e65
 	provider machine `Provider::at` for top-level boundary requirement `Window::at` does not refine `Window::at`: its requires facts are not a conservative refinement
 fail/providers/computed_binding_receiver_fabricated_carrier rejected 3603ms expected @a9ae30e1c334+wt
 	opaque boundary data `Binding` has no public constructor; a boundary provider must establish its values
-fail/providers/consuming_requirement_without_provider rejected 23449ms expected @a9ae30e1c334+wt
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(Receipt::ack),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(Receipt\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
-fail/providers/consuming_trait_requirement_without_provider rejected 15803ms expected @8df1d091a810
-	selected ProgramEntry Binding field `Main::acknowledgement` requires a selected Fused provider for boundary `Acknowledgement`
+fail/providers/consuming_requirement_without_provider rejected 5554ms expected @308fbdc54ba0
+	no provider is selected for boundary requirement `Receipt::ack`, which the program entry reaches on target `windows_x86_64`
+fail/providers/consuming_trait_requirement_without_provider rejected 6626ms expected @308fbdc54ba0
+	no provider is selected for boundary requirement `Acknowledgement::ack`, which the program entry reaches on target `windows_x86_64`
 fail/providers/external_boundary_requires_preserved rejected 3059ms expected @5aabaabbdd54+wt
 	machine `Main::main` state `main` value call to `absolute` violates required fact `value > -2147483648`: the instantiated fact is structurally false (`-2147483648 > -2147483648`)
 fail/providers/finite_requirement_boolean_outside_roster rejected 3413ms expected @a9ae30e1c334+wt
@@ -4192,8 +4297,8 @@ fail/providers/foreign_address_fixed_carrier_mismatch rejected 1324ms expected @
 	provider machine `Imports::release` for top-level boundary requirement `AddressProbe::release` parameter 0 expects `pointer: addr`, got `pointer: u64`
 fail/providers/inherited_applied_binding_ambiguous_ancestors rejected 61ms expected @fa48d7bba308+wt
 	dynamic call `Child::read` is ambiguous across inherited requirements: First::read, Second::read
-fail/providers/applied_requirement_unselected_ancestor_application rejected 22809ms expected @a9ae30e1c334+wt
-	selected ProgramEntry Binding field `Main::parent` requires a selected Fused provider for boundary `Parent`
+fail/providers/applied_requirement_unselected_ancestor_application rejected 6555ms expected @308fbdc54ba0
+	no provider is selected for boundary requirement `Parent::read`, which the program entry reaches on target `macos_arm64`
 fail/providers/inherited_boundary_private_field_postcondition rejected 3340ms expected @fa48d7bba308+wt
 	cannot prove index `main.counter.count` is within length 4 in Main::main::main
 fail/providers/inherited_provider_competing_authored_maps rejected 3507ms expected @fa48d7bba308+wt
@@ -4290,12 +4395,18 @@ fail/range/nested_array_element_view_out_of_bounds rejected 1621ms expected @a9a
 	cannot prove index `2` is within length 2
 fail/range/refined_element_view_outside_field_domain rejected 892ms expected @a9ae30e1c334+wt
 	machine `store` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
+fail/ranges/array_window_copy_requires_element_qualification rejected 313ms expected @308fbdc54ba0
+	array window replacement source must preserve the complete destination element type, including its qualifications
+fail/ranges/borrowed_array_literal_element_out_of_range rejected 311ms expected @308fbdc54ba0
+	cannot prove initializer `3` satisfies the bounded value of machine `bad` state `entry` array element 1; expected 0..=2
 fail/ranges/case_payload_domain_literal_out_of_range rejected 2935ms expected @a9ae30e1c334+wt
 	construction of `Level` field `amount`: value 11 is outside its declared range `0..=10`
 fail/ranges/index_signed_guard_below_zero rejected 5864ms expected @a9ae30e1c334+wt
 	cannot prove index `main.j` is non-negative (>= 0)
 fail/ranges/loop_increment_index_unbounded rejected 5723ms expected @a9ae30e1c334+wt
 	cannot prove index `main.i` is within length 4 in Main::main::body
+fail/ranges/qualified_array_literal_element_full_width_out_of_range rejected 319ms expected @308fbdc54ba0
+	cannot prove initializer `18446744073709551615` satisfies the bounded value of machine `bad` state `entry` array element 0; expected 0..=9223372036854775808
 fail/ranges/relative_midpoint_at_slice_end rejected 526ms expected @4c1d863a7eae+wt
 	cannot prove index `position` is within unknown slice length of `values` in read::entry
 fail/ranges/slice_bound_unbound_container_binder_rejected rejected 1656ms expected @a9ae30e1c334+wt
@@ -4511,12 +4622,12 @@ fail/slices/nested_descriptor_shared_write rejected 164ms expected @7ba26861e79c
 	machine `store` state `entry` assignment requires mutable source access through every reference crossed by its destination
 fail/slices/nested_descriptor_sibling_length rejected 568ms expected @7ba26861e79c+wt
 	cannot prove index `position` is within unknown slice length of `windows[selected].values` in store::entry
-fail/slices/nested_stored_view_local_escape rejected 632ms expected @f329f97f57f7+wt
-	machine `escape` returns a view borrowing the local `windows`, which does not outlive the call; return a view of storage that outlives the invocation instead
+fail/slices/nested_stored_view_local_escape rejected 1097ms expected @8a2c1f68d503
+	machine `escape` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 fail/slices/noncopy_array_view_keeps_backing_loan rejected 1721ms expected @a9ae30e1c334+wt
 	statement 1 mutates `main.entries[1].value` while local borrow `view` is still active (borrowed at statement 0; its last use is at statement 2 and it is released at state exit)
-fail/slices/nonempty_subslice_empty_range rejected 1633ms expected @a9ae30e1c334+wt
-	cannot prove requires contract for call inspect from relay: bytes[0..0] in [u8]::Nonempty
+fail/slices/nonempty_subslice_empty_range rejected 922ms expected @ef7962801508
+	cannot prove requires contract for call inspect from relay: bytes[0..0] in [u8]::Nonempty in state `entry`
 fail/slices/overlapping_mut_subslice_windows_rejected rejected 1612ms expected @a9ae30e1c334+wt
 	statement 2 creates local borrow `b` while local borrow `a` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
 	statement 3 reads `a.unknown` while local borrow `b` is still active (borrowed at statement 2)
@@ -4550,6 +4661,8 @@ fail/slices/replaced_stored_view_requires_fresh_bound rejected 628ms expected @f
 	cannot prove index `position` is within unknown slice length of `window.cells` in replace::entry
 fail/slices/result_length_contract_requires_returned_view rejected 1531ms expected @a9ae30e1c334+wt
 	cannot prove ensures contract for exit from bogus at statement 0: result.len == 2
+fail/slices/retired_collection_view_receiver rejected 308ms expected @308fbdc54ba0
+	machine `Main::main` state `main`: value call `entries.as_slice(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
 fail/slices/returned_mutable_slice_local_escape rejected 1702ms expected @a9ae30e1c334+wt
 	machine `escape` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 fail/slices/returned_mutable_slice_overlapping_arguments rejected 1617ms expected @a9ae30e1c334+wt
@@ -4607,10 +4720,15 @@ fail/slices/stored_shared_view_mutable_call rejected 151ms expected @ef9160ae9c0
 	argument `values` for state `entry` is declared `&mut` (`&mut [i32]`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
 fail/slices/stored_view_alias_replacement_bounds rejected 540ms expected @ef9160ae9c0b+wt
 	cannot prove index `position` is within unknown slice length of `alias.values` in replace::entry
+fail/slices/stored_view_backing_mutated_while_returned_live rejected 1212ms expected @308fbdc54ba0
+	statement 4 mutates `original[0].value` while local borrow `windows` is still active (borrowed at statement 2; its last use is at statement 5)
+	statement 4 mutates `original[0].value` while local borrow `returned` is still active (borrowed at statement 3; its last use is at statement 5)
 fail/slices/stored_view_callee_changed_selector_bounds rejected 499ms expected @ef9160ae9c0b+wt
 	cannot prove index `0` is within unknown slice length of `output.values` in overwrite::entry
 fail/slices/stored_view_changed_selector_bounds rejected 544ms expected @ef9160ae9c0b+wt
 	cannot prove index `0` is within unknown slice length of `output.values` in overwrite::entry
+fail/slices/stored_view_container_read_while_returned_live rejected 1198ms expected @308fbdc54ba0
+	state `observe` receives `windows[1].values` while local borrow `returned` is still active (borrowed at statement 3; its last use is at statement 5)
 fail/slices/stored_write_only_view_mutable_call rejected 156ms expected @ef9160ae9c0b+wt
 	machine `misuse` state `entry` observes write-only referent through a selected value; `&write` permits replacement or exact `&write` forwarding, never observation
 	data `Output` field `values` uses `&write` outside the checked direct callable and local view surface; write-only stored fields and nested generic arguments are not implemented yet
@@ -4647,8 +4765,8 @@ fail/structural/primitive_array_snapshot_index_out_of_bounds rejected 1778ms exp
 	cannot prove index `2` is within length 2
 fail/structural/primitive_array_snapshot_shared_receiver rejected 921ms expected @a9ae30e1c334+wt
 	argument `main` for state `swap` is declared `&mut` (`&mut Main`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
-fail/targets/called_opaque_family_without_provider rejected 22116ms expected @a9ae30e1c334+wt
-	native artifact terminal-authority closure review failed: reachable requirement `emit` resolves to 0 selected provider rows
+fail/targets/called_opaque_family_without_provider rejected 6586ms expected @308fbdc54ba0
+	no provider is selected for boundary requirement `emit`, which the program entry reaches on target `macos_arm64`
 fail/targets/closed_generic_attached_family_duplicate_rejected rejected 45ms expected @a9ae30e1c334+wt
 	machine `Cell::read` is implemented twice for `linux_x86_64` -- a target supplies exactly one implementation of a contract machine
 fail/targets/distinct_roots_exclusion_selected_body rejected 12971ms expected @ad0459650859+wt
@@ -4929,17 +5047,17 @@ fail/termination/wrapping_subject_unguarded_decrement rejected 548ms expected @3
 fail/termination/zero_local_does_not_decrease_rank rejected 1234ms expected @3d664be0c918+wt
 	terminating machine countdown: cannot prove strict rank decrease on a recurrent arrival: the transition from `countdown` back to itself is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step
 	machine call cycle: `countdown` -- a member lacks a source-complete ranking witness; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
-fail/text/borrowed_bounded_byte_invariant_write rejected 3611ms expected @a9ae30e1c334+wt
-	cannot prove requires contract for call write from corrupt: bytes in [u8; N]::Ascii (invalidated by prior mutation of bytes[0]; bytes is part of [u8; N]::Ascii)
+fail/text/borrowed_bounded_byte_invariant_write rejected 2152ms expected @ef7962801508
+	cannot prove requires contract for call write from corrupt: bytes in [u8; N]::Ascii (invalidated by prior mutation of bytes[0]; bytes is part of [u8; N]::Ascii) in state `write`
 	cannot prove default-domain field requirement for return from corrupt at statement 2: bytes requires [u8; N]::Ascii
-fail/text/borrowed_byte_snapshot_missing_predicate rejected 1741ms expected @bb086b40ea65+wt
-	cannot prove the value assigned to `output` in copy is in domain `[u8; N]::SnapshotUtf8`; a place declared `in [u8; N]::SnapshotUtf8` requires every write to be established in that domain (pass a value already proven in the domain, or a literal its byte-predicate fact accepts)
-fail/text/borrowed_byte_snapshot_reseated_descriptor rejected 1409ms expected @bb086b40ea65+wt
-	cannot bound the maximum byte length of the value assigned to `output` in copy; a bounded `[u8; 16]` text carrier requires a write whose length is statically bounded (a literal, a concatenation of bounded operands, or another bounded carrier) so it provably fits
-fail/text/borrowed_byte_snapshot_unbounded rejected 1443ms expected @bb086b40ea65+wt
-	cannot bound the maximum byte length of the value assigned to `output` in copy; a bounded `[u8; 16]` text carrier requires a write whose length is statically bounded (a literal, a concatenation of bounded operands, or another bounded carrier) so it provably fits
-fail/text/bounded_carrier_growth_overflow_rejected rejected 5438ms expected @a9ae30e1c334+wt
-	the value assigned to `main.line` in Main::main can be up to 18 byte(s), exceeding the 16-byte capacity of its `[u8; 16]` carrier; a bounded text carrier requires every write to provably fit
+fail/text/borrowed_byte_snapshot_missing_predicate rejected 1403ms expected @308fbdc54ba0
+	cannot prove requires contract for call snapshot from copy: text in [u8]::SnapshotUtf8 in state `entry`
+fail/text/borrowed_byte_snapshot_reseated_descriptor rejected 1334ms expected @308fbdc54ba0
+	cannot prove requires contract for call snapshot from copy: observed.len <= 16 (needs fact `text.len <= 16` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/text/borrowed_byte_snapshot_unbounded rejected 1265ms expected @308fbdc54ba0
+	cannot prove requires contract for call snapshot from copy: text.len <= 16 (needs fact `text.len <= 16` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/text/bounded_carrier_growth_overflow_rejected rejected 2304ms expected @ef7962801508
+	cannot prove requires contract for call append from main: [111, 109, 101, 103, 97].len <= 16 - buffer.used (needs fact `bytes.len <= 16 - buffer.used` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/text/byte_field_snapshot_domain_widening rejected 5174ms expected @a9ae30e1c334+wt
 	cannot prove default-domain field requirement for return from snapshot at statement 0: row.text requires [u8; N]::Ascii
 fail/text/carrier_length_cross_carrier_store rejected 2762ms expected @a9ae30e1c334+wt
@@ -4948,29 +5066,38 @@ fail/text/concatenation_into_borrowed_view_rejected rejected 5565ms expected @a9
 	the concatenation stored into `out_line` in Main::main establishes owned bytes, but `out_line` is a borrowed `&[u8]` view that cannot hold them; store the concatenation into a bounded `[u8; N]` carrier whose capacity bounds both operands
 fail/text/element_guard_other_index_unbounded rejected 812ms expected @a9ae30e1c334+wt
 	exact arithmetic in machine `digit` state `entry` return value may overflow `u8`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u8 in Wrapping`/`Saturating`/`Trapping`).
-fail/text/inline_byte_case_requires_field_domain rejected 415ms expected @4dc4eabb2a0d+wt
+fail/text/inline_byte_case_requires_field_domain rejected 1151ms expected @8a2c1f68d503
+	construction value is not proven in domain `[u8; N]::Ascii`
 	construction of `Reply` field `content` is not proven in domain `[u8; N]::Ascii`; a field declared `in [u8; N]::Ascii` requires every construction value to be established in that domain (construct with a literal its byte-predicate fact accepts, or a value already proven in the domain)
 fail/text/later_arm_guard_read_unbounded rejected 1517ms expected @a9ae30e1c334+wt
 	cannot prove index `index` is within unknown slice length of `text` in at_space::entry
-fail/text/local_record_byte_field_replacement_breaks_domain rejected 5052ms expected @a9ae30e1c334+wt
+fail/text/local_record_byte_field_replacement_breaks_domain rejected 3143ms expected @308fbdc54ba0
 	cannot prove the value assigned to `row.text` in main is in domain `[u8; N]::Ascii`; a place declared `in [u8; N]::Ascii` requires every write to be established in that domain (pass a value already proven in the domain, or a literal its byte-predicate fact accepts)
-fail/text/owned_byte_parameter_write_breaks_domain rejected 1660ms expected @a9ae30e1c334+wt
-	cannot prove requires contract for call observe from corrupt: bytes in [u8; N]::Ascii (invalidated by prior mutation of bytes[0]; bytes is part of [u8; N]::Ascii)
-fail/text/qualified_byte_alias_replacement_invalid_encoding rejected 869ms expected @4738db50c6db+wt
+	construction value is not proven in domain `[u8; N]::Ascii`
+fail/text/owned_byte_parameter_write_breaks_domain rejected 1190ms expected @308fbdc54ba0
+	cannot prove requires contract for call observe from corrupt: bytes in [u8; N]::Ascii (invalidated by prior mutation of bytes[0]; bytes is part of [u8; N]::Ascii) in state `rewrite`
+fail/text/qualified_byte_alias_replacement_invalid_encoding rejected 1198ms expected @308fbdc54ba0
 	cannot prove the value assigned to `line` in Main::main is in domain `[u8; N]::Utf8`; a place declared `in [u8; N]::Utf8` requires every write to be established in that domain (pass a value already proven in the domain, or a literal its byte-predicate fact accepts)
-fail/text/qualified_byte_array_element_domain rejected 426ms expected @c0d817d0e753+wt
-	cannot prove default-domain field requirement for return from bad at statement 0: ["a", "\\xc3\\xa9"][1] requires [u8; N]::Ascii
-fail/text/qualified_byte_array_element_replacement rejected 470ms expected @c0d817d0e753+wt
+	construction value is not proven in domain `[u8; N]::Utf8`
+fail/text/qualified_byte_array_element_domain rejected 1231ms expected @308fbdc54ba0
+	cannot prove default-domain field requirement for return from bad at statement 0: [[97, 0], [195, 169]][1] requires [u8; N]::Ascii
+	construction value is not proven in domain `[u8; N]::Ascii`
+fail/text/qualified_byte_array_element_replacement rejected 1101ms expected @308fbdc54ba0
 	cannot prove the value assigned to `entries[1]` in corrupt is in domain `[u8; N]::Ascii`; a place declared `in [u8; N]::Ascii` requires every write to be established in that domain (pass a value already proven in the domain, or a literal its byte-predicate fact accepts)
-fail/text/qualified_byte_array_mutable_domain_loss rejected 449ms expected @c0d817d0e753+wt
-	cannot prove requires contract for call replace from bad: entries[1] in [u8; N]::Utf8
+	construction value is not proven in domain `[u8; N]::Ascii`
+fail/text/qualified_byte_array_mutable_domain_loss rejected 896ms expected @ef7962801508
 	cannot prove default-domain field requirement for return from bad at statement 1: entries[1] requires [u8; N]::Ascii
 fail/text/qualified_byte_owner_state_loan_breaks_domain rejected 3491ms expected @8df1d091a810
 	cannot prove requires contract for call step from Main::main: output in [u8; N]::Utf8 (invalidated by prior mutation of output[__hoist_32]; output is part of [u8; N]::Utf8) in state `shift`
-fail/text/qualified_byte_state_domain_widening rejected 4955ms expected @a9ae30e1c334+wt
-	cannot prove requires contract for call narrowed from relay: value in [u8; N]::Ascii
-fail/text/qualified_local_byte_alias_replacement_invalid_encoding rejected 898ms expected @4738db50c6db+wt
+fail/text/qualified_byte_state_domain_widening rejected 2866ms expected @308fbdc54ba0
+	cannot prove requires contract for call narrowed from relay: value in [u8; N]::Ascii in state `entry`
+fail/text/qualified_local_byte_alias_replacement_invalid_encoding rejected 1168ms expected @308fbdc54ba0
 	cannot prove the value assigned to `alias` in main is in domain `[u8; N]::Utf8`; a place declared `in [u8; N]::Utf8` requires every write to be established in that domain (pass a value already proven in the domain, or a literal its byte-predicate fact accepts)
+	construction value is not proven in domain `[u8; N]::Utf8`
+fail/text/qualified_owner_reference_corruption rejected 1257ms expected @308fbdc54ba0
+	cannot prove default-domain field requirement for return from corrupt at statement 1: held.bytes requires [u8; N]::Utf8
+fail/text/stored_field_reference_domain_loss rejected 1162ms expected @308fbdc54ba0
+	cannot prove default-domain field requirement for return from bad at statement 2: container.bytes requires [u8; N]::Ascii
 fail/time/duration_constant_unnormalized rejected 33ms expected @ea68f95d0acea7b04f53f3efe179629294cb3491
 	constant `INVALID` is invalid: data constant `Duration` violates its default-domain predicate
 fail/time/instant_constant_unnormalized rejected 33ms expected @2ed2725134e877372235f00d3ce5c1602f59468c
@@ -5336,6 +5463,7 @@ pass/arrays/local_record_array_guard_exit checked 10371ms check-target:macos_arm
 pass/arrays/qualified_array_literal checked 9707ms @5041ef1af684+wt
 pass/arrays/qualified_array_literal_retains_element_policy_exit checked 10270ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/arrays/record_array_literal checked 9777ms @5041ef1af684+wt
+pass/arrays/runtime_completed_array_window_replacement_exit checked 6861ms check-target:macos_arm64 @308fbdc54ba0
 pass/arrays/runtime_computed_float_element_store_exit checked 12987ms check-target:macos_arm64 @589aedee8ebc+wt
 pass/arrays/runtime_index_recast checked 12378ms @5041ef1af684+wt
 pass/arrays/subject_field_where_index checked 9537ms @5041ef1af684+wt
@@ -5397,6 +5525,7 @@ pass/borrow/runtime_write_only_exclusive_reference_projected_exit checked 5601ms
 pass/borrow/runtime_write_only_exclusive_reference_returned_view_exit checked 5564ms check-target:macos_arm64 @af6b0f221559+wt
 pass/borrow/runtime_write_only_indexed_record_copy_exit checked 5706ms check-target:macos_arm64 @af6b0f221559+wt
 pass/borrow/runtime_write_only_local_affine_aggregate_exit checked 5644ms check-target:macos_arm64 @af6b0f221559+wt
+pass/borrow/runtime_write_only_qualified_array_element_exit checked 6964ms check-target:macos_arm64 @308fbdc54ba0
 pass/borrow/runtime_write_only_record_array_argument_exit checked 5550ms check-target:macos_arm64 @af6b0f221559+wt
 pass/borrow/runtime_write_only_reference_aggregate_alias_exit checked 6207ms check-target:macos_arm64 @af6b0f221559+wt
 pass/borrow/runtime_write_only_reference_aggregate_array_alias_exit checked 6003ms check-target:macos_arm64 @af6b0f221559+wt
@@ -5513,6 +5642,7 @@ pass/borrows/runtime_constructed_reference_array_restoration_exit checked 11074m
 pass/borrows/runtime_copied_byte_distinct_epochs_exit checked 10345ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_copied_byte_predicate_snapshot_exit checked 10420ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_copied_range_record_domains_exit checked 10311ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/borrows/runtime_copyable_carrier_retirement_exit checked 7728ms check-target:macos_arm64 @8a2c1f68d503
 pass/borrows/runtime_cyclic_field_loan_release_exit checked 10991ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_direct_immutable_scalar_loan_exit checked 10347ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_discarded_reference_release_exit checked 11161ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -5523,6 +5653,7 @@ pass/borrows/runtime_forwarded_primitive_state_loan_exit checked 11194ms check-t
 pass/borrows/runtime_forwarded_reference_array_bounded_read_exit checked 11052ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_forwarded_view_field_domain_exit checked 11335ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_guarded_local_byte_loan_exit checked 5846ms check-target:macos_arm64 @589aedee8ebc+wt
+pass/borrows/runtime_independent_qualified_owner_reference_exit checked 6521ms check-target:macos_arm64 @308fbdc54ba0
 pass/borrows/runtime_index_mut_loan_write_exit checked 10934ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_indexed_bounded_primitive_loan_write_exit checked 19829ms check-target:macos_arm64 @1b12798e27f4
 pass/borrows/runtime_indexed_carrier_bounded_reference_read_exit checked 11096ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -5550,11 +5681,14 @@ pass/borrows/runtime_nested_reference_array_bounded_read_exit checked 10949ms ch
 pass/borrows/runtime_nested_reference_partition_exit checked 2973ms check-target:macos_arm64 @b5b743bb02aa+wt
 pass/borrows/runtime_nested_reference_record_direct_payload_restoration_exit checked 11079ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_owned_reference_carrier_scalar_operand_exit checked 4208ms check-target:macos_arm64 @dd6871ed0476
+pass/borrows/runtime_partial_reference_partition_exit checked 7334ms check-target:macos_arm64 @8a2c1f68d503
 pass/borrows/runtime_projected_call_loan_custody_exit checked 2981ms check-target:macos_arm64 @b5b743bb02aa+wt
 pass/borrows/runtime_projected_fixed_byte_array_local_exit checked 4988ms check-target:macos_arm64 @77acc22653d9
 pass/borrows/runtime_projected_reference_call_return_exit checked 10339ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/borrows/runtime_projected_reference_partition_exit checked 6606ms check-target:macos_arm64 @308fbdc54ba0
 pass/borrows/runtime_projected_view_observations_exit checked 3460ms check-target:macos_arm64 @54d47902d575+wt
 pass/borrows/runtime_qualified_byte_argument_snapshot_exit checked 11337ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/borrows/runtime_qualified_owner_reference_storage_exit checked 8208ms check-target:macos_arm64 @308fbdc54ba0
 pass/borrows/runtime_reassigned_view_capture_exit checked 4224ms check-target:macos_arm64 @eee96af606fc+wt
 pass/borrows/runtime_reassigned_view_return_exit checked 4368ms check-target:macos_arm64 @eee96af606fc+wt
 pass/borrows/runtime_recast_mut_loan_field_write_exit checked 10996ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -5822,6 +5956,7 @@ pass/calls/runtime_authored_numeric_names_exit checked 19576ms check-target:maco
 pass/calls/runtime_boolean_result_across_console_exit checked 11214ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_borrowed_binding_field_state_loan_exit checked 10907ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_borrowed_float_formal_exchange_exit checked 13144ms check-target:macos_arm64 @9c4d1c444502
+pass/calls/runtime_borrowed_parameter_ensures_issuer_exit checked 6696ms check-target:macos_arm64 @308fbdc54ba0
 pass/calls/runtime_boundary_computed_selector_order_exit checked 11743ms check-target:macos_arm64 @b1d84da832b5+wt
 pass/calls/runtime_boundary_loop_projected_subslice_exit checked 11119ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_boundary_projected_mutable_subslice_exit checked 10940ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -7337,6 +7472,8 @@ pass/modules/runtime_named_extent_generic_copy_exit checked 20629ms check-target
 pass/modules/runtime_nominal_constant_lexical_ownership_exit checked 16334ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/modules/runtime_public_generic_dependency_exit checked 3592ms check-target:macos_arm64 @92558d90488a+wt
 pass/modules/runtime_qualified_static_mutation_exit checked 11682ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/modules/same_name_generic_record_operator_exit checked 6385ms check-target:macos_arm64 @308fbdc54ba0
+pass/modules/same_name_record_field_reads_exit checked 6516ms check-target:macos_arm64 @308fbdc54ba0
 pass/modules/same_name_requirement_calls_exit checked 5527ms check-target:macos_arm64 @7c1edd43e7e4+wt
 pass/modules/same_name_service_callback_exit checked 5515ms check-target:macos_arm64 @a27dad2ed102+wt
 pass/modules/selected_constant_array_alias_computed_extent checked 1803ms @a9ae30e1c334+wt
@@ -7507,6 +7644,7 @@ pass/ownership/runtime_case_alternative_custody_exit checked 14038ms check-targe
 pass/ownership/runtime_complete_array_reference_store_exit checked 2903ms check-target:macos_arm64 @f48a7c9556ec+wt
 pass/ownership/runtime_computed_selector_snapshot_window_exit checked 10843ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/ownership/runtime_declared_linear_local_assignment_exit checked 7999ms check-target:macos_arm64 @761f5fae99a7+wt
+pass/ownership/runtime_effectful_singleton_selector_cleanup_exit checked 7843ms check-target:linux_x86_64 @8a2c1f68d503
 pass/ownership/runtime_empty_record_local_transfers_exit checked 11851ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/ownership/runtime_first_match_linear_consumption_exit checked 4241ms check-target:macos_arm64 @dd6871ed0476
 pass/ownership/runtime_first_match_pattern_consumption_exit checked 4177ms check-target:macos_arm64 @dd6871ed0476
@@ -7655,6 +7793,7 @@ pass/proofs/static_machine_result_projection checked 1379ms @fedeee648fc7+wt
 pass/proofs/stride_pair_telescope checked 9821ms @5041ef1af684+wt
 pass/providers/applied_binding_field_telescopes_exit checked 6307ms check-target:macos_arm64 @fa48d7bba308+wt
 pass/providers/applied_entry_nested_binding_context_exit checked 2785ms check-target:macos_arm64 @c61d64ccecc5+wt
+pass/providers/applied_requirement_calls_exit checked 6806ms check-target:macos_arm64 @308fbdc54ba0
 pass/providers/bare_byte_array_boundary_argument checked 11588ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/providers/binding_formal_type_const_operands checked 477ms @a8cedb3946d5+wt
 pass/providers/binding_param_capability checked 9419ms @5041ef1af684+wt
@@ -7755,6 +7894,8 @@ pass/providers/unreached_console_provider_rows checked 4648ms check-target:macos
 pass/range/data_parameter_counter_non_negative_exit checked 11241ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/range/runtime_funnel_guard_agreement_exit checked 11316ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/range/runtime_guarded_runtime_index_increment_exit checked 11753ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/ranges/runtime_array_element_full_width_receiving_exit checked 7296ms check-target:macos_arm64 @308fbdc54ba0
+pass/ranges/runtime_bounded_array_element_order_exit checked 6455ms check-target:macos_arm64 @308fbdc54ba0
 pass/ranges/runtime_subject_guard_compound_read_exit checked 11641ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/ranges/subject_field_where_fact_index_bound checked 1899ms @a9ae30e1c334+wt
 pass/ranges/subject_guard_compound_index_successor checked 1818ms @a9ae30e1c334+wt
@@ -7975,6 +8116,7 @@ pass/slices/runtime_range_qualified_scalar_copy_local_exit checked 12523ms check
 pass/slices/runtime_range_qualified_scalar_dynamic_store_exit checked 12966ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/slices/runtime_range_qualified_scalar_store_phi_exit checked 12890ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/slices/runtime_reborrowed_partition_append_exit checked 3521ms check-target:macos_arm64 @096f2ecfd243+wt
+pass/slices/runtime_returned_nested_array_window_home_exit checked 6688ms check-target:macos_arm64 @308fbdc54ba0
 pass/slices/runtime_returned_range_extent_contract_exit checked 14564ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/slices/runtime_same_carrier_inline_cast_index_exit checked 8205ms check-target:macos_arm64 @2ab552549670+wt
 pass/slices/runtime_saturating_array_element_guard_exit checked 12581ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -7992,6 +8134,7 @@ pass/slices/runtime_slice_iteration_exit checked 14323ms check-target:macos_arm6
 pass/slices/runtime_slice_record_field_offset_exit checked 13566ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/slices/runtime_state_selected_nested_view_exit checked 5692ms check-target:macos_arm64 @f329f97f57f7+wt
 pass/slices/runtime_stored_element_view_replacement_exit checked 5658ms check-target:macos_arm64 @f329f97f57f7+wt
+pass/slices/runtime_stored_view_direct_window_argument_exit checked 6320ms check-target:macos_arm64 @308fbdc54ba0
 pass/slices/runtime_stored_view_dynamic_selection_exit checked 5661ms check-target:macos_arm64 @f329f97f57f7+wt
 pass/slices/runtime_subslice_and_element_read_call_operands_exit checked 12631ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/slices/runtime_subslice_dynamic_index_exit checked 12562ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -8519,6 +8662,11 @@ run/contained_health_loop_command_branch checked 12047ms check-target:macos_arm6
 run/contracts/captured_bound_unused_mutation checked 5150ms check-target:macos_arm64 @7e164e32caf5+wt
 run/domains/checked_provider_issued_field checked 5543ms check-target:macos_arm64 @e5140c7a7be2+wt
 run/domains/checked_provider_issued_root checked 5368ms check-target:macos_arm64 @e5140c7a7be2+wt
+run/domains/fixed_byte_array_content_observations_exit checked 8106ms check-target:macos_arm64 @ef7962801508
+run/domains/fixed_byte_array_empty_observations_exit checked 5583ms check-target:macos_arm64 @ef7962801508
+run/domains/fixed_byte_array_runtime_predicate_exit checked 5750ms check-target:macos_arm64 @ef7962801508
+run/domains/fixed_byte_array_selector_once_exit checked 5629ms check-target:macos_arm64 @ef7962801508
+run/domains/fixed_byte_array_zero_geometry_exit checked 5559ms check-target:macos_arm64 @ef7962801508
 run/domains/issued_owned_case_parameter checked 5542ms check-target:macos_arm64 @0e81fb3e4cce+wt
 run/domains/issued_owned_case_residual checked 5499ms check-target:macos_arm64 @0e81fb3e4cce+wt
 run/domains/issued_owned_case_return checked 5257ms check-target:macos_arm64 @0e81fb3e4cce+wt
@@ -8528,7 +8676,32 @@ run/domains/issued_owned_state_arrivals checked 5608ms check-target:macos_arm64 
 run/domains/issued_owned_temporary_observation checked 5609ms check-target:macos_arm64 @0e81fb3e4cce+wt
 run/domains/module_qualified_cast_domain checked 13309ms check-target:macos_arm64 @2012446ad74a+wt
 run/domains/predicate_interval_premises checked 13508ms check-target:macos_arm64 @2012446ad74a+wt
+run/domains/qualified_explicit_byte_buffer_append_exit checked 5760ms check-target:macos_arm64 @ef7962801508
+run/domains/qualified_explicit_byte_buffer_exit checked 5612ms check-target:macos_arm64 @ef7962801508
+run/domains/qualified_explicit_byte_buffer_field_source_exit checked 5735ms check-target:macos_arm64 @ef7962801508
+run/domains/qualified_explicit_utf8_buffer_exit checked 5961ms check-target:macos_arm64 @ef7962801508
+run/domains/qualified_fixed_byte_array_captured_destination_exit checked 7366ms check-target:macos_arm64 @8a2c1f68d503
+run/domains/qualified_fixed_byte_array_carrier_exit checked 5364ms check-target:macos_arm64 @ef7962801508
+run/domains/qualified_fixed_byte_array_explicit_buffer_count_exit checked 6540ms check-target:macos_arm64 @308fbdc54ba0
+run/domains/qualified_fixed_byte_array_forwarding_exit checked 5774ms check-target:macos_arm64 @ef7962801508
+run/domains/qualified_fixed_byte_array_generic_view_return_exit checked 7490ms check-target:macos_arm64 @8a2c1f68d503
+run/domains/qualified_fixed_byte_array_geometry_exit checked 5837ms check-target:macos_arm64 @ef7962801508
+run/domains/qualified_fixed_byte_array_nested_zero_exit checked 5486ms check-target:macos_arm64 @ef7962801508
+run/domains/qualified_fixed_byte_array_optimized_exit checked 5236ms check-target:macos_arm64 @ef7962801508
+run/domains/qualified_fixed_byte_array_owned_parameter_exit checked 5462ms check-target:macos_arm64 @ef7962801508
+run/domains/qualified_fixed_byte_array_plain_copy_exit checked 5070ms check-target:macos_arm64 @ef7962801508
+run/domains/qualified_fixed_byte_array_record_loan_exit checked 5571ms check-target:macos_arm64 @ef7962801508
+run/domains/qualified_fixed_byte_array_selected_view_return_exit checked 7128ms check-target:macos_arm64 @8a2c1f68d503
+run/domains/qualified_fixed_byte_array_utf8_mutation_exit checked 5977ms check-target:macos_arm64 @ef7962801508
+run/domains/qualified_fixed_byte_array_utf8_optimized_exit checked 5429ms check-target:macos_arm64 @ef7962801508
+run/domains/qualified_fixed_byte_array_utf8_parameter_exit checked 5544ms check-target:macos_arm64 @ef7962801508
+run/domains/qualified_fixed_byte_array_view_element_copy_exit checked 5665ms check-target:macos_arm64 @ef7962801508
+run/domains/qualified_fixed_byte_array_view_element_store_exit checked 5523ms check-target:macos_arm64 @ef7962801508
+run/domains/qualified_fixed_byte_array_write_only_exit checked 5375ms check-target:macos_arm64 @ef7962801508
+run/domains/qualified_fixed_vec_byte_view_exit checked 4092ms check-target:macos_arm64 @ef7962801508
 run/domains/qualified_record_transfer checked 6006ms check-target:macos_arm64 @868a854ecd4d+wt
+run/domains/qualified_record_view_reference_erased_storage_exit checked 7737ms check-target:macos_arm64 @8a2c1f68d503
+run/domains/qualified_record_view_state_arrival_exit checked 7875ms check-target:macos_arm64 @c927cf332246
 run/domains/semantic_predicate_domain_admission checked 11814ms check-target:macos_arm64 @896172b5d9d8+wt
 run/domains/structural_predicate_casts checked 12972ms check-target:macos_arm64 @2012446ad74a+wt
 run/domains/structural_qualification_cast_transitions checked 12461ms check-target:macos_arm64 @2012446ad74a+wt

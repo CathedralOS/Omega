@@ -1416,31 +1416,49 @@ def main() -> None:
         b"}"
     )
     accepted(program, "self-call-climbs-its-bounded-distance", walk.replace(b"NEXT", b"walk(items, i + 1)"))
-    # A bounded byte array (wiki/spec/terminal-psi/structural_access.md): a
-    # quoted literal's byte predicates replay from its octets, a replacement
-    # sets the live length, `.len` is that length, and a value's declared
-    # domain supplies the predicates it requires.
-    bounded = (
-        b"domain [u8; 8]::Utf8(bytes) requires valid_utf8(bytes);\n"
-        b"data M { line: [u8; 8] in Utf8; }\n"
+    # Qualification keeps the exact fixed-array width. Literal predicates
+    # are still checked independently of geometry and length.
+    fixed_bytes = (
+        b"domain [u8; 2]::Utf8(bytes) requires valid_utf8(bytes);\n"
+        b"data M { line: [u8; 2] in Utf8; }\n"
         b"machine two(n: u64) requires n == 2 {}\n"
-        b"machine text(bytes: &[u8; 8] in Utf8) requires valid_utf8(bytes) {}\n"
+        b"machine text(bytes: &[u8; 2] in Utf8) requires valid_utf8(bytes) {}\n"
         b"machine f(m: &mut M) {\n    m.line = LITERAL;\n    two(m.line.len);\n    text(&m.line);\n}"
     )
-    accepted(program, "a-quoted-literal-replaces-a-bounded-byte-array", bounded.replace(b"LITERAL", b"\"ok\""))
+    accepted(program, "quoted-copy-retains-fixed-byte-length", fixed_bytes.replace(b"LITERAL", b"\"ok\""))
     rejected(
         program,
-        "a-quoted-literal-must-satisfy-the-domain",
-        bounded.replace(b"LITERAL", b"\"\\xff\\xfe\"").replace(b"two(m.line.len);\n", b""),
+        "an-exact-quoted-literal-must-satisfy-the-domain",
+        fixed_bytes.replace(b"LITERAL", b"\"\\xff\\xfe\"").replace(b"two(m.line.len);\n", b""),
         "DomainUnproven",
         b"m.line = \"\\xff\\xfe\";",
     )
     rejected(
         program,
-        "a-bounded-length-is-the-replacement's",
-        bounded.replace(b"LITERAL", b"\"three\""),
+        "a-qualified-fixed-array-cannot-have-another-live-length",
+        fixed_bytes.replace(b"LITERAL", b"\"ok\"").replace(b"requires n == 2", b"requires n == 3"),
         "RequirementUnproven",
         b"two(m.line.len)",
+    )
+    geometry = (
+        b"domain [u8; 8]::Utf8(bytes) requires valid_utf8(bytes);\n"
+        b"machine eight(n: u64) requires n == 8 {}\n"
+        b"machine borrowed(bytes: &[u8; 8] in Utf8) { eight(bytes.len); }\n"
+        b"machine owned(bytes: [u8; 8] in Utf8) {\n"
+        b"    let plain: [u8; 8] = bytes;\n    eight(bytes.len);\n    eight(plain.len);\n}\n"
+        b"machine write_only(bytes: &write [u8; 8] in Utf8) { eight(bytes.len); }\n"
+        b"machine last(bytes: &[u8; 8] in Utf8) -> u8 { bytes[7] }"
+    )
+    accepted(program, "fixed-qualified-owned-borrowed-erased-lengths-and-last-index", geometry)
+    rejected(program, "fixed-qualified-index-at-extent", geometry.replace(b"bytes[7]", b"bytes[8]"),
+             "IndexOutOfBounds", b"bytes[8]")
+    accepted(
+        program,
+        "explicit-live-length-is-an-ordinary-field",
+        b"data Buffer { storage: [u8; 8]; used: u64; }\n"
+        b"machine two(n: u64) requires n == 2 {}\n"
+        b"machine eight(n: u64) requires n == 8 {}\n"
+        b"machine f(buffer: &mut Buffer) { buffer.storage = \"12345678\"; buffer.used = 2; two(buffer.used); eight(buffer.storage.len); }",
     )
     # A rank range (wiki/spec/language/termination.md#ranking) holds of the
     # entry rank under the entry's facts and of every cyclic arrival's rank,

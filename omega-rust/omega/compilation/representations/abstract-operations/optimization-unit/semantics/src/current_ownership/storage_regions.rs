@@ -95,7 +95,7 @@ pub(super) fn written_or_exclusive_regions(
 /// cannot prove absence of an alias. Mark an in-progress declaration false so
 /// cycles fail conservatively. Reuse the result across this function's calls;
 /// storage declarations do not change while the descriptor flow is built.
-pub(super) fn storage_cannot_retain_loan(
+pub(crate) fn storage_cannot_retain_loan(
     types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     structural_type: StructuralTypeId,
     established: &mut BTreeMap<StructuralTypeId, bool>,

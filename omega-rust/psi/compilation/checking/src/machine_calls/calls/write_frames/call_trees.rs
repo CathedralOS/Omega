@@ -251,6 +251,20 @@ fn complete_expression_tree(
                             program.expression_table.expression(expression),
                             ExpressionNode::Call(_)
                         ) {
+                            // A reserved observation has no machine frame. Its
+                            // operand still traverses the ordinary effect proof.
+                            if let Some((_, operand)) =
+                                typed_trees::byte_predicates::byte_predicate_call(
+                                    program.typed_program(),
+                                    expression,
+                                )
+                            {
+                                pending.push(PendingNode::Expression(
+                                    operand,
+                                    ValuePosition::IndexOperand,
+                                ));
+                                continue;
+                            }
                             if !value_call_result_is_admitted(
                                 program, expression, position, symbols,
                             ) {

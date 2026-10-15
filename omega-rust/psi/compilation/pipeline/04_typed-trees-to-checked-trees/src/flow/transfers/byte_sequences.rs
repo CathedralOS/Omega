@@ -200,27 +200,29 @@ pub(super) fn append_element_replacement_predicates(
     state_symbol: SymbolHandle,
     statement_index: usize,
     target: ExpressionHandle,
+    target_place: PlaceHandle,
     source_expression: ExpressionHandle,
     scalar_value: Option<&facts::ScalarValue>,
     integer_bounds: Option<&facts::IntegerRange>,
     point: ProgramPoint,
     references: &mut HandleSpan<facts::FactRef>,
 ) {
-    let Some(indexed) = program.expression_table.indexed_node(target) else {
+    if program.expression_table.indexed_node(target).is_none() {
         return;
-    };
-    let collection = indexed.collection;
+    }
     let active_facts: Vec<_> = crate::flow::active_context_facts(contexts, semantic, active);
-    let Some(carrier) = contextual_expression_place(
-        program,
-        semantic,
-        machine_symbol,
-        state_symbol,
-        statement_index,
-        collection,
-    ) else {
+    // Invalidation and reconstruction must address the same captured storage.
+    // Replaying the authored alias expression here leaves the class on a local
+    // descriptor instead of the exact owner selected by a returned reference.
+    let written = *semantic.places.get(target_place);
+    let segments = semantic.place_segments.span_or_empty(written.segments);
+    let Some((facts::PlaceSegment::FixedIndex { .. } | facts::PlaceSegment::Index { .. }, parent)) =
+        segments.split_last()
+    else {
         return;
     };
+    let parent = parent.to_vec();
+    let carrier = crate::semantic::places::append_place(semantic, written.root, &parent);
     // The element selector may vary; the retained whole-carrier fact must
     // still name storage independently of mutable selectors.
     if !semantic
@@ -300,12 +302,33 @@ pub(super) fn append_element_replacement_predicates(
         })
         .map(<[_]>::to_vec)
         .unwrap_or_default();
+    // A read of one element inherits only per-byte classes from its live
+    // container. UTF-8 membership alone says nothing about one selected byte.
+    let source_element_facts = program
+        .expression_table
+        .indexed_node(source_expression)
+        .filter(|_| crate::values::operator_is_builtin(contexts.operators, source_expression))
+        .and_then(|indexed| {
+            contextual_expression_place(
+                program,
+                semantic,
+                machine_symbol,
+                state_symbol,
+                statement_index,
+                indexed.collection,
+            )
+        })
+        .map(|place| facts_about_place(program, semantic, &active_facts, place));
     let mut source_facts = None;
     let stored_classes: Vec<_> = validation::field_domains::ByteSequencePredicate::ALL
         .into_iter()
         .map(|predicate| {
-            let stored = bounds
-                .is_some_and(|(minimum, maximum)| predicate.holds_for(&[minimum, maximum]))
+            let stored = predicate.is_subslice_preserving()
+                && source_element_facts
+                    .as_ref()
+                    .is_some_and(|facts| carrier_proves_predicate(program, facts, predicate, &[]))
+                || bounds
+                    .is_some_and(|(minimum, maximum)| predicate.holds_for(&[minimum, maximum]))
                 || source_place.is_some_and(|place| {
                     let facts = source_facts.get_or_insert_with(|| {
                         facts_about_place(program, semantic, &active_facts, place)
@@ -461,10 +484,10 @@ fn carrier_proves_predicate(
         return true;
     }
     carrier_facts.iter().any(|fact| match fact.payload {
-        FactPayload::AssignedValue { value } => matches!(
-            program.expression_table.expression(value),
-            ExpressionNode::String(literal) if predicate.holds_for(literal)
-        ),
+        FactPayload::AssignedValue { value } => {
+            typed_trees::byte_predicates::literal_bytes(program, value)
+                .is_some_and(|bytes| predicate.holds_for(&bytes))
+        }
         FactPayload::BytePredicate { predicate: proved } => proved.implies(predicate),
         facts::domain_membership_symbol_and_instance_pattern!(domain_symbol, semantic_domain) => {
             index_free_membership(program, domain_symbol, semantic_domain)

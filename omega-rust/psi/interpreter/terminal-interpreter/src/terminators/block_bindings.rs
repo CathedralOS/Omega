@@ -33,6 +33,7 @@ use terminal_psi::{
 
 use crate::byte_sequences::binding::ByteSequenceBinding;
 use crate::custody::bind_active_block_arguments;
+use crate::custody::bind_active_structural_arguments;
 use crate::custody::bind_affine_frontier;
 use crate::custody::bind_arguments;
 use crate::custody::resolve_single_structural_argument;
@@ -346,8 +347,11 @@ impl TerminalExecution<'_> {
                 if !self.block_parameter_is_declared(target, parameter) {
                     return Err(malformed());
                 }
-                let loan =
-                    self.capture_primitive_loan(parameter, argument, &mut identity_cursor)?;
+                let loan = self
+                    .capture_primitive_loan(parameter, argument, &mut identity_cursor)
+                    .map_err(|error| {
+                        error.in_argument_preparation("capture primitive state arrival")
+                    })?;
                 resolved_arguments.push(loan.referent.clone());
                 primitive_loans.insert(parameter.place, loan);
                 if contains_payloads {
@@ -428,8 +432,6 @@ impl TerminalExecution<'_> {
                     || parameter.access != StructuralAccess::Owned
                     || parameter.multiplicity != StructuralMultiplicity::Unrestricted
                     || parameter.structural_type != value.structural_type()
-                    || !parameter.qualifications.is_empty()
-                    || !parameter.projected_qualifications.is_empty()
                     || machine
                         .block_entry_claims
                         .iter()
@@ -654,9 +656,9 @@ impl TerminalExecution<'_> {
                 {
                     if parameter.multiplicity != StructuralMultiplicity::Unrestricted
                         || self.live_affine_discard_at(parameter.place).is_some()
+                        || !self.borrowed_argument_source(argument, parameter.access)
                         || (parameter.access != StructuralAccess::SharedBorrow
-                            && (!self.block_parameter_is_declared(target, parameter)
-                                || !self.exclusive_place_source(argument.place, parameter.access)))
+                            && !self.block_parameter_is_declared(target, parameter))
                     {
                         return Err(malformed());
                     }
@@ -665,8 +667,8 @@ impl TerminalExecution<'_> {
                     // must resolve to the parameter's declared referent
                     // type — a plain record subtree or one canonical
                     // primitive-scalar leaf. The loan moves no custody —
-                    // the root either stays untracked or is still held as
-                    // one whole frontier entry.
+                    // the selected carrier remains live, including a residual
+                    // subtree after another descriptor has been consumed.
                     let (view, backing) =
                         self.present_structural_argument(argument, parameter.structural_type)?;
                     if let Some(backing) = backing {
@@ -683,13 +685,6 @@ impl TerminalExecution<'_> {
                             expected: parameter.structural_type,
                             actual: view.structural_type,
                         });
-                    }
-                    if self
-                        .live_affine_frontier
-                        .iter()
-                        .any(|entry| entry.place == argument.place && !entry.path.is_empty())
-                    {
-                        return Err(TerminalInterpretError::AffineFrontierMismatch);
                     }
                     projected_value = Some(view);
                 }
@@ -900,8 +895,35 @@ impl TerminalExecution<'_> {
             let identity = self
                 .local_structural_identities
                 .allocate_staged(&mut identity_cursor)?;
-            let captured =
-                TerminalStructuralValue::minted(identity, parameter.structural_type, Vec::new());
+            let (whole, projected) = value.memberships();
+            let mut captured = TerminalStructuralValue::minted(
+                identity,
+                parameter.structural_type,
+                whole.to_vec(),
+            );
+            captured.projected_qualifications = projected.to_vec();
+            if let crate::record::storage::ConstructorValue::PackedScalars { elements, .. } = &value
+            {
+                // A guard may strengthen a pure byte theory on this edge.
+                // Establish it from these exact current bytes, never merely
+                // from the receiving parameter's annotation.
+                self.validate_scalar_array_contents_qualifications(
+                    parameter.structural_type,
+                    elements,
+                    &parameter.qualifications,
+                )?;
+                captured.absorb_qualifications(&parameter.qualifications);
+            }
+            let admitted = bind_active_structural_arguments(
+                std::slice::from_ref(parameter),
+                std::slice::from_ref(&captured),
+                &self.program.structural_types(),
+                &self.structural_cases,
+            )?;
+            let captured = admitted
+                .get(&parameter.place)
+                .cloned()
+                .ok_or_else(malformed)?;
             aggregate_payload.stage(
                 self,
                 argument,
@@ -932,7 +954,12 @@ impl TerminalExecution<'_> {
     /// Exclusive forwarding preserves the current referent and its source debt.
     /// Runtime identities alone carry no permission: recover it from the exact
     /// current parameter or independently admitted owned result declaration.
-    fn exclusive_place_source(&self, place: PlaceId, requested: StructuralAccess) -> bool {
+    fn borrowed_argument_source(
+        &self,
+        argument: &StructuralArgument,
+        requested: StructuralAccess,
+    ) -> bool {
+        let place = argument.place;
         let Some(value) = self.structural_values.get(&place) else {
             return false;
         };
@@ -960,20 +987,16 @@ impl TerminalExecution<'_> {
         } else {
             return false;
         };
-        let root = StructuralAffineDiscard {
-            place,
-            path: Vec::new(),
-            structural_type: value.structural_type,
-        };
-        let expected = match multiplicity {
-            StructuralMultiplicity::Unrestricted => None,
-            StructuralMultiplicity::Affine => Some(&root),
-            _ => return false,
-        };
-        self.live_affine_frontier
-            .iter()
-            .filter(|entry| entry.place == place)
-            .eq(expected)
+        match multiplicity {
+            StructuralMultiplicity::Unrestricted => self
+                .live_affine_frontier
+                .iter()
+                .all(|entry| entry.place != place),
+            StructuralMultiplicity::Affine => self
+                .reference_carrier_access(place, value.structural_type, &argument.path)
+                .is_ok_and(|access| crate::reference::access_covers(access, requested)),
+            _ => false,
+        }
     }
 
     fn block_parameter_is_declared(

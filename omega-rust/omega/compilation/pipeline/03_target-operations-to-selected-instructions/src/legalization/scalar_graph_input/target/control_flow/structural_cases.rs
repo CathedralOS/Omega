@@ -149,8 +149,6 @@ fn borrowed_parameter_available(
         terminal_psi::StructuralAccess::SharedBorrow
             | terminal_psi::StructuralAccess::MutableBorrow
     ) && declaration.multiplicity != terminal_psi::StructuralMultiplicity::Linear
-        && declaration.qualifications.is_empty()
-        && declaration.projected_qualifications.is_empty()
         && parameter_corresponds(graph, parameter, declaration, expected_source)
         // The carrier is the pointer; the layout describes the referent.
         && parameter.shape.class == calling_conventions::ValueClass::BorrowedReference
@@ -201,13 +199,11 @@ pub(super) fn matches(
                 terminal_psi::StructuralAccess::SharedBorrow
                     | terminal_psi::StructuralAccess::MutableBorrow
             ) && declaration.multiplicity != terminal_psi::StructuralMultiplicity::Linear
-                && declaration.qualifications.is_empty()
-                && declaration.projected_qualifications.is_empty()
                 && parameter.place == expected_source
                 && parameter.structural_type == declaration.structural_type
                 && parameter.access == declaration.access
                 && parameter.multiplicity == declaration.multiplicity
-                && parameter.projected_qualifications.is_empty()
+                && parameter.projected_qualifications == declaration.projected_qualifications
                 && super::super::super::aggregate_results::type_home_layout(
                     parameter.structural_type,
                     plan,

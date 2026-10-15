@@ -539,7 +539,7 @@ fn fold_literal_facts(
                 });
                 let proven = authored_value.map_or_else(
                     || {
-                        crate::proof_contracts::proof_facts::domain_admits_empty_bytes(
+                        crate::proof_contracts::proof_facts::domain_admits_zero_bytes(
                             program,
                             membership.domain_symbol,
                         )

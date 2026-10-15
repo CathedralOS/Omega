@@ -1161,6 +1161,9 @@ pub(super) fn runtime_storage_projection<'types>(
             }
         };
         let (selected_type, shape, local_offset) = match segment {
+            StructuralPathSegment::AllElements => {
+                return Err(LoweringError::UnknownStructuralType(structural_type));
+            }
             StructuralPathSegment::Case(case) => {
                 let invalid = || LoweringError::UnsupportedStructuralSum(structural_type);
                 let declaration = declarations.get(&structural_type).ok_or_else(invalid)?;

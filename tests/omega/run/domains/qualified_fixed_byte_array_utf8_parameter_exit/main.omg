@@ -1,0 +1,28 @@
+// Expected exit: 0
+domain [u8; 4]::Utf8(bytes) requires valid_utf8(bytes);
+domain [u8; 4]::Ascii(bytes) requires ascii_only(bytes);
+data Buffer { bytes: [u8; 4] in Utf8; }
+machine fill(buffer: &mut Buffer, input: [u8; 4] in Ascii) {
+    buffer.bytes = input;
+    buffer.bytes[0] = 65u8;
+}
+data Source { bytes: [u8; 4] in Ascii; }
+data Nested { source: Source; }
+machine projected(buffer: &mut Buffer, input: &Nested) {
+    buffer.bytes = input.source.bytes;
+    buffer.bytes[1] = 66u8;
+}
+machine main() crashes Trap {
+    let mut buffer: Buffer;
+    fill(&mut buffer, "abcd");
+    let input: Nested = Nested { source: Source { bytes: "efgh" } };
+    let mut copied: Buffer;
+    projected(&mut copied, &input);
+    transition buffer.bytes[0] == 65 && buffer.bytes[3] == 100
+        && copied.bytes[0] == 101 && copied.bytes[1] == 66 && copied.bytes[3] == 104 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

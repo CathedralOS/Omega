@@ -69,6 +69,9 @@ pub(crate) fn lower_structural_path(
 ) -> Result<Vec<StructuralPathSegment>, LoweringError> {
     path.iter()
         .map(|segment| match segment {
+            CheckedUnitStructuralPathSegment::AllElements => Err(LoweringError::Unsupported(
+                "universal qualification is not an operand path",
+            )),
             CheckedUnitStructuralPathSegment::Case(_) => Err(LoweringError::Unsupported(
                 "a case projection requires its exact source type during preparation",
             )),
@@ -270,11 +273,12 @@ fn prepare_structural_argument_projection<'a>(
             | terminal_psi::StructuralTypeShape::ByteSequence(
                 terminal_psi::ByteSequenceCarrier::BoundedView { access, .. },
             ) => {
-                terminal_semantics::borrowed_referent_matches(
+                terminal_semantics::borrowed_referent_presentation(
                     types.iter(),
-                    logical_root.id,
                     carrier.id,
-                ) && access.is_none_or(|access| structural_access_can_supply(access, requested))
+                    logical_root.id,
+                ) == Some(terminal_semantics::BorrowedReferentPresentation::Unchanged)
+                    && access.is_none_or(|access| structural_access_can_supply(access, requested))
             }
             _ => false,
         };
@@ -308,6 +312,26 @@ pub(crate) fn prepare_argument_path(
     types: &[terminal_psi::StructuralTypeDeclaration],
 ) -> Result<Vec<PreparedStructuralPathSegment>, LoweringError> {
     prepare_argument_projection(identities, path, root, types).map(|(path, _)| path)
+}
+
+/// Resolve an indexed store's descriptor through the same typed projection
+/// as executable arguments. The caller retains only a conservative proof
+/// footprint; the indexed writer still evaluates the actual selector path.
+pub(crate) fn prepare_element_view_path(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+    path: &[CheckedUnitStructuralPathSegment],
+    root: semantic_vocabulary::StructuralTypeId,
+    types: &[terminal_psi::StructuralTypeDeclaration],
+) -> Result<Vec<PreparedStructuralPathSegment>, LoweringError> {
+    let (path, tip) = prepare_argument_projection(identities, path, root, types)?;
+    if !matches!(tip, PreparedArgumentTip::Declaration(row)
+        if matches!(row.shape, terminal_psi::StructuralTypeShape::ElementView { .. }))
+    {
+        return Err(LoweringError::Unsupported(
+            "element-view write does not select a descriptor",
+        ));
+    }
+    Ok(path)
 }
 
 fn prepare_argument_projection<'a>(
@@ -363,6 +387,11 @@ fn prepare_argument_projection<'a>(
             }
         }
         let lowered = match step {
+            CheckedUnitStructuralPathSegment::AllElements => {
+                return Err(LoweringError::Unsupported(
+                    "universal qualification is not an executable projection",
+                ));
+            }
             CheckedUnitStructuralPathSegment::RepresentationView { .. } => {
                 return Err(LoweringError::Unsupported(
                     "a returned view origin is not an executable argument projection",

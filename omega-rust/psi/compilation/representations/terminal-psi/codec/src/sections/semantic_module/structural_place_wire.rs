@@ -91,6 +91,11 @@ pub(crate) fn encode_reference_origin_path(
     for projection in path {
         match projection {
             terminal_psi::ReferenceOriginProjection::Exact(segment) => {
+                if matches!(segment, StructuralPathSegment::AllElements) {
+                    return crate::codec_error::malformed(
+                        "qualification wildcard is not a reference origin",
+                    );
+                }
                 encode_projection(writer, segment)
             }
             terminal_psi::ReferenceOriginProjection::Element => writer.u8(9),
@@ -101,6 +106,7 @@ pub(crate) fn encode_reference_origin_path(
 
 fn encode_projection(writer: &mut Writer, segment: &StructuralPathSegment) {
     match segment {
+        StructuralPathSegment::AllElements => writer.u8(10),
         StructuralPathSegment::Case(case) => {
             writer.u8(7);
             writer.id(*case);
@@ -269,6 +275,8 @@ pub(crate) fn decode_reference_origin_path(
         let tag = reader.u8()?;
         if tag == 9 {
             Ok(terminal_psi::ReferenceOriginProjection::Element)
+        } else if tag == 10 {
+            crate::codec_error::malformed("qualification wildcard is not a reference origin")
         } else {
             decode_projection(reader, tag).map(terminal_psi::ReferenceOriginProjection::Exact)
         }
@@ -280,6 +288,7 @@ fn decode_projection(
     tag: u8,
 ) -> Result<StructuralPathSegment, CodecError> {
     match tag {
+        10 => Ok(StructuralPathSegment::AllElements),
         1 => Ok(StructuralPathSegment::Field(TerminalIdentityIndex(
             reader.u32()?,
         ))),
@@ -307,10 +316,12 @@ fn decode_projection(
 }
 
 fn require_operand_path(path: &[StructuralPathSegment]) -> Result<(), CodecError> {
-    if path
-        .iter()
-        .any(|segment| matches!(segment, StructuralPathSegment::RepresentationView { .. }))
-    {
+    if path.iter().any(|segment| {
+        matches!(
+            segment,
+            StructuralPathSegment::RepresentationView { .. } | StructuralPathSegment::AllElements
+        )
+    }) {
         return crate::codec_error::malformed(
             "returned-origin interpretation is not an operand or owned path",
         );
@@ -460,4 +471,25 @@ mod tests {
             Err(CodecError::UnsupportedFormatMarker(120))
         ));
     }
+}
+
+/// Qualification patterns have a separate wire entrance. The ordinary operand
+/// entrance rejects universal metadata even when its type could be resolved.
+pub(crate) fn encode_qualification_path(
+    writer: &mut Writer,
+    path: &[StructuralPathSegment],
+) -> Result<(), CodecError> {
+    writer.len("qualification pattern", path.len())?;
+    for step in path {
+        encode_projection(writer, step);
+    }
+    Ok(())
+}
+pub(crate) fn decode_qualification_path(
+    reader: &mut Reader<'_>,
+) -> Result<Vec<StructuralPathSegment>, CodecError> {
+    decode_counted(reader, |reader| {
+        let tag = reader.u8()?;
+        decode_projection(reader, tag)
+    })
 }

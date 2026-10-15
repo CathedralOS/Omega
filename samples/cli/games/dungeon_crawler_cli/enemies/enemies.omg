@@ -1,3 +1,4 @@
+use text::buffer;
 data EnemyKind [copy] {
     case Bat;
     case Spider;
@@ -18,7 +19,7 @@ data EnemyTier [copy] {
 
 data Enemy [copy] {
     kind: EnemyKind;
-    name: [u8; 24] in Utf8;
+    name: EnemyName;
     max_health: i32 in Wrapping;
     health: i32 in Wrapping;
     attack: i32 in Wrapping;

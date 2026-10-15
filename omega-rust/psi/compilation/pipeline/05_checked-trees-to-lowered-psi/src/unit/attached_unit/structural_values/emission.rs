@@ -1668,6 +1668,7 @@ impl Emission<'_, '_, '_> {
             CheckedStructuralValueKind::ZeroedScalarArray {
                 element,
                 element_count,
+                qualifications,
             } => {
                 // The planner's synthesized zero has no authored operand to
                 // replay — emit the verified literal leaf directly.
@@ -1699,12 +1700,24 @@ impl Emission<'_, '_, '_> {
                     id: zero,
                     scalar_type,
                 });
+                let mut qualifications = qualifications
+                    .into_iter()
+                    .map(|domain| {
+                        crate::terminal_identities::lookup_domain_id_for_carrier(
+                            self.domain_ids,
+                            domain,
+                            self.structural_type,
+                        )
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                qualifications.sort();
+                qualifications.dedup();
                 let (place, operation) = allocate_structural_result(
                     self.operations,
                     self.next_place,
                     self.structural_type,
                     self.multiplicity,
-                    Vec::new(),
+                    qualifications,
                     OperationKind::EstablishScalarArray {
                         elements: vec![
                             zero;
@@ -1786,7 +1799,12 @@ impl Emission<'_, '_, '_> {
                     operation,
                     self.structural_type,
                 ));
-                self.completed(identities, place, continuation)
+                self.complete_construction(
+                    identities,
+                    place,
+                    node.qualification_decisions,
+                    continuation,
+                )
             }
             CheckedStructuralValueKind::ByteLiteralView { bytes } => {
                 // The literal carries the memberships checking established
@@ -1809,8 +1827,29 @@ impl Emission<'_, '_, '_> {
                     )?;
                 self.completed(identities, declaration.id, continuation)
             }
-            CheckedStructuralValueKind::ZeroedStructural { .. } => {
+            CheckedStructuralValueKind::ZeroedStructural {
+                projected_qualifications,
+            } => {
+                let projected = super::super::parameters::lower_projected_qualifications(
+                    identities,
+                    &projected_qualifications,
+                    self.domain_ids,
+                    self.structural_type,
+                    self.structural_types,
+                )?;
                 let place = self.establish_zeroed()?;
+                let result = self
+                    .operations
+                    .operations
+                    .last_mut()
+                    .and_then(|operation| match &mut operation.result {
+                        OperationResult::Structural(result) => Some(result),
+                        _ => None,
+                    })
+                    .ok_or(LoweringError::Unsupported(
+                        "zeroed establishment has no result",
+                    ))?;
+                result.projected_qualifications = projected;
 
                 self.complete_construction(
                     identities,

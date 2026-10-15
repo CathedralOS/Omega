@@ -1,0 +1,8 @@
+// A returned mutable descriptor retains its ancestor invariant on handback.
+data Buffer where used <= 4 { storage: [u8; 4]; used: u64; }
+machine retain(buffer: &mut Buffer) -> &mut Buffer { buffer }
+machine corrupt(buffer: &mut Buffer) {
+    let selected: &mut Buffer = retain(buffer);
+    selected.used = 5;
+}
+machine main() {}

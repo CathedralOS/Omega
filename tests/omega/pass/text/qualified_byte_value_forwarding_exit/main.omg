@@ -1,29 +1,29 @@
 use omega_language_std::console;
 
-domain [u8; 16]::Utf8(bytes) requires valid_utf8(bytes);
+domain [u8; 6]::Utf8(bytes) requires valid_utf8(bytes);
 domain [u8]::Utf8(bytes) requires valid_utf8(bytes);
-domain [u8; 16]::Ascii(bytes) requires ascii_only(bytes);
+domain [u8; 4]::Ascii(bytes) requires ascii_only(bytes);
 data Main { }
 
-machine identity(value: [u8; 16] in Utf8) -> [u8; 16] in Utf8 { value }
-machine forward(value: [u8; 16] in Utf8) -> [u8; 16] in Utf8 {
+machine identity(value: [u8; 6] in Utf8) -> [u8; 6] in Utf8 { value }
+machine forward(value: [u8; 6] in Utf8) -> [u8; 6] in Utf8 {
     transition { _ -> arrived(value) }
-    state arrived(value: [u8; 16] in Utf8) -> [u8; 16] in Utf8 { value }
+    state arrived(value: [u8; 6] in Utf8) -> [u8; 6] in Utf8 { value }
 }
 
-machine matches_text(value: [u8; 16] in Utf8, shared: &[u8] in Utf8) -> bool {
+machine matches_text(value: [u8; 6] in Utf8, shared: &[u8] in Utf8) -> bool {
     transition { _ -> arrived(value, shared) }
-    state arrived(value: [u8; 16] in Utf8, shared: &[u8] in Utf8) -> bool {
+    state arrived(value: [u8; 6] in Utf8, shared: &[u8] in Utf8) -> bool {
         value == "éGate" && shared == "éGate" && value.len == 6 && shared.len == 6
     }
 }
 
-machine independent(mut first: [u8; 16] in Ascii, second: [u8; 16] in Ascii) -> bool {
+machine independent(mut first: [u8; 4] in Ascii, second: [u8; 4] in Ascii) -> bool {
     transition first.len == 4 && second.len == 4 {
         true -> rewrite(first, second)
         _ -> false
     }
-    state rewrite(mut first: [u8; 16] in Ascii, second: [u8; 16] in Ascii) -> bool
+    state rewrite(mut first: [u8; 4] in Ascii, second: [u8; 4] in Ascii) -> bool
     requires first.len == 4 && second.len == 4;
     {
         first[0] = 65;
@@ -32,8 +32,8 @@ machine independent(mut first: [u8; 16] in Ascii, second: [u8; 16] in Ascii) -> 
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    let captured: [u8; 16] in Utf8 = identity("éGate");
-    let forwarded: [u8; 16] in Utf8 = forward(captured);
+    let captured: [u8; 6] in Utf8 = identity("éGate");
+    let forwarded: [u8; 6] in Utf8 = forward(captured);
     let direct: bool = matches_text("éGate", "éGate");
     let separate: bool = independent("gate", "gate");
     transition captured == "éGate" && forwarded == "éGate"

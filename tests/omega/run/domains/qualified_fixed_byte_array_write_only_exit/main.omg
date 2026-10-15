@@ -1,0 +1,25 @@
+// Expected exit: 0
+domain [u8; 4]::Utf8(bytes) requires valid_utf8(bytes);
+data Buffer { bytes: [u8; 4] in Utf8; }
+data PlainBuffer { bytes: [u8; 4]; }
+// Extent is fixed metadata, available without observing old referent bytes.
+machine extent(buffer: &write Buffer) -> u64 ensures result == 4 { buffer.bytes.len }
+machine plain_extent(buffer: &write PlainBuffer) -> u64 ensures result == 4 { buffer.bytes.len }
+machine fill(buffer: &write Buffer) {
+    buffer.bytes = "abcd";
+    buffer.bytes[0] = 65u8;
+}
+machine main() crashes Trap {
+    let mut buffer: Buffer;
+    let mut plain: PlainBuffer;
+    let qualified_length: u64 = extent(&write buffer);
+    let plain_length: u64 = plain_extent(&write plain);
+    fill(&write buffer);
+    transition qualified_length == 4 && plain_length == 4
+        && buffer.bytes[0] == 65 && buffer.bytes[3] == 100 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

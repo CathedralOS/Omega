@@ -26,9 +26,6 @@ use super::contract_wire::{decode_crash_routes, encode_crash_routes};
 use super::proposition_wire::{decode_proposition, encode_proposition};
 use super::scalar_wire::{decode_scalar_type, encode_scalar_type};
 use super::wire::{Reader, Writer};
-use crate::sections::semantic_module::structural_place_wire::{
-    decode_structural_path, encode_structural_path,
-};
 use crate::sections::semantic_module::wire::{
     decode_counted, decode_ids, decode_optional_id, encode_optional_id,
 };
@@ -624,11 +621,7 @@ pub(crate) fn encode_projected_qualifications(
         qualifications.len(),
     )?;
     for qualification in qualifications {
-        encode_structural_path(
-            writer,
-            "projected structural qualification path",
-            &qualification.path,
-        )?;
+        super::structural_place_wire::encode_qualification_path(writer, &qualification.path)?;
         writer.id(qualification.domain);
     }
     Ok(())
@@ -639,7 +632,7 @@ pub(crate) fn decode_projected_qualifications(
 ) -> Result<Vec<StructuralPathQualification>, CodecError> {
     decode_counted(reader, |reader| {
         Ok(StructuralPathQualification {
-            path: decode_structural_path(reader)?,
+            path: super::structural_place_wire::decode_qualification_path(reader)?,
             domain: reader.id("StructuralDomainId")?,
         })
     })

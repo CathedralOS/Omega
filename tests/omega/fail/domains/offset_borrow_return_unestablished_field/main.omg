@@ -1,6 +1,8 @@
+// Exact positive-length arrays are always nonempty. NoNul supplies the
+// zero-excluding field invariant exercised by this establishment control.
 // A valid sibling cannot discharge the damaged candidate's return domain.
-domain [u8; 8]::NonEmpty(bytes) requires non_empty(bytes);
-data Label { text: [u8; 8] in NonEmpty; }
+domain [u8; 8]::NoNul(bytes) requires no_nul(bytes);
+data Label { text: [u8; 8] in NoNul; }
 data Row { labels: [Label; 2]; }
 data Bag { rows: [Row; 3]; }
 machine pick(bag: &mut Bag, second: bool) -> &mut Row {

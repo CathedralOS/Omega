@@ -2,5 +2,5 @@ domain [u8; 8]::Utf8(bytes) requires valid_utf8(bytes);
 data Main { line: [u8; 8] in Utf8; }
 machine Main::main(main: &mut Main) {
     let line: &mut [u8; 8] in Utf8 = &mut main.line;
-    line = "\xff";
+    line = "\xff\0\0\0\0\0\0\0";
 }

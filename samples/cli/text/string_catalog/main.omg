@@ -1,8 +1,8 @@
-// Text catalog: bounded UTF-8 fields in a data type with field copies,
+// Text catalog: explicit fixed-capacity text owners in a data type with field copies,
 // concatenation, equality guards, and a numeric score derived from matches.
 //
 // Exercises: carrier field assignments, copying carriers between places,
-// `+` concatenation of carrier fields and literals, `==` equality guards, and
+// explicit buffer construction from borrowed names and literals, `==` equality guards, and
 // a numeric accumulator driven by text-guard arms.
 //
 // Scenario: a small catalog with two entries. Each entry has a bounded UTF-8
@@ -29,26 +29,49 @@
 //
 // Expected exit: 70.
 
-domain [u8; 5]::Utf8(bytes)
-requires
-    valid_utf8(bytes);
-domain [u8; 16]::Utf8(bytes)
-requires
-    valid_utf8(bytes);
+domain [u8; 32]::Ascii(bytes) requires ascii_only(bytes);
+domain [u8]::Ascii(bytes) requires ascii_only(bytes);
+data TextBuffer where used <= 32 { storage: [u8; 32] in Ascii; used: u64; }
+machine live(buffer: &TextBuffer) -> &[u8] in Ascii { &buffer.storage[..buffer.used] }
+machine copy(buffer: &mut [u8; 32] in Ascii, bytes: &[u8] in Ascii, start: u64)
+requires start <= 32; bytes.len <= 32 - start
+{
+    transition { _ -> copying(buffer, bytes, start, 0) }
+    state copying(buffer: &mut [u8; 32] in Ascii, bytes: &[u8] in Ascii, start: u64, index: u64)
+    requires start <= 32; index <= 32
+    {
+        transition index < bytes.len && start + index < 32 {
+            true -> writing(buffer, bytes, start, index)
+            _ -> done()
+        }
+    }
+    state writing(buffer: &mut [u8; 32] in Ascii, bytes: &[u8] in Ascii, start: u64, index: u64)
+    requires start <= 32; index < 32; index < bytes.len; start + index < 32
+    {
+        buffer[start + index] = bytes[index];
+        transition { _ -> copying(buffer, bytes, start, index + 1) }
+    }
+    state done() {}
+}
+
 use omega_language_std::console;
 
 // Bounded so `entry1.score + entry2.score` is verifiably at most 200: Exact
 // arithmetic on nested fields carries the overflow obligation, and the `where`
 // bound discharges it by proof -- no overflow domain needed.
+domain [u8; 5]::Ascii(bytes) requires ascii_only(bytes);
+data NameBuffer where used <= 5 { storage: [u8; 5] in Ascii; used: u64; }
+machine name_view(name: &NameBuffer) -> &[u8] in Ascii { &name.storage[..name.used] }
+
 data Entry where 0 <= score, score <= 100 {
-    name: [u8; 5] in Utf8;
+    name: NameBuffer;
     score: i32;
 }
 
 data Catalog {
     entry1: Entry;
     entry2: Entry;
-    label: [u8; 16] in Utf8;
+    label: TextBuffer;
     total: i32;
 }
 
@@ -58,26 +81,27 @@ data Main {
 }
 
 machine Main::set_entry1(main: &mut Main)
-ensures
-    main.catalog.entry1.name in Utf8
 {
-    main.catalog.entry1.name = "Alpha";
+    main.catalog.entry1.name.storage = "Alpha";
+    main.catalog.entry1.name.used = 5;
     main.catalog.entry1.score = 30;
 }
 
 machine Main::set_entry2(main: &mut Main)
-ensures
-    main.catalog.entry2.name in Utf8
 {
-    main.catalog.entry2.name = "Beta";
+    main.catalog.entry2.name.storage = [66u8, 101u8, 116u8, 97u8, 0u8];
+    main.catalog.entry2.name.used = 4;
     main.catalog.entry2.score = 40;
 }
 
 machine Main::build_label(main: &mut Main)
-ensures
-    main.catalog.label in Utf8
 {
-    main.catalog.label = "[" + main.catalog.entry1.name + "+" + main.catalog.entry2.name + "]";
+    copy(&mut main.catalog.label.storage, "[", 0);
+    copy(&mut main.catalog.label.storage, &main.catalog.entry1.name.storage[..main.catalog.entry1.name.used], 1);
+    copy(&mut main.catalog.label.storage, "+", 1 + main.catalog.entry1.name.used);
+    copy(&mut main.catalog.label.storage, &main.catalog.entry2.name.storage[..main.catalog.entry2.name.used], 2 + main.catalog.entry1.name.used);
+    copy(&mut main.catalog.label.storage, "]", 2 + main.catalog.entry1.name.used + main.catalog.entry2.name.used);
+    main.catalog.label.used = 3 + main.catalog.entry1.name.used + main.catalog.entry2.name.used;
 }
 
 machine Main::compute_total(main: &mut Main) {
@@ -92,7 +116,7 @@ machine Main::main(main: &mut Main) reaches Console {
     Main::compute_total(main);
 
     // Check entry1.name.
-    transition main.catalog.entry1.name == "Alpha" {
+    transition name_view(&main.catalog.entry1.name) == "Alpha" {
         true -> check_name2(main)
         _ -> bad_name1(main)
     }
@@ -105,7 +129,7 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state check_name2(main: &mut Main) {
-        transition main.catalog.entry2.name == "Beta" {
+        transition name_view(&main.catalog.entry2.name) == "Beta" {
             true -> check_label(main)
             _ -> bad_name2(main)
         }
@@ -119,7 +143,7 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state check_label(main: &mut Main) {
-        transition main.catalog.label == "[Alpha+Beta]" {
+        transition live(&main.catalog.label) == "[Alpha+Beta]" {
             true -> check_total(main)
             _ -> bad_label(main)
         }

@@ -1,0 +1,177 @@
+// Explicit text storage; domains never supply a length word.
+domain [u8; 128]::Ascii(bytes) requires ascii_only(bytes);
+domain [u8]::Ascii(bytes) requires ascii_only(bytes);
+data TextBuffer [copy] where used <= 128 { storage: [u8; 128] in Ascii; used: u64; }
+machine TextBuffer::live(buffer: &TextBuffer) -> &[u8] in Ascii { &buffer.storage[..buffer.used] }
+machine TextBuffer::copy(buffer: &mut [u8; 128] in Ascii, bytes: &[u8] in Ascii, start: u64)
+requires start <= 128; bytes.len <= 128 - start
+{
+    transition { _ -> copying(buffer, bytes, start, 0) }
+    state copying(buffer: &mut [u8; 128] in Ascii, bytes: &[u8] in Ascii, start: u64, index: u64)
+    requires start <= 128; index <= 128
+    {
+        transition index < bytes.len && start + index < 128 {
+            true -> writing(buffer, bytes, start, index)
+            _ -> done()
+        }
+    }
+    state writing(buffer: &mut [u8; 128] in Ascii, bytes: &[u8] in Ascii, start: u64, index: u64)
+    requires start <= 128; index < 128; index < bytes.len; start + index < 128
+    {
+        buffer[start + index] = bytes[index];
+        transition { _ -> copying(buffer, bytes, start, index + 1) }
+    }
+    state done() {}
+}
+
+machine TextBuffer::set(buffer: &mut TextBuffer, bytes: &[u8] in Ascii)
+requires bytes.len <= 128
+{
+    TextBuffer::copy(&mut buffer.storage, bytes, 0);
+    buffer.used = bytes.len;
+}
+machine TextBuffer::join(buffer: &mut TextBuffer, left: &[u8] in Ascii, right: &[u8] in Ascii)
+requires left.len <= 24; right.len <= 100
+{
+    TextBuffer::copy(&mut buffer.storage, left, 0);
+    TextBuffer::copy(&mut buffer.storage, right, left.len);
+    buffer.used = left.len + right.len;
+}
+
+// Explicit owner retains its original 8-byte capacity.
+domain [u8; 8]::Ascii(bytes) requires ascii_only(bytes);
+data ExitCommand [copy] where used <= 8 { storage: [u8; 8] in Ascii; used: u64; }
+machine ExitCommand::live(buffer: &ExitCommand) -> &[u8] in Ascii
+ensures result.len == buffer.used && result.len <= 8
+{ &buffer.storage[..buffer.used] }
+machine ExitCommand::copy(buffer: &mut [u8; 8] in Ascii, bytes: &[u8] in Ascii, start: u64)
+requires start <= 8; bytes.len <= 8 - start
+{
+    transition { _ -> copying(buffer, bytes, start, 0) }
+    state copying(buffer: &mut [u8; 8] in Ascii, bytes: &[u8] in Ascii, start: u64, index: u64)
+    requires start <= 8; index <= 8
+    {
+        transition index < bytes.len && start + index < 8 {
+            true -> writing(buffer, bytes, start, index)
+            _ -> done()
+        }
+    }
+    state writing(buffer: &mut [u8; 8] in Ascii, bytes: &[u8] in Ascii, start: u64, index: u64)
+    requires start <= 8; index < 8; index < bytes.len; start + index < 8
+    {
+        buffer[start + index] = bytes[index];
+        transition { _ -> copying(buffer, bytes, start, index + 1) }
+    }
+    state done() {}
+}
+
+machine ExitCommand::set(buffer: &mut ExitCommand, bytes: &[u8] in Ascii)
+requires bytes.len <= 8
+{
+    ExitCommand::copy(&mut buffer.storage, bytes, 0);
+    buffer.used = bytes.len;
+}
+
+// Explicit owner retains its original 16-byte capacity.
+domain [u8; 16]::Ascii(bytes) requires ascii_only(bytes);
+domain [u8; 16]::Utf8(bytes) requires valid_utf8(bytes);
+data RoomLabel [copy] where used <= 16 { storage: [u8; 16] in Ascii; used: u64; }
+machine RoomLabel::live(buffer: &RoomLabel) -> &[u8] in Ascii
+ensures result.len == buffer.used && result.len <= 16
+{ &buffer.storage[..buffer.used] }
+machine RoomLabel::copy(buffer: &mut [u8; 16] in Ascii, bytes: &[u8] in Ascii, start: u64)
+requires start <= 16; bytes.len <= 16 - start
+{
+    transition { _ -> copying(buffer, bytes, start, 0) }
+    state copying(buffer: &mut [u8; 16] in Ascii, bytes: &[u8] in Ascii, start: u64, index: u64)
+    requires start <= 16; index <= 16
+    {
+        transition index < bytes.len && start + index < 16 {
+            true -> writing(buffer, bytes, start, index)
+            _ -> done()
+        }
+    }
+    state writing(buffer: &mut [u8; 16] in Ascii, bytes: &[u8] in Ascii, start: u64, index: u64)
+    requires start <= 16; index < 16; index < bytes.len; start + index < 16
+    {
+        buffer[start + index] = bytes[index];
+        transition { _ -> copying(buffer, bytes, start, index + 1) }
+    }
+    state done() {}
+}
+
+machine RoomLabel::set(buffer: &mut RoomLabel, bytes: &[u8] in Ascii)
+requires bytes.len <= 16
+{
+    RoomLabel::copy(&mut buffer.storage, bytes, 0);
+    buffer.used = bytes.len;
+}
+
+// Explicit owner retains its original 24-byte capacity.
+domain [u8; 24]::Ascii(bytes) requires ascii_only(bytes);
+domain [u8; 24]::Utf8(bytes) requires valid_utf8(bytes);
+data EnemyName [copy] where used <= 24 { storage: [u8; 24] in Ascii; used: u64; }
+machine EnemyName::live(buffer: &EnemyName) -> &[u8] in Ascii
+ensures result.len == buffer.used && result.len <= 24
+{ &buffer.storage[..buffer.used] }
+machine EnemyName::copy(buffer: &mut [u8; 24] in Ascii, bytes: &[u8] in Ascii, start: u64)
+requires start <= 24; bytes.len <= 24 - start
+{
+    transition { _ -> copying(buffer, bytes, start, 0) }
+    state copying(buffer: &mut [u8; 24] in Ascii, bytes: &[u8] in Ascii, start: u64, index: u64)
+    requires start <= 24; index <= 24
+    {
+        transition index < bytes.len && start + index < 24 {
+            true -> writing(buffer, bytes, start, index)
+            _ -> done()
+        }
+    }
+    state writing(buffer: &mut [u8; 24] in Ascii, bytes: &[u8] in Ascii, start: u64, index: u64)
+    requires start <= 24; index < 24; index < bytes.len; start + index < 24
+    {
+        buffer[start + index] = bytes[index];
+        transition { _ -> copying(buffer, bytes, start, index + 1) }
+    }
+    state done() {}
+}
+
+machine EnemyName::set(buffer: &mut EnemyName, bytes: &[u8] in Ascii)
+requires bytes.len <= 24
+{
+    EnemyName::copy(&mut buffer.storage, bytes, 0);
+    buffer.used = bytes.len;
+}
+
+// Explicit owner retains its original 64-byte capacity.
+domain [u8; 64]::Ascii(bytes) requires ascii_only(bytes);
+data RoomDescription [copy] where used <= 64 { storage: [u8; 64] in Ascii; used: u64; }
+machine RoomDescription::live(buffer: &RoomDescription) -> &[u8] in Ascii
+ensures result.len == buffer.used && result.len <= 64
+{ &buffer.storage[..buffer.used] }
+machine RoomDescription::copy(buffer: &mut [u8; 64] in Ascii, bytes: &[u8] in Ascii, start: u64)
+requires start <= 64; bytes.len <= 64 - start
+{
+    transition { _ -> copying(buffer, bytes, start, 0) }
+    state copying(buffer: &mut [u8; 64] in Ascii, bytes: &[u8] in Ascii, start: u64, index: u64)
+    requires start <= 64; index <= 64
+    {
+        transition index < bytes.len && start + index < 64 {
+            true -> writing(buffer, bytes, start, index)
+            _ -> done()
+        }
+    }
+    state writing(buffer: &mut [u8; 64] in Ascii, bytes: &[u8] in Ascii, start: u64, index: u64)
+    requires start <= 64; index < 64; index < bytes.len; start + index < 64
+    {
+        buffer[start + index] = bytes[index];
+        transition { _ -> copying(buffer, bytes, start, index + 1) }
+    }
+    state done() {}
+}
+
+machine RoomDescription::set(buffer: &mut RoomDescription, bytes: &[u8] in Ascii)
+requires bytes.len <= 64
+{
+    RoomDescription::copy(&mut buffer.storage, bytes, 0);
+    buffer.used = bytes.len;
+}

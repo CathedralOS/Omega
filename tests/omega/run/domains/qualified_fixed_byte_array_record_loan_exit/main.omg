@@ -1,0 +1,21 @@
+// Expected exit: 0
+// A whole shared record loan transports exact qualified byte-field storage.
+domain [u8; 4]::Utf8(bytes) requires valid_utf8(bytes);
+data Row { first: u8; bytes: [u8; 4] in Utf8; last: u8; }
+machine marker(row: &Row) -> u8 { row.last }
+machine observe(row: &Row) -> bool {
+    row.bytes.len == 4 && row.bytes == "Gate" && row.first == 17 && marker(row) == 29
+}
+machine main() crashes Trap {
+    let row: Row = Row { first: 17u8, bytes: "Gate", last: 29u8 };
+    let view: &Row = &row;
+    let count: u64 = row.bytes.len;
+    let same: bool = row.bytes == "Gate";
+    let valid: bool = observe(view);
+    transition count == 4 && same && valid && size_of<Row>() == 6 {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

@@ -55,7 +55,10 @@ pub(super) fn owned_state_parameter(
     (matches!(
         parameter.multiplicity,
         terminal_psi::nonlinear_multiplicity_pair_pattern!()
-    ) && super::structural_scalar_fields::has_empty_structural_custody(machine, place))
+    ) && parameter.qualifications.is_empty()
+        && parameter.projected_qualifications.is_empty()
+        && super::structural_scalar_fields::has_unqualified_storage(machine, place)
+        && super::structural_scalar_fields::has_empty_structural_custody(machine, place))
     .then_some((block, parameter))
 }
 
@@ -87,11 +90,8 @@ pub(super) fn owned_state_storage_parameter(
         .get(position as usize)?;
     (parameter.place == place
         && parameter.position == position
-        && parameter.access == StructuralAccess::Owned
-        && parameter.qualifications.is_empty()
-        && parameter.projected_qualifications.is_empty()
-        && super::structural_scalar_fields::has_unqualified_storage(machine, place))
-    .then_some((block, parameter))
+        && parameter.access == StructuralAccess::Owned)
+        .then_some((block, parameter))
 }
 
 pub(super) fn local(

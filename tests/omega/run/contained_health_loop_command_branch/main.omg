@@ -1,17 +1,14 @@
 // Expected exit: 0. Expected output contains: look
 // #66: a contained command-loop with a health gate, over an owned
-// `[u8; N] in LineUtf8` carrier (no `String`). Each iteration checks health, then
+// explicit storage-and-length owner. Each iteration checks health, then
 // reads a line into the carrier, borrows it as a `&[u8] in LineUtf8` view, resolves a
 // Command enum directly, and loops until `quit`.
 pub domain [u8]::LineUtf8(bytes)
 requires
     valid_utf8(bytes);
-pub domain [u8; 16]::LineUtf8(bytes)
-requires
-    valid_utf8(bytes);
 use omega_language_std::console;
 
-machine read_command_line() -> [u8; 16] in LineUtf8
+machine read_command_line() -> LineBuffer
 reaches Console
 blocks;
 crashes Trap
@@ -23,13 +20,13 @@ crashes Trap
         LineReadResult::EndOfInput { count } -> completed(&buffer, count)
         _ -> invalid()
     }
-    state completed(buffer: &[u8; 16], count: u64) -> [u8; 16] in LineUtf8 {
+    state completed(buffer: &[u8; 16], count: u64) -> LineBuffer {
         transition count > 0 && count <= 16 {
             true -> trim(buffer, count)
-            _ -> "quit"
+            _ -> LineBuffer::snapshot("quit")
         }
     }
-    state trim(buffer: &[u8; 16], count: u64) -> [u8; 16] in LineUtf8
+    state trim(buffer: &[u8; 16], count: u64) -> LineBuffer
     requires count > 0 && count <= 16
     {
         transition buffer[count - 1] == 10 {
@@ -37,7 +34,7 @@ crashes Trap
             _ -> validate(buffer, count)
         }
     }
-    state validate(buffer: &[u8; 16], count: u64) -> [u8; 16] in LineUtf8
+    state validate(buffer: &[u8; 16], count: u64) -> LineBuffer
     requires count <= 16
     {
         let prefix: &[u8] = &buffer[0..count];
@@ -46,14 +43,12 @@ crashes Trap
             _ -> invalid()
         }
     }
-    state snapshot(prefix: &[u8] in LineUtf8) -> [u8; 16] in LineUtf8
+    state snapshot(prefix: &[u8] in LineUtf8) -> LineBuffer
     requires prefix.len <= 16
     {
-        let mut line: [u8; 16] in LineUtf8 = "";
-        line = "" + prefix;
-        line
+        LineBuffer::snapshot(prefix)
     }
-    state invalid() -> [u8; 16] in LineUtf8 { crash Trap; }
+    state invalid() -> LineBuffer { crash Trap; }
 }
 
 
@@ -75,7 +70,7 @@ machine resolve(line: &[u8] in LineUtf8) -> Command {
 }
 
 data Game {
-    line: [u8; 16] in LineUtf8;
+    line: LineBuffer;
     parser: Parser;
     command: Command;
     health: i32;
@@ -98,7 +93,8 @@ crashes Trap
 
     state read_command(game: &mut Game) {
         game.line = block read_command_line();
-        game.command = resolve(&game.line);
+        let line: &[u8] in LineUtf8 = LineBuffer::view(&game.line);
+        game.command = resolve(line);
 
         transition game.command {
             Command::Look -> look(game)
@@ -146,3 +142,65 @@ crashes Trap
         Console::exit_process(0);
     }
 }
+
+// Explicit fixed capacity and live-prefix length; qualification belongs to the checked view.
+data LineBuffer [copy] where used <= 16 { storage: [u8; 16]; used: u64; }
+machine LineBuffer::view(buffer: &LineBuffer) -> &[u8] in LineUtf8 crashes Trap {
+    let bytes: &[u8] = &buffer.storage[..buffer.used];
+    transition valid_utf8(bytes) {
+        true -> checked(bytes)
+        false -> bad()
+    }
+    state checked(bytes: &[u8] in LineUtf8) -> &[u8] in LineUtf8 { bytes }
+    state bad() { crash Trap; }
+}
+machine LineBuffer::equal(buffer: &LineBuffer, expected: &[u8]) -> bool crashes Trap {
+    let bytes: &[u8] in LineUtf8 = LineBuffer::view(buffer);
+    bytes == expected
+}
+
+machine LineBuffer::copy(storage: &mut [u8; 16], bytes: &[u8], start: u64)
+requires start <= 16; bytes.len <= 16 - start {
+    transition { _ -> copying(storage, bytes, start, 0) }
+    state copying(storage: &mut [u8; 16], bytes: &[u8], start: u64, index: u64)
+    requires start <= 16; index <= 16 {
+        transition index < bytes.len && start + index < 16 {
+            true -> writing(storage, bytes, start, index)
+            _ -> done()
+        }
+    }
+    state writing(storage: &mut [u8; 16], bytes: &[u8], start: u64, index: u64)
+    requires start <= 16; index < 16; index < bytes.len; start + index < 16 {
+        storage[start + index] = bytes[index];
+        transition { _ -> copying(storage, bytes, start, index + 1) }
+    }
+    state done() {}
+}
+machine LineBuffer::join(left: &[u8], right: &[u8]) -> LineBuffer crashes Trap {
+    transition left.len <= 16 && right.len <= 16 - left.len {
+        true -> joining(left, right)
+        _ -> bad()
+    }
+    state joining(left: &[u8], right: &[u8]) -> LineBuffer
+    requires left.len <= 16; right.len <= 16 - left.len {
+    let mut result: LineBuffer;
+    LineBuffer::copy(&mut result.storage, left, 0);
+    LineBuffer::copy(&mut result.storage, right, left.len);
+    let total: u64 = left.len + right.len;
+    transition total <= 16 {
+        true -> checked(result, total)
+        _ -> bad()
+    }
+    }
+    state checked(result: LineBuffer, total: u64) -> LineBuffer
+    requires total <= 16 {
+        let mut value: LineBuffer = result;
+        value.used = total;
+        value
+    }
+    state bad() { crash Trap; }
+}
+
+machine LineBuffer::snapshot(text: &[u8] in LineUtf8) -> LineBuffer
+crashes Trap
+requires text.len <= 16 { LineBuffer::join("", text) }

@@ -1,17 +1,17 @@
-domain [u8; 16]::Ascii(bytes) requires ascii_only(bytes);
+domain [u8; 4]::Ascii(bytes) requires ascii_only(bytes);
 
-machine corrupt(mut bytes: [u8; 16] in Ascii) -> bool {
+machine corrupt(mut bytes: [u8; 4] in Ascii) -> bool {
     transition bytes.len == 4 {
         true -> rewrite(bytes)
         _ -> false
     }
-    state rewrite(mut bytes: [u8; 16] in Ascii) -> bool
+    state rewrite(mut bytes: [u8; 4] in Ascii) -> bool
     requires bytes.len == 4;
     {
         bytes[0] = 255;
         transition { _ -> observe(bytes) }
     }
-    state observe(bytes: [u8; 16] in Ascii) -> bool { bytes == "gate" }
+    state observe(bytes: [u8; 4] in Ascii) -> bool { bytes == "gate" }
 }
 
 machine main() { let corrupted: bool = corrupt("gate"); }

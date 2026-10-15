@@ -7,7 +7,7 @@
 domain [u8]::Utf8(text)
 requires
     valid_utf8(text);
-domain [u8; 16]::Utf8(text)
+domain [u8; 12]::Utf8(text)
 requires
     valid_utf8(text);
 use omega_language_std::console;
@@ -17,7 +17,7 @@ data Main {
 
 machine Main::main(context: &mut Main) reaches Console {
     Console::write_line("longest_run: finding the longest run of equal bytes in aaabbbbccdaa");
-    let text: [u8; 16] in Utf8 = "aaabbbbccdaa";
+    let text: [u8; 12] in Utf8 = "aaabbbbccdaa";
     let maximum: i32 in Wrapping = longest_run(&text);
     Console::write_line("result: the longest run length, 4 (the bbbb) for this text (the exit code)");
     Console::write_line("[press Enter to close]");
@@ -26,10 +26,10 @@ machine Main::main(context: &mut Main) reaches Console {
     Console::exit_process(maximum as i32);
 }
 
-machine longest_run(text: &[u8; 16] in Utf8) -> i32 in Wrapping {
+machine longest_run(text: &[u8; 12] in Utf8) -> i32 in Wrapping {
     transition { _ -> step(text, 0, 0, 0, 0) }
 
-    state step(text: &[u8; 16] in Utf8, index: i32, previous: u8,
+    state step(text: &[u8; 12] in Utf8, index: i32, previous: u8,
                current: i32 in Wrapping, maximum: i32 in Wrapping) -> i32 in Wrapping
     requires index >= 0 {
         transition index < text.len {
@@ -38,7 +38,7 @@ machine longest_run(text: &[u8; 16] in Utf8) -> i32 in Wrapping {
         }
     }
 
-    state read(text: &[u8; 16] in Utf8, index: i32, previous: u8,
+    state read(text: &[u8; 12] in Utf8, index: i32, previous: u8,
                current: i32 in Wrapping, maximum: i32 in Wrapping) -> i32 in Wrapping
     requires index >= 0 {
         let byte: u8 = text[index];
@@ -48,7 +48,7 @@ machine longest_run(text: &[u8; 16] in Utf8) -> i32 in Wrapping {
         }
     }
 
-    state update(text: &[u8; 16] in Utf8, index: i32, previous: u8,
+    state update(text: &[u8; 12] in Utf8, index: i32, previous: u8,
                  current: i32 in Wrapping, maximum: i32 in Wrapping) -> i32 in Wrapping
     requires index >= 0 {
         transition current > maximum {
@@ -58,7 +58,7 @@ machine longest_run(text: &[u8; 16] in Utf8) -> i32 in Wrapping {
     }
 
     // Retain the capacity guard immediately before the Exact cursor increment.
-    state advance(text: &[u8; 16] in Utf8, index: i32, previous: u8,
+    state advance(text: &[u8; 12] in Utf8, index: i32, previous: u8,
                   current: i32 in Wrapping, maximum: i32 in Wrapping) -> i32 in Wrapping
     requires index >= 0 {
         transition index < 16 {
@@ -67,7 +67,7 @@ machine longest_run(text: &[u8; 16] in Utf8) -> i32 in Wrapping {
         }
     }
 
-    state bump(text: &[u8; 16] in Utf8, index: i32, previous: u8,
+    state bump(text: &[u8; 12] in Utf8, index: i32, previous: u8,
                current: i32 in Wrapping, maximum: i32 in Wrapping) -> i32 in Wrapping
     requires index >= 0
     requires index < 16 {

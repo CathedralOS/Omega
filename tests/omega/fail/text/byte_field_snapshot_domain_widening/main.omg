@@ -1,11 +1,11 @@
 use omega_language_std::console;
 
-domain [u8; 8]::Utf8(bytes) requires valid_utf8(bytes);
-domain [u8; 8]::Ascii(bytes) requires ascii_only(bytes);
-data Row { text: [u8; 8] in Utf8; }
+domain [u8; 2]::Utf8(bytes) requires valid_utf8(bytes);
+domain [u8; 2]::Ascii(bytes) requires ascii_only(bytes);
+data Row { text: [u8; 2] in Utf8; }
 data Main { row: Row; }
 
-machine snapshot(row: &Row) -> [u8; 8] in Ascii { row.text }
+machine snapshot(row: &Row) -> [u8; 2] in Ascii { row.text }
 machine Main::main(main: &mut Main) reaches Console {
     main.row.text = "é";
     _ = snapshot(&main.row);

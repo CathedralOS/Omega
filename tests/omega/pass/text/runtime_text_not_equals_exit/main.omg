@@ -13,11 +13,11 @@
 domain [u8]::Utf8(bytes)
 requires
     valid_utf8(bytes);
-domain [u8; 8]::Utf8(bytes)
+domain [u8; 5]::Utf8(bytes)
 requires
     valid_utf8(bytes);
 use omega_language_std::console;
-data Main { shift: u64; name: [u8; 8] in Utf8; other: [u8; 8] in Utf8; okf: bool; }
+data Main { shift: u64; name: [u8; 5] in Utf8; other: [u8; 5] in Utf8; okf: bool; }
 machine Main::main(main: &mut Main) {
     main.name = "omega";
     main.other = "delta";

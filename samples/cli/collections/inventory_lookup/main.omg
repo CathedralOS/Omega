@@ -1,7 +1,7 @@
 // Look up an item by name in a small table of records -- a core serious-app shape
 // (name tables, inventories, registries). Each `Item` is a struct with an `id` and
-// a `[u8; 8] in Utf8` carrier `name`, stored in a fixed array `items: [Item; 3]`.
-// This combines array-of-structs storage, text CARRIERS as record fields, carrier
+// a `&[u8] in Utf8` view `name`, stored in a fixed array `items: [Item; 3]`.
+// This combines array-of-structs storage, literal-backed views as record fields, carrier
 // content comparison (`==`) inside guards, and array-element value reads (exiting
 // `main.items[k].id`). A guard chain searches for "Shield" and returns its id (20).
 // Expected exit: 20.
@@ -9,14 +9,11 @@
 domain [u8]::Utf8(bytes)
 requires
     valid_utf8(bytes);
-domain [u8; 8]::Utf8(bytes)
-requires
-    valid_utf8(bytes);
 use omega_language_std::console;
 
 data Item {
     id: i32;
-    name: [u8; 8] in Utf8;
+    name: &[u8] in Utf8;
 }
 
 data Main {

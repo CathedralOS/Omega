@@ -5,18 +5,18 @@
 // `as` that spells it.
 //
 // It used to reach Terminal instead: the proof layer stamped no carrier on a
-// length, so the store "landed by range" -- a `[u8; 32]` length fits `i32` --
+// length, so the store "landed by range" -- a `[u8; 10]` length fits `i32` --
 // nothing rejected it, and the unit plan was omitted with no route, reported
 // as "rejoins 0 Terminal attachment identities". An unhelpful symptom for what
 // is a one-cast authoring mistake.
 use omega_language_std::console;
 
-domain [u8; 32]::Utf8(bytes)
+domain [u8; 10]::Utf8(bytes)
 requires
     valid_utf8(bytes);
 
 data Main {
-    message: [u8; 32] in Utf8;
+    message: [u8; 10] in Utf8;
     width: i32;
 }
 

@@ -12,7 +12,7 @@ use super::{
 };
 use crate::execution::terminal_unit::ScalarCalleeClosure;
 use crate::execution::terminal_unit::types::{
-    ShapeCollector, is_unit, parameter_qualifications, projected_parameter_qualifications,
+    ShapeCollector, is_unit, parameter_qualifications, projected_result_qualifications,
 };
 
 use crate::execution::terminal_unit::is_reference;
@@ -157,7 +157,7 @@ pub(in crate::execution::terminal_unit) fn signature(
             type_identity,
             multiplicity,
             qualifications,
-            projected_qualifications: projected_parameter_qualifications(
+            projected_qualifications: projected_result_qualifications(
                 program,
                 shapes,
                 reference,

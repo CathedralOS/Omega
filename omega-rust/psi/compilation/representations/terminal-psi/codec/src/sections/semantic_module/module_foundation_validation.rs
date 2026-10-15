@@ -477,6 +477,9 @@ fn validate_reference_origin_path(
             return malformed("structural case path requires its payload field");
         }
         structural_type = match (segment, &declaration.shape) {
+            (StructuralPathSegment::AllElements, _) => {
+                return malformed("universal qualification is not an executable storage path");
+            }
             (
                 StructuralPathSegment::RepresentationView {
                     structural_type: view,
@@ -733,16 +736,46 @@ fn validate_operation_foundation(
                 return malformed("byte-sequence write requires a Unit result");
             }
         }
-        OperationKind::ElementViewWrite { .. } => {
+        OperationKind::ElementViewWrite {
+            destination,
+            path,
+            index,
+            obligation,
+            ..
+        } => {
             if operation.result != OperationResult::Unit {
                 return malformed("element-view write requires a Unit result");
+            }
+            let root = terminal_semantics::descriptor_results::terminal_payload_contract(
+                machine,
+                destination.place,
+            )
+            .ok_or(CodecError::MalformedStructuralFoundation(
+                "element-view write root is absent",
+            ))?;
+            // Preserve the original root roster and every stored-descriptor
+            // crossing before selecting the written element and its field.
+            let mut written = destination.path.clone();
+            written.push(terminal_psi::StructuralPathSegment::RuntimeIndex {
+                index: *index,
+                obligation: *obligation,
+            });
+            written.extend(path.iter().cloned());
+            if !terminal_semantics::structural_memberships_disjoint_from_write(
+                &root.qualifications,
+                &root.projected_qualifications,
+                &written,
+            ) {
+                return malformed(
+                    "element-view scalar write overlaps qualifications it does not restore",
+                );
             }
         }
         OperationKind::StructuralCaseMembership { .. } => {
             storage_foundations::validate_structural_case_membership(operation)?
         }
         terminal_psi::structural_leaf_copy_pair_pattern!() => {
-            storage_foundations::validate_structural_leaf_copy(module, operation)?
+            storage_foundations::validate_structural_leaf_copy(module, machine, operation)?
         }
         OperationKind::ByteSequenceRead { .. } => {
             storage_foundations::validate_byte_sequence_read(operation)?
@@ -877,7 +910,14 @@ fn validate_structural_qualifications(
                 if row.path.is_empty() {
                     malformed("projected qualification requires a child path")
                 } else {
-                    validate_structural_path(module, structural_type, &row.path)
+                    terminal_semantics::qualification_path_carrier(
+                        module.structural_types.iter(),
+                        structural_type,
+                        &row.path,
+                    )
+                    .ok_or(CodecError::MalformedStructuralFoundation(
+                        "qualification pattern has no exact carrier",
+                    ))
                 },
             )
         }))
@@ -1001,24 +1041,46 @@ fn validate_structural_arguments(
                     && parameter.multiplicity == StructuralMultiplicity::Unrestricted
             }) || result.is_some());
         if owned_array_payload {
+            let payload_loan = argument.access == expected.access
+                && argument.access != terminal_psi::StructuralAccess::Owned;
+            // Predicate-only array memberships travel in the ordinary source
+            // contract. This classifies the retained theory; independent call
+            // validation still authenticates its actual source and handback.
+            let supported = |carrier, whole: &[_], projected: &[_]| {
+                projected.is_empty()
+                    || payload_loan
+                        && terminal_semantics::pure_byte_qualifications(
+                            module.structural_types.iter(),
+                            module.structural_domains.iter(),
+                            carrier,
+                            whole,
+                            projected,
+                        )
+            };
             let plain_source = parameter.is_some_and(|parameter| {
                 parameter.access == terminal_psi::StructuralAccess::Owned
                     && parameter.multiplicity == StructuralMultiplicity::Unrestricted
-                    && parameter.qualifications.is_empty()
-                    && parameter.projected_qualifications.is_empty()
+                    && supported(
+                        actual_type,
+                        &parameter.qualifications,
+                        &parameter.projected_qualifications,
+                    )
             }) || result.is_some_and(|result| {
                 result.multiplicity == StructuralMultiplicity::Unrestricted
-                    && result.qualifications.is_empty()
-                    && result.projected_qualifications.is_empty()
+                    && supported(
+                        actual_type,
+                        &result.qualifications,
+                        &result.projected_qualifications,
+                    )
                     && result.claims.is_empty()
             });
-            // A plain parameter or completed producer lends its established
-            // backing at either call kind. Preserve the root and projection;
+            // A parameter or completed producer lends its established
+            // backing at either call kind. Root predicate qualification does not
+            // change array geometry; module validation retains membership
+            // obligations. Preserve the root and projection;
             // the shared path resolver below checks the exact lent type.
             // Independent verification checks availability, runtime bounds
             // and exclusive overlap; canonicalization establishes none of them.
-            let payload_loan = argument.access == expected.access
-                && argument.access != terminal_psi::StructuralAccess::Owned;
             let admitted_access = matches!(
                 (argument.access, expected.access),
                 (
@@ -1034,8 +1096,11 @@ fn validate_structural_arguments(
                         .iter()
                         .any(|segment| !matches!(segment, StructuralPathSegment::FixedIndex(_))))
                 || expected.multiplicity != StructuralMultiplicity::Unrestricted
-                || !expected.qualifications.is_empty()
-                || !expected.projected_qualifications.is_empty()
+                || !supported(
+                    expected.structural_type,
+                    &expected.qualifications,
+                    &expected.projected_qualifications,
+                )
                 || machine
                     .entry_claims
                     .iter()
@@ -1066,8 +1131,9 @@ fn validate_structural_arguments(
             .or_else(|| block_parameter(machine, argument.place))
             .or(result_backing.as_ref());
         if backing.is_some_and(|actual| {
-            (terminal_semantics::fixed_byte_array_extent(
+            (terminal_semantics::fixed_byte_array_loan(
                 module.structural_types.iter(),
+                module.structural_domains.iter(),
                 actual,
                 argument,
                 expected,

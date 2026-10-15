@@ -10,7 +10,7 @@ machine CommandParser::resolve_navigation(
     command_parser: &mut CommandParser,
     level: Level,
     cell: CellId,
-    line: &[u8; 256] in Utf8
+    line: &[u8] in Utf8
     ) -> Navigation {
     let choice: NavigationChoice = CommandParser::resolve_command(line);
 
@@ -20,7 +20,7 @@ machine CommandParser::resolve_navigation(
     }
 }
 
-machine CommandParser::resolve_command(line: &[u8; 256] in Utf8) -> NavigationChoice {
+machine CommandParser::resolve_command(line: &[u8] in Utf8) -> NavigationChoice {
     transition {
         line == "quit" -> NavigationChoice::Quit
         line == "exit" -> NavigationChoice::Quit
@@ -43,7 +43,7 @@ machine CommandParser::resolve_exit(
     command_parser: &mut CommandParser,
     level: Level,
     cell: CellId,
-    line: &[u8; 256] in Utf8
+    line: &[u8] in Utf8
     ) -> Navigation {
     transition {
         cell == CellId::R00 && line == "north" -> CommandParser::navigation(NavigationChoice::Move, CellId::R01)
@@ -67,7 +67,7 @@ machine CommandParser::resolve_exit(
 machine CommandParser::find_exit(
     command_parser: &mut CommandParser,
     room: Room,
-    command: &[u8; 256] in Utf8
+    command: &[u8] in Utf8
     ) -> Navigation {
     let exits: &[Exit] = &room.exits[..];
 
@@ -81,7 +81,7 @@ machine CommandParser::find_exit_at(
     command_parser: &mut CommandParser,
     exits: &[Exit],
     exit_count: u64 in Wrapping,
-    command: &[u8; 256] in Utf8,
+    command: &[u8] in Utf8,
     index: u64 in Wrapping
     ) -> Navigation {
     transition index < exits.len {
@@ -94,7 +94,7 @@ machine CommandParser::find_exit_at(
         command_parser: &mut CommandParser,
         exits: &[Exit],
         exit_count: u64 in Wrapping,
-        command: &[u8; 256] in Utf8,
+        command: &[u8] in Utf8,
         index: u64 in Wrapping
     ) {
         let found: bool = CommandParser::direction_matches(exits[index].direction, command);
@@ -116,7 +116,7 @@ machine CommandParser::invalid_navigation(command_parser: &mut CommandParser) ->
 }
 
 machine CommandParser::direction_matches(direction: Direction,
-    command: &[u8; 256] in Utf8) -> bool {
+    command: &[u8] in Utf8) -> bool {
     transition {
         direction == Direction::North && command == "north" -> true
         direction == Direction::South && command == "south" -> true

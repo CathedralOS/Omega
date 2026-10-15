@@ -1,39 +1,40 @@
+domain [u8]::Utf8(bytes) requires valid_utf8(bytes);
 // Expected exit: 0. Equal-capacity qualified owners and temporary carriers
 // must not change the storage selected when a copied field becomes a view.
 domain [u8; 8]::Utf8(bytes) requires valid_utf8(bytes);
-domain [u8; 8]::Ascii(bytes) requires ascii_only(bytes);
-data Text [copy] { bytes: [u8; 8] in Utf8; }
+domain [u8; 2]::Ascii(bytes) requires ascii_only(bytes);
+data Text [copy] { bytes: TextBuffer; }
 data Room [copy] { description: Text; }
-data Main { output: [u8; 8] in Utf8; entries: [Text; 2]; }
+data Main { output: TextBuffer; entries: [Text; 2]; }
 
-machine measure(bytes: &[u8; 8] in Ascii) -> u64 { bytes.len }
-machine measure_text(bytes: &[u8]) -> u64 { bytes.len }
+machine measure(bytes: &[u8; 2] in Ascii) -> u64 crashes Trap { bytes.len }
+machine measure_text(bytes: &[u8]) -> u64 crashes Trap { bytes.len }
 
-machine measure_room(room: &Room) -> u64 { measure_text(&room.description.bytes) }
+machine measure_room(room: &Room) -> u64 crashes Trap { measure_text(TextBuffer::view(&room.description.bytes)) }
 
-machine measure_at(entries: &[Text; 2], index: u64) -> u64
+machine measure_at(entries: &[Text; 2], index: u64) -> u64 crashes Trap
 requires index < 2 {
-    let bytes: &[u8] = &entries[index].bytes;
+    let bytes: &[u8] = TextBuffer::view(&entries[index].bytes);
     measure_text(bytes)
 }
 
-machine measure_direct(entries: &[Text; 2], index: u64) -> u64
+machine measure_direct(entries: &[Text; 2], index: u64) -> u64 crashes Trap
 requires index < 2 {
-    measure_text(&entries[index].bytes)
+    measure_text(TextBuffer::view(&entries[index].bytes))
 }
 
-machine measure_nested(main: &Main, index: u64) -> u64
+machine measure_nested(main: &Main, index: u64) -> u64 crashes Trap
 requires index < 2 {
-    measure_text(&main.entries[index].bytes)
+    measure_text(TextBuffer::view(&main.entries[index].bytes))
 }
 
-machine fill(room: &mut Room) {
-    room.description.bytes = "before";
-    room.description.bytes = "é";
+machine fill(room: &mut Room) crashes Trap {
+    room.description.bytes = TextBuffer { storage: [98u8, 101u8, 102u8, 111u8, 114u8, 101u8, 0u8, 0u8], used: 6 };
+    room.description.bytes = TextBuffer { storage: [195u8, 169u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8], used: 2 };
 }
 
-machine change(room: &mut Room) {
-    room.description.bytes = "changed";
+machine change(room: &mut Room) crashes Trap {
+    room.description.bytes = TextBuffer { storage: [99u8, 104u8, 97u8, 110u8, 103u8, 101u8, 100u8, 0u8], used: 7 };
 }
 
 machine Main::main(main: &mut Main) crashes Trap {
@@ -41,21 +42,21 @@ machine Main::main(main: &mut Main) crashes Trap {
     fill(&mut room);
     main.output = room.description.bytes;
     change(&mut room);
-    let other: [u8; 8] in Ascii = "ok";
+    let other: [u8; 2] in Ascii = "ok";
     let count: u64 = measure(&other);
     let local_count: u64 = measure_room(&room);
     let local_copy: Text = room.description;
-    let local_copy_count: u64 = measure_text(&local_copy.bytes);
-    let copied_count: u64 = measure_text(&main.output);
-    main.entries[0].bytes = "one";
-    main.entries[1].bytes = "four";
+    let local_copy_count: u64 = measure_text(TextBuffer::view(&local_copy.bytes));
+    let copied_count: u64 = measure_text(TextBuffer::view(&main.output));
+    main.entries[0].bytes = TextBuffer { storage: [111u8, 110u8, 101u8, 0u8, 0u8, 0u8, 0u8, 0u8], used: 3 };
+    main.entries[1].bytes = TextBuffer { storage: [102u8, 111u8, 117u8, 114u8, 0u8, 0u8, 0u8, 0u8], used: 4 };
     let indexed_count: u64 = measure_at(&main.entries, 1);
     let direct_count: u64 = measure_direct(&main.entries, 0);
     let nested_count: u64 = measure_nested(main, 1);
-    main.entries[0].bytes = "";
+    main.entries[0].bytes = TextBuffer { storage: [0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8], used: 0 };
     let empty_count: u64 = measure_direct(&main.entries, 0);
-    transition main.output == "é" && copied_count == 2
-        && room.description.bytes == "changed" && count == 2
+    transition TextBuffer::equal(&main.output, "é") && copied_count == 2
+        && TextBuffer::equal(&room.description.bytes, "changed") && count == 2
         && local_count == 7 && local_copy_count == 7 && indexed_count == 4
         && direct_count == 3 && nested_count == 4 && empty_count == 0 {
         true -> passed()
@@ -63,4 +64,22 @@ machine Main::main(main: &mut Main) crashes Trap {
     }
     state passed() {}
     state failed() { crash Trap; }
+}
+
+
+// A variable-fill value explicitly owns its fixed storage and live length.
+// Copies retain both; an accessor borrows and checks the selected copy's prefix.
+data TextBuffer [copy] where used <= 8 { storage: [u8; 8]; used: u64; }
+machine TextBuffer::view(buffer: &TextBuffer) -> &[u8] in Utf8 crashes Trap {
+    let bytes: &[u8] = &buffer.storage[..buffer.used];
+    transition valid_utf8(bytes) {
+        true -> checked(bytes)
+        false -> bad()
+    }
+    state checked(bytes: &[u8] in Utf8) -> &[u8] in Utf8 { bytes }
+    state bad() { crash Trap; }
+}
+machine TextBuffer::equal(buffer: &TextBuffer, expected: &[u8]) -> bool crashes Trap {
+    let bytes: &[u8] in Utf8 = TextBuffer::view(buffer);
+    bytes == expected
 }

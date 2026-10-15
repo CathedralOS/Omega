@@ -804,7 +804,7 @@ fn input_claim(
 ) -> Option<PermissionClaimIdentity> {
     let parameter = parameters.get(position)?;
     let argument = input_argument(program, invocation, parameters, position)?;
-    let projections = crate::flow::literal_value_projections(
+    let projections = crate::flow::literal_expression_projections(
         program,
         argument,
         parameter.type_reference,

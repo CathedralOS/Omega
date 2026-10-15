@@ -149,6 +149,8 @@ use std::{env, fs, process};
 #[global_allocator]
 static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
+#[path = "support/artifact_capture.rs"]
+mod artifact_capture;
 #[path = "support/fixture_package_inputs.rs"]
 mod fixture_package_inputs;
 #[path = "support/output_oracles.rs"]
@@ -989,6 +991,7 @@ fn build_native_fixture(
     target: &str,
     rollback: Option<&OptimizationRollback>,
     interpretation: Option<(&Path, &mut Option<terminal_execution::Observation>)>,
+    capture: Option<&artifact_capture::Capture>,
 ) -> Result<(PathBuf, Option<String>), Vec<diagnostics::Diagnostic>> {
     let target_profile = target::TargetProfile::from_omega_target_name(Some(target))
         .map_err(|diagnostic| vec![diagnostic])?;
@@ -1063,6 +1066,16 @@ fn build_native_fixture(
         image_emission::validate_direct_executable_image(artifact.object(), artifact.image())
             .map_err(|diagnostic| vec![diagnostic])?;
     }
+    if let Some(capture) = capture {
+        let artifact = retained_native_terminal(report).ok_or_else(|| {
+            vec![diagnostics::Diagnostic::error(
+                "native artifact lost its portable Terminal product",
+            )]
+        })?;
+        capture
+            .observe("terminal.psi", &artifact.to_bytes())
+            .map_err(|error| vec![diagnostics::Diagnostic::error(error)])?;
+    }
     if let Some((fixture_dir, observation)) = interpretation {
         let roots = if compiled_roots {
             let artifact = retained_native_terminal(report).ok_or_else(|| {
@@ -1100,14 +1113,17 @@ fn build_native_fixture(
     let (_, report) = reports.swap_remove(primary);
     let published = compilation_products::publication::publish_compilation(report, build_dir)
         .map_err(|error| vec![diagnostics::Diagnostic::error(error)])?;
-    published
-        .checked_native_executable_path()
-        .map(|path| (path.to_path_buf(), receipt))
-        .ok_or_else(|| {
-            vec![diagnostics::Diagnostic::error(
-                "published native artifact names no executable",
-            )]
-        })
+    let executable = published.checked_native_executable_path().ok_or_else(|| {
+        vec![diagnostics::Diagnostic::error(
+            "published native artifact names no executable",
+        )]
+    })?;
+    if let Some(capture) = capture {
+        capture
+            .observe_executable(executable)
+            .map_err(|error| vec![diagnostics::Diagnostic::error(error)])?;
+    }
+    Ok((executable.to_path_buf(), receipt))
 }
 
 /// Run one built fixture in a fresh directory, stdin from `input.txt`, and
@@ -1709,28 +1725,53 @@ fn run_one(tier: &str, base: &Path, main: &Path, sequence: usize) -> (String, u1
                 shared_interpreter_request = !checked_interpreter_leg();
                 (fixture_dir.as_path(), &mut interpreter_observation)
             });
-            let built = build_native_fixture(
-                main,
-                &build_dir,
-                target,
-                declared_rollback.as_ref(),
-                interpretation,
-            );
+            let capture = artifact_capture::Capture::from_environment(tier, &rel, target);
+            let mut built = match &capture {
+                Ok(capture) => build_native_fixture(
+                    main,
+                    &build_dir,
+                    target,
+                    declared_rollback.as_ref(),
+                    interpretation,
+                    capture.as_ref(),
+                ),
+                Err(error) => Err(vec![diagnostics::Diagnostic::error(error.clone())]),
+            };
+            let mut integrity_error = None;
             if let Ok((executable, receipt)) = &built {
                 if let Some(receipt) = receipt {
                     facts.push(format!("rollback:{}", space_free(receipt)));
                 }
-                if *executes_here
-                    && runnable
-                    && let Some(launcher) = native_launcher(target)
-                {
-                    facts.extend(execute_fixture(
-                        executable,
-                        &launcher,
-                        &fixture_dir,
-                        sequence,
-                    ));
-                }
+                let execution = (|| -> Result<(), String> {
+                    let before = if let Ok(Some(capture)) = &capture {
+                        Some(capture.verify_executable(executable)?)
+                    } else {
+                        None
+                    };
+                    if *executes_here
+                        && runnable
+                        && let Some(launcher) = native_launcher(target)
+                    {
+                        facts.extend(execute_fixture(
+                            executable,
+                            &launcher,
+                            &fixture_dir,
+                            sequence,
+                        ));
+                    }
+                    if let Ok(Some(capture)) = &capture
+                        && before != Some(capture.verify_executable(executable)?)
+                    {
+                        return Err(
+                            "executing corpus image identity or timestamps changed".to_owned()
+                        );
+                    }
+                    Ok(())
+                })();
+                integrity_error = execution.err();
+            }
+            if let Some(error) = integrity_error {
+                built = Err(vec![diagnostics::Diagnostic::error(error)]);
             }
             let _ = fs::remove_dir_all(&build_dir);
             built.map(|_| ())

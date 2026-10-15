@@ -1,35 +1,54 @@
+domain [u8]::Utf8(bytes) requires valid_utf8(bytes);
 domain [u8; 16]::Utf8(bytes) requires valid_utf8(bytes);
 
 data Main {
-    line: [u8; 16] in Utf8;
+    line: TextBuffer;
     sibling: u64;
 }
 
-machine Main::replace(main: &mut Main) -> bool {
-    main.line = "é";
+machine Main::replace(main: &mut Main) -> bool crashes Trap {
+    main.line = TextBuffer { storage: [195u8, 169u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8], used: 2 };
     true
 }
 
-machine observe(value: [u8; 16] in Utf8, replaced: bool) -> bool
-requires ascii_only(value) {
-    replaced && value == "Gate" && value.len == 4
+machine observe(value: TextBuffer, replaced: bool) -> bool crashes Trap
+requires ascii_only(value.storage) {
+    replaced && TextBuffer::equal(&value, "Gate") && value.used == 4
 }
 
 machine Main::main(main: &mut Main) crashes Trap {
-    main.line = "Gate";
+    main.line = TextBuffer { storage: [71u8, 97u8, 116u8, 101u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8], used: 4 };
     main.sibling = 29;
-    transition ascii_only(main.line) {
+    transition ascii_only(main.line.storage) {
         true -> capture(main)
         false -> bad()
     }
     state capture(main: &mut Main)
-    requires ascii_only(main.line) {
+    requires ascii_only(main.line.storage) {
         let captured: bool = observe(main.line, Main::replace(main));
-        transition captured && main.line == "é" && main.line.len == 2 && main.sibling == 29 {
+        transition captured && TextBuffer::equal(&main.line, "é") && main.line.used == 2 && main.sibling == 29 {
             true -> done()
             false -> bad()
         }
     }
     state done() {}
     state bad() { crash Trap; }
+}
+
+
+// A variable-fill value explicitly owns its fixed storage and live length.
+// Copies retain both; an accessor borrows and checks the selected copy's prefix.
+data TextBuffer [copy] where used <= 16 { storage: [u8; 16] in Utf8; used: u64; }
+machine TextBuffer::view(buffer: &TextBuffer) -> &[u8] in Utf8 crashes Trap {
+    let bytes: &[u8] = &buffer.storage[..buffer.used];
+    transition valid_utf8(bytes) {
+        true -> checked(bytes)
+        false -> bad()
+    }
+    state checked(bytes: &[u8] in Utf8) -> &[u8] in Utf8 { bytes }
+    state bad() { crash Trap; }
+}
+machine TextBuffer::equal(buffer: &TextBuffer, expected: &[u8]) -> bool crashes Trap {
+    let bytes: &[u8] in Utf8 = TextBuffer::view(buffer);
+    bytes == expected
 }

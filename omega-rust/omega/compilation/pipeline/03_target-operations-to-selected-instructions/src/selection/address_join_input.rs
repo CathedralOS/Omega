@@ -342,13 +342,15 @@ pub(super) fn root_type(
             )
         };
         if let Some((_, result)) = crate::selection::aggregate_result_input::home(source, place) {
+            // Membership rosters constrain the loan contract, not its storage
+            // address. Legalization and independent transfer validation conserve
+            // exclusive source/destination memberships; this query retains exact
+            // home, claims and multiplicity without inventing another carrier.
             return (matches!(
                 result.multiplicity,
                 terminal_psi::StructuralMultiplicity::Affine
                     | terminal_psi::StructuralMultiplicity::Unrestricted
-            ) && result.claims.is_empty()
-                && result.qualifications.is_empty()
-                && result.projected_qualifications.is_empty())
+            ) && result.claims.is_empty())
             .then_some(result.structural_type);
         }
         if let Some((_, parameter)) = join(source, place) {

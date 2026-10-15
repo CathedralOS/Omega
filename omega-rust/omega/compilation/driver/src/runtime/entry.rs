@@ -182,7 +182,12 @@ pub(super) fn establish(
                 ));
             }
             if !parameter.qualifications.is_empty()
-                || !parameter.projected_qualifications.is_empty()
+                || !terminal_semantics::zeroed_projected_byte_qualifications_hold(
+                    program.module().structural_types.iter(),
+                    program.module().structural_domains.iter(),
+                    parameter.structural_type,
+                    &parameter.projected_qualifications,
+                )
             {
                 return Err(TerminalRuntimeError::missing(
                     "program-entry-arrival-qualifications",
@@ -195,7 +200,7 @@ pub(super) fn establish(
                 opaque_identity: 1,
                 structural_type: receiver.terminal_receiver_type(),
                 qualifications: Vec::new(),
-                projected_qualifications: Vec::new(),
+                projected_qualifications: parameter.projected_qualifications.clone(),
                 path: Vec::new(),
             });
             arrival.zero_initialized.push(context_position);

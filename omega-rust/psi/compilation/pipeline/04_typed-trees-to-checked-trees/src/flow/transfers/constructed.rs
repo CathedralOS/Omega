@@ -4,7 +4,7 @@
 //! retain store-time evidence instead. Declarations establish neither value.
 use super::PlaceHandle;
 use crate::flow::FlowBuildContext;
-use crate::flow::literal_value_projections;
+use crate::flow::literal_expression_projections;
 use crate::flow::transfers::contextual_expression_place;
 use crate::flow::transfers::projected;
 use arena::HandleSpan;
@@ -48,7 +48,7 @@ pub(super) fn append_constructed_field_values(
         .type_reference_table
         .peeled_type_reference(reference);
     let Some(projections) =
-        literal_value_projections(program, capture.expression, reference, &[], true)
+        literal_expression_projections(program, capture.expression, reference, &[], true)
     else {
         return;
     };

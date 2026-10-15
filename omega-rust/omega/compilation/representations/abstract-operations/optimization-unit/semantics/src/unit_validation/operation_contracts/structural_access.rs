@@ -57,8 +57,22 @@ impl StructuralSourceContract<'_> {
         }
     }
 
-    pub(crate) fn has_exact_qualifications(&self, required: &[StructuralDomainId]) -> bool {
-        self.qualifications == required && self.projected_qualifications.is_empty()
+    pub(crate) fn payload_contract(
+        &self,
+    ) -> terminal_semantics::descriptor_results::PayloadMembershipContract {
+        terminal_semantics::descriptor_results::PayloadMembershipContract {
+            carrier: self.structural_type,
+            qualifications: self.qualifications.to_vec(),
+            projected_qualifications: self.projected_qualifications.to_vec(),
+        }
+    }
+
+    pub(crate) fn has_only_element_memberships(&self) -> bool {
+        self.qualifications.is_empty()
+            && self
+                .projected_qualifications
+                .iter()
+                .all(|row| row.is_element_membership())
     }
 
     pub(crate) fn declared_byte_predicates(
@@ -93,10 +107,42 @@ impl StructuralSourceContract<'_> {
         if path.is_empty() {
             self.qualifications.contains(&domain)
         } else {
-            self.projected_qualifications
-                .iter()
-                .any(|qualification| qualification.path == path && qualification.domain == domain)
+            self.projected_qualifications.iter().any(|qualification| {
+                terminal_psi::StructuralPathQualification::selected_suffix(
+                    &qualification.path,
+                    path,
+                )
+                .is_some_and(|suffix| suffix.is_empty())
+                    && qualification.domain == domain
+            })
         }
+    }
+
+    /// A restoration window must retain every selected membership and may
+    /// not open only part of an ancestor-qualified invariant.
+    pub(crate) fn memberships_disjoint_from_write(
+        &self,
+        path: &[terminal_psi::StructuralPathSegment],
+    ) -> bool {
+        terminal_semantics::structural_memberships_disjoint_from_write(
+            self.qualifications,
+            self.projected_qualifications,
+            path,
+        )
+    }
+
+    pub(crate) fn restorable_qualifications(
+        &self,
+        path: &[terminal_psi::StructuralPathSegment],
+    ) -> Option<(
+        Vec<StructuralDomainId>,
+        Vec<terminal_psi::StructuralPathQualification>,
+    )> {
+        terminal_psi::StructuralPathQualification::select_restorable(
+            self.qualifications,
+            self.projected_qualifications,
+            path,
+        )
     }
 
     /// A delivery retains evidence from its actual source and typed path;
@@ -116,6 +162,22 @@ impl StructuralSourceContract<'_> {
                 selected.extend(qualification.path.iter().cloned());
                 self.carries_qualification(&selected, qualification.domain)
             })
+    }
+
+    pub(crate) fn reference_memberships<'types>(
+        &self,
+        types: impl Iterator<Item = &'types terminal_psi::StructuralTypeDeclaration> + Clone,
+        path: &[terminal_psi::StructuralPathSegment],
+        access: terminal_psi::StructuralAccess,
+    ) -> Result<Vec<terminal_psi::StructuralPathQualification>, &'static str> {
+        terminal_semantics::reference_source_memberships(
+            types,
+            self.structural_type,
+            self.qualifications,
+            self.projected_qualifications,
+            path,
+            access,
+        )
     }
 
     pub(crate) fn selected_qualifications(
@@ -402,7 +464,8 @@ where
                 terminal_psi::StructuralPathSegment::FixedIndex(_)
                 | terminal_psi::StructuralPathSegment::Case(_)
                 | terminal_psi::StructuralPathSegment::RuntimeIndex { .. } => true,
-                terminal_psi::StructuralPathSegment::Referent
+                terminal_psi::StructuralPathSegment::AllElements
+                | terminal_psi::StructuralPathSegment::Referent
                 | terminal_psi::StructuralPathSegment::RepresentationView { .. }
                 | terminal_psi::StructuralPathSegment::FixedByteRange { .. } => false,
             });
@@ -542,8 +605,9 @@ where
         // boundary call does: the borrowed subloan shape is identical and a
         // scalar or dispatched result carries no custody of the backing.
         let presents_fixed_array = |actual: &terminal_psi::StructuralParameterDeclaration| {
-            terminal_semantics::fixed_byte_array_window(
+            terminal_semantics::fixed_byte_array_loan(
                 types.values().copied(),
+                domains.values().copied(),
                 actual,
                 argument,
                 parameter,
@@ -1201,7 +1265,10 @@ fn view_access(
         match operation {
             abstract_operations::element_view_or_byte_subslice_pattern!(source, ..) => {
                 if !result.qualifications.is_empty()
-                    || !result.projected_qualifications.is_empty()
+                    || result
+                        .projected_qualifications
+                        .iter()
+                        .any(|row| !row.is_element_membership())
                     || !result.qualification_establishments.is_empty()
                     || !result.claims.is_empty()
                 {
@@ -1272,7 +1339,10 @@ fn view_access(
                     )
                     || !structural_access_can_supply(source.access, required)
                     || !result.qualifications.is_empty()
-                    || !result.projected_qualifications.is_empty()
+                    || result
+                        .projected_qualifications
+                        .iter()
+                        .any(|row| !row.is_element_membership())
                     || !result.qualification_establishments.is_empty()
                     || !result.claims.is_empty()
                 {

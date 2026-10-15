@@ -1,1 +1,1 @@
-cannot bound the maximum byte length
+cannot prove requires contract for call snapshot from copy: observed.len <= 16 (needs fact `text.len <= 16` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`

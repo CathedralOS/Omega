@@ -1254,7 +1254,12 @@ pub(super) fn collect_expression_call_written_paths(
             // `min`/`max` reductions into opaque whole-receiver clobbers.
             // A boundary member with the same spelling still has its declared
             // receiver and argument reach; spelling cannot bypass resolution.
-            if value_builtin_has_empty_write_frame(program, call)
+            if (typed_trees::byte_predicates::byte_predicate_call(
+                program.typed_program(),
+                expression,
+            )
+            .is_some()
+                || value_builtin_has_empty_write_frame(program, call))
                 && !super::boundary_calls::selected_boundary_signature(program, call.target_symbol)
                 && !super::boundary_calls::expression_receiver_requires_boundary_frame(
                     program,

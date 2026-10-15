@@ -51,17 +51,22 @@ pub(super) fn valid(
     let Some(shape) = source_shape(function, types, domains, source, requested) else {
         return false;
     };
-    if !matches!(
-        (&shape, bytes),
-        (StructuralTypeShape::ByteSequence(_), true)
-            | (StructuralTypeShape::ElementView { .. }, false)
-    ) {
+    if !(bytes && cut.is_none() && fixed_bytes(&shape, types))
+        && !matches!(
+            (&shape, bytes),
+            (StructuralTypeShape::ByteSequence(_), true)
+                | (StructuralTypeShape::ElementView { .. }, false)
+        )
+    {
         return false;
     }
     if let Some((result, length)) = cut {
         if result.place == source.place
             || !result.qualifications.is_empty()
-            || !result.projected_qualifications.is_empty()
+            || result
+                .projected_qualifications
+                .iter()
+                .any(|row| bytes || !row.is_element_membership())
             || !result.qualification_establishments.is_empty()
             || !result.claims.is_empty()
         {
@@ -112,6 +117,18 @@ pub(super) fn valid(
         true
     }
 }
+// A fixed-array observation selects its declared bytes, independently of domains.
+fn fixed_bytes(
+    shape: &StructuralTypeShape,
+    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+) -> bool {
+    let StructuralTypeShape::FixedArray { element, .. } = shape else {
+        return false;
+    };
+    types.get(element).is_some_and(|row| matches!(row.shape,
+        StructuralTypeShape::PrimitiveScalar(semantic_vocabulary::ScalarType::Integer(integer))
+        if integer.sign() == semantic_vocabulary::IntegerSign::Unsigned && integer.bits() == 8 && !integer.is_address()))
+}
 fn covers(actual: StructuralAccess, requested: StructuralAccess) -> bool {
     actual == requested
         || actual == StructuralAccess::Owned
@@ -131,8 +148,8 @@ pub(super) fn valid_whole(
     length: semantic_vocabulary::ValueId,
 ) -> bool {
     source.access == StructuralAccess::SharedBorrow
-        && matches!(source_shape(function, types, domains, source, StructuralAccess::SharedBorrow),
-        Some(StructuralTypeShape::ByteSequence(_)))
+        && source_shape(function, types, domains, source, StructuralAccess::SharedBorrow)
+            .is_some_and(|shape| matches!(shape, StructuralTypeShape::ByteSequence(_)) || fixed_bytes(&shape, types))
         && function.block_nodes().any(|node| matches!(&node.operation,
             Operation::ByteSequenceLength { source: measured, result, .. }
             if result.value == length && terminal_semantics::same_descriptor_coordinate(measured, source)))
@@ -173,11 +190,17 @@ fn source_shape(
         .get(&signature.structural_type)
         .is_some_and(|declaration| {
             matches!(declaration.shape, StructuralTypeShape::ByteSequence(_))
+                || fixed_bytes(&declaration.shape, types)
         })
         && signature.declared_byte_predicates(domains).is_some();
     if signature.multiplicity == StructuralMultiplicity::Linear
         || signature.has_result_evidence()
-        || !(signature.is_unqualified() || byte_qualified)
+        || !(signature.is_unqualified()
+            || byte_qualified
+            || signature.has_only_element_memberships()
+                && types.get(&signature.structural_type).is_some_and(|row| {
+                    matches!(row.shape, StructuralTypeShape::ElementView { .. })
+                }))
     {
         return None;
     }

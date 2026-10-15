@@ -1,30 +1,31 @@
+domain [u8]::Utf8(bytes) requires valid_utf8(bytes);
 use omega_language_std::console;
 
 domain [u8; 8]::Utf8(bytes) requires valid_utf8(bytes);
 data Direction [copy] { case North; case South; }
-data Label [copy] { text: [u8; 8] in Utf8; sibling: u64; }
+data Label [copy] { text: TextBuffer; sibling: u64; }
 data Entry [copy] { label: Label; direction: Direction; sibling: u64; }
 data Main { entry: Entry; }
 
-machine empty_entry() -> Entry {
-    Entry { label: Label { text: "", sibling: 29 }, direction: Direction::North, sibling: 31 }
+machine empty_entry() -> Entry crashes Trap {
+    Entry { label: Label { text: TextBuffer { storage: [0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8], used: 0 }, sibling: 29 }, direction: Direction::North, sibling: 31 }
 }
 
-machine named_entry() -> Entry {
-    Entry { label: Label { text: "Gate", sibling: 37 }, direction: Direction::South, sibling: 41 }
+machine named_entry() -> Entry crashes Trap {
+    Entry { label: Label { text: TextBuffer { storage: [71u8, 97u8, 116u8, 101u8, 0u8, 0u8, 0u8, 0u8], used: 4 }, sibling: 37 }, direction: Direction::South, sibling: 41 }
 }
 
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches Console crashes Trap {
     main.entry = empty_entry();
-    let empty_matches: bool = main.entry.label.text == ""
-        && main.entry.label.text.len == 0
+    let empty_matches: bool = TextBuffer::equal(&main.entry.label.text, "")
+        && main.entry.label.text.used == 0
         && main.entry.label.sibling == 29
         && main.entry.direction == Direction::North
         && main.entry.sibling == 31;
     main.entry = named_entry();
     transition empty_matches
-        && main.entry.label.text == "Gate"
-        && main.entry.label.text.len == 4
+        && TextBuffer::equal(&main.entry.label.text, "Gate")
+        && main.entry.label.text.used == 4
         && main.entry.label.sibling == 37
         && main.entry.direction == Direction::South
         && main.entry.sibling == 41 {
@@ -32,4 +33,22 @@ machine Main::main(main: &mut Main) reaches Console {
         false -> finish(main, 1)
     }
     state finish(main: &mut Main, code: i32) { Console::exit_process(code); }
+}
+
+
+// A variable-fill value explicitly owns its fixed storage and live length.
+// Copies retain both; an accessor borrows and checks the selected copy's prefix.
+data TextBuffer [copy] where used <= 8 { storage: [u8; 8] in Utf8; used: u64; }
+machine TextBuffer::view(buffer: &TextBuffer) -> &[u8] in Utf8 crashes Trap {
+    let bytes: &[u8] = &buffer.storage[..buffer.used];
+    transition valid_utf8(bytes) {
+        true -> checked(bytes)
+        false -> bad()
+    }
+    state checked(bytes: &[u8] in Utf8) -> &[u8] in Utf8 { bytes }
+    state bad() { crash Trap; }
+}
+machine TextBuffer::equal(buffer: &TextBuffer, expected: &[u8]) -> bool crashes Trap {
+    let bytes: &[u8] in Utf8 = TextBuffer::view(buffer);
+    bytes == expected
 }

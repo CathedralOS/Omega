@@ -3,24 +3,7 @@
 // `finished()`. Native lookup must preserve the generated room description.
 // Expected exit: 0.
 // Expected output contains: A bottomless dark room near the dungeon heart.
-domain [u8; 8]::Utf8(bytes)
-requires
-    valid_utf8(bytes);
-domain [u8; 16]::Utf8(bytes)
-requires
-    valid_utf8(bytes);
-domain [u8; 24]::Utf8(bytes)
-requires
-    valid_utf8(bytes);
-domain [u8; 64]::Utf8(bytes)
-requires
-    valid_utf8(bytes);
-domain [u8; 128]::Utf8(bytes)
-requires
-    valid_utf8(bytes);
-domain [u8; 256]::Utf8(bytes)
-requires
-    valid_utf8(bytes);
+domain [u8]::Utf8(bytes) requires valid_utf8(bytes);
 use game::game;
 
 data Main {

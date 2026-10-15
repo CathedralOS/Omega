@@ -22,6 +22,8 @@ pub(crate) enum ConstructorValue<'execution> {
     PackedScalars {
         structural_type: StructuralTypeId,
         elements: &'execution [TerminalScalarValue],
+        qualifications: Vec<semantic_vocabulary::StructuralDomainId>,
+        projected_qualifications: Vec<terminal_psi::StructuralPathQualification>,
     },
 }
 
@@ -66,9 +68,17 @@ impl<'execution> ConstructorValue<'execution> {
                     .ok_or_else(malformed)?;
                 structural_type = element;
             }
+            let (qualifications, projected_qualifications) =
+                terminal_psi::StructuralPathQualification::select(
+                    &array.qualifications,
+                    &[],
+                    &argument.path,
+                );
             return Ok(Self::PackedScalars {
                 structural_type,
                 elements,
+                qualifications,
+                projected_qualifications,
             });
         }
         resolve_single_structural_argument(
@@ -206,21 +216,36 @@ impl<'execution> ConstructorValue<'execution> {
         Ok(Some(scalar_type))
     }
 
+    pub(crate) fn memberships(
+        &self,
+    ) -> (
+        &[semantic_vocabulary::StructuralDomainId],
+        &[terminal_psi::StructuralPathQualification],
+    ) {
+        match self {
+            Self::Placed(value) => (&value.qualifications, &value.projected_qualifications),
+            Self::PackedScalars {
+                qualifications,
+                projected_qualifications,
+                ..
+            } => (qualifications, projected_qualifications),
+        }
+    }
+
     /// Relocate the selected value's actual memberships with its storage.
-    /// Packed scalar arrays carry no nominal membership roster.
+    /// Packed arrays retain the predicate memberships proven on their bytes.
     pub(crate) fn append_memberships(
         &self,
         prefix: &[StructuralPathSegment],
         destination: &mut Vec<terminal_psi::StructuralPathQualification>,
     ) {
-        if let Self::Placed(value) = self {
-            terminal_psi::StructuralPathQualification::append_under(
-                &value.qualifications,
-                &value.projected_qualifications,
-                prefix,
-                destination,
-            );
-        }
+        let (whole, projected) = self.memberships();
+        terminal_psi::StructuralPathQualification::append_under(
+            whole,
+            projected,
+            prefix,
+            destination,
+        );
     }
 }
 
@@ -355,6 +380,7 @@ impl ConstructorStorage {
             ConstructorValue::PackedScalars {
                 structural_type,
                 elements,
+                ..
             } => {
                 if transfers_custody {
                     return Err(malformed());

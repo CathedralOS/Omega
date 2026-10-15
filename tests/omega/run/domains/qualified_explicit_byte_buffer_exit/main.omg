@@ -1,0 +1,23 @@
+// Expected exit: 0
+// Live length belongs to an explicit record; qualification does not store it.
+domain [u8; 8]::Ascii(bytes) requires ascii_only(bytes);
+domain [u8]::Ascii(bytes) requires ascii_only(bytes);
+data Buffer where used <= 8 { storage: [u8; 8] in Ascii; used: u64; }
+machine live(buffer: &Buffer) -> &[u8] in Ascii
+ensures result.len == buffer.used
+{
+    &buffer.storage[..buffer.used]
+}
+machine main() crashes Trap {
+    let mut buffer: Buffer;
+    buffer.storage[0] = 65u8;
+    buffer.used = 1;
+    let view: &[u8] in Ascii = live(&buffer);
+    transition view.len == 1 && buffer.storage.len == 8 && view[0] == 65
+        && size_of<Buffer>() == 16 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

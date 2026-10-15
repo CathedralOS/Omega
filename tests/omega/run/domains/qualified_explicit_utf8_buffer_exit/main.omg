@@ -1,0 +1,28 @@
+// Expected exit: 0
+domain [u8]::Utf8(bytes) requires valid_utf8(bytes);
+data TextBuffer [copy] where used <= 8 {
+    storage: [u8; 8];
+    used: u64;
+}
+machine live(buffer: &TextBuffer) -> &[u8] in Utf8 crashes Trap {
+    let bytes: &[u8] = &buffer.storage[..buffer.used];
+    transition valid_utf8(bytes) {
+        true -> checked(bytes)
+        false -> bad()
+    }
+    state checked(bytes: &[u8] in Utf8) -> &[u8] in Utf8 { bytes }
+    state bad() { crash Trap; }
+}
+machine main() crashes Trap {
+    let buffer: TextBuffer = TextBuffer {
+        storage: [195u8, 169u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8],
+        used: 2,
+    };
+    let view: &[u8] in Utf8 = live(&buffer);
+    transition view == "é" && view.len == 2 && buffer.storage.len == 8 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

@@ -42,6 +42,12 @@ pub(super) fn lower(
             // that erases restricted-store evidence or invents an ABI formal.
             let destination =
                 super::structural_scalar_fields::store_destination(machine, destination)
+                    .or_else(|| {
+                        super::structural_scalar_fields::owned_storage_destination(
+                            machine,
+                            destination,
+                        )
+                    })
                     .ok_or_else(invalid)?;
             let Some(scalar_type) = value_types.get(&value).copied() else {
                 return Err(invalid());
@@ -49,10 +55,10 @@ pub(super) fn lower(
             let valid_destination = destination.parameter().is_none_or(|parameter| {
                 matches!(
                     parameter.access,
-                    terminal_psi::StructuralAccess::MutableBorrow
+                    terminal_psi::StructuralAccess::Owned
+                        | terminal_psi::StructuralAccess::MutableBorrow
                         | terminal_psi::StructuralAccess::WriteOnlyBorrow
-                ) && parameter.qualifications.is_empty()
-                    && parameter.projected_qualifications.is_empty()
+                )
             }) && (destination.multiplicity()
                 == terminal_psi::StructuralMultiplicity::Unrestricted
                 || (!path.is_empty()

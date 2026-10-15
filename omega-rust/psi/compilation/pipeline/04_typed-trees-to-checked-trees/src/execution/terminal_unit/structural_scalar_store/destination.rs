@@ -244,15 +244,7 @@ pub(super) fn resolve<'a>(
     }
     let root_type = match plan.access {
         CheckedStructuralAccess::Owned => parameter.type_reference,
-        _ => {
-            let TypeReferenceNode::Reference { referee, .. } = program
-                .type_reference_table
-                .type_reference(parameter.type_reference)
-            else {
-                return None;
-            };
-            *referee
-        }
+        _ => validation::reference_shell(program, parameter.type_reference)?.referee,
     };
     // A borrowed fixed-array root has no record owner of its
     // own: its element record resolves through the first carrier
@@ -333,11 +325,11 @@ fn owned_local_root<'a>(
     // the shape to per-member establishment. The member store's leaf
     // dispatch validates each field's own shape; which members reads may
     // rely on is the custody ledger's question, not this root's. Indexed
-    // whole-root writes stay on the bounded byte lane.
+    // whole-root writes retain their element selectors. Qualification does not
+    // change the declared home; leaf stores still prove the declared predicates.
+    let declared_type = validation::peel_declared_constraints(program, local.type_reference);
     let declared_home = matches!(
-        program
-            .type_reference_table
-            .type_reference(local.type_reference),
+        program.type_reference_table.type_reference(declared_type),
         TypeReferenceNode::Named { .. }
             | TypeReferenceNode::Generic { .. }
             | TypeReferenceNode::FixedArray { .. }
@@ -408,6 +400,31 @@ impl<'a> Destination<'a> {
         let StoreRoots {
             structural, scalar, ..
         } = roots;
+        // Root membership is a receiving restriction, not write authority.
+        // Ordinary primitive stores retain and discharge each exact byte law;
+        // other qualified roots still require their independent theory owner.
+        // Classify the resolved storage, including the array behind a loan;
+        // the reference shell does not select a different receiving carrier.
+        let carrier = program
+            .type_reference_table
+            .unconstrained_type_reference(self.root_type);
+        let qualified_byte_array = matches!(
+            program.type_reference_table.type_reference(carrier),
+            TypeReferenceNode::FixedArray { element_type, .. }
+                if program.primitive_type_reference(*element_type) == Some(super::PrimitiveType::U8)
+        ) && validation::field_domains::domain_constraint_symbols(
+            program,
+            parameter.type_reference,
+        )
+        .into_iter()
+        .all(|symbol| {
+            program.domain_definition(symbol).is_some_and(|domain| {
+                domain.classification.is_none()
+                    && domain.semantic_roles.is_empty()
+                    && typed_trees::byte_predicates::domain_byte_predicate(program, symbol)
+                        .is_some()
+            })
+        });
         if plan.multiplicity == Multiplicity::Linear
             || !matches!(
                 plan.access,
@@ -415,7 +432,7 @@ impl<'a> Destination<'a> {
                     | CheckedStructuralAccess::MutableBorrow
                     | CheckedStructuralAccess::WriteOnlyBorrow
             )
-            || !plan.qualifications.is_empty()
+            || (!plan.qualifications.is_empty() && !qualified_byte_array)
         {
             return None;
         }
@@ -448,11 +465,8 @@ impl<'a> Destination<'a> {
         {
             return None;
         }
-        let expected_access = match program
-            .type_reference_table
-            .type_reference(parameter.type_reference)
-        {
-            TypeReferenceNode::Reference { access, .. } => match access {
+        let expected_access = match validation::reference_shell(program, parameter.type_reference) {
+            Some(shell) => match shell.access {
                 language_semantics::ReferenceAccess::Mutable => {
                     CheckedStructuralAccess::MutableBorrow
                 }
@@ -461,7 +475,7 @@ impl<'a> Destination<'a> {
                 }
                 language_semantics::ReferenceAccess::Shared => return None,
             },
-            _ => CheckedStructuralAccess::Owned,
+            None => CheckedStructuralAccess::Owned,
         };
         (plan.access == expected_access).then_some(())
     }
@@ -546,14 +560,10 @@ impl<'a> Destination<'a> {
                         selected_case.take(),
                         *symbol,
                     )?;
-                    if !validation::field_domains::domain_constraint_symbols(
-                        program,
-                        carrier.type_reference,
-                    )
-                    .is_empty()
-                    {
-                        return None;
-                    }
+                    // Qualifications remain on the complete source/Terminal
+                    // root contract. Storage traversal never selects geometry
+                    // from a predicate; the receiving writer separately proves
+                    // preservation against its full normalized footprint.
                     path.push(CheckedUnitStructuralPathSegment::Field(
                         terminal_field_identity(program, carrier.symbol)?,
                     ));
@@ -659,18 +669,19 @@ impl<'a> Destination<'a> {
             // Explicit crossings keep pointer geometry separate from inline
             // record offsets; later custody checks own the live permission.
             let mut reference_types = Vec::new();
-            while let TypeReferenceNode::Reference {
-                referee, access, ..
-            } = program.type_reference_table.type_reference(carrier_type)
-            {
+            loop {
+                carrier_type = validation::peel_declared_constraints(program, carrier_type);
+                let TypeReferenceNode::Reference {
+                    referee, access, ..
+                } = program.type_reference_table.type_reference(carrier_type)
+                else {
+                    break;
+                };
                 if reference_types.contains(&carrier_type) {
                     return None;
                 }
                 reference_types.push(carrier_type);
-                if matches!(
-                    program.type_reference_table.type_reference(*referee),
-                    TypeReferenceNode::Slice { .. }
-                ) {
+                if validation::slice_view_shell(program, carrier_type, &[]).is_some() {
                     break;
                 }
                 if *access != language_semantics::ReferenceAccess::Mutable {

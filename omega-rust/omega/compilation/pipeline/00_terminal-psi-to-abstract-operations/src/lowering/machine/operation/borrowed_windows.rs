@@ -228,9 +228,25 @@ fn borrowed_window_root(
     {
         return Some(StructuralWindowRoot::Parameter(parameter));
     }
+    // A window retains and checks the selected membership roster below; an
+    // owned arrival need not be unqualified to supply its exact storage home.
+    // Resource claims still require their independent transfer mechanism.
     if let Some((block, parameter)) =
-        super::primitive_storage::owned_state_parameter(machine, place)
+        super::primitive_storage::owned_state_storage_parameter(machine, place)
         && block != machine.entry
+        && matches!(
+            parameter.multiplicity,
+            terminal_psi::nonlinear_multiplicity_pair_pattern!()
+        )
+        && !machine
+            .entry_claims
+            .iter()
+            .chain(&machine.block_entry_claims)
+            .any(|claim| claim.input == place)
+        && !machine
+            .content_entry_claims
+            .iter()
+            .any(|claim| claim.input.root == place)
     {
         return Some(StructuralWindowRoot::OwnedBlockParameter {
             block,

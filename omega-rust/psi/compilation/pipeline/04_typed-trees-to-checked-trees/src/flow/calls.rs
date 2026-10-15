@@ -722,6 +722,17 @@ fn result_type_domain_rows(
 )> {
     let mut domains =
         validation::field_domains::declared_owned_field_domain_identities(program, return_type);
+    // Normal return also proves predicate requirements on readable children,
+    // including stored borrowed views. Transport that checked promise with the
+    // completed result; the owned-only roster deliberately stops at references.
+    // Routed memberships keep their independent owned provenance judgment.
+    domains.extend(
+        validation::field_domains::declared_result_field_domain_paths(program, return_type)
+            .into_iter()
+            .filter(|(_, domain, _)| {
+                crate::checks::contracts::value_provable_domain(program, *domain)
+            }),
+    );
     domains.extend(
         validation::field_domains::domain_constraint_identities(program, return_type)
             .into_iter()

@@ -141,6 +141,8 @@ pub(super) fn parameter_home_required(source: &LegalizedScalarFunction, place: P
             LegalizedScalarInstructionKind::StructuralScalarFieldStore { destination, .. }
             | LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore { destination, .. } => destination.place() == place,
             LegalizedScalarInstructionKind::EstablishByteSequenceConcatenation { left, right, .. } => left.source() == place || right.source() == place,
+            LegalizedScalarInstructionKind::ByteSequenceEqual { left, right } => left.source() == place || right.source() == place,
+            LegalizedScalarInstructionKind::ByteSequencePredicate { operand, .. } => operand.source() == place,
             LegalizedScalarInstructionKind::Call(call) => call.arguments.iter().any(|argument| {
                 matches!(argument, legalized_operations::LegalizedScalarArgument::Structural { semantic, .. }
                     if semantic.place == place && semantic.access != StructuralAccess::Owned)
@@ -419,7 +421,11 @@ pub(super) fn returned_descriptor<'a>(
             declared.multiplicity,
             terminal_psi::nonlinear_multiplicity_pair_pattern!()
         )
-        || !declared.projected_qualifications.is_empty()
+        || !terminal_semantics::view_descriptor_projected_qualifications(
+            signature.structural_types.iter(),
+            declared.structural_type,
+            &declared.projected_qualifications,
+        )
         || !terminal_semantics::descriptor_results::is_descriptor(
             signature.structural_types.iter(),
             identity,

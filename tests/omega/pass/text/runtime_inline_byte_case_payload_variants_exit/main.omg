@@ -2,15 +2,15 @@
 // its comparison and live length read the selected case's own storage. The
 // payload arrives as a parameter, a local copy, a record field holding the
 // sum, and a call result delivered to another state.
-domain [u8; 8]::Utf8(bytes) requires valid_utf8(bytes);
+domain [u8; 5]::Utf8(bytes) requires valid_utf8(bytes);
 data Reply [copy] {
     sequence: u64;
     case Empty;
-    case Message(content: [u8; 8] in Utf8);
+    case Message(content: [u8; 5] in Utf8);
 }
 data Envelope [copy] { tag: u64; reply: Reply; }
 
-machine make(content: [u8; 8] in Utf8) -> Reply {
+machine make(content: [u8; 5] in Utf8) -> Reply {
     Reply::Message { content: content, sequence: 3 }
 }
 machine size(bytes: &[u8]) -> u64 { bytes.len }

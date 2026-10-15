@@ -241,7 +241,10 @@ pub(in crate::execution::terminal_unit) fn qualification_carriers(
     // signature having registered the same carrier first.
     let borrowed_view = matches!(
         byte_sequence_carrier(program, type_reference, &[]),
-        Some(checked_trees::CheckedByteSequenceCarrier::BorrowedView { .. })
+        Some(
+            checked_trees::CheckedByteSequenceCarrier::BorrowedView { .. }
+                | checked_trees::CheckedByteSequenceCarrier::BoundedView { .. }
+        )
     )
     .then_some(type_reference);
     let mut output = Vec::new();
@@ -581,6 +584,22 @@ pub(in crate::execution::terminal_unit) fn projected_parameter_qualifications(
 ) -> Option<Vec<CheckedStructuralPathQualification>> {
     let (output, carriers) =
         validation::structural_qualification_contract(program, type_reference).ok()?;
+    for (domain, carrier) in carriers {
+        shapes.add_domain(domain, carrier, binders)?;
+    }
+    Some(output)
+}
+
+/// Returned values retain reference carriers; their projected memberships
+/// use the same explicit pointer paths as the emitted result declaration.
+pub(in crate::execution::terminal_unit) fn projected_result_qualifications(
+    program: &dyn ::validation::CheckingInput,
+    shapes: &mut ShapeCollector<'_>,
+    type_reference: TypeReferenceHandle,
+    binders: &[(SymbolHandle, String)],
+) -> Option<Vec<CheckedStructuralPathQualification>> {
+    let (output, carriers) =
+        validation::structural_result_qualification_contract(program, type_reference).ok()?;
     for (domain, carrier) in carriers {
         shapes.add_domain(domain, carrier, binders)?;
     }

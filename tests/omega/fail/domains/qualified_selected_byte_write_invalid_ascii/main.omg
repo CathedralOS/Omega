@@ -1,0 +1,14 @@
+// A closed-sum result reborrows the selected element through a stored view.
+domain [u8; 8]::Ascii(bytes) requires ascii_only(bytes);
+data Choice [copy] { case First; case Second; }
+data Room [copy] { value: u64; text: [u8; 8] in Ascii; }
+data Level [copy] { rooms: [Room; 2]; }
+machine pick(level: &mut Level, choice: Choice) -> &mut Room {
+    let slots: &mut [Room] = &mut level.rooms[..];
+    transition choice { Choice::First -> &mut slots[0] Choice::Second -> &mut slots[1] }
+}
+machine main() {
+    let mut level: Level = Level { rooms: [Room { value: 17, text: "omega600" }, Room { value: 29, text: "omega601" }] };
+    let selected: &mut Room = pick(&mut level, Choice::Second);
+    selected.text[0] = 255;
+}

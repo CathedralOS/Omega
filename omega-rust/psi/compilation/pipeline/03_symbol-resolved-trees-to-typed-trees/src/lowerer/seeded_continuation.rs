@@ -288,6 +288,12 @@ pub fn lower_seeded_extension(
     ) {
         return Err((retained, SeededContinuationError::Lowering(error)));
     }
+    if let Err(error) = crate::contracts::proof_facts::normalize_membership_selections(
+        &source,
+        &mut lowerer.typed_trees,
+    ) {
+        return Err((retained, SeededContinuationError::Lowering(error)));
+    }
     // Idempotent over retained facts: an already-interned instance re-derives
     // the same name, so only facts appended past the checkpoint change.
     if let Err(error) =
@@ -543,6 +549,10 @@ fn lower_body_completion(
         );
     }
     normalize_domain_constraints_from(&source, &mut lowerer.typed_trees, type_frontier)?;
+    crate::contracts::proof_facts::normalize_membership_selections(
+        &source,
+        &mut lowerer.typed_trees,
+    )?;
     crate::contracts::proof_facts::intern_proof_membership_instances(&mut lowerer.typed_trees)?;
     normalize_qualification_casts_from(&source, &mut lowerer.typed_trees, expression_frontier)?;
     let mut completed = selected.clone();

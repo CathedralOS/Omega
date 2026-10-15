@@ -1,6 +1,6 @@
 use omega_language_std::console;
 
-domain [u8; 8]::Utf8(bytes) requires valid_utf8(bytes);
+domain [u8; 4]::Utf8(bytes) requires valid_utf8(bytes);
 
 data Direction [copy] {
     case East;
@@ -14,7 +14,7 @@ data CellId [copy] {
 }
 
 data Exit [copy] {
-    command: [u8; 8] in Utf8;
+    command: [u8; 4] in Utf8;
     direction: Direction;
     destination: CellId;
 }
@@ -37,7 +37,7 @@ machine Bag::pick(bag: &mut Bag, marker: Direction, second: bool) -> &mut Room {
     }
 }
 
-machine CommandSource::next(command_source: &mut CommandSource, direction: Direction) -> [u8; 8] in Utf8 {
+machine CommandSource::next(command_source: &mut CommandSource, direction: Direction) -> [u8; 4] in Utf8 {
     transition direction {
         Direction::East -> "east"
         Direction::West -> "west"
@@ -46,7 +46,7 @@ machine CommandSource::next(command_source: &mut CommandSource, direction: Direc
 
 machine Room::install(
     room: &mut Room,
-    command: [u8; 8] in Utf8,
+    command: [u8; 4] in Utf8,
     direction: Direction,
     destination: CellId
 ) {
@@ -54,7 +54,7 @@ machine Room::install(
 
     state write(
         room: &mut Room,
-        command: [u8; 8] in Utf8,
+        command: [u8; 4] in Utf8,
         direction: Direction,
         destination: CellId
     ) {

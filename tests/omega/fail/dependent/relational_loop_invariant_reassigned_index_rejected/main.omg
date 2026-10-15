@@ -5,12 +5,12 @@
 domain [u8]::Utf8(bytes)
 requires
     valid_utf8(bytes);
-domain [u8; 8]::Utf8(bytes)
+domain [u8; 1]::Utf8(bytes)
 requires
     valid_utf8(bytes);
 
 data Main {
-    items: [u8; 8] in Utf8;
+    items: [u8; 1] in Utf8;
     i: u64;
     value: u8;
 }

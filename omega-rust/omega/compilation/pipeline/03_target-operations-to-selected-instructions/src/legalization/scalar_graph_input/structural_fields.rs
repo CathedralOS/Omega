@@ -7,12 +7,23 @@ pub(in crate::legalization) fn scalar_store_destination(
     function: &PsiOptimizationFunction,
     destination: &abstract_operations::StructuralScalarStoreDestination,
     path: &[terminal_psi::StructuralPathSegment],
+    field: semantic_vocabulary::StructuralFieldId,
     types: &[terminal_psi::StructuralTypeDeclaration],
     custody: &super::reference_custody::Custody,
 ) -> Option<(
     abstract_operations::StructuralScalarStoreDestination,
     Vec<terminal_psi::StructuralPathSegment>,
 )> {
+    if !field_write_preserves_memberships(
+        function,
+        types,
+        destination.place(),
+        destination.structural_type(),
+        path,
+        field,
+    ) {
+        return None;
+    }
     if !path.contains(&terminal_psi::StructuralPathSegment::Referent) {
         return Some((destination.clone(), path.to_vec()));
     }
@@ -26,6 +37,51 @@ pub(in crate::legalization) fn scalar_store_destination(
     )?;
     (resolved.carrier_type == destination.structural_type())
         .then(|| (destination.clone(), path.to_vec()))
+}
+
+/// Resolve the field in original carrier coordinates before checking its
+/// roster. Geometry and live reference custody remain independent judgments.
+fn field_write_preserves_memberships(
+    function: &PsiOptimizationFunction,
+    types: &[terminal_psi::StructuralTypeDeclaration],
+    destination: semantic_vocabulary::PlaceId,
+    root: semantic_vocabulary::StructuralTypeId,
+    path: &[terminal_psi::StructuralPathSegment],
+    field: semantic_vocabulary::StructuralFieldId,
+) -> bool {
+    terminal_semantics::projected_field_declaration(types.iter(), root, path, field).is_some_and(
+        |selected| {
+            let mut written = path.to_vec();
+            written.push(terminal_psi::StructuralPathSegment::Field(
+                selected.identity.clone(),
+            ));
+            optimization_unit_semantics::structural_write_preserves_memberships(
+                function,
+                destination,
+                &written,
+            )
+        },
+    )
+}
+
+fn reference_field_write_preserves_memberships(
+    function: &PsiOptimizationFunction,
+    types: &[terminal_psi::StructuralTypeDeclaration],
+    destination: semantic_vocabulary::PlaceId,
+    path: &[terminal_psi::StructuralPathSegment],
+    field: semantic_vocabulary::StructuralFieldId,
+) -> bool {
+    let root = function
+        .arrival_parameter(destination)
+        .map(|parameter| parameter.structural_type)
+        .or_else(|| {
+            super::structural_case::source_result(function, destination)
+                .ok()
+                .map(|(_, result)| result.structural_type)
+        });
+    root.is_some_and(|root| {
+        field_write_preserves_memberships(function, types, destination, root, path, field)
+    })
 }
 
 pub(in crate::legalization) fn replacement(
@@ -117,6 +173,11 @@ pub(in crate::legalization) fn replacement(
         } => (destination, path, field, None),
         _ => return None,
     };
+    if path.contains(&terminal_psi::StructuralPathSegment::Referent)
+        && !reference_field_write_preserves_memberships(function, types, *destination, path, *field)
+    {
+        return None;
+    }
     let semantic_path = path.clone();
     // Whole-field replacement may address the exact completed owned home.
     // Indexed writes retain their existing borrowed-storage contract.
@@ -247,6 +308,20 @@ pub(in crate::legalization) fn view_replacement(
     else {
         return None;
     };
+    if path.contains(&terminal_psi::StructuralPathSegment::Referent) {
+        let preserves = if let Some(field) = field {
+            reference_field_write_preserves_memberships(function, types, *destination, path, *field)
+        } else {
+            optimization_unit_semantics::structural_write_preserves_memberships(
+                function,
+                *destination,
+                path,
+            )
+        };
+        if !preserves {
+            return None;
+        }
+    }
     // A returned reference owns its carrier while lending mutable authority
     // to this path, so custody must resolve the crossing before declaration.
     let (root_type, access, projected_path) = if field.is_none() {

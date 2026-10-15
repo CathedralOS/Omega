@@ -74,7 +74,7 @@ pub fn borrowed_referent_presentation<'types>(
     else {
         return None;
     };
-    if capacity == 0 || fixed_byte_extent(types.clone(), actual) != Some(capacity) {
+    if fixed_byte_extent(types.clone(), actual) != Some(capacity) {
         return None;
     }
     match types.clone().find(|row| row.id == actual)?.shape {
@@ -90,7 +90,8 @@ pub fn borrowed_referent_presentation<'types>(
     }
 }
 
-fn fixed_byte_extent<'types>(
+/// Declared fixed byte extent only; this grants no access, custody or membership.
+pub fn fixed_byte_extent<'types>(
     types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
     identity: semantic_vocabulary::StructuralTypeId,
 ) -> Option<u64> {
@@ -191,21 +192,14 @@ pub fn fixed_byte_storage_window<'types, 'path>(
         }
         _ => (path, None),
     };
-    if !backing_path
-        .iter()
-        .all(|segment| matches!(segment, StructuralPathSegment::Field(_)))
-    {
-        return None;
-    }
+    // The canonical typed walk resolves fields, active-case coordinates and
+    // fixed indices uniformly. Availability, case evidence and loan access
+    // remain independent of this storage geometry.
     let declaration = runtime_structural_path_tip(types.clone(), root, backing_path)?;
     // Inline arrays and already borrowed backing expose the same extent.
     // Window admission is independent of how native code stores the carrier;
     // transport must preserve that separate residence distinction.
     let length = fixed_byte_extent(types, declaration.id)?;
-    // This borrowed-backing presentation currently requires a positive extent.
-    if length == 0 {
-        return None;
-    }
     let (start, end) = range.unwrap_or((0, length));
     if start > end || end > length {
         return None;
@@ -229,6 +223,9 @@ pub fn fixed_element_array_extent<'types>(
     expected: &StructuralParameterDeclaration,
 ) -> Option<u64> {
     if !readable_collection_loan(actual, argument, expected)
+        || [actual, expected].iter().any(|parameter| {
+            !parameter.qualifications.is_empty() || !parameter.projected_qualifications.is_empty()
+        })
         || !argument
             .path
             .iter()
@@ -285,7 +282,48 @@ fn readable_collection_loan(
             terminal_psi::nonlinear_multiplicity_pair_pattern!()
         )
         && expected.multiplicity == StructuralMultiplicity::Unrestricted
-        && [actual, expected].iter().all(|parameter| {
-            parameter.qualifications.is_empty() && parameter.projected_qualifications.is_empty()
-        })
+}
+
+/// Predicate-preserving admission of a fixed-array loan. Geometry is shared
+/// with native presentation; this boundary additionally checks the original
+/// backing's exact memberships and the writable handback contract.
+pub fn fixed_byte_array_loan<'types, 'domain, 'path>(
+    types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+    domains: impl Iterator<Item = &'domain terminal_psi::StructuralDomainDeclaration> + Clone,
+    actual: &StructuralParameterDeclaration,
+    argument: &'path StructuralArgument,
+    expected: &StructuralParameterDeclaration,
+) -> Option<FixedByteArrayWindow<'path>> {
+    let window = fixed_byte_array_window(types.clone(), actual, argument, expected)?;
+    if !window.backing_path.is_empty() && !actual.qualifications.is_empty() {
+        return None;
+    }
+    let carrier =
+        runtime_structural_path_tip(types, actual.structural_type, window.backing_path)?.id;
+    let (whole, projected) = terminal_psi::StructuralPathQualification::select(
+        &actual.qualifications,
+        &actual.projected_qualifications,
+        window.backing_path,
+    );
+    if !projected.is_empty() {
+        return None;
+    }
+    let original = crate::byte_qualification_predicates_in(domains.clone(), carrier, &whole)?;
+    let required = crate::byte_parameter_predicates_in(domains, expected)?;
+    let mut offered = original;
+    if window.offset != 0 || window.length != window.backing_length {
+        offered = terminal_psi::ByteSequencePredicateSet::EMPTY;
+        for predicate in original.predicates() {
+            if matches!(
+                predicate,
+                terminal_psi::ByteSequencePredicate::AsciiOnly
+                    | terminal_psi::ByteSequencePredicate::NoNul
+            ) {
+                offered.insert(predicate);
+            }
+        }
+    }
+    (offered.implies(required)
+        && (argument.access == StructuralAccess::SharedBorrow || required.implies(original)))
+    .then_some(window)
 }

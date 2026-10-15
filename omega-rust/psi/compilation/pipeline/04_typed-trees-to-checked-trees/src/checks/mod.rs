@@ -193,8 +193,9 @@ pub(crate) fn check_checked_facts_recording(
         incoming_guards,
         mutation_summaries,
     ) {
-        Ok((proven, obligations)) => {
+        Ok((proven, coordinates, obligations)) => {
             facts.proven_scalar_indexes = proven;
+            facts.scalar_index_coordinates = coordinates;
             facts.constant_recipe_obligations.extend(obligations);
         }
         Err(mut range_diagnostics) => diagnostics.append(&mut range_diagnostics),

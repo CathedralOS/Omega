@@ -13,7 +13,7 @@
 domain [u8]::Utf8(bytes)
 requires
     valid_utf8(bytes);
-domain [u8; 8]::Utf8(bytes)
+domain [u8; 5]::Utf8(bytes)
 requires
     valid_utf8(bytes);
 use omega_language_std::console;
@@ -23,11 +23,11 @@ data Main {
 }
 
 // Only the borrowed input, position and rolling hash survive an iteration.
-machine hash_text(text: &[u8; 8] in Utf8) -> u32 in Wrapping {
+machine hash_text(text: &[u8; 5] in Utf8) -> u32 in Wrapping {
     transition { _ -> step(text, 0, 2166136261) }
 
     // Loop over the string's bytes, bounded by its runtime length.
-    state step(text: &[u8; 8] in Utf8, position: i32,
+    state step(text: &[u8; 5] in Utf8, position: i32,
                hash: u32 in Wrapping) -> u32 in Wrapping
     requires position >= 0
     {
@@ -38,7 +38,7 @@ machine hash_text(text: &[u8; 8] in Utf8) -> u32 in Wrapping {
     }
 
     // Fold the current byte into the hash (FNV-1a: xor then multiply).
-    state mix(text: &[u8; 8] in Utf8, position: i32,
+    state mix(text: &[u8; 5] in Utf8, position: i32,
               hash: u32 in Wrapping) -> u32 in Wrapping
     requires position >= 0
     {
@@ -52,7 +52,7 @@ machine hash_text(text: &[u8; 8] in Utf8) -> u32 in Wrapping {
         }
     }
 
-    state bump(text: &[u8; 8] in Utf8, position: i32,
+    state bump(text: &[u8; 5] in Utf8, position: i32,
                hash: u32 in Wrapping) -> u32 in Wrapping
     requires position >= 0 && position < 8
     {
@@ -63,7 +63,7 @@ machine hash_text(text: &[u8; 8] in Utf8) -> u32 in Wrapping {
 
 machine Main::main(context: &mut Main) reaches Console {
     Console::write_line("string_hash: FNV-1a hashes the bytes of the string omega");
-    let text: [u8; 8] in Utf8 = "omega";
+    let text: [u8; 5] in Utf8 = "omega";
     let hash: u32 in Wrapping = hash_text(&text);
     let digest: u32 in Wrapping = hash & 255;
     let output: i32 = narrow_u32_to_i32_trapping(digest as u32);

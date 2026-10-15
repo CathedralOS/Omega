@@ -19,7 +19,68 @@ pub(super) fn validate_establish_scalar_array(
     let Some(result) = operation.result.structural() else {
         return malformed("scalar array establishment has no structural result");
     };
-    if !result.is_unrestricted_plain()
+    if result.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
+        || !result.projected_qualifications.is_empty()
+        || !result.claims.is_empty()
+        || !result.qualification_establishments.is_empty()
+        || !terminal_semantics::scalar_array_qualifications_hold(
+            module.structural_types.iter(),
+            module.structural_domains.iter(),
+            result.structural_type,
+            &result.qualifications,
+            elements,
+            |element| {
+                terminal_semantics::scalar_constant_value(element, |value| {
+                    if let Some((ty, value)) = machine.operations().find_map(|producer| {
+                        let scalar = producer.result.scalar_ref()?;
+                        let OperationKind::IntegerConstant { value: literal } = producer.kind
+                        else {
+                            return None;
+                        };
+                        (scalar.id == value).then_some((scalar.scalar_type, literal))
+                    }) {
+                        return Some(terminal_semantics::ScalarConstantOrigin::Literal(ty, value));
+                    }
+                    let (owner, ordinal) = machine.blocks.iter().find_map(|block| {
+                        block
+                            .parameters
+                            .iter()
+                            .position(|parameter| parameter.id == value)
+                            .map(|ordinal| (block.id, ordinal))
+                    })?;
+                    if owner == machine.entry {
+                        return None;
+                    }
+                    let mut incoming = Vec::new();
+                    for block in &machine.blocks {
+                        use terminal_psi::Terminator;
+                        match &block.terminator {
+                            Terminator::Jump {
+                                target, arguments, ..
+                            } if *target == owner => incoming.push(*arguments.get(ordinal)?),
+                            Terminator::Conditional {
+                                when_true,
+                                when_false,
+                                ..
+                            } => {
+                                for edge in [when_true, when_false] {
+                                    if edge.target == owner {
+                                        incoming.push(*edge.arguments.get(ordinal)?);
+                                    }
+                                }
+                            }
+                            Terminator::StructuralCase { cases, .. }
+                                if cases.iter().any(|edge| edge.target == owner) =>
+                            {
+                                return None;
+                            }
+                            _ => {}
+                        }
+                    }
+                    Some(terminal_semantics::ScalarConstantOrigin::Incoming(incoming))
+                })
+            },
+        )
         || !matches!(
             machine.structural_place(result.place),
             Some(StructuralPlaceDeclaration {
@@ -223,8 +284,12 @@ pub(super) fn validate_establish_zeroed_structural(
     if !matches!(
         result.multiplicity,
         terminal_psi::nonlinear_multiplicity_pair_pattern!()
-    ) || !result.projected_qualifications.is_empty()
-        || !result.claims.is_empty()
+    ) || !terminal_semantics::zeroed_projected_byte_qualifications_hold(
+        module.structural_types.iter(),
+        module.structural_domains.iter(),
+        result.structural_type,
+        &result.projected_qualifications,
+    ) || !result.claims.is_empty()
         || !result.qualification_establishments.is_empty()
         || !matches!(
             machine.structural_place(result.place),

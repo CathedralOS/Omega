@@ -16,7 +16,7 @@ use super::facts::RangeFacts;
 /// unsupported collection or a rejection decides nothing.
 #[derive(Default)]
 pub(super) struct IndexVerdicts {
-    verdicts: Vec<(ExpressionHandle, bool)>,
+    verdicts: Vec<(ExpressionHandle, bool, Option<u64>)>,
     /// Comparisons proved against a retained constant recipe's extent, for
     /// the target closure to discharge against its closed value.
     obligations: Vec<checked_trees::ConstantRecipeObligation>,
@@ -29,25 +29,35 @@ impl IndexVerdicts {
         self,
     ) -> (
         Vec<ExpressionHandle>,
+        Vec<(ExpressionHandle, u64)>,
         Vec<checked_trees::ConstantRecipeObligation>,
     ) {
         let mut verdicts = self.verdicts;
-        verdicts
-            .sort_by_key(|(expression, _)| checked_trees::operators::handle_position(*expression));
+        verdicts.sort_by_key(|(expression, _, _)| {
+            checked_trees::operators::handle_position(*expression)
+        });
         let mut proven: Vec<ExpressionHandle> = Vec::new();
+        let mut coordinates = Vec::new();
         let mut index = 0;
         while index < verdicts.len() {
             let expression = verdicts[index].0;
             let mut all = true;
+            let mut coordinate = verdicts[index].2;
             while index < verdicts.len() && verdicts[index].0 == expression {
                 all &= verdicts[index].1;
+                if coordinate != verdicts[index].2 {
+                    coordinate = None;
+                }
                 index += 1;
             }
             if all {
                 proven.push(expression);
+                if let Some(coordinate) = coordinate {
+                    coordinates.push((expression, coordinate));
+                }
             }
         }
-        (proven, self.obligations)
+        (proven, coordinates, self.obligations)
     }
 }
 
@@ -101,9 +111,35 @@ impl ExpressionTransferSink for IndexChecks<'_, '_, '_> {
             self.diagnostics,
             &mut self.verdicts.obligations,
         );
+        // Retain the evaluated selector's singleton observation from the same
+        // all-arrival range walk. This does not replace evaluation or its bound:
+        // lowering uses it only to separate storage for overlap decisions.
+        let coordinate =
+            ::validation::expression_interval(facts.expression_intervals, indexed.index)
+                .and_then(|interval| {
+                    let low = interval.low?;
+                    (interval.high == Some(low)).then_some(low)
+                })
+                .or_else(|| {
+                    super::expressions::expression_integer_value(
+                        self.transfer.program,
+                        facts,
+                        indexed.index,
+                    )
+                })
+                .or_else(|| {
+                    let (low, high) = super::expressions::ensured_call_result_bounds(
+                        self.transfer.program,
+                        indexed.index,
+                    )?;
+                    let low = low?;
+                    (high == Some(low)).then_some(low)
+                })
+                .and_then(|value| u64::try_from(value).ok());
         self.verdicts.verdicts.push((
             expression,
             verdict == self::validation::BoundsCheckResult::ProvenScalar,
+            coordinate,
         ));
     }
 }

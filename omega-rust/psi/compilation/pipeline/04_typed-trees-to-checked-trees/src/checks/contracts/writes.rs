@@ -26,18 +26,35 @@ use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::statement::StatementNode;
-use typed_trees::types::TypeReferenceHandle;
 
 use crate::labels::{machine_name, symbol_name};
 
-mod byte_lengths;
 mod domain_implications;
 mod member_domains;
-use byte_lengths::{known_byte_lengths_before, static_max_byte_length};
 pub(super) use domain_implications::value_proves_qualification_in_contexts;
 use domain_implications::{value_proves_domain, value_proves_qualification};
 use member_domains::initializer_satisfies_predicate_domain;
 pub(super) use member_domains::value_satisfies_domain_predicates_in_contexts;
+
+/// Receiving obligations of fresh structural constructors, indexed once for
+/// the state's authored expression walk. A row requests a judgment; it never
+/// supplies membership. Successful judgments retain their operand's epoch.
+struct ConstructionQualification {
+    statement_index: usize,
+    expression: ExpressionHandle,
+    domain: SymbolHandle,
+    semantic_domain: language_semantics::SemanticDomainId,
+}
+
+impl ConstructionQualification {
+    fn site(&self) -> (usize, u32, u32) {
+        (
+            self.statement_index,
+            self.expression.arena_index(),
+            self.expression.generation(),
+        )
+    }
+}
 
 pub(super) fn check_domain_field_writes(
     program: &dyn ::validation::CheckingInput,
@@ -55,6 +72,73 @@ pub(super) fn check_domain_field_writes(
         return;
     };
 
+    // Synthesized zero constructors already retain their independently checked
+    // zero-value memberships. Their diagnostic expression is the containing
+    // literal, not an authored operand to prove again here.
+    let mut construction_qualifications = Vec::new();
+    let result_domains = program
+        .machine_states(machine)
+        .first()
+        .map(|entry| {
+            validation::field_domains::domain_constraint_identities(program, entry.return_type)
+        })
+        .unwrap_or_default();
+    for (_, value) in facts.values.structural_values.nodes.iter() {
+        if value.machine != state_flow.machine_symbol
+            || value.state != state_flow.state_symbol
+            || !matches!(
+                value.kind,
+                checked_trees::CheckedStructuralValueKind::ScalarArray { .. }
+                    | checked_trees::CheckedStructuralValueKind::FixedArray { .. }
+                    | checked_trees::CheckedStructuralValueKind::Record { .. }
+                    | checked_trees::CheckedStructuralValueKind::Case(_)
+            )
+        {
+            continue;
+        }
+        for (domain, semantic_domain) in
+            validation::field_domains::domain_constraint_identities(program, value.type_reference)
+        {
+            // The checked result boundary introduces routed provenance only
+            // after proving the returned root's predicates and custody. Requiring
+            // that provenance on its fresh constructor would reject the issuer
+            // before establishment. Defer only this exact returned root, without
+            // recording a construction membership; children and locals still
+            // owe their existing evidence at their own completion epochs.
+            let authorized_result = result_domains.contains(&(domain, semantic_domain))
+                && program.domain_definition(domain).is_some_and(|definition| {
+                    definition.semantic_id == semantic_domain
+                        && validation::field_domains::domain_requires_provenance(program, domain)
+                        && crate::facts::qualification_evidence::machine_has_checked_domain_establishment(
+                            program, machine, domain,
+                        )
+                })
+                && facts.flow.control.exits.span_or_empty(state_flow.exits).iter().any(|exit| {
+                    exit.machine_symbol == value.machine
+                        && exit.state_symbol == value.state
+                        && exit.statement_index == value.statement_index as usize
+                        && super::return_values::exit_return_expression(program, exit)
+                            == value.expression
+                        && (!facts.flow.control.operands.is_valid(exit.returned_value)
+                            || {
+                                let operand = facts.flow.control.operands.get(exit.returned_value);
+                                operand.expression == value.expression
+                                    && operand.state_symbol == value.state
+                                    && operand.statement_index == exit.statement_index
+                            })
+                });
+            if authorized_result {
+                continue;
+            }
+            construction_qualifications.push(ConstructionQualification {
+                statement_index: value.statement_index as usize,
+                expression: value.expression,
+                domain,
+                semantic_domain,
+            });
+        }
+    }
+    construction_qualifications.sort_by_key(ConstructionQualification::site);
     for (statement_index, statement) in program
         .statement_table
         .indexed_statements(state.statement_nodes)
@@ -194,60 +278,6 @@ pub(super) fn check_domain_field_writes(
             }
         }
 
-        // (1b) Length-fits for a write into an OWNED bounded text carrier
-        // `[u8; N] in D`: the assigned value's maximum byte length must provably
-        // be <= N. This is the capacity half of the rung-2 growth bound and the
-        // dual of the concat-domain law -- it is what makes admitting `a + b`
-        // into the domain sound, by proving the materialized result cannot
-        // overflow the N-byte inline storage ("overflow should never happen").
-        // Gated on the field carrying a domain, so it touches only the rung-2
-        // text carrier and not unrelated `[u8; N]` byte buffers. A view carrier
-        // `&[u8] in D` owns no inline storage (capacity is None) and is skipped.
-        // A value whose maximum length cannot be bounded (an unbounded view
-        // source, a runtime call result) is conservatively rejected.
-        if let Some(assignment) = statement.as_assignment()
-            && !validation::field_domains::assignment_target_domain_symbols(
-                program,
-                machine,
-                state,
-                assignment.target,
-            )
-            .is_empty()
-            && let Some(field_type) = validation::field_domains::assignment_target_type_reference(
-                program,
-                machine,
-                state,
-                assignment.target,
-            )
-            && let Some(capacity) = validation::bounded_byte_buffer_capacity(program, field_type)
-        {
-            let target_label = program.expression_table.display_name(assignment.target);
-            let known_lengths = known_byte_lengths_before(program, machine, state, statement_index);
-            match static_max_byte_length(
-                program,
-                machine,
-                state,
-                statement_index,
-                assignment.value,
-                &known_lengths,
-            ) {
-                Some(max_length) if max_length <= capacity => {}
-                Some(max_length) => diagnostics.push(Diagnostic::error(format!(
-                    "the value assigned to `{target_label}` in {} can be up to {max_length} \
-                     byte(s), exceeding the {capacity}-byte capacity of its `[u8; {capacity}]` \
-                     carrier; a bounded text carrier requires every write to provably fit",
-                    machine_name(program, state_flow.machine_symbol),
-                ))),
-                None => diagnostics.push(Diagnostic::error(format!(
-                    "cannot bound the maximum byte length of the value assigned to \
-                     `{target_label}` in {}; a bounded `[u8; {capacity}]` text carrier requires a \
-                     write whose length is statically bounded (a literal, a concatenation of \
-                     bounded operands, or another bounded carrier) so it provably fits",
-                    machine_name(program, state_flow.machine_symbol),
-                ))),
-            }
-        }
-
         // (1c) A concatenation establishes owned bytes in fresh activation
         // storage, which may replace a bounded owner or field but never
         // becomes a borrowed view (wiki/spec/terminal-psi/structural_access.md,
@@ -319,6 +349,7 @@ pub(super) fn check_domain_field_writes(
                     program,
                     facts,
                     state_flow,
+                    &construction_qualifications,
                     statement_index,
                     guard,
                     &mut contexts,
@@ -356,6 +387,7 @@ pub(super) fn check_domain_field_writes(
                         program,
                         facts,
                         state_flow,
+                        &construction_qualifications,
                         statement_index,
                         expression,
                         &mut branch_contexts,
@@ -372,6 +404,7 @@ pub(super) fn check_domain_field_writes(
                 program,
                 facts,
                 state_flow,
+                &construction_qualifications,
                 statement_index,
                 expression,
                 &mut contexts,
@@ -416,6 +449,7 @@ fn scan_construction_field_domains(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     state_flow: &FlowStateFact,
+    construction_qualifications: &[ConstructionQualification],
     statement_index: usize,
     expression: ExpressionHandle,
     contexts: &mut Vec<facts::FactContextHandle>,
@@ -431,6 +465,7 @@ fn scan_construction_field_domains(
             program,
             facts,
             state_flow,
+            construction_qualifications,
             statement_index,
             atomic.value,
             contexts,
@@ -443,6 +478,7 @@ fn scan_construction_field_domains(
                 program,
                 facts,
                 state_flow,
+                construction_qualifications,
                 statement_index,
                 dispatch.subject,
                 contexts,
@@ -458,6 +494,7 @@ fn scan_construction_field_domains(
                         program,
                         facts,
                         state_flow,
+                        construction_qualifications,
                         statement_index,
                         pattern,
                         &mut arm_contexts,
@@ -470,6 +507,7 @@ fn scan_construction_field_domains(
                     program,
                     facts,
                     state_flow,
+                    construction_qualifications,
                     statement_index,
                     arm.value,
                     &mut arm_contexts,
@@ -493,6 +531,7 @@ fn scan_construction_field_domains(
                     program,
                     facts,
                     state_flow,
+                    construction_qualifications,
                     statement_index,
                     field.value,
                     contexts,
@@ -536,53 +575,6 @@ fn scan_construction_field_domains(
                             semantic_domain,
                         );
                     }
-                    // (b) CAPACITY: a bounded `[u8; N]` text carrier field must not be
-                    // constructed with a value longer than N -- the construction parallel
-                    // of the assignment length-fits check (1b). A too-long literal would
-                    // otherwise overflow the field's inline storage. Only fires for a
-                    // domain-carrying `[u8; N]` field (view carriers have no capacity).
-                    if let Some((machine, state)) = validation::machine_state_by_symbols(
-                        program,
-                        state_flow.machine_symbol,
-                        state_flow.state_symbol,
-                    ) && let Some(field_type) = construction_field_type_by_symbol(
-                        program,
-                        literal.type_symbol,
-                        case_name.as_ref().map(|name| name.as_str()),
-                        field.name.as_str(),
-                    ) && let Some(capacity) =
-                        validation::bounded_byte_buffer_capacity(program, field_type)
-                    {
-                        let known_lengths =
-                            known_byte_lengths_before(program, machine, state, statement_index);
-                        match static_max_byte_length(
-                            program,
-                            machine,
-                            state,
-                            statement_index,
-                            field.value,
-                            &known_lengths,
-                        ) {
-                            Some(max_length) if max_length <= capacity => {}
-                            Some(max_length) => diagnostics.push(Diagnostic::error(format!(
-                                "construction of `{}` field `{}` supplies a value up to \
-                                 {max_length} byte(s), exceeding the {capacity}-byte capacity of \
-                                 its `[u8; {capacity}]` carrier; a bounded text carrier requires \
-                                 every write to provably fit",
-                                type_name.as_str(),
-                                field.name.as_str(),
-                            ))),
-                            None => diagnostics.push(Diagnostic::error(format!(
-                                "cannot bound the maximum byte length of the value constructing \
-                                 `{}` field `{}`; a bounded `[u8; {capacity}]` text carrier \
-                                 requires a write whose length is statically bounded (a literal, \
-                                 a concatenation of bounded operands, or another bounded carrier) \
-                                 so it provably fits",
-                                type_name.as_str(),
-                                field.name.as_str(),
-                            ))),
-                        }
-                    }
                 }
             }
         }
@@ -592,6 +584,7 @@ fn scan_construction_field_domains(
                     program,
                     facts,
                     state_flow,
+                    construction_qualifications,
                     statement_index,
                     *element,
                     contexts,
@@ -606,6 +599,7 @@ fn scan_construction_field_domains(
                 program,
                 facts,
                 state_flow,
+                construction_qualifications,
                 statement_index,
                 binary.left,
                 contexts,
@@ -617,6 +611,7 @@ fn scan_construction_field_domains(
                 program,
                 facts,
                 state_flow,
+                construction_qualifications,
                 statement_index,
                 binary.right,
                 contexts,
@@ -630,6 +625,7 @@ fn scan_construction_field_domains(
                 program,
                 facts,
                 state_flow,
+                construction_qualifications,
                 statement_index,
                 cast.value,
                 contexts,
@@ -655,6 +651,7 @@ fn scan_construction_field_domains(
                 program,
                 facts,
                 state_flow,
+                construction_qualifications,
                 statement_index,
                 call.receiver,
                 contexts,
@@ -667,6 +664,7 @@ fn scan_construction_field_domains(
                     program,
                     facts,
                     state_flow,
+                    construction_qualifications,
                     statement_index,
                     *argument,
                     contexts,
@@ -703,6 +701,7 @@ fn scan_construction_field_domains(
                 program,
                 facts,
                 state_flow,
+                construction_qualifications,
                 statement_index,
                 indexed.collection,
                 contexts,
@@ -714,6 +713,7 @@ fn scan_construction_field_domains(
                 program,
                 facts,
                 state_flow,
+                construction_qualifications,
                 statement_index,
                 indexed.index,
                 contexts,
@@ -726,6 +726,7 @@ fn scan_construction_field_domains(
             program,
             facts,
             state_flow,
+            construction_qualifications,
             statement_index,
             member.receiver,
             contexts,
@@ -737,6 +738,7 @@ fn scan_construction_field_domains(
             program,
             facts,
             state_flow,
+            construction_qualifications,
             statement_index,
             inner.target,
             contexts,
@@ -749,6 +751,7 @@ fn scan_construction_field_domains(
                 program,
                 facts,
                 state_flow,
+                construction_qualifications,
                 statement_index,
                 range.start,
                 contexts,
@@ -760,6 +763,7 @@ fn scan_construction_field_domains(
                 program,
                 facts,
                 state_flow,
+                construction_qualifications,
                 statement_index,
                 range.end,
                 contexts,
@@ -772,6 +776,7 @@ fn scan_construction_field_domains(
             program,
             facts,
             state_flow,
+            construction_qualifications,
             statement_index,
             unary.operand,
             contexts,
@@ -780,6 +785,69 @@ fn scan_construction_field_domains(
             frames,
         ),
         typed_trees::literal_expression_pattern!() => {}
+    }
+    // Children complete before the next operand may mutate their source.
+    // Reuse this walk's exact live contexts, just as record-field admission does.
+    let site = (
+        statement_index,
+        expression.arena_index(),
+        expression.generation(),
+    );
+    let first = construction_qualifications.partition_point(|row| row.site() < site);
+    let rows = &construction_qualifications[first..];
+    for row in rows.iter().take_while(|row| row.site() == site) {
+        let mut captures = facts
+            .flow
+            .control
+            .operands
+            .iter()
+            .map(|(_, operand)| operand)
+            .filter(|operand| {
+                operand.expression == expression
+                    && operand.state_symbol == state_flow.state_symbol
+                    && operand.statement_index == statement_index
+            });
+        let capture = captures.next().filter(|_| captures.next().is_none());
+        if value_proves_qualification_in_contexts(
+            program,
+            facts,
+            state_flow,
+            statement_index,
+            expression,
+            row.domain,
+            row.semantic_domain,
+            contexts,
+        ) || (capture.is_some()
+            && !validation::field_domains::domain_requires_provenance(program, row.domain)
+            && value_satisfies_domain_predicates_in_contexts(
+                program,
+                facts,
+                state_flow,
+                statement_index,
+                expression,
+                row.domain,
+                contexts,
+                &mut Vec::new(),
+                capture,
+                frames,
+            ))
+        {
+            // A completed constructor can establish a predicate from its actual
+            // fields. This uses its operand epoch and never introduces routed
+            // provenance or assumes the promised annotation as evidence.
+            record_qualification(
+                decisions,
+                state_flow,
+                statement_index,
+                expression,
+                row.semantic_domain,
+            );
+        } else {
+            diagnostics.push(Diagnostic::error(format!(
+                "construction value is not proven in domain `{}`",
+                symbol_name(program, row.domain),
+            )));
+        }
     }
 }
 
@@ -819,26 +887,6 @@ fn construction_field_domain_identities(
                     .any(|domain| domain.symbol == *symbol && domain.predicate_body.is_present())
         })
         .collect()
-}
-
-/// Resolve the selected definition, not the authored spelling: a qualified
-/// foreign construction must establish that exact owner's field contracts.
-fn construction_field_type_by_symbol(
-    program: &dyn ::validation::CheckingInput,
-    type_symbol: SymbolHandle,
-    case_name: Option<&str>,
-    field_name: &str,
-) -> Option<TypeReferenceHandle> {
-    let data_definition = program.data_definition_by_symbol(type_symbol)?;
-    if data_definition.type_parameters.count() > 0 {
-        return None;
-    }
-    validation::field_domains::construction_field_type(
-        program,
-        data_definition,
-        case_name,
-        field_name,
-    )
 }
 
 /// Retain the successful source judgment, not the field annotation. The walk

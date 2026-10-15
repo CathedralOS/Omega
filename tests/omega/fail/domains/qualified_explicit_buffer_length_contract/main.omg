@@ -1,0 +1,7 @@
+domain [u8; 8]::Ascii(bytes) requires ascii_only(bytes);
+domain [u8]::Ascii(bytes) requires ascii_only(bytes);
+data Buffer where used <= 7 { storage: [u8; 8] in Ascii; used: u64; }
+machine wrong(buffer: &Buffer) -> &[u8] in Ascii
+requires buffer.used <= 7
+ensures result.len == buffer.used
+{ &buffer.storage[..] }

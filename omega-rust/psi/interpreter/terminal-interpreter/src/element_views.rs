@@ -66,6 +66,8 @@ impl ElementViewHome {
 
 #[derive(Clone)]
 pub(crate) struct ElementView {
+    // Source label for storage errors only; captured backing determines access.
+    diagnostic_source: semantic_vocabulary::PlaceId,
     backing: ElementViewBacking,
     window: Range<usize>,
     home: Option<Arc<ElementViewHome>>,
@@ -87,14 +89,13 @@ impl ElementView {
         &self,
         types: &crate::program::ProgramDeclarations<'_, terminal_psi::StructuralTypeDeclaration>,
         path: &[StructuralPathSegment],
-    ) -> Result<ElementViewHome, TerminalInterpretError> {
-        let home = self.home.as_ref().ok_or_else(malformed)?;
+    ) -> Result<Option<ElementViewHome>, TerminalInterpretError> {
         if path.is_empty() {
             // Only a complete fixed-array companion can become a whole-array
             // home. A partial/nonzero window must retain its selected offset.
             // This validates placement and existing access, not the payload.
             self.structural_projection(types, path, self.access != StructuralAccess::SharedBorrow)?;
-            return Ok((**home).clone());
+            return Ok(self.home.as_deref().cloned());
         }
         let Some((StructuralPathSegment::FixedIndex(element_index), suffix)) = path.split_first()
         else {
@@ -104,28 +105,36 @@ impl ElementView {
         if element_index >= self.len() {
             return Err(malformed());
         }
-        Ok(ElementViewHome {
-            storage: home.storage,
-            path: home.selected_path(
-                self.window
-                    .start
-                    .checked_add(element_index)
-                    .ok_or_else(malformed)?,
-                suffix,
-            )?,
-        })
+        self.structural_projection(types, path, self.access != StructuralAccess::SharedBorrow)?;
+        self.home
+            .as_ref()
+            .map(|home| {
+                Ok(ElementViewHome {
+                    storage: home.storage,
+                    path: home.selected_path(
+                        self.window
+                            .start
+                            .checked_add(element_index)
+                            .ok_or_else(malformed)?,
+                        suffix,
+                    )?,
+                })
+            })
+            .transpose()
     }
 
     pub(crate) fn structural(
         collection: TerminalStructuralValue,
         length: usize,
         access: StructuralAccess,
-        home: ElementViewHome,
+        home: Option<ElementViewHome>,
+        diagnostic_source: semantic_vocabulary::PlaceId,
     ) -> Self {
         Self {
+            diagnostic_source,
             backing: ElementViewBacking::Structural { collection },
             window: 0..length,
-            home: Some(Arc::new(home)),
+            home: home.map(Arc::new),
             descriptor_home: None,
             access,
         }
@@ -165,7 +174,6 @@ impl ElementView {
             if home.structural_type != collection.structural_type
                 || self.window.start != 0
                 || u64::try_from(self.window.end).ok() != Some(length)
-                || self.home.is_none()
             {
                 return Err(malformed());
             }
@@ -190,6 +198,77 @@ impl ElementView {
     pub(crate) fn with_descriptor_home(mut self, home: TerminalStructuralValue) -> Self {
         self.descriptor_home = Some(home);
         self
+    }
+
+    /// Reproject an array companion into the same original activation. The
+    /// structural path selects metadata and bounds, without observing contents.
+    pub(crate) fn project_array(
+        &self,
+        types: &crate::program::ProgramDeclarations<'_, terminal_psi::StructuralTypeDeclaration>,
+        path: &[StructuralPathSegment],
+        selected: &TerminalStructuralValue,
+    ) -> Result<Self, TerminalInterpretError> {
+        if path.is_empty() {
+            if !self.matches_descriptor_home(selected) {
+                return Err(malformed());
+            }
+            return Ok(self.clone());
+        }
+        let (collection, projection) =
+            self.structural_projection(types, path, self.access != StructuralAccess::SharedBorrow)?;
+        let projected = crate::custody::project_structural_value(types, &collection, &projection)?;
+        let StructuralTypeShape::FixedArray { length, .. } = types
+            .get(&selected.structural_type)
+            .ok_or_else(malformed)?
+            .shape
+        else {
+            return Err(malformed());
+        };
+        if projected != *selected {
+            return Err(malformed());
+        }
+        let home = self.home.as_ref().map(|home| {
+            let mut home_path = home.path.clone();
+            home_path.extend(projection);
+            ElementViewHome {
+                storage: home.storage,
+                path: home_path,
+            }
+        });
+        Ok(Self::structural(
+            selected.clone(),
+            usize::try_from(length).map_err(|_| malformed())?,
+            self.access,
+            home,
+            self.diagnostic_source,
+        )
+        .with_descriptor_home(selected.clone()))
+    }
+
+    /// Returned fixed-array references retain the admitted supplying activation
+    /// and complete window, independently of descriptor movement or attenuation.
+    pub(crate) fn lends_same_array_storage(&self, returned: &Self) -> bool {
+        let (
+            ElementViewBacking::Structural {
+                collection: expected,
+            },
+            ElementViewBacking::Structural { collection: actual },
+        ) = (&self.backing, &returned.backing)
+        else {
+            return false;
+        };
+        expected.opaque_identity == actual.opaque_identity
+            && expected.path == actual.path
+            && expected.structural_type == actual.structural_type
+            && self.window == returned.window
+            && match (&self.home, &returned.home) {
+                (Some(expected), Some(actual)) => {
+                    expected.storage == actual.storage && expected.path == actual.path
+                }
+                (None, None) => true,
+                _ => false,
+            }
+            && returned.access.admits_referent(self.access)
     }
 
     pub(crate) fn detached_descriptor(&self) -> Self {
@@ -307,15 +386,34 @@ impl ElementView {
         if element_index >= self.len() {
             return Err(malformed());
         }
-        let home = self.home.as_ref().ok_or_else(malformed)?;
-        let path = home.selected_path(
-            self.window
-                .start
-                .checked_add(element_index)
-                .ok_or_else(malformed)?,
-            suffix,
-        )?;
-        execution.primitive_home_access(home.storage, writing, &path)
+        let position = self
+            .window
+            .start
+            .checked_add(element_index)
+            .ok_or_else(malformed)?;
+        if let Some(home) = &self.home {
+            let path = home.selected_path(position, suffix)?;
+            execution.primitive_home_access(home.storage, writing, &path)
+        } else {
+            let ElementViewBacking::Structural { collection } = &self.backing else {
+                return Err(malformed());
+            };
+            let mut selected = vec![StructuralPathSegment::FixedIndex(
+                u64::try_from(position).map_err(|_| malformed())?,
+            )];
+            selected.extend_from_slice(suffix);
+            let scalar = if writing {
+                terminal_semantics::primitive_projection_type
+            } else {
+                terminal_semantics::primitive_read_projection_type
+            }(
+                execution.program.structural_types().values(),
+                collection.structural_type,
+                &selected,
+            )
+            .ok_or_else(malformed)?;
+            execution.resident_element_storage(collection, position, suffix, scalar, !writing)
+        }
     }
 
     /// Preserve the original backing while narrowing its window. Attenuation
@@ -330,6 +428,7 @@ impl ElementView {
             return None;
         }
         Some(Self {
+            diagnostic_source: self.diagnostic_source,
             backing: self.backing.clone(),
             window: self.window.start.checked_add(start)?..self.window.start.checked_add(end)?,
             home: self.home.clone(),
@@ -482,7 +581,10 @@ impl TerminalExecution<'_> {
             || source.access != access
             || result.multiplicity != multiplicity
             || !result.qualifications.is_empty()
-            || !result.projected_qualifications.is_empty()
+            || result
+                .projected_qualifications
+                .iter()
+                .any(|row| !row.is_element_membership())
             || !result.claims.is_empty()
         {
             return Err(malformed());
@@ -630,7 +732,7 @@ impl TerminalExecution<'_> {
                 opaque_identity: self.local_structural_identities.allocate()?,
                 structural_type: result.structural_type,
                 qualifications: Vec::new(),
-                projected_qualifications: Vec::new(),
+                projected_qualifications: result.projected_qualifications.clone(),
                 path: Vec::new(),
             };
             if descriptor.is_borrowed_byte_view() {
@@ -683,6 +785,7 @@ impl TerminalExecution<'_> {
                 self.element_view_values.insert(
                     result.place,
                     ElementView {
+                        diagnostic_source: source.place,
                         backing: ElementViewBacking::Representation(Arc::new(view)),
                         window: 0..extent,
                         home: None,
@@ -717,6 +820,7 @@ impl TerminalExecution<'_> {
             self.element_view_values.insert(
                 result.place,
                 ElementView {
+                    diagnostic_source: source.place,
                     backing: ElementViewBacking::Typed(Arc::new(typed)),
                     window: 0..extent,
                     home: None,
@@ -730,7 +834,7 @@ impl TerminalExecution<'_> {
                     opaque_identity: self.local_structural_identities.allocate()?,
                     structural_type: result.structural_type,
                     qualifications: Vec::new(),
-                    projected_qualifications: Vec::new(),
+                    projected_qualifications: result.projected_qualifications.clone(),
                     path: Vec::new(),
                 },
             );
@@ -796,7 +900,7 @@ impl TerminalExecution<'_> {
             opaque_identity: self.local_structural_identities.allocate()?,
             structural_type: result.structural_type,
             qualifications: Vec::new(),
-            projected_qualifications: Vec::new(),
+            projected_qualifications: result.projected_qualifications.clone(),
             path: Vec::new(),
         };
         match descriptor {
@@ -842,47 +946,24 @@ impl TerminalExecution<'_> {
                 let mut cursor = self.local_structural_identities.cursor();
                 let view = if let Some(view) = borrowed_view {
                     view.with_descriptor_home(descriptor_value.clone())
-                } else if source.path.is_empty()
-                    && let Some(loan) = self.element_view_values.get(&source.place)
-                {
-                    let referent = self
-                        .structural_values
-                        .get(&source.place)
-                        .ok_or_else(malformed)?;
-                    if referent.structural_type != root_type
-                        || !loan.matches_descriptor_home(referent)
-                        || loan.len() != extent
-                    {
-                        return Err(malformed());
-                    }
-                    loan.subslice(0, extent, access).ok_or_else(malformed)?
                 } else {
-                    // Inline scalar arrays have frame-owned payload, not a
-                    // structural scalar row. Their presentation root is only
-                    // an identity; the retained home selects the actual cells.
-                    let collection = if self.scalar_array_values.contains_key(&source.place) {
-                        let (root, _) = self.array_storage_root_staged(
-                            source.place,
-                            &mut cursor,
-                            &mut BTreeMap::new(),
-                        )?;
-                        crate::custody::project_structural_value(
-                            &self.program.structural_types(),
-                            &root,
-                            &source.path,
-                        )?
-                    } else {
-                        self.resolve_live_projection(source.place, &source.path, source.access)?
+                    let (collection, home) = self.element_collection_storage(source)?;
+                    let collection = match collection {
+                        Some(collection) => collection,
+                        None => {
+                            let (root, _) = self.array_storage_root_staged(
+                                source.place,
+                                &mut cursor,
+                                &mut BTreeMap::new(),
+                            )?;
+                            crate::custody::project_structural_value(
+                                &self.program.structural_types(),
+                                &root,
+                                &source.path,
+                            )?
+                        }
                     };
-                    ElementView::structural(
-                        collection,
-                        extent,
-                        access,
-                        ElementViewHome {
-                            storage: self.capture_primitive_home(source.place)?,
-                            path: source.path.clone(),
-                        },
-                    )
+                    ElementView::structural(collection, extent, access, home, source.place)
                 };
                 let view = if let Some(window) = &selected_window {
                     view.subslice(window.start, window.end, access)
@@ -905,6 +986,76 @@ impl TerminalExecution<'_> {
                 });
         }
         Ok(OperationFlow::Advance)
+    }
+
+    /// Resident collections keep stable opaque cells. Packed arrays instead
+    /// retain their original activation home through the selected array loan.
+    /// A borrowed descriptor's current frame is never a new backing home.
+    fn element_collection_storage(
+        &self,
+        source: &terminal_psi::StructuralArgument,
+    ) -> Result<(Option<TerminalStructuralValue>, Option<ElementViewHome>), TerminalInterpretError>
+    {
+        let root_type = self.live_structural_type(source.place)?;
+        let authority = self.reference_carrier_access(source.place, root_type, &source.path)?;
+        if !crate::reference::access_covers(authority, source.access) {
+            return Err(malformed());
+        }
+        if self.scalar_array_values.contains_key(&source.place) {
+            return Ok((
+                None,
+                Some(ElementViewHome {
+                    storage: self.capture_primitive_home(source.place)?,
+                    path: source.path.clone(),
+                }),
+            ));
+        }
+        let selected =
+            self.resolve_live_storage_projection(source.place, &source.path, source.access)?;
+        let home = match selected.collection_home {
+            Some(home) => Some(home),
+            None => selected
+                .array_loan
+                .as_ref()
+                .map(|loan| {
+                    if !source.access.admits_referent(loan.access()) {
+                        return Err(malformed());
+                    }
+                    loan.captured_storage_home(&self.program.structural_types(), &[])
+                })
+                .transpose()?
+                .flatten(),
+        };
+        Ok((Some(selected.value), home))
+    }
+
+    fn resident_element_storage(
+        &self,
+        collection: &TerminalStructuralValue,
+        position: usize,
+        suffix: &[StructuralPathSegment],
+        scalar: ScalarType,
+        shared: bool,
+    ) -> Result<
+        (crate::primitive_storage::PrimitiveStorage, ScalarType, bool),
+        TerminalInterpretError,
+    > {
+        let mut path = Vec::with_capacity(1 + suffix.len());
+        path.push(StructuralPathSegment::FixedIndex(
+            u64::try_from(position).map_err(|_| malformed())?,
+        ));
+        path.extend_from_slice(suffix);
+        let canonical = if shared {
+            terminal_semantics::canonical_primitive_read_path
+        } else {
+            terminal_semantics::canonical_primitive_path
+        }(
+            self.program.structural_types().values(),
+            collection.structural_type,
+            &path,
+        )
+        .ok_or_else(malformed)?;
+        self.primitive_view_access(collection, canonical.as_slice(), scalar, shared)
     }
 
     /// Resolve a record cell in the original collection, for both direct and
@@ -973,12 +1124,23 @@ impl TerminalExecution<'_> {
                 crate::primitive_storage::scalar_reference_observation(value, scalar_type)
             }
         } else {
-            let home = view.home.as_ref().ok_or_else(malformed)?;
-            self.read_primitive_home(
-                home.storage,
-                &home.selected_path(position, path)?,
-                scalar_type,
-            )
+            if let Some(home) = &view.home {
+                self.read_primitive_home(
+                    home.storage,
+                    &home.selected_path(position, path)?,
+                    scalar_type,
+                )
+            } else {
+                let (storage, logical, shared) =
+                    self.resident_element_storage(collection, position, path, scalar_type, true)?;
+                self.read_primitive_storage(
+                    view.diagnostic_source,
+                    storage,
+                    logical,
+                    scalar_type,
+                    shared,
+                )
+            }
         }
     }
 
@@ -1013,8 +1175,22 @@ impl TerminalExecution<'_> {
             *stored = scalar;
             Ok(())
         } else {
-            let home = view.home.as_ref().ok_or_else(malformed)?;
-            self.store_primitive_home(home.storage, &home.selected_path(position, path)?, scalar)
+            if let Some(home) = &view.home {
+                self.store_primitive_home(
+                    home.storage,
+                    &home.selected_path(position, path)?,
+                    scalar,
+                )
+            } else {
+                let (storage, logical, _) = self.resident_element_storage(
+                    collection,
+                    position,
+                    path,
+                    scalar.scalar_type(),
+                    false,
+                )?;
+                self.store_primitive_storage(view.diagnostic_source, storage, logical, scalar)
+            }
         }
     }
 
@@ -1045,27 +1221,42 @@ impl TerminalExecution<'_> {
         if !terminal_scalar_belongs_to_type(element) {
             return Err(malformed());
         }
-        self.validate_descriptor_borrow(destination, StructuralAccess::MutableBorrow)?;
-        let selected = self.resolve_live_projection(
-            destination.place,
-            &destination.path,
-            StructuralAccess::MutableBorrow,
-        )?;
-        let view = self.element_view_argument(destination, &selected)?.clone();
+        self.validate_descriptor_borrow(destination, StructuralAccess::MutableBorrow)
+            .map_err(|error| error.in_argument_preparation("authorize element view write"))?;
+        let selected = self
+            .resolve_live_projection(
+                destination.place,
+                &destination.path,
+                StructuralAccess::MutableBorrow,
+            )
+            .map_err(|error| {
+                error.in_argument_preparation("resolve element view write descriptor")
+            })?;
+        let view = self
+            .element_view_argument(destination, &selected)
+            .map_err(|error| {
+                error.in_argument_preparation("capture element view write descriptor")
+            })?
+            .clone();
         if view.access != StructuralAccess::MutableBorrow || view.len() != length || index >= length
         {
             return Err(malformed());
         }
         match &view.backing {
             ElementViewBacking::Typed(_) => {
-                self.write_typed_element(&view, index, path, element)?
+                self.write_typed_element(&view, index, path, element)
+                    .map_err(|error| error.in_argument_preparation("write typed element backing"))?
             }
-            ElementViewBacking::Structural { .. } => {
-                self.write_structural_element(&view, index, path, element)?
-            }
-            ElementViewBacking::Representation(_) => {
-                self.write_representation_element(&view, index, path, element)?
-            }
+            ElementViewBacking::Structural { .. } => self
+                .write_structural_element(&view, index, path, element)
+                .map_err(|error| {
+                    error.in_argument_preparation("write structural element backing")
+                })?,
+            ElementViewBacking::Representation(_) => self
+                .write_representation_element(&view, index, path, element)
+                .map_err(|error| {
+                    error.in_argument_preparation("write representation element backing")
+                })?,
         }
         Ok(OperationFlow::Advance)
     }
@@ -1228,8 +1419,16 @@ impl TerminalExecution<'_> {
             || !same_element
             || !crate::reference::access_covers(view.access, access)
             || !source_value.qualifications.is_empty()
+            || (view.len() != 0
+                && result
+                    .projected_qualifications
+                    .iter()
+                    .any(|row| !source_value.projected_qualifications.contains(row)))
             || !result.qualifications.is_empty()
-            || !result.projected_qualifications.is_empty()
+            || result
+                .projected_qualifications
+                .iter()
+                .any(|row| !row.is_element_membership())
             || !result.qualification_establishments.is_empty()
             || !self
                 .program
@@ -1251,22 +1450,21 @@ impl TerminalExecution<'_> {
         ) {
             (None, None) => {}
             (Some(previous), Some(previous_view))
-                if *previous
-                    == TerminalStructuralValue::minted(
-                        previous.opaque_identity,
-                        result.structural_type,
-                        Vec::new(),
-                    )
+                if previous.structural_type == result.structural_type
+                    && previous.qualifications.is_empty()
+                    && previous.projected_qualifications == result.projected_qualifications
+                    && previous.path.is_empty()
                     && previous_view.matches_bound_descriptor_home(previous, previous) => {}
             _ => return Err(malformed()),
         }
         let mut identity_cursor = self.local_structural_identities.cursor();
-        let destination = TerminalStructuralValue::minted(
+        let mut destination = TerminalStructuralValue::minted(
             self.local_structural_identities
                 .allocate_staged(&mut identity_cursor)?,
             result.structural_type,
             Vec::new(),
         );
+        destination.projected_qualifications = result.projected_qualifications.clone();
         let window = view
             .subslice(start, end, access)
             .ok_or_else(malformed)?

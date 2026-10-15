@@ -23,12 +23,12 @@ use omega::language::core::numeric_conversion;
 domain [u8]::Utf8(bytes)
 requires
     valid_utf8(bytes);
-domain [u8; 32]::Utf8(bytes)
+domain [u8; 10]::Utf8(bytes)
 requires
     valid_utf8(bytes);
 
 data Main {
-    message: [u8; 32] in Utf8;
+    message: [u8; 10] in Utf8;
     padding: i32 in Saturating;
     pause: [u8; 256];
 }

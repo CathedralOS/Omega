@@ -30,7 +30,7 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
     let view_slot = match field {
         Some(field) => {
             let (root_type, carrier_path) =
-                field_store_carrier(module, machine, *destination, path)?;
+                field_store_carrier(module, machine, *destination, path, *field)?;
             terminal_semantics::projected_field_declaration(
                 module.structural_types.iter(),
                 root_type,
@@ -93,7 +93,7 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
     if operation.result != OperationResult::Unit {
         return malformed("byte field store requires Unit");
     }
-    let reference = reference_store_carrier(module, machine, *destination, path);
+    let reference = reference_store_carrier(module, machine, *destination, path, *field);
     let (destination_type, carrier_path) = if let Some(reference) = reference {
         reference
     } else if let Some(structural_type) = owned_store_carrier(module, machine, *destination, path) {
@@ -377,7 +377,16 @@ fn validate_byte_descriptor_source(
     let selected = validate_structural_path(module, root, &source.path)?;
     if !module.structural_type(selected).is_some_and(|declaration| {
         declaration.shape.is_borrowed_byte_carrier()
-            || (!borrowed_only && declaration.shape.is_bounded_owned_byte_sequence())
+            || (!borrowed_only
+                && (declaration.shape.is_bounded_owned_byte_sequence()
+                    || matches!(
+                        declaration.shape,
+                        terminal_psi::StructuralTypeShape::FixedArray { .. }
+                    ) && terminal_semantics::fixed_byte_extent(
+                        module.structural_types.iter(),
+                        selected,
+                    )
+                    .is_some()))
     }) {
         return malformed("byte operation requires its exact selected byte descriptor");
     }

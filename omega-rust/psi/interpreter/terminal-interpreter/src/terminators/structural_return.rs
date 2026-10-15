@@ -72,13 +72,10 @@ impl TerminalExecution<'_> {
             None => None,
         };
         let mut identity_cursor = self.local_structural_identities.cursor();
-        let mut completed = if terminal_semantics::scalar_array_leaf_shape(
-            self.program.structural_types().values(),
-            signature.structural_type,
-        )
-        .is_some()
-        {
-            let value = self.scalar_array_snapshot(
+        // Return the actual carrier. A placed array may retain nested
+        // memberships that a packed primitive payload cannot represent.
+        let mut completed = if self.scalar_array_values.contains_key(source) {
+            let mut value = self.scalar_array_snapshot(
                 &StructuralArgument {
                     place: *source,
                     path: Vec::new(),
@@ -88,13 +85,20 @@ impl TerminalExecution<'_> {
             )?;
             if value.structural_type != signature.structural_type
                 || signature.multiplicity != StructuralMultiplicity::Unrestricted
-                || !signature.qualifications.is_empty()
                 || !signature.projected_qualifications.is_empty()
                 || !returned_claims.is_empty()
                 || !self.live_claims.is_empty()
-                || !self.claim_free_structural_destination()
+                || destination.as_ref().is_some_and(|result| {
+                    !result.projected_qualifications.is_empty() || !result.claims.is_empty()
+                })
             {
                 return Err(malformed());
+            }
+            self.validate_scalar_array_qualifications(&value, &signature.qualifications)?;
+            value.qualifications.clone_from(&signature.qualifications);
+            if let Some(destination) = &destination {
+                self.validate_scalar_array_qualifications(&value, &destination.qualifications)?;
+                value.qualifications.clone_from(&destination.qualifications);
             }
             CompletedReturn::plain(TerminalExecutionResult::ScalarArray(
                 TerminalScalarArrayResult { value },
@@ -149,10 +153,22 @@ impl TerminalExecution<'_> {
             // descriptor while retaining the already admitted backing loan.
             let borrowed_descriptor = signature.multiplicity == StructuralMultiplicity::Affine
                 && signature.qualifications.is_empty()
-                && signature.projected_qualifications.is_empty()
+                && terminal_semantics::view_descriptor_projected_qualifications(
+                    self.program.structural_types().values(),
+                    signature.structural_type,
+                    &signature.projected_qualifications,
+                )
+                && signature
+                    .projected_qualifications
+                    .iter()
+                    .all(|row| value.projected_qualifications.contains(row))
                 && active_returned_claims.is_empty()
                 && value.qualifications.is_empty()
-                && value.projected_qualifications.is_empty()
+                && terminal_semantics::view_descriptor_projected_qualifications(
+                    self.program.structural_types().values(),
+                    value.structural_type,
+                    &value.projected_qualifications,
+                )
                 && self
                     .program
                     .machines()
@@ -160,13 +176,25 @@ impl TerminalExecution<'_> {
                     .and_then(|machine| terminal_semantics::arrival_parameter(machine, *source))
                     .is_some_and(|parameter| {
                         parameter.access == StructuralAccess::MutableBorrow
+                            && parameter.multiplicity == StructuralMultiplicity::Unrestricted
                             && terminal_semantics::view_descriptor_parameter(
                                 parameter,
                                 self.program.structural_types().values(),
                             )
-                            && parameter.structural_type == signature.structural_type
+                            // Stored descriptors and canonical borrowed ingress
+                            // retain one pointer/count home. Geometry never pays
+                            // owned debt or changes the independently checked access.
+                            && terminal_semantics::borrowed_referent_presentation(
+                                self.program.structural_types().values(),
+                                parameter.structural_type,
+                                signature.structural_type,
+                            ) == Some(terminal_semantics::BorrowedReferentPresentation::Unchanged)
                             && parameter.qualifications.is_empty()
-                            && parameter.projected_qualifications.is_empty()
+                            && terminal_semantics::view_descriptor_projected_qualifications(
+                                self.program.structural_types().values(),
+                                parameter.structural_type,
+                                &parameter.projected_qualifications,
+                            )
                     })
                 && (element_view
                     .as_ref()
@@ -353,21 +381,6 @@ impl TerminalExecution<'_> {
             cleanup_actions.into_iter(),
             CleanupContinuation::Return(completed),
         )
-    }
-
-    fn claim_free_structural_destination(&self) -> bool {
-        match self.call_stack.last() {
-            Some(SuspendedCall {
-                result: SuspendedCallResult::Structural { result, .. },
-                ..
-            }) => {
-                result.qualifications.is_empty()
-                    && result.projected_qualifications.is_empty()
-                    && result.claims.is_empty()
-            }
-            Some(_) => false,
-            None => true,
-        }
     }
 
     /// The embedding API accepts semantic scalar-case contents, not a second

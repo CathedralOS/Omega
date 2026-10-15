@@ -449,6 +449,7 @@ pub enum CheckedUnitLocalBindingPlan {
     /// Construct an unrestricted primitive fixed array in authored row-major
     /// leaf order. Empty dimensions remain in the exact structural result type.
     ScalarArray {
+        qualifications: Vec<SemanticDomainId>,
         source: crate::CheckedArrayConstructionSource,
         result: CheckedUnitStructuralResultBindingPlan,
         elements: Vec<CheckedCallScalarArgument>,

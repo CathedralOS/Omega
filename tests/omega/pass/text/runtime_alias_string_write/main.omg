@@ -1,39 +1,41 @@
-// Expected exit: 0. Whole byte replacement follows the mutable loan home.
-domain [u8]::Utf8(bytes)
-requires
-    valid_utf8(bytes);
-domain [u8; 8]::Utf8(bytes)
-requires
-    valid_utf8(bytes);
-
-data Main {
-    label: [u8; 8] in Utf8;
+// Expected exit: 0. Whole replacement follows the mutable loan of an explicit owner.
+domain [u8]::Utf8(bytes) requires valid_utf8(bytes);
+domain [u8; 8]::Utf8(bytes) requires valid_utf8(bytes);
+data TextBuffer [copy] where used <= 8 { storage: [u8; 8] in Utf8; used: u64; }
+data Main { label: TextBuffer; }
+machine TextBuffer::view(buffer: &TextBuffer) -> &[u8] in Utf8 crashes Trap {
+    let bytes: &[u8] = &buffer.storage[..buffer.used];
+    transition valid_utf8(bytes) { true -> checked(bytes) false -> bad() }
+    state checked(bytes: &[u8] in Utf8) -> &[u8] in Utf8 { bytes }
+    state bad() { crash Trap; }
 }
-
+machine matches(buffer: &TextBuffer, expected: &[u8] in Utf8, used: u64) -> bool crashes Trap {
+    let bytes: &[u8] in Utf8 = TextBuffer::view(buffer);
+    buffer.used == used && buffer.storage.len == 8 && bytes == expected
+}
 machine Main::main(main: &mut Main) crashes Trap {
-    let label_alias: &mut [u8; 8] in Utf8 = &mut main.label;
-    label_alias = "hello";
-    let observed: bool = label_alias == "hello" && label_alias.len == 5;
+    let label_alias: &mut TextBuffer = &mut main.label;
+    label_alias = TextBuffer { storage: [104u8, 101u8, 108u8, 108u8, 111u8, 0u8, 0u8, 0u8], used: 5 };
+    let observed: bool = matches(&main.label, "hello", 5);
     let local: bool = local_replacement();
     transition observed && local { true -> verify(main) false -> bad() }
     state verify(main: &mut Main) {
-        transition main.label == "hello" && main.label.len == 5 {
-            true -> replace_again(main) false -> bad()
-        }
+        let observed: bool = matches(&main.label, "hello", 5);
+        transition observed { true -> replace_again(main) false -> bad() }
     }
     state replace_again(main: &mut Main) {
-        let another: &mut [u8; 8] in Utf8 = &mut main.label;
-        another = "é";
-        transition another == "é" && another.len == 2 { true -> done() false -> bad() }
+        let another: &mut TextBuffer = &mut main.label;
+        another = TextBuffer { storage: [195u8, 169u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8], used: 2 };
+        let observed: bool = matches(&main.label, "é", 2);
+        transition observed { true -> done() false -> bad() }
     }
     state done() {}
     state bad() { crash Trap; }
 }
-
-// The same replacement through a reference to a frame-local owner.
-machine local_replacement() -> bool {
-    let mut line: [u8; 8] in Utf8 = "before";
-    let alias: &mut [u8; 8] in Utf8 = &mut line;
-    alias = "é";
-    alias == "é" && alias.len == 2
+// The same replacement through a reference to a frame-local explicit owner.
+machine local_replacement() -> bool crashes Trap {
+    let mut line: TextBuffer = TextBuffer { storage: [98u8, 101u8, 102u8, 111u8, 114u8, 101u8, 0u8, 0u8], used: 6 };
+    let alias: &mut TextBuffer = &mut line;
+    alias = TextBuffer { storage: [195u8, 169u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8], used: 2 };
+    matches(&line, "é", 2)
 }

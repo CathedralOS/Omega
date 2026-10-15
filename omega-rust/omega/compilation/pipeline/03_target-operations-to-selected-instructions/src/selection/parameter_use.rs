@@ -43,6 +43,8 @@ pub(super) fn referent_used(source: &LegalizedScalarFunction, place: PlaceId) ->
                 LegalizedScalarInstructionKind::AtomicAccess { location, .. }
                 | LegalizedScalarInstructionKind::PlacedScalarAccess { location, .. } => location.place == place,
                 LegalizedScalarInstructionKind::EstablishByteSequenceConcatenation { left, right, .. } => left.source() == place || right.source() == place,
+                LegalizedScalarInstructionKind::ByteSequenceEqual { left, right } => left.source() == place || right.source() == place,
+                LegalizedScalarInstructionKind::ByteSequencePredicate { operand, .. } => operand.source() == place,
                 LegalizedScalarInstructionKind::ByteSequenceStore { destination, source, .. } => *destination == place || *source == place,
                 LegalizedScalarInstructionKind::StructuralByteSequenceFieldStore {
                     destination,

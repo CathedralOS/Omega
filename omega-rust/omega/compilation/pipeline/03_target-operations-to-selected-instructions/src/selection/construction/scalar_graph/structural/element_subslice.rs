@@ -51,7 +51,12 @@ pub(super) fn create(
     if row.result.is_some()
         || !same_element
         || !result.qualifications.is_empty()
-        || !result.projected_qualifications.is_empty()
+        || result.projected_qualifications.iter().any(|row| {
+            !matches!(
+                row.path.first(),
+                Some(terminal_psi::StructuralPathSegment::AllElements)
+            )
+        })
         || !result.claims.is_empty()
         || builder
             .transport

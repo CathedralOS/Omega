@@ -1,0 +1,18 @@
+// Expected exit: 0
+// UTF-8 mutation requires current ASCII backing, not only an ASCII new byte.
+domain [u8; 4]::Utf8(bytes) requires valid_utf8(bytes);
+data Buffer { bytes: [u8; 4] in Utf8; sentinel: u8; }
+machine main() crashes Trap {
+    let mut buffer: Buffer;
+    buffer.bytes = "abcd";
+    buffer.sentinel = 73u8;
+    buffer.bytes[1] = 90u8;
+    buffer.bytes[2] = 0u8;
+    transition buffer.bytes.len == 4 && buffer.bytes[0] == 97 && buffer.bytes[1] == 90
+        && buffer.bytes[2] == 0 && buffer.bytes[3] == 100 && buffer.sentinel == 73 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

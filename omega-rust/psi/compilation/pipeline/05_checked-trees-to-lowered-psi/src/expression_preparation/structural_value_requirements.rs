@@ -116,6 +116,15 @@ fn collect_domains(
             }
         }
         match &node.kind {
+            CheckedStructuralValueKind::ZeroedStructural {
+                projected_qualifications,
+            } => {
+                for row in projected_qualifications {
+                    if !domains.contains(&row.domain) {
+                        domains.push(row.domain);
+                    }
+                }
+            }
             CheckedStructuralValueKind::ByteLiteralView { .. } => {
                 requires_literal_view = true;
             }

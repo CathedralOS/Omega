@@ -22,6 +22,6 @@ pub(crate) use comparison::{
     static_place_segment_pair_equal,
 };
 pub(crate) use literal_projection::{
-    LiteralValueProjection, literal_argument_access_places, literal_value_path_is_inactive,
-    literal_value_projections,
+    LiteralExpressionProjection, LiteralValueSource, literal_argument_access_places,
+    literal_expression_projections, literal_value_path_is_inactive, literal_value_projections,
 };

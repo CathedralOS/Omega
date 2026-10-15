@@ -232,6 +232,7 @@ pub(super) fn structural_operand_shape(
                     find_structural_type(declarations, child_type)
                         .map(|declaration| &declaration.shape),
                     &expected,
+                    super::established_view_input::view_access(source, argument.place),
                 ))
                 || !readable
             {
@@ -322,8 +323,35 @@ fn descriptor_shape(
 /// Two descriptor shapes match when they carry the same view family: a
 /// member's `BorrowedView` spells its loan access while the standalone
 /// descriptor declaration keeps `access: None` — same layout, same family.
-fn descriptor_family(actual: Option<&StructuralTypeShape>, expected: &StructuralTypeShape) -> bool {
+fn descriptor_family(
+    actual: Option<&StructuralTypeShape>,
+    expected: &StructuralTypeShape,
+    occurrence_access: Option<terminal_psi::StructuralAccess>,
+) -> bool {
     match (actual, expected) {
+        (
+            Some(StructuralTypeShape::ElementView {
+                element: source,
+                access: source_access,
+            }),
+            StructuralTypeShape::ElementView {
+                element: destination,
+                access: destination_access,
+            },
+        ) => {
+            source == destination
+                && destination_access.is_none_or(|requested| {
+                    source_access.or(occurrence_access).is_some_and(|supplied| {
+                        supplied == requested
+                            || supplied == terminal_psi::StructuralAccess::MutableBorrow
+                                && matches!(
+                                    requested,
+                                    terminal_psi::StructuralAccess::SharedBorrow
+                                        | terminal_psi::StructuralAccess::WriteOnlyBorrow
+                                )
+                    })
+                })
+        }
         (
             Some(StructuralTypeShape::ByteSequence(
                 terminal_psi::ByteSequenceCarrier::BorrowedView { .. },

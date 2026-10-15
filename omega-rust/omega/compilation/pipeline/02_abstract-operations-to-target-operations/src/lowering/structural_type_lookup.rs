@@ -10,6 +10,7 @@ use terminal_psi::{StructuralPathSegment, StructuralTypeDeclaration};
 pub(crate) struct StructuralTypeLookup<'a> {
     declarations: BTreeMap<StructuralTypeId, &'a StructuralTypeDeclaration>,
     catalog: StructuralTypeCatalog,
+    domains: Option<&'a [terminal_psi::StructuralDomainDeclaration]>,
 }
 
 impl<'a> StructuralTypeLookup<'a> {
@@ -34,7 +35,38 @@ impl<'a> StructuralTypeLookup<'a> {
         Self {
             declarations,
             catalog,
+            domains: None,
         }
+    }
+
+    pub(super) fn with_verified_domains(
+        mut self,
+        domains: Option<&'a [terminal_psi::StructuralDomainDeclaration]>,
+    ) -> Self {
+        self.domains = domains;
+        self
+    }
+
+    /// Qualifications stay on the retained contracts. This classification
+    /// selects ordinary byte storage; it grants neither membership nor access.
+    pub(super) fn pure_byte_qualifications(
+        &self,
+        root: StructuralTypeId,
+        whole: &[semantic_vocabulary::StructuralDomainId],
+        projected: &[terminal_psi::StructuralPathQualification],
+    ) -> bool {
+        if whole.is_empty() && projected.is_empty() {
+            return true;
+        }
+        self.domains.is_some_and(|domains| {
+            terminal_semantics::pure_byte_qualifications(
+                self.values().copied(),
+                domains.iter(),
+                root,
+                whole,
+                projected,
+            )
+        })
     }
 
     pub(super) fn catalog(&self) -> &StructuralTypeCatalog {

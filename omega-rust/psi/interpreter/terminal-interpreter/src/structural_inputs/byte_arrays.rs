@@ -57,32 +57,44 @@ pub(crate) fn byte_array_length(
         .then_some(length)
 }
 
+/// Type geometry for an initialized array selection. Case activity, live
+/// backing and loan access remain with the execution and custody owners.
 pub(crate) fn array_path_type(
     types: &crate::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
-    mut structural_type: StructuralTypeId,
+    structural_type: StructuralTypeId,
     path: &[StructuralPathSegment],
 ) -> Option<StructuralTypeId> {
-    for segment in path {
-        structural_type = match (segment, &types.get(&structural_type)?.shape) {
-            (
-                StructuralPathSegment::Field(identity),
-                StructuralTypeShape::Record { fields, .. },
-            ) => {
-                let field = terminal_psi::live_field_by_identity(fields, *identity)?;
-                let next = field.field_type.as_structural()?;
-                next
-            }
-            (
-                StructuralPathSegment::FixedIndex(index),
-                StructuralTypeShape::FixedArray { element, length },
-            ) if index < length => *element,
-            _ => return None,
-        };
-    }
-    Some(structural_type)
+    terminal_semantics::runtime_structural_path_tip(types.values(), structural_type, path)
+        .map(|declaration| declaration.id)
 }
 
 impl TerminalExecution<'_> {
+    fn check_byte_view_handback(
+        &self,
+        value: &TerminalStructuralValue,
+        argument: &StructuralArgument,
+        parameter: &StructuralParameterDeclaration,
+    ) -> Result<(), TerminalInterpretError> {
+        if !value.projected_qualifications.is_empty() {
+            return Err(malformed());
+        }
+        let domains = self.program.catalogs.structural_domains.iter();
+        let original = terminal_semantics::byte_qualification_predicates_in(
+            domains.clone(),
+            value.structural_type,
+            &value.qualifications,
+        )
+        .ok_or_else(malformed)?;
+        let required = terminal_semantics::byte_parameter_predicates_in(domains, parameter)
+            .ok_or_else(malformed)?;
+        if !original.implies(required)
+            || (argument.access == StructuralAccess::MutableBorrow && !required.implies(original))
+        {
+            return Err(malformed());
+        }
+        Ok(())
+    }
+
     pub(crate) fn bind_byte_arrays(
         &mut self,
         arguments: &[TerminalStructuralByteArrayValue],
@@ -95,6 +107,17 @@ impl TerminalExecution<'_> {
         let mut storage = BTreeMap::new();
         let mut descriptors = BTreeMap::new();
         for argument in arguments {
+            // External byte arrays name physical initialized cells. Unlike
+            // internal checked projections, this envelope carries no case
+            // discriminator, reference resolution, or captured selector.
+            if !argument.path.iter().all(|segment| {
+                matches!(
+                    segment,
+                    StructuralPathSegment::Field(_) | StructuralPathSegment::FixedIndex(_)
+                )
+            }) {
+                return Err(malformed());
+            }
             let parameter = machine
                 .structural_parameters
                 .get(argument.argument_index as usize)
@@ -206,7 +229,7 @@ impl TerminalExecution<'_> {
                             .local_structural_identities
                             .allocate_staged(identity_cursor)?,
                         structural_type: array.structural_type,
-                        qualifications: Vec::new(),
+                        qualifications: array.qualifications.clone(),
                         projected_qualifications: Vec::new(),
                         path: Vec::new(),
                     })
@@ -398,9 +421,6 @@ impl TerminalExecution<'_> {
         {
             return Ok(None);
         }
-        // A qualified formal takes no array presentation below; it may
-        // still name a qualified view field another binder presents.
-        let qualified = !parameter.qualifications.is_empty();
         // An affine descriptor still borrows its original bytes. Share the
         // arrival contract with call and block consumers instead of treating
         // descriptor lifetime as ownership of the referent.
@@ -423,12 +443,10 @@ impl TerminalExecution<'_> {
                 .structural_values
                 .get(&argument.place)
                 .ok_or_else(malformed)?;
-            if qualified
-                || parameter.access != StructuralAccess::SharedBorrow
-                || !value.qualifications.is_empty()
-            {
+            if parameter.access != StructuralAccess::SharedBorrow {
                 return Err(malformed());
             }
+            self.check_byte_view_handback(value, argument, parameter)?;
             let binding = self.reborrow_byte_sequence_binding(binding, value, parameter.access)?;
             if value.structural_type != parameter.structural_type {
                 // A shared bounded arrival retains its authenticated snapshot.
@@ -484,6 +502,7 @@ impl TerminalExecution<'_> {
                 }
                 let mut presented = value.clone();
                 presented.structural_type = parameter.structural_type;
+                presented.qualifications = parameter.qualifications.clone();
                 let binding =
                     ByteSequenceBinding::Immutable(bytes.with_descriptor_home(presented.clone()));
                 return Ok(Some((presented, binding)));
@@ -498,9 +517,7 @@ impl TerminalExecution<'_> {
                 .structural_values
                 .get(&argument.place)
                 .ok_or_else(malformed)?;
-            if qualified || !value.qualifications.is_empty() {
-                return Err(malformed());
-            }
+            self.check_byte_view_handback(value, argument, parameter)?;
             let mut borrowed =
                 self.reborrow_byte_sequence_binding(binding, value, parameter.access)?;
             if value.structural_type != parameter.structural_type {
@@ -552,6 +569,7 @@ impl TerminalExecution<'_> {
                 }
                 let mut presented = value.clone();
                 presented.structural_type = parameter.structural_type;
+                presented.qualifications = parameter.qualifications.clone();
                 return Ok(Some((
                     presented.clone(),
                     ByteSequenceBinding::Immutable(bytes.with_descriptor_home(presented)),
@@ -601,9 +619,6 @@ impl TerminalExecution<'_> {
         let Some(length) = byte_array_length(&self.program.structural_types(), array_type) else {
             return Ok(None);
         };
-        if qualified {
-            return Err(malformed());
-        }
         let machine = self
             .program
             .machines()
@@ -634,8 +649,6 @@ impl TerminalExecution<'_> {
                         terminal_psi::nonlinear_multiplicity_pair_pattern!()
                     )
                     || !result.claims.is_empty()
-                    || !result.qualifications.is_empty()
-                    || !result.projected_qualifications.is_empty()
                 {
                     return None;
                 }
@@ -645,19 +658,17 @@ impl TerminalExecution<'_> {
                     structural_type,
                     multiplicity: result.multiplicity,
                     access: StructuralAccess::Owned,
-                    qualifications: Vec::new(),
-                    projected_qualifications: Vec::new(),
+                    qualifications: result.qualifications.clone(),
+                    projected_qualifications: result.projected_qualifications.clone(),
                 })
             })
             .ok_or_else(malformed)?;
-        if source.structural_type != root.structural_type
-            || !source.qualifications.is_empty()
-            || !source.projected_qualifications.is_empty()
-        {
+        if source.structural_type != root.structural_type {
             return Err(malformed());
         }
-        let window = terminal_semantics::fixed_byte_array_window(
+        let window = terminal_semantics::fixed_byte_array_loan(
             self.program.structural_types().values(),
+            self.program.catalogs.structural_domains.iter(),
             &source,
             argument,
             parameter,
@@ -680,9 +691,6 @@ impl TerminalExecution<'_> {
             values,
             &backing_argument,
         )?;
-        if !root.qualifications.is_empty() || !referent.qualifications.is_empty() {
-            return Err(malformed());
-        }
         let array = ArrayStorage {
             referent: StructuralRuntimePlace::from(&referent),
             home,
@@ -691,6 +699,7 @@ impl TerminalExecution<'_> {
             return Err(malformed());
         }
         referent.structural_type = parameter.structural_type;
+        referent.qualifications = parameter.qualifications.clone();
         if let Some(segment @ StructuralPathSegment::FixedByteRange { .. }) = argument.path.last() {
             referent.path.push(segment.clone());
         }

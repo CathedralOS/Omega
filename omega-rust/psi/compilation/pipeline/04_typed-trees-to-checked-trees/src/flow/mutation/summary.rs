@@ -678,6 +678,15 @@ fn instantiate_call_relative_writes(
             if parameter.symbol != parameter_symbol {
                 continue;
             }
+            // A body summary includes writes to its own incoming copies.
+            // Only reference-bearing actuals can project those writes into
+            // caller storage; keep their existing precise path/origin join.
+            let mut owned_frames = None;
+            if crate::flow::shared_call_frames_or(call_frames, program, &mut owned_frames)
+                .is_some_and(|resolver| resolver.value_is_reference_free(parameter.type_reference))
+            {
+                return Some(Vec::new());
+            }
             if let Some(expression) = argument
                 && matches!(namespace, WritePlaceNamespace::AccessRoute)
                 && matches!(

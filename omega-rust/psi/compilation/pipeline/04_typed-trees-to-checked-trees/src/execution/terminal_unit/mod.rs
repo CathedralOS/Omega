@@ -109,28 +109,28 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use checked_trees::{
     CheckFacts, CheckedAffineConstructionElementPlan, CheckedBoundaryMachinePlan,
-    CheckedBoundaryMachineResultPlan, CheckedByteSequenceCarrier, CheckedClosedSumCaseOutcomePlan,
-    CheckedClosedSumCasePlan, CheckedClosedSumPayloadTransferPlan,
-    CheckedComposedUnitControlMachinePlan, CheckedComposedUnitControlStatePlan,
-    CheckedComposedUnitControlTerminatorPlan, CheckedGuardedJumpPlan,
-    CheckedNominalAffineUnitCleanupMachinePlan, CheckedNominalAffineUnitCleanupPlans,
-    CheckedPartialAffineUnitCleanupMachinePlan, CheckedPartialAffineUnitCleanupPlans,
-    CheckedProviderAttachmentRequirementPlan, CheckedScalarExpression, CheckedScalarExpressionRole,
-    CheckedStructuralAccess, CheckedStructuralControlSuccessorPlan,
-    CheckedStructuralControlTransferPlan, CheckedStructuralResultPlan,
-    CheckedStructuralScalarArgumentPlan, CheckedStructuralScalarParameterPlan,
-    CheckedTrivialAffineStructuralLocalPlan, CheckedUnitCallCoordinate, CheckedUnitCallResult,
-    CheckedUnitCallRoute, CheckedUnitClaimTransferPlan, CheckedUnitEffectMachinePlan,
-    CheckedUnitEffectOperationPlan, CheckedUnitEffectPlans, CheckedUnitEntryClaimPlan,
-    CheckedUnitNominalAffineCallerRequirementPlan, CheckedUnitNominalAffineCleanupPlan,
-    CheckedUnitNominalAffineCleanupRequirementPlan, CheckedUnitPartialAffineDiscardPlan,
-    CheckedUnitPlanGapReason, CheckedUnitScalarResultBindingPlan,
-    CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralArgumentSourcePlan,
-    CheckedUnitStructuralDomainPlan, CheckedUnitStructuralDomainRequirementPlan,
-    CheckedUnitStructuralFieldPlan, CheckedUnitStructuralFieldType,
-    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment,
-    CheckedUnitStructuralResultBindingPlan, CheckedUnitStructuralTypePlan,
-    CheckedUnitStructuralTypeShape, ContractProofFactKind, ContractProofFactOwner,
+    CheckedBoundaryMachineResultPlan, CheckedClosedSumCaseOutcomePlan, CheckedClosedSumCasePlan,
+    CheckedClosedSumPayloadTransferPlan, CheckedComposedUnitControlMachinePlan,
+    CheckedComposedUnitControlStatePlan, CheckedComposedUnitControlTerminatorPlan,
+    CheckedGuardedJumpPlan, CheckedNominalAffineUnitCleanupMachinePlan,
+    CheckedNominalAffineUnitCleanupPlans, CheckedPartialAffineUnitCleanupMachinePlan,
+    CheckedPartialAffineUnitCleanupPlans, CheckedProviderAttachmentRequirementPlan,
+    CheckedScalarExpression, CheckedScalarExpressionRole, CheckedStructuralAccess,
+    CheckedStructuralControlSuccessorPlan, CheckedStructuralControlTransferPlan,
+    CheckedStructuralResultPlan, CheckedStructuralScalarArgumentPlan,
+    CheckedStructuralScalarParameterPlan, CheckedTrivialAffineStructuralLocalPlan,
+    CheckedUnitCallCoordinate, CheckedUnitCallResult, CheckedUnitCallRoute,
+    CheckedUnitClaimTransferPlan, CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan,
+    CheckedUnitEffectPlans, CheckedUnitEntryClaimPlan,
+    CheckedUnitNominalAffineCallerRequirementPlan, CheckedUnitNominalAffineCleanupRequirementPlan,
+    CheckedUnitPartialAffineDiscardPlan, CheckedUnitPlanGapReason,
+    CheckedUnitScalarResultBindingPlan, CheckedUnitStructuralArgumentPlan,
+    CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralDomainPlan,
+    CheckedUnitStructuralDomainRequirementPlan, CheckedUnitStructuralFieldPlan,
+    CheckedUnitStructuralFieldType, CheckedUnitStructuralParameterPlan,
+    CheckedUnitStructuralPathSegment, CheckedUnitStructuralResultBindingPlan,
+    CheckedUnitStructuralTypePlan, CheckedUnitStructuralTypeShape, ContractProofFactKind,
+    ContractProofFactOwner,
 };
 use diagnostics::Diagnostic;
 use language_semantics::{
@@ -802,8 +802,13 @@ pub(crate) fn build_checked_unit_effect_plans(
                 } => operand_type,
                 _ => return None,
             };
-            shapes.add_type(operand_type, &[], &[])
+            // The observation may consume a stored reference rather than its
+            // peeled backing. Retain both actual operation dependencies.
+            let backing = shapes.add_type(operand_type, &[], &[])?;
+            let carrier = shapes.add_stored_type(operand_type, &[], &[])?;
+            Some([backing, carrier])
         })
+        .flatten()
         .collect::<Vec<_>>();
     retained_type_identities.extend(operand_identities.iter().copied());
     let stored_operand_identities = candidates

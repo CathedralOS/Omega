@@ -1,0 +1,32 @@
+// Expected exit: 0
+// The library FixedVec owns its explicit length; a checked view borrows its prefix.
+use omega::language::core::fixed_vec;
+domain [u8]::Utf8(bytes) requires valid_utf8(bytes);
+machine live(vector: &FixedVec<u8, 8>) -> &[u8] in Utf8 crashes Trap
+requires vector.length <= 8 {
+    let bytes: &[u8] = &vector.items[..vector.length];
+    transition valid_utf8(bytes) {
+        true -> checked(bytes)
+        false -> bad()
+    }
+    state checked(bytes: &[u8] in Utf8) -> &[u8] in Utf8 { bytes }
+    state bad() { crash Trap; }
+}
+machine main() crashes Trap {
+    let mut vector: FixedVec<u8, 8> = FixedVec {
+        items: [0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8], length: 0,
+    };
+    let empty: &[u8] in Utf8 = live(&vector);
+    let before: u64 = empty.len;
+    vector.items[0] = 195u8;
+    vector.items[1] = 169u8;
+    vector.length = 2;
+    let bytes: &[u8] in Utf8 = live(&vector);
+    transition before == 0 && bytes.len == 2 && bytes == "é"
+        && vector.items.len == 8 && vector.length == 2 {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

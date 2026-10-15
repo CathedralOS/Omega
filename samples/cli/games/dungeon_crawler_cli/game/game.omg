@@ -1,3 +1,4 @@
+use text::buffer;
 use commands::command_parser;
 use dungeon::dungeon;
 use omega_language_std::console;
@@ -9,7 +10,7 @@ data Game {
     parser: CommandParser;
     view: GameView;
     input: [u8; 256];
-    output: [u8; 128] in Utf8;
+    output: TextBuffer;
     pause: [u8; 256];
 }
 
@@ -17,11 +18,9 @@ machine Game::initialize(
     game: &mut Game,
     seed: u64 in Wrapping
 )
-ensures
-    game.output in Utf8
 {
     Dungeon::initialize(&mut game.dungeon, seed);
-    game.output = "";
+    TextBuffer::set(&mut game.output, "");
 }
 
 machine Game::run_game_loop(game: &mut Game) reaches Console {
@@ -36,10 +35,8 @@ machine Game::run_game_loop(game: &mut Game) reaches Console {
     state enter_room(game: &mut Game) {
         let cell: CellId = game.dungeon.current_cell;
         Dungeon::enter_room(cell);
-        game.output = "";
-        GameView::render_room(
-            &mut game.view,
-            game.dungeon.level,
+        TextBuffer::set(&mut game.output, "");
+        GameView::render_room(&mut game.view, game.dungeon.level,
             game.dungeon.current_cell,
             game.dungeon.treasure_taken,
             game.dungeon.gold_taken,
@@ -205,7 +202,7 @@ machine Game::run_game_loop(game: &mut Game) reaches Console {
     state use_event(game: &mut Game) {
         let cell: CellId = game.dungeon.current_cell;
         Dungeon::use_event(&mut game.dungeon, cell, &mut game.output);
-        GameView::render_line(game.output);
+        GameView::render_line(&game.output);
 
         transition {
             _ -> prompt(game)
@@ -215,7 +212,7 @@ machine Game::run_game_loop(game: &mut Game) reaches Console {
     state fight(game: &mut Game) {
         let cell: CellId = game.dungeon.current_cell;
         Dungeon::fight(&mut game.dungeon, cell, &mut game.output);
-        GameView::render_line(game.output);
+        GameView::render_line(&game.output);
 
         transition game.dungeon.player.health == 0 {
             true -> game_over(game)
@@ -306,8 +303,8 @@ machine Game::run_game_loop(game: &mut Game) reaches Console {
     }
 
     state blocked_by_enemy(game: &mut Game) {
-        game.output = "[Blocked] A hostile presence bars the deeper path. Fight or fall back.";
-        GameView::render_line(game.output);
+        TextBuffer::set(&mut game.output, "[Blocked] A hostile presence bars the deeper path. Fight or fall back.");
+        GameView::render_line(&game.output);
 
         transition {
             _ -> prompt(game)

@@ -420,7 +420,20 @@ impl PredicateTerms for ScalarContractTerms<'_> {
                     .ok_or(LoweringError::Unsupported(
                         "byte predicate names a non-structural formal",
                     ))?;
-                let (root, path, carrier) = if path.is_empty() {
+                let fixed_bytes = |identity| {
+                    terminal_psi::find_structural_type(&self.views.structural_types[..], identity)
+                        .is_some_and(|row| {
+                            matches!(
+                                row.shape,
+                                terminal_psi::StructuralTypeShape::FixedArray { .. }
+                            ) && terminal_semantics::fixed_byte_extent(
+                                self.views.structural_types.iter(),
+                                identity,
+                            )
+                            .is_some()
+                        })
+                };
+                let (root, path, carrier, inline_fixed) = if path.is_empty() {
                     let carrier = terminal_psi::find_structural_type(
                         &self.views.structural_types[..],
                         parameter.structural_type,
@@ -429,7 +442,12 @@ impl PredicateTerms for ScalarContractTerms<'_> {
                         terminal_psi::StructuralTypeShape::ByteSequence(carrier) => Some(carrier),
                         _ => None,
                     });
-                    (parameter.place, Vec::new(), carrier)
+                    (
+                        parameter.place,
+                        Vec::new(),
+                        carrier,
+                        fixed_bytes(parameter.structural_type),
+                    )
                 } else {
                     let (root, path, field) =
                         crate::proofs::crash_routes::lower_structural_member_path(
@@ -439,19 +457,28 @@ impl PredicateTerms for ScalarContractTerms<'_> {
                             &parameters,
                             self.views.structural_types,
                         )?;
-                    (root, path, field.byte_sequence_carrier())
+                    (
+                        root,
+                        path,
+                        field.byte_sequence_carrier(),
+                        field.as_structural().is_some_and(fixed_bytes),
+                    )
                 };
-                let readable = match carrier {
-                    Some(terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }) => true,
-                    Some(terminal_psi::ByteSequenceCarrier::BorrowedView { access }) => {
-                        matches!(
-                            access.unwrap_or(parameter.access),
-                            terminal_psi::StructuralAccess::SharedBorrow
-                                | terminal_psi::StructuralAccess::MutableBorrow
-                        )
-                    }
-                    _ => false,
-                };
+                let readable = inline_fixed
+                    || match carrier {
+                        Some(terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }) => true,
+                        Some(
+                            terminal_psi::ByteSequenceCarrier::BorrowedView { access }
+                            | terminal_psi::ByteSequenceCarrier::BoundedView { access, .. },
+                        ) => {
+                            matches!(
+                                access.unwrap_or(parameter.access),
+                                terminal_psi::StructuralAccess::SharedBorrow
+                                    | terminal_psi::StructuralAccess::MutableBorrow
+                            )
+                        }
+                        _ => false,
+                    };
                 if !readable || parameter.access == terminal_psi::StructuralAccess::WriteOnlyBorrow
                 {
                     return unsupported("byte predicate formal is not a readable byte carrier");

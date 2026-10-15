@@ -33,7 +33,7 @@ pub use error::OptimizationUnitValidationError;
 pub use unit_validation::function_structure::{byte_field_root, declared_descriptor_home};
 
 pub use current_ownership::references::CallRegion;
-pub use unit_validation::references::unqualified_reference_projection;
+pub use unit_validation::references::reference_projection;
 pub use unit_validation::structural_catalog::{
     StructuralStorageProjection, structural_borrowed_storage_projection,
     structural_storage_projection,
@@ -85,6 +85,19 @@ pub fn structural_place_backing_access<'types>(
 ) -> Option<terminal_psi::StructuralAccess> {
     unit_validation::operation_contracts::structural_source_contract(function, place)
         .map(|source| source.backing_access(types))
+}
+
+/// Check a write against the current root's complete membership roster. The
+/// path stays in the original carrier's coordinates, including every Referent
+/// crossing and the selected typed field; peeling a referent must not forget
+/// its enclosing predicates. This supplies no storage or live-loan authority.
+pub fn structural_write_preserves_memberships(
+    function: &optimization_unit::PsiOptimizationFunction,
+    place: semantic_vocabulary::PlaceId,
+    path: &[terminal_psi::StructuralPathSegment],
+) -> bool {
+    unit_validation::operation_contracts::structural_source_contract(function, place)
+        .is_some_and(|source| source.memberships_disjoint_from_write(path))
 }
 
 /// Declaration-side owned or exclusive storage for whole-referent restoration.

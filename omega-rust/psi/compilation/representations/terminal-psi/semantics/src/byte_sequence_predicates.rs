@@ -155,6 +155,53 @@ pub fn byte_qualification_predicates_in<'domain>(
     Some(predicates)
 }
 
+/// Carriers whose entire payload is an ordinary byte sequence. Domain labels
+/// on another carrier cannot grant primitive byte-predicate implication.
+pub fn byte_predicate_carrier<'types>(
+    types: impl Iterator<Item = &'types terminal_psi::StructuralTypeDeclaration> + Clone,
+    carrier: semantic_vocabulary::StructuralTypeId,
+) -> bool {
+    let Some(declaration) = types.clone().find(|row| row.id == carrier) else {
+        return false;
+    };
+    match declaration.shape {
+        StructuralTypeShape::ByteSequence(_) => true,
+        StructuralTypeShape::FixedArray { element, .. } => {
+            types.clone().find(|row| row.id == element).is_some_and(|row| {
+                matches!(row.shape, StructuralTypeShape::PrimitiveScalar(
+                    semantic_vocabulary::ScalarType::Integer(integer)
+                ) if integer.sign() == semantic_vocabulary::IntegerSign::Unsigned && integer.bits() == 8 && !integer.is_address())
+            })
+        }
+        _ => false,
+    }
+}
+
+/// Classify every qualification on exact byte storage without establishing it.
+/// Call custody supplies membership and access; this catalog query only says
+/// that transporting the retained theory needs no different storage ABI.
+/// Unsupported paths and richer theories decline instead of being discarded.
+pub fn pure_byte_qualifications<'types, 'domain>(
+    types: impl Iterator<Item = &'types terminal_psi::StructuralTypeDeclaration> + Clone,
+    domains: impl Iterator<Item = &'domain terminal_psi::StructuralDomainDeclaration> + Clone,
+    root: semantic_vocabulary::StructuralTypeId,
+    whole: &[semantic_vocabulary::StructuralDomainId],
+    projected: &[terminal_psi::StructuralPathQualification],
+) -> bool {
+    (whole.is_empty()
+        || byte_predicate_carrier(types.clone(), root)
+            && byte_qualification_predicates_in(domains.clone(), root, whole).is_some())
+        && projected.iter().all(|row| {
+            crate::qualification_path_carrier(types.clone(), root, &row.path).is_some_and(
+                |carrier| {
+                    byte_predicate_carrier(types.clone(), carrier)
+                        && byte_qualification_predicates_in(domains.clone(), carrier, &[row.domain])
+                            .is_some()
+                },
+            )
+        })
+}
+
 /// The one signature join a byte call result answers to, independent of
 /// whether the callee's carrier owns the bytes or views them: an exact
 /// producer, an unrestricted result spelling the exact callee signature with
@@ -814,4 +861,111 @@ pub fn byte_literal_qualifications_hold_in<'domain>(
                             .is_some_and(|predicate| predicate.holds_for(bytes))
                 })
         })
+}
+
+/// Replay memberships on an exact one-dimensional byte array from typed
+/// scalar operands. Operand identity, dominance and custody are separate checks.
+/// This grants only predicate membership, never routed establishment authority.
+pub fn scalar_array_qualifications_hold<'row>(
+    types: impl Iterator<Item = &'row terminal_psi::StructuralTypeDeclaration> + Clone,
+    domains: impl Iterator<Item = &'row terminal_psi::StructuralDomainDeclaration> + Clone,
+    carrier: semantic_vocabulary::StructuralTypeId,
+    qualifications: &[semantic_vocabulary::StructuralDomainId],
+    elements: &[semantic_vocabulary::ValueId],
+    mut literal: impl FnMut(
+        semantic_vocabulary::ValueId,
+    ) -> Option<(
+        semantic_vocabulary::ScalarType,
+        semantic_vocabulary::IntegerValue,
+    )>,
+) -> bool {
+    if qualifications.is_empty() {
+        return true;
+    }
+    let Some(StructuralTypeShape::FixedArray { element, length }) = types
+        .clone()
+        .find(|row| row.id == carrier)
+        .map(|row| &row.shape)
+    else {
+        return false;
+    };
+    let byte_type = semantic_vocabulary::ScalarType::Integer(
+        semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 8)
+            .expect("u8 is valid"),
+    );
+    if u64::try_from(elements.len()).ok() != Some(*length)
+        || types
+            .clone()
+            .find(|row| row.id == *element)
+            .map(|row| &row.shape)
+            != Some(&StructuralTypeShape::PrimitiveScalar(byte_type))
+    {
+        return false;
+    }
+    let bytes = elements
+        .iter()
+        .map(|element| {
+            let (scalar_type, semantic_vocabulary::IntegerValue::Unsigned(value)) =
+                literal(*element)?
+            else {
+                return None;
+            };
+            (scalar_type == byte_type)
+                .then(|| u8::try_from(value).ok())
+                .flatten()
+        })
+        .collect::<Option<Vec<_>>>();
+    bytes.is_some_and(|bytes| {
+        byte_literal_qualifications_hold_in(domains, carrier, qualifications, &bytes)
+    })
+}
+
+/// The current graph's source of an unchanged scalar value. Alternatives are
+/// simultaneous edge bindings, never a choice of one convenient predecessor.
+pub enum ScalarConstantOrigin {
+    Literal(
+        semantic_vocabulary::ScalarType,
+        semantic_vocabulary::IntegerValue,
+    ),
+    Incoming(Vec<semantic_vocabulary::ValueId>),
+}
+
+/// Recover a typed constant through unchanged block bindings. Unknown inputs,
+/// cycles and disagreeing predecessors provide no constant evidence.
+pub fn scalar_constant_value(
+    value: semantic_vocabulary::ValueId,
+    mut origin: impl FnMut(semantic_vocabulary::ValueId) -> Option<ScalarConstantOrigin>,
+) -> Option<(
+    semantic_vocabulary::ScalarType,
+    semantic_vocabulary::IntegerValue,
+)> {
+    fn resolve(
+        value: semantic_vocabulary::ValueId,
+        origin: &mut impl FnMut(semantic_vocabulary::ValueId) -> Option<ScalarConstantOrigin>,
+        active: &mut Vec<semantic_vocabulary::ValueId>,
+    ) -> Option<(
+        semantic_vocabulary::ScalarType,
+        semantic_vocabulary::IntegerValue,
+    )> {
+        if active.contains(&value) {
+            return None;
+        }
+        active.push(value);
+        let result = match origin(value)? {
+            ScalarConstantOrigin::Literal(ty, value) => Some((ty, value)),
+            ScalarConstantOrigin::Incoming(values) => {
+                let mut values = values.into_iter();
+                let first = resolve(values.next()?, origin, active)?;
+                for value in values {
+                    if resolve(value, origin, active)? != first {
+                        return None;
+                    }
+                }
+                Some(first)
+            }
+        };
+        active.pop();
+        result
+    }
+    resolve(value, &mut origin, &mut Vec::new())
 }

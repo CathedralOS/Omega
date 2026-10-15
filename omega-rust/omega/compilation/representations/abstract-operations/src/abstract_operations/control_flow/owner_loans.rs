@@ -1,14 +1,12 @@
 //! Bounded byte owner storage at invocation, borrowed or passed by value.
 //!
-//! A domain-qualified fixed byte array is a bounded owner: a live length
-//! word at offset 0 and up to `N` bytes after it (wiki/spec/language/domains.md,
-//! "Byte containers and encoding domains"). A loan of that owner is
-//! carried as the owner's address, exactly the layout an owned bounded
-//! concatenation result has in its own activation: the length is read at
-//! offset 0 and the bytes start at offset 8. Shared and mutable loans have the
-//! same address carrier, not the same effects: only a shared loan freezes its
-//! referent. Mutable stores must retain current lengths and preserve declared
-//! predicates, which verification replays independently of this layout rule.
+//! An explicit `BoundedOwned` byte carrier stores its live length at offset 0
+//! and its capacity-sized payload at offset 8. A loan addresses that owner's
+//! storage. This representation never describes `[u8; N] in D`, which remains
+//! an exact fixed array with payload offset 0 and constant length N.
+//! Shared and mutable loans share an address carrier while retaining distinct
+//! effects and custody. Mutable stores preserve declared predicates, which
+//! verification replays independently of the layout rule.
 //!
 //! This is a type rule, not producer evidence. Each stage still replays its
 //! own edge sources, availability and origin custody.

@@ -12,14 +12,14 @@
 domain [u8]::Utf8(bytes)
 requires
     valid_utf8(bytes);
-domain [u8; 8]::Utf8(bytes)
+domain [u8; 5]::Utf8(bytes)
 requires
     valid_utf8(bytes);
 use omega_language_std::console;
 use omega::language::core::numeric_conversion;
 
 data Main {
-    text: [u8; 8] in Utf8;
+    text: [u8; 5] in Utf8;
     // Wrapping DECLARED: parse accumulators over carrier bytes -- element reads
     // carry no range facts yet, so tens*10+ones cannot prove its bounds.
     a: i32 in Wrapping;

@@ -172,6 +172,15 @@ pub(crate) fn build_checked_value_computation_plans(
                         )
                         .map(|expected| (assignment.value, expected))
                     })
+                    .filter(|(expression, expected)| {
+                        !structural_values::needs_copied_place_root(
+                            program,
+                            state.symbol,
+                            statement_index,
+                            *expression,
+                            *expected,
+                        )
+                    })
                     .and_then(|(expression, expected)| {
                         validation::scalar_array_elements(
                             program,
@@ -209,6 +218,11 @@ pub(crate) fn build_checked_value_computation_plans(
                         .expression_table
                         .expression_is_valid(local.initial_value)
                     && validation::zeroed_structural_parts(program, local.type_reference)
+                    && let Ok(projected_qualifications) =
+                        validation::zeroed_byte_projected_qualifications(
+                            program,
+                            local.type_reference,
+                        )
                 {
                     let root = builder.structural_values.nodes.append(
                         checked_trees::CheckedStructuralValue {
@@ -221,7 +235,9 @@ pub(crate) fn build_checked_value_computation_plans(
                             source_span: Default::default(),
                             type_reference: local.type_reference,
                             qualification_decisions: Default::default(),
-                            kind: checked_trees::CheckedStructuralValueKind::ZeroedStructural {},
+                            kind: checked_trees::CheckedStructuralValueKind::ZeroedStructural {
+                                projected_qualifications,
+                            },
                         },
                     );
                     builder.push_structural_root(
@@ -430,6 +446,7 @@ pub(crate) fn build_checked_value_computation_plans(
                             // destination and replacement as records and cases,
                             // including writes through a local reference.
                             || matches!(validation::byte_sequence_carrier(program, expected, &[]), Some(checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. }))
+                            || validation::is_closed_primitive_array_type(program, expected)
                             || structural_values::is_record_value(
                                 program,
                                 assignment.value,

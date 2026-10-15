@@ -1,21 +1,45 @@
-// The concat-domain law admits `main.line + "omega"` into the Utf8 domain (both
-// operands are valid UTF-8, and UTF-8 is concat-preserving), so the DOMAIN half
-// of the write is established. The LENGTH-FITS guard then rejects it: a `[u8; 16]`
-// carrier receives a proven 13-byte value, and appending 5 more reaches 18 --
-// beyond the 16-byte inline storage. This is the no-overflow theorem for bounded
-// text carriers: the checker follows the straight-line running length, admits a
-// chain that still fits, and rejects the first write that provably cannot fit.
-domain [u8; 16]::Utf8(bytes)
-requires
-    valid_utf8(bytes);
-use omega_language_std::console;
-
-data Main {
-    line: [u8; 16] in Utf8;
+// An explicit capacity-16 owner holds thirteen live bytes. Appending five
+// must fail the capacity precondition before any write, without truncation.
+domain [u8; 16]::Ascii(bytes) requires ascii_only(bytes);
+domain [u8]::Ascii(bytes) requires ascii_only(bytes);
+data Buffer where used <= 16 { storage: [u8; 16] in Ascii; used: u64; }
+machine copy(buffer: &mut [u8; 16] in Ascii, bytes: &[u8] in Ascii, start: u64)
+requires start <= 16; bytes.len <= 16 - start
+{
+    transition { _ -> copying(buffer, bytes, start, 0) }
+    state copying(buffer: &mut [u8; 16] in Ascii, bytes: &[u8] in Ascii, start: u64, index: u64)
+    requires start <= 16; index <= 16
+    {
+        transition index < bytes.len && start + index < 16 {
+            true -> writing(buffer, bytes, start, index)
+            _ -> done()
+        }
+    }
+    state writing(buffer: &mut [u8; 16] in Ascii, bytes: &[u8] in Ascii, start: u64, index: u64)
+    requires start <= 16; index < 16; index < bytes.len; start + index < 16
+    {
+        buffer[start + index] = bytes[index];
+        transition { _ -> copying(buffer, bytes, start, index + 1) }
+    }
+    state done() {}
 }
 
-machine Main::main(main: &mut Main) reaches Console {
-    main.line = "1234567890123";
-    main.line = main.line + "omega";
-    Console::exit_process(70);
+machine append(buffer: &mut Buffer, bytes: &[u8] in Ascii) crashes Trap
+requires bytes.len <= 16 - buffer.used {
+    let total: u64 = buffer.used + bytes.len;
+    copy(&mut buffer.storage, bytes, buffer.used);
+    transition total <= 16 {
+        true -> finished(buffer, total)
+        _ -> bad()
+    }
+    state finished(buffer: &mut Buffer, total: u64)
+    requires total <= 16 { buffer.used = total; }
+    state bad() { crash Trap; }
+}
+machine main() crashes Trap {
+    let mut buffer: Buffer = Buffer {
+        storage: [49u8, 50u8, 51u8, 52u8, 53u8, 54u8, 55u8, 56u8, 57u8, 48u8, 49u8, 50u8, 51u8, 0u8, 0u8, 0u8],
+        used: 13,
+    };
+    append(&mut buffer, "omega");
 }

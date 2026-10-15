@@ -1,0 +1,2 @@
+domain [u8; 2]::Ascii(bytes) requires ascii_only(bytes);
+machine mutate(bytes: &mut [u8; 2] in Ascii) { bytes[0] = 255u8; }

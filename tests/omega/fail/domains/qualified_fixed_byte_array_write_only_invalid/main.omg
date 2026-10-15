@@ -1,0 +1,7 @@
+domain [u8; 4]::Utf8(bytes) requires valid_utf8(bytes);
+data Buffer { bytes: [u8; 4] in Utf8; }
+machine fill(buffer: &write Buffer) {
+    buffer.bytes = "abcd";
+    buffer.bytes[0] = 255u8;
+}
+machine main() {}

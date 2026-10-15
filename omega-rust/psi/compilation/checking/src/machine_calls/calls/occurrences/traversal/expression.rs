@@ -86,7 +86,15 @@ pub(super) fn find_call_site_in_expression<'program>(
                     receiver_path.as_deref(),
                 );
 
-            if is_machine_call
+            // Predicate probes have flow-call occurrences even though they
+            // select no machine. Retain them so every consumer joins the same
+            // ordinal; operand calls remain separately visited below.
+            let is_byte_predicate = typed_trees::byte_predicates::byte_predicate_call(
+                traversal.program.typed_program(),
+                expression,
+            )
+            .is_some();
+            if (is_machine_call || is_byte_predicate)
                 && let Some(site) = traversal.visit(CallSite::Expression { expression, call })
             {
                 return Some(site);

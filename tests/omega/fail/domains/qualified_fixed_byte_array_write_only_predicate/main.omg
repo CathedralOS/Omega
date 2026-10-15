@@ -1,0 +1,3 @@
+// A byte predicate scans contents; a write-only alias cannot supply them.
+machine inspect(bytes: &write [u8; 4]) -> bool { valid_utf8(bytes) }
+machine main() {}

@@ -25,6 +25,7 @@ fn reference_store_carrier<'path>(
     machine: &TerminalMachine,
     destination: semantic_vocabulary::PlaceId,
     path: &'path [terminal_psi::StructuralPathSegment],
+    field: semantic_vocabulary::StructuralFieldId,
 ) -> Option<(
     semantic_vocabulary::StructuralTypeId,
     &'path [terminal_psi::StructuralPathSegment],
@@ -34,9 +35,23 @@ fn reference_store_carrier<'path>(
         .rposition(|segment| *segment == terminal_psi::StructuralPathSegment::Referent)?;
     let suffix = &path[crossing + 1..];
     let structural_type = structural_place_type(machine, destination)?;
+    let member = terminal_semantics::projected_field_declaration(
+        module.structural_types.iter(),
+        structural_type,
+        path,
+        field,
+    )?;
+    let mut written = path.to_vec();
+    written.push(terminal_psi::StructuralPathSegment::Field(member.identity));
+    let preserves = |whole: &[_], projected: &[_]| {
+        terminal_semantics::structural_memberships_disjoint_from_write(whole, projected, &written)
+    };
     let (multiplicity, access) = if let Some(parameter) = machine.structural_parameter(destination)
     {
-        if !parameter.qualifications.is_empty() || !parameter.projected_qualifications.is_empty() {
+        if !preserves(
+            &parameter.qualifications,
+            &parameter.projected_qualifications,
+        ) {
             return None;
         }
         (parameter.multiplicity, parameter.access)
@@ -47,8 +62,7 @@ fn reference_store_carrier<'path>(
             .find(|result| {
                 result.place == destination
                     && result.structural_type == structural_type
-                    && result.qualifications.is_empty()
-                    && result.projected_qualifications.is_empty()
+                    && preserves(&result.qualifications, &result.projected_qualifications)
                     && result.claims.is_empty()
             })?;
         (result.multiplicity, terminal_psi::StructuralAccess::Owned)
@@ -300,18 +314,16 @@ pub(super) fn validate_establish_reference(
     } else {
         structural_fields::declared_memberships(machine, source.place).is_some_and(
             |(whole, projected)| {
-                let (whole, projected) = terminal_psi::StructuralPathQualification::select(
+                let Ok(captured) = terminal_semantics::reference_source_memberships(
+                    module.structural_types.iter(),
+                    source_type,
                     whole,
                     projected,
                     source_path,
-                );
-                let mut captured = Vec::new();
-                terminal_psi::StructuralPathQualification::append_under(
-                    &whole,
-                    &projected,
-                    &[terminal_psi::StructuralPathSegment::Referent],
-                    &mut captured,
-                );
+                    *access,
+                ) else {
+                    return false;
+                };
                 result.projected_qualifications.iter().all(|row| captured.contains(row))
                 // Mutable formation retains preservation obligations, not just
                 // optional observations. Erasing a row cannot erase a debt.
@@ -375,6 +387,7 @@ fn field_store_carrier<'path>(
     machine: &TerminalMachine,
     destination: semantic_vocabulary::PlaceId,
     path: &'path [terminal_psi::StructuralPathSegment],
+    field: semantic_vocabulary::StructuralFieldId,
 ) -> Result<
     (
         semantic_vocabulary::StructuralTypeId,
@@ -382,7 +395,22 @@ fn field_store_carrier<'path>(
     ),
     CodecError,
 > {
-    let reference = reference_store_carrier(module, machine, destination, path);
+    let preserves = |root,
+                     whole: &[semantic_vocabulary::StructuralDomainId],
+                     projected: &[terminal_psi::StructuralPathQualification]| {
+        let Some(member) = terminal_semantics::projected_field_declaration(
+            module.structural_types.iter(),
+            root,
+            path,
+            field,
+        ) else {
+            return false;
+        };
+        let mut written = path.to_vec();
+        written.push(terminal_psi::StructuralPathSegment::Field(member.identity));
+        terminal_semantics::structural_memberships_disjoint_from_write(whole, projected, &written)
+    };
+    let reference = reference_store_carrier(module, machine, destination, path, field);
     let destination_type = if let Some((referent, _)) = reference {
         referent
     } else if let Some(parameter) = machine.structural_parameter(destination) {
@@ -391,9 +419,11 @@ fn field_store_carrier<'path>(
             terminal_psi::StructuralAccess::Owned
                 | terminal_psi::StructuralAccess::MutableBorrow
                 | terminal_psi::StructuralAccess::WriteOnlyBorrow
-        ) || !parameter.qualifications.is_empty()
-            || !parameter.projected_qualifications.is_empty()
-        {
+        ) || !preserves(
+            parameter.structural_type,
+            &parameter.qualifications,
+            &parameter.projected_qualifications,
+        ) {
             return malformed("structural field store has invalid destination custody");
         }
         parameter.structural_type
@@ -405,7 +435,11 @@ fn field_store_carrier<'path>(
         else {
             return malformed("structural field store destination has no record home");
         };
-        if !result.qualifications.is_empty() || !result.projected_qualifications.is_empty() {
+        if !preserves(
+            result.structural_type,
+            &result.qualifications,
+            &result.projected_qualifications,
+        ) {
             return malformed("structural field store has invalid local custody");
         }
         // Foundation validation also checks the exact producer/place binding;

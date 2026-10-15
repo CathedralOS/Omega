@@ -19,17 +19,16 @@ machine replaced_descriptor_is_not_its_initializer() {
     bytes = "";
     nonempty(bytes);
 }
-domain [u8; 8]::Utf8(bytes)
-requires valid_utf8(bytes);
-
+// Capacity belongs to an explicit owner; its empty prefix remains empty.
+data Buffer where used <= 8 { storage: [u8; 8]; used: u64; }
+machine live(buffer: &Buffer) -> &[u8] { &buffer.storage[..buffer.used] }
 machine capacity_is_not_live_length() {
-    let bytes: [u8; 8] in Utf8 = "";
-    nonempty(&bytes);
+    let buffer: Buffer;
+    let bytes: &[u8] = live(&buffer);
+    nonempty(bytes);
 }
-
-data Buffer { bytes: [u8; 8] in Utf8; }
-
 machine projected_capacity_is_not_live_length() {
-    let buffer: Buffer = Buffer { bytes: "" };
-    nonempty(&buffer.bytes);
+    let buffer: Buffer = Buffer { storage: [0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8], used: 0 };
+    let bytes: &[u8] = live(&buffer);
+    nonempty(bytes);
 }

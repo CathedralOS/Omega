@@ -38,6 +38,9 @@ pub struct CheckFacts {
     /// Lowering marks the read it emits for one of them, so that read's bound
     /// obligation consumes the decision instead of searching for a proof.
     pub proven_scalar_indexes: Vec<typed_trees::expression::ExpressionHandle>,
+    /// Exact nonnegative coordinates agreed by every range check of an indexed
+    /// occurrence. Evaluation and bounds remain on the executable selector.
+    pub scalar_index_coordinates: Vec<(typed_trees::expression::ExpressionHandle, u64)>,
     /// Indexed byte assignments whose live bound and declared byte predicates
     /// were established at the store itself, ordered by target handle position.
     /// A later restoration of an invariant does not establish this decision.
@@ -147,6 +150,9 @@ pub struct ProvenAssignmentIndex {
     pub state: symbols::SymbolHandle,
     pub statement_index: u32,
     pub depth: u32,
+    /// A singleton evaluated coordinate, agreed across every checking context.
+    /// Absence retains conservative overlap; it never changes executable paths.
+    pub coordinate: Option<u64>,
 }
 
 impl ProvenAssignmentIndex {
@@ -232,11 +238,34 @@ impl CheckFacts {
             state,
             statement_index,
             depth,
+            coordinate: None,
         }
         .key();
         self.proven_assignment_indexes
             .binary_search_by_key(&key, ProvenAssignmentIndex::key)
             .is_ok()
+    }
+
+    /// The proven singleton of this exact assignment selector, if every
+    /// admission context agrees. This is not permission to skip its evaluation.
+    pub fn assignment_index_coordinate(
+        &self,
+        state: symbols::SymbolHandle,
+        statement_index: u32,
+        depth: u32,
+    ) -> Option<u64> {
+        let key = ProvenAssignmentIndex {
+            state,
+            statement_index,
+            depth,
+            coordinate: None,
+        }
+        .key();
+        let position = self
+            .proven_assignment_indexes
+            .binary_search_by_key(&key, ProvenAssignmentIndex::key)
+            .ok()?;
+        self.proven_assignment_indexes[position].coordinate
     }
 
     /// Whether every bounds check of this `[]` occurrence proved its scalar

@@ -180,6 +180,7 @@ pub(crate) fn replay_structural_projection(
     let mut segments = path.iter();
     while let Some(segment) = segments.next() {
         let (selected_type, shape, local_offset) = match segment {
+            terminal_psi::StructuralPathSegment::AllElements => return None,
             terminal_psi::StructuralPathSegment::Case(identity) => {
                 let declaration = declarations.get(&structural_type)?;
                 let (common, cases) = match &declaration.shape {

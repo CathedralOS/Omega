@@ -307,8 +307,8 @@ fn closed_write_only_data_by_symbol(
     definition.where_facts.is_empty().then_some(definition)
 }
 
-/// Shape is independent of standing predicates. Whole-value replacement
-/// still uses the fact-free judgment above; projection instead proves that
+/// Shape is independent of standing predicates. Complete replacement checks
+/// the incoming value's full default domain; projection instead proves that
 /// the selected field is outside every parent predicate's dependencies.
 fn closed_write_only_data_shape_by_symbol(
     program: &dyn crate::CheckingInput,
@@ -384,7 +384,11 @@ fn is_discardable_write_only_record(
     program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> bool {
-    write_only_record(program, type_reference)
+    // Complete replacement displaces the whole footprint, so no prior field
+    // participates in its invariant. Incoming-value checking still proves the
+    // complete default domain; projection separately rejects fields that an
+    // invariant observes. Storage disposal authority remains independent.
+    write_only_record_shape(program, type_reference)
         .is_some_and(|definition| is_discardable_write_only_data(program, definition))
 }
 
@@ -1136,7 +1140,11 @@ fn write_only_element_assignment_index(
         ))
         .then_some(indexed.index);
     }
-    let length = fixed_discardable_write_only_array_length(program, collection_type)?;
+    // Coordinates come from the declared fixed geometry. Predicate-only byte
+    // qualification affects preservation, checked independently at the store;
+    // it does not require observing the write-only referent to select a cell.
+    let length = fixed_discardable_write_only_array_length(program, collection_type)
+        .or_else(|| predicate_byte_array_length(program, collection_type))?;
     match program.expression_table.expression(indexed.index) {
         ExpressionNode::Range(_) => None,
         ExpressionNode::Integer(index) => {
@@ -1145,6 +1153,36 @@ fn write_only_element_assignment_index(
         }
         _ => Some(indexed.index),
     }
+}
+
+fn predicate_byte_array_length(
+    program: &dyn crate::CheckingInput,
+    type_reference: TypeReferenceHandle,
+) -> Option<usize> {
+    if !is_plain_domain_qualified_leaf(program, type_reference) {
+        return None;
+    }
+    let domains = super::field_domains::domain_constraint_symbols(program, type_reference);
+    if domains.is_empty()
+        || domains.iter().any(|domain| {
+            typed_trees::byte_predicates::domain_byte_predicate(program, *domain).is_none()
+        })
+    {
+        return None;
+    }
+    let TypeReferenceNode::FixedArray {
+        element_type,
+        length: FixedArrayLength::Literal(length),
+    } = program.type_reference_table.type_reference(
+        program
+            .type_reference_table
+            .unconstrained_type_reference(type_reference),
+    )
+    else {
+        return None;
+    };
+    (program.primitive_type_reference(*element_type) == Some(typed_trees::types::PrimitiveType::U8))
+        .then_some(*length)
 }
 
 fn diagnose_unsupported_write_only_assignment_target(
@@ -1176,7 +1214,7 @@ fn diagnose_unsupported_write_only_assignment_target(
     }
 
     diagnostics.push(Diagnostic::error(format!(
-        "machine `{machine}` state `{state}` writes through an unsupported write-only projection; accepted partial stores are a content-independent common-field path through closed invariant-free records when every field is relevant and unconstrained and the displaced leaf is an unrestricted primitive, a closed literal-ranged integer primitive proven in range at the store, an integer primitive carrying only an arithmetic-policy constraint, or a carrier qualified only by plain declared domains whose membership is proven on the stored value, a whole eligible statically discardable record or closed statically discardable material sum, or a recursively literal fixed array whose ultimate elements are unrestricted primitive scalars or statically discardable material records or sums, one relevant primitive field beneath a literal fixed-array record element, a proven-in-bounds element or statically normalized closed range of such a fixed array, or a proven-in-bounds element of a direct byte slice; nested array projection, sum case/payload projection, named or non-plain domain qualification, element and range stores into a domain-qualified carrier, invariant-dependent, symbolic or open range, take, swap, and read-modify-write operations remain rejected"
+        "machine `{machine}` state `{state}` writes through an unsupported write-only projection; accepted partial stores are a content-independent common-field path through closed invariant-free records when every field is relevant and unconstrained and the displaced leaf is an unrestricted primitive, a closed literal-ranged integer primitive proven in range at the store, an integer primitive carrying only an arithmetic-policy constraint, or a carrier qualified only by plain declared domains whose membership is proven on the stored value, a whole eligible statically discardable record or closed statically discardable material sum, or a recursively literal fixed array whose ultimate elements are unrestricted primitive scalars or statically discardable material records or sums, one relevant primitive field beneath a literal fixed-array record element, a proven-in-bounds element or statically normalized closed range of such a fixed array, or a proven-in-bounds byte element whose predicate-only fixed carrier membership is independently preserved, or a proven-in-bounds element of a direct byte slice; nested array projection, sum case/payload projection, named or non-plain domain qualification, range stores into a domain-qualified carrier, invariant-dependent, symbolic or open range, take, swap, and read-modify-write operations remain rejected"
     )));
 }
 

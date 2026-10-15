@@ -1,0 +1,7 @@
+domain [u8; 4]::Ascii(bytes) requires ascii_only(bytes);
+machine main() -> u8 {
+    let mut bytes: [u8; 4] in Ascii = "Gate";
+    let view: &[u8; 4] in Ascii = &bytes;
+    bytes[0] = 65u8;
+    view[0]
+}

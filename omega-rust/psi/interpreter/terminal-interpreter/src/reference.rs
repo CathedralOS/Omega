@@ -67,6 +67,7 @@ pub(crate) enum AggregateViewTip {
 /// also needs the final field's storage identity, not its rendered name or an
 /// identity looked up against the original (possibly reference-valued) root.
 pub(crate) struct ResolvedStructuralProjection {
+    pub(crate) array_loan: Option<crate::element_views::ElementView>,
     placed_ram: Option<PlacedRamReference>,
     pub(crate) value: TerminalStructuralValue,
     view_tip: Option<AggregateViewTip>,
@@ -80,6 +81,7 @@ pub(crate) struct ResolvedStructuralProjection {
 /// two distinct subregions of one aggregate.
 #[derive(Clone)]
 pub(crate) struct ReferenceBacking {
+    array_loan: Option<crate::element_views::ElementView>,
     placed_ram: Option<PlacedRamReference>,
     pub(crate) value: TerminalStructuralValue,
     aggregate_view: Option<AggregateViewRegion>,
@@ -135,10 +137,10 @@ impl TerminalExecution<'_> {
     /// availability follows its declared
     /// multiplicity: affine storage has a disposal frontier; linear storage
     /// remains resident under its exact live claim.
-    fn reference_carrier_access(
+    pub(crate) fn reference_carrier_access(
         &self,
         place: PlaceId,
-        owner: &TerminalStructuralValue,
+        structural_type: StructuralTypeId,
         path: &[StructuralPathSegment],
     ) -> Result<StructuralAccess, TerminalInterpretError> {
         let machine = self
@@ -146,11 +148,12 @@ impl TerminalExecution<'_> {
             .machines()
             .get(&self.current_machine)
             .ok_or_else(malformed)?;
+        let mut authority = StructuralAccess::Owned;
         if let Some(parameter) = machine
             .structural_parameter(place)
             .filter(|parameter| parameter.access != StructuralAccess::Owned)
         {
-            if parameter.structural_type != owner.structural_type
+            if parameter.structural_type != structural_type
                 || parameter.multiplicity == StructuralMultiplicity::Linear
                 || !matches!(
                     parameter.access,
@@ -159,7 +162,10 @@ impl TerminalExecution<'_> {
             {
                 return Err(malformed());
             }
-            return Ok(parameter.access);
+            authority = parameter.access;
+            if parameter.multiplicity == StructuralMultiplicity::Unrestricted {
+                return Ok(authority);
+            }
         }
         // Unrestricted owned storage has no affine-disposal frontier. Its
         // live value and exact producing/receiving declaration authorize the
@@ -175,8 +181,8 @@ impl TerminalExecution<'_> {
                 (result.place == place && result.structural_type == structural_type)
                     .then_some((structural_type, result.multiplicity))
             })
-            .is_some_and(|(structural_type, multiplicity)| {
-                structural_type == owner.structural_type
+            .is_some_and(|(declared_type, multiplicity)| {
+                declared_type == structural_type
                     && multiplicity == StructuralMultiplicity::Unrestricted
             });
         if unrestricted {
@@ -195,15 +201,13 @@ impl TerminalExecution<'_> {
         let resident = self.live_affine_frontier.iter().any(|entry| {
             entry.place == place
                 && prefix.starts_with(&entry.path)
-                && (!entry.path.is_empty() || entry.structural_type == owner.structural_type)
+                && (!entry.path.is_empty() || entry.structural_type == structural_type)
         }) || self.live_claims.values().any(|claim| {
             claim.place == Some(place)
                 && claim.multiplicity == Some(StructuralMultiplicity::Linear)
                 && prefix.starts_with(&claim.path)
         });
-        resident
-            .then_some(StructuralAccess::Owned)
-            .ok_or_else(malformed)
+        resident.then_some(authority).ok_or_else(malformed)
     }
 
     /// A descriptor observation borrows its exact carrier, without consuming
@@ -222,13 +226,10 @@ impl TerminalExecution<'_> {
         {
             return Err(malformed());
         }
-        let root = self
-            .structural_values
-            .get(&source.place)
-            .ok_or_else(malformed)?;
+        let root_type = self.live_structural_type(source.place)?;
         let machine = self.program.verified_machine(self.current_machine)?;
         if let Some(parameter) = self.owned_block_source(source.place) {
-            if parameter.structural_type != root.structural_type {
+            if parameter.structural_type != root_type {
                 return Err(malformed());
             }
             if parameter.access != StructuralAccess::Owned {
@@ -265,7 +266,11 @@ impl TerminalExecution<'_> {
                 return Ok(());
             }
         }
-        self.reference_carrier_access(source.place, root, &source.path)?;
+        let root = self
+            .structural_values
+            .get(&source.place)
+            .ok_or_else(malformed)?;
+        self.reference_carrier_access(source.place, root.structural_type, &source.path)?;
         Ok(())
     }
 
@@ -321,6 +326,12 @@ impl TerminalExecution<'_> {
                 access,
                 ..source.clone()
             };
+            let (qualifications, projected_qualifications) =
+                terminal_psi::StructuralPathQualification::select(
+                    &[],
+                    &result.projected_qualifications,
+                    &[StructuralPathSegment::Referent],
+                );
             self.prepare_scalar_array_reference(
                 &StructuralParameterDeclaration {
                     place: source.place,
@@ -328,8 +339,8 @@ impl TerminalExecution<'_> {
                     structural_type: referent_type,
                     multiplicity: StructuralMultiplicity::Unrestricted,
                     access,
-                    qualifications: Vec::new(),
-                    projected_qualifications: Vec::new(),
+                    qualifications,
+                    projected_qualifications,
                 },
                 &argument,
                 &mut identity_cursor,
@@ -985,7 +996,7 @@ impl TerminalExecution<'_> {
         .map(|projection| (projection.value, projection.endpoint_field))
     }
 
-    fn resolve_live_projection_with_leaf_type(
+    pub(crate) fn resolve_live_projection_with_leaf_type(
         &self,
         place: PlaceId,
         path: &[StructuralPathSegment],
@@ -1013,7 +1024,7 @@ impl TerminalExecution<'_> {
         ) -> Option<terminal_psi::StructuralFieldType>,
     ) -> Result<ResolvedStructuralProjection, TerminalInterpretError> {
         if path.contains(&StructuralPathSegment::Referent) {
-            let authority = self.reference_carrier_access(place, owner, path)?;
+            let authority = self.reference_carrier_access(place, owner.structural_type, path)?;
             if !access_covers(authority, access) {
                 return Err(malformed());
             }
@@ -1029,6 +1040,7 @@ impl TerminalExecution<'_> {
             leaf_type,
             view,
             None,
+            self.element_view_values.get(&place).cloned(),
         )?
         .ok_or_else(malformed)
     }
@@ -1068,6 +1080,7 @@ impl TerminalExecution<'_> {
             },
             None,
             None,
+            None,
         )
     }
 
@@ -1092,6 +1105,7 @@ impl TerminalExecution<'_> {
             terminal_psi::StructuralFieldType::canonical_leaf_type,
             view,
             None,
+            self.element_view_values.get(&place).cloned(),
         )?
         .map(|projection| projection.value)
         .ok_or_else(malformed)
@@ -1107,6 +1121,7 @@ impl TerminalExecution<'_> {
         ) -> Option<terminal_psi::StructuralFieldType>,
         initial_view: Option<AggregateViewRegion>,
         initial_placed: Option<PlacedRamReference>,
+        initial_array: Option<crate::element_views::ElementView>,
     ) -> Result<Option<ResolvedStructuralProjection>, TerminalInterpretError> {
         let types = self.program.structural_types();
         let mut value = owner.clone();
@@ -1114,6 +1129,7 @@ impl TerminalExecution<'_> {
         let mut aggregate_view = initial_view;
         let mut primitive_storage = None;
         let mut collection_home = None;
+        let mut array_loan = initial_array;
         let mut placed_ram = initial_placed.or_else(|| {
             self.placed_view_occurrences
                 .values()
@@ -1177,6 +1193,7 @@ impl TerminalExecution<'_> {
                 }
                 None => prefix,
             };
+            let supplying_array = array_loan.take();
             // Keep case selection and its payload field together. The ordinary
             // projection owner strips declaration-only case steps from storage.
             if !crate::structural_inputs::case_membership::case_projection_in_value_is_active(
@@ -1247,6 +1264,29 @@ impl TerminalExecution<'_> {
             } else {
                 project_structural_value(&types, &value, prefix)?
             };
+            if let Some(loan) = supplying_array {
+                if matches!(
+                    types.get(&value.structural_type).map(|row| &row.shape),
+                    Some(StructuralTypeShape::FixedArray { .. })
+                ) {
+                    array_loan = Some(loan.project_array(&types, prefix, &value)?);
+                } else if !prefix.is_empty()
+                    && matches!(
+                        types.get(&value.structural_type).map(|row| &row.shape),
+                        Some(StructuralTypeShape::PrimitiveScalar(_))
+                    )
+                {
+                    primitive_storage = Some(
+                        loan.scalar_storage(
+                            self,
+                            prefix,
+                            access
+                                .is_some_and(|required| required != StructuralAccess::SharedBorrow),
+                        )?
+                        .0,
+                    );
+                }
+            }
             if let Some(captured) = &mut placed_ram {
                 self.project_placed_ram_presentation(captured, prefix, &value)?;
             }
@@ -1314,6 +1354,30 @@ impl TerminalExecution<'_> {
                     .collection_loan
                     .as_ref()
                     .map(|loan| (loan, &[][..]));
+                array_loan = captured.collection_loan.clone();
+                // The exact crossed descriptor supplies an array's original
+                // activation home. A primitive suffix retains that endpoint;
+                // another reference to the same bytes grants no authority here.
+                let suffix = &remaining[boundary + 1..];
+                if let Some(loan) = &captured.collection_loan
+                    && !suffix.is_empty()
+                    && terminal_semantics::primitive_projection_type(
+                        types.values(),
+                        referent_type,
+                        suffix,
+                    )
+                    .is_some()
+                {
+                    primitive_storage = Some(
+                        loan.scalar_storage(
+                            self,
+                            suffix,
+                            access
+                                .is_some_and(|required| required != StructuralAccess::SharedBorrow),
+                        )?
+                        .0,
+                    );
+                }
                 placed_ram = captured.placed_ram.clone();
                 if let Some(ram) = &placed_ram {
                     self.validate_placed_ram_home(ram)?;
@@ -1385,6 +1449,7 @@ impl TerminalExecution<'_> {
                     })
                 });
                 return Ok(Some(ResolvedStructuralProjection {
+                    array_loan,
                     placed_ram,
                     view_tip: tip,
                     endpoint_field,
@@ -1402,6 +1467,7 @@ impl TerminalExecution<'_> {
                                 view.captured_storage_home(&types, &selected)
                             })
                             .transpose()?
+                            .flatten()
                     } else {
                         None
                     },
@@ -1444,6 +1510,7 @@ impl TerminalExecution<'_> {
         arguments: &BTreeMap<PlaceId, TerminalStructuralValue>,
         aggregate_backings: &BTreeMap<PlaceId, AggregateBacking>,
         primitive_loans: &BTreeMap<PlaceId, crate::primitive_storage::PrimitiveLoan>,
+        array_loans: &BTreeMap<PlaceId, crate::element_views::ElementView>,
         placed_occurrences: &BTreeMap<
             terminal_psi::TerminalPlacedViewInput,
             crate::structural_inputs::placed_views::PlacedViewOccurrence,
@@ -1506,6 +1573,7 @@ impl TerminalExecution<'_> {
                                 occurrence.view == StructuralRuntimePlace::from(owner)
                             })
                             .and_then(|occurrence| occurrence.ram.clone()),
+                        array_loans.get(&parameter.place).cloned(),
                     )?
                     else {
                         continue;
@@ -1531,7 +1599,14 @@ impl TerminalExecution<'_> {
                     if endpoint.is_none()
                         || (binding.extent == semantic_vocabulary::ReferenceOriginExtent::Projected
                             && endpoint != Some(referent_type))
-                        || !logical.qualifications.is_empty()
+                        || (!logical.qualifications.is_empty()
+                            && !terminal_semantics::pure_byte_qualifications(
+                                self.program.structural_types().values(),
+                                self.program.catalogs.structural_domains.iter(),
+                                logical.structural_type,
+                                &logical.qualifications,
+                                &logical.projected_qualifications,
+                            ))
                     {
                         return Err(malformed());
                     }
@@ -1560,6 +1635,11 @@ impl TerminalExecution<'_> {
                     let expected = placed_ram
                         .as_ref()
                         .map_or(logical, |ram| ram.source.clone());
+                    let array_loan = projected.array_loan.or_else(|| {
+                        path.is_empty()
+                            .then(|| array_loans.get(&parameter.place).cloned())
+                            .flatten()
+                    });
                     backings.push(ReferenceBacking {
                         element_view: if (!binding.suffix.is_empty()
                             || binding.extent
@@ -1571,10 +1651,27 @@ impl TerminalExecution<'_> {
                                     .map(|declaration| &declaration.shape),
                                 Some(StructuralTypeShape::ElementView { .. })
                             ) {
-                            Some(self.element_view_at_resolved_home(&expected)?.clone())
+                            // The prepared companion owns the formal's exact
+                            // descriptor presentation and captured window. Its
+                            // canonical type need not be the caller's stored
+                            // descriptor identity; rediscovering it there
+                            // loses an already admitted backing association.
+                            let view = match array_loan.as_ref() {
+                                Some(view) => view,
+                                None => self.element_view_at_resolved_home(&expected)?,
+                            };
+                            if !view.matches_descriptor_home(&expected)
+                                || !access_covers(view.access(), source.access)
+                            {
+                                return Err(malformed().in_argument_preparation(
+                                    "capture exact element-view return backing",
+                                ));
+                            }
+                            Some(view.clone())
                         } else {
                             None
                         },
+                        array_loan,
                         placed_ram,
                         value: expected,
                         aggregate_view: view,
@@ -1702,6 +1799,12 @@ impl TerminalExecution<'_> {
                         && projected.value == actual.view
                         && projected.placed_ram == actual.placed_ram
                         && view == actual.aggregate_view
+                        && projected.array_loan.as_ref().is_none_or(|expected| {
+                            actual
+                                .collection_loan
+                                .as_ref()
+                                .is_some_and(|actual| expected.lends_same_array_storage(actual))
+                        })
                         && projected.primitive_storage.as_ref().is_none_or(|storage| {
                             actual
                                 .primitive_loan

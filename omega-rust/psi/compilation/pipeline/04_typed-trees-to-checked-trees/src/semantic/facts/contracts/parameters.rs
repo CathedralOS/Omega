@@ -18,7 +18,7 @@ pub(crate) fn projected_argument_place(
     path: &[facts::PlaceSegment],
 ) -> Option<validation::CanonicalPlace> {
     let projections =
-        crate::flow::literal_value_projections(program, expression, reference, path, false)?;
+        crate::flow::literal_expression_projections(program, expression, reference, path, false)?;
     let [projection] = projections.as_slice() else {
         return None;
     };

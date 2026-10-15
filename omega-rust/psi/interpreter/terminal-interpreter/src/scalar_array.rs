@@ -13,14 +13,16 @@ use terminal_psi::StructuralTypeShape;
 use terminal_psi::TerminalMachine;
 
 mod loans;
+pub(crate) use loans::borrowed_array_memberships_match;
 /// Exact row-major primitive payload; the type retains all array dimensions.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalScalarArrayValue {
+    pub qualifications: Vec<semantic_vocabulary::StructuralDomainId>,
     pub structural_type: StructuralTypeId,
     pub elements: Vec<TerminalScalarValue>,
 }
 
-/// An owned unrestricted array returned without claims or qualifications.
+/// An owned unrestricted array with its checked predicate memberships and no claims.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalScalarArrayResult {
     pub value: TerminalScalarArrayValue,
@@ -42,7 +44,6 @@ impl TerminalExecution<'_> {
         if parameter.access != StructuralAccess::Owned
             || argument.access != StructuralAccess::Owned
             || parameter.multiplicity != StructuralMultiplicity::Unrestricted
-            || !parameter.qualifications.is_empty()
             || !parameter.projected_qualifications.is_empty()
             || machine
                 .entry_claims
@@ -55,7 +56,69 @@ impl TerminalExecution<'_> {
         {
             return Err(malformed());
         }
-        self.scalar_array_snapshot(argument, parameter.structural_type)
+        let mut snapshot = self.scalar_array_snapshot(argument, parameter.structural_type)?;
+        self.validate_scalar_array_qualifications(&snapshot, &parameter.qualifications)?;
+        snapshot.qualifications = parameter.qualifications.clone();
+        Ok(snapshot)
+    }
+
+    /// Predicate membership is checked against the exact current payload;
+    /// neither a receiving type nor a prior initializer can invent authority.
+    pub(crate) fn validate_scalar_array_qualifications(
+        &self,
+        snapshot: &TerminalScalarArrayValue,
+        qualifications: &[semantic_vocabulary::StructuralDomainId],
+    ) -> Result<(), TerminalInterpretError> {
+        self.validate_scalar_array_contents_qualifications(
+            snapshot.structural_type,
+            &snapshot.elements,
+            qualifications,
+        )
+    }
+
+    /// The same current-byte judgment applies to packed state operands before
+    /// their payload is staged into ordinary placed storage.
+    pub(crate) fn validate_scalar_array_contents_qualifications(
+        &self,
+        structural_type: StructuralTypeId,
+        elements: &[TerminalScalarValue],
+        qualifications: &[semantic_vocabulary::StructuralDomainId],
+    ) -> Result<(), TerminalInterpretError> {
+        if !qualifications.is_empty() {
+            // Predicate qualification observes the current exact bytes. It
+            // never changes the array's storage or lends route/claim authority.
+            let types = self.program.structural_types();
+            let StructuralTypeShape::FixedArray { element, .. } =
+                types.get(&structural_type).ok_or_else(malformed)?.shape
+            else {
+                return Err(malformed());
+            };
+            let byte_type = semantic_vocabulary::IntegerType::new(
+                semantic_vocabulary::IntegerSign::Unsigned,
+                8,
+            )
+            .map_err(|_| malformed())?;
+            if types.get(&element).map(|row| &row.shape)
+                != Some(&StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(
+                    byte_type,
+                )))
+            {
+                return Err(malformed());
+            }
+            let bytes = elements
+                .iter()
+                .map(crate::structural_inputs::byte_arrays::storage::scalar_byte)
+                .collect::<Result<Vec<_>, _>>()?;
+            if !terminal_semantics::byte_literal_qualifications_hold_in(
+                self.program.catalogs.structural_domains.iter(),
+                structural_type,
+                qualifications,
+                &bytes,
+            ) {
+                return Err(malformed());
+            }
+        }
+        Ok(())
     }
 
     /// One canonical owned snapshot for array arguments and structural copies.
@@ -140,6 +203,7 @@ impl TerminalExecution<'_> {
             elements.push(self.read_primitive_place(argument.place, &path, scalar_type)?);
         }
         Ok(TerminalScalarArrayValue {
+            qualifications: Vec::new(),
             structural_type,
             elements,
         })
@@ -159,7 +223,10 @@ impl TerminalExecution<'_> {
         // A cyclic traversal re-establishes the payload on each visit; block
         // entry already retired the earlier visit's elements, so a value
         // still at the place is a second live definition.
-        if !result.is_unrestricted_plain()
+        if result.multiplicity != StructuralMultiplicity::Unrestricted
+            || !result.projected_qualifications.is_empty()
+            || !result.claims.is_empty()
+            || !result.qualification_establishments.is_empty()
             || u64::try_from(elements.len()).ok() != Some(count)
             || self.structural_values.contains_key(&result.place)
             || self.scalar_array_values.contains_key(&result.place)
@@ -174,13 +241,13 @@ impl TerminalExecution<'_> {
             }
             contents.push(value);
         }
-        self.scalar_array_values.insert(
-            result.place,
-            TerminalScalarArrayValue {
-                structural_type: result.structural_type,
-                elements: contents,
-            },
-        );
+        let snapshot = TerminalScalarArrayValue {
+            qualifications: result.qualifications.clone(),
+            structural_type: result.structural_type,
+            elements: contents,
+        };
+        self.validate_scalar_array_qualifications(&snapshot, &result.qualifications)?;
+        self.scalar_array_values.insert(result.place, snapshot);
         Ok(())
     }
 }

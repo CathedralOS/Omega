@@ -15,20 +15,20 @@
 domain [u8]::Utf8(bytes)
 requires
     valid_utf8(bytes);
-domain [u8; 8]::Utf8(bytes)
+domain [u8; 3]::Utf8(bytes)
 requires
     valid_utf8(bytes);
 use omega_language_std::console;
 use omega::language::core::numeric_conversion;
 // Parsing borrows its input. Only the cursor and accumulator cross state edges;
 // the byte and widened digit exist for one iteration.
-machine parse_decimal(text: &[u8; 8] in Utf8) -> i32 in Wrapping {
+machine parse_decimal(text: &[u8; 3] in Utf8) -> i32 in Wrapping {
     transition {
         _ -> step(text, 0, 0)
     }
 
     // Loop over the digit bytes, bounded by the string's runtime length.
-    state step(text: &[u8; 8] in Utf8, index: i32, result: i32 in Wrapping) -> i32 in Wrapping
+    state step(text: &[u8; 3] in Utf8, index: i32, result: i32 in Wrapping) -> i32 in Wrapping
     requires index >= 0
     {
         transition index < text.len {
@@ -38,7 +38,7 @@ machine parse_decimal(text: &[u8; 8] in Utf8) -> i32 in Wrapping {
     }
 
     // result = result * 10 + (byte - '0').
-    state digit(text: &[u8; 8] in Utf8, index: i32, result: i32 in Wrapping) -> i32 in Wrapping
+    state digit(text: &[u8; 3] in Utf8, index: i32, result: i32 in Wrapping) -> i32 in Wrapping
     requires index >= 0
     {
         let byte: u8 = text[index];
@@ -52,7 +52,7 @@ machine parse_decimal(text: &[u8; 8] in Utf8) -> i32 in Wrapping {
         }
     }
 
-    state advance(text: &[u8; 8] in Utf8, index: i32, result: i32 in Wrapping) -> i32 in Wrapping
+    state advance(text: &[u8; 3] in Utf8, index: i32, result: i32 in Wrapping) -> i32 in Wrapping
     requires index >= 0 && index < 8
     {
         let next_index: i32 = index + 1;
@@ -66,7 +66,7 @@ machine parse_decimal(text: &[u8; 8] in Utf8) -> i32 in Wrapping {
 data Main { }
 machine Main::main(main: &mut Main) reaches Console {
     Console::write_line("parse_int: atoi over a text carrier, digit by digit");
-    let text: [u8; 8] in Utf8 = "150";
+    let text: [u8; 3] in Utf8 = "150";
     let result: i32 in Wrapping = parse_decimal(&text);
     Console::write_line("result: the parsed value of the text 150 (the exit code)");
     Console::write_line("[press Enter to close]");

@@ -268,13 +268,14 @@ pub(crate) fn is_assignment_literal(
     expression: ExpressionHandle,
 ) -> bool {
     program.expression_table.expression_is_valid(expression)
-        && matches!(
-            program.expression_table.expression(expression),
-            ExpressionNode::Integer(_)
-                | ExpressionNode::Float(_)
-                | ExpressionNode::Boolean(_)
-                | ExpressionNode::String(_)
-        )
+        && (typed_trees::byte_predicates::literal_bytes(program, expression).is_some()
+            || matches!(
+                program.expression_table.expression(expression),
+                ExpressionNode::Integer(_)
+                    | ExpressionNode::Float(_)
+                    | ExpressionNode::Boolean(_)
+                    | ExpressionNode::String(_)
+            ))
 }
 
 pub(crate) fn literal_assignment_payload(

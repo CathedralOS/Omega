@@ -1,38 +1,91 @@
 use omega_language_std::console;
 
-domain [u8; 16]::Utf8(bytes) requires valid_utf8(bytes);
+domain [u8]::Utf8(bytes) requires valid_utf8(bytes);
+// The copyable owner stores capacity and live length explicitly. Qualification
+// belongs to the borrowed prefix, whose actual bytes are validated.
+data TextBuffer [copy] where used <= 16 { storage: [u8; 16]; used: u64; }
+machine TextBuffer::view(buffer: &TextBuffer) -> &[u8] in Utf8 crashes Trap {
+    let bytes: &[u8] = &buffer.storage[..buffer.used];
+    transition valid_utf8(bytes) {
+        true -> checked(bytes)
+        false -> bad()
+    }
+    state checked(bytes: &[u8] in Utf8) -> &[u8] in Utf8 { bytes }
+    state bad() { crash Trap; }
+}
+machine TextBuffer::equal(buffer: &TextBuffer, expected: &[u8]) -> bool crashes Trap {
+    let bytes: &[u8] in Utf8 = TextBuffer::view(buffer);
+    bytes == expected
+}
+
 
 data Main {
     writer: Writer;
-    line: [u8; 16] in Utf8;
+    line: TextBuffer;
     sibling: u64;
 }
 
 data Writer {}
 
-machine Writer::replace(value: [u8; 16] in Utf8, line: &mut [u8; 16] in Utf8) {
+machine Writer::replace(value: TextBuffer, line: &mut TextBuffer) crashes Trap {
     line = value;
 }
 
-machine returned_line() -> [u8; 16] in Utf8 { "é" }
+machine returned_line() -> TextBuffer crashes Trap { TextBuffer { storage: [195u8, 169u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8], used: 2 } }
 
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches Console crashes Trap {
     main.sibling = 29;
-    Writer::replace("Wanderer", &mut main.line);
-    let literal_matches: bool = main.line == "Wanderer" && main.line.len == 8;
-    Writer::replace("é", &mut main.line);
-    let unicode_matches: bool = main.line == "é" && main.line.len == 2;
-    let joined: [u8; 16] in Utf8 = "Ga" + "te";
+    Writer::replace(TextBuffer { storage: [87u8, 97u8, 110u8, 100u8, 101u8, 114u8, 101u8, 114u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8], used: 8 }, &mut main.line);
+    let literal_matches: bool = TextBuffer::equal(&main.line, "Wanderer") && main.line.used == 8;
+    Writer::replace(TextBuffer { storage: [195u8, 169u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8], used: 2 }, &mut main.line);
+    let unicode_matches: bool = TextBuffer::equal(&main.line, "é") && main.line.used == 2;
+    let joined: TextBuffer = TextBuffer::join("Ga", "te");
     Writer::replace(joined, &mut main.line);
-    let joined_matches: bool = main.line == "Gate" && main.line.len == 4;
-    let returned: [u8; 16] in Utf8 = returned_line();
+    let joined_matches: bool = TextBuffer::equal(&main.line, "Gate") && main.line.used == 4;
+    let returned: TextBuffer = returned_line();
     Writer::replace(returned, &mut main.line);
-    let returned_matches: bool = main.line == "é" && main.line.len == 2;
-    Writer::replace("", &mut main.line);
+    let returned_matches: bool = TextBuffer::equal(&main.line, "é") && main.line.used == 2;
+    Writer::replace(TextBuffer { storage: [0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8], used: 0 }, &mut main.line);
     transition literal_matches && unicode_matches && joined_matches && returned_matches
-        && main.line.len == 0 && main.sibling == 29 {
+        && main.line.used == 0 && main.sibling == 29 {
         true -> finish(main, 70)
         false -> finish(main, 1)
     }
     state finish(main: &mut Main, code: i32) { Console::exit_process(code); }
+}
+
+machine TextBuffer::copy(storage: &mut [u8; 16], bytes: &[u8], start: u64)
+requires start <= 16; bytes.len <= 16 - start {
+    transition { _ -> copying(storage, bytes, start, 0) }
+    state copying(storage: &mut [u8; 16], bytes: &[u8], start: u64, index: u64)
+    requires start <= 16; index <= 16 {
+        transition index < bytes.len && start + index < 16 {
+            true -> writing(storage, bytes, start, index)
+            _ -> done()
+        }
+    }
+    state writing(storage: &mut [u8; 16], bytes: &[u8], start: u64, index: u64)
+    requires start <= 16; index < 16; index < bytes.len; start + index < 16 {
+        storage[start + index] = bytes[index];
+        transition { _ -> copying(storage, bytes, start, index + 1) }
+    }
+    state done() {}
+}
+machine TextBuffer::join(left: &[u8], right: &[u8]) -> TextBuffer crashes Trap
+requires left.len <= 16; right.len <= 16 - left.len {
+    let mut result: TextBuffer;
+    TextBuffer::copy(&mut result.storage, left, 0);
+    TextBuffer::copy(&mut result.storage, right, left.len);
+    let total: u64 = left.len + right.len;
+    transition total <= 16 {
+        true -> checked(result, total)
+        _ -> bad()
+    }
+    state checked(result: TextBuffer, total: u64) -> TextBuffer
+    requires total <= 16 {
+        let mut value: TextBuffer = result;
+        value.used = total;
+        value
+    }
+    state bad() { crash Trap; }
 }

@@ -145,6 +145,7 @@ enum Step {
         prefix: Vec<QualifiedScalarType>,
     },
     Zeroed {
+        projected_qualifications: Vec<checked_trees::CheckedStructuralPathQualification>,
         place: PlaceId,
         structural_type: StructuralTypeId,
         multiplicity: StructuralMultiplicity,
@@ -774,6 +775,7 @@ impl Preparation<'_> {
             let mut selector_ordinal = 0;
             let mut source = self.bindings.copied_place_source(
                 identities,
+                self.checked,
                 source,
                 self.checked.state_parameters(state),
                 self.types,
@@ -845,7 +847,7 @@ impl Preparation<'_> {
         }
         if matches!(
             &node.kind,
-            CheckedStructuralValueKind::ZeroedStructural {}
+            CheckedStructuralValueKind::ZeroedStructural { .. }
                 | CheckedStructuralValueKind::ZeroedScalarArray { .. }
         ) {
             if matches!(
@@ -863,6 +865,12 @@ impl Preparation<'_> {
             );
             let place = self.reserved.place(value)?;
             self.steps.push(Step::Zeroed {
+                projected_qualifications: match &node.kind {
+                    CheckedStructuralValueKind::ZeroedStructural {
+                        projected_qualifications,
+                    } => projected_qualifications.clone(),
+                    _ => Vec::new(),
+                },
                 place,
                 structural_type: declaration.id,
                 multiplicity,
@@ -999,6 +1007,7 @@ impl Preparation<'_> {
             }
             self.steps.push(Step::Establish {
                 effect: LoweredScalarEffect::EstablishScalarArray(LoweredScalarArrayConstruction {
+                    memberships: self.checked_memberships(value)?,
                     place,
                     structural_type: declaration.id,
                     elements: completed,
@@ -1564,6 +1573,7 @@ impl PreparedValue {
                     vec![LoweredScalarEffect::EstablishAggregate(construction)],
                 )),
                 Step::Zeroed {
+                    projected_qualifications,
                     place,
                     structural_type,
                     multiplicity,
@@ -1575,6 +1585,7 @@ impl PreparedValue {
                     prefix.clone(),
                     &prefix,
                     vec![LoweredScalarEffect::EstablishZeroedStructural {
+                        projected_qualifications,
                         place,
                         structural_type,
                         multiplicity,

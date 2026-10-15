@@ -487,31 +487,23 @@ pub(crate) fn borrowed_storage_argument(
     let presentation_identity = shapes.add_type(target.type_reference, &[], &[])?;
     // Calls share representation admission for every selected endpoint,
     // including a case payload. This preserves the exact root and path; it
-    // grants no access or predicate evidence. Raw array views additionally
-    // require initialized field-only backing without value qualifications.
-    let presentation = super::argument_presentation::classify(
+    // grants no access or predicate evidence.
+    super::argument_presentation::classify(
         program,
         reference,
         target.type_reference,
         presentation_identity,
         &[],
     )?;
-    let array_backing_admitted = presentation
-        != super::argument_presentation::ArgumentPresentation::FixedArraySlice
-        || (path.iter().all(|segment| {
-            matches!(
-                segment,
-                checked_trees::CheckedUnitStructuralPathSegment::Field(_)
-            )
-        }) && parameter_qualifications(program, &mut shapes, reference, &[])?.is_empty());
-    if !array_backing_admitted
-        || (!parameter_qualifications(program, &mut shapes, reference, &[])?.is_empty()
-            && !validation::has_contents(
-                program,
-                reference,
-                &[],
-                validation::ContentsRequirement::RepresentedOwned,
-            ))
+    // The evaluated path proves active cases and initialized storage; the
+    // exact loan below proves access. Qualification does not change backing.
+    if (!parameter_qualifications(program, &mut shapes, reference, &[])?.is_empty()
+        && !validation::has_contents(
+            program,
+            reference,
+            &[],
+            validation::ContentsRequirement::RepresentedOwned,
+        ))
         || !borrowed_referent
     {
         return None;

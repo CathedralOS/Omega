@@ -1,31 +1,39 @@
-// Build a status message with `[u8; N] in Utf8` text carriers INSIDE conditional
-// control flow: depending on the reading, the `high` or `normal` arm concatenates
-// a different prefix onto the shared `label` carrier, prints it, and verifies the
-// result with `==`. (text_greeting shows a single straight-line concat; this shows
-// carrier concatenation composing across transition arms.) With reading 95 > 90 the
-// `high` arm builds "ALERT temp", so the program prints it and exits 70.
-//
-// (Verification uses `==`, a content check stronger than a length check. A
-// carrier's `.len` also marshals as a value/host-call operand now -- see the
-// runtime_bounded_carrier_length_exit canary.)
+// Conditional message construction in explicit capacity and live-length fields.
 // Expected exit: 70.
 // Expected output contains: ALERT temp
 
 use omega_language_std::console;
 
-domain [u8]::Utf8(bytes)
-requires
-    valid_utf8(bytes);
-domain [u8; 8]::Utf8(bytes)
-requires
-    valid_utf8(bytes);
-domain [u8; 32]::Utf8(bytes)
-requires
-    valid_utf8(bytes);
+domain [u8; 32]::Ascii(bytes) requires ascii_only(bytes);
+domain [u8]::Ascii(bytes) requires ascii_only(bytes);
+data TextBuffer where used <= 32 { storage: [u8; 32] in Ascii; used: u64; }
+machine live(buffer: &TextBuffer) -> &[u8] in Ascii { &buffer.storage[..buffer.used] }
+machine copy(buffer: &mut [u8; 32] in Ascii, bytes: &[u8] in Ascii, start: u64)
+requires start <= 32; bytes.len <= 32 - start
+{
+    transition { _ -> copying(buffer, bytes, start, 0) }
+    state copying(buffer: &mut [u8; 32] in Ascii, bytes: &[u8] in Ascii, start: u64, index: u64)
+    requires start <= 32; index <= 32
+    {
+        transition index < bytes.len && start + index < 32 {
+            true -> writing(buffer, bytes, start, index)
+            _ -> done()
+        }
+    }
+    state writing(buffer: &mut [u8; 32] in Ascii, bytes: &[u8] in Ascii, start: u64, index: u64)
+    requires start <= 32; index < 32; index < bytes.len; start + index < 32
+    {
+        buffer[start + index] = bytes[index];
+        transition { _ -> copying(buffer, bytes, start, index + 1) }
+    }
+    state done() {}
+}
+
+domain [u8; 4]::Ascii(bytes) requires ascii_only(bytes);
 
 data Main {
-    label: [u8; 8] in Utf8;
-    message: [u8; 32] in Utf8;
+    label: [u8; 4] in Ascii;
+    message: TextBuffer;
     reading: i32;
     pause: [u8; 256];
 }
@@ -41,15 +49,19 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state high(main: &mut Main) {
-        main.message = "ALERT " + main.label;
-        Console::write_line(main.message);
-        transition main.message == "ALERT temp" { true -> ok(main) _ -> bad(main) }
+        copy(&mut main.message.storage, "ALERT ", 0);
+        copy(&mut main.message.storage, &main.label, 6);
+        main.message.used = 10;
+        Console::write_line(live(&main.message));
+        transition live(&main.message) == "ALERT temp" { true -> ok(main) _ -> bad(main) }
     }
 
     state normal(main: &mut Main) {
-        main.message = "ok " + main.label;
-        Console::write_line(main.message);
-        transition main.message == "ok temp" { true -> ok(main) _ -> bad(main) }
+        copy(&mut main.message.storage, "ok ", 0);
+        copy(&mut main.message.storage, &main.label, 3);
+        main.message.used = 7;
+        Console::write_line(live(&main.message));
+        transition live(&main.message) == "ok temp" { true -> ok(main) _ -> bad(main) }
     }
 
     state ok(main: &mut Main) {

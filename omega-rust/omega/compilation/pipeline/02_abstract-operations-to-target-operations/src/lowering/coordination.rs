@@ -72,7 +72,9 @@ pub(super) fn lower_to_target_operations_with_settlements_and_installation(
             scalar_abis.insert(function.machine, abi);
         }
     }
-    let structural_types = StructuralTypeLookup::new(&plan.structural_types);
+    let structural_types = StructuralTypeLookup::new(&plan.structural_types).with_verified_domains(
+        verified_input.map(|input| input.context().module().structural_domains.as_slice()),
+    );
     let mut mixed_structural_scalar_abis = BTreeMap::new();
     for function in &plan.functions {
         if let Some(abi) =

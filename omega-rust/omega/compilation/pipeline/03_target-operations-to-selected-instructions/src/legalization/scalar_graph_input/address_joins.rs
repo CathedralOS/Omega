@@ -168,14 +168,16 @@ fn window_argument(
                 types,
             )
         })?;
-    let shape = calling_conventions::ValueShape::borrowed_reference(16, 8);
+    let Some(shape) =
+        crate::structural_inputs::structural_reference_input::parameter_shape(destination, types)
+    else {
+        return Some(Err(LegalizationError::custody()));
+    };
     let Some(placement) = call.parameters.get(parameter_ordinal) else {
         return Some(Err(LegalizationError::custody()));
     };
     if destination.access != semantic.access
         || destination.multiplicity != StructuralMultiplicity::Unrestricted
-        || !destination.qualifications.is_empty()
-        || !destination.projected_qualifications.is_empty()
         || placement.shape != shape
     {
         return Some(Err(LegalizationError::custody()));

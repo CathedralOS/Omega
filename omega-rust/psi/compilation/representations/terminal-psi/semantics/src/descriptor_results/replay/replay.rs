@@ -38,6 +38,7 @@ pub(super) struct Replay<'a> {
     pub(super) machines: &'a [DescriptorMachine],
     pub(super) summaries: BTreeMap<MachineId, Option<Summary>>,
     pub(super) snapshots: BTreeMap<MachineId, Option<States>>,
+    pub(super) arrival_snapshots: BTreeMap<MachineId, Option<States>>,
 }
 impl<'a> Replay<'a> {
     pub(super) fn new(
@@ -57,6 +58,7 @@ impl<'a> Replay<'a> {
             machines,
             summaries: BTreeMap::new(),
             snapshots: BTreeMap::new(),
+            arrival_snapshots: BTreeMap::new(),
         }
     }
     pub(super) fn machine(&self, identity: MachineId) -> Option<&'a DescriptorMachine> {
@@ -441,6 +443,7 @@ impl<'a> Replay<'a> {
             return cached.clone();
         }
         self.snapshots.insert(identity, None);
+        self.arrival_snapshots.insert(identity, None);
         if depth >= 128 {
             return None;
         }
@@ -449,6 +452,7 @@ impl<'a> Replay<'a> {
             return None;
         }
         let mut states = States::from([(machine.entry, self.initial(machine)?)]);
+        let mut arrivals = States::new();
         let mut pending = vec![machine.entry];
         let mut visits = 0usize;
         while let Some(position) = pending.pop() {
@@ -489,7 +493,7 @@ impl<'a> Replay<'a> {
                 }
             }
             if let Some(call) = machine.calls.get(&position)
-                && call.arguments.iter().all(Option::is_some)
+                && call.argument_contents.iter().all(Option::is_some)
             {
                 let summary = self.summary(call.callee, depth + 1)?;
                 after.contents_invalidated |= summary.invalidates_contents;
@@ -500,15 +504,12 @@ impl<'a> Replay<'a> {
                         self.actual_contents(call, effect.parameter, &effect.steps)?;
                     let targets = self.contents_targets(machine, &before, &destination)?;
                     let strong = targets.len() == 1
-                        && matches!(
-                            targets.first(),
-                            Some(super::contents_queries::ContentsTarget::Storage(_))
-                        );
+                        && matches!(targets.first(), Some(DescriptorPayloadTarget::Storage(_)));
                     for target in targets {
                         // Simultaneous effects do not define an order between
                         // aliased definite writes. Preserve the exact-slot
                         // refusal; only may-target effects can weakly union.
-                        if let super::contents_queries::ContentsTarget::Storage(location) = target {
+                        if let DescriptorPayloadTarget::Storage(location) = target {
                             if destinations.iter().any(
                                 |(previous, definite): &(DescriptorLocation, bool)| {
                                     (strong || *definite)
@@ -546,13 +547,17 @@ impl<'a> Replay<'a> {
                         for origin in &slot.origins {
                             origins.extend(self.substitute(machine, &before, call, origin)?);
                         }
-                        replacements.insert(
-                            super::contents_queries::ContentsTarget::Storage(destination),
-                            Some(origins),
-                        );
+                        replacements
+                            .insert(DescriptorPayloadTarget::Storage(destination), Some(origins));
                     }
                 }
                 Self::install_contents(&mut after, replacements);
+            }
+            // Membership-only edge reads observe the completed operation,
+            // including descriptor/call effects. Keep only requested edge
+            // snapshots; ordinary custody queries remain pre-operation.
+            if machine.payload_arrivals.contains_key(&position) {
+                arrivals.insert(position, after.clone());
             }
             for edge in &step.successors {
                 if !machine.flow.contains_key(&edge.target) {
@@ -574,6 +579,7 @@ impl<'a> Replay<'a> {
             }
         }
         self.snapshots.insert(identity, Some(states.clone()));
+        self.arrival_snapshots.insert(identity, Some(arrivals));
         Some(states)
     }
     pub(super) fn prepare_states(&mut self, identity: MachineId) -> Option<()> {
@@ -629,15 +635,22 @@ impl<'a> Replay<'a> {
                 projection,
             } => self.project(
                 machine,
-                self.read(machine, state, call.arguments.get(*position)?.as_ref()?),
+                self.read_contents(
+                    machine,
+                    state,
+                    call.argument_contents.get(*position)?.as_ref()?,
+                ),
                 Some(projection),
             ),
             DescriptorStoredOrigin::IncomingSlot { position, path } => {
-                self.read(machine, state, &self.actual_slot(call, *position, path)?)
+                let mut query = call.argument_contents.get(*position)?.as_ref()?.clone();
+                query
+                    .steps
+                    .extend(path.iter().cloned().map(DescriptorContentsStep::Address));
+                self.read_contents(machine, state, &query)
             }
             DescriptorStoredOrigin::IncomingContents { position, steps } => {
-                let actual = call.arguments.get(*position)?.as_ref()?;
-                let mut query = DescriptorContentsQuery::from_location(actual);
+                let mut query = call.argument_contents.get(*position)?.as_ref()?.clone();
                 query.steps.extend_from_slice(steps);
                 self.read_contents(machine, state, &query)
             }

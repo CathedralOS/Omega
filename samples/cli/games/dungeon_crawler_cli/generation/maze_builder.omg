@@ -1,3 +1,4 @@
+use text::buffer;
 use omega_language_std::math;
 
 use enemies::enemies;
@@ -207,8 +208,8 @@ machine MazeBuilder::clear_room(
     room.cell = cell;
     room.depth = 0;
     room.branch = 0;
-    room.label = "";
-    room.description = "";
+    RoomLabel::set(&mut room.label, "");
+    RoomDescription::set(&mut room.description, "");
     room.exit_count = 0;
     room.discovered = false;
     MazeBuilder::clear_exits(maze_builder, room);
@@ -238,7 +239,7 @@ machine MazeBuilder::clear_event(
 
 machine MazeBuilder::blank_exit() -> Exit {
     Exit {
-        command: "",
+        command: ExitCommand { used: 0 },
         direction: Direction::North,
         destination: CellId::Empty
     }
@@ -247,7 +248,7 @@ machine MazeBuilder::blank_exit() -> Exit {
 machine MazeBuilder::empty_enemy() -> Enemy {
     let enemy: Enemy;
     enemy.kind = EnemyKind::Bat;
-    enemy.name = "";
+    EnemyName::set(&mut enemy.name, "");
     enemy.max_health = 1;
     enemy.health = 1;
     enemy.attack = 1;
@@ -297,8 +298,8 @@ machine MazeBuilder::carve_room(
     room.cell = cell;
     room.depth = depth;
     room.branch = branch_id;
-    room.label = MazeBuilder::room_label(cell);
-    room.description = MazeBuilder::room_description(depth, branch_id);
+    RoomLabel::set(&mut room.label, MazeBuilder::room_label(cell));
+    RoomDescription::set(&mut room.description, MazeBuilder::room_description(depth, branch_id));
     room.exit_count = 0;
     room.discovered = cell == start_cell;
     RoomEvents::roll_event(&mut maze_builder.events, depth, random, &mut room.event);
@@ -365,7 +366,9 @@ ensures
     }
 }
 
-machine MazeBuilder::room_label(cell: CellId) -> [u8; 16] in Utf8 {
+machine MazeBuilder::room_label(cell: CellId) -> &[u8] in Ascii
+ensures result.len <= 16
+{
     transition {
         cell == CellId::R00 -> "Gate"
         _ -> "Branch Room"
@@ -373,7 +376,9 @@ machine MazeBuilder::room_label(cell: CellId) -> [u8; 16] in Utf8 {
 }
 
 machine MazeBuilder::room_description(depth: u32 in Wrapping,
-    branch_id: u32 in Wrapping) -> [u8; 64] in Utf8 {
+    branch_id: u32 in Wrapping) -> &[u8] in Ascii
+ensures result.len <= 64
+{
     transition {
         depth == 0 -> "The old gate room breathes cold air from below."
         depth <= 2 -> "A shallow limestone room with fresh claw marks."
@@ -383,7 +388,9 @@ machine MazeBuilder::room_description(depth: u32 in Wrapping,
     }
 }
 
-machine MazeBuilder::direction_command(direction: Direction) -> [u8; 8] in Utf8 {
+machine MazeBuilder::direction_command(direction: Direction) -> &[u8] in Ascii
+ensures result.len <= 8
+{
     transition {
         direction == Direction::North -> "north"
         direction == Direction::South -> "south"

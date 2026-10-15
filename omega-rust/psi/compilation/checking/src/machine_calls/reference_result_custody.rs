@@ -250,6 +250,10 @@ pub fn is_reference_record(
 
 /// Reconstruct a leaf's exact formal ingress. Structural parameter ordinals
 /// exclude scalar and const parameters, just like ordinary call preparation.
+/// Authenticate the complete qualified type before publishing the canonical
+/// storage identity. Logical loan rosters keep their exact qualified identities;
+/// executable arguments must join the storage catalog, whose predicate-only
+/// domains contribute no representation.
 pub fn initializer_source(
     program: &dyn crate::CheckingInput,
     state: &typed_trees::state::State,
@@ -285,7 +289,7 @@ pub fn initializer_source(
                 parameter_index: u32::try_from(position).ok()?,
             },
             path: Vec::new(),
-            type_identity: program.normalized_type_identity(referent),
+            type_identity: crate::structural_type_identity(program, referent, &[], &[]),
             access,
         });
     }
@@ -516,7 +520,7 @@ pub fn borrowed_initializer_source(
     Some(checked_trees::CheckedUnitStructuralArgumentPlan {
         source,
         path: segments,
-        type_identity: program.normalized_type_identity(referent),
+        type_identity: crate::structural_type_identity(program, referent, &[], &[]),
         access,
     })
 }
@@ -1156,7 +1160,9 @@ pub fn local_owes_record_loans(
     program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
 ) -> bool {
-    is_reference_record(program, reference) && shared_borrowed_parts(program, reference).is_none()
+    is_reference_record(program, reference)
+        && shared_borrowed_parts(program, reference).is_none()
+        && crate::stored_view_shell(program, reference, &[]).is_none()
 }
 
 /// A descriptor leaf retains a complete group of possible backing origins.
@@ -1826,6 +1832,14 @@ pub fn record_argument(
         .statements(state.statement_nodes)
         .get(result.statement_index as usize)?
         .as_local_data()?;
+    // A whole view local already has a descriptor-forwarding lane. Aggregate
+    // projection peels readable roots to their backing; that backing must not
+    // be substituted for the identity of a standalone descriptor.
+    if !destination_leaf.crosses_reference
+        && crate::stored_view_shell(program, local.type_reference, &[]).is_some()
+    {
+        return None;
+    }
     if result.type_identity
         != program
             .normalized_type_identity(local.type_reference)

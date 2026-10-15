@@ -1,7 +1,7 @@
 // A mutable element loan cannot weaken the owner's encoding promise.
-domain [u8; 8]::Utf8(bytes) requires valid_utf8(bytes);
-domain [u8; 8]::Ascii(bytes) requires ascii_only(bytes);
-machine replace(bytes: &mut [u8; 8] in Utf8) -> bool { bytes = "é"; true }
-machine bad(entries: &mut [[u8; 8] in Ascii; 2]) -> bool {
+domain [u8; 2]::Utf8(bytes) requires valid_utf8(bytes);
+domain [u8; 2]::Ascii(bytes) requires ascii_only(bytes);
+machine replace(bytes: &mut [u8; 2] in Utf8) -> bool { bytes = "é"; true }
+machine bad(entries: &mut [[u8; 2] in Ascii; 2]) -> bool {
     replace(&mut entries[1])
 }

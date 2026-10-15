@@ -1,1 +1,1 @@
-a bounded text carrier requires every write to provably fit
+cannot prove requires contract for call append from main

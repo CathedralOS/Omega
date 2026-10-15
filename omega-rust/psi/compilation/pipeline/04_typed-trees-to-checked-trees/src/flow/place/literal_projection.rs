@@ -34,7 +34,7 @@ pub(crate) fn literal_argument_access_places(
             program,
             state_symbol,
             statement_index,
-            projection.expression,
+            projection.expression()?,
         )?;
         place.segments.extend_from_slice(&projection.remaining);
         Some(place)
@@ -42,11 +42,56 @@ pub(crate) fn literal_argument_access_places(
     .collect()
 }
 
+mod zero_values;
+
+#[derive(Clone, Copy)]
+pub(crate) enum LiteralValueSource {
+    Expression(ExpressionHandle),
+    OmittedZero { type_reference: TypeReferenceHandle },
+}
+
 #[derive(Clone)]
 pub(crate) struct LiteralValueProjection {
+    pub source: LiteralValueSource,
+    pub remaining: Vec<facts::PlaceSegment>,
+    pub destination: Vec<facts::PlaceSegment>,
+}
+
+impl LiteralValueProjection {
+    fn expression(&self) -> Option<ExpressionHandle> {
+        match self.source {
+            LiteralValueSource::Expression(expression) => Some(expression),
+            LiteralValueSource::OmittedZero { .. } => None,
+        }
+    }
+}
+
+/// Authored operands have evaluation frontiers and may name storage. Implicit
+/// zero formation has neither; expression/custody clients must fail closed.
+#[derive(Clone)]
+pub(crate) struct LiteralExpressionProjection {
     pub expression: ExpressionHandle,
     pub remaining: Vec<facts::PlaceSegment>,
     pub destination: Vec<facts::PlaceSegment>,
+}
+
+pub(crate) fn literal_expression_projections(
+    program: &dyn ::validation::CheckingInput,
+    expression: ExpressionHandle,
+    reference: TypeReferenceHandle,
+    segments: &[facts::PlaceSegment],
+    enumerate: bool,
+) -> Option<Vec<LiteralExpressionProjection>> {
+    literal_value_projections(program, expression, reference, segments, enumerate)?
+        .into_iter()
+        .map(|projection| {
+            Some(LiteralExpressionProjection {
+                expression: projection.expression()?,
+                remaining: projection.remaining,
+                destination: projection.destination,
+            })
+        })
+        .collect()
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -70,9 +115,13 @@ pub(crate) fn literal_value_path_is_inactive(
         let facts::PlaceSegment::Case { variant } = segment else {
             return false;
         };
-        let Some(projections) =
-            literal_value_projections(program, expression, reference, &segments[..position], false)
-        else {
+        let Some(projections) = literal_expression_projections(
+            program,
+            expression,
+            reference,
+            &segments[..position],
+            false,
+        ) else {
             return false;
         };
         !projections.is_empty()
@@ -148,7 +197,7 @@ fn literal_projections(
         }
         if mode == ProjectionMode::SelectedValue && segments.is_empty() {
             places.push(LiteralValueProjection {
-                expression,
+                source: LiteralValueSource::Expression(expression),
                 remaining: Vec::new(),
                 destination,
             });
@@ -168,12 +217,31 @@ fn literal_projections(
             }
             if mode != ProjectionMode::Access {
                 places.push(LiteralValueProjection {
-                    expression,
+                    source: LiteralValueSource::Expression(expression),
                     remaining: Vec::new(),
                     destination,
                 });
             }
             continue;
+        }
+        // Exact byte arrays carry a whole immutable byte value as well as
+        // their scalar cells. Descending only to cells loses predicates such
+        // as UTF-8 that cannot be reconstructed pointwise. Both observations
+        // refer to this completed constructor child; any overlapping write
+        // retires the whole snapshot through ordinary storage invalidation.
+        if mode == ProjectionMode::ConstructedValues
+            && segments.is_empty()
+            && matches!(
+                program.expression_table.expression(expression),
+                ExpressionNode::ArrayLiteral(_)
+            )
+            && crate::values::is_assignment_literal(program, expression)
+        {
+            places.push(LiteralValueProjection {
+                source: LiteralValueSource::Expression(expression),
+                remaining: Vec::new(),
+                destination: destination.clone(),
+            });
         }
         match program.expression_table.expression(expression) {
             ExpressionNode::StructLiteral(literal) => {
@@ -267,10 +335,34 @@ fn literal_projections(
                         .iter()
                         .find(|(symbol, _)| *symbol == field.symbol)
                     else {
-                        // Enumeration transports completed authored children;
-                        // implicit zeros have no source expression to project.
-                        // Their admissibility remains a construction obligation,
-                        // and selecting an omitted subtree still needs evidence.
+                        // An omitted constructor field forms its exact zero
+                        // value. It is not an authored operand or an address.
+                        if mode == ProjectionMode::SelectedValue && selected.is_some() {
+                            let remaining = selected.map_or(&[][..], |(_, remaining)| remaining);
+                            let type_reference = zero_values::selected_type(
+                                program,
+                                field.type_reference,
+                                remaining,
+                            )?;
+                            let mut destination = destination.clone();
+                            if let Some(variant) =
+                                facts::payload_variant_for_field(program, field.symbol)
+                            {
+                                destination.push(facts::PlaceSegment::Case { variant });
+                            }
+                            destination.push(facts::PlaceSegment::Field {
+                                symbol: field.symbol,
+                            });
+                            destination.extend_from_slice(remaining);
+                            places.push(LiteralValueProjection {
+                                source: LiteralValueSource::OmittedZero { type_reference },
+                                remaining: Vec::new(),
+                                destination,
+                            });
+                            continue;
+                        }
+                        // Enumeration transports only completed authored children;
+                        // no operand evaluation is fabricated for omitted fields.
                         if mode == ProjectionMode::ConstructedValues && selected.is_none() {
                             continue;
                         }
@@ -351,7 +443,7 @@ fn literal_projections(
             }
             _ => {
                 places.push(LiteralValueProjection {
-                    expression,
+                    source: LiteralValueSource::Expression(expression),
                     remaining: segments.to_vec(),
                     destination,
                 });

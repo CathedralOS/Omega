@@ -422,6 +422,8 @@ pub struct CheckedUnitStructuralParameterPlan {
 /// operation that carries the path.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum CheckedUnitStructuralPathSegment {
+    /// Source element qualification contract; never an executable projection.
+    AllElements,
     Field(CheckedMemberIdentity),
     Case(CheckedMemberIdentity),
     FixedIndex(u64),
@@ -474,6 +476,7 @@ impl Ord for CheckedUnitStructuralPathSegment {
                 Referent => 5,
                 ComputedIndex(_) => 6,
                 RepresentationView { .. } => 7,
+                AllElements => 8,
             }
         }
         match (self, other) {

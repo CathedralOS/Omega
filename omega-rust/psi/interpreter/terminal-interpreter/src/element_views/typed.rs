@@ -6,7 +6,6 @@
 //! and activation home; only the selected scalar crosses the bit mapping.
 
 use super::{ElementView, ElementViewBacking, ElementViewHome};
-use crate::custody::resolve_single_structural_argument;
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
 use crate::values::{TerminalScalarValue, TerminalStructuralValue};
@@ -18,7 +17,7 @@ use terminal_semantics::{
 
 pub(super) struct TypedElementView {
     collection: Option<TerminalStructuralValue>,
-    home: ElementViewHome,
+    home: Option<ElementViewHome>,
     pub(super) relation: ElementRepresentationRelation,
 }
 
@@ -103,23 +102,10 @@ impl TerminalExecution<'_> {
             source.access,
         )
         .ok_or_else(malformed)?;
-        let collection = if self.scalar_array_values.contains_key(&source.place) {
-            // Inline scalar-array payloads use the pinned frame home. They have
-            // no opaque structural identity and cannot contain record fields.
-            None
-        } else {
-            Some(resolve_single_structural_argument(
-                &self.program.structural_types(),
-                &self.structural_values,
-                &source,
-            )?)
-        };
+        let (collection, home) = self.element_collection_storage(source)?;
         Ok(TypedElementView {
             collection,
-            home: ElementViewHome {
-                storage: self.capture_primitive_home(source.place)?,
-                path: source.path.clone(),
-            },
+            home,
             relation,
         })
     }
@@ -156,8 +142,25 @@ impl TerminalExecution<'_> {
                 crate::primitive_storage::scalar_reference_observation(value, source.scalar_type)?
             }
         } else {
-            let source_path = typed.home.selected_path(position, &source.path)?;
-            self.read_primitive_home(typed.home.storage, &source_path, source.scalar_type)?
+            if let Some(home) = &typed.home {
+                let source_path = home.selected_path(position, &source.path)?;
+                self.read_primitive_home(home.storage, &source_path, source.scalar_type)?
+            } else {
+                let (storage, logical, shared) = self.resident_element_storage(
+                    typed.collection.as_ref().ok_or_else(malformed)?,
+                    position,
+                    &source.path,
+                    source.scalar_type,
+                    true,
+                )?;
+                self.read_primitive_storage(
+                    view.diagnostic_source,
+                    storage,
+                    logical,
+                    source.scalar_type,
+                    shared,
+                )?
+            }
         };
         if !checked_value(value, source) {
             return Err(malformed());
@@ -210,8 +213,19 @@ impl TerminalExecution<'_> {
             *stored = value;
             Ok(())
         } else {
-            let source_path = typed.home.selected_path(position, &source.path)?;
-            self.store_primitive_home(typed.home.storage, &source_path, value)
+            if let Some(home) = &typed.home {
+                let source_path = home.selected_path(position, &source.path)?;
+                self.store_primitive_home(home.storage, &source_path, value)
+            } else {
+                let (storage, logical, _) = self.resident_element_storage(
+                    typed.collection.as_ref().ok_or_else(malformed)?,
+                    position,
+                    &source.path,
+                    source.scalar_type,
+                    false,
+                )?;
+                self.store_primitive_storage(view.diagnostic_source, storage, logical, value)
+            }
         }
     }
 }

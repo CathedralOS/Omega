@@ -31,10 +31,20 @@ impl Builder<'_, '_> {
             _ => return None,
         };
         let target = semantic_casts::result_type(self.program, self.state, operand)?;
-        crate::values::scalar::boolean_lowering::comparable_byte_carrier_type(
+        let carrier = crate::values::scalar::boolean_lowering::comparable_byte_carrier_type(
             self.program,
             target,
         )?;
+        let maximum_length = match carrier {
+            crate::values::scalar::boolean_lowering::ByteObservationCarrier::FixedArray {
+                length,
+            } => Some(length),
+            crate::values::scalar::boolean_lowering::ByteObservationCarrier::Sequence(
+                checked_trees::CheckedByteSequenceCarrier::BoundedView { capacity, .. }
+                | checked_trees::CheckedByteSequenceCarrier::BoundedOwned { capacity },
+            ) => Some(capacity),
+            _ => None,
+        };
         let subject = self.byte_operand_subject(operand, target)?;
         Some(self.insert(
             PrimitiveType::Bool,
@@ -42,6 +52,7 @@ impl Builder<'_, '_> {
                 operand_type: target,
                 source_expression: expression,
                 literal,
+                maximum_length,
                 negated: binary.operator == BinaryOperator::NotEqual,
                 subject,
             },

@@ -1,6 +1,6 @@
 domain [u8; 8]::Utf8(bytes) requires valid_utf8(bytes);
 machine main() {
-    let mut line: [u8; 8] in Utf8 = "before";
+    let mut line: [u8; 8] in Utf8 = "before\0\0";
     let alias: &mut [u8; 8] in Utf8 = &mut line;
-    alias = "\xff";
+    alias = "\xff\0\0\0\0\0\0\0";
 }

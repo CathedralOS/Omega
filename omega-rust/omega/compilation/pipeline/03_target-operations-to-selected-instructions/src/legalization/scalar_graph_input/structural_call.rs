@@ -6,9 +6,9 @@ use optimization_unit::PsiOptimizationFunction;
 use target_operations::{TargetOperationPlan, TargetStructuralArgument};
 use terminal_psi::{StructuralAccess, StructuralArgument, find_structural_type};
 
+mod array_homes;
 mod byte_views;
 mod exclusive;
-mod local_array;
 
 /// Rejoin one authored argument using its declaration ordinal and the shared call plan.
 pub(in crate::legalization) fn argument_at(
@@ -149,7 +149,7 @@ pub(in crate::legalization) fn argument_at(
     // A dominating local array lends its producing home through a
     // borrowed byte or element view: the same presentation an incoming
     // parameter's fixed-array window takes, rejoined to the producer.
-    if let Some(argument) = local_array::argument(
+    if let Some(argument) = array_homes::argument(
         semantic,
         call_operation,
         caller,
@@ -157,6 +157,7 @@ pub(in crate::legalization) fn argument_at(
         call,
         parameter_ordinal,
         plan,
+        native,
     )? {
         return Ok(argument);
     }
@@ -336,7 +337,7 @@ fn view_argument(
             },
         )
     } else if let Some((producer, structural_type)) =
-        established_view(caller, call_operation, semantic.place)
+        established_view(caller, call_operation, semantic.place, structural_types)
     {
         let shape = &find_structural_type(structural_types, structural_type)
             .ok_or(LegalizationError::custody())?
@@ -361,7 +362,11 @@ fn view_argument(
         if block.id == caller.entry
             || parameter.access != access
             || !terminal_semantics::view_descriptor_parameter(parameter, structural_types.iter())
-            || !parameter.projected_qualifications.is_empty()
+            || !terminal_semantics::view_descriptor_projected_qualifications(
+                structural_types.iter(),
+                parameter.structural_type,
+                &parameter.projected_qualifications,
+            )
         {
             return Err(LegalizationError::custody());
         }
@@ -388,26 +393,35 @@ fn view_argument(
         if semantic.place != source.place
             || source.access != access
             || !terminal_semantics::view_descriptor_parameter(source, structural_types.iter())
-            || !source.projected_qualifications.is_empty()
+            || !terminal_semantics::view_descriptor_projected_qualifications(
+                structural_types.iter(),
+                source.structural_type,
+                &source.projected_qualifications,
+            )
             || parameter.place != source.place
             || parameter.structural_type != source.structural_type
             || parameter.access != source.access
             || parameter.multiplicity != source.multiplicity
             || parameter.shape != carrier
-            || !parameter.projected_qualifications.is_empty()
+            || !terminal_semantics::view_descriptor_projected_qualifications(
+                structural_types.iter(),
+                parameter.structural_type,
+                &parameter.projected_qualifications,
+            )
         {
             return Err(LegalizationError::custody());
         }
         (source.structural_type, parameter.placement.clone().into())
     };
-    if !terminal_semantics::borrowed_referent_matches(
+    if terminal_semantics::borrowed_referent_presentation(
         structural_types.iter(),
         structural_type,
         destination_parameter.structural_type,
-    ) || call
-        .parameters
-        .get(parameter_ordinal)
-        .is_none_or(|parameter| parameter.shape != carrier)
+    ) != Some(terminal_semantics::BorrowedReferentPresentation::Unchanged)
+        || call
+            .parameters
+            .get(parameter_ordinal)
+            .is_none_or(|parameter| parameter.shape != carrier)
     {
         return Err(LegalizationError::custody());
     }
@@ -508,6 +522,7 @@ fn established_view(
     caller: &PsiOptimizationFunction,
     call: semantic_vocabulary::OperationId,
     place: semantic_vocabulary::PlaceId,
+    structural_types: &[terminal_psi::StructuralTypeDeclaration],
 ) -> Option<(
     semantic_vocabulary::OperationId,
     semantic_vocabulary::StructuralTypeId,
@@ -541,7 +556,11 @@ fn established_view(
         };
         (result.place == place
             && result.qualifications.is_empty()
-            && result.projected_qualifications.is_empty()
+            && terminal_semantics::view_descriptor_projected_qualifications(
+                structural_types.iter(),
+                result.structural_type,
+                &result.projected_qualifications,
+            )
             && result.claims.is_empty())
         .then_some((producer, result.structural_type))
     })

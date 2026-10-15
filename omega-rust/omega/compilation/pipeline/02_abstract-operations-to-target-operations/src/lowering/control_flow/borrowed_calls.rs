@@ -66,20 +66,18 @@ pub(super) fn argument(
         // A selected owner has a block-arrival home, not one distinguished
         // incoming producer. Borrow that destination's storage; choosing an
         // incoming operation would lose the runtime selection and its updates.
-        let source = match &home.origin {
-            target_operations::TargetStructuralHomeOrigin::OperationResult {
-                operation, ..
-            } => TargetStructuralArgumentSource::StructuralHome {
-                psi_operation: *operation,
-            },
-            target_operations::TargetStructuralHomeOrigin::BlockParameter {
-                block,
-                declaration,
-            } => TargetStructuralArgumentSource::BlockParameter {
-                block: *block,
-                place: declaration.place,
-            },
-        };
+        let source = crate::lowering::unit::argument_roots::resolve(
+            argument.place,
+            function,
+            prepared.parameters.iter(),
+            &live.structural_homes,
+            &live.address_joins,
+            &live.block_views,
+            types,
+            &mut BTreeMap::new(),
+            &mut BTreeSet::new(),
+        )?
+        .source;
         let mut shape_cache = BTreeMap::new();
         let mut active = BTreeSet::new();
         let (projected_type, projected_shape, source_byte_offset, runs) =
@@ -106,6 +104,17 @@ pub(super) fn argument(
                     &mut active,
                 )?
             };
+        // Only an inline projection remains inside the aggregate's storage.
+        // A reference or view crossing selects a separate live backing region;
+        // its pointer and selector bounds belong to the canonical path walk.
+        let inline = crate::lowering::structural_layout::reference_projection_regions(
+            home.structural_type(),
+            &argument.path,
+            types,
+        )
+        .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?
+        .pointer_slots
+        .is_empty();
         // Psi checks the formal's memberships against this exact occurrence.
         // Borrowing retains the owner's storage and claims; domain rows and
         // establishment receipts add no address or ABI words. The same layout
@@ -130,10 +139,11 @@ pub(super) fn argument(
                 declaration.access,
                 types,
             ) != destination.shape
-            || projected_shape
-                .byte_size
-                .checked_add(source_byte_offset)
-                .is_none_or(|end| end > home.layout.shape().byte_size)
+            || inline
+                && projected_shape
+                    .byte_size
+                    .checked_add(source_byte_offset)
+                    .is_none_or(|end| end > home.layout.shape().byte_size)
         {
             return Err(LoweringError::unsupported_control_flow(function.machine));
         }
@@ -383,27 +393,14 @@ pub(super) fn byte_argument(
     // whether the source storage is an incoming parameter or a local result.
     let mut shape_cache = BTreeMap::new();
     let mut active = BTreeSet::new();
-    // A home that is no whole plain array (a mutable view's affine custody
-    // home, for one) keeps the descriptor routes below.
-    if let Some(home) = live.structural_homes.get(&argument.place)
-        && let Some(loan) = crate::lowering::unit::roster_arguments::local_array_loan(
-            argument,
-            declaration,
-            destination.shape,
-            &destination.placement,
-            callee,
-            home,
-            types,
-            &mut shape_cache,
-            &mut active,
-        )?
+    // Resolve every available backing through the same origin join. A
+    // block-owned array lends its selected home just as an operation result
+    // or machine arrival does; none is a borrowed descriptor by residence.
+    if prepared.parameter(argument.place).is_some()
+        || live.structural_homes.contains_key(&argument.place)
+        || live.block_views.contains(&argument.place)
+        || live.address_joins.contains(&argument.place)
     {
-        return Ok(loan);
-    }
-    // An incoming bounded view already carries its backing pointer. When a
-    // dynamic formal needs an extent too, present that pointer with the exact
-    // static length; forwarding the pointer carrier alone is not a descriptor.
-    if prepared.parameter(argument.place).is_some() || live.block_views.contains(&argument.place) {
         let root = crate::lowering::unit::argument_roots::resolve(
             argument.place,
             function,
@@ -581,7 +578,11 @@ pub(super) fn byte_argument(
             .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
         if source.access != argument.access
             || source.multiplicity != declaration.multiplicity
-            || !source.projected_qualifications.is_empty()
+            || !terminal_semantics::view_descriptor_projected_qualifications(
+                types.values().copied(),
+                source.structural_type,
+                &source.projected_qualifications,
+            )
             || source.shape != destination.shape
         {
             return Err(LoweringError::unsupported_control_flow(function.machine));

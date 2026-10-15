@@ -407,7 +407,8 @@ pub(crate) fn validate_function_structural_catalog(
                                             *index,
                                         ))
                                     }
-                                    terminal_psi::StructuralPathSegment::Case(_)
+                                    terminal_psi::StructuralPathSegment::AllElements
+                                    | terminal_psi::StructuralPathSegment::Case(_)
                                     | terminal_psi::StructuralPathSegment::RepresentationView {
                                         ..
                                     }

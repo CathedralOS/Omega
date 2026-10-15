@@ -28,10 +28,10 @@ pub(crate) struct CapturedValue<'capture> {
     /// A reaching value origin cannot erase evidence attached to this copy.
     pub observation: &'capture FlowOperandFact,
     pub observation_type: TypeReferenceHandle,
-    pub observation_projection: super::LiteralValueProjection,
+    pub observation_projection: super::LiteralExpressionProjection,
     pub operand: &'capture FlowOperandFact,
     pub type_reference: TypeReferenceHandle,
-    pub projection: super::LiteralValueProjection,
+    pub projection: super::LiteralExpressionProjection,
 }
 
 /// Project evidence onto the storage this completed value actually denotes.
@@ -78,7 +78,7 @@ fn captured_places(
     flow: &FlowFacts,
     operand: &FlowOperandFact,
     type_reference: TypeReferenceHandle,
-    projection: &super::LiteralValueProjection,
+    projection: &super::LiteralExpressionProjection,
 ) -> Option<Vec<CapturedValuePlace>> {
     let referents = flow
         .control
@@ -144,9 +144,13 @@ pub(crate) fn captured_operand_values<'capture>(
 ) -> Option<Vec<CapturedValue<'capture>>> {
     let control = &flow.control;
     let mut values = Vec::new();
-    for projection in
-        super::literal_value_projections(program, operand.expression, type_reference, path, false)?
-    {
+    for projection in super::literal_expression_projections(
+        program,
+        operand.expression,
+        type_reference,
+        path,
+        false,
+    )? {
         let (captured, selected_type) = captured_operand_at_path(
             program,
             control,

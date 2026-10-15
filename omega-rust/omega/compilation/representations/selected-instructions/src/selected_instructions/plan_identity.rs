@@ -524,6 +524,7 @@ fn encode_successor(bytes: &mut Vec<u8>, successor: &SelectedSuccessor) {
         crate::codec_bytes::encode_len(bytes, binding.semantic.argument.path.len());
         for segment in &binding.semantic.argument.path {
             match segment {
+                terminal_psi::StructuralPathSegment::AllElements => bytes.push(10),
                 terminal_psi::StructuralPathSegment::Case(case) => {
                     bytes.push(7);
                     crate::codec_bytes::push_encoded(bytes, case.get().to_le_bytes());

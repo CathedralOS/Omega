@@ -1,0 +1,26 @@
+// Expected exit: 0
+// Explicit borrows and borrowed parameters scan the actual fixed-array bytes.
+domain [u8; 4]::Utf8(bytes) requires valid_utf8(bytes);
+machine observe(bytes: &[u8; 4]) -> bool { valid_utf8(bytes) }
+machine scan(mut bytes: [u8; 4], first: u8) -> bool {
+    bytes[0] = first;
+    valid_utf8(&bytes) && observe(&bytes)
+}
+machine establish(bytes: [u8; 4]) -> bool {
+    transition valid_utf8(&bytes) {
+        true -> checked(bytes)
+        false -> false
+    }
+    state checked(bytes: [u8; 4] in Utf8) -> bool { bytes.len == 4 && observe(&bytes) }
+}
+machine main() crashes Trap {
+    transition scan([195u8, 169u8, 0u8, 0u8], 195u8)
+        && !scan([195u8, 169u8, 0u8, 0u8], 255u8)
+        && establish([195u8, 169u8, 0u8, 0u8])
+        && !establish([255u8, 169u8, 0u8, 0u8]) {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

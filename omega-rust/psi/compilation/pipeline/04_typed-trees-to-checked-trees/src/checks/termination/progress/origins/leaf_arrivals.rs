@@ -266,7 +266,7 @@ where
         Fn(&FlowStateFact, usize, &TableCallExpression, &[PlaceSegment]) -> Option<CanonicalPlace>,
 {
     let mut projections =
-        flow::literal_value_projections(program, value, declared_type, wanted, false)?;
+        flow::literal_expression_projections(program, value, declared_type, wanted, false)?;
     if projections.len() != 1 {
         return None;
     }

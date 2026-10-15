@@ -1001,7 +1001,7 @@ fn bind_claim_outcome_source_at_arguments(
     let parameter = parameter_for_symbol(program, target_state, *parameter_symbol)?;
     // Constructor operands already name the transferred claims. Resolve the
     // exact typed projection instead of inventing storage below a literal.
-    let mut projections = crate::flow::literal_value_projections(
+    let mut projections = crate::flow::literal_expression_projections(
         program,
         argument,
         parameter.type_reference,

@@ -163,13 +163,20 @@ impl ByteSequenceBinding {
             return if value == descriptor_home.as_ref().unwrap_or(referent)
                 && descriptor_home.as_ref().is_none_or(|home| {
                     home.structural_type == referent.structural_type
-                        && home.qualifications.is_empty()
+                        && (home.qualifications.is_empty()
+                            || home.qualifications == referent.qualifications)
                         && home.projected_qualifications.is_empty()
                 })
                 && array.referent.opaque_identity == referent.opaque_identity
                 && array.referent.path == backing_path
                 && exact_window
-                && referent.qualifications.is_empty()
+                && referent.projected_qualifications.is_empty()
+                && terminal_semantics::byte_qualification_predicates_in(
+                    execution.program.catalogs.structural_domains.iter(),
+                    referent.structural_type,
+                    &referent.qualifications,
+                )
+                .is_some()
                 && byte_arrays::byte_array_length(&structural_types, *array_type).is_some_and(
                     |extent| offset.checked_add(*length).is_some_and(|end| end <= extent),
                 ) {

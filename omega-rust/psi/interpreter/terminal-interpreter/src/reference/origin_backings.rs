@@ -14,6 +14,7 @@ impl TerminalExecution<'_> {
     ) -> Result<Option<ResolvedStructuralProjection>, TerminalInterpretError> {
         let types = self.program.structural_types();
         let mut selected = ResolvedStructuralProjection {
+            array_loan: backing.array_loan.clone(),
             placed_ram: backing.placed_ram.clone(),
             // Traverse suffixes in the captured logical interpretation.
             // Original supplying storage remains private in the association.
@@ -57,6 +58,7 @@ impl TerminalExecution<'_> {
                     terminal_psi::StructuralFieldType::canonical_leaf_type,
                     view,
                     selected.placed_ram.clone(),
+                    selected.array_loan.clone(),
                 )?
                 else {
                     return Ok(None);
@@ -134,6 +136,7 @@ impl TerminalExecution<'_> {
                 terminal_psi::StructuralFieldType::canonical_leaf_type,
                 view,
                 selected.placed_ram.clone(),
+                selected.array_loan.clone(),
             )?
             else {
                 return Ok(None);
@@ -174,6 +177,7 @@ impl TerminalExecution<'_> {
                 terminal_psi::StructuralFieldType::canonical_leaf_type,
                 None,
                 region.placed_ram.clone(),
+                None,
             )?
             else {
                 return Ok(None);
@@ -236,6 +240,7 @@ impl TerminalExecution<'_> {
             terminal_psi::StructuralFieldType::canonical_leaf_type,
             None,
             region.placed_ram.clone(),
+            region.array_loan.clone(),
         )?
         else {
             return Ok(None);

@@ -166,6 +166,12 @@ pub(super) fn plan(
         *structural_count = structural_count.checked_add(1 + replacement.displaced_bindings())?;
         operations.push(CheckedUnitEffectOperationPlan::EstablishLocal(
             checked_trees::CheckedUnitLocalBindingPlan::ScalarArray {
+                qualifications: facts.qualifications.formation_domains_at(
+                    machine.symbol,
+                    state.symbol,
+                    statement_index,
+                    assignment.value,
+                ),
                 source: checked_trees::CheckedArrayConstructionSource::Statement,
                 result: produced,
                 elements,
@@ -440,26 +446,31 @@ fn completed_value_replacement(
     result_type: typed_trees::types::TypeReferenceHandle,
     trace: &LocalConstructionTrace,
 ) -> Option<ValueReplacement> {
-    let declared =
-        validation::declared_place_type_raw(program, machine, Some(state), assignment.target)?;
-    if super::super::super::types::byte_sequence_carrier(program, result_type, &[]).is_some()
-        && validation::reference_shell(program, declared).is_none()
-    {
-        let store = super::super::super::structural_scalar_store::build_completed_byte_value_store(
-            program,
-            facts,
-            machine,
-            state,
-            structural_parameters,
-            scalar_parameters,
-            parameter_storage,
-            result.statement_index,
-            assignment,
-            result.binding_ordinal,
-            result_type,
-            trace,
-        )?;
-        return Some(ValueReplacement::from_store(store));
+    // Byte-value stores need to distinguish a descriptor slot from its
+    // referent. Ordinary array windows retain their receiving type and exact
+    // selectors in the window planner; a raw whole-place lookup is not their
+    // declaration query (in particular for inclusive ranges and &write roots).
+    if super::super::super::types::byte_sequence_carrier(program, result_type, &[]).is_some() {
+        let declared =
+            validation::declared_place_type_raw(program, machine, Some(state), assignment.target)?;
+        if validation::reference_shell(program, declared).is_none() {
+            let store =
+                super::super::super::structural_scalar_store::build_completed_byte_value_store(
+                    program,
+                    facts,
+                    machine,
+                    state,
+                    structural_parameters,
+                    scalar_parameters,
+                    parameter_storage,
+                    result.statement_index,
+                    assignment,
+                    result.binding_ordinal,
+                    result_type,
+                    trace,
+                )?;
+            return Some(ValueReplacement::from_store(store));
+        }
     }
     windows.replace(
         program,

@@ -119,6 +119,7 @@ pub(crate) fn static_segments(
 pub(crate) struct EvaluatedSelector {
     pub(crate) index: ValueId,
     decided: bool,
+    coordinate: Option<u64>,
 }
 
 /// Evaluate every runtime element's selector in path order -- the authored
@@ -144,9 +145,14 @@ pub(crate) fn evaluate_selectors(
     let mut indexes = Vec::new();
     for step in steps {
         let mut decided = false;
+        let mut coordinate = None;
         let (index, scalar_type) = match step {
             ProjectionStep::AssignmentIndex { depth } => {
                 let role = CheckedScalarExpressionRole::AssignmentIndex { depth: *depth };
+                coordinate =
+                    checked
+                        .facts
+                        .assignment_index_coordinate(state, statement_index, *depth);
                 let source = selector_source(checked, state, statement_index, role)?;
                 decided = checked
                     .facts
@@ -227,16 +233,18 @@ pub(crate) fn evaluate_selectors(
             }
             _ => continue,
         };
-        indexes.push(EvaluatedSelector {
-            index: super::emit_u64_coordinate(
-                index,
-                scalar_type,
-                decided,
-                next_value,
-                &mut calls.next_obligation_identity,
-                operations,
-            )?,
+        let index = super::emit_u64_coordinate(
+            index,
+            scalar_type,
             decided,
+            next_value,
+            &mut calls.next_obligation_identity,
+            operations,
+        )?;
+        indexes.push(EvaluatedSelector {
+            index,
+            decided,
+            coordinate,
         });
     }
     Ok(indexes)
@@ -267,6 +275,13 @@ pub(crate) fn complete_path(
                     "store path lost an evaluated runtime element",
                 ))?;
                 let obligation = calls.allocate_requirement()?;
+                if let Some(coordinate) = selector.coordinate {
+                    operations.scalar_index_coordinates.push((
+                        obligation,
+                        selector.index,
+                        coordinate,
+                    ));
+                }
                 if selector.decided {
                     operations.source_checked_obligations.push(obligation);
                 }

@@ -1066,6 +1066,7 @@ pub(super) fn validate_operation(
                     optimized,
                     expected_destination,
                     expected_path,
+                    *expected_field,
                     &unit.structural_types,
                     custody,
                 )
@@ -1100,8 +1101,6 @@ pub(super) fn validate_operation(
                         })
                         && optimized.arrival_parameter(*place) == Some(parameter)
                         && parameter.multiplicity != terminal_psi::StructuralMultiplicity::Linear
-                        && parameter.qualifications.is_empty()
-                        && parameter.projected_qualifications.is_empty()
                         && optimized
                             .entry_claim_declarations
                             .iter()

@@ -1,0 +1,56 @@
+// Expected exit: 0
+// Exact array geometry, qualified loans, indexed mutation and owned erasure.
+domain [u8; 8]::Ascii(bytes) requires ascii_only(bytes);
+domain [u8; 0]::EmptyAscii(bytes) requires ascii_only(bytes);
+data Qualified { first: u8; bytes: [u8; 8] in Ascii; last: u8; }
+data Plain { first: u8; bytes: [u8; 8]; last: u8; }
+machine plain_length(bytes: &[u8; 8]) -> u64 { bytes.len }
+machine length(bytes: &[u8; 8] in Ascii) -> u64 { bytes.len }
+machine erase(bytes: [u8; 8] in Ascii) -> [u8; 8] { bytes }
+machine mutate(bytes: &mut [u8; 8] in Ascii) { bytes[0] = 65u8; }
+data Tag [copy] { case Blank; case Set; }
+data Tagged { bytes: [u8; 8] in Ascii; tag: Tag; }
+machine forward(record: &mut Tagged) -> &mut Tagged { record }
+machine set_tag(record: &mut Tagged) {
+    let alias: &mut Tagged = forward(record);
+    alias.tag = Tag::Set;
+}
+machine tag_is_set(record: &Tagged) -> bool {
+    transition record.tag { Tag::Set -> (true) _ -> (false) }
+}
+machine main() crashes Trap {
+    let mut tagged: Tagged = Tagged { bytes: "omega600", tag: Tag::Blank };
+    set_tag(&mut tagged);
+    let tag_ok: bool = tag_is_set(&tagged);
+    let mut local: [u8; 8] in Ascii = "omega600";
+    local[0] = 65u8;
+    let mut qualified: Qualified;
+    qualified.first = 17u8;
+    qualified.last = 29u8;
+    qualified.bytes = "omega600";
+    mutate(&mut qualified.bytes);
+    let count: u64 = length(&qualified.bytes);
+    let copy: [u8; 8] = erase(qualified.bytes);
+    let empty: [u8; 0] in EmptyAscii;
+    let plain_empty: [u8; 0];
+    let plain_count: u64 = plain_length(&copy);
+    transition size_of<Qualified>() == 10 && size_of<Plain>() == 10
+        && align_of<Qualified>() == 1 && align_of<Plain>() == 1
+        && size_of<[u8; 8] in Ascii>() == 8 && size_of<[u8; 8]>() == 8
+        && size_of<&[u8; 8] in Ascii>() == size_of<&[u8; 8]>()
+        && size_of<&[u8; 8]>() == size_of<&u8>()
+        && size_of<&mut [u8; 8] in Ascii>() == size_of<&mut [u8; 8]>()
+        && align_of<&[u8; 8] in Ascii>() == align_of<&[u8; 8]>()
+        && size_of<[u8; 0] in EmptyAscii>() == 0 && size_of<[u8; 0]>() == 0
+        && empty.len == 0 && plain_empty.len == 0
+        && local.len == 8 && local[0] == 65 && local[7] == 48
+        && count == 8 && plain_count == 8 && qualified.bytes.len == 8 && copy.len == 8
+        && copy[0] == 65 && copy[7] == 48
+        && qualified.first == 17 && qualified.last == 29
+        && tag_ok && tagged.bytes.len == 8 && tagged.bytes == "omega600" {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

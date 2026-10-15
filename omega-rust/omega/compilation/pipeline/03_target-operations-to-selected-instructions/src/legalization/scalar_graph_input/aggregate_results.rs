@@ -2,7 +2,7 @@
 use super::{
     AbstractFunction, AbstractFunctionResult, AbstractOperation, AbstractOperationPlan, CallPlan,
     CallSignature, CallingPolicy, PsiOptimizationFunction, TargetFunction, TargetOperationPlan,
-    ValueDefinitionSite, ValueShape, evaluate_call_plan, scalar_shape,
+    ValueDefinitionSite, evaluate_call_plan, scalar_shape,
 };
 use crate::LegalizationError;
 use abstract_operations::AbstractStructuralCallResult;
@@ -395,29 +395,6 @@ fn borrowed_view_parameter(
         )
 }
 
-fn byte_parameter(
-    parameter: &terminal_psi::StructuralParameterDeclaration,
-    plan: &AbstractOperationPlan,
-) -> bool {
-    parameter.multiplicity == StructuralMultiplicity::Unrestricted
-        && matches!(
-            parameter.access,
-            terminal_psi::StructuralAccess::SharedBorrow
-                | terminal_psi::StructuralAccess::MutableBorrow
-        )
-        && parameter.qualifications.is_empty()
-        && parameter.projected_qualifications.is_empty()
-        && plan.structural_types.iter().any(|declaration| {
-            declaration.id == parameter.structural_type
-                && matches!(
-                    declaration.shape,
-                    StructuralTypeShape::ByteSequence(
-                        terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
-                    )
-                )
-        })
-}
-
 pub(in crate::legalization) fn call_argument(
     argument: &terminal_psi::StructuralArgument,
     position: usize,
@@ -533,85 +510,31 @@ pub(in crate::legalization) fn call_argument(
             plan,
         );
     }
-    // Non-block byte views use the same exact literal, parameter and projected
-    // fixed-array argument reconstruction as scalar- and Unit-result calls.
-    if !caller
-        .blocks
-        .iter()
-        .any(|block| block.structural_parameter(argument.place).is_some())
-    {
-        return super::structural_call::argument_at(
-            argument,
-            position,
-            call_operation,
-            caller,
-            callee,
-            call,
-            native,
-            plan,
-            custody,
-        );
-    }
-    let caller_target = native
-        .function(caller.machine)
-        .ok_or(LegalizationError::custody())?;
-    let (source, binding) = if let Some(source) = caller.structural_parameter(argument.place) {
-        let retained = super::structural_parameters(caller_target)
-            .and_then(|parameters| {
-                parameters
-                    .iter()
-                    .find(|parameter| parameter.place == argument.place)
-            })
-            .ok_or(LegalizationError::custody())?;
-        (source, retained.placement.clone().into())
-    } else {
-        let (block, source) = caller
+    // Whole block descriptors have the same backing authority and placement
+    // requirements as descriptors passed to scalar- or Unit-result calls.
+    // Reuse that reconstruction: qualification rosters do not change storage.
+    // Projected block arrivals must have been handled by their storage owner
+    // above; sending them back through the generic runtime-index route would
+    // recurse into this aggregate reconstruction.
+    if !argument.path.is_empty()
+        && caller
             .blocks
             .iter()
-            .find_map(|block| {
-                block
-                    .structural_parameter(argument.place)
-                    .map(|parameter| (block.id, parameter))
-            })
-            .ok_or(LegalizationError::custody())?;
-        (
-            source,
-            target_operations::TargetStructuralArgumentSource::BlockParameter {
-                block,
-                place: source.place,
-            },
-        )
-    };
-    if !argument.path.is_empty()
-        || !byte_parameter(source, plan)
-        || !byte_parameter(destination, plan)
-        || source.structural_type != destination.structural_type
-        || source.access != argument.access
-        || argument.access != destination.access
+            .any(|block| block.structural_parameter(argument.place).is_some())
     {
         return Err(LegalizationError::custody());
     }
-    let placement = call
-        .parameters
-        .get(callee.scalar_parameter_count() + position)
-        .ok_or(LegalizationError::custody())?;
-    if placement.shape != ValueShape::borrowed_reference(16, 8) {
-        return Err(LegalizationError::custody());
-    }
-    Ok(target_operations::TargetStructuralArgument {
-        place: argument.place,
-        access: argument.access,
-        path: Vec::new(),
-        root_structural_type: source.structural_type,
-        structural_type: source.structural_type,
-        shape: placement.shape,
-        source_byte_offset: 0,
-        fixed_array_length: None,
-        element_stride: None,
-        indices: Vec::new(),
-        source: binding,
-        destination: placement.clone(),
-    })
+    super::structural_call::argument_at(
+        argument,
+        position,
+        call_operation,
+        caller,
+        callee,
+        call,
+        native,
+        plan,
+        custody,
+    )
 }
 
 /// A borrowed block arrival keeps its own address or descriptor, independently

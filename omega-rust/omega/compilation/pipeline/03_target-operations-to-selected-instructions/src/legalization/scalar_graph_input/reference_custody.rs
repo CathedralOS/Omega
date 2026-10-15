@@ -296,7 +296,7 @@ pub(in crate::legalization) fn referent_destination(
     path: &[StructuralPathSegment],
     required_access: StructuralAccess,
 ) -> Option<ReferentDestination> {
-    optimization_unit_semantics::unqualified_reference_projection(
+    optimization_unit_semantics::reference_projection(
         function,
         types,
         carrier,

@@ -41,19 +41,38 @@ pub fn peel_arithmetic_policy(
     reference
 }
 
+/// Array-level qualification refines values, never the array's storage family.
+/// Scalar element qualification retains its separate admission rules. This
+/// shape query does not establish any predicate on the constructed value.
+fn array_carrier_type(
+    program: &dyn crate::CheckingInput,
+    reference: TypeReferenceHandle,
+) -> TypeReferenceHandle {
+    let carrier = program
+        .type_reference_table
+        .unconstrained_type_reference(reference);
+    if matches!(
+        program.type_reference_table.type_reference(carrier),
+        TypeReferenceNode::FixedArray { .. }
+    ) {
+        carrier
+    } else {
+        peel_arithmetic_policy(program, reference)
+    }
+}
+
 /// The closed primitive array type a whole array literal stored into a place
-/// of `reference` lands at. An arithmetic-policy shell around the whole array
-/// (`[i32; 6] in Wrapping`) qualifies arithmetic on its elements, not their
-/// storage, so it is peeled; any other constraint keeps its own owner.
+/// of `reference` lands at. Array qualification keeps its proof owner while
+/// construction uses the underlying exact array storage.
 pub fn closed_array_store_type(
     program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
 ) -> Option<TypeReferenceHandle> {
-    let peeled = peel_arithmetic_policy(program, reference);
+    let peeled = array_carrier_type(program, reference);
     is_closed_primitive_array_type(program, peeled).then_some(peeled)
 }
 
-/// A concrete primitive array type has no qualifications or ownership authority.
+/// A concrete primitive array shape supplies no qualification or ownership authority.
 /// Validate its complete shape even below empty dimensions; operand evaluation
 /// and effects remain separate expression obligations. Admitting IEEE storage
 /// does not admit unselected floating arithmetic in its initializer.
@@ -63,7 +82,7 @@ pub fn is_closed_primitive_array_type(
 ) -> bool {
     let mut array = false;
     for _ in 0..program.type_reference_table.type_reference_count() {
-        let peeled = peel_arithmetic_policy(program, reference);
+        let peeled = array_carrier_type(program, reference);
         match program.type_reference_table.type_reference(peeled) {
             TypeReferenceNode::FixedArray {
                 element_type,
@@ -97,6 +116,32 @@ pub fn is_closed_primitive_array_type(
     false
 }
 
+/// The packed scalar constructor retains whole-array memberships, but has no
+/// projected membership roster. Nested qualified arrays use ordinary element
+/// construction so each element keeps its checked evidence. Both constructors
+/// still produce the same exact fixed-array carrier and native geometry.
+pub fn scalar_array_preserves_memberships(
+    program: &dyn crate::CheckingInput,
+    reference: TypeReferenceHandle,
+) -> bool {
+    if !is_closed_primitive_array_type(program, reference) {
+        return false;
+    }
+    let mut current = array_carrier_type(program, reference);
+    for _ in 0..program.type_reference_table.type_reference_count() {
+        match program.type_reference_table.type_reference(current) {
+            TypeReferenceNode::FixedArray { element_type, .. } => {
+                // Arithmetic policies add no standing predicate obligation.
+                // Other nested constraints cannot disappear in flattening.
+                current = peel_arithmetic_policy(program, *element_type);
+            }
+            TypeReferenceNode::Named { .. } => return true,
+            _ => return false,
+        }
+    }
+    false
+}
+
 /// Rejoin an exact declaration and every selected builtin index before
 /// extracting row-major literals. Unselected siblings must also be closed:
 /// projection may not suppress an evaluation, failure, or effect.
@@ -108,7 +153,7 @@ pub fn closed_constant_array_elements(
     expression: ExpressionHandle,
     expected: TypeReferenceHandle,
 ) -> Option<Vec<(ExpressionHandle, typed_trees::types::PrimitiveType)>> {
-    if !is_closed_primitive_array_type(program, expected) {
+    if !scalar_array_preserves_memberships(program, expected) {
         return None;
     }
     let mut root = expression;
@@ -147,7 +192,9 @@ pub fn closed_constant_array_elements(
         let TypeReferenceNode::FixedArray {
             element_type,
             length: typed_trees::types::FixedArrayLength::Literal(length),
-        } = program.type_reference_table.type_reference(reference)
+        } = program
+            .type_reference_table
+            .type_reference(array_carrier_type(program, reference))
         else {
             return None;
         };
@@ -193,7 +240,7 @@ pub fn scalar_array_elements(
     expression: ExpressionHandle,
     expected: TypeReferenceHandle,
 ) -> Option<ScalarArrayElements> {
-    if !is_closed_primitive_array_type(program, expected) {
+    if !scalar_array_preserves_memberships(program, expected) {
         return None;
     }
     let mut leaves = Vec::new();
@@ -211,7 +258,7 @@ pub fn scalar_array_elements(
         }
         active.push(expression);
         pending.push((expression, reference, true));
-        let peeled = peel_arithmetic_policy(program, reference);
+        let peeled = array_carrier_type(program, reference);
         match program.type_reference_table.type_reference(peeled) {
             TypeReferenceNode::FixedArray {
                 element_type,
@@ -285,7 +332,9 @@ pub fn closed_literal_array_elements(
         pending.push((expression, reference, true));
         match (
             program.expression_table.expression(expression),
-            program.type_reference_table.type_reference(reference),
+            program
+                .type_reference_table
+                .type_reference(array_carrier_type(program, reference)),
         ) {
             (
                 ExpressionNode::ArrayLiteral(elements),
@@ -400,7 +449,7 @@ pub fn declared_constant_array_type(
         if !matches!(
             program
                 .type_reference_table
-                .type_reference(declaration.declared_type),
+                .type_reference(array_carrier_type(program, declaration.declared_type)),
             TypeReferenceNode::FixedArray { .. }
         ) {
             return None;
@@ -437,8 +486,9 @@ pub fn builtin_constant_array_projection_type(
     }
     let mut reference = declared_constant_array_type(program, expression)?;
     for projection in projections.into_iter().rev() {
-        let TypeReferenceNode::FixedArray { element_type, .. } =
-            program.type_reference_table.type_reference(reference)
+        let TypeReferenceNode::FixedArray { element_type, .. } = program
+            .type_reference_table
+            .type_reference(array_carrier_type(program, reference))
         else {
             return None;
         };
@@ -504,7 +554,7 @@ pub(super) fn validate_declared_array_destination(
         if matches!(
             program
                 .type_reference_table
-                .type_reference(declaration.declared_type),
+                .type_reference(array_carrier_type(program, declaration.declared_type)),
             TypeReferenceNode::FixedArray { .. }
         ) && !same_array_carrier(program, declaration.declared_type, destination)
         {

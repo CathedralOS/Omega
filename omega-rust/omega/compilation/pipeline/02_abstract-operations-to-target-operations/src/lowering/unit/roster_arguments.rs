@@ -423,8 +423,6 @@ pub(in crate::lowering) fn local_array_loan(
             terminal_psi::reading_borrow_pair_pattern!()
         )
         || result.multiplicity == StructuralMultiplicity::Linear
-        || !result.qualifications.is_empty()
-        || !result.projected_qualifications.is_empty()
         || !result.claims.is_empty()
     {
         return Ok(None);
@@ -435,8 +433,8 @@ pub(in crate::lowering) fn local_array_loan(
         structural_type: result.structural_type,
         multiplicity: result.multiplicity,
         access: StructuralAccess::Owned,
-        qualifications: Vec::new(),
-        projected_qualifications: Vec::new(),
+        qualifications: result.qualifications.clone(),
+        projected_qualifications: result.projected_qualifications.clone(),
     };
     fixed_array_view_argument(
         argument,
@@ -584,6 +582,15 @@ pub(in crate::lowering) fn fixed_array_view_argument(
     {
         return Err(mismatch());
     }
+    // A whole bounded loan can attenuate mutable access to shared without
+    // changing its pointer carrier. Only an actual array/view presentation
+    // needs extent metadata; forwarding it would add an indirection.
+    let unchanged = argument.path.is_empty()
+        && terminal_semantics::borrowed_referent_presentation(
+            structural_types.values().copied(),
+            root.structural_type,
+            callee_parameter.structural_type,
+        ) == Some(terminal_semantics::BorrowedReferentPresentation::Unchanged);
     Ok(Some(TargetStructuralArgument {
         place: argument.place,
         access: argument.access,
@@ -592,8 +599,8 @@ pub(in crate::lowering) fn fixed_array_view_argument(
         structural_type: callee_parameter.structural_type,
         shape,
         source_byte_offset,
-        fixed_array_length: Some(length),
-        element_stride: Some(stride),
+        fixed_array_length: (!unchanged).then_some(length),
+        element_stride: (!unchanged).then_some(stride),
         indices: Vec::new(),
         source,
         destination: destination.clone(),

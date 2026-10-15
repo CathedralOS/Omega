@@ -36,21 +36,16 @@ pub(crate) fn structural_projected_qualifications_match(
                         terminal_psi::StructuralPathSegment::RepresentationView { .. }
                     )
                 })
-                // Membership may describe borrowed storage without owning it.
-                // Keep owned projection unchanged; this query only checks the
-                // declared carrier below an explicit reference crossing.
-                && resolve_structural_path(types, root, &qualification.path).or_else(|| {
-                    qualification.path.contains(&terminal_psi::StructuralPathSegment::Referent)
-                        .then(|| terminal_semantics::runtime_structural_path_tip(
-                            types.values().copied(), root, &qualification.path,
-                        ).map(|declaration| declaration.id)).flatten()
-                }).is_some_and(
-                    |projected| {
-                        domains
-                            .get(&qualification.domain)
-                            .is_some_and(|domain| domain.carrier == projected)
-                    },
+                && terminal_semantics::qualification_path_carrier(
+                    types.values().copied(),
+                    root,
+                    &qualification.path,
                 )
+                .is_some_and(|projected| {
+                    domains
+                        .get(&qualification.domain)
+                        .is_some_and(|domain| domain.carrier == projected)
+                })
         })
 }
 

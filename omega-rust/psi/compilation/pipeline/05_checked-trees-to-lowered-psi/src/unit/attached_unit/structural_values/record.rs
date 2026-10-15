@@ -35,27 +35,6 @@ impl emission::Emission<'_, '_, '_> {
             return unsupported("record producer missing");
         };
         let fields = self.structural_value_fields(fields, "record fields are stale")?;
-        // A literal with every member omitted has no authored operand: each
-        // minted child is a zeroed structural mint whose value lowers as one
-        // whole-record EstablishZeroedStructural over the record's own type.
-        if !fields.is_empty()
-            && fields.iter().all(|field| match field.value {
-                checked_trees::CheckedStructuralRecordFieldValue::Structural(node) => matches!(
-                    self.checked
-                        .facts
-                        .values
-                        .structural_values
-                        .nodes
-                        .get(node)
-                        .kind,
-                    checked_trees::CheckedStructuralValueKind::ZeroedStructural { .. }
-                        | checked_trees::CheckedStructuralValueKind::ZeroedScalarArray { .. }
-                ),
-                checked_trees::CheckedStructuralRecordFieldValue::Scalar(_) => false,
-            })
-        {
-            return self.establish_zeroed();
-        }
         let record = self
             .checked
             .data_definition_by_symbol(data_symbol)

@@ -1,47 +1,48 @@
+domain [u8]::Utf8(bytes) requires valid_utf8(bytes);
 // A returned case owns its inline text bytes, live length and common fields.
 // Payload loans observe and mutate that storage; a prior copy stays independent.
 domain [u8; 8]::Utf8(bytes) requires valid_utf8(bytes);
-data Text [copy] { bytes: [u8; 8] in Utf8; }
+data Text [copy] { bytes: TextBuffer; }
 data Reply [copy] {
     sequence: u64;
     case Empty;
     case Message(content: Text);
 }
 data DirectReply [copy] {
-    header: [u8; 8] in Utf8;
+    header: TextBuffer;
     sequence: u64;
     case Empty;
-    case Message(content: [u8; 8] in Utf8);
+    case Message(content: TextBuffer);
 }
 
-machine make() -> Reply {
-    Reply::Message { sequence: 17, content: Text { bytes: "Gate" } }
+machine make() -> Reply crashes Trap {
+    Reply::Message { sequence: 17, content: Text { bytes: TextBuffer { storage: [71u8, 97u8, 116u8, 101u8, 0u8, 0u8, 0u8, 0u8], used: 4 } } }
 }
-machine observe(reply: Reply) -> bool {
+machine observe(reply: Reply) -> bool crashes Trap {
     transition reply {
-        Reply::Message { sequence as _, content } -> (reply.sequence == 17 && content.bytes == "Gate")
+        Reply::Message { sequence as _, content } -> (reply.sequence == 17 && TextBuffer::equal(&content.bytes, "Gate"))
         Reply::Empty -> (false)
     }
 }
-machine make_direct() -> DirectReply {
-    DirectReply::Message { content: "Next", sequence: 29, header: "Common" }
+machine make_direct() -> DirectReply crashes Trap {
+    DirectReply::Message { content: TextBuffer { storage: [78u8, 101u8, 120u8, 116u8, 0u8, 0u8, 0u8, 0u8], used: 4 }, sequence: 29, header: TextBuffer { storage: [67u8, 111u8, 109u8, 109u8, 111u8, 110u8, 0u8, 0u8], used: 6 } }
 }
-machine observe_direct(reply: DirectReply) -> bool {
+machine observe_direct(reply: DirectReply) -> bool crashes Trap {
     transition reply {
-        DirectReply::Message { header as _, sequence as _, content } -> (reply.sequence == 29 && reply.header == "Common" && content == "Next")
+        DirectReply::Message { header as _, sequence as _, content } -> (reply.sequence == 29 && TextBuffer::equal(&reply.header, "Common") && TextBuffer::equal(&content, "Next"))
         DirectReply::Empty -> (false)
     }
 }
 machine size(bytes: &[u8]) -> u64 { bytes.len }
-machine observe_borrowed(reply: &DirectReply, header_size: u64, content_size: u64) -> bool {
-    let common: u64 = size(&reply.header);
+machine observe_borrowed(reply: &DirectReply, header_size: u64, content_size: u64) -> bool crashes Trap {
+    let common: u64 = size(TextBuffer::view(&reply.header));
     transition reply {
-        DirectReply::Message { header as _, sequence as _, content } -> (common == header_size && size(&content) == content_size && content.len == content_size)
+        DirectReply::Message { header as _, sequence as _, content } -> (common == header_size && size(TextBuffer::view(&content)) == content_size && content.used == content_size)
         DirectReply::Empty -> (common == header_size && content_size == 0)
     }
 }
-machine replace(bytes: &mut [u8; 8] in Utf8) -> bool { bytes = "é"; true }
-machine edit(reply: &mut DirectReply) -> bool {
+machine replace(bytes: &mut TextBuffer) -> bool crashes Trap { bytes = TextBuffer { storage: [195u8, 169u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8], used: 2 }; true }
+machine edit(reply: &mut DirectReply) -> bool crashes Trap {
     transition reply {
         DirectReply::Message { header as _, sequence as _, content } -> (replace(&mut content))
         DirectReply::Empty -> true
@@ -55,8 +56,8 @@ machine main() crashes Trap {
         let changed: DirectReply = make_direct();
         let before: DirectReply = changed;
         let edited: bool = edit(&mut changed);
-        let empty: DirectReply = DirectReply::Empty { header: "Empty", sequence: 0 };
-        let blank: DirectReply = DirectReply::Message { header: "", sequence: 0, content: "" };
+        let empty: DirectReply = DirectReply::Empty { header: TextBuffer { storage: [69u8, 109u8, 112u8, 116u8, 121u8, 0u8, 0u8, 0u8], used: 5 }, sequence: 0 };
+        let blank: DirectReply = DirectReply::Message { header: TextBuffer { storage: [0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8], used: 0 }, sequence: 0, content: TextBuffer { storage: [0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8], used: 0 } };
         let valid: bool = observe_direct(copied) && edited
             && observe_borrowed(&changed, 6, 2) && observe_borrowed(&before, 6, 4)
             && observe_borrowed(&empty, 5, 0) && observe_borrowed(&blank, 0, 0);
@@ -64,4 +65,22 @@ machine main() crashes Trap {
     }
     state done() {}
     state bad() { crash Trap; }
+}
+
+
+// A variable-fill value explicitly owns its fixed storage and live length.
+// Copies retain both; an accessor borrows and checks the selected copy's prefix.
+data TextBuffer [copy] where used <= 8 { storage: [u8; 8] in Utf8; used: u64; }
+machine TextBuffer::view(buffer: &TextBuffer) -> &[u8] in Utf8 crashes Trap {
+    let bytes: &[u8] = &buffer.storage[..buffer.used];
+    transition valid_utf8(bytes) {
+        true -> checked(bytes)
+        false -> bad()
+    }
+    state checked(bytes: &[u8] in Utf8) -> &[u8] in Utf8 { bytes }
+    state bad() { crash Trap; }
+}
+machine TextBuffer::equal(buffer: &TextBuffer, expected: &[u8]) -> bool crashes Trap {
+    let bytes: &[u8] in Utf8 = TextBuffer::view(buffer);
+    bytes == expected
 }

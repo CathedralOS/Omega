@@ -145,9 +145,16 @@ impl<'program> ShapeCollector<'program> {
         let establishment_routes = definition
             .map(|definition| definition.establishment_routes.clone())
             .unwrap_or_default();
-        let byte_predicate = definition.and_then(|definition| {
-            typed_trees::byte_predicates::domain_byte_predicate(self.program, definition.symbol)
-        });
+        // This catalog entry names a complete pure byte theory. Semantic
+        // contributions and classified theories keep their independent owner;
+        // consumers must not mistake one predicate for the whole qualification.
+        let byte_predicate = definition
+            .filter(|definition| {
+                definition.classification.is_none() && definition.semantic_roles.is_empty()
+            })
+            .and_then(|definition| {
+                typed_trees::byte_predicates::domain_byte_predicate(self.program, definition.symbol)
+            });
         let plan = CheckedUnitStructuralDomainPlan {
             byte_predicate,
             domain,
@@ -313,16 +320,6 @@ impl<'program> ShapeCollector<'program> {
         binders: &[(SymbolHandle, String)],
     ) -> Option<typed_trees::type_identity::TypeIdentityId> {
         let shell = validation::reference_shell(self.program, reference)?;
-        // A bounded byte loan already owns a distinct carrier identity. Its
-        // descriptor is the byte view, rather than a second Reference plan
-        // competing for that same identity. Reuse the ordinary structural
-        // descriptor; access remains on the field or parameter loan contract.
-        if matches!(
-            byte_sequence_carrier(self.program, reference, &[]),
-            Some(checked_trees::CheckedByteSequenceCarrier::BoundedView { .. })
-        ) {
-            return self.add_type(reference, binders, &[]);
-        }
         self.add_view_type(reference, binders, shell.access)
     }
 

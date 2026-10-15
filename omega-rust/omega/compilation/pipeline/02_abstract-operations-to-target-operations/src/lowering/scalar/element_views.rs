@@ -544,7 +544,10 @@ pub(in crate::lowering) fn resolve_element_view(
         if result.place != place
             || result.multiplicity != expected_multiplicity
             || !result.qualifications.is_empty()
-            || !result.projected_qualifications.is_empty()
+            || result
+                .projected_qualifications
+                .iter()
+                .any(|row| !row.is_element_membership())
             || !result.claims.is_empty()
             || !structural_types
                 .get(&result.structural_type)
@@ -684,7 +687,10 @@ pub(in crate::lowering) fn resolve_element_view(
         result.multiplicity,
         terminal_psi::nonlinear_multiplicity_pair_pattern!()
     ) || !result.qualifications.is_empty()
-        || !result.projected_qualifications.is_empty()
+        || result
+            .projected_qualifications
+            .iter()
+            .any(|row| !row.is_element_membership())
         || !result.claims.is_empty()
         || !structural_types
             .get(&result.structural_type)
@@ -795,8 +801,8 @@ fn established_source(
     if !matches!(source.access, terminal_psi::reading_borrow_pair_pattern!()) {
         return Err(invalid());
     }
-    // Declared domains constrain contents, not the backing layout. The source
-    // keeps those obligations; this operation only lends an unqualified view.
+    // Declared domains constrain contents, not the backing layout. Source
+    // admission retains membership and loan obligations separately.
     let (root_structural_type, backing) =
         if let Some(semantic) = function.structural_parameter(source.place) {
             if !matches!(
@@ -808,7 +814,6 @@ fn established_source(
                     terminal_psi::mutating_access_pair_pattern!()
                 ))
                 || semantic.multiplicity != StructuralMultiplicity::Unrestricted
-                || !semantic.projected_qualifications.is_empty()
             {
                 return Err(invalid());
             }
@@ -1036,7 +1041,6 @@ fn live_aggregate_backing(
             home.multiplicity(),
             terminal_psi::nonlinear_multiplicity_pair_pattern!()
         )
-        || !home.projected_qualifications().is_empty()
         || home.has_claims()
     {
         return None;

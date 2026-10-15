@@ -207,3 +207,15 @@ assignments. A manual CLI control for a named-input fixture must therefore
 observe a missing-slot refusal; it is not a successful named-input run. The
 corpus supplies the public compilation host API, without fixture handling in
 the shipped product.
+
+Pinned qualification can retain each native publication and its exact portable
+Terminal envelope with `OMEGA_CORPUS_CAPTURE_ARTIFACTS=<fresh-directory>`.
+Files are created once under `<tier>/<group>/<fixture>/<target>/` and made read-only;
+existing artifacts cause a refusal rather than replacement. A subsequent run
+uses `OMEGA_CORPUS_VERIFY_ARTIFACTS=<retained-directory>` to require byte equality
+before interpretation and before/after native execution, without rewriting the
+retained files. Native execution also retains the pathname's filesystem identity
+and timestamps across execution (including Unix change time on Unix hosts). The modes are mutually exclusive. The ordinary compile, image
+audit, runtime authority, numerical and stream oracles remain unchanged. The
+qualification validator hashes and binds those pre-existing artifacts and the
+compiler build receipts before the verification run.

@@ -1,0 +1,7 @@
+domain [u8; 4]::Utf8(bytes) requires valid_utf8(bytes);
+data Buffer { bytes: [u8; 4] in Utf8; }
+machine observe(buffer: &write Buffer) -> u8 {
+    buffer.bytes = "abcd";
+    buffer.bytes[0]
+}
+machine main() {}

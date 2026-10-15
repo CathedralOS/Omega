@@ -1,3 +1,4 @@
+use text::buffer;
 use combat::combat;
 use combat::combat_round;
 use enemies::enemies;
@@ -17,8 +18,7 @@ data EventRuntime {
 }
 
 machine EventRuntime::describe(room: Room,
-    out_line: &mut [u8; 128])
-ensures out_line in Utf8
+    out_line: &mut TextBuffer)
 {
     transition {
         room.event.kind == RoomEventKind::FountainOfLife && room.event.consumed == false -> describe_fountain(out_line)
@@ -29,25 +29,25 @@ ensures out_line in Utf8
     }
 
 
-    state describe_fountain(out_line: &mut [u8; 128]) {
-        out_line = "A fountain of life glows here. Type use to drink.";
+    state describe_fountain(out_line: &mut TextBuffer) {
+        TextBuffer::set(out_line, "A fountain of life glows here. Type use to drink.");
     }
 
-    state describe_treasure(out_line: &mut [u8; 128]) {
-        out_line = "A treasure cache rests against the wall. Type use to claim it.";
+    state describe_treasure(out_line: &mut TextBuffer) {
+        TextBuffer::set(out_line, "A treasure cache rests against the wall. Type use to claim it.");
     }
 
-    state describe_gold(out_line: &mut [u8; 128]) {
-        out_line = "Loose gold glitters in the dust. Type use to collect it.";
+    state describe_gold(out_line: &mut TextBuffer) {
+        TextBuffer::set(out_line, "Loose gold glitters in the dust. Type use to collect it.");
     }
 
     state describe_enemy(enemy: Enemy,
-        out_line: &mut [u8; 128]) {
-        out_line = enemy.name + " blocks the way. Type fight.";
+        out_line: &mut TextBuffer) {
+        TextBuffer::join(out_line, EnemyName::live(&enemy.name), " blocks the way. Type fight.");
     }
 
-    state quiet_room(out_line: &mut [u8; 128]) {
-        out_line = "The room is quiet.";
+    state quiet_room(out_line: &mut TextBuffer) {
+        TextBuffer::set(out_line, "The room is quiet.");
     }
 }
 
@@ -55,9 +55,8 @@ machine EventRuntime::use_event(
     event_runtime: &mut EventRuntime,
     player: &mut Player,
     room: &mut Room,
-    out_line: &mut [u8; 128]
+    out_line: &mut TextBuffer
 )
-ensures out_line in Utf8
 {
     transition {
         room.event.kind == RoomEventKind::FountainOfLife && room.event.consumed == false -> use_fountain(event_runtime, player, &mut room.event, out_line)
@@ -71,26 +70,26 @@ ensures out_line in Utf8
         event_runtime: &mut EventRuntime,
         player: &mut Player,
         event: &mut RoomEvent,
-        out_line: &mut [u8; 128]
+        out_line: &mut TextBuffer
     ) {
         PlayerSystem::heal(player, 12);
         event.consumed = true;
-        out_line = "The fountain heals your wounds.";
+        TextBuffer::set(out_line, "The fountain heals your wounds.");
     }
 
     state use_reward(
         event_runtime: &mut EventRuntime,
         player: &mut Player,
         event: &mut RoomEvent,
-        out_line: &mut [u8; 128]
+        out_line: &mut TextBuffer
     ) {
         PlayerSystem::grant_reward(&mut event_runtime.player_system, player, event.reward);
         event.consumed = true;
-        out_line = "You take the treasure.";
+        TextBuffer::set(out_line, "You take the treasure.");
     }
 
-    state no_usable_event(out_line: &mut [u8; 128]) {
-        out_line = "There is nothing here to use.";
+    state no_usable_event(out_line: &mut TextBuffer) {
+        TextBuffer::set(out_line, "There is nothing here to use.");
     }
 }
 
@@ -100,9 +99,8 @@ machine EventRuntime::fight_event(
     room: &mut Room,
     random: &mut RandomState,
     round: &mut CombatRound,
-    out_line: &mut [u8; 128]
+    out_line: &mut TextBuffer
 )
-ensures out_line in Utf8
 {
     transition {
         room.event.kind == RoomEventKind::Enemy && room.event.consumed == false -> fight_enemy_event(event_runtime, player, room, random, round, out_line)
@@ -116,10 +114,10 @@ ensures out_line in Utf8
         room: &mut Room,
         random: &mut RandomState,
         round: &mut CombatRound,
-        out_line: &mut [u8; 128]
+        out_line: &mut TextBuffer
     ) {
         CombatSystem::fight(&mut event_runtime.combat, player, &mut room.event, random, round);
-        out_line = "You trade blows with the monster.";
+        TextBuffer::set(out_line, "You trade blows with the monster.");
 
         transition {
             round.player_defeated -> player_died(out_line)
@@ -128,16 +126,16 @@ ensures out_line in Utf8
         }
     }
 
-    state no_enemy(out_line: &mut [u8; 128]) {
-        out_line = "There is no enemy here.";
+    state no_enemy(out_line: &mut TextBuffer) {
+        TextBuffer::set(out_line, "There is no enemy here.");
     }
 
-    state player_died(out_line: &mut [u8; 128]) {
-        out_line = "You fall in the dark.";
+    state player_died(out_line: &mut TextBuffer) {
+        TextBuffer::set(out_line, "You fall in the dark.");
     }
 
     state enemy_died(reward: Reward,
-        out_line: &mut [u8; 128]) {
+        out_line: &mut TextBuffer) {
         transition {
             reward.gold >= 20 -> rich_reward(out_line)
             reward.gold > 0 -> small_reward(out_line)
@@ -145,20 +143,20 @@ ensures out_line in Utf8
         }
     }
 
-    state rich_reward(out_line: &mut [u8; 128]) {
-        out_line = "The enemy collapses. You scoop up a serious pile of gold.";
+    state rich_reward(out_line: &mut TextBuffer) {
+        TextBuffer::set(out_line, "The enemy collapses. You scoop up a serious pile of gold.");
     }
 
-    state small_reward(out_line: &mut [u8; 128]) {
-        out_line = "The enemy collapses. You find a little gold.";
+    state small_reward(out_line: &mut TextBuffer) {
+        TextBuffer::set(out_line, "The enemy collapses. You find a little gold.");
     }
 
-    state empty_reward(out_line: &mut [u8; 128]) {
-        out_line = "The enemy collapses. Nothing useful remains.";
+    state empty_reward(out_line: &mut TextBuffer) {
+        TextBuffer::set(out_line, "The enemy collapses. Nothing useful remains.");
     }
 
     state exchange_blows(round: &CombatRound,
-        out_line: &mut [u8; 128]) {
+        out_line: &mut TextBuffer) {
         transition {
             round.player_damage > 10 -> heavy_exchange(out_line)
             round.enemy_damage == 0 -> clean_hit(out_line)
@@ -167,19 +165,19 @@ ensures out_line in Utf8
         }
     }
 
-    state heavy_exchange(out_line: &mut [u8; 128]) {
-        out_line = "You deal more than 10 damage, but the enemy keeps moving.";
+    state heavy_exchange(out_line: &mut TextBuffer) {
+        TextBuffer::set(out_line, "You deal more than 10 damage, but the enemy keeps moving.");
     }
 
-    state clean_hit(out_line: &mut [u8; 128]) {
-        out_line = "You hit cleanly and avoid the counterattack.";
+    state clean_hit(out_line: &mut TextBuffer) {
+        TextBuffer::set(out_line, "You hit cleanly and avoid the counterattack.");
     }
 
-    state painful_exchange(out_line: &mut [u8; 128]) {
-        out_line = "You trade blows and take 5 or more damage.";
+    state painful_exchange(out_line: &mut TextBuffer) {
+        TextBuffer::set(out_line, "You trade blows and take 5 or more damage.");
     }
 
-    state glancing_exchange(out_line: &mut [u8; 128]) {
-        out_line = "Steel scrapes in the dark as you exchange blows.";
+    state glancing_exchange(out_line: &mut TextBuffer) {
+        TextBuffer::set(out_line, "Steel scrapes in the dark as you exchange blows.");
     }
 }

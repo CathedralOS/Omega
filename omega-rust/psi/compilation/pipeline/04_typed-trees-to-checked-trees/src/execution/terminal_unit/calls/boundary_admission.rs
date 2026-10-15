@@ -282,10 +282,11 @@ fn fixed_array_slice_view_parts<'a>(
     &'a typed_trees::types::TypeReferenceHandle,
     &'a typed_trees::types::TypeReferenceHandle,
 )> {
+    source = validation::peel_declared_constraints(program, source);
     if let TypeReferenceNode::Reference { referee, .. } =
         program.type_reference_table.type_reference(source)
     {
-        source = *referee;
+        source = validation::peel_declared_constraints(program, *referee);
     }
     let TypeReferenceNode::FixedArray {
         element_type,
@@ -298,13 +299,17 @@ fn fixed_array_slice_view_parts<'a>(
         access: language_core::ReferenceAccess::Mutable | language_core::ReferenceAccess::Shared,
         referee,
         ..
-    } = program.type_reference_table.type_reference(target)
+    } = program
+        .type_reference_table
+        .type_reference(validation::peel_declared_constraints(program, target))
     else {
         return None;
     };
     let TypeReferenceNode::Slice {
         element_type: target_element,
-    } = program.type_reference_table.type_reference(*referee)
+    } = program
+        .type_reference_table
+        .type_reference(validation::peel_declared_constraints(program, *referee))
     else {
         return None;
     };

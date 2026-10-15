@@ -1,0 +1,3 @@
+data Buffer where used <= 4 { storage: [u8; 4]; used: u64; }
+machine corrupt(buffer: &write Buffer) { buffer.used = 5; }
+machine main() {}

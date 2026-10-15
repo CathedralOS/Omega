@@ -6,13 +6,13 @@
 // compares against the literal. Then two guarded arrivals join at an indexed
 // byte store: both must establish the field's ASCII bound independently.
 // Exercise each arrival and a rejected non-ASCII input; all checks exit 70.
-domain [u8; 8]::Utf8(bytes)
+domain [u8; 4]::Utf8(bytes)
 requires
     valid_utf8(bytes);
 use omega_language_std::console;
 
 data Main {
-    label: [u8; 8] in Utf8;
+    label: [u8; 4] in Utf8;
     byte: u8;
 }
 

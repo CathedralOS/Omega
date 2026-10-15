@@ -18,6 +18,7 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
 
 pub(in crate::sections::semantic_module::module_foundation_validation) fn validate_structural_leaf_copy(
     module: &TerminalModule,
+    machine: &TerminalMachine,
     operation: &Operation,
 ) -> Result<(), CodecError> {
     let (terminal_psi::structural_leaf_copy_pair_pattern!()) = &operation.kind else {
@@ -36,6 +37,92 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
             || !result.claims.is_empty()
     }) {
         return malformed("leaf copy has invalid multiplicity or qualification custody");
+    }
+    let result = operation
+        .result
+        .structural()
+        .expect("checked structural copy result");
+    if !result.qualifications.is_empty() || !result.projected_qualifications.is_empty() {
+        let OperationKind::StructuralLeafCopy { source, path } = &operation.kind else {
+            return malformed("case leaf copy does not authenticate memberships");
+        };
+        let descriptors = terminal_semantics::descriptor_results::terminal_graph(module);
+        let mut analysis = terminal_semantics::descriptor_results::DescriptorAnalysis::new(
+            &module.structural_types,
+            &descriptors,
+        );
+        let mut history_failures = Vec::new();
+        let memberships = (|| {
+            let root = terminal_semantics::descriptor_results::terminal_payload_contract(
+                machine, *source,
+            )?;
+            let query = terminal_semantics::descriptor_results::descriptor_contents_query(
+                &module.structural_types,
+                *source,
+                root.carrier,
+                path,
+                None,
+            )?;
+            let position = machine.blocks.iter().find_map(|block| {
+                block
+                    .operations
+                    .iter()
+                    .position(|candidate| candidate.id == operation.id)
+                    .and_then(|ordinal| {
+                        u32::try_from(ordinal)
+                            .ok()
+                            .map(|ordinal| (block.id, ordinal))
+                    })
+            })?;
+            let targets = analysis.payload_targets(machine.id, position, &query)?;
+            terminal_semantics::descriptor_results::payload_memberships(
+                &module.structural_types,
+                &module.structural_domains,
+                targets,
+                |place| {
+                    terminal_semantics::descriptor_results::current_payload_contract(
+                        &module.structural_types,
+                        &module.structural_domains,
+                        &descriptors,
+                        machine.id,
+                        position,
+                        place,
+                        &|source| {
+                            terminal_semantics::descriptor_results::terminal_payload_contract(
+                                machine, source,
+                            )
+                        },
+                    )
+                    .map_err(|reason| history_failures.push((place, reason)))
+                    .ok()
+                },
+            )
+        })();
+        if !memberships.as_ref().is_some_and(|contract| {
+            contract.carrier == result.structural_type
+                && result
+                    .qualifications
+                    .iter()
+                    .all(|domain| contract.qualifications.contains(domain))
+                && result
+                    .projected_qualifications
+                    .iter()
+                    .all(|row| contract.projected_qualifications.contains(row))
+        }) {
+            return Err(CodecError::MalformedStructuralOperation {
+                machine: machine
+                    .declaration
+                    .as_ref()
+                    .and_then(|declaration| module.identities.text(declaration.callable))
+                    .map(str::to_owned)
+                    .unwrap_or_else(|| format!("{:?}", machine.id)),
+                operation: operation.id,
+                reason: format!(
+                    "leaf copy memberships do not follow from every current payload source: source={source:?}, path={path:?}, requested={:?}/{:?}/{:?}, current={memberships:?}, history={history_failures:?}",
+                    result.structural_type, result.qualifications, result.projected_qualifications,
+                ),
+            });
+        }
     }
     // Full module validation independently checks the source's readable
     // access, the resolved leaf type, custody and liveness.
@@ -63,86 +150,91 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
     // selects inside an aggregate; it does not select a different parameter
     // lookup or permit an undeclared destination.
     let projected = !path.is_empty();
-    let destination_type = if let Some(parameter) = machine.structural_parameter(*destination) {
-        let declaration_matches = machine.structural_places.iter().any(|place| {
-            if place.id != *destination {
-                return false;
-            }
-            match place.kind {
-                StructuralPlaceKind::Parameter { position } => {
-                    position == parameter.position
-                        && machine.structural_parameters.contains(parameter)
+    let (destination_type, qualifications, projected_qualifications) =
+        if let Some(parameter) = machine.structural_parameter(*destination) {
+            let declaration_matches = machine.structural_places.iter().any(|place| {
+                if place.id != *destination {
+                    return false;
                 }
-                StructuralPlaceKind::BlockParameter { block, position } => {
-                    position == parameter.position
-                        && machine
-                            .block(&block)
-                            .and_then(|block| block.structural_parameters.get(position as usize))
-                            == Some(parameter)
+                match place.kind {
+                    StructuralPlaceKind::Parameter { position } => {
+                        position == parameter.position
+                            && machine.structural_parameters.contains(parameter)
+                    }
+                    StructuralPlaceKind::BlockParameter { block, position } => {
+                        position == parameter.position
+                            && machine.block(&block).and_then(|block| {
+                                block.structural_parameters.get(position as usize)
+                            }) == Some(parameter)
+                    }
+                    _ => false,
                 }
-                _ => false,
+            });
+            let writable = matches!(
+                parameter.access,
+                terminal_psi::StructuralAccess::MutableBorrow
+                    | terminal_psi::StructuralAccess::WriteOnlyBorrow
+            ) || (projected
+                && parameter.access == terminal_psi::StructuralAccess::Owned);
+            let multiplicity = parameter.multiplicity == StructuralMultiplicity::Unrestricted
+                || (projected && parameter.multiplicity == StructuralMultiplicity::Affine);
+            if !writable
+                || !multiplicity
+                || !declaration_matches
+                || machine
+                    .entry_claims
+                    .iter()
+                    .any(|claim| claim.input == *destination)
+                || machine
+                    .content_entry_claims
+                    .iter()
+                    .any(|claim| claim.input.root == *destination)
+            {
+                return malformed("write-only primitive store has invalid destination custody");
             }
-        });
-        let writable = matches!(
-            parameter.access,
-            terminal_psi::StructuralAccess::MutableBorrow
-                | terminal_psi::StructuralAccess::WriteOnlyBorrow
-        ) || (projected
-            && parameter.access == terminal_psi::StructuralAccess::Owned);
-        let multiplicity = parameter.multiplicity == StructuralMultiplicity::Unrestricted
-            || (projected && parameter.multiplicity == StructuralMultiplicity::Affine);
-        if !writable
-            || !multiplicity
-            || !declaration_matches
-            || !parameter.qualifications.is_empty()
-            || !parameter.projected_qualifications.is_empty()
-            || machine
+            (
+                parameter.structural_type,
+                parameter.qualifications.as_slice(),
+                parameter.projected_qualifications.as_slice(),
+            )
+        } else {
+            let Some(result) = machine
+                .operations()
+                .filter(|producer| {
+                    projected
+                        || matches!(producer.kind, OperationKind::EstablishPrimitiveLocal { .. })
+                })
+                .filter_map(|producer| producer.result.structural())
+                .find(|result| {
+                    result.place == *destination
+                        && result.claims.is_empty()
+                        && (result.multiplicity == StructuralMultiplicity::Unrestricted
+                            || (projected && result.multiplicity == StructuralMultiplicity::Affine))
+                })
+            else {
+                return malformed(
+                    "primitive store destination is neither a parameter nor an initialized local",
+                );
+            };
+            // Each producer validates its exact operation-result declaration;
+            // independent verification checks dominance and reference custody.
+            if machine
                 .entry_claims
                 .iter()
                 .any(|claim| claim.input == *destination)
-            || machine
-                .content_entry_claims
-                .iter()
-                .any(|claim| claim.input.root == *destination)
-        {
-            return malformed("write-only primitive store has invalid destination custody");
-        }
-        parameter.structural_type
-    } else {
-        let Some(result) = machine
-            .operations()
-            .filter(|producer| {
-                projected || matches!(producer.kind, OperationKind::EstablishPrimitiveLocal { .. })
-            })
-            .filter_map(|producer| producer.result.structural())
-            .find(|result| {
-                result.place == *destination
-                    && result.claims.is_empty()
-                    && result.qualifications.is_empty()
-                    && result.projected_qualifications.is_empty()
-                    && (result.multiplicity == StructuralMultiplicity::Unrestricted
-                        || (projected && result.multiplicity == StructuralMultiplicity::Affine))
-            })
-        else {
-            return malformed(
-                "primitive store destination is neither a parameter nor an initialized local",
-            );
+                || machine
+                    .content_entry_claims
+                    .iter()
+                    .any(|claim| claim.input.root == *destination)
+            {
+                return malformed("primitive local store cannot carry entry claims");
+            }
+            (
+                result.structural_type,
+                result.qualifications.as_slice(),
+                result.projected_qualifications.as_slice(),
+            )
         };
-        // Each producer validates its exact operation-result declaration;
-        // independent verification checks dominance and reference custody.
-        if machine
-            .entry_claims
-            .iter()
-            .any(|claim| claim.input == *destination)
-            || machine
-                .content_entry_claims
-                .iter()
-                .any(|claim| claim.input.root == *destination)
-        {
-            return malformed("primitive local store cannot carry entry claims");
-        }
-        result.structural_type
-    };
     let Some(expected) = terminal_semantics::primitive_projection_type(
         module.structural_types.iter(),
         destination_type,
@@ -150,11 +242,16 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
     ) else {
         return malformed("write-only primitive store requires a primitive-scalar root");
     };
-    let restriction = terminal_semantics::primitive_projection_restriction(
+    let Some(restriction) = terminal_semantics::primitive_store_restriction(
         module.structural_types.iter(),
+        module.structural_domains.iter(),
         destination_type,
+        qualifications,
+        projected_qualifications,
         path,
-    );
+    ) else {
+        return malformed("primitive store does not preserve enclosing qualification");
+    };
     if restriction.is_some() != range_obligation.is_some() {
         return malformed("primitive store receiving obligation does not match its declaration");
     }
@@ -183,7 +280,8 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
     if operation.result != OperationResult::Unit {
         return malformed("structural scalar field store declares a non-Unit result");
     }
-    let (root_type, carrier_path) = field_store_carrier(module, machine, *destination, path)?;
+    let (root_type, carrier_path) =
+        field_store_carrier(module, machine, *destination, path, *field)?;
     let Some(declaration) = terminal_semantics::projected_field_declaration(
         module.structural_types.iter(),
         root_type,

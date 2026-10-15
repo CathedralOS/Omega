@@ -6,6 +6,29 @@ use terminal_psi::{
     Block, StructuralArgument, StructuralParameterDeclaration, TerminalMachine, Terminator,
 };
 
+/// Qualification metadata does not add descriptor words. Only element views
+/// carry universal child rows; byte descriptors retain their whole predicates.
+/// This classifies geometry, never establishes the retained memberships.
+pub fn view_descriptor_projected_qualifications<'types>(
+    declarations: impl Iterator<Item = &'types terminal_psi::StructuralTypeDeclaration>,
+    root: semantic_vocabulary::StructuralTypeId,
+    projected: &[terminal_psi::StructuralPathQualification],
+) -> bool {
+    if projected.is_empty() {
+        return true;
+    }
+    let mut matching = declarations.filter(|row| row.id == root);
+    let Some(declaration) = matching.next() else {
+        return false;
+    };
+    matching.next().is_none()
+        && matches!(
+            declaration.shape,
+            terminal_psi::StructuralTypeShape::ElementView { .. }
+        )
+        && projected.iter().all(|row| row.is_element_membership())
+}
+
 /// A readable descriptor arrival retains its pointer and extent, not its
 /// backing storage. Affine carrier lifetime does not turn borrowed access into
 /// ownership or make the payload a thin address join. Qualification admission,
@@ -21,8 +44,7 @@ pub fn view_descriptor_parameter<'types>(
         parameter.multiplicity,
         terminal_psi::StructuralMultiplicity::Unrestricted
             | terminal_psi::StructuralMultiplicity::Affine
-    ) || !parameter.projected_qualifications.is_empty()
-    {
+    ) {
         return false;
     }
     let mut matching =
@@ -31,6 +53,14 @@ pub fn view_descriptor_parameter<'types>(
         return false;
     };
     matching.next().is_none()
+        && (parameter.projected_qualifications.is_empty()
+            || matches!(
+                declaration.shape,
+                terminal_psi::StructuralTypeShape::ElementView { .. }
+            ) && parameter
+                .projected_qualifications
+                .iter()
+                .all(|row| row.is_element_membership()))
         && (declaration.shape.is_borrowed_byte_carrier()
             || matches!(
                 declaration.shape,

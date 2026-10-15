@@ -358,12 +358,14 @@ fn lower_terminal_selection(
         &mut lowered.semantic_module,
     )?;
     retain_float_meanings(identities, checked, &source_machine_ids, &mut lowered)?;
-    lower_and_install_evidence_artifacts(identities, checked, &source_machine_ids, &mut lowered)?;
+
     // Copies emitted while composing values can allocate after frame reservation.
     // Retain their ordinary place declarations before publishing the module;
     // quotient adaptations keep their separate exact occurrence licenses.
     crate::emission::operation_emission::place_declarations::reconcile_leaf_copy_place_declarations(
         &mut lowered.semantic_module,
     );
+    crate::retention::copied_memberships::retain(&mut lowered.semantic_module)?;
+    lower_and_install_evidence_artifacts(identities, checked, &source_machine_ids, &mut lowered)?;
     Ok((lowered, completion))
 }

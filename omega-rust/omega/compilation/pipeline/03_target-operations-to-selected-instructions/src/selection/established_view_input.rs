@@ -120,9 +120,8 @@ fn declared_view_type(
         .chain(source.block_structural_parameters())
         .find(|parameter| parameter.place == place);
     if let Some(parameter) = parameter {
-        // A declared-domain shared view (`&[u8] in Utf8`) carries the same
-        // descriptor; its qualifications constrain contents it cannot change.
-        // A mutable view stays unqualified: its stores would have to preserve them.
+        // Qualification does not change descriptor geometry. Mutable stores
+        // retain their separately checked membership-preservation obligations.
         if !matches!(
             parameter.access,
             terminal_psi::StructuralAccess::Owned
@@ -133,9 +132,11 @@ fn declared_view_type(
                 parameter,
                 signature.structural_types.iter(),
             ))
-            || (!parameter.qualifications.is_empty()
-                && parameter.access != terminal_psi::StructuralAccess::SharedBorrow)
-            || !parameter.projected_qualifications.is_empty()
+            || !terminal_semantics::view_descriptor_projected_qualifications(
+                signature.structural_types.iter(),
+                parameter.structural_type,
+                &parameter.projected_qualifications,
+            )
         {
             return None;
         }
@@ -179,12 +180,15 @@ pub(super) fn accepts(
             && (target.access == parameter.access
                 || target.access == terminal_psi::StructuralAccess::SharedBorrow
                     && parameter.access == terminal_psi::StructuralAccess::MutableBorrow)
-            && terminal_semantics::view_descriptor_parameter(parameter, signature.structural_types.iter())
-            // A shared loan's qualifications describe bytes it freezes; they
-            // add no carrier. An exclusive qualified loan keeps the refusal.
-            && (parameter.qualifications.is_empty()
-                || parameter.access == terminal_psi::StructuralAccess::SharedBorrow)
-            && parameter.projected_qualifications.is_empty()
+            && terminal_semantics::view_descriptor_parameter(
+                parameter,
+                signature.structural_types.iter(),
+            )
+            && terminal_semantics::view_descriptor_projected_qualifications(
+                signature.structural_types.iter(),
+                parameter.structural_type,
+                &parameter.projected_qualifications,
+            )
             && signature.structural_places.iter().any(|candidate| {
                 candidate.id == place
                     && candidate.kind
@@ -246,7 +250,7 @@ pub(super) fn accepts(
         LegalizedScalarInstructionKind::ByteSequenceSubslice { result, .. } => {
             if result.place != target.place
                 || !result.qualifications.is_empty()
-                || !result.projected_qualifications.is_empty()
+                || !terminal_semantics::view_descriptor_projected_qualifications(signature.structural_types.iter(), result.structural_type, &result.projected_qualifications)
                 || !result.claims.is_empty()
                 || element_view_source
                 || !signature.structural_places.iter().any(|place| {
@@ -268,7 +272,7 @@ pub(super) fn accepts(
         LegalizedScalarInstructionKind::ElementViewSubslice { result, .. } => {
             if result.place != target.place
                 || !result.qualifications.is_empty()
-                || !result.projected_qualifications.is_empty()
+                || !terminal_semantics::view_descriptor_projected_qualifications(signature.structural_types.iter(), result.structural_type, &result.projected_qualifications)
                 || !result.claims.is_empty()
                 || !element_view_source
                 || !signature.structural_places.iter().any(|place| {
@@ -296,7 +300,7 @@ pub(super) fn accepts(
             if result.place != target.place
                 || *destination != target.place
                 || !result.qualifications.is_empty()
-                || !result.projected_qualifications.is_empty()
+                || !terminal_semantics::view_descriptor_projected_qualifications(signature.structural_types.iter(), result.structural_type, &result.projected_qualifications)
                 || !result.claims.is_empty()
                 || !signature.structural_places.iter().any(|place| {
                     place.id == result.place
@@ -367,7 +371,11 @@ pub(super) fn accepts_view_loan(
             terminal_psi::nonlinear_multiplicity_pair_pattern!()
         )
         && result.qualifications.is_empty()
-        && result.projected_qualifications.is_empty()
+        && terminal_semantics::view_descriptor_projected_qualifications(
+            signature.structural_types.iter(),
+            result.structural_type,
+            &result.projected_qualifications,
+        )
         && result.claims.is_empty()
         && signature.structural_places.iter().any(|place| {
             place.id == result.place
@@ -406,8 +414,11 @@ pub(super) fn completed_descriptor(
     (matches!(
         result.multiplicity,
         terminal_psi::nonlinear_multiplicity_pair_pattern!()
-    ) && result.projected_qualifications.is_empty()
-        && result.qualification_establishments.is_empty()
+    ) && terminal_semantics::view_descriptor_projected_qualifications(
+        signature.structural_types.iter(),
+        result.structural_type,
+        &result.projected_qualifications,
+    ) && result.qualification_establishments.is_empty()
         && result.claims.is_empty()
         && terminal_semantics::descriptor_results::is_descriptor(
             signature.structural_types.iter(),

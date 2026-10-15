@@ -503,6 +503,18 @@ fn machine_non_transition_invocation_sites(
             {
                 continue;
             }
+            // Reserved byte observations are total primitive operations, not
+            // machine dependencies. Their operand calls still have independent
+            // flow rows and must retain their own crash summaries.
+            if let validation::CallSite::Expression { expression, .. } = site
+                && typed_trees::byte_predicates::byte_predicate_call(
+                    program.typed_program(),
+                    expression,
+                )
+                .is_some()
+            {
+                continue;
+            }
             // Declaration operations retain an exact intrinsic selection,
             // not a machine/state target. Their declaration operands do not
             // create product execution edges; separately inventoried operand

@@ -18,7 +18,7 @@ use crate::emission::operation_emission::integer::{
 use crate::emission::scalar_types::{
     integer_landing_scalar_type, integer_value, terminal_scalar_type,
 };
-use crate::expression_preparation::bindings::structural_fields::{CasePayloadRead, sequence_home};
+use crate::expression_preparation::bindings::structural_fields::CasePayloadRead;
 use crate::expression_preparation::bindings::view_locals::{ViewCarrier, ViewLocalBinding};
 use crate::expression_preparation::{
     CheckedBooleanExpression, CheckedIntegerBinaryKind, CheckedIntegerComparisonKind,
@@ -426,7 +426,11 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                         _
                     ))
                 )
-                && let Some((source, path, field)) = byte_field_observation(
+                && let crate::emission::operation_emission::boolean::LoweredByteSequenceOperand {
+                    source,
+                    path,
+                    field: Some(field),
+                } = byte_sequence_observation(
                     identities,
                     structural_fields,
                     structural_locals,
@@ -905,83 +909,44 @@ fn byte_sequence_observation(
 ) -> Result<crate::emission::operation_emission::boolean::LoweredByteSequenceOperand, LoweringError>
 {
     use crate::emission::operation_emission::boolean::LoweredByteSequenceOperand;
-    if !path.is_empty() {
-        let (source, path, field) = byte_field_observation(
-            identities,
-            fields,
-            structural_locals,
-            view_locals,
-            bindings,
-            root,
+    let observation = sequence_observation(
+        identities,
+        fields,
+        structural_locals,
+        view_locals,
+        bindings,
+        root,
+        &path
+            .iter()
+            .cloned()
+            .map(checked_trees::CheckedScalarReadProjection::Static)
+            .collect::<Vec<_>>(),
+        &[],
+        |_, _| unsupported("byte observation has an unevaluated selector"),
+    )?
+    .ok_or(LoweringError::Unsupported(
+        "byte observation has no readable byte extent",
+    ))?;
+    match observation {
+        LoweredDirectExpression::ByteSequenceFieldLength {
+            source,
             path,
-        )?
-        .ok_or(LoweringError::Unsupported(
-            "byte observation requires a live byte descriptor",
-        ))?;
-        return Ok(LoweredByteSequenceOperand {
+            field,
+            ..
+        } => Ok(LoweredByteSequenceOperand {
             source,
             path,
             field: Some(field),
-        });
-    }
-    let (home, structural_type) =
-        observation_home(fields, structural_locals, view_locals, bindings, root)?;
-    let (home, carrier) = sequence_home(home, structural_type, fields.declarations())?;
-    if carrier != ViewCarrier::Bytes {
-        return unsupported("byte observation requires a byte descriptor");
-    }
-    Ok(LoweredByteSequenceOperand {
-        source: home.place,
-        path: home
-            .path
-            .into_iter()
-            .map(LoweredElementPathSegment::Static)
-            .collect(),
-        field: None,
-    })
-}
-
-fn byte_field_observation(
-    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
-    fields: &crate::expression_preparation::bindings::StructuralFieldBindings,
-    structural_locals: &[crate::expression_preparation::bindings::StructuralLocalBinding],
-    view_locals: &[ViewLocalBinding],
-    bindings: Option<&crate::expression_preparation::bindings::ScalarBindings>,
-    root: checked_trees::CheckedStorageRoot,
-    path: &[checked_trees::CheckedStructuralPredicatePathSegment],
-) -> Result<
-    Option<(
-        PlaceId,
-        Vec<LoweredElementPathSegment>,
-        semantic_vocabulary::StructuralFieldId,
-    )>,
-    LoweringError,
-> {
-    Ok(
-        match sequence_observation(
-            identities,
-            fields,
-            structural_locals,
-            view_locals,
-            bindings,
-            root,
-            &path
-                .iter()
-                .cloned()
-                .map(checked_trees::CheckedScalarReadProjection::Static)
-                .collect::<Vec<_>>(),
-            &[],
-            |_, _| unsupported("static byte field geometry contains an evaluated selector"),
-        )? {
-            Some(LoweredDirectExpression::ByteSequenceFieldLength {
+        }),
+        LoweredDirectExpression::ByteSequenceLength { source, path, .. } => {
+            Ok(LoweredByteSequenceOperand {
                 source,
                 path,
-                field,
-                ..
-            }) => Some((source, path, field)),
-            _ => None,
-        },
-    )
+                field: None,
+            })
+        }
+        _ => unsupported("byte observation requires byte elements"),
+    }
 }
 
 fn sequence_observation(
@@ -1104,12 +1069,14 @@ fn sequence_observation(
             field,
             scalar_type,
         },
-        (ViewCarrier::Bytes, None) => LoweredDirectExpression::ByteSequenceLength {
-            source,
-            path,
-            access: terminal_psi::StructuralAccess::SharedBorrow,
-            scalar_type,
-        },
+        (ViewCarrier::Bytes | ViewCarrier::FixedBytes, None) => {
+            LoweredDirectExpression::ByteSequenceLength {
+                source,
+                path,
+                access: terminal_psi::StructuralAccess::SharedBorrow,
+                scalar_type,
+            }
+        }
         (ViewCarrier::Elements { .. }, None) => LoweredDirectExpression::ElementViewLength {
             source,
             path,

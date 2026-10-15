@@ -1,36 +1,55 @@
+domain [u8]::Utf8(bytes) requires valid_utf8(bytes);
 // Expected exit: 0. Array elements keep their own byte domains, live lengths
 // and backing through construction, copies, returns and exclusive loans.
 domain [u8; 8]::Utf8(bytes) requires valid_utf8(bytes);
-data Container [copy] { entries: [[u8; 8] in Utf8; 2]; }
+data Container [copy] { entries: [TextBuffer; 2]; }
 
-machine make() -> [[u8; 8] in Utf8; 2] { ["a", "slot"] }
-machine size(bytes: &[u8; 8] in Utf8) -> u64 { bytes.len }
-machine observe(entries: &[[u8; 8] in Utf8; 2]) -> u64 { size(&entries[1]) }
-machine replace(bytes: &mut [u8; 8] in Utf8) -> bool { bytes = "é"; true }
-machine edit(entries: &mut [[u8; 8] in Utf8; 2]) -> bool { replace(&mut entries[1]) }
-machine nested(container: &Container) -> u64 { observe(&container.entries) }
+machine make() -> [TextBuffer; 2] crashes Trap { [TextBuffer { storage: [97u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8], used: 1 }, TextBuffer { storage: [115u8, 108u8, 111u8, 116u8, 0u8, 0u8, 0u8, 0u8], used: 4 }] }
+machine size(bytes: &TextBuffer) -> u64 crashes Trap { bytes.used }
+machine observe(entries: &[TextBuffer; 2]) -> u64 crashes Trap { size(&entries[1]) }
+machine replace(bytes: &mut TextBuffer) -> bool crashes Trap { bytes = TextBuffer { storage: [195u8, 169u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8], used: 2 }; true }
+machine edit(entries: &mut [TextBuffer; 2]) -> bool crashes Trap { replace(&mut entries[1]) }
+machine nested(container: &Container) -> u64 crashes Trap { observe(&container.entries) }
 
-machine initialize(bytes: &write [u8; 8] in Utf8) { bytes = "ok"; }
-machine forward_write(bytes: &write [u8; 8] in Utf8) { initialize(&write bytes); }
-machine write_owner(bytes: &mut [u8; 8] in Utf8) {
+machine initialize(bytes: &write TextBuffer) crashes Trap { bytes = TextBuffer { storage: [111u8, 107u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8], used: 2 }; }
+machine forward_write(bytes: &write TextBuffer) crashes Trap { initialize(&write bytes); }
+machine write_owner(bytes: &mut TextBuffer) crashes Trap {
     forward_write(&write bytes);
 }
 
 machine main() crashes Trap {
-    let entries: [[u8; 8] in Utf8; 2] = make();
-    let before: [[u8; 8] in Utf8; 2] = entries;
+    let entries: [TextBuffer; 2] = make();
+    let before: [TextBuffer; 2] = entries;
     let changed: bool = edit(&mut entries);
     let container: Container = Container { entries: entries };
-    let empty: [[u8; 8] in Utf8; 2] = ["", ""];
+    let empty: [TextBuffer; 2] = [TextBuffer { storage: [0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8], used: 0 }, TextBuffer { storage: [0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8], used: 0 }];
     let was_empty: bool = observe(&empty) == 0;
     write_owner(&mut empty[1]);
     transition changed && observe(&entries) == 2 && observe(&before) == 4
         && nested(&container) == 2 && observe(&empty) == 2
-        && entries[1].len == 2 && before[1].len == 4 && empty[1].len == 2
+        && entries[1].used == 2 && before[1].used == 4 && empty[1].used == 2
         && was_empty {
         true -> done()
         false -> bad()
     }
     state done() {}
     state bad() { crash Trap; }
+}
+
+
+// A variable-fill value explicitly owns its fixed storage and live length.
+// Copies retain both; an accessor borrows and checks the selected copy's prefix.
+data TextBuffer [copy] where used <= 8 { storage: [u8; 8] in Utf8; used: u64; }
+machine TextBuffer::view(buffer: &TextBuffer) -> &[u8] in Utf8 crashes Trap {
+    let bytes: &[u8] = &buffer.storage[..buffer.used];
+    transition valid_utf8(bytes) {
+        true -> checked(bytes)
+        false -> bad()
+    }
+    state checked(bytes: &[u8] in Utf8) -> &[u8] in Utf8 { bytes }
+    state bad() { crash Trap; }
+}
+machine TextBuffer::equal(buffer: &TextBuffer, expected: &[u8]) -> bool crashes Trap {
+    let bytes: &[u8] in Utf8 = TextBuffer::view(buffer);
+    bytes == expected
 }

@@ -11,6 +11,10 @@ pub(crate) fn scalar_array_establishment_matches(
     function: &PsiOptimizationFunction,
     operation: &O,
     types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
+    domains: &BTreeMap<
+        semantic_vocabulary::StructuralDomainId,
+        &terminal_psi::StructuralDomainDeclaration,
+    >,
 ) -> bool {
     let O::EstablishScalarArray {
         psi_operation,
@@ -27,7 +31,49 @@ pub(crate) fn scalar_array_establishment_matches(
         return false;
     };
     result.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
-        && result.qualifications.is_empty()
+        && result.qualification_establishments.is_empty()
+        && terminal_semantics::scalar_array_qualifications_hold(
+            types.values().copied(),
+            domains.values().copied(),
+            result.structural_type,
+            &result.qualifications,
+            elements,
+            |element| {
+                terminal_semantics::scalar_constant_value(element, |value| {
+                    if let Some((ty, literal)) = function.block_nodes().find_map(|node| match node
+                        .operation
+                    {
+                        O::IntegerConstant {
+                            result,
+                            scalar_type,
+                            value: literal,
+                            ..
+                        } if result == value => Some((scalar_type, literal)),
+                        _ => None,
+                    }) {
+                        return Some(terminal_semantics::ScalarConstantOrigin::Literal(
+                            ty, literal,
+                        ));
+                    }
+                    let owner = function.blocks.iter().find(|block| {
+                        block
+                            .parameters
+                            .iter()
+                            .any(|parameter| parameter.value == value)
+                    })?;
+                    if owner.id == function.entry {
+                        return None;
+                    }
+                    let incoming = function
+                        .block_nodes()
+                        .flat_map(|node| &node.successors)
+                        .filter(|edge| edge.target == owner.id)
+                        .map(|edge| edge.binding(value).map(|binding| binding.argument))
+                        .collect::<Option<Vec<_>>>()?;
+                    Some(terminal_semantics::ScalarConstantOrigin::Incoming(incoming))
+                })
+            },
+        )
         && result.projected_qualifications.is_empty()
         && result.claims.is_empty()
         && u64::try_from(elements.len()).ok() == Some(count)

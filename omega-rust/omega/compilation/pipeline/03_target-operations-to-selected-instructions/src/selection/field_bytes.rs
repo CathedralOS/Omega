@@ -67,8 +67,6 @@ pub(in crate::selection) fn root_type(
     if let Some(parameter) = super::primitive_local_input::read_parameter(function, source.place) {
         if !access_covers(parameter.access, source.access)
             || parameter.multiplicity == StructuralMultiplicity::Linear
-            || !parameter.qualifications.is_empty()
-            || !parameter.projected_qualifications.is_empty()
         {
             return None;
         }
@@ -86,8 +84,6 @@ pub(in crate::selection) fn root_type(
     let (_, result) = super::aggregate_result_input::home(function, source.place)?;
     (access_covers(StructuralAccess::Owned, source.access)
         && result.multiplicity != StructuralMultiplicity::Linear
-        && result.qualifications.is_empty()
-        && result.projected_qualifications.is_empty()
         && result.claims.is_empty())
     .then_some(result.structural_type)
 }

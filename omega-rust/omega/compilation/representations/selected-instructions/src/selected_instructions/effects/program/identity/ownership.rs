@@ -109,6 +109,7 @@ pub fn encode_reference_origin_path(
 
 fn encode_projection(bytes: &mut Vec<u8>, segment: &StructuralPathSegment) {
     match segment {
+        StructuralPathSegment::AllElements => bytes.push(10),
         StructuralPathSegment::Case(case) => {
             bytes.push(7);
             crate::codec_bytes::push_encoded(bytes, case.get().to_le_bytes());

@@ -40,7 +40,7 @@ impl ScalarBindings {
     pub(crate) fn copied_place_source(
         &self,
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
-
+        checked: &checked_trees::CheckedTrees,
         argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
         parameters: &[checked_trees::signature::StateParameter],
         types: &[StructuralTypeDeclaration],
@@ -63,11 +63,8 @@ impl ScalarBindings {
             .into_iter()
             .map(structural_paths::PreparedStructuralPathSegment::Static)
             .collect::<Vec<_>>();
-        path.extend(structural_paths::prepare_argument_path(
-            identities,
-            &argument.path,
-            root_type,
-            types,
+        path.extend(structural_paths::prepare_structural_argument_path(
+            identities, checked, argument, root_type, types,
         )?);
         self.structural_copy_source(identities, source.place, &path, types, &mut capture)
     }

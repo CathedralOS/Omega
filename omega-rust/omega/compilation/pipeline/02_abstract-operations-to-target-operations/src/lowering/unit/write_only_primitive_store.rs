@@ -61,10 +61,10 @@ pub(in crate::lowering) fn lower_write_only_primitive_store(
                     && parameter.multiplicity != StructuralMultiplicity::Unrestricted)
                 || !matches!(
                     parameter.access,
-                    terminal_psi::exclusive_borrow_pair_pattern!()
+                    terminal_psi::StructuralAccess::Owned
+                        | terminal_psi::StructuralAccess::MutableBorrow
+                        | terminal_psi::StructuralAccess::WriteOnlyBorrow
                 )
-                || !parameter.qualifications.is_empty()
-                || !parameter.projected_qualifications.is_empty()
             {
                 return Err(invalid());
             }
@@ -119,8 +119,6 @@ pub(in crate::lowering) fn lower_write_only_primitive_store(
                 .filter(|home| home.operation_result() == Some((*producer, result)))
                 .ok_or_else(invalid)?;
             if home.has_claims()
-                || !home.qualifications().is_empty()
-                || !home.projected_qualifications().is_empty()
                 || home.multiplicity() == StructuralMultiplicity::Linear
                 || (path.is_empty() && home.multiplicity() != StructuralMultiplicity::Unrestricted)
             {

@@ -10,7 +10,7 @@ use super::{
 };
 use symbols::SymbolHandle;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
-use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+use typed_trees::types::TypeReferenceHandle;
 use validation::{
     ScopedArithmeticBinder, ScopedArithmeticBinding, ScopedArithmeticExpression,
     ScopedArithmeticValue,
@@ -261,25 +261,8 @@ impl CurrentScalarValues<'_> {
     }
 
     fn declared_extent(&self, expression: ExpressionHandle) -> Option<ScopedArithmeticValue> {
-        let mut reference = validation::declared_place_type_raw(
-            self.program,
-            self.machine,
-            Some(self.state),
-            expression,
-        )?;
-        // Do not peel predicate qualifications: a qualified byte owner may
-        // have a live count smaller than its fixed backing capacity.
-        while let TypeReferenceNode::Reference { referee, .. } =
-            self.program.type_reference_table.type_reference(reference)
-        {
-            reference = *referee;
-        }
-        if !matches!(
-            self.program.type_reference_table.type_reference(reference),
-            TypeReferenceNode::FixedArray { .. }
-        ) {
-            return None;
-        }
+        // Exact fixed extent belongs to the declared place. Qualification and
+        // reference access do not supply a separate live-length word.
         let extent = validation::declared_collection_extent(
             self.program,
             self.machine,

@@ -57,20 +57,12 @@ pub(crate) fn structural_sequence_length(
         program, operators, receiver, parameters, selector,
     )?;
     let selected_type = projection.selected_type;
-    validation::field_domains::readable_type_reference(program, selected_type)?;
-    // A raw fixed array has a type-owned extent, unlike a constrained byte
-    // owner whose stored live count can differ from capacity. A call-free
-    // selector can still trap. Refusing that fold here routes it through Apply,
-    // whose evaluated selector parameters retain the original operations even
-    // when its final count template is constant.
-    let extent_type = program
-        .type_reference_table
-        .dereferenced_type_reference(selected_type);
-    if let TypeReferenceNode::FixedArray {
-        length: typed_trees::types::FixedArrayLength::Literal(length),
-        ..
-    } = program.type_reference_table.type_reference(extent_type)
-    {
+    // Readability and qualification are independent of the fixed extent.
+    // Preserve selector evaluation even when the final length is constant.
+    // Exact extent is type metadata even through a write-only reference. The
+    // ordinary geometry query excludes explicit variable-fill owners; their
+    // live length below remains an observation requiring readable storage.
+    if let Some(length) = validation::fixed_array_type_length(program, selected_type) {
         if projection.path.iter().any(|step| match step {
             checked_trees::CheckedScalarReadProjection::Static(_) => false,
             checked_trees::CheckedScalarReadProjection::RuntimeIndex(selector) => {
@@ -79,8 +71,9 @@ pub(crate) fn structural_sequence_length(
         }) {
             return None;
         }
-        return facts::u64_integer_literal(u64::try_from(*length).ok()?, PrimitiveType::U64);
+        return facts::u64_integer_literal(u64::try_from(length).ok()?, PrimitiveType::U64);
     }
+    validation::field_domains::readable_type_reference(program, selected_type)?;
     let byte_carrier =
         crate::execution::terminal_unit::types::byte_sequence_carrier(program, selected_type, &[]);
     let element_view = crate::execution::terminal_unit::types::borrowed_slice_view_element(

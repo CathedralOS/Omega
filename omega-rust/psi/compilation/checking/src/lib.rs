@@ -59,8 +59,9 @@ pub use machine_calls::structural_call_custody::{
     state_finite_predicate, structural_call_custody, structural_call_result_claims,
     structural_claim_path, structural_owned_path, structural_qualification_contract,
     structural_result_contract, structural_result_projected_qualifications,
-    structural_result_qualifications, structural_state_contract_scalar_predicates,
-    view_result_carrier_qualifications,
+    structural_result_qualification_contract, structural_result_qualifications,
+    structural_state_contract_scalar_predicates, view_result_carrier_qualifications,
+    zeroed_byte_projected_qualifications,
 };
 pub use proof_contracts::arithmetic_domains::domain_intervals::{
     closed_interval_from_comparison, declared_domain_predicate_bounds,
@@ -112,6 +113,7 @@ pub use value_custody::receiving_values::receiving_value;
 pub use value_custody::record_local_disposition::record_local_disposition;
 pub use value_custody::reference_shells::{
     ReferenceShell, SliceViewShell, byte_sequence_carrier, reference_shell, slice_view_shell,
+    stored_view_shell,
 };
 pub use value_custody::scalar_case_constructor::{
     ScalarCaseConstructor, StructuralCaseConstructor, is_scalar_case_value,
@@ -317,7 +319,7 @@ pub use value_custody::literals::select_anonymous_numeric_match_arm;
 pub use value_custody::literals::{
     ScalarArrayElements, closed_array_store_type, closed_constant_array_elements,
     closed_literal_array_elements, closed_record_scalar_projection, is_closed_primitive_array_type,
-    peel_arithmetic_policy, scalar_array_elements,
+    peel_arithmetic_policy, scalar_array_elements, scalar_array_preserves_memberships,
 };
 pub use value_custody::places::{assignment_value_type, declared_place_type_raw};
 pub use value_custody::places::{

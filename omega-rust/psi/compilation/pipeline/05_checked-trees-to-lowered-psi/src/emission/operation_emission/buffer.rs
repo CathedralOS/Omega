@@ -229,6 +229,9 @@ pub(crate) struct OperationBuffer {
     pub(crate) literal_types: Vec<(PlaceId, semantic_vocabulary::StructuralTypeId)>,
     /// Value-establishment obligations accompany the exact private arrival.
     pub(crate) scalar_block_invariants: Vec<terminal_psi::ScalarBlockInvariant>,
+    /// Source-proved singleton values keyed by their exact selector occurrence
+    /// and immutable SSA value. These refine overlap only, not bounds or authority.
+    pub(crate) scalar_index_coordinates: Vec<(ObligationId, ValueId, u64)>,
     pub(crate) selected_ieee_float_comparisons:
         Vec<lowered_psi::LoweredSelectedIeeeFloatComparisonOccurrence>,
     pub(crate) selected_integer_comparisons:
@@ -359,6 +362,7 @@ impl OperationBuffer {
             structural_establishments: Vec::new(),
             literal_types: Vec::new(),
             scalar_block_invariants: Vec::new(),
+            scalar_index_coordinates: Vec::new(),
             next_identity: identity_base
                 .checked_add(1)
                 .expect("operation identity base admits one-based identities"),

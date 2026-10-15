@@ -154,7 +154,7 @@ fn projected_entry_value(
             {
                 return None;
             }
-            let projections = crate::flow::literal_value_projections(
+            let projections = crate::flow::literal_expression_projections(
                 program,
                 local.initial_value,
                 local.type_reference,

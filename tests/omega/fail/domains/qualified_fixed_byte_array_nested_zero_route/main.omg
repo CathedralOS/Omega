@@ -1,0 +1,5 @@
+domain [u8; 8]::Issued(bytes) requires ascii_only(bytes) established by Issuer::issue;
+trait Issuer { machine issue() -> [u8; 8] ensures result in Issued; }
+data Inner { bytes: [u8; 8] in Issued; }
+data Outer { inner: Inner; }
+machine missing() -> Outer { Outer { inner: Inner {} } }

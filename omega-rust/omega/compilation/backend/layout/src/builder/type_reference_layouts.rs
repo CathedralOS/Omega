@@ -6,15 +6,12 @@ use crate::builder::generic_bindings::{
     GenericLayoutBinding, binding_for_type, fixed_array_length,
 };
 use crate::builder::{LayoutBuilder, OpaqueRepresentationDemand};
-use crate::packing::placement_overflow;
 use crate::sizing::{fat_descriptor_layout, primitive_type_layout};
 use diagnostics::Diagnostic;
 use representation_selections::selection_for_opaque;
 use symbols::SymbolHandle;
 use typed_trees::data::DataDefinition;
-use typed_trees::types::{
-    PrimitiveType, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
-};
+use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
 impl<'program> LayoutBuilder<'program> {
     /// Lay out a type reference under `bindings`; callers outside any generic
@@ -61,52 +58,10 @@ impl<'program> LayoutBuilder<'program> {
                     }),
                 }
             }
-            TypeReferenceNode::Constrained {
-                base_type,
-                constraints,
-            } => {
-                let base_layout = self.layout_type_reference_handle(*base_type, bindings)?;
-                // The owned bounded byte carrier `[u8; N] in <named-domain>` lays
-                // out as `{ len, bytes }`: a pointer-sized length word followed by
-                // the N inline bytes. Must agree with the BoundedByteBuffer arm of
-                // instruction-selection's `descriptor_layout`. The OmegaLayout
-                // FAMILY is excluded: `[u8; N] in OmegaLayout<Save>` records what
-                // the bytes hold, never changes what they are -- the wire codec
-                // addresses the plain array directly.
-                let has_named_domain = self
-                    .program
-                    .type_reference_table
-                    .constraints(*constraints)
-                    .iter()
-                    .any(|constraint| match constraint {
-                        TypeConstraintNode::Domain(name) => {
-                            !typed_trees::wire::is_layout_domain_constraint(name)
-                                && language_semantics::CarryPermission::from_name(name.as_str())
-                                    .is_none()
-                        }
-                        _ => false,
-                    });
-                if has_named_domain
-                    && matches!(
-                        self.program.type_reference_table.type_reference(*base_type),
-                        TypeReferenceNode::FixedArray { .. }
-                    )
-                {
-                    // The length word plus the inline bytes must still fit the
-                    // addressable size; a saturated extent would silently lay
-                    // out a buffer smaller than its declared capacity.
-                    let Some(size) = self.target.pointer_size.checked_add(base_layout.size) else {
-                        return Err(placement_overflow(format!(
-                            "bounded byte buffer of {} byte(s) behind a {}-byte length word",
-                            base_layout.size, self.target.pointer_size
-                        )));
-                    };
-                    return Ok(TypeLayout {
-                        size,
-                        alignment: self.target.pointer_alignment,
-                    });
-                }
-                Ok(base_layout)
+            TypeReferenceNode::Constrained { base_type, .. } => {
+                // Domains classify the carrier; they add no length word,
+                // alignment, or payload offset to an exact fixed array.
+                self.layout_type_reference_handle(*base_type, bindings)
             }
             TypeReferenceNode::FixedArray {
                 element_type,

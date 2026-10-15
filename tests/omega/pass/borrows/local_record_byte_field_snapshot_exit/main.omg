@@ -1,16 +1,32 @@
+domain [u8; 8]::Utf8(bytes) requires valid_utf8(bytes);
 use omega_language_std::console;
 
-domain [u8; 8]::Utf8(bytes) requires valid_utf8(bytes);
-data Row { text: [u8; 8] in Utf8; sibling: u64; }
+domain [u8]::Utf8(bytes) requires valid_utf8(bytes);
+// The owner names storage and live length explicitly. Its accessor validates
+// the actual prefix; snapshots copy both fields and retain their own storage.
+data TextBuffer [copy] where used <= 8 { storage: [u8; 8] in Utf8; used: u64; }
+machine TextBuffer::view(buffer: &TextBuffer) -> &[u8] in Utf8 crashes Trap {
+    let bytes: &[u8] = &buffer.storage[..buffer.used];
+    transition valid_utf8(bytes) {
+        true -> checked(bytes)
+        false -> bad()
+    }
+    state checked(bytes: &[u8] in Utf8) -> &[u8] in Utf8 { bytes }
+    state bad() { crash Trap; }
+}
+
+data Row { text: TextBuffer; sibling: u64; }
 data Main { }
 
-machine snapshot(row: &mut Row) -> [u8; 8] in Utf8 { row.text }
-machine Main::main(main: &mut Main) reaches Console {
-    let mut row: Row = Row { text: "Gate", sibling: 17 };
-    let captured: [u8; 8] in Utf8 = snapshot(&mut row);
-    row.text = "é";
-    transition captured == "Gate" && captured.len == 4
-        && row.text == "é" && row.text.len == 2 && row.sibling == 17 {
+machine snapshot(row: &mut Row) -> TextBuffer { row.text }
+machine Main::main(main: &mut Main) reaches Console crashes Trap {
+    let mut row: Row = Row { text: TextBuffer { storage: [71u8, 97u8, 116u8, 101u8, 0u8, 0u8, 0u8, 0u8], used: 4 }, sibling: 17 };
+    let captured: TextBuffer = snapshot(&mut row);
+    row.text = TextBuffer { storage: [195u8, 169u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8], used: 2 };
+    let captured_view: &[u8] in Utf8 = TextBuffer::view(&captured);
+    let row_view: &[u8] in Utf8 = TextBuffer::view(&row.text);
+    transition captured_view == "Gate" && captured.used == 4
+        && row_view == "é" && row.text.used == 2 && row.sibling == 17 {
         true -> finish(main, 70)
         false -> finish(main, 1)
     }

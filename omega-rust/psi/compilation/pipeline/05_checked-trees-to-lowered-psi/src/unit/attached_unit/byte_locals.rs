@@ -2,12 +2,10 @@
 //! Replay joins the payload, carrier and qualifiers before any storage or
 //! local binding is published; no caller's parameter lends it authority.
 //!
-//! Two carriers qualify. A shared byte view (`let s: &[u8] = "ab";`) lends the
-//! literal's image storage. A bounded owner (`let s: [u8; 8] in Utf8 = "ab";`)
-//! owns its capacity and a live length, and may be mutable: a domain-qualified fixed byte array is
-//! a bounded carrier, never a zero-filled raw array
-//! (wiki/spec/language/domains.md, "Byte containers and encoding domains").
-//! A raw `[u8; N]` without a domain keeps its exact-length rule and is refused.
+//! Shared byte views lend immutable literal image storage. Explicit bounded
+//! byte owners retain their own capacity and live length. Exact fixed arrays,
+//! qualified or plain, use fixed-array establishment and never gain a hidden
+//! length from a domain.
 use crate::lowering_error::{LoweringError, unsupported};
 use checked_trees::{CheckedTrees, CheckedUnitEffectOperationPlan};
 

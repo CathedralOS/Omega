@@ -1,3 +1,4 @@
+// Every qualified array holds exactly eight bytes; explicit NUL bytes are content.
 // Qualification contributes no storage: both explicit inputs owe the same domain.
 domain [u8; 8]::NonEmpty(bytes) requires non_empty(bytes);
 data Label { text: [u8; 8] in NonEmpty; }
@@ -7,21 +8,21 @@ machine observe(text: &[u8; 8] in NonEmpty) -> bool { text.len > 0 }
 
 machine Packet::replace(packet: &mut Packet) -> bool {
     let before: bool = observe(&packet.label.text);
-    packet.label.text = "method";
+    packet.label.text = "method\0\0";
     before && observe(&packet.label.text)
 }
 
 machine replace(packet: &mut Packet) -> bool {
     let before: bool = observe(&packet.label.text);
-    packet.label.text = "named";
+    packet.label.text = "named\0\0\0";
     before && observe(&packet.label.text)
 }
 
 machine main() crashes Trap {
-    let mut packet: Packet = Packet { label: Label { text: "start" } };
+    let mut packet: Packet = Packet { label: Label { text: "start\0\0\0" } };
     let qualified: bool = Packet::replace(&mut packet);
     let named: bool = replace(&mut packet);
-    transition qualified && named && packet.label.text == "named" {
+    transition qualified && named && packet.label.text == "named\0\0\0" {
         true -> done()
         _ -> bad()
     }

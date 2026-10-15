@@ -247,9 +247,8 @@ impl TerminalExecution<'_> {
             return Err(malformed());
         }
         let (access, parameter_root) = if let Some(parameter) = machine.structural_parameter(root) {
-            if !parameter.is_unqualified_root() {
-                return Err(malformed());
-            }
+            // The verified parameter retains its predicate roster. Selecting
+            // its current field changes neither custody nor qualification.
             (parameter.access, true)
         } else {
             // Admission already verified the exact producer and its declaration

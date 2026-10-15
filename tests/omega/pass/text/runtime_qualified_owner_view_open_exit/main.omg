@@ -1,32 +1,51 @@
+domain [u8]::Utf8(bytes) requires valid_utf8(bytes);
 // Expected exit: 0. Reading a plain view keeps the qualified owner's
 // live byte length through locals, borrowed arrivals and owned arrivals.
 domain [u8; 8]::Utf8(bytes) requires valid_utf8(bytes);
 data Main {}
 
-machine count(bytes: &[u8]) -> u64 { bytes.len }
+machine count(bytes: &[u8]) -> u64 crashes Trap { bytes.len }
 
-machine replace(line: &mut [u8; 8] in Utf8) -> bool {
-    line = "é";
-    let first: bool = count(line) == 2;
+machine replace(line: &mut TextBuffer) -> bool crashes Trap {
+    line = TextBuffer { storage: [195u8, 169u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8], used: 2 };
+    let first: bool = count(TextBuffer::view(&line)) == 2;
     transition { _ -> arrived(line, first) }
-    state arrived(line: &mut [u8; 8] in Utf8, first: bool) {
-        line = "abc";
-        first && count(line) == 3
+    state arrived(line: &mut TextBuffer, first: bool) {
+        line = TextBuffer { storage: [97u8, 98u8, 99u8, 0u8, 0u8, 0u8, 0u8, 0u8], used: 3 };
+        first && count(TextBuffer::view(&line)) == 3
     }
 }
 
-machine owned(line: [u8; 8] in Utf8) -> bool {
+machine owned(line: TextBuffer) -> bool crashes Trap {
     transition { _ -> arrived(line) }
-    state arrived(line: [u8; 8] in Utf8) { count(&line) == 4 }
+    state arrived(line: TextBuffer) { count(TextBuffer::view(&line)) == 4 }
 }
 
 machine Main::main(main: &mut Main) crashes Trap {
-    let mut line: [u8; 8] in Utf8 = "Gate";
-    let local: bool = count(&line) == 4;
+    let mut line: TextBuffer = TextBuffer { storage: [71u8, 97u8, 116u8, 101u8, 0u8, 0u8, 0u8, 0u8], used: 4 };
+    let local: bool = count(TextBuffer::view(&line)) == 4;
     let changed: bool = replace(&mut line);
-    let carried: bool = owned("Gate");
-    transition local && changed && carried && line == "abc" {
+    let carried: bool = owned(TextBuffer { storage: [71u8, 97u8, 116u8, 101u8, 0u8, 0u8, 0u8, 0u8], used: 4 });
+    transition local && changed && carried && TextBuffer::equal(&line, "abc") {
         true -> done() false -> bad()
     }
     state done() {} state bad() { crash Trap; }
+}
+
+
+// A variable-fill value explicitly owns its fixed storage and live length.
+// Copies retain both; an accessor borrows and checks the selected copy's prefix.
+data TextBuffer [copy] where used <= 8 { storage: [u8; 8] in Utf8; used: u64; }
+machine TextBuffer::view(buffer: &TextBuffer) -> &[u8] in Utf8 crashes Trap {
+    let bytes: &[u8] = &buffer.storage[..buffer.used];
+    transition valid_utf8(bytes) {
+        true -> checked(bytes)
+        false -> bad()
+    }
+    state checked(bytes: &[u8] in Utf8) -> &[u8] in Utf8 { bytes }
+    state bad() { crash Trap; }
+}
+machine TextBuffer::equal(buffer: &TextBuffer, expected: &[u8]) -> bool crashes Trap {
+    let bytes: &[u8] in Utf8 = TextBuffer::view(buffer);
+    bytes == expected
 }

@@ -1,3 +1,4 @@
+domain [u8]::Utf8(bytes) requires valid_utf8(bytes);
 use omega_language_std::console;
 
 domain [u8; 16]::Utf8(bytes)
@@ -9,32 +10,19 @@ requires
     valid_utf8(bytes);
 
 data Main {
-    line: [u8; 32] in Utf8;
-    suffix: [u8; 16] in Utf8;
+    line: Buffer32;
+    suffix: Buffer16;
 }
 
-machine Main::main(main: &mut Main) reaches Console {
-    main.line = "";
-    main.suffix = "omega";
+machine Main::main(main: &mut Main) reaches Console crashes Trap {
+    main.line = Buffer32 { storage: [0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8], used: 0 };
+    main.suffix = Buffer16 { storage: [111u8, 109u8, 101u8, 103u8, 97u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8], used: 5 };
 
-    transition main.suffix {
-        _ -> write_line(main, &mut main.line, main.suffix)
-    }
-
-    state write_line(
-        main: &mut Main,
-        out_line: &mut [u8; 32] in Utf8,
-        suffix: [u8; 16] in Utf8
-    ) {
-        out_line = "prefix " + suffix;
-        Console::write_line(out_line);
-
-        // `out_line` holds `main.line` exclusively until this state ends.
-        transition { _ -> verify(main) }
-    }
+    write_line(&mut main.line, main.suffix);
+    transition { _ -> verify(main) }
 
     state verify(main: &mut Main) {
-        transition main.line == "prefix omega" {
+        transition Buffer32::equal(&main.line, "prefix omega") {
             true -> good(main)
             false -> bad(main)
         }
@@ -47,4 +35,127 @@ machine Main::main(main: &mut Main) reaches Console {
     state bad(main: &mut Main) {
         Console::exit_process(78);
     }
+}
+
+// Split disjoint console and text loans; the explicit owner's invariant stays closed.
+machine write_line(out_line: &mut Buffer32, suffix: Buffer16)
+reaches Console crashes Trap {
+    out_line = Buffer32::join("prefix ", Buffer16::view(&suffix));
+    Console::write_line(Buffer32::view(out_line));
+}
+
+// Explicit fixed capacity and live-prefix length; qualification belongs to the checked view.
+data Buffer16 [copy] where used <= 16 { storage: [u8; 16]; used: u64; }
+machine Buffer16::view(buffer: &Buffer16) -> &[u8] in Utf8 crashes Trap {
+    let bytes: &[u8] = &buffer.storage[..buffer.used];
+    transition valid_utf8(bytes) {
+        true -> checked(bytes)
+        false -> bad()
+    }
+    state checked(bytes: &[u8] in Utf8) -> &[u8] in Utf8 { bytes }
+    state bad() { crash Trap; }
+}
+machine Buffer16::equal(buffer: &Buffer16, expected: &[u8]) -> bool crashes Trap {
+    let bytes: &[u8] in Utf8 = Buffer16::view(buffer);
+    bytes == expected
+}
+
+machine Buffer16::copy(storage: &mut [u8; 16], bytes: &[u8], start: u64)
+requires start <= 16; bytes.len <= 16 - start {
+    transition { _ -> copying(storage, bytes, start, 0) }
+    state copying(storage: &mut [u8; 16], bytes: &[u8], start: u64, index: u64)
+    requires start <= 16; index <= 16 {
+        transition index < bytes.len && start + index < 16 {
+            true -> writing(storage, bytes, start, index)
+            _ -> done()
+        }
+    }
+    state writing(storage: &mut [u8; 16], bytes: &[u8], start: u64, index: u64)
+    requires start <= 16; index < 16; index < bytes.len; start + index < 16 {
+        storage[start + index] = bytes[index];
+        transition { _ -> copying(storage, bytes, start, index + 1) }
+    }
+    state done() {}
+}
+machine Buffer16::join(left: &[u8], right: &[u8]) -> Buffer16 crashes Trap {
+    transition left.len <= 16 && right.len <= 16 - left.len {
+        true -> joining(left, right)
+        _ -> bad()
+    }
+    state joining(left: &[u8], right: &[u8]) -> Buffer16
+    requires left.len <= 16; right.len <= 16 - left.len {
+    let mut result: Buffer16;
+    Buffer16::copy(&mut result.storage, left, 0);
+    Buffer16::copy(&mut result.storage, right, left.len);
+    let total: u64 = left.len + right.len;
+    transition total <= 16 {
+        true -> checked(result, total)
+        _ -> bad()
+    }
+    }
+    state checked(result: Buffer16, total: u64) -> Buffer16
+    requires total <= 16 {
+        let mut value: Buffer16 = result;
+        value.used = total;
+        value
+    }
+    state bad() { crash Trap; }
+}
+
+// Explicit fixed capacity and live-prefix length; qualification belongs to the checked view.
+data Buffer32 [copy] where used <= 32 { storage: [u8; 32]; used: u64; }
+machine Buffer32::view(buffer: &Buffer32) -> &[u8] in Utf8 crashes Trap {
+    let bytes: &[u8] = &buffer.storage[..buffer.used];
+    transition valid_utf8(bytes) {
+        true -> checked(bytes)
+        false -> bad()
+    }
+    state checked(bytes: &[u8] in Utf8) -> &[u8] in Utf8 { bytes }
+    state bad() { crash Trap; }
+}
+machine Buffer32::equal(buffer: &Buffer32, expected: &[u8]) -> bool crashes Trap {
+    let bytes: &[u8] in Utf8 = Buffer32::view(buffer);
+    bytes == expected
+}
+
+machine Buffer32::copy(storage: &mut [u8; 32], bytes: &[u8], start: u64)
+requires start <= 32; bytes.len <= 32 - start {
+    transition { _ -> copying(storage, bytes, start, 0) }
+    state copying(storage: &mut [u8; 32], bytes: &[u8], start: u64, index: u64)
+    requires start <= 32; index <= 32 {
+        transition index < bytes.len && start + index < 32 {
+            true -> writing(storage, bytes, start, index)
+            _ -> done()
+        }
+    }
+    state writing(storage: &mut [u8; 32], bytes: &[u8], start: u64, index: u64)
+    requires start <= 32; index < 32; index < bytes.len; start + index < 32 {
+        storage[start + index] = bytes[index];
+        transition { _ -> copying(storage, bytes, start, index + 1) }
+    }
+    state done() {}
+}
+machine Buffer32::join(left: &[u8], right: &[u8]) -> Buffer32 crashes Trap {
+    transition left.len <= 32 && right.len <= 32 - left.len {
+        true -> joining(left, right)
+        _ -> bad()
+    }
+    state joining(left: &[u8], right: &[u8]) -> Buffer32
+    requires left.len <= 32; right.len <= 32 - left.len {
+    let mut result: Buffer32;
+    Buffer32::copy(&mut result.storage, left, 0);
+    Buffer32::copy(&mut result.storage, right, left.len);
+    let total: u64 = left.len + right.len;
+    transition total <= 32 {
+        true -> checked(result, total)
+        _ -> bad()
+    }
+    }
+    state checked(result: Buffer32, total: u64) -> Buffer32
+    requires total <= 32 {
+        let mut value: Buffer32 = result;
+        value.used = total;
+        value
+    }
+    state bad() { crash Trap; }
 }

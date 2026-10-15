@@ -447,3 +447,42 @@ pub fn zeroed_structural_leaves_with_established_erased_fields<'types>(
     }
     consumed.iter().all(|consumed| *consumed).then_some(leaves)
 }
+
+/// Replay predicate-only memberships on the active zero-filled fixed byte
+/// arrays. This proves values, never routed authority or hidden live lengths.
+pub fn zeroed_projected_byte_qualifications_hold<'a>(
+    types: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
+    domains: impl Iterator<Item = &'a terminal_psi::StructuralDomainDeclaration> + Clone,
+    root: StructuralTypeId,
+    qualifications: &[terminal_psi::StructuralPathQualification],
+) -> bool {
+    qualifications.iter().all(|row| {
+        if row.path.is_empty() { return false; }
+        for (index, segment) in row.path.iter().enumerate() {
+            if let StructuralPathSegment::Case(selected) = segment {
+                let Some(parent) = crate::runtime_structural_path_tip(types.clone(), root, &row.path[..index]) else { return false; };
+                let cases = match &parent.shape {
+                    StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. } => cases,
+                    _ => return false,
+                };
+                if cases.first().map(|case| case.id) != Some(*selected) { return false; }
+            }
+        }
+        let Some(carrier) = crate::runtime_structural_path_tip(types.clone(), root, &row.path) else { return false; };
+        let StructuralTypeShape::FixedArray { element, length } = carrier.shape else { return false; };
+        if !types.clone().any(|ty| ty.id == element && matches!(ty.shape,
+            StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer))
+                if integer.sign() == IntegerSign::Unsigned && integer.bits() == 8 && !integer.is_address())) {
+            return false;
+        }
+        let Some(domain) = domains.clone().find(|domain| domain.id == row.domain) else { return false; };
+        domain.carrier == carrier.id
+            && domain.content_projection.is_none()
+            && domain.establishment_routes.is_empty()
+            && domain.byte_predicate.is_some_and(|predicate| match predicate {
+                terminal_psi::ByteSequencePredicate::ValidUtf8 | terminal_psi::ByteSequencePredicate::AsciiOnly => true,
+                terminal_psi::ByteSequencePredicate::NoNul => length == 0,
+                terminal_psi::ByteSequencePredicate::NonEmpty => length != 0,
+            })
+    })
+}

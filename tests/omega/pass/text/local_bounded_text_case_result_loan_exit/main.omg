@@ -18,20 +18,20 @@ data Leading {
     case Byte(value: u64);
 }
 
-machine leading(text: &[u8; 16] in Utf8) -> Leading {
+machine leading(text: &TextBuffer) -> Leading crashes Trap {
     transition {
         _ -> inspect(text)
     }
 
-    state inspect(text: &[u8; 16] in Utf8) -> Leading {
-        transition 0 < text.len {
+    state inspect(text: &TextBuffer) -> Leading {
+        transition 0 < text.used {
             true -> read(text)
             _ -> (Leading::Empty)
         }
     }
 
-    state read(text: &[u8; 16] in Utf8) -> Leading {
-        let byte: u8 = text[0];
+    state read(text: &TextBuffer) -> Leading {
+        let byte: u8 = text.storage[0];
         transition {
             _ -> (Leading::Byte { value: byte as u64 })
         }
@@ -39,8 +39,8 @@ machine leading(text: &[u8; 16] in Utf8) -> Leading {
 }
 
 data Main { }
-machine Main::main(main: &mut Main) reaches Console {
-    let text: [u8; 16] in Utf8 = "OK";
+machine Main::main(main: &mut Main) reaches Console crashes Trap {
+    let text: TextBuffer = TextBuffer { storage: [79u8, 75u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8], used: 2 };
     let lead: Leading = leading(&text);
     transition lead {
         Leading::Byte { value } -> check(value)
@@ -57,4 +57,22 @@ machine Main::main(main: &mut Main) reaches Console {
     state finish(code: i32) {
         Console::exit_process(code);
     }
+}
+
+
+// A variable-fill value explicitly owns its fixed storage and live length.
+// Copies retain both; an accessor borrows and checks the selected copy's prefix.
+data TextBuffer [copy] where used <= 16 { storage: [u8; 16] in Utf8; used: u64; }
+machine TextBuffer::view(buffer: &TextBuffer) -> &[u8] in Utf8 crashes Trap {
+    let bytes: &[u8] = &buffer.storage[..buffer.used];
+    transition valid_utf8(bytes) {
+        true -> checked(bytes)
+        false -> bad()
+    }
+    state checked(bytes: &[u8] in Utf8) -> &[u8] in Utf8 { bytes }
+    state bad() { crash Trap; }
+}
+machine TextBuffer::equal(buffer: &TextBuffer, expected: &[u8]) -> bool crashes Trap {
+    let bytes: &[u8] in Utf8 = TextBuffer::view(buffer);
+    bytes == expected
 }

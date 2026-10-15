@@ -97,6 +97,19 @@ impl Execution<'_, '_, '_> {
         &mut self,
         source: &CanonicalPlace,
     ) -> Option<HandleSpan<FlowOperandReferent>> {
+        // Incoming borrowed parameters lend their referent, not a replaceable
+        // descriptor slot. Whole-referent writes therefore preserve this
+        // symbolic address. Stored fields and local descriptors still require
+        // the reaching capture and replacement checks below.
+        if source.segments.is_empty()
+            && source.root.as_symbol().is_some_and(|symbol| {
+                self.program
+                    .state_parameter_by_symbol(self.state, symbol)
+                    .is_some_and(|parameter| self.is_view_type(parameter.type_reference))
+            })
+        {
+            return None;
+        }
         if !super::super::operand_contexts::binding_origin_is_stable(
             self.program,
             &self.context.control,

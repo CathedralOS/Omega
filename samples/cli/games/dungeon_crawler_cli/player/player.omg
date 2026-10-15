@@ -1,3 +1,4 @@
+use text::buffer;
 use omega_language_std::math;
 
 use inventory::inventory;
@@ -10,10 +11,12 @@ data PlayerSystem {
 
 machine PlayerSystem::create(
     player_system: &mut PlayerSystem,
-    name: [u8; 16] in Utf8,
+    name: &[u8] in Ascii,
     player: &mut Player
-) {
-    player.name = name;
+)
+requires name.len <= 16
+{
+    PlayerName::set(&mut player.name, name);
     player.level = 1;
     player.xp = 0;
     player.max_health = 30;
@@ -77,4 +80,32 @@ machine PlayerSystem::xp_required(level: u32 in Wrapping) -> u32 {
     transition {
         _ -> ((10 + level * 5) as u32)
     }
+}
+
+machine PlayerName::copy(buffer: &mut [u8; 16] in Ascii, bytes: &[u8] in Ascii, start: u64)
+requires start <= 16; bytes.len <= 16 - start
+{
+    transition { _ -> copying(buffer, bytes, start, 0) }
+    state copying(buffer: &mut [u8; 16] in Ascii, bytes: &[u8] in Ascii, start: u64, index: u64)
+    requires start <= 16; index <= 16
+    {
+        transition index < bytes.len && start + index < 16 {
+            true -> writing(buffer, bytes, start, index)
+            _ -> done()
+        }
+    }
+    state writing(buffer: &mut [u8; 16] in Ascii, bytes: &[u8] in Ascii, start: u64, index: u64)
+    requires start <= 16; index < 16; index < bytes.len; start + index < 16
+    {
+        buffer[start + index] = bytes[index];
+        transition { _ -> copying(buffer, bytes, start, index + 1) }
+    }
+    state done() {}
+}
+
+machine PlayerName::set(buffer: &mut PlayerName, bytes: &[u8] in Ascii)
+requires bytes.len <= 16
+{
+    PlayerName::copy(&mut buffer.storage, bytes, 0);
+    buffer.used = bytes.len;
 }

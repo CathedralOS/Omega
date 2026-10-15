@@ -48,7 +48,6 @@ pub(super) struct Completion<'a, 'program, 'shapes> {
     pub(super) structural_count: usize,
     pub(super) structural_local_symbols: Vec<SymbolHandle>,
     pub(super) windows: super::super::super::borrowed_windows::OpenWindows,
-    pub(super) array_bindings: Vec<(SymbolHandle, CheckedUnitStructuralResultBindingPlan)>,
     pub(super) returned_call: Option<CheckedUnitStructuralResultBindingPlan>,
     pub(super) returned_scalar_call: Option<CheckedUnitScalarResultBindingPlan>,
     pub(super) structural_results: Vec<(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)>,
@@ -76,7 +75,6 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
         mut structural_count,
         structural_local_symbols,
         mut windows,
-        array_bindings,
         returned_call,
         mut returned_scalar_call,
         mut structural_results,
@@ -276,7 +274,9 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
             }
         }
         return_binding(binding)
-    } else if validation::is_closed_primitive_array_type(program, state.return_type) {
+    } else if tail.is_some()
+        && validation::is_closed_primitive_array_type(program, state.return_type)
+    {
         trace.phase("statement sequence: structural result: returned scalar array");
         let statements = typed_trees::statement::reachable_state_statements(
             program.statement_table.statements(state.statement_nodes),
@@ -289,46 +289,44 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
             .and_then(|statement| statement.as_expression().copied())
         {
             let statement_index = u32::try_from(statements.len().checked_sub(1)?).ok()?;
-            if let Some(path) = program.expression_table.name_path_node(expression) {
-                if let Some((_, binding)) = array_bindings
-                    .iter()
-                    .find(|(symbol, _)| *symbol == path.symbol)
-                {
-                    if binding.type_identity != program.normalized_type_identity(state.return_type)
-                    {
-                        return None;
-                    }
-                    return_binding(binding.clone())
-                } else {
-                    return None;
-                }
-            } else {
-                let elements = super::super::scalar_arrays::elements(
-                    program,
-                    facts,
-                    machine.symbol,
-                    state.symbol,
-                    statement_index,
-                    checked_trees::CheckedArrayConstructionSource::Statement,
-                    expression,
-                    state.return_type,
-                )?;
-                let result = CheckedUnitStructuralResultBindingPlan {
-                    statement_index,
-                    binding_ordinal: u32::try_from(structural_count).ok()?,
-                    type_identity: shapes.add_type(state.return_type, binders, &[])?,
-                    multiplicity: Multiplicity::Unrestricted,
-                    local: Default::default(),
-                };
-                operations.push(CheckedUnitEffectOperationPlan::EstablishLocal(
-                    checked_trees::CheckedUnitLocalBindingPlan::ScalarArray {
-                        source: checked_trees::CheckedArrayConstructionSource::Statement,
-                        result: result.clone(),
-                        elements,
-                    },
-                ));
-                return_binding(result)
+            // Scalar array completion snapshots the current value through its
+            // checked element computations. A name may be a formal or a replaced
+            // local; its initial binding is not the value being returned.
+            let elements = super::super::scalar_arrays::elements(
+                program,
+                facts,
+                machine.symbol,
+                state.symbol,
+                statement_index,
+                checked_trees::CheckedArrayConstructionSource::Statement,
+                expression,
+                state.return_type,
+            )?;
+            let result = CheckedUnitStructuralResultBindingPlan {
+                statement_index,
+                binding_ordinal: u32::try_from(structural_count).ok()?,
+                type_identity: shapes.add_type(state.return_type, binders, &[])?,
+                multiplicity: program.type_multiplicity(state.return_type),
+                local: Default::default(),
+            };
+            let qualifications = facts.qualifications.formation_domains_at(
+                machine.symbol,
+                state.symbol,
+                statement_index,
+                expression,
+            );
+            for domain in &qualifications {
+                shapes.add_domain(*domain, state.return_type, binders)?;
             }
+            operations.push(CheckedUnitEffectOperationPlan::EstablishLocal(
+                checked_trees::CheckedUnitLocalBindingPlan::ScalarArray {
+                    qualifications,
+                    source: checked_trees::CheckedArrayConstructionSource::Statement,
+                    result: result.clone(),
+                    elements,
+                },
+            ));
+            return_binding(result)
         } else {
             None
         }

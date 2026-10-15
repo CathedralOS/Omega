@@ -1,0 +1,33 @@
+// Expected exit: 0
+// Qualified child copy from a state parameter with a later borrowed whole store.
+domain [u8; 8]::Ascii(bytes) requires ascii_only(bytes);
+data Label [copy] { storage: [u8; 8] in Ascii; }
+data Room [copy] { label: Label; marker: u64; }
+data Level [copy] { rooms: [Room; 16]; }
+machine lookup(level: Level, output: &mut Room) {
+    let rooms: &[Room] = &level.rooms[..];
+    transition { _ -> search(rooms, output, 0) }
+    state search(rooms: &[Room], output: &mut Room, index: u64 in Wrapping)
+    requires index < 16 {
+        transition rooms[index].marker == 0 {
+            true -> apply(rooms[index], output)
+            false -> {}
+        }
+    }
+    state apply(room: Room, output: &mut Room) {
+        output.marker = room.marker;
+        output.label = room.label;
+    }
+}
+machine main() crashes Trap {
+    let room: Room = Room { label: Label { storage: "omega600" }, marker: 0 };
+    let level: Level = Level { rooms: [room, room, room, room, room, room, room, room, room, room, room, room, room, room, room, room] };
+    let mut output: Room;
+    lookup(level, &mut output);
+    transition output.label.storage.len == 8 && output.label.storage[0] == 111 {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

@@ -574,7 +574,7 @@ pub(super) fn plan(
         }
         return Some(LocalPlan::Planned);
     }
-    if validation::is_closed_primitive_array_type(program, local.type_reference)
+    if validation::scalar_array_preserves_memberships(program, local.type_reference)
         && !matches!(
             program.expression_table.expression(local.initial_value),
             ExpressionNode::Call(_)
@@ -587,7 +587,7 @@ pub(super) fn plan(
             statement_index,
             binding_ordinal: u32::try_from(*structural_count).ok()?,
             type_identity: shapes.add_type(local.type_reference, binders, &[])?,
-            multiplicity: Multiplicity::Unrestricted,
+            multiplicity: program.type_multiplicity(local.type_reference),
             local: initialized_local(program, machine, state, local),
         };
         local_phase("statement sequence: local data: scalar array: elements");
@@ -605,8 +605,18 @@ pub(super) fn plan(
         array_bindings.push((local.symbol, result.clone()));
         structural_results.push((result.clone(), facts::PlaceRoot::Symbol(local.symbol)));
         structural_local_symbols.push(local.symbol);
+        let qualifications = facts.qualifications.formation_domains_at(
+            machine.symbol,
+            state.symbol,
+            statement_index,
+            local.initial_value,
+        );
+        for domain in &qualifications {
+            shapes.add_domain(*domain, local.type_reference, binders)?;
+        }
         operations.push(CheckedUnitEffectOperationPlan::EstablishLocal(
             checked_trees::CheckedUnitLocalBindingPlan::ScalarArray {
+                qualifications,
                 source: checked_trees::CheckedArrayConstructionSource::Statement,
                 result,
                 elements,

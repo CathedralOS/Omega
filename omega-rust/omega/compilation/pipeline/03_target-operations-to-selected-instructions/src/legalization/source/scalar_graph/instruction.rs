@@ -506,31 +506,41 @@ pub(super) fn project(
                 }
             }
             AbstractOperation::ByteSequenceLength { source, .. } => {
-                let (geometry, carrier) =
+                if let Some(length) = scalar_graph_input::element_views::fixed_byte_length(
+                    optimized,
+                    source,
+                    &unit.structural_types,
+                ) {
+                    LegalizedScalarInstructionKind::Constant(IntegerValue::Unsigned(u128::from(
+                        length,
+                    )))
+                } else {
+                    let (geometry, carrier) =
                     crate::legalization::scalar_graph_input::element_views::byte_length_geometry(
                         optimized,
                         source,
                         &unit.structural_types,
                     )
                     .ok_or(LegalizationError::custody())?;
-                LegalizedScalarInstructionKind::ByteSequenceLength {
-                    source: source.clone(),
-                    indices: crate::legalization::runtime_indices::operands(
-                        optimized,
-                        unit,
-                        node.operation
-                            .psi_operation()
-                            .ok_or(LegalizationError::custody())?,
-                        &geometry.elements,
-                    )?,
-                    length_byte_offset: if matches!(
-                        carrier,
-                        terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
-                    ) {
-                        8
-                    } else {
-                        0
-                    },
+                    LegalizedScalarInstructionKind::ByteSequenceLength {
+                        source: source.clone(),
+                        indices: crate::legalization::runtime_indices::operands(
+                            optimized,
+                            unit,
+                            node.operation
+                                .psi_operation()
+                                .ok_or(LegalizationError::custody())?,
+                            &geometry.elements,
+                        )?,
+                        length_byte_offset: if matches!(
+                            carrier,
+                            terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
+                        ) {
+                            8
+                        } else {
+                            0
+                        },
+                    }
                 }
             }
             AbstractOperation::ElementViewLength { source, .. } => {

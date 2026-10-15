@@ -5,12 +5,6 @@
 use super::replay::{Origin, State, Value};
 use super::*;
 
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub(super) enum ContentsTarget {
-    Storage(DescriptorLocation),
-    Incoming(DescriptorContentsQuery),
-}
-
 impl Replay<'_> {
     pub(super) fn read_contents(
         &self,
@@ -21,10 +15,10 @@ impl Replay<'_> {
         let mut origins = BTreeSet::new();
         for target in self.contents_targets(machine, state, query)? {
             match target {
-                ContentsTarget::Storage(location) => {
+                DescriptorPayloadTarget::Storage(location) => {
                     origins.extend(self.read(machine, state, &location)?);
                 }
-                ContentsTarget::Incoming(query) => {
+                DescriptorPayloadTarget::Incoming(query) => {
                     origins.extend(state.incoming_contents(&query)?);
                 }
             }
@@ -37,7 +31,7 @@ impl Replay<'_> {
         machine: &DescriptorMachine,
         state: &State,
         query: &DescriptorContentsQuery,
-    ) -> Option<BTreeSet<ContentsTarget>> {
+    ) -> Option<BTreeSet<DescriptorPayloadTarget>> {
         if state.contents_invalidated
             && query
                 .steps
@@ -63,7 +57,7 @@ impl Replay<'_> {
         location: &DescriptorLocation,
         steps: &[DescriptorContentsStep],
         depth: usize,
-    ) -> Option<BTreeSet<ContentsTarget>> {
+    ) -> Option<BTreeSet<DescriptorPayloadTarget>> {
         if depth >= 128 {
             return None;
         }
@@ -79,7 +73,7 @@ impl Replay<'_> {
             selected.path.push(segment.clone());
         }
         let Some(DescriptorContentsStep::AnyElement { element }) = steps.get(prefix_length) else {
-            return Some(BTreeSet::from([ContentsTarget::Storage(
+            return Some(BTreeSet::from([DescriptorPayloadTarget::Storage(
                 self.canonical_storage(machine, state, &selected)?,
             )]));
         };
@@ -144,10 +138,17 @@ impl Replay<'_> {
         element: StructuralTypeId,
         suffix: &[DescriptorContentsStep],
         depth: usize,
-    ) -> Option<BTreeSet<ContentsTarget>> {
+    ) -> Option<BTreeSet<DescriptorPayloadTarget>> {
         let mut steps = vec![DescriptorContentsStep::AnyElement { element }];
         steps.extend_from_slice(suffix);
         let incoming = match origin {
+            Origin::Backing(DescriptorCallOrigin::Empty) => return Some(BTreeSet::new()),
+            // A view established over inline parameter storage retains that
+            // storage origin. Follow its typed elements just as for a captured
+            // backing argument; the descriptor is not an unknown payload.
+            Origin::Storage(location) => {
+                return self.contents_targets_at(machine, state, &location, &steps, depth + 1);
+            }
             Origin::Incoming(location) => Some(DescriptorContentsQuery::from_location(&location)),
             Origin::IncomingContents(query) => Some(query),
             Origin::Backing(DescriptorCallOrigin::Argument { source, projection }) => {
@@ -192,7 +193,9 @@ impl Replay<'_> {
         incoming.steps.extend(steps);
         let (_, _, root_type) = self.parameter(machine, incoming.root)?;
         incoming.validate(self.types, root_type)?;
-        Some(BTreeSet::from([ContentsTarget::Incoming(incoming)]))
+        Some(BTreeSet::from([DescriptorPayloadTarget::Incoming(
+            incoming,
+        )]))
     }
 
     /// Payload provenance only. A weak update retains all old alternatives;
@@ -241,21 +244,23 @@ impl Replay<'_> {
         before: &State,
         query: &DescriptorContentsQuery,
         incoming: Value,
-        replacements: &mut BTreeMap<ContentsTarget, Value>,
+        replacements: &mut BTreeMap<DescriptorPayloadTarget, Value>,
     ) -> Option<()> {
         let targets = self.contents_targets(machine, before, query)?;
         if targets.is_empty() {
             return None;
         }
-        let strong =
-            targets.len() == 1 && matches!(targets.first(), Some(ContentsTarget::Storage(_)));
+        let strong = targets.len() == 1
+            && matches!(targets.first(), Some(DescriptorPayloadTarget::Storage(_)));
         for target in targets {
             let value = if strong {
                 incoming.clone()
             } else {
                 let previous = match &target {
-                    ContentsTarget::Storage(location) => self.read(machine, before, location),
-                    ContentsTarget::Incoming(query) => before.incoming_contents(query),
+                    DescriptorPayloadTarget::Storage(location) => {
+                        self.read(machine, before, location)
+                    }
+                    DescriptorPayloadTarget::Incoming(query) => before.incoming_contents(query),
                 };
                 match (previous, incoming.as_ref()) {
                     (Some(mut previous), Some(incoming)) => {
@@ -280,17 +285,17 @@ impl Replay<'_> {
 
     pub(super) fn install_contents(
         state: &mut State,
-        replacements: BTreeMap<ContentsTarget, Value>,
+        replacements: BTreeMap<DescriptorPayloadTarget, Value>,
     ) {
         for (target, value) in replacements {
             match target {
-                ContentsTarget::Storage(location) => {
+                DescriptorPayloadTarget::Storage(location) => {
                     state
                         .slots
                         .retain(|stored, _| stored == &location || !location.contains(stored));
                     state.slots.insert(location, value);
                 }
-                ContentsTarget::Incoming(query) => {
+                DescriptorPayloadTarget::Incoming(query) => {
                     state.contents.insert(query, value);
                 }
             }

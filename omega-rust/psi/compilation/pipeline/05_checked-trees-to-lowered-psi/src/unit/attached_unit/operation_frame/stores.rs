@@ -53,7 +53,9 @@ impl OperationFrame<'_, '_> {
         store: &CheckedStorePlan,
     ) -> Result<(), LoweringError> {
         match &store.destination.leaf {
-            CheckedStoreLeaf::Primitive { receiving_range } => {
+            CheckedStoreLeaf::Primitive {
+                receiving_range, ..
+            } => {
                 if let Some(range) = receiving_range
                     && !crate::emission::structural_scalar_store::source_range_decided(
                         self.checked,
@@ -75,7 +77,7 @@ impl OperationFrame<'_, '_> {
                 self.indexed_write(identities, target)
             }
             CheckedStoreLeaf::ViewElement { .. } => {
-                let target = self.view_element_target(store)?;
+                let target = self.view_element_target(identities, store)?;
                 self.indexed_write(identities, target)
             }
             CheckedStoreLeaf::RepresentationView { view } => {
@@ -95,7 +97,12 @@ impl OperationFrame<'_, '_> {
                 };
                 let source = match store.destination.root {
                     checked_trees::CheckedStoreRoot::Parameter { .. } => {
-                        self.window_destination(store.destination.root)?.1
+                        self.window_destination(
+                            identities,
+                            store.destination.root,
+                            &store.destination.path,
+                        )?
+                        .1
                     }
                     checked_trees::CheckedStoreRoot::Local { symbol } => {
                         checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
@@ -257,12 +264,6 @@ impl OperationFrame<'_, '_> {
                 }
                 let source = home.argument.clone();
                 let declared = home.structural_type;
-                let scalar_restriction = crate::emission::primitive_store::destination_restriction(
-                    identities,
-                    declared,
-                    path,
-                    self.structural_types.declarations(),
-                )?;
                 let (steps, scalar_type) =
                     crate::emission::primitive_store::lower_destination_path(
                         identities,
@@ -279,27 +280,51 @@ impl OperationFrame<'_, '_> {
                     .map(crate::emission::runtime_elements::ProjectionStep::Static)
                     .collect::<Vec<_>>();
                 composed.extend(steps);
+                let root = crate::emission::store_destination::local_store_place(
+                    *symbol,
+                    &self.evaluation.structural_locals,
+                    self.evaluation.structural_root_parameters(),
+                    self.operations,
+                )?;
                 crate::emission::primitive_store::Destination {
+                    logical_receiving: None,
+                    qualifications: root.qualifications.to_vec(),
+                    projected_qualifications: root.projected_qualifications.to_vec(),
                     place: source.place,
-                    root_type: self.declared_storage_type(source.place)?,
+                    root_type: root.structural_type,
                     path: composed,
-                    scalar_restriction,
                     scalar_type,
                 }
             }
         };
-        let (_, source) = self.window_destination(store.destination.root)?;
-        if let Some((place, path)) =
+        let (_, source) = self.assignment_source(store.destination.root)?;
+        if let Some(captured) =
             self.windows
                 .captured_assignment_place(identities, statement_index, &source, path)?
         {
-            destination.place = place;
-            destination.root_type = self.declared_storage_type(place)?;
-            destination.path = path
+            let logical = self.receiving_place(captured.original_source, captured.original_path)?;
+            let physical = self.receiving_place(captured.source, captured.path)?;
+            if physical.root_type != captured.root_type {
+                return unsupported("captured primitive destination changed its root declaration");
+            }
+            destination.logical_receiving = Some(logical);
+            destination.place = captured.source;
+            destination.root_type = physical.root_type;
+            destination.qualifications = physical.qualifications;
+            destination.projected_qualifications = physical.projected_qualifications;
+            destination.path = physical
+                .path
                 .into_iter()
                 .map(crate::emission::runtime_elements::ProjectionStep::Static)
                 .collect();
         }
+        let preserves_byte_memberships = matches!(
+            store.destination.leaf,
+            CheckedStoreLeaf::Primitive {
+                preserves_byte_memberships: true,
+                ..
+            }
+        );
         let kind = crate::emission::primitive_store::emit_assignment(
             identities,
             self.checked,
@@ -308,8 +333,11 @@ impl OperationFrame<'_, '_> {
             statement_index,
             destination,
             self.structural_types.declarations(),
+            preserves_byte_memberships,
             match &store.destination.leaf {
-                CheckedStoreLeaf::Primitive { receiving_range } => receiving_range.as_ref(),
+                CheckedStoreLeaf::Primitive {
+                    receiving_range, ..
+                } => receiving_range.as_ref(),
                 _ => unreachable!("primitive store dispatch"),
             },
             role,
@@ -491,7 +519,7 @@ impl OperationFrame<'_, '_> {
             &self.evaluation.structural_parameters,
             self.structural_types.declarations(),
         )?;
-        let (_, source) = self.window_destination(target.store().destination.root)?;
+        let (_, source) = self.assignment_source(target.store().destination.root)?;
         let captured = self.windows.captured_indexed_destination(
             leaf.statement_index(),
             &source,
@@ -711,6 +739,7 @@ impl OperationFrame<'_, '_> {
     /// bound `&mut` view names the home place its establishment produced.
     fn view_element_target<'s>(
         &self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         store: &'s CheckedStorePlan,
     ) -> Result<IndexedWriteTarget<'s>, LoweringError> {
         let (place, structural_type) = match store.destination.root {
@@ -723,20 +752,81 @@ impl OperationFrame<'_, '_> {
                 ) || !matches!(
                     destination.multiplicity,
                     terminal_psi::nonlinear_multiplicity_pair_pattern!()
-                ) || !destination.qualifications.is_empty()
-                    || !destination.projected_qualifications.is_empty()
-                {
+                ) {
                     return unsupported("element-view write parameter lost mutable custody");
+                }
+                let written =
+                    self.view_element_write_region(identities, store, destination.structural_type)?;
+                if !terminal_semantics::structural_memberships_disjoint_from_write(
+                    &destination.qualifications,
+                    &destination.projected_qualifications,
+                    &written,
+                ) {
+                    return unsupported(
+                        "element-view scalar write overlaps qualifications it does not restore",
+                    );
                 }
                 (destination.place, destination.structural_type)
             }
-            checked_trees::CheckedStoreRoot::Local { symbol } => self.local_home(symbol)?,
+            checked_trees::CheckedStoreRoot::Local { symbol } => {
+                let root = crate::emission::store_destination::local_store_root(
+                    symbol,
+                    &self.evaluation.structural_locals,
+                    self.evaluation.structural_root_parameters(),
+                    self.operations,
+                )?;
+                let written =
+                    self.view_element_write_region(identities, store, root.structural_type)?;
+                root.require_disjoint_from_write(&written)?;
+                (root.argument.place, root.structural_type)
+            }
         };
         Ok(IndexedWriteTarget::ElementView {
             store,
             place,
             structural_type,
         })
+    }
+
+    /// A view's dynamic selector may choose any element. This is a
+    /// conservative footprint for admission only, never an executable path;
+    /// the indexed writer separately emits its real selector and bound.
+    fn view_element_write_region(
+        &self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        store: &CheckedStorePlan,
+        root: StructuralTypeId,
+    ) -> Result<Vec<terminal_psi::StructuralPathSegment>, LoweringError> {
+        use crate::expression_preparation::bindings::structural_paths::{
+            PreparedStructuralPathSegment, prepare_element_view_path,
+        };
+        let CheckedStoreLeaf::ViewElement { element_path, .. } = &store.destination.leaf else {
+            return unsupported("element-view write has no element footprint");
+        };
+        let selected = prepare_element_view_path(
+            identities,
+            &store.destination.path,
+            root,
+            self.structural_types.declarations(),
+        )?;
+        // Dynamic descriptor selections may name any resident slot. Retain
+        // the complete original owner coordinates for membership admission;
+        // these universal steps never enter the executable store path.
+        let mut written = Vec::new();
+        for step in selected {
+            match step {
+                PreparedStructuralPathSegment::Static(step) => written.push(step),
+                PreparedStructuralPathSegment::ViewExtent { .. } => {}
+                PreparedStructuralPathSegment::RuntimeIndex(_)
+                | PreparedStructuralPathSegment::ComputedIndex(_)
+                | PreparedStructuralPathSegment::CapturedIndex(_) => {
+                    written.push(terminal_psi::StructuralPathSegment::AllElements);
+                }
+            }
+        }
+        written.push(terminal_psi::StructuralPathSegment::AllElements);
+        written.extend(lower_structural_path(identities, element_path)?);
+        Ok(written)
     }
 
     /// Field and element stores both retain a recast loan's original backing.
@@ -913,10 +1003,15 @@ impl OperationFrame<'_, '_> {
         // A parameter destination roots the store at its borrowed place; an
         // owned structural local roots it at the local's live home place,
         // resolved through the structural-local roster.
+        let mut destination_memberships;
         let (mut destination_place, mut destination_type, mut lowered) = match root {
             checked_trees::CheckedStoreRoot::Parameter { position } => {
                 let destination =
                     store_parameter(&self.evaluation.structural_parameters, position)?;
+                destination_memberships = Some((
+                    destination.qualifications.clone(),
+                    destination.projected_qualifications.clone(),
+                ));
                 let lowered =
                     crate::emission::structural_scalar_store::lower_structural_scalar_store_place(
                         identities,
@@ -935,7 +1030,10 @@ impl OperationFrame<'_, '_> {
                     self.evaluation.structural_root_parameters(),
                     self.operations,
                 )?;
-                root.require_unqualified()?;
+                destination_memberships = Some((
+                    root.qualifications.to_vec(),
+                    root.projected_qualifications.to_vec(),
+                ));
                 let mut lowered =
                     crate::emission::structural_scalar_store::lower_structural_scalar_store_local(
                         identities,
@@ -961,23 +1059,39 @@ impl OperationFrame<'_, '_> {
             }
         };
         lowered.bind_range_decision(self.checked, primitive_type, range_decision)?;
-        let (_, source) = self.window_destination(store.destination.root)?;
-        if let Some((place, mut path)) = self.windows.captured_assignment_place(
+        let (_, source) = self.assignment_source(store.destination.root)?;
+        if let Some(captured) = self.windows.captured_assignment_place(
             identities,
             store.statement_index,
             &source,
             &store.destination.path,
         )? {
-            if path.pop()
-                != Some(terminal_psi::StructuralPathSegment::Field(
-                    identities.intern(&field_identity.spelling()),
-                ))
-            {
-                return unsupported("captured scalar field lost its declaration projection");
+            let logical = self.receiving_place(captured.original_source, captured.original_path)?;
+            if !terminal_semantics::structural_memberships_disjoint_from_write(
+                &logical.qualifications,
+                &logical.projected_qualifications,
+                &logical.path,
+            ) {
+                return unsupported(
+                    "captured scalar store overlaps logical qualification evidence",
+                );
             }
-            destination_place = place;
-            destination_type = self.declared_storage_type(place)?;
-            lowered.steps = path
+            let mut physical = self.receiving_place(captured.source, captured.path)?;
+            let expected_field = terminal_psi::StructuralPathSegment::Field(
+                identities.intern(&field_identity.spelling()),
+            );
+            if logical.path.last() != Some(&expected_field)
+                || physical.path.pop() != Some(expected_field)
+                || physical.root_type != captured.root_type
+            {
+                return unsupported("captured scalar field lost its exact declaration projection");
+            }
+            destination_place = captured.source;
+            destination_type = physical.root_type;
+            destination_memberships =
+                Some((physical.qualifications, physical.projected_qualifications));
+            lowered.steps = physical
+                .path
                 .into_iter()
                 .map(crate::emission::runtime_elements::ProjectionStep::Static)
                 .collect();
@@ -1012,6 +1126,24 @@ impl OperationFrame<'_, '_> {
             self.calls,
             self.operations,
         )?;
+        if let Some((whole, projected)) = destination_memberships {
+            let field = terminal_semantics::projected_field_declaration(
+                self.structural_types.declarations().iter(),
+                destination_type,
+                &path,
+                lowered.field,
+            )
+            .ok_or(LoweringError::Unsupported(
+                "scalar store has no field declaration",
+            ))?;
+            let mut written = path.clone();
+            written.push(terminal_psi::StructuralPathSegment::Field(field.identity));
+            if !terminal_semantics::structural_memberships_disjoint_from_write(
+                &whole, &projected, &written,
+            ) {
+                return unsupported("scalar store overlaps qualification evidence");
+            }
+        }
         self.observe_store_element_extent(destination_place, destination_type, &path)?;
         let kind = lowered.into_operation(
             destination_place,
@@ -1024,25 +1156,78 @@ impl OperationFrame<'_, '_> {
         Ok(())
     }
 
-    /// Resolve declaration geometry from the retained physical home, never a
-    /// source binding whose current value may have changed during the RHS.
-    fn declared_storage_type(&self, place: PlaceId) -> Result<StructuralTypeId, LoweringError> {
-        self.evaluation
+    /// Resolve a complete receiving contract at the retained place. A type
+    /// alone cannot reinterpret memberships expressed relative to another root.
+    fn receiving_place(
+        &self,
+        place: PlaceId,
+        path: Vec<terminal_psi::StructuralPathSegment>,
+    ) -> Result<crate::emission::primitive_store::ReceivingPlace, LoweringError> {
+        let mut declarations = self
+            .evaluation
             .structural_root_parameters()
-            .find(|parameter| parameter.place == place)
-            .map(|parameter| parameter.structural_type)
-            .or_else(|| {
-                self.operations.operations.iter().find_map(|operation| {
-                    operation
-                        .result
-                        .structural()
-                        .filter(|result| result.place == place)
-                        .map(|result| result.structural_type)
-                })
+            .filter(|parameter| parameter.place == place)
+            .map(|parameter| {
+                (
+                    parameter.structural_type,
+                    &parameter.qualifications,
+                    &parameter.projected_qualifications,
+                )
             })
-            .ok_or(LoweringError::Unsupported(
-                "store lost its physical root declaration",
-            ))
+            .chain(self.operations.operations.iter().filter_map(|operation| {
+                operation
+                    .result
+                    .structural()
+                    .filter(|result| result.place == place)
+                    .map(|result| {
+                        (
+                            result.structural_type,
+                            &result.qualifications,
+                            &result.projected_qualifications,
+                        )
+                    })
+            }));
+        let selected = declarations.next();
+        if declarations.next().is_some() {
+            return unsupported("store receiving root declaration is ambiguous");
+        }
+        let (root_type, whole, projected) = if let Some(declaration) = selected {
+            declaration
+        } else {
+            // Bindings can repeat the same operation home. Only an absent
+            // authoritative declaration consults these views; every view must
+            // agree on the complete contract, rather than mint another owner.
+            let mut bindings =
+                self.operations
+                    .structural_values
+                    .iter()
+                    .filter_map(|(_, binding)| {
+                        binding
+                            .operation_result()
+                            .ok()
+                            .filter(|result| result.place == place)
+                            .map(|result| {
+                                (
+                                    result.structural_type,
+                                    &result.qualifications,
+                                    &result.projected_qualifications,
+                                )
+                            })
+                    });
+            let Some(first) = bindings.next() else {
+                return unsupported("store lost its retained receiving root declaration");
+            };
+            if bindings.any(|binding| binding != first) {
+                return unsupported("store receiving binding contracts disagree");
+            }
+            first
+        };
+        Ok(crate::emission::primitive_store::ReceivingPlace {
+            root_type,
+            qualifications: whole.clone(),
+            projected_qualifications: projected.clone(),
+            path,
+        })
     }
 
     /// A descriptor's live extent owns runtime bounds through either a scalar
@@ -1095,6 +1280,45 @@ impl OperationFrame<'_, '_> {
     /// roster order, not that field, is the checked dense parameter namespace.
     fn window_destination(
         &self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        destination: checked_trees::CheckedStoreRoot,
+        path: &[checked_trees::CheckedUnitStructuralPathSegment],
+    ) -> Result<
+        (
+            StructuralTypeId,
+            checked_trees::CheckedUnitStructuralArgumentSourcePlan,
+        ),
+        LoweringError,
+    > {
+        let selected = self.assignment_source(destination)?;
+        if let checked_trees::CheckedStoreRoot::Local { symbol } = destination {
+            let root = crate::emission::store_destination::local_store_place(
+                symbol,
+                &self.evaluation.structural_locals,
+                self.evaluation.structural_root_parameters(),
+                self.operations,
+            )?;
+            let (steps, leaf, _) = crate::emission::structural_scalar_store::lower_window_path(
+                identities,
+                root.selected_type,
+                path,
+                self.structural_types.declarations(),
+            )?;
+            let mut written = root.argument.path.clone();
+            written.extend(crate::emission::runtime_elements::static_segments(steps)?);
+            if let crate::emission::structural_scalar_store::WindowLeaf::Field(field) = leaf {
+                written.push(terminal_psi::StructuralPathSegment::Field(field.identity));
+            }
+            root.require_disjoint_from_write(&written)?;
+        }
+        Ok(selected)
+    }
+
+    /// Resolve the authored destination namespace for captured coordinates.
+    /// This grants no write permission: primitive, indexed and field writers
+    /// retain their complete typed membership and custody checks separately.
+    fn assignment_source(
+        &self,
         destination: checked_trees::CheckedStoreRoot,
     ) -> Result<
         (
@@ -1135,21 +1359,8 @@ impl OperationFrame<'_, '_> {
                     self.evaluation.structural_root_parameters(),
                     self.operations,
                 )?;
-                // Byte writes retain their checked content predicates. Looking
-                // up a captured address does not withdraw those memberships;
-                // other qualified roots still need their restoration contract.
-                let byte_owner = home.projected_qualifications.is_empty()
-                    && self
-                        .structural_types
-                        .declarations()
-                        .iter()
-                        .any(|declaration| {
-                            declaration.id == home.selected_type
-                                && declaration.shape.is_bounded_owned_byte_sequence()
-                        });
-                if !byte_owner {
-                    home.require_unqualified()?;
-                }
+                // Address capture retains predicates; each final store proves
+                // its exact logical and physical receiving contracts separately.
                 Ok((
                     home.selected_type,
                     CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol },
@@ -1175,7 +1386,8 @@ impl OperationFrame<'_, '_> {
         // A parameter destination roots the window at its borrowed place; an
         // owned structural local roots it at the local's live home place.
         // The window pair below writes through either root identically.
-        let (root_type, source) = self.window_destination(store.destination.root)?;
+        let (root_type, source) =
+            self.window_destination(identities, store.destination.root, &store.destination.path)?;
         let (_, field) = crate::emission::structural_scalar_store::lower_structural_field_path(
             identities,
             root_type,

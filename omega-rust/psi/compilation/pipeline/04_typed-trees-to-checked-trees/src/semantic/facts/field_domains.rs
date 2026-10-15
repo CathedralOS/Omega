@@ -111,7 +111,11 @@ fn append_zero_initialized_field_domain_facts(
         for domain_symbol in field_domain_symbols(program, field.type_reference)
             .into_iter()
             .filter(|symbol| {
-                validation::field_domains::domain_admits_empty_byte_sequence(program, *symbol)
+                validation::field_domains::domain_admits_zero_byte_carrier(
+                    program,
+                    *symbol,
+                    field.type_reference,
+                )
             })
         {
             // Place `<root>.<prefix…>.<field>`: root the local symbol + the segment
@@ -770,9 +774,10 @@ pub(super) fn append_local_zii_field_domain_facts(
                     )
                     .into_iter()
                     .filter(|(domain_symbol, _)| {
-                        validation::field_domains::domain_admits_empty_byte_sequence(
+                        validation::field_domains::domain_admits_zero_byte_carrier(
                             program,
                             *domain_symbol,
+                            local_data.type_reference,
                         )
                     })
                 {

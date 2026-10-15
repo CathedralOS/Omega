@@ -646,8 +646,6 @@ pub(super) fn validate(
                         && (parameter.access != terminal_psi::StructuralAccess::Owned
                             || (parameter.multiplicity
                                 != terminal_psi::StructuralMultiplicity::Linear
-                                && parameter.qualifications.is_empty()
-                                && parameter.projected_qualifications.is_empty()
                                 && optimized
                                     .entry_claim_declarations
                                     .iter()
@@ -865,7 +863,9 @@ pub(super) fn validate(
                 ScalarType::Integer(u8_type())
             }
             AbstractOperation::ByteSequenceLength { source, .. } => {
-                if super::element_views::byte_length_geometry(optimized, source, types).is_none() {
+                if super::element_views::byte_length_geometry(optimized, source, types).is_none()
+                    && super::element_views::fixed_byte_length(optimized, source, types).is_none()
+                {
                     return Err(LegalizationError::custody());
                 }
                 ScalarType::Integer(u64_type())

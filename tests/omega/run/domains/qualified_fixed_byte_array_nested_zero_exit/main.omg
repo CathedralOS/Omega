@@ -1,0 +1,31 @@
+// Expected exit: 0
+// Omitted owned fields form N actual zero bytes, including nested defaults.
+domain [u8; 8]::Ascii(bytes) requires ascii_only(bytes);
+domain [u8; 8]::NonEmpty(bytes) requires non_empty(bytes);
+data Inner { bytes: [u8; 8] in Ascii; whole: [u8; 8] in NonEmpty; }
+data Outer { inner: Inner; marker: u8; }
+data Repeated { items: [Inner; 2]; marker: u8; }
+machine nested() -> Outer { Outer { inner: Inner {}, marker: 17u8 } }
+machine omitted() -> Outer { Outer { marker: 29u8 } }
+machine repeated() -> Repeated { Repeated { marker: 31u8 } }
+machine main() crashes Trap {
+    let mut first: Outer = nested();
+    let second: Outer = omitted();
+    let third: Repeated = repeated();
+    first.inner.bytes[7] = 65u8;
+    transition size_of<Outer>() == 17 && align_of<Outer>() == 1
+        && first.inner.bytes.len == 8 && first.inner.whole.len == 8
+        && first.inner.bytes[0] == 0 && first.inner.bytes[7] == 65
+        && first.inner.whole[7] == 0 && first.marker == 17
+        && second.inner.bytes.len == 8 && second.inner.bytes[7] == 0
+        && second.inner.whole.len == 8 && second.inner.whole[7] == 0
+        && second.marker == 29 && size_of<Repeated>() == 33
+        && third.items[1].bytes.len == 8 && third.items[1].bytes[7] == 0
+        && third.items[0].whole.len == 8 && third.items[0].whole[7] == 0
+        && third.marker == 31 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

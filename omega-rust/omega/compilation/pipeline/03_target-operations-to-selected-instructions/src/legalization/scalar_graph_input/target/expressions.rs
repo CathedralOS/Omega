@@ -182,8 +182,9 @@ impl Checker<'_> {
                 match &node.operation {
                     AbstractOperation::IntegerConstant {result,value:actual,..} => *result == resolved && actual == literal,
                     AbstractOperation::ByteSequenceLength {result,source,..} => result.value == resolved
-                        && super::super::element_views::byte_length_geometry(self.optimized, source, self.types)
-                            .is_some_and(|(_, carrier)| matches!(carrier, terminal_psi::ByteSequenceCarrier::BoundedView { capacity, .. } if *literal == semantic_vocabulary::IntegerValue::Unsigned(u128::from(capacity)))),
+                        && (super::super::element_views::byte_length_geometry(self.optimized, source, self.types)
+                            .is_some_and(|(_, carrier)| matches!(carrier, terminal_psi::ByteSequenceCarrier::BoundedView { capacity, .. } if *literal == semantic_vocabulary::IntegerValue::Unsigned(u128::from(capacity))))
+                            || super::super::element_views::fixed_byte_length(self.optimized, source, self.types).is_some_and(|length| *literal == semantic_vocabulary::IntegerValue::Unsigned(u128::from(length)))),
                     _ => false,
                 }),
             Expression::Parameter {source_value,parameter_index,location} => {

@@ -140,8 +140,8 @@ impl super::Expansion<'_> {
                             home, Some(root_type),
                         )?;
                     source.path.extend(
-                        crate::expression_preparation::bindings::structural_paths::prepare_argument_path(
-                            identities, &original.path, root_type, self.structural_types,
+                        crate::expression_preparation::bindings::structural_paths::prepare_structural_argument_path(
+                            identities, self.checked, original, root_type, self.structural_types,
                         )?,
                     );
                     copied_observation(

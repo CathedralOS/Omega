@@ -104,6 +104,36 @@ pub struct StructuralPathQualification {
 }
 
 impl StructuralPathQualification {
+    /// A proof about every element, independent of descriptor storage and access.
+    pub fn is_element_membership(&self) -> bool {
+        matches!(self.path.first(), Some(StructuralPathSegment::AllElements))
+    }
+    /// An authenticated universal row may specialize at a checked element.
+    /// A concrete element never generalizes to the whole collection.
+    pub fn selected_suffix<'a>(
+        declared: &'a [StructuralPathSegment],
+        selected: &[StructuralPathSegment],
+    ) -> Option<&'a [StructuralPathSegment]> {
+        if declared.len() < selected.len() {
+            return None;
+        }
+        declared
+            .iter()
+            .zip(selected)
+            .all(|(row, selection)| {
+                row == selection
+                    || matches!(
+                        (row, selection),
+                        (
+                            StructuralPathSegment::AllElements,
+                            StructuralPathSegment::FixedIndex(_)
+                                | StructuralPathSegment::RuntimeIndex { .. }
+                        )
+                    )
+            })
+            .then_some(&declared[selected.len()..])
+    }
+
     /// Select memberships that a same-typed restoration can preserve. A
     /// predicate on a strict ancestor may relate the hole to its siblings;
     /// replacing the hole cannot re-establish that opaque predicate. Exact
@@ -114,9 +144,10 @@ impl StructuralPathQualification {
         path: &[StructuralPathSegment],
     ) -> Option<(Vec<StructuralDomainId>, Vec<Self>)> {
         if (!path.is_empty() && !whole.is_empty())
-            || projected
-                .iter()
-                .any(|row| row.path.len() < path.len() && path.starts_with(&row.path))
+            || projected.iter().any(|row| {
+                row.path.len() < path.len()
+                    && Self::selected_suffix(&row.path, &path[..row.path.len()]).is_some()
+            })
         {
             return None;
         }
@@ -163,7 +194,7 @@ impl StructuralPathQualification {
         };
         let mut descendants = Vec::new();
         for row in projected {
-            if let Some(suffix) = row.path.strip_prefix(path) {
+            if let Some(suffix) = Self::selected_suffix(&row.path, path) {
                 if suffix.is_empty() {
                     qualifications.push(row.domain);
                 } else {

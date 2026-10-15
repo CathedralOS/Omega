@@ -187,7 +187,7 @@ impl TerminalExecution<'_> {
     }
 }
 
-fn scalar_byte(value: &TerminalScalarValue) -> Result<u8, TerminalInterpretError> {
+pub(crate) fn scalar_byte(value: &TerminalScalarValue) -> Result<u8, TerminalInterpretError> {
     let TerminalScalarValue::Integer {
         scalar_type,
         value: IntegerValue::Unsigned(byte),

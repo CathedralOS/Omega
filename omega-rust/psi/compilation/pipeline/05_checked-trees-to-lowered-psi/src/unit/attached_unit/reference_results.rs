@@ -249,13 +249,16 @@ pub(crate) fn emit_carrier<'parameter>(
                 root,
                 &source.path,
             );
-            let (whole, projected) =
-                terminal_psi::StructuralPathQualification::select(whole, projected, path);
-            terminal_psi::StructuralPathQualification::append_under(
-                &whole,
-                &projected,
-                &[terminal_psi::StructuralPathSegment::Referent],
-                &mut result.projected_qualifications,
+            result.projected_qualifications.extend(
+                terminal_semantics::reference_source_memberships(
+                    declarations.iter(),
+                    root,
+                    whole,
+                    projected,
+                    path,
+                    source.access,
+                )
+                .map_err(LoweringError::Unsupported)?,
             );
             if let Some(field) =
                 terminal_semantics::runtime_structural_field(declarations.iter(), root, path)

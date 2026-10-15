@@ -1,34 +1,53 @@
+domain [u8]::Utf8(bytes) requires valid_utf8(bytes);
 use omega_language_std::console;
 
 domain [u8; 8]::Utf8(bytes) requires valid_utf8(bytes);
-data Labels [copy] { first: [u8; 8] in Utf8; second: [u8; 8] in Utf8; }
+data Labels [copy] { first: TextBuffer; second: TextBuffer; }
 data Main { generated: u64 in Wrapping; observed: Labels; }
 
-machine Main::next_label(main: &mut Main) -> [u8; 8] in Utf8 {
+machine Main::next_label(main: &mut Main) -> TextBuffer crashes Trap {
     main.generated = main.generated + 1;
     transition main.generated == 1 {
-        true -> "North"
-        false -> "N"
+        true -> TextBuffer { storage: [78u8, 111u8, 114u8, 116u8, 104u8, 0u8, 0u8, 0u8], used: 5 }
+        false -> TextBuffer { storage: [78u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8], used: 1 }
     }
 }
 
-machine ordered(first: [u8; 8] in Utf8, second: [u8; 8] in Utf8, destination: &mut Labels) {
+machine ordered(first: TextBuffer, second: TextBuffer, destination: &mut Labels) crashes Trap {
     destination.first = first;
     destination.second = second;
 }
 
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches Console crashes Trap {
     let mut labels: Labels;
-    let first_label: [u8; 8] in Utf8 = Main::next_label(main);
-    let second_label: [u8; 8] in Utf8 = Main::next_label(main);
+    let first_label: TextBuffer = Main::next_label(main);
+    let second_label: TextBuffer = Main::next_label(main);
     ordered(first_label, second_label, &mut labels);
     main.observed.first = labels.first;
     main.observed.second = labels.second;
-    transition main.observed.first == "North" && main.observed.first.len == 5
-        && main.observed.second == "N" && main.observed.second.len == 1
+    transition TextBuffer::equal(&main.observed.first, "North") && main.observed.first.used == 5
+        && TextBuffer::equal(&main.observed.second, "N") && main.observed.second.used == 1
         && main.generated == 2 {
         true -> finish(main, 70)
         false -> finish(main, 1)
     }
     state finish(main: &mut Main, code: i32) { Console::exit_process(code); }
+}
+
+
+// A variable-fill value explicitly owns its fixed storage and live length.
+// Copies retain both; an accessor borrows and checks the selected copy's prefix.
+data TextBuffer [copy] where used <= 8 { storage: [u8; 8] in Utf8; used: u64; }
+machine TextBuffer::view(buffer: &TextBuffer) -> &[u8] in Utf8 crashes Trap {
+    let bytes: &[u8] = &buffer.storage[..buffer.used];
+    transition valid_utf8(bytes) {
+        true -> checked(bytes)
+        false -> bad()
+    }
+    state checked(bytes: &[u8] in Utf8) -> &[u8] in Utf8 { bytes }
+    state bad() { crash Trap; }
+}
+machine TextBuffer::equal(buffer: &TextBuffer, expected: &[u8]) -> bool crashes Trap {
+    let bytes: &[u8] in Utf8 = TextBuffer::view(buffer);
+    bytes == expected
 }

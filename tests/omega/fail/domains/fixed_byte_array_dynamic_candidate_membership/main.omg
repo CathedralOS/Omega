@@ -1,0 +1,10 @@
+// A runtime selection must satisfy membership on every possible element.
+domain [u8; 4]::Utf8(bytes) requires valid_utf8(bytes);
+machine observe(bytes: &[u8; 4] in Utf8) -> bool { valid_utf8(bytes) }
+machine main(index: u64) requires index < 2 {
+    let rows: [[u8; 4]; 2] = [
+        [65u8, 0u8, 0u8, 0u8],
+        [255u8, 0u8, 0u8, 0u8]
+    ];
+    _ = observe(&rows[index]);
+}

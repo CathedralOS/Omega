@@ -1,3 +1,4 @@
+domain [u8]::Utf8(bytes) requires valid_utf8(bytes);
 // A `&mut [Room]` view of records whose `label` field is declared `in Utf8`,
 // forwarded whole to a machine. The callee's parameter owes each element's
 // label membership; a loan lends the storage itself, so the call site's
@@ -5,26 +6,44 @@
 use omega_language_std::console;
 
 domain [u8; 8]::Utf8(bytes) requires valid_utf8(bytes);
-data Room [copy] { label: [u8; 8] in Utf8; value: u64; }
+data Room [copy] { label: TextBuffer; value: u64; }
 data Main { rooms: [Room; 3]; }
 
-machine visit(rooms: &mut [Room], index: u64) -> u64
+machine visit(rooms: &mut [Room], index: u64) -> u64 crashes Trap
 requires index < rooms.len
 {
     rooms[index].value = 70;
     transition { _ -> (rooms[index].value) }
 }
 
-machine Main::main(main: &mut Main) reaches Console {
-    main.rooms[0].label = "hall";
-    main.rooms[1].label = "vault";
+machine Main::main(main: &mut Main) reaches Console crashes Trap {
+    main.rooms[0].label = TextBuffer { storage: [104u8, 97u8, 108u8, 108u8, 0u8, 0u8, 0u8, 0u8], used: 4 };
+    main.rooms[1].label = TextBuffer { storage: [118u8, 97u8, 117u8, 108u8, 116u8, 0u8, 0u8, 0u8], used: 5 };
     main.rooms[1].value = 66;
     let rooms: &mut [Room] = &mut main.rooms[0..main.rooms.len];
     let visited: u64 = visit(rooms, 1);
-    transition visited == 70 && main.rooms[1].label == "vault" {
+    transition visited == 70 && TextBuffer::equal(&main.rooms[1].label, "vault") {
         true -> reached(main)
         _ -> missed(main)
     }
     state reached(main: &mut Main) { Console::exit_process(70); }
     state missed(main: &mut Main) { Console::exit_process(71); }
+}
+
+
+// A variable-fill value explicitly owns its fixed storage and live length.
+// Copies retain both; an accessor borrows and checks the selected copy's prefix.
+data TextBuffer [copy] where used <= 8 { storage: [u8; 8] in Utf8; used: u64; }
+machine TextBuffer::view(buffer: &TextBuffer) -> &[u8] in Utf8 crashes Trap {
+    let bytes: &[u8] = &buffer.storage[..buffer.used];
+    transition valid_utf8(bytes) {
+        true -> checked(bytes)
+        false -> bad()
+    }
+    state checked(bytes: &[u8] in Utf8) -> &[u8] in Utf8 { bytes }
+    state bad() { crash Trap; }
+}
+machine TextBuffer::equal(buffer: &TextBuffer, expected: &[u8]) -> bool crashes Trap {
+    let bytes: &[u8] in Utf8 = TextBuffer::view(buffer);
+    bytes == expected
 }

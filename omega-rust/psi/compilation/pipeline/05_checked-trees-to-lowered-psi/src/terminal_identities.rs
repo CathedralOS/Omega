@@ -140,6 +140,8 @@ pub(crate) fn structural_declaration_by_identity<'types>(
 /// A semantic domain family instantiated on one exact structural carrier.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct StructuralDomainBinding {
+    /// Plain byte predicate from the lowered domain catalog; never route authority.
+    pub byte_predicate: Option<terminal_psi::ByteSequencePredicate>,
     pub semantic_domain: language_semantics::SemanticDomainId,
     pub carrier: StructuralTypeId,
     pub domain: StructuralDomainId,

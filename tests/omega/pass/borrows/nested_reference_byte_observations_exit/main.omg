@@ -1,7 +1,7 @@
 use omega_language_std::console;
 
-domain [u8; 8]::Utf8(bytes) requires valid_utf8(bytes);
-data Text { stamp: u64; bytes: [u8; 8] in Utf8; }
+domain [u8; 2]::Utf8(bytes) requires valid_utf8(bytes);
+data Text { stamp: u64; bytes: [u8; 2] in Utf8; }
 data Message { stamp: u64; body: &Text; }
 data Envelope { stamp: u64; message: &Message; }
 data Main { }

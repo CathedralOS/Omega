@@ -1,19 +1,22 @@
+domain [u8]::Utf8(bytes) requires valid_utf8(bytes);
 // Immutable literal storage creates no disposal debt across iterations or joins.
 use omega_language_std::console;
 
 domain [u8; 16]::Utf8(bytes) requires valid_utf8(bytes);
 data Main {
-    text: [u8; 16] in Utf8;
+    text: TextBuffer;
     count: u64 in Wrapping;
 }
 
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches Console crashes Trap {
     main.count = 0;
     transition { _ -> write(main) }
 
     state write(main: &mut Main) {
-        main.text = "ab";
-        main.text = main.text + "c";
+        main.text = TextBuffer { storage: [97u8, 98u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8], used: 2 };
+        let prefix: &[u8] in Utf8 = TextBuffer::view(&main.text);
+        let joined: TextBuffer = TextBuffer::join(prefix, "c");
+        main.text = joined;
         main.count = main.count + 1;
         transition main.count < 3 {
             true -> write(main)
@@ -22,7 +25,7 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state check(main: &mut Main) {
-        transition main.text == "abc" && main.count == 3 {
+        transition TextBuffer::equal(&main.text, "abc") && main.count == 3 {
             true -> good(main)
             false -> bad(main)
         }
@@ -30,4 +33,64 @@ machine Main::main(main: &mut Main) reaches Console {
 
     state good(main: &mut Main) { Console::exit_process(70); }
     state bad(main: &mut Main) { Console::exit_process(1); }
+}
+
+
+// A variable-fill value explicitly owns its fixed storage and live length.
+// Copies retain both; an accessor borrows and checks the selected copy's prefix.
+data TextBuffer [copy] where used <= 16 { storage: [u8; 16]; used: u64; }
+machine TextBuffer::view(buffer: &TextBuffer) -> &[u8] in Utf8 crashes Trap {
+    let bytes: &[u8] = &buffer.storage[..buffer.used];
+    transition valid_utf8(bytes) {
+        true -> checked(bytes)
+        false -> bad()
+    }
+    state checked(bytes: &[u8] in Utf8) -> &[u8] in Utf8 { bytes }
+    state bad() { crash Trap; }
+}
+machine TextBuffer::equal(buffer: &TextBuffer, expected: &[u8]) -> bool crashes Trap {
+    let bytes: &[u8] in Utf8 = TextBuffer::view(buffer);
+    bytes == expected
+}
+
+machine TextBuffer::copy(storage: &mut [u8; 16], bytes: &[u8], start: u64)
+requires start <= 16; bytes.len <= 16 - start {
+    transition { _ -> copying(storage, bytes, start, 0) }
+    state copying(storage: &mut [u8; 16], bytes: &[u8], start: u64, index: u64)
+    requires start <= 16; index <= 16 {
+        transition index < bytes.len && start + index < 16 {
+            true -> writing(storage, bytes, start, index)
+            _ -> done()
+        }
+    }
+    state writing(storage: &mut [u8; 16], bytes: &[u8], start: u64, index: u64)
+    requires start <= 16; index < 16; index < bytes.len; start + index < 16 {
+        storage[start + index] = bytes[index];
+        transition { _ -> copying(storage, bytes, start, index + 1) }
+    }
+    state done() {}
+}
+machine TextBuffer::join(left: &[u8], right: &[u8]) -> TextBuffer crashes Trap {
+    transition left.len <= 16 && right.len <= 16 - left.len {
+        true -> joining(left, right)
+        _ -> bad()
+    }
+    state joining(left: &[u8], right: &[u8]) -> TextBuffer
+    requires left.len <= 16; right.len <= 16 - left.len {
+    let mut result: TextBuffer;
+    TextBuffer::copy(&mut result.storage, left, 0);
+    TextBuffer::copy(&mut result.storage, right, left.len);
+    let total: u64 = left.len + right.len;
+    transition total <= 16 {
+        true -> checked(result, total)
+        _ -> bad()
+    }
+    }
+    state checked(result: TextBuffer, total: u64) -> TextBuffer
+    requires total <= 16 {
+        let mut value: TextBuffer = result;
+        value.used = total;
+        value
+    }
+    state bad() { crash Trap; }
 }

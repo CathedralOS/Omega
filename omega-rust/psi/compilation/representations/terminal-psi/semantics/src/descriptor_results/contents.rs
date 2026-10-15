@@ -5,6 +5,7 @@
 //! or disjointness authority from an uncertain selection. Reads must account for
 //! every selected slot; one unknown candidate makes the contents unknown.
 use super::*;
+mod incoming_memberships;
 use crate::descriptor_lifetimes::{
     DescriptorPathSegment, descriptor_location, descriptor_location_type, descriptor_path,
 };
@@ -213,4 +214,251 @@ pub fn descriptor_contents_query(
         .extend(suffix.path.into_iter().map(DescriptorContentsStep::Address));
     query.validate(types, root_type)?;
     Some(query)
+}
+
+/// Read-only possible payload locations. Symbolic incoming contents are not
+/// exact addresses and grant neither write nor disjointness authority.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum DescriptorPayloadTarget {
+    Storage(DescriptorLocation),
+    Incoming(DescriptorContentsQuery),
+}
+
+/// Disposable membership metadata selected from a current storage contract.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PayloadMembershipContract {
+    pub carrier: StructuralTypeId,
+    pub qualifications: Vec<semantic_vocabulary::StructuralDomainId>,
+    pub projected_qualifications: Vec<terminal_psi::StructuralPathQualification>,
+}
+
+/// Copy only memberships held by every possible backing subtree. Unknown or
+/// symbolic contents cannot be filled from the receiving type's declaration.
+pub fn payload_memberships(
+    types: &[StructuralTypeDeclaration],
+    domains: &[terminal_psi::StructuralDomainDeclaration],
+    targets: impl IntoIterator<Item = DescriptorPayloadTarget>,
+    mut source: impl FnMut(PlaceId) -> Option<PayloadMembershipContract>,
+) -> Option<PayloadMembershipContract> {
+    let mut common: Option<PayloadMembershipContract> = None;
+    for target in targets {
+        let mut selected = match target {
+            DescriptorPayloadTarget::Storage(location) => {
+                let contract = source(location.root)?;
+                let path = descriptor_path(types, contract.carrier, &location.path)?;
+                let carrier = descriptor_location_type(types, contract.carrier, &location.path)?;
+                let (qualifications, projected_qualifications) =
+                    terminal_psi::StructuralPathQualification::select(
+                        &contract.qualifications,
+                        &contract.projected_qualifications,
+                        &path,
+                    );
+                PayloadMembershipContract {
+                    carrier,
+                    qualifications,
+                    projected_qualifications,
+                }
+            }
+            DescriptorPayloadTarget::Incoming(query) => {
+                let contract = source(query.root)?;
+                query.validate(types, contract.carrier)?;
+                incoming_memberships::select(types, domains, contract, &query.steps)?
+            }
+        };
+        let carrier = selected.carrier;
+        close_byte_predicate_memberships(types, domains, &mut selected);
+        if let Some(common) = &mut common {
+            if common.carrier != carrier {
+                return None;
+            }
+            common
+                .qualifications
+                .retain(|domain| selected.qualifications.contains(domain));
+            common
+                .projected_qualifications
+                .retain(|row| selected.projected_qualifications.contains(row));
+        } else {
+            common = Some(selected);
+        }
+    }
+    common
+}
+
+/// Predicate implication classifies the same current bytes, never a route or
+/// content witness. Close each candidate before intersection: distinct incoming
+/// theories may imply the same predicate-only membership. Unknown payloads still
+/// decline above, and type, access, availability and custody remain independent.
+fn close_byte_predicate_memberships(
+    types: &[StructuralTypeDeclaration],
+    domains: &[terminal_psi::StructuralDomainDeclaration],
+    contract: &mut PayloadMembershipContract,
+) {
+    fn implied(
+        types: &[StructuralTypeDeclaration],
+        domains: &[terminal_psi::StructuralDomainDeclaration],
+        carrier: StructuralTypeId,
+        qualifications: &[semantic_vocabulary::StructuralDomainId],
+    ) -> Vec<semantic_vocabulary::StructuralDomainId> {
+        if !crate::byte_predicate_carrier(types.iter(), carrier) {
+            return Vec::new();
+        }
+        let mut supplied = terminal_psi::ByteSequencePredicateSet::EMPTY;
+        for domain in qualifications {
+            if let Some(predicates) =
+                crate::byte_qualification_predicates_in(domains.iter(), carrier, &[*domain])
+            {
+                for predicate in predicates.predicates() {
+                    supplied.insert(predicate);
+                }
+            }
+        }
+        domains
+            .iter()
+            .filter(|domain| {
+                crate::byte_qualification_predicates_in(domains.iter(), carrier, &[domain.id])
+                    .is_some_and(|required| supplied.implies(required))
+            })
+            .map(|domain| domain.id)
+            .collect()
+    }
+    contract.qualifications.extend(implied(
+        types,
+        domains,
+        contract.carrier,
+        &contract.qualifications,
+    ));
+    contract.qualifications.sort();
+    contract.qualifications.dedup();
+    let mut paths: Vec<_> = contract
+        .projected_qualifications
+        .iter()
+        .map(|row| row.path.clone())
+        .collect();
+    paths.sort();
+    paths.dedup();
+    for path in paths {
+        let Some(carrier) =
+            crate::qualification_path_carrier(types.iter(), contract.carrier, &path)
+        else {
+            continue;
+        };
+        let whole: Vec<_> = contract
+            .projected_qualifications
+            .iter()
+            .filter(|row| row.path == path)
+            .map(|row| row.domain)
+            .collect();
+        // Descendant rows belong to their own carrier and are closed separately.
+        for domain in implied(types, domains, carrier, &whole) {
+            contract
+                .projected_qualifications
+                .push(terminal_psi::StructuralPathQualification {
+                    path: path.clone(),
+                    domain,
+                });
+        }
+    }
+    contract.projected_qualifications.sort();
+    contract.projected_qualifications.dedup();
+}
+
+/// Current declared memberships of actual Terminal storage, including literal
+/// views. This reads no receiving annotation and grants no availability.
+pub fn terminal_payload_contract(
+    machine: &TerminalMachine,
+    place: PlaceId,
+) -> Option<PayloadMembershipContract> {
+    if let Some(parameter) = crate::arrival_parameter(machine, place) {
+        return Some(PayloadMembershipContract {
+            carrier: parameter.structural_type,
+            qualifications: parameter.qualifications.clone(),
+            projected_qualifications: parameter.projected_qualifications.clone(),
+        });
+    }
+    for operation in machine.operations() {
+        if let Some(result) = operation.result.structural()
+            && result.place == place
+        {
+            return Some(PayloadMembershipContract {
+                carrier: result.structural_type,
+                qualifications: result.qualifications.clone(),
+                projected_qualifications: result.projected_qualifications.clone(),
+            });
+        }
+        if let OperationKind::EstablishByteSequenceLiteral {
+            destination,
+            qualifications,
+            ..
+        } = &operation.kind
+            && *destination == place
+        {
+            return Some(PayloadMembershipContract {
+                carrier: machine
+                    .structural_place(place)?
+                    .kind
+                    .produced_structural_type()?,
+                qualifications: qualifications.clone(),
+                projected_qualifications: Vec::new(),
+            });
+        }
+    }
+    None
+}
+
+/// Evidence about every possible element, including a proved empty source.
+/// Unknown contents remain the outer `None`, never vacuous evidence.
+#[derive(Clone, Debug)]
+pub enum ElementPayloadMemberships {
+    Empty,
+    Present(PayloadMembershipContract),
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn element_payload_memberships(
+    types: &[StructuralTypeDeclaration],
+    domains: &[terminal_psi::StructuralDomainDeclaration],
+    machine: &TerminalMachine,
+    analysis: &mut DescriptorAnalysis<'_>,
+    position: DescriptorPosition,
+    source: &StructuralArgument,
+    element: StructuralTypeId,
+) -> Option<ElementPayloadMemberships> {
+    element_payload_memberships_in(
+        types,
+        domains,
+        machine.id,
+        analysis,
+        position,
+        source,
+        element,
+        |place| terminal_payload_contract(machine, place),
+    )
+}
+
+/// Reconstruct every element from the current graph and its source contracts.
+/// Optimized consumers supply their current declarations, never frozen input.
+#[allow(clippy::too_many_arguments)]
+pub fn element_payload_memberships_in(
+    types: &[StructuralTypeDeclaration],
+    domains: &[terminal_psi::StructuralDomainDeclaration],
+    machine: MachineId,
+    analysis: &mut DescriptorAnalysis<'_>,
+    position: DescriptorPosition,
+    source: &StructuralArgument,
+    element: StructuralTypeId,
+    mut source_contract: impl FnMut(PlaceId) -> Option<PayloadMembershipContract>,
+) -> Option<ElementPayloadMemberships> {
+    let root = source_contract(source.place)?;
+    let mut query =
+        descriptor_contents_query(types, source.place, root.carrier, &source.path, None)?;
+    query
+        .steps
+        .push(DescriptorContentsStep::AnyElement { element });
+    query.validate(types, root.carrier)?;
+    let targets = analysis.payload_targets(machine, position, &query)?;
+    if targets.is_empty() {
+        return Some(ElementPayloadMemberships::Empty);
+    }
+    let contract = payload_memberships(types, domains, targets, source_contract)?;
+    (contract.carrier == element).then_some(ElementPayloadMemberships::Present(contract))
 }

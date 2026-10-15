@@ -8,7 +8,7 @@
 domain [u8]::Utf8(bytes)
 requires
     valid_utf8(bytes);
-domain [u8; 16]::Utf8(bytes)
+domain [u8; 7]::Utf8(bytes)
 requires
     valid_utf8(bytes);
 use omega_language_std::console;
@@ -43,10 +43,10 @@ machine accumulate(total: i32 in Wrapping, previous: i32 in Wrapping,
     }
 }
 
-machine parse_roman(text: &[u8; 16] in Utf8) -> RomanParse {
+machine parse_roman(text: &[u8; 7] in Utf8) -> RomanParse {
     transition { _ -> step(text, 0, 0, 0) }
 
-    state step(text: &[u8; 16] in Utf8, index: i32,
+    state step(text: &[u8; 7] in Utf8, index: i32,
                previous: i32 in Wrapping, total: i32 in Wrapping) -> RomanParse
     requires index >= 0
     {
@@ -56,7 +56,7 @@ machine parse_roman(text: &[u8; 16] in Utf8) -> RomanParse {
         }
     }
 
-    state read(text: &[u8; 16] in Utf8, index: i32,
+    state read(text: &[u8; 7] in Utf8, index: i32,
                previous: i32 in Wrapping, total: i32 in Wrapping) -> RomanParse
     requires index >= 0
     {
@@ -68,7 +68,7 @@ machine parse_roman(text: &[u8; 16] in Utf8) -> RomanParse {
         }
     }
 
-    state advance(text: &[u8; 16] in Utf8, index: i32,
+    state advance(text: &[u8; 7] in Utf8, index: i32,
                   previous: i32 in Wrapping, total: i32 in Wrapping) -> RomanParse
     requires index >= 0
     {
@@ -79,7 +79,7 @@ machine parse_roman(text: &[u8; 16] in Utf8) -> RomanParse {
         }
     }
 
-    state bump(text: &[u8; 16] in Utf8, index: i32,
+    state bump(text: &[u8; 7] in Utf8, index: i32,
                previous: i32 in Wrapping, total: i32 in Wrapping) -> RomanParse
     requires index >= 0 && index < 16
     {
@@ -91,7 +91,7 @@ machine parse_roman(text: &[u8; 16] in Utf8) -> RomanParse {
 data Main { }
 machine Main::main(main: &mut Main) reaches Console {
     Console::write_line("roman_numeral: parses MCMXCIV with the subtractive-pair look-back rule");
-    let text: [u8; 16] in Utf8 = "MCMXCIV";
+    let text: [u8; 7] in Utf8 = "MCMXCIV";
     transition parse_roman(&text) {
         RomanParse::Parsed { total } -> check(total)
         RomanParse::Invalid -> bad()

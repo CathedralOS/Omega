@@ -1,0 +1,31 @@
+// Expected exit: 60
+// Predicate-only qualification preserves the exact fixed-array carrier.
+// A qualified field stored through a write-only loan copies to a bare array.
+// domains.md: qualified-fixed-byte-array-carrier.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+domain [u8; 8]::Utf8(bytes)
+requires
+    valid_utf8(bytes);
+
+data Tagged {
+    label: [u8; 8] in Utf8;
+}
+
+machine retag(tagged: &write Tagged, label: [u8; 8] in Utf8) {
+    tagged.label = label;
+}
+
+data Main { console: Binding<Console>; }
+machine Main::main(main: &mut Main) reaches Console {
+    let mut tagged: Tagged;
+    retag(&write tagged, "omega600");
+    let copy: [u8; 8] = tagged.label;
+    let first: i32 = copy[0] as i32;
+    transition first == 111 {
+        true -> finish(main, 60)
+        false -> finish(main, 1)
+    }
+    state finish(main: &mut Main, code: i32) { main.console.exit_process(code); }
+}

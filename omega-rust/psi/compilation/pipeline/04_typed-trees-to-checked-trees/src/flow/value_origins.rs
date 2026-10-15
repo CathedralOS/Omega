@@ -360,7 +360,7 @@ where
         Fn(&FlowStateFact, usize, &TableCallExpression, &[PlaceSegment]) -> Option<CanonicalPlace>,
 {
     let mut projections =
-        flow::literal_value_projections(program, value, stored_type, suffix, false)?;
+        flow::literal_expression_projections(program, value, stored_type, suffix, false)?;
     let projection = projections.pop()?;
     if !projections.is_empty() {
         return None;
@@ -401,7 +401,7 @@ where
                 let literal_type = program
                     .type_reference_table
                     .find_named_type_reference(literal.type_symbol)?;
-                let mut projections = flow::literal_value_projections(
+                let mut projections = flow::literal_expression_projections(
                     program,
                     rooted,
                     literal_type,

@@ -1,0 +1,17 @@
+// Expected exit: 0
+// Qualification cannot add a length header or turn N zero bytes into an empty owner.
+domain [u8; 8]::Ascii(bytes) requires ascii_only(bytes);
+data Plain { bytes: [u8; 8]; }
+data Qualified { bytes: [u8; 8] in Ascii; }
+machine main() crashes Trap {
+    let plain: Plain;
+    let qualified: Qualified;
+    transition size_of<Plain>() == 8 && size_of<Qualified>() == 8
+        && align_of<Plain>() == 1 && align_of<Qualified>() == 1
+        && plain.bytes.len == 8 && qualified.bytes.len == 8 {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

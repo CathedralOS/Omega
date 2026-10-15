@@ -23,11 +23,11 @@
 // Expected exit: 66.
 use omega_language_std::console;
 
-domain [u8; 8]::Utf8(bytes)
+domain [u8; 3]::Utf8(bytes)
 requires
     valid_utf8(bytes);
 data Main {
-    label: [u8; 8] in Utf8;
+    label: [u8; 3] in Utf8;
 }
 
 machine Main::main(main: &mut Main) reaches Console {

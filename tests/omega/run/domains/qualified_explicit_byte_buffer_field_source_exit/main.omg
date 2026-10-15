@@ -1,0 +1,47 @@
+// Expected exit: 0
+// Explicit capacity and live length; ordinary qualified array loans and prefix view.
+domain [u8; 32]::Ascii(bytes) requires ascii_only(bytes);
+domain [u8]::Ascii(bytes) requires ascii_only(bytes);
+data TextBuffer where used <= 32 { storage: [u8; 32] in Ascii; used: u64; }
+machine live(buffer: &TextBuffer) -> &[u8] in Ascii { &buffer.storage[..buffer.used] }
+machine copy(buffer: &mut [u8; 32] in Ascii, bytes: &[u8] in Ascii, start: u64)
+requires start <= 32; bytes.len <= 32 - start
+{
+    transition { _ -> copying(buffer, bytes, start, 0) }
+    state copying(buffer: &mut [u8; 32] in Ascii, bytes: &[u8] in Ascii, start: u64, index: u64)
+    requires start <= 32; index <= 32
+    {
+        transition index < bytes.len && start + index < 32 {
+            true -> writing(buffer, bytes, start, index)
+            _ -> done()
+        }
+    }
+    state writing(buffer: &mut [u8; 32] in Ascii, bytes: &[u8] in Ascii, start: u64, index: u64)
+    requires start <= 32; index < 32; index < bytes.len; start + index < 32
+    {
+        buffer[start + index] = bytes[index];
+        transition { _ -> copying(buffer, bytes, start, index + 1) }
+    }
+    state done() {}
+}
+domain [u8; 3]::Ascii(bytes) requires ascii_only(bytes);
+data Name { bytes: [u8; 3] in Ascii; }
+machine main() crashes Trap {
+    let mut name: Name;
+    name.bytes = "Ada";
+    let mut text: TextBuffer;
+    text.used = 0;
+    copy(&mut text.storage, "Hello, ", 0);
+    text.used = 7;
+    copy(&mut text.storage, &name.bytes, 7);
+    text.used = 10;
+    copy(&mut text.storage, "!", 10);
+    text.used = 11;
+    let view: &[u8] in Ascii = live(&text);
+    transition view == "Hello, Ada!" && text.used == 11 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

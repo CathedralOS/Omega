@@ -57,7 +57,14 @@ pub(super) fn check_view_return_escape(
                     .is_some_and(|reference| {
                         validation::reference_shell(program, reference).is_some()
                     });
-                    if is_view
+                    // Quoted bytes already denote immutable image storage even
+                    // when no explicit reference type was recorded for the literal.
+                    let image_literal = loan.kind == checked_trees::BorrowAccessKind::Read
+                        && matches!(
+                            program.expression_table.expression(expression),
+                            typed_trees::expression::ExpressionNode::String(_)
+                        );
+                    if (is_view || image_literal)
                         && super::persistent::is_state_independent_borrow_source(
                             program,
                             state,

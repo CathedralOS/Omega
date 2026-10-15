@@ -114,3 +114,25 @@ pub(in crate::legalization) fn byte_length_geometry(
     }
     Some((geometry, carrier))
 }
+
+/// Inline fixed bytes have a declared count and no length word. Geometry still
+/// checks the original source access and every reference/selector crossing.
+pub(in crate::legalization) fn fixed_byte_length(
+    function: &PsiOptimizationFunction,
+    source: &StructuralArgument,
+    types: &[StructuralTypeDeclaration],
+) -> Option<u64> {
+    let geometry = descriptor_geometry(function, source, types)?;
+    if !geometry.readable
+        || !types.iter().any(|row| {
+            row.id == geometry.selected
+                && matches!(
+                    row.shape,
+                    terminal_psi::StructuralTypeShape::FixedArray { .. }
+                )
+        })
+    {
+        return None;
+    }
+    terminal_semantics::fixed_byte_extent(types.iter(), geometry.selected)
+}

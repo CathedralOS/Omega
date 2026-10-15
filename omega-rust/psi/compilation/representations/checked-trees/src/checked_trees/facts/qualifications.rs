@@ -57,6 +57,27 @@ pub struct VacuousQualificationUse {
 }
 
 impl QualificationFacts {
+    /// Source judgments for precisely this evaluation occurrence. Construction
+    /// plans transport these decisions; receiving declarations supply none.
+    pub fn formation_domains_at(
+        &self,
+        machine: SymbolHandle,
+        state: SymbolHandle,
+        statement_index: u32,
+        expression: ExpressionHandle,
+    ) -> Vec<SemanticDomainId> {
+        self.value_formations
+            .iter()
+            .filter_map(|(_, row)| {
+                (row.machine == machine
+                    && row.state == state
+                    && row.statement_index == statement_index
+                    && row.expression == expression)
+                    .then_some(row.semantic_domain)
+            })
+            .collect()
+    }
+
     /// Publish the source-to-value association once after checking. Membership
     /// rows carry no exposed handles before this join, so group them into one
     /// arena and let each value retain a span instead of making every lowering

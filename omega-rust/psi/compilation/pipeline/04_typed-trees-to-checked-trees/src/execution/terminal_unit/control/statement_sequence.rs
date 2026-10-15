@@ -644,7 +644,6 @@ pub(in crate::execution::terminal_unit) fn build(
         structural_count,
         structural_local_symbols,
         windows,
-        array_bindings,
         returned_call,
         returned_scalar_call,
         structural_results,

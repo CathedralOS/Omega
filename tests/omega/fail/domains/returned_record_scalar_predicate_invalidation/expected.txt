@@ -1,0 +1,1 @@
+machine `corrupt` state `entry` assignment stores a value not provably within its data's `where` facts

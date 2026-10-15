@@ -158,7 +158,7 @@ impl ExitScalars<'_, '_> {
                 .is_some()
                 .then_some((returned, Vec::new()));
         }
-        let mut projections = flow::literal_value_projections(
+        let mut projections = flow::literal_expression_projections(
             self.program,
             returned,
             entry.return_type,

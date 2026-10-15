@@ -32,7 +32,10 @@ pub fn byte_predicate_equation(
                 root_type,
                 &source.path,
             )?;
-            if !matches!(declaration.shape, StructuralTypeShape::ByteSequence(_)) {
+            if !matches!(declaration.shape, StructuralTypeShape::ByteSequence(_))
+                && !(matches!(declaration.shape, StructuralTypeShape::FixedArray { .. })
+                    && crate::fixed_byte_extent(structural_types.iter(), declaration.id).is_some())
+            {
                 return None;
             }
             (source.place, path)

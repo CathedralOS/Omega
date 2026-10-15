@@ -425,7 +425,7 @@ pub(crate) fn structural_dependencies(
             | Value::Place(_)
             | Value::ByteLiteralView { .. }
             | Value::CopiedStructuralPlace { .. }
-            | Value::ZeroedStructural {} => {}
+            | Value::ZeroedStructural { .. } => {}
         }
     }
     Ok(StructuralDependencies { values, scalars })

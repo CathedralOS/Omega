@@ -1,0 +1,8 @@
+domain [u8; 4]::Utf8(bytes) requires valid_utf8(bytes);
+data Row { bytes: [u8; 4] in Utf8; }
+machine observe(bytes: &[u8; 4] in Utf8) -> u64 { bytes.len }
+machine main() {
+    let mut row: Row = Row { bytes: "Gate" };
+    row.bytes[0] = 255u8;
+    let count: u64 = observe(&row.bytes);
+}

@@ -373,9 +373,10 @@ fn constraint_requires_establishment(
                         &crate::proof_contracts::contract_entailment::ScopedArithmeticValue::Integer(BigInt::zero()),
                     ) == crate::proof_contracts::contract_entailment::StrictArithmeticImplicationJudgment::Proven;
                 let zero_bytes = domain.establishment_routes.is_empty()
-                    && crate::value_custody::field_domains::domain_admits_empty_byte_sequence(
+                    && crate::value_custody::field_domains::domain_admits_zero_byte_carrier(
                         program,
                         domain.symbol,
+                        carrier,
                     );
                 !zero_integer && !zero_bytes
             }

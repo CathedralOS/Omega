@@ -1,15 +1,15 @@
 // A scalar-returning helper borrows a qualified owner, not a raw byte
-// view: `&mut [u8; 8] in Ascii` preserves live length and ASCII while
+// view: `&mut [u8; 2] in Ascii` preserves its exact length and ASCII while
 // `bytes[at] = value` writes only the caller's home. `at < bytes.len
 // && value < 128` keeps both bounds and domain honest; a shared
-// `&[u8; 8] in Ascii` loan may ride into a later state.
-domain [u8; 8]::Ascii(bytes) requires ascii_only(bytes);
-machine replace(at: u64, bytes: &mut [u8; 8] in Ascii, value: u8) -> bool {
+// `&[u8; 2] in Ascii` loan may ride into a later state.
+domain [u8; 2]::Ascii(bytes) requires ascii_only(bytes);
+machine replace(at: u64, bytes: &mut [u8; 2] in Ascii, value: u8) -> bool {
     transition at < bytes.len && value < 128 {
         true -> write(at, bytes, value, true)
         _ -> false
     }
-    state write(at: u64, bytes: &mut [u8; 8] in Ascii, value: u8, repeat: bool) -> bool {
+    state write(at: u64, bytes: &mut [u8; 2] in Ascii, value: u8, repeat: bool) -> bool {
         bytes[at] = value;
         transition repeat {
             true -> write(at, bytes, value, false)
@@ -19,7 +19,7 @@ machine replace(at: u64, bytes: &mut [u8; 8] in Ascii, value: u8) -> bool {
 }
 data Main {}
 machine Main::main(main: &mut Main) {
-    let mut bytes: [u8; 8] in Ascii = "ab";
+    let mut bytes: [u8; 2] in Ascii = "ab";
     let first: bool = replace(0, &mut bytes, 65);
     let second: bool = replace(1, &mut bytes, 66);
     let outside: bool = replace(9, &mut bytes, 67);

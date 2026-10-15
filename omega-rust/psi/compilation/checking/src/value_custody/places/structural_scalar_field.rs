@@ -477,8 +477,8 @@ fn readable_projection_carrier(
 ) -> Option<TypeReferenceHandle> {
     for _ in 0..program.type_reference_table.type_reference_count() {
         // Qualifications do not authorize a descriptor crossing. Keep the
-        // declared access check, and retain non-reference carrier shells:
-        // a qualified byte array can have a live extent unlike a raw array.
+        // declared access check, and retain qualifications on non-reference
+        // leaves for the independent predicate obligations.
         match program
             .type_reference_table
             .type_reference(crate::peel_declared_constraints(program, carrier))

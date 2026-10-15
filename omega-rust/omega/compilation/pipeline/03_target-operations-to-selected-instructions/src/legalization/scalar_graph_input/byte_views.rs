@@ -212,7 +212,11 @@ pub(in crate::legalization) fn descriptor_return(
             declared.multiplicity,
             terminal_psi::nonlinear_multiplicity_pair_pattern!()
         )
-        || !declared.projected_qualifications.is_empty()
+        || !terminal_semantics::view_descriptor_projected_qualifications(
+            types.iter(),
+            declared.structural_type,
+            &declared.projected_qualifications,
+        )
         || !terminal_semantics::descriptor_results::is_descriptor(
             types.iter(),
             declared.structural_type,
@@ -233,14 +237,20 @@ pub(in crate::legalization) fn descriptor_return(
                     && parameter.access == terminal_psi::StructuralAccess::MutableBorrow
                     && parameter.multiplicity
                         == terminal_psi::StructuralMultiplicity::Unrestricted)
-            && parameter.qualifications == declared.qualifications
-            && parameter.projected_qualifications.is_empty();
+            && terminal_semantics::view_descriptor_projected_qualifications(
+                types.iter(),
+                parameter.structural_type,
+                &parameter.projected_qualifications,
+            );
     }
     if let Ok((_, result)) = super::structural_case::source_result(function, place) {
         return result.multiplicity == declared.multiplicity
             && result.claims.is_empty()
-            && result.qualifications == declared.qualifications
-            && result.projected_qualifications.is_empty()
+            && terminal_semantics::view_descriptor_projected_qualifications(
+                types.iter(),
+                result.structural_type,
+                &result.projected_qualifications,
+            )
             && result.qualification_establishments.is_empty();
     }
     declared.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
@@ -331,8 +341,11 @@ pub(in crate::legalization) fn descriptor_result(
     (matches!(
         result.multiplicity,
         terminal_psi::nonlinear_multiplicity_pair_pattern!()
-    ) && result.projected_qualifications.is_empty()
-        && result.qualification_establishments.is_empty()
+    ) && terminal_semantics::view_descriptor_projected_qualifications(
+        types.iter(),
+        result.structural_type,
+        &result.projected_qualifications,
+    ) && result.qualification_establishments.is_empty()
         && result.claims.is_empty()
         && terminal_semantics::descriptor_results::is_descriptor(
             types.iter(),

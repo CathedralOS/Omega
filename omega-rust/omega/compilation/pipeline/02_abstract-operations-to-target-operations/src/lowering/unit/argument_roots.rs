@@ -68,8 +68,22 @@ pub(in crate::lowering) fn resolve<'parameter>(
                     qualifications: result.qualifications.clone(),
                     projected_qualifications: result.projected_qualifications.clone(),
                 },
-                TargetStructuralArgumentSource::StructuralHome {
-                    psi_operation: *operation,
+                if function.operations.iter().any(|producer| {
+                    matches!(producer,
+                        abstract_operations::AbstractOperation::EstablishElementView {
+                            psi_operation, result: produced, ..
+                        } | abstract_operations::AbstractOperation::ElementViewSubslice {
+                        psi_operation, result: produced, ..
+                    } if psi_operation == operation && produced == result
+                    )
+                }) {
+                    TargetStructuralArgumentSource::EstablishedElementView {
+                        psi_operation: *operation,
+                    }
+                } else {
+                    TargetStructuralArgumentSource::StructuralHome {
+                        psi_operation: *operation,
+                    }
                 },
             ),
             TargetStructuralHomeOrigin::BlockParameter { block, declaration } => (

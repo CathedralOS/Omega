@@ -75,8 +75,6 @@ impl Checker<'_> {
                                         parameter,
                                         self.types.iter(),
                                     )
-                                    && parameter.qualifications.is_empty()
-                                    && parameter.projected_qualifications.is_empty()
                             })
                     })
             }
@@ -128,7 +126,7 @@ impl Checker<'_> {
                                 terminal_psi::StructuralMultiplicity::Unrestricted
                                     | terminal_psi::StructuralMultiplicity::Affine)
                             && result.qualifications.is_empty()
-                            && result.projected_qualifications.is_empty()
+                            && result.projected_qualifications.iter().all(|row| row.is_element_membership())
                             && result.claims.is_empty()
                             && *destination == *place
                             && *expected_element == *element)
@@ -253,7 +251,10 @@ impl Checker<'_> {
                             )
                         )
                         && result.qualifications.is_empty()
-                        && result.projected_qualifications.is_empty()
+                        && result
+                            .projected_qualifications
+                            .iter()
+                            .all(|row| row.is_element_membership())
                         && result.claims.is_empty()
                         && self.types.iter().any(|declaration| {
                             declaration.id == result.structural_type
@@ -341,7 +342,10 @@ impl Checker<'_> {
         backing
             && parameter.structural_type == root_structural_type
             && parameter.multiplicity != terminal_psi::StructuralMultiplicity::Linear
-            && parameter.projected_qualifications.is_empty()
+            && parameter
+                .projected_qualifications
+                .iter()
+                .all(|row| row.is_element_membership())
             && self.optimized.structural_places.iter().any(|declaration| {
                 declaration.id == place
                     && declaration.kind
@@ -387,7 +391,6 @@ impl Checker<'_> {
                 terminal_psi::StructuralMultiplicity::Unrestricted
                     | terminal_psi::StructuralMultiplicity::Affine
             )
-            && result.projected_qualifications.is_empty()
             && result.claims.is_empty()
             && self.optimized.structural_places.iter().any(|declaration| {
                 declaration.id == place

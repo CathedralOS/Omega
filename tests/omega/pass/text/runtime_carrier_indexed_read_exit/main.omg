@@ -1,19 +1,15 @@
-// Reading a `[u8;N] in Utf8` CARRIER byte by a RUNTIME index: `main.text[main.i]`.
-// The carrier stores its inline bytes after a leading `len` word, so a runtime
-// index must skip that prefix -- the resolver was missing the `+pointer_size`
-// adjustment (it read at the len word, returning 0). Now reads the inline byte.
-// "abc": text[0]='a'(97), text[2]='c'(99). Self-checks and exits 70.
-
+// Exact three-byte owned arrays lend ordinary qualified views.
+// Runtime indexes and state forwarding preserve the authored numerical oracle.
 domain [u8]::Utf8(bytes)
 requires
     valid_utf8(bytes);
-domain [u8; 4]::Utf8(bytes)
+domain [u8; 3]::Utf8(bytes)
 requires
     valid_utf8(bytes);
 use omega_language_std::console;
 
 data Main {
-    text: [u8; 4] in Utf8;
+    text: [u8; 3] in Utf8;
     i: i32 in Trapping;
     a: u8;
     b: u8;

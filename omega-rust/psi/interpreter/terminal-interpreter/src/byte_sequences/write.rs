@@ -99,7 +99,12 @@ impl TerminalExecution<'_> {
             .structural_types()
             .get(&structural_type)
             .is_some_and(|declaration| declaration.shape.is_bounded_owned_byte_sequence());
-        if (!bounded_owner && !qualifications.is_empty())
+        if terminal_semantics::byte_qualification_predicates_in(
+            self.program.catalogs.structural_domains.iter(),
+            structural_type,
+            qualifications,
+        )
+        .is_none()
             || !projected_qualifications.is_empty()
             || self
                 .live_claims

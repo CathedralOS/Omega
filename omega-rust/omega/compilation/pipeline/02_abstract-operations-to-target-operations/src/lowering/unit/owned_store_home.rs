@@ -13,8 +13,6 @@ pub(super) fn block_home<'homes>(
 ) -> Option<&'homes TargetStructuralHomeRequirement> {
     let home = homes.get(&parameter.place)?;
     (parameter.access == StructuralAccess::Owned
-        && home.qualifications().is_empty()
-        && home.projected_qualifications().is_empty()
         && matches!(&home.origin,
             TargetStructuralHomeOrigin::BlockParameter { block: owner, declaration }
                 if *owner == block && declaration == parameter))

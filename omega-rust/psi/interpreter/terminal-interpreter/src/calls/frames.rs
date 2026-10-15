@@ -25,7 +25,7 @@ use terminal_psi::{
 
 /// Whether the borrowed parameter directly rebinds the argument's resolved
 /// value — same type, matching borrow access, and
-/// no qualification delta on either side.
+/// every requested element membership supplied by the resolved source.
 fn is_direct_borrowed_rebinding(
     parameter: &StructuralParameterDeclaration,
     argument: &StructuralArgument,
@@ -40,7 +40,9 @@ fn is_direct_borrowed_rebinding(
             terminal_psi::reading_borrow_pair_pattern!()
         )
         && parameter.qualifications.is_empty()
-        && parameter.projected_qualifications.is_empty()
+        && parameter.projected_qualifications.iter().all(|row| {
+            row.is_element_membership() && resolved.projected_qualifications.contains(row)
+        })
         && resolved.qualifications.is_empty()
 }
 
@@ -232,7 +234,16 @@ impl TerminalExecution<'_> {
                     resolved,
                     &self.program.structural_types(),
                 ) {
-                    return Err(malformed());
+                    return Err(TerminalInterpretError::StructuralArgumentPreparation {
+                        stage: "rebind borrowed element view",
+                        detail: format!(
+                            "formal={parameter:?}, source={resolved:?}, access={:?}, producer={:?}",
+                            view.access(),
+                            self.program
+                                .verified_machine(self.current_machine)?
+                                .producing_operation(argument.place)
+                        ),
+                    });
                 }
                 parameter.access
             };
@@ -259,12 +270,12 @@ impl TerminalExecution<'_> {
         mut result: SuspendedCallResult,
     ) -> Result<(), TerminalInterpretError> {
         let values = bind_arguments(&callee.parameters, scalar_arguments)?;
-        prepared_arguments.validate_carrier_partition(&callee.structural_parameters)?;
-        let placed_view_occurrences = self.bind_call_placed_views(
-            callee_id,
-            structural_arguments,
-            &prepared_arguments.values,
-        )?;
+        prepared_arguments
+            .validate_carrier_partition(&callee.structural_parameters)
+            .map_err(|error| error.in_argument_preparation("join callee carrier partition"))?;
+        let placed_view_occurrences = self
+            .bind_call_placed_views(callee_id, structural_arguments, &prepared_arguments.values)
+            .map_err(|error| error.in_argument_preparation("bind placed argument views"))?;
         let mut structural_values = prepared_arguments.values;
         let mut identity_cursor = prepared_arguments.local_identity_cursor;
         if let SuspendedCallResult::Structural {
@@ -272,14 +283,19 @@ impl TerminalExecution<'_> {
             ..
         } = &mut result
         {
-            *expected_reference_backings = self.bind_reference_return_backings(
-                &callee.structural_parameters,
-                callee.result.structural().ok_or_else(malformed)?,
-                &structural_values,
-                &prepared_arguments.aggregate_backings,
-                &prepared_arguments.primitive_loans,
-                &placed_view_occurrences,
-            )?;
+            *expected_reference_backings = self
+                .bind_reference_return_backings(
+                    &callee.structural_parameters,
+                    callee.result.structural().ok_or_else(malformed)?,
+                    &structural_values,
+                    &prepared_arguments.aggregate_backings,
+                    &prepared_arguments.primitive_loans,
+                    &prepared_arguments.element_views,
+                    &placed_view_occurrences,
+                )
+                .map_err(|error| {
+                    error.in_argument_preparation("capture reference result backings")
+                })?;
         }
         let aggregate_payload = self.stage_owned_value_arguments(
             &prepared_arguments.descriptor_parameters,
@@ -291,7 +307,8 @@ impl TerminalExecution<'_> {
             &callee.structural_parameters,
             &structural_values,
             &self.program.structural_types(),
-        )?;
+        )
+        .map_err(|error| error.in_argument_preparation("bind callee affine frontier"))?;
         let (remaining_claims, live_claims) = transfer_claims(
             &self.program.structural_types(),
             &self.structural_cases,
@@ -302,7 +319,8 @@ impl TerminalExecution<'_> {
             &callee.entry_claims,
             &callee.content_entry_claims,
             &structural_values,
-        )?;
+        )
+        .map_err(|error| error.in_argument_preparation("transfer argument claims"))?;
         crate::custody::exclude_linear_regions(
             &self.program.structural_types(),
             &mut callee_affine_frontier,
@@ -335,7 +353,9 @@ impl TerminalExecution<'_> {
             .and_then(|block| block.operations.get(self.next_operation))
             .ok_or_else(malformed)?
             .id;
-        let loan_completions = self.loan_completions_for_operation(operation)?;
+        let loan_completions = self
+            .loan_completions_for_operation(operation)
+            .map_err(|error| error.in_argument_preparation("retain call loan completions"))?;
         self.next_operation += 1;
         self.live_claims = remaining_claims;
         let mut caller_structural_values = std::mem::take(&mut self.structural_values);

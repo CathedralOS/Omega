@@ -402,8 +402,12 @@ impl TerminalExecution<'_> {
         if !matches!(
             result.multiplicity,
             terminal_psi::nonlinear_multiplicity_pair_pattern!()
-        ) || !result.projected_qualifications.is_empty()
-            || !result.claims.is_empty()
+        ) || !terminal_semantics::zeroed_projected_byte_qualifications_hold(
+            self.program.structural_types().values(),
+            self.program.catalogs.structural_domains.iter(),
+            result.structural_type,
+            &result.projected_qualifications,
+        ) || !result.claims.is_empty()
             || self.result_place_in_use(result.place)
         {
             return Err(malformed());
@@ -412,7 +416,7 @@ impl TerminalExecution<'_> {
             opaque_identity: self.local_structural_identities.allocate()?,
             structural_type: result.structural_type,
             qualifications: result.qualifications.clone(),
-            projected_qualifications: Vec::new(),
+            projected_qualifications: result.projected_qualifications.clone(),
             path: Vec::new(),
         };
         self.materialize_zeroed_structural_storage(&value)?;
@@ -675,6 +679,24 @@ impl TerminalExecution<'_> {
             return Err(malformed());
         }
         let machine = self.program.verified_machine(self.current_machine)?;
+        let preserves =
+            |root,
+             whole: &[semantic_vocabulary::StructuralDomainId],
+             projected: &[terminal_psi::StructuralPathQualification]| {
+                let Some(member) = terminal_semantics::projected_field_declaration(
+                    self.program.structural_types().values(),
+                    root,
+                    path,
+                    field,
+                ) else {
+                    return false;
+                };
+                let mut written = path.clone();
+                written.push(StructuralPathSegment::Field(member.identity));
+                terminal_semantics::structural_memberships_disjoint_from_write(
+                    whole, projected, &written,
+                )
+            };
         let access = machine
             .structural_parameter(destination)
             .filter(|parameter| {
@@ -683,8 +705,11 @@ impl TerminalExecution<'_> {
                     StructuralAccess::Owned
                         | StructuralAccess::MutableBorrow
                         | StructuralAccess::WriteOnlyBorrow
-                ) && parameter.qualifications.is_empty()
-                    && parameter.projected_qualifications.is_empty()
+                ) && preserves(
+                    parameter.structural_type,
+                    &parameter.qualifications,
+                    &parameter.projected_qualifications,
+                )
             })
             .map(|parameter| parameter.access)
             .or_else(|| {
@@ -710,10 +735,17 @@ impl TerminalExecution<'_> {
                         .get(&destination)
                         .is_some_and(|value| {
                             value.structural_type == structural_type
-                                && value.qualifications.is_empty()
+                                && preserves(
+                                    value.structural_type,
+                                    &value.qualifications,
+                                    &value.projected_qualifications,
+                                )
                         })
-                    && result.qualifications.is_empty()
-                    && result.projected_qualifications.is_empty())
+                    && preserves(
+                        result.structural_type,
+                        &result.qualifications,
+                        &result.projected_qualifications,
+                    ))
                 .then_some(StructuralAccess::Owned)
             })
             .ok_or(malformed())?;
@@ -944,13 +976,7 @@ impl TerminalExecution<'_> {
         // exact typed leaves before publishing the same window transaction.
         let child = ConstructorValue::resolve(self, value)
             .map_err(|error| failure("completed source", error))?;
-        let (qualifications, projected_qualifications) = match &child {
-            ConstructorValue::Placed(child) => (
-                child.qualifications.as_slice(),
-                child.projected_qualifications.as_slice(),
-            ),
-            ConstructorValue::PackedScalars { .. } => (&[][..], &[][..]),
-        };
+        let (qualifications, projected_qualifications) = child.memberships();
         if child.structural_type() != field_type
             || required
                 .iter()
@@ -959,7 +985,13 @@ impl TerminalExecution<'_> {
                 .iter()
                 .any(|row| !projected_qualifications.contains(row))
         {
-            return Err(malformed());
+            return Err(TerminalInterpretError::StructuralStorePreparation {
+                stage: "replacement memberships",
+                detail: format!(
+                    "expected_type={field_type:?}, actual_type={:?}, required={required:?}, projected_required={projected_required:?}, actual={qualifications:?}, projected_actual={projected_qualifications:?}",
+                    child.structural_type()
+                ),
+            });
         }
         // Stage memberships with the custody transaction. Only the repaired
         // region receives the replacement's actual roster; retained siblings
@@ -979,7 +1011,10 @@ impl TerminalExecution<'_> {
             )
             .is_none()
             {
-                return Err(malformed());
+                return Err(TerminalInterpretError::StructuralStorePreparation {
+                    stage: "preserve enclosing memberships",
+                    detail: format!("owner={owner:?}, hole={hole:?}, relative={relative:?}"),
+                });
             }
             let mut repaired = owner.clone();
             if relative.is_empty() {
@@ -1460,6 +1495,7 @@ impl TerminalExecution<'_> {
                     self.scalar_array_values.insert(
                         result.place,
                         crate::scalar_array::TerminalScalarArrayValue {
+                            qualifications: Vec::new(),
                             structural_type: result.structural_type,
                             elements,
                         },
@@ -1483,6 +1519,8 @@ impl TerminalExecution<'_> {
                     &ConstructorValue::PackedScalars {
                         structural_type: value.structural_type(),
                         elements: &elements,
+                        qualifications: value.memberships().0.to_vec(),
+                        projected_qualifications: value.memberships().1.to_vec(),
                     },
                     &StructuralRuntimePlace::from(&copied),
                     false,
@@ -1731,13 +1769,18 @@ impl TerminalExecution<'_> {
         source: &StructuralArgument,
         result: &terminal_psi::StructuralOperationResult,
     ) -> Result<OperationFlow, TerminalInterpretError> {
-        if !result.is_unrestricted_plain()
+        if result.multiplicity != StructuralMultiplicity::Unrestricted
+            || !result.projected_qualifications.is_empty()
+            || !result.claims.is_empty()
+            || !result.qualification_establishments.is_empty()
             || self.scalar_array_values.contains_key(&result.place)
             || self.structural_values.contains_key(&result.place)
         {
             return Err(malformed());
         }
-        let copied = self.scalar_array_snapshot(source, result.structural_type)?;
+        let mut copied = self.scalar_array_snapshot(source, result.structural_type)?;
+        self.validate_scalar_array_qualifications(&copied, &result.qualifications)?;
+        copied.qualifications = result.qualifications.clone();
         self.scalar_array_values.insert(result.place, copied);
         Ok(OperationFlow::Advance)
     }
@@ -2099,6 +2142,16 @@ impl TerminalExecution<'_> {
             IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64).expect("u64 is valid");
         if result.scalar_type != ScalarType::Integer(integer_type) {
             return Err(malformed());
+        }
+        if let Some(bytes) = self.fixed_byte_array_observation(source)? {
+            self.values.insert(
+                result.id,
+                TerminalScalarValue::Integer {
+                    scalar_type: integer_type,
+                    value: IntegerValue::Unsigned(bytes.len() as u128),
+                },
+            );
+            return Ok(OperationFlow::Advance);
         }
         self.validate_descriptor_borrow(source, StructuralAccess::SharedBorrow)?;
         let selected = self.resolve_live_projection(

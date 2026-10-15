@@ -383,6 +383,7 @@ fn hash_loan_path_segment(
     segment: &StructuralPathSegment,
 ) {
     match segment {
+        StructuralPathSegment::AllElements => hash.byte(10),
         StructuralPathSegment::Case(case) => {
             hash.byte(7);
             hash.raw(&case.get().to_le_bytes());

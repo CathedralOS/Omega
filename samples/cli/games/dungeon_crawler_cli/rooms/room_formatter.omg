@@ -1,3 +1,4 @@
+use text::buffer;
 use events::events;
 use player::player_state;
 use rooms::map;
@@ -13,20 +14,19 @@ data RoomFormatter {
 
 machine RoomFormatter::write_current_cell(level: Level,
     cell: CellId,
-    out_line: &mut [u8; 128] in Utf8)
-ensures out_line in Utf8
+    out_line: &mut TextBuffer)
 {
     transition cell {
         CellId::R00 -> gate_title(out_line)
         _ -> branch_title(out_line)
     }
 
-    state gate_title(out_line: &mut [u8; 128] in Utf8) {
-        out_line = "== Gate ==";
+    state gate_title(out_line: &mut TextBuffer) {
+        TextBuffer::set(out_line, "== Gate ==");
     }
 
-    state branch_title(out_line: &mut [u8; 128] in Utf8) {
-        out_line = "== Branch Room ==";
+    state branch_title(out_line: &mut TextBuffer) {
+        TextBuffer::set(out_line, "== Branch Room ==");
     }
 }
 
@@ -34,22 +34,20 @@ machine RoomFormatter::write_room_info(
     room_formatter: &mut RoomFormatter,
     level: Level,
     cell: CellId,
-    out_line: &mut [u8; 128] in Utf8
+    out_line: &mut TextBuffer
 )
-ensures out_line in Utf8
 {
     let room: Room;
     RoomLookup::find_room(level, cell, &mut room);
-    out_line = room.description;
+    TextBuffer::set(out_line, RoomDescription::live(&room.description));
 }
 
 machine RoomFormatter::write_room_event(
     room_formatter: &mut RoomFormatter,
     level: Level,
     cell: CellId,
-    out_line: &mut [u8; 128]
+    out_line: &mut TextBuffer
 )
-ensures out_line in Utf8
 {
     let room: Room;
     RoomLookup::find_room(level, cell, &mut room);
@@ -63,32 +61,32 @@ ensures out_line in Utf8
     }
 
 
-    state describe_fountain(out_line: &mut [u8; 128]) {
-        out_line = "A fountain of life glows here. Type use to drink.";
+    state describe_fountain(out_line: &mut TextBuffer) {
+        TextBuffer::set(out_line, "A fountain of life glows here. Type use to drink.");
     }
 
-    state describe_treasure(out_line: &mut [u8; 128]) {
-        out_line = "A treasure cache rests against the wall. Type use to claim it.";
+    state describe_treasure(out_line: &mut TextBuffer) {
+        TextBuffer::set(out_line, "A treasure cache rests against the wall. Type use to claim it.");
     }
 
-    state describe_gold(out_line: &mut [u8; 128]) {
-        out_line = "Loose gold glitters in the dust. Type use to collect it.";
+    state describe_gold(out_line: &mut TextBuffer) {
+        TextBuffer::set(out_line, "Loose gold glitters in the dust. Type use to collect it.");
     }
 
-    state describe_enemy(enemy_name: [u8; 24] in Utf8,
-        out_line: &mut [u8; 128]) {
-        out_line = enemy_name + " blocks the way. Type fight.";
+    state describe_enemy(enemy_name: EnemyName,
+        out_line: &mut TextBuffer)
+    {
+        TextBuffer::join(out_line, EnemyName::live(&enemy_name), " blocks the way. Type fight.");
     }
 
-    state quiet_room(out_line: &mut [u8; 128]) {
-        out_line = "The room is quiet.";
+    state quiet_room(out_line: &mut TextBuffer) {
+        TextBuffer::set(out_line, "The room is quiet.");
     }
 }
 
 machine RoomFormatter::write_adjacent_rooms(level: Level,
     cell: CellId,
-    out_line: &mut [u8; 128])
-ensures out_line in Utf8
+    out_line: &mut TextBuffer)
 {
     transition cell {
         CellId::R00 -> gate_paths(out_line)
@@ -103,42 +101,41 @@ ensures out_line in Utf8
     }
 
 
-    state gate_paths(out_line: &mut [u8; 128]) {
-        out_line = "[Paths] north";
+    state gate_paths(out_line: &mut TextBuffer) {
+        TextBuffer::set(out_line, "[Paths] north");
     }
 
-    state room_one_paths(out_line: &mut [u8; 128]) {
-        out_line = "[Paths] south | north | east";
+    state room_one_paths(out_line: &mut TextBuffer) {
+        TextBuffer::set(out_line, "[Paths] south | north | east");
     }
 
-    state room_two_paths(out_line: &mut [u8; 128]) {
-        out_line = "[Paths] south | north | west";
+    state room_two_paths(out_line: &mut TextBuffer) {
+        TextBuffer::set(out_line, "[Paths] south | north | west");
     }
 
-    state room_three_paths(out_line: &mut [u8; 128]) {
-        out_line = "[Paths] south | north | east";
+    state room_three_paths(out_line: &mut TextBuffer) {
+        TextBuffer::set(out_line, "[Paths] south | north | east");
     }
 
-    state room_four_paths(out_line: &mut [u8; 128]) {
-        out_line = "[Paths] south";
+    state room_four_paths(out_line: &mut TextBuffer) {
+        TextBuffer::set(out_line, "[Paths] south");
     }
 
-    state side_east_paths(out_line: &mut [u8; 128]) {
-        out_line = "[Paths] west";
+    state side_east_paths(out_line: &mut TextBuffer) {
+        TextBuffer::set(out_line, "[Paths] west");
     }
 
-    state side_west_paths(out_line: &mut [u8; 128]) {
-        out_line = "[Paths] east";
+    state side_west_paths(out_line: &mut TextBuffer) {
+        TextBuffer::set(out_line, "[Paths] east");
     }
 
-    state no_paths(out_line: &mut [u8; 128]) {
-        out_line = "[Paths] none";
+    state no_paths(out_line: &mut TextBuffer) {
+        TextBuffer::set(out_line, "[Paths] none");
     }
 }
 
 machine RoomFormatter::write_inventory(player: Player,
-    out_line: &mut [u8; 128] in Utf8)
-ensures out_line in Utf8
+    out_line: &mut TextBuffer)
 {
     transition player.inventory.gold >= 30 {
         true -> inventory_thirty(out_line)
@@ -146,7 +143,7 @@ ensures out_line in Utf8
     }
 
     state inventory_twenty_four_check(player: Player,
-        out_line: &mut [u8; 128] in Utf8) {
+        out_line: &mut TextBuffer) {
         transition player.inventory.gold >= 24 {
             true -> inventory_twenty_four(player, out_line)
             false -> inventory_six_check(player, out_line)
@@ -154,7 +151,7 @@ ensures out_line in Utf8
     }
 
     state inventory_six_check(player: Player,
-        out_line: &mut [u8; 128] in Utf8) {
+        out_line: &mut TextBuffer) {
         transition player.inventory.gold >= 6 {
             true -> inventory_six(player, out_line)
             false -> inventory_zero(player, out_line)
@@ -162,61 +159,60 @@ ensures out_line in Utf8
     }
 
     state inventory_zero(player: Player,
-        out_line: &mut [u8; 128] in Utf8) {
+        out_line: &mut TextBuffer) {
         transition player.inventory.item_count > 0 {
             true -> inventory_zero_with_item(out_line)
             false -> inventory_zero_empty(out_line)
         }
     }
 
-    state inventory_zero_empty(out_line: &mut [u8; 128] in Utf8) {
-        out_line = "Inv: 0 gold. Pack empty.";
+    state inventory_zero_empty(out_line: &mut TextBuffer) {
+        TextBuffer::set(out_line, "Inv: 0 gold. Pack empty.");
     }
 
-    state inventory_zero_with_item(out_line: &mut [u8; 128] in Utf8) {
-        out_line = "Inv: 0 gold. Pack holds a charm.";
+    state inventory_zero_with_item(out_line: &mut TextBuffer) {
+        TextBuffer::set(out_line, "Inv: 0 gold. Pack holds a charm.");
     }
 
     state inventory_six(player: Player,
-        out_line: &mut [u8; 128] in Utf8) {
+        out_line: &mut TextBuffer) {
         transition player.inventory.item_count > 0 {
             true -> inventory_six_with_item(out_line)
             false -> inventory_six_only(out_line)
         }
     }
 
-    state inventory_six_only(out_line: &mut [u8; 128] in Utf8) {
-        out_line = "Inv: 6 gold. A few scavenged coins.";
+    state inventory_six_only(out_line: &mut TextBuffer) {
+        TextBuffer::set(out_line, "Inv: 6 gold. A few scavenged coins.");
     }
 
-    state inventory_six_with_item(out_line: &mut [u8; 128] in Utf8) {
-        out_line = "Inv: 6 gold. A few coins and a charm.";
+    state inventory_six_with_item(out_line: &mut TextBuffer) {
+        TextBuffer::set(out_line, "Inv: 6 gold. A few coins and a charm.");
     }
 
     state inventory_twenty_four(player: Player,
-        out_line: &mut [u8; 128] in Utf8) {
+        out_line: &mut TextBuffer) {
         transition player.inventory.item_count > 0 {
             true -> inventory_twenty_four_with_item(out_line)
             false -> inventory_twenty_four_only(out_line)
         }
     }
 
-    state inventory_twenty_four_only(out_line: &mut [u8; 128] in Utf8) {
-        out_line = "Inv: 24 gold. A rich little haul.";
+    state inventory_twenty_four_only(out_line: &mut TextBuffer) {
+        TextBuffer::set(out_line, "Inv: 24 gold. A rich little haul.");
     }
 
-    state inventory_twenty_four_with_item(out_line: &mut [u8; 128] in Utf8) {
-        out_line = "Inv: 24 gold. A rich haul and a charm.";
+    state inventory_twenty_four_with_item(out_line: &mut TextBuffer) {
+        TextBuffer::set(out_line, "Inv: 24 gold. A rich haul and a charm.");
     }
 
-    state inventory_thirty(out_line: &mut [u8; 128] in Utf8) {
-        out_line = "Inv: 30 gold. Purse heavy, charm secured.";
+    state inventory_thirty(out_line: &mut TextBuffer) {
+        TextBuffer::set(out_line, "Inv: 30 gold. Purse heavy, charm secured.");
     }
 }
 
 machine RoomFormatter::write_character(player: Player,
-    out_line: &mut [u8; 128] in Utf8)
-ensures out_line in Utf8
+    out_line: &mut TextBuffer)
 {
     transition player.health * 2 <= player.max_health {
         true -> wounded_character(out_line)
@@ -225,22 +221,22 @@ ensures out_line in Utf8
 
 
     state character_experience(player: Player,
-        out_line: &mut [u8; 128] in Utf8) {
+        out_line: &mut TextBuffer) {
         transition player.level >= 3 {
             true -> seasoned_character(out_line)
             false -> ready_character(out_line)
         }
     }
 
-    state wounded_character(out_line: &mut [u8; 128] in Utf8) {
-        out_line = "Character: wounded, stubborn, still standing.";
+    state wounded_character(out_line: &mut TextBuffer) {
+        TextBuffer::set(out_line, "Character: wounded, stubborn, still standing.");
     }
 
-    state seasoned_character(out_line: &mut [u8; 128] in Utf8) {
-        out_line = "Character: seasoned enough to worry the dungeon.";
+    state seasoned_character(out_line: &mut TextBuffer) {
+        TextBuffer::set(out_line, "Character: seasoned enough to worry the dungeon.");
     }
 
-    state ready_character(out_line: &mut [u8; 128] in Utf8) {
-        out_line = "Character: ready for trouble.";
+    state ready_character(out_line: &mut TextBuffer) {
+        TextBuffer::set(out_line, "Character: ready for trouble.");
     }
 }

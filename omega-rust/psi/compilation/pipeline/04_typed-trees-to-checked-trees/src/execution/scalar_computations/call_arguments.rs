@@ -237,7 +237,9 @@ impl Builder<'_, '_> {
                         .type_reference(parameter.type_reference),
                     TypeReferenceNode::Reference { .. }
                 );
-                let retained = if !reference_formal && !parameter.is_mutable {
+                // Binding mutability controls writes inside the callee;
+                // every owned actual still establishes an independent value.
+                let retained = if !reference_formal {
                     self.retain_structural_argument(*argument, parameter.type_reference)
                 } else {
                     None

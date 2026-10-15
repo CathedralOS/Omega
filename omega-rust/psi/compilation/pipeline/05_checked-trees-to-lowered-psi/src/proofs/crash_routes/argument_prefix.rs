@@ -72,6 +72,9 @@ pub(crate) fn structural_crash_route_prefix_from_type(
             return unsupported("structural crash route case must select its payload field");
         }
         match segment {
+            StructuralPathSegment::AllElements => {
+                return unsupported("universal qualification is not a crash operand path");
+            }
             StructuralPathSegment::RepresentationView { .. } => {
                 return unsupported(
                     "returned view origins cannot create canonical crash predicate places",

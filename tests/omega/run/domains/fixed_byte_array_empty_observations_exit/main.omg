@@ -1,0 +1,19 @@
+// Expected exit: 0
+domain [u8; 0]::Utf8(bytes) requires valid_utf8(bytes);
+data Empty { before: u8; bytes: [u8; 0] in Utf8; after: u8; }
+machine compare(view: &[u8], bytes: &[u8; 0]) -> bool { view == bytes }
+machine main() crashes Trap {
+    let raw: [u8; 0] = [];
+    let empty: Empty = Empty { before: 17u8, bytes: [], after: 29u8 };
+    transition valid_utf8(raw) && valid_utf8(empty.bytes)
+        && raw.len == 0 && empty.bytes.len == 0 && raw == ""
+        && empty.bytes == "" && raw != "x" && empty.bytes != "x"
+        && compare("", &raw) && compare("", &empty.bytes)
+        && size_of<[u8; 0] in Utf8>() == 0 && size_of<Empty>() == 2
+        && empty.before == 17u8 && empty.after == 29u8 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

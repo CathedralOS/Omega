@@ -13,7 +13,13 @@ fn element_view_result_place(
 ) -> bool {
     result.multiplicity == multiplicity
         && result.qualifications.is_empty()
-        && result.projected_qualifications.is_empty()
+        && result.projected_qualifications.iter().all(|row| {
+            matches!(
+                row.path.first(),
+                Some(terminal_psi::StructuralPathSegment::AllElements)
+            )
+        })
+        && result.qualification_establishments.is_empty()
         && result.claims.is_empty()
         && module.structural_types.iter().any(|row| {
             row.id == result.structural_type
@@ -99,6 +105,7 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
     ) {
         return malformed("element-view establishment requires its exact borrowed result place");
     }
+    validate_element_memberships(module, machine, operation)?;
     // Full module validation independently checks source access, the
     // collection's declared element type, custody, and establishment order.
     Ok(())
@@ -126,6 +133,7 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
             "mutable element-view establishment requires its exact borrowed result place",
         );
     }
+    validate_element_memberships(module, machine, operation)?;
     // Full module validation independently checks the mutable source access,
     // the collection's declared element type, custody, and establishment
     // order.
@@ -175,6 +183,7 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
     {
         return malformed("element subslice must preserve its selected descriptor and access");
     }
+    validate_element_memberships(module, machine, operation)?;
     // Mutable range holders are affine, as mutable whole views are. Their
     // source authority, bounds and lifetime remain independent verifier work.
     Ok(())
@@ -242,5 +251,86 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
     }
     // Full module validation independently checks length provenance, custody,
     // operand types and dominance before encoding or after decoding.
+    Ok(())
+}
+
+/// Universal rows are introductions over actual source payloads, not a
+/// consequence of the view's receiving element annotation.
+fn validate_element_memberships(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    operation: &Operation,
+) -> Result<(), CodecError> {
+    let Some(result) = operation.result.structural() else {
+        return malformed("element membership result is absent");
+    };
+    if result.projected_qualifications.is_empty() {
+        return Ok(());
+    }
+    let Some(StructuralTypeShape::ElementView { element, .. }) = module
+        .structural_type(result.structural_type)
+        .map(|row| &row.shape)
+    else {
+        return malformed("universal membership requires an element-view carrier");
+    };
+    let source = match &operation.kind {
+        OperationKind::EstablishElementView { source, .. }
+        | OperationKind::EstablishMutableElementView { source, .. }
+        | OperationKind::ElementViewSubslice { source, .. } => source,
+        _ => return malformed("universal membership has no view introduction"),
+    };
+    let position = machine
+        .blocks
+        .iter()
+        .find_map(|block| {
+            block
+                .operations
+                .iter()
+                .position(|row| row.id == operation.id)
+                .and_then(|ordinal| {
+                    u32::try_from(ordinal)
+                        .ok()
+                        .map(|ordinal| (block.id, ordinal))
+                })
+        })
+        .ok_or(CodecError::MalformedStructuralFoundation(
+            "view introduction position is absent",
+        ))?;
+    let graph = terminal_semantics::descriptor_results::terminal_graph(module);
+    let mut analysis = terminal_semantics::descriptor_results::DescriptorAnalysis::new(
+        &module.structural_types,
+        &graph,
+    );
+    let evidence = terminal_semantics::descriptor_results::element_payload_memberships(
+        &module.structural_types,
+        &module.structural_domains,
+        machine,
+        &mut analysis,
+        position,
+        source,
+        *element,
+    )
+    .ok_or(CodecError::MalformedStructuralFoundation(
+        "view element memberships have unknown source payloads",
+    ))?;
+    let terminal_semantics::descriptor_results::ElementPayloadMemberships::Present(contract) =
+        evidence
+    else {
+        return Ok(());
+    };
+    let (whole, projected) = terminal_psi::StructuralPathQualification::select(
+        &[],
+        &result.projected_qualifications,
+        &[terminal_psi::StructuralPathSegment::AllElements],
+    );
+    if whole
+        .iter()
+        .any(|domain| !contract.qualifications.contains(domain))
+        || projected
+            .iter()
+            .any(|row| !contract.projected_qualifications.contains(row))
+    {
+        return malformed("view element memberships do not hold for every actual source element");
+    }
     Ok(())
 }

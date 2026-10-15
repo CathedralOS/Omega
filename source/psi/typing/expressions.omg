@@ -1032,9 +1032,8 @@ crashes Trap
         }
     }
 
-    // Byte sequences compare by live length and live bytes
-    // (wiki/spec/terminal-psi/structural_predicates.md) whatever their
-    // carriers, so a bounded byte array or byte view meets a quoted literal.
+    // Byte sequences compare their bytes and lengths independently of
+    // qualification. A fixed array contributes its complete fixed extent.
     state equality(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, left: u64 in Trapping, right: u64 in Trapping) {
         let comparable: bool = Typer::intrinsic_equality(typer, syntax, left);
         let sequences: bool = Typer::byte_sequence(typer, left) && Typer::byte_sequence(typer, right);
@@ -1298,9 +1297,8 @@ crashes Trap
 // fixed integers and addresses, and sums whose every case is payload-free
 // (wiki/spec/language/data_and_literals.md: records and payload-bearing sums
 // need a declared equality).
-// Whether a type is a byte sequence carrier: a byte view (`&[u8]` under any
-// qualifier) or a bounded byte array (`[u8; N]` under a declared domain),
-// itself or through a reference.
+// Byte-sequence operations accept fixed byte arrays and byte slices, with
+// or without qualification, themselves or through a reference.
 pub machine Typer::byte_sequence(typer: &Typer, handle: u64 in Trapping) -> bool
 crashes Trap
 {
@@ -1314,8 +1312,7 @@ crashes Trap
     state elements(typer: &Typer, row: TypeRow) -> bool {
         let element: TypeRow = TypeTable::row(&typer.output.types, row.inner);
         let bytes: bool = element.kind == TypeKind::Builtin && element.builtin == BuiltinType::U8;
-        let sequence: bool = row.kind == TypeKind::Slice || row.domain == DomainBinding::Declared;
-        transition { _ -> answer(bytes && sequence) }
+        transition { _ -> answer(bytes) }
     }
 
     state answer(sequence: bool) -> bool {

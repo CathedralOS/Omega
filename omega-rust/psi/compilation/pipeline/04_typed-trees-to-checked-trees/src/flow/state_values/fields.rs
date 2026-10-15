@@ -646,25 +646,29 @@ pub(super) fn capture(
                 FactPayload::AssignedValue { value }
                     if program.expression_table.expression_is_valid(value) =>
                 {
-                    match program.expression_table.expression(value) {
-                        ExpressionNode::String(bytes) => (
+                    if let Some(bytes) = typed_trees::byte_predicates::literal_bytes(program, value)
+                    {
+                        (
                             value,
                             ByteSequencePredicate::ALL
                                 .into_iter()
-                                .filter(|predicate| predicate.holds_for(bytes))
+                                .filter(|predicate| predicate.holds_for(&bytes))
                                 .collect::<Vec<_>>(),
                             None,
-                        ),
-                        ExpressionNode::Integer(literal) => {
-                            let Some(value) = literal.value_bignum() else {
-                                continue;
-                            };
-                            point_range_point(value.clone())
+                        )
+                    } else {
+                        match program.expression_table.expression(value) {
+                            ExpressionNode::Integer(literal) => {
+                                let Some(value) = literal.value_bignum() else {
+                                    continue;
+                                };
+                                point_range_point(value.clone())
+                            }
+                            _ if crate::values::is_assignment_literal(program, value) => {
+                                (value, Vec::new(), None)
+                            }
+                            _ => continue,
                         }
-                        _ if crate::values::is_assignment_literal(program, value) => {
-                            (value, Vec::new(), None)
-                        }
-                        _ => continue,
                     }
                 }
                 FactPayload::AssignedScalarValue { value } => {

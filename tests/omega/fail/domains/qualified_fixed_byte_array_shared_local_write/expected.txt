@@ -1,0 +1,1 @@
+statement 2 mutates `bytes[0]` while local borrow `view` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)

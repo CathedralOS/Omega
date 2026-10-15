@@ -1,0 +1,93 @@
+// Expected exit: 0
+// Exact array geometry, qualified loans, indexed mutation and owned erasure.
+domain [u8; 8]::Ascii(bytes) requires ascii_only(bytes);
+domain [u8; 0]::EmptyAscii(bytes) requires ascii_only(bytes);
+data Qualified { first: u8; bytes: [u8; 8] in Ascii; last: u8; }
+data Plain { first: u8; bytes: [u8; 8]; last: u8; }
+machine length(bytes: &[u8; 8] in Ascii) -> u64 { bytes.len }
+machine erase(bytes: [u8; 8] in Ascii) -> [u8; 8] { bytes }
+machine mutate(bytes: &mut [u8; 8] in Ascii) { bytes[0] = 65u8; }
+machine forward(bytes: &mut [u8; 8] in Ascii) -> u64 {
+    mutate(bytes);
+    length(bytes)
+}
+machine relay(bytes: &mut [u8; 8] in Ascii) -> &mut [u8; 8] in Ascii { bytes }
+machine returned(bytes: &mut [u8; 8] in Ascii) -> &mut [u8; 8] in Ascii { relay(bytes) }
+machine select_plain(bytes: &mut [[u8; 8]; 2]) -> &mut [u8; 8] { &mut bytes[1] }
+machine select_qualified(bytes: &mut [[u8; 8] in Ascii; 2]) -> &mut [u8; 8] in Ascii { &mut bytes[1] }
+// A completed qualified local lends the same home across state edges.
+machine mutable_state_loan() -> bool {
+    let mut bytes: [u8; 8] in Ascii = "omega600";
+    transition { _ -> replace(&mut bytes) }
+    state replace(bytes: &mut [u8; 8] in Ascii) -> bool {
+        bytes[0] = 65u8;
+        transition { _ -> observe(bytes) }
+    }
+    state observe(bytes: &mut [u8; 8] in Ascii) -> bool {
+        bytes.len == 8 && bytes == "Amega600"
+    }
+}
+machine write_only_state_loan() -> u64 {
+    let mut bytes: [u8; 8] in Ascii = "omega600";
+    transition { _ -> fill(&write bytes) }
+    state fill(bytes: &write [u8; 8] in Ascii) -> u64 {
+        let before: u64 = bytes.len;
+        bytes[0] = 65u8;
+        before + bytes.len
+    }
+}
+machine plain_write_only_state_loan() -> u64 {
+    let mut bytes: [u8; 8] = "omega600";
+    transition { _ -> fill(&write bytes) }
+    state fill(bytes: &write [u8; 8]) -> u64 {
+        let before: u64 = bytes.len;
+        bytes[0] = 65u8;
+        before + bytes.len
+    }
+}
+machine main() crashes Trap {
+    let state_mutation: bool = mutable_state_loan();
+    let state_extent: u64 = write_only_state_loan();
+    let plain_state_extent: u64 = plain_write_only_state_loan();
+    let mut qualified: Qualified;
+    qualified.first = 17u8;
+    qualified.last = 29u8;
+    qualified.bytes = "omega600";
+    let forwarded: u64 = forward(&mut qualified.bytes);
+    let selected: &mut [u8; 8] in Ascii = returned(&mut qualified.bytes);
+    selected[1] = 66u8;
+    let returned_count: u64 = selected.len;
+    let count: u64 = length(&qualified.bytes);
+    let copy: [u8; 8] = erase(qualified.bytes);
+    let local: [u8; 8] in Ascii = "local...";
+    let local_loan: &mut [u8; 8] in Ascii = returned(&mut local);
+    local_loan[2] = 67u8;
+    let local_count: u64 = local_loan.len;
+    let plain_rows: [[u8; 8]; 2] = ["left....", "right..."];
+    let plain_row: &mut [u8; 8] = select_plain(&mut plain_rows);
+    plain_row[0] = 80u8;
+    let plain_count: u64 = plain_row.len;
+    let qualified_rows: [[u8; 8] in Ascii; 2] = ["left....", "right..."];
+    let qualified_row: &mut [u8; 8] in Ascii = select_qualified(&mut qualified_rows);
+    qualified_row[0] = 81u8;
+    let qualified_count: u64 = qualified_row.len;
+    let empty: [u8; 0] in EmptyAscii;
+    transition size_of<Qualified>() == 10 && size_of<Plain>() == 10
+        && align_of<Qualified>() == 1 && align_of<Plain>() == 1
+        && size_of<[u8; 8] in Ascii>() == 8 && size_of<[u8; 8]>() == 8
+        && size_of<&[u8; 8] in Ascii>() == size_of<&[u8; 8]>()
+        && size_of<[u8; 0] in EmptyAscii>() == 0 && empty.len == 0
+        && local_count == 8 && local == "loCal..."
+        && plain_count == 8 && plain_rows[0] == "left...." && plain_rows[1] == "Pight..."
+        && qualified_count == 8 && qualified_rows[0] == "left...." && qualified_rows[1] == "Qight..."
+        && returned_count == 8 && copy[1] == 66
+        && forwarded == 8 && count == 8 && qualified.bytes.len == 8 && copy.len == 8
+        && copy[0] == 65 && copy[7] == 48
+        && qualified.first == 17 && qualified.last == 29
+        && state_mutation && state_extent == 16 && plain_state_extent == 16 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

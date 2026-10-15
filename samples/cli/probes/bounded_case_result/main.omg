@@ -1,28 +1,28 @@
 // A bounded text local lends to a machine whose result is a case
-// value: `leading` forwards the `&[u8; 16] in Utf8` loan through
-// states, reads the live length, and returns the first byte as a
+// value: `leading` forwards the `&[u8; 2] in Utf8` loan through
+// states, reads the fixed length, and returns the first byte as a
 // case payload `(Leading::Byte { value })` vs `(Leading::Empty)`.
 domain [u8]::Utf8(bytes)
 requires
     valid_utf8(bytes);
-domain [u8; 16]::Utf8(bytes)
+domain [u8; 2]::Utf8(bytes)
 requires
     valid_utf8(bytes);
 data Leading {
     case Empty;
     case Byte(value: u64);
 }
-machine leading(text: &[u8; 16] in Utf8) -> Leading {
+machine leading(text: &[u8; 2] in Utf8) -> Leading {
     transition {
         _ -> inspect(text)
     }
-    state inspect(text: &[u8; 16] in Utf8) -> Leading {
+    state inspect(text: &[u8; 2] in Utf8) -> Leading {
         transition 0 < text.len {
             true -> read(text)
             _ -> (Leading::Empty)
         }
     }
-    state read(text: &[u8; 16] in Utf8) -> Leading {
+    state read(text: &[u8; 2] in Utf8) -> Leading {
         let byte: u8 = text[0];
         transition {
             _ -> (Leading::Byte { value: byte as u64 })
@@ -31,7 +31,7 @@ machine leading(text: &[u8; 16] in Utf8) -> Leading {
 }
 data Main {}
 machine Main::main(main: &mut Main) {
-    let text: [u8; 16] in Utf8 = "OK";
+    let text: [u8; 2] in Utf8 = "OK";
     let first: Leading = leading(&text);
     transition first {
         Leading::Byte { value } -> seen(value)

@@ -164,7 +164,10 @@ fn view_access_with_budget(
         };
         if result.place != place
             || result.structural_type != structural_type
-            || !result.projected_qualifications.is_empty()
+            || result
+                .projected_qualifications
+                .iter()
+                .any(|row| !row.is_element_membership())
             || !result.qualification_establishments.is_empty()
             || !result.claims.is_empty()
         {

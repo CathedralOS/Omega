@@ -1,0 +1,6 @@
+// ASCII includes zero; copying a nested field cannot establish NoNul.
+domain [u8; 4]::Ascii(bytes) requires ascii_only(bytes);
+domain [u8; 4]::NoNul(bytes) requires no_nul(bytes);
+data Source { bytes: [u8; 4] in Ascii; }
+machine narrow(source: &Source) -> [u8; 4] in NoNul { source.bytes }
+machine main() { let source: Source; _ = narrow(&source); }

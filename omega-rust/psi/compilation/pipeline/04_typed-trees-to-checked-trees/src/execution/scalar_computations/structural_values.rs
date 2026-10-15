@@ -643,7 +643,7 @@ impl Builder<'_, '_> {
             && literal.case_symbol.is_none()
         {
             self.record_value(expression, expected)?
-        } else if validation::is_closed_primitive_array_type(self.program, expected)
+        } else if validation::scalar_array_preserves_memberships(self.program, expected)
             && !matches!(
                 self.program.expression_table.expression(expression),
                 ExpressionNode::Match(_)

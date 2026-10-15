@@ -127,6 +127,38 @@ impl<'a> DescriptorAnalysis<'a> {
         self.replay
             .storage_origins(machine, states.get(&position)?, location)
     }
+    /// Read-only payload alternatives at this exact pre-operation snapshot.
+    /// This neither loads descriptor slots nor produces an address for writes.
+    pub fn payload_targets(
+        &mut self,
+        identity: MachineId,
+        position: DescriptorPosition,
+        query: &DescriptorContentsQuery,
+    ) -> Option<Vec<DescriptorPayloadTarget>> {
+        self.replay.prepare_states(identity)?;
+        let machine = self.replay.machine(identity)?;
+        let states = self.replay.snapshots.get(&identity)?.as_ref()?;
+        self.replay
+            .contents_targets(machine, states.get(&position)?, query)
+            .map(|targets| targets.into_iter().collect())
+    }
+
+    /// Value arrivals read after the predecessor's operation and before any
+    /// simultaneous edge binding. These alternatives grant no write address.
+    pub fn arrival_payload_targets(
+        &mut self,
+        identity: MachineId,
+        position: DescriptorPosition,
+        query: &DescriptorContentsQuery,
+    ) -> Option<Vec<DescriptorPayloadTarget>> {
+        self.replay.prepare_states(identity)?;
+        let machine = self.replay.machine(identity)?;
+        let states = self.replay.arrival_snapshots.get(&identity)?.as_ref()?;
+        self.replay
+            .contents_targets(machine, states.get(&position)?, query)
+            .map(|targets| targets.into_iter().collect())
+    }
+
     pub fn source_origins(
         &mut self,
         identity: MachineId,
@@ -315,7 +347,7 @@ impl<'a> DescriptorAnalysis<'a> {
                 .is_some_and(|location| *location == DescriptorLocation::whole(result))
         });
         let (position, call) = calls.next()?;
-        if calls.next().is_some() || call.arguments.iter().any(Option::is_none) {
+        if calls.next().is_some() || call.argument_contents.iter().any(Option::is_none) {
             return None;
         }
         let states = self.replay.snapshots.get(&identity)?.as_ref()?;
@@ -373,7 +405,7 @@ impl<'a> DescriptorAnalysis<'a> {
         let states = self.replay.snapshots.get(&identity)?.as_ref()?;
         let before = states.get(&position)?;
         let call = machine.calls.get(&position)?;
-        if call.arguments.iter().any(Option::is_none) {
+        if call.argument_contents.iter().any(Option::is_none) {
             return None;
         }
         let summary = self.replay.summaries.get(&call.callee)?.as_ref()?;
@@ -401,10 +433,10 @@ impl<'a> DescriptorAnalysis<'a> {
             .into_iter()
             .map(|(target, value)| {
                 let destination = match target {
-                    super::contents_queries::ContentsTarget::Storage(location) => {
+                    DescriptorPayloadTarget::Storage(location) => {
                         DescriptorContentsQuery::from_location(&location)
                     }
-                    super::contents_queries::ContentsTarget::Incoming(query) => query,
+                    DescriptorPayloadTarget::Incoming(query) => query,
                 };
                 let origins = value?;
                 let preserves_incoming = self
@@ -489,7 +521,7 @@ impl<'a> DescriptorAnalysis<'a> {
             let Some(call) = machine
                 .calls
                 .get(position)
-                .filter(|call| call.arguments.iter().all(Option::is_some))
+                .filter(|call| call.argument_contents.iter().all(Option::is_some))
             else {
                 continue;
             };
@@ -502,16 +534,13 @@ impl<'a> DescriptorAnalysis<'a> {
                     .actual_contents(call, effect.parameter, &effect.steps)?;
                 let targets = self.replay.contents_targets(machine, before, &query)?;
                 let strong = targets.len() == 1
-                    && matches!(
-                        targets.first(),
-                        Some(super::contents_queries::ContentsTarget::Storage(_))
-                    );
+                    && matches!(targets.first(), Some(DescriptorPayloadTarget::Storage(_)));
                 for target in targets {
                     match target {
-                        super::contents_queries::ContentsTarget::Storage(destination) => {
+                        DescriptorPayloadTarget::Storage(destination) => {
                             outputs.push((destination, effect.origins.as_slice(), strong));
                         }
-                        super::contents_queries::ContentsTarget::Incoming(query) => {
+                        DescriptorPayloadTarget::Incoming(query) => {
                             // The cohort graph contains exact carrier addresses.
                             // An unresolved family may retain values externally;
                             // observe its carrier, never define/kill that carrier.
@@ -575,11 +604,23 @@ impl<'a> DescriptorAnalysis<'a> {
                             continue;
                         }
                         DescriptorStoredOrigin::IncomingSlot { position, path } => {
-                            self.replay.actual_slot(call, *position, path)?
+                            let Some(source) = call.arguments.get(*position)?.as_ref() else {
+                                let mut query =
+                                    call.argument_contents.get(*position)?.as_ref()?.clone();
+                                query.steps.extend(
+                                    path.iter().cloned().map(DescriptorContentsStep::Address),
+                                );
+                                step.inputs.push(query.observation());
+                                step.may_escape = true;
+                                continue;
+                            };
+                            let mut source = source.clone();
+                            source.path.extend_from_slice(path);
+                            source
                         }
                         DescriptorStoredOrigin::IncomingContents { position, steps } => {
-                            let actual = call.arguments.get(*position)?.as_ref()?;
-                            let mut query = DescriptorContentsQuery::from_location(actual);
+                            let mut query =
+                                call.argument_contents.get(*position)?.as_ref()?.clone();
                             query.steps.extend_from_slice(steps);
                             step.inputs.push(query.observation());
                             step.may_escape = true;
@@ -589,7 +630,13 @@ impl<'a> DescriptorAnalysis<'a> {
                             position,
                             projection,
                         } => {
-                            let mut source = call.arguments.get(*position)?.as_ref()?.clone();
+                            let Some(source) = call.arguments.get(*position)?.as_ref() else {
+                                let query = call.argument_contents.get(*position)?.as_ref()?;
+                                step.inputs.push(query.observation());
+                                step.may_escape = true;
+                                continue;
+                            };
+                            let mut source = source.clone();
                             if !projection.path.is_empty() {
                                 let root_type = *machine.place_types.get(&source.root)?;
                                 let mut spelling =

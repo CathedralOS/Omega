@@ -1,0 +1,2 @@
+domain [u8; 8]::Utf8(bytes) requires valid_utf8(bytes);
+machine replace(bytes: &mut [u8; 8] in Utf8) { bytes = "hello"; }

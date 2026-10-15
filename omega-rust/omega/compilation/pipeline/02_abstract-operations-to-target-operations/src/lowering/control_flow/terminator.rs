@@ -30,7 +30,11 @@ fn disposable_view_carrier(
             StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
         ) || !result.claims.is_empty()
             || !result.qualifications.is_empty()
-            || !result.projected_qualifications.is_empty()
+            || !terminal_semantics::view_descriptor_projected_qualifications(
+                types.values().copied(),
+                result.structural_type,
+                &result.projected_qualifications,
+            )
             || !result.qualification_establishments.is_empty()
         {
             return None;
@@ -41,7 +45,9 @@ fn disposable_view_carrier(
             return None;
         }
         let parameter = function.arrival_parameter(place)?;
-        if !parameter.is_unqualified_root() {
+        if !parameter.qualifications.is_empty()
+            || !terminal_semantics::view_descriptor_parameter(parameter, types.values().copied())
+        {
             return None;
         }
         (parameter.structural_type, parameter.multiplicity)
@@ -410,7 +416,11 @@ pub(super) fn lower_terminator(
                     .filter(|home| {
                         home.multiplicity() == result.multiplicity
                             && home.qualifications() == result.qualifications
-                            && home.projected_qualifications().is_empty()
+                            && terminal_semantics::view_descriptor_projected_qualifications(
+                                structural_types.values().copied(),
+                                home.structural_type(),
+                                home.projected_qualifications(),
+                            )
                     })
                     .map(|home| home.structural_type())
                     .or_else(|| {
@@ -450,7 +460,11 @@ pub(super) fn lower_terminator(
                                             && parameter.multiplicity
                                                 == StructuralMultiplicity::Unrestricted)
                                     && parameter.qualifications == result.qualifications
-                                    && parameter.projected_qualifications.is_empty()
+                                    && terminal_semantics::view_descriptor_projected_qualifications(
+                                        structural_types.values().copied(),
+                                        parameter.structural_type,
+                                        &parameter.projected_qualifications,
+                                    )
                             })
                             .map(|parameter| parameter.structural_type)
                     });
@@ -459,7 +473,11 @@ pub(super) fn lower_terminator(
                         result.multiplicity,
                         terminal_psi::nonlinear_multiplicity_pair_pattern!()
                     )
-                    || !result.projected_qualifications.is_empty()
+                    || !terminal_semantics::view_descriptor_projected_qualifications(
+                        structural_types.values().copied(),
+                        result.structural_type,
+                        &result.projected_qualifications,
+                    )
                     || !returned_claims.is_empty()
                     || !trivial_affine_locals.is_empty()
                     || prepared.call_plan.result.as_ref().is_none_or(|placement| {

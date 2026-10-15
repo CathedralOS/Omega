@@ -1,3 +1,4 @@
+// Every qualified array holds exactly eight bytes; explicit NUL bytes are content.
 // Expected exit: 0. A returned borrow retains each candidate's declared
 // nested field domain through an offset view, without flattening inner arrays.
 domain [u8; 8]::NonEmpty(bytes) requires non_empty(bytes);
@@ -11,7 +12,7 @@ machine pick(bag: &mut Bag, second: bool) -> &mut Row {
     transition second { true -> &mut rows[1] false -> &mut rows[0] }
 }
 machine Label::replace(label: &mut Label) {
-    label.text = "new";
+    label.text = "new\0\0\0\0\0";
 }
 machine Row::replace(row: &mut Row) {
     row.marker = 41;
@@ -23,17 +24,17 @@ machine replace(bag: &mut Bag, second: bool) {
 }
 machine Main::main(main: &mut Main) crashes Trap {
     let mut bag: Bag = Bag { rows: [
-        Row { labels: [Label { text: "zero" }, Label { text: "z" }], marker: 0 },
-        Row { labels: [Label { text: "first" }, Label { text: "a" }], marker: 0 },
-        Row { labels: [Label { text: "second" }, Label { text: "b" }], marker: 0 }
+        Row { labels: [Label { text: "zero\0\0\0\0" }, Label { text: "z\0\0\0\0\0\0\0" }], marker: 0 },
+        Row { labels: [Label { text: "first\0\0\0" }, Label { text: "a\0\0\0\0\0\0\0" }], marker: 0 },
+        Row { labels: [Label { text: "second\0\0" }, Label { text: "b\0\0\0\0\0\0\0" }], marker: 0 }
     ] };
     replace(&mut bag, true);
     replace(&mut bag, false);
-    transition bag.rows[0].labels[0].text == "zero"
-        && bag.rows[1].labels[0].text == "new"
-        && bag.rows[2].labels[0].text == "new"
-        && bag.rows[1].labels[1].text == "a"
-        && bag.rows[2].labels[1].text == "b"
+    transition bag.rows[0].labels[0].text == "zero\0\0\0\0"
+        && bag.rows[1].labels[0].text == "new\0\0\0\0\0"
+        && bag.rows[2].labels[0].text == "new\0\0\0\0\0"
+        && bag.rows[1].labels[1].text == "a\0\0\0\0\0\0\0"
+        && bag.rows[2].labels[1].text == "b\0\0\0\0\0\0\0"
         && bag.rows[1].marker == 41 && bag.rows[2].marker == 41 {
         true -> done() false -> bad()
     }

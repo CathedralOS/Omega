@@ -22,6 +22,11 @@ pub(super) fn location(
 ) -> Result<StructuralSourceLocation, Error> {
     let invalid = || Error::Mismatch("established view differs from current descriptor custody");
     let (abstracted, _) = source::function(source, selected.machine)?;
+    let types = &selected
+        .structural
+        .as_ref()
+        .ok_or_else(invalid)?
+        .structural_types;
     let mut producers = abstracted.operations.iter().filter(|operation| {
         matches!(operation,
         abstract_operations::element_view_or_byte_subslice_pattern!(psi_operation, ..)
@@ -51,7 +56,11 @@ pub(super) fn location(
                     terminal_psi::nonlinear_multiplicity_pair_pattern!()
                 )
                 && result.qualifications.is_empty()
-                && result.projected_qualifications.is_empty()
+                && terminal_semantics::view_descriptor_projected_qualifications(
+                    types.iter(),
+                    result.structural_type,
+                    &result.projected_qualifications,
+                )
                 && result.claims.is_empty() => {}
         Some(abstract_operations::AbstractOperation::EstablishElementView { result, .. })
             if result.place == argument.place
@@ -61,7 +70,11 @@ pub(super) fn location(
                     terminal_psi::nonlinear_multiplicity_pair_pattern!()
                 )
                 && result.qualifications.is_empty()
-                && result.projected_qualifications.is_empty()
+                && terminal_semantics::view_descriptor_projected_qualifications(
+                    types.iter(),
+                    result.structural_type,
+                    &result.projected_qualifications,
+                )
                 && result.claims.is_empty() => {}
         // A literal's octets live in read-only image storage; its activation
         // holds only the two-word descriptor.

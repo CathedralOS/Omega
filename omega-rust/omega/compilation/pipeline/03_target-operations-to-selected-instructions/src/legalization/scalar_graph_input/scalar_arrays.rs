@@ -10,7 +10,6 @@ pub(in crate::legalization) fn shape(
 ) -> Result<(ScalarType, u64, ValueShape), LegalizationError> {
     if result.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
         || !result.claims.is_empty()
-        || !result.qualifications.is_empty()
         || !result.projected_qualifications.is_empty()
     {
         return Err(LegalizationError::custody());

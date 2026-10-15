@@ -861,12 +861,16 @@ fn check_contents(
             // lend, or dispose of the erased subject. Its proof, multiplicity
             // and provenance remain obligations of semantic checking. Copy and
             // stable-observation classifiers keep their separate admission.
+            // Descriptor-only retirement likewise ignores erased subjects;
+            // enclosing hooks, linear claims and actual captured-loan closure
+            // remain independent checks, so this grants no semantic disposal.
             return matches!(
                 requirement,
                 ContentsRequirement::NumericOwned
                     | ContentsRequirement::CleanupOwned
                     | ContentsRequirement::StructuralConstruction
                     | ContentsRequirement::BorrowedStorage
+                    | ContentsRequirement::DescriptorCleanup
                     | ContentsRequirement::SeamMarshal
             ) && resolve(program, field.type_reference, &substitutions, requirement)
                 .is_some();

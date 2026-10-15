@@ -3,17 +3,17 @@
 // `in Utf8` against the stored value exactly as a `&mut` target would.
 // `in Wrapping` fields are behaviour tags on the carrier — every value
 // is already a member, no range proof owed.
-domain [u8; 8]::Utf8(bytes)
+domain [u8; 3]::Utf8(bytes)
 requires
     valid_utf8(bytes);
 data Tagged {
-    label: [u8; 8] in Utf8;
+    label: [u8; 3] in Utf8;
 }
 data Policy {
     damage: i32 in Wrapping;
     count: u32 in Wrapping;
 }
-machine rename(tagged: &write Tagged, label: [u8; 8] in Utf8)
+machine rename(tagged: &write Tagged, label: [u8; 3] in Utf8)
 {
     tagged.label = label;
 }

@@ -8,8 +8,9 @@ pub use bounded_byte_owner::{
 };
 pub use fixed_byte_view::{
     BorrowedReferentPresentation, FixedByteArrayWindow, borrowed_referent_matches,
-    borrowed_referent_presentation, fixed_byte_array_extent, fixed_byte_array_window,
-    fixed_byte_storage_window, fixed_element_array_extent,
+    borrowed_referent_presentation, fixed_byte_array_extent, fixed_byte_array_loan,
+    fixed_byte_array_window, fixed_byte_extent, fixed_byte_storage_window,
+    fixed_element_array_extent,
 };
 
 use semantic_vocabulary::StructuralTypeId;

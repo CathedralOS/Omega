@@ -844,7 +844,6 @@ crashes Trap
         let replayable: bool = Checker::alias_replayable(checker, syntax, resolution, typing, statement.value, place, epoch);
         Checker::initialize_place(checker, typing, place, value);
         Checker::capture_footprint(checker, syntax, resolution, typing, place, type_handle, statement.value, value);
-        Checker::replace_live_length(checker, syntax, typing, type_handle, statement.value, place);
         Checker::record_alias(checker, syntax, typing, place, statement.value, value, replayable);
         let bound: Value = Checker::reference_value(checker, typing, place);
         Checker::assume_qualification(checker, syntax, resolution, typing, type_handle, bound);
@@ -880,7 +879,6 @@ crashes Trap
         Checker::require_stored_qualification(checker, syntax, resolution, typing, destination, statement.value, value, statement.source_span, checking);
         let replayable: bool = Checker::alias_replayable(checker, syntax, resolution, typing, statement.value, target.place, epoch);
         Checker::store_value(checker, syntax, resolution, typing, statement, target, value, origin);
-        Checker::replace_live_length(checker, syntax, typing, destination, statement.value, target.place);
         Checker::record_alias(checker, syntax, typing, target.place, statement.value, value, replayable);
         transition owner > 0 {
             true -> window(checker, syntax, resolution, typing, statement, target.place, owner, checking)
@@ -1047,30 +1045,6 @@ crashes Trap
 // Store `value` at the target: a located place binds it; an element or
 // other placeless destination forgets what its storage `origin` (resolved
 // while the target's tree was the frame) held.
-// A quoted literal stored into a bounded byte array replaces its live length
-// with the literal's (wiki/spec/terminal-psi/structural_access.md, bounded
-// byte replacement): the length place below the written place binds to it.
-// `destination` is the written place's type.
-pub machine Checker::replace_live_length(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, destination: u64 in Trapping, value: u64 in Trapping, place: u64 in Trapping)
-crashes Trap
-{
-    let written: Expression = SyntaxTrees::expression(syntax, value);
-    let row: TypeRow = TypeTable::row(&typing.types, Typing::referent_of(typing, destination));
-    let bounded: bool = Checker::bounded_bytes(typing, row);
-    transition place > 0 && bounded && written.kind == ExpressionKind::String {
-        true -> replaced(checker, typing, value, place)
-        _ -> done()
-    }
-
-    state replaced(checker: &mut Checker, typing: &Typing, value: u64 in Trapping, place: u64 in Trapping) {
-        let length_place: u64 in Trapping = Checker::place(checker, typing, PlaceKind::Length, 0, place, 0);
-        let length: Value = Value::constant(Typing::value(typing, value));
-        Checker::bind_place(checker, typing, length_place, length);
-    }
-
-    state done() {}
-}
-
 machine Checker::store_value(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, statement: Statement, target: Value, value: Value, origin: u64 in Trapping)
 crashes Trap
 {

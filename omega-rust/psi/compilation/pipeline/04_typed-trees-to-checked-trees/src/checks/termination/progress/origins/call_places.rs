@@ -455,7 +455,7 @@ pub(super) fn caller_argument_place(
                         // applies only while the operand is the literal
                         // itself, not a member or element peeled off it.
                         let declared = (rooted == expression).then_some(declared_type);
-                        let mut projections = flow::literal_value_projections(
+                        let mut projections = flow::literal_expression_projections(
                             program,
                             rooted,
                             literal_operand_type(program, rooted, declared)?,

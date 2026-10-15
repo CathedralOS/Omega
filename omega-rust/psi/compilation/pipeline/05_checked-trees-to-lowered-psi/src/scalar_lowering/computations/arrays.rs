@@ -47,6 +47,7 @@ pub(crate) fn validate_layout(
 
 pub(crate) fn emit(
     effects: &[LoweredScalarArrayConstruction],
+    domains: &[crate::terminal_identities::StructuralDomainBinding],
     values: &[ValueDeclaration],
     next_value: &mut u64,
     operations: &mut OperationBuffer,
@@ -66,14 +67,28 @@ pub(crate) fn emit(
                 element, values, next_value, operations,
             ));
         }
-        operations.push_leaf(
-            structural_result_declaration(
-                effect.place,
-                effect.structural_type,
-                StructuralMultiplicity::Unrestricted,
-            ),
-            OperationKind::EstablishScalarArray { elements },
+        let mut qualifications = effect
+            .memberships
+            .iter()
+            .map(|domain| {
+                crate::terminal_identities::lookup_domain_id_for_carrier(
+                    domains,
+                    *domain,
+                    effect.structural_type,
+                )
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        qualifications.sort();
+        qualifications.dedup();
+        let mut result = structural_result_declaration(
+            effect.place,
+            effect.structural_type,
+            StructuralMultiplicity::Unrestricted,
         );
+        if let terminal_psi::OperationResult::Structural(result) = &mut result {
+            result.qualifications = qualifications;
+        }
+        operations.push_leaf(result, OperationKind::EstablishScalarArray { elements });
     }
     Ok(())
 }

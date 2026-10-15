@@ -1,0 +1,4 @@
+data Payload { count: u64; }
+domain Payload::Ready(value) requires value.count == 7;
+machine produce() -> Payload in Ready { Payload { count: 8 } }
+machine main() { let value: Payload in Ready = produce(); }

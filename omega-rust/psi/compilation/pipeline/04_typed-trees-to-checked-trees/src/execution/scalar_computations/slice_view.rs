@@ -196,7 +196,10 @@ impl Builder<'_, '_> {
                     &|_| None,
                 )?
             };
-        let type_identity = self.program.normalized_type_identity(projected);
+        // A view borrows the registered storage carrier. Predicate-only
+        // qualifications remain in the loan evidence, not a second array type.
+        let type_identity =
+            validation::stored_structural_type_identity(self.program, projected, &[], &[]);
         let lent = lent_collection_element(self.program, projected)?;
         // Ordinary collection openers retain their exact element identity.
         // An authored recast retains both declared identities: source

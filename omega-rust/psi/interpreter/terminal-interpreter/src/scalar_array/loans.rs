@@ -61,10 +61,31 @@ impl TerminalExecution<'_> {
         let Some(collection_type) = self.lent_collection_type(parameter, argument) else {
             return Ok(None);
         };
+        let types = self.program.structural_types();
+        let fixed_array_formal = matches!(
+            types.get(&parameter.structural_type).map(|row| &row.shape),
+            Some(StructuralTypeShape::FixedArray { .. })
+        );
+        let supported_memberships = |carrier, whole: &[_], projected: &[_]| {
+            if fixed_array_formal {
+                terminal_semantics::pure_byte_qualifications(
+                    types.values(),
+                    self.program.catalogs.structural_domains.iter(),
+                    carrier,
+                    whole,
+                    projected,
+                )
+            } else {
+                whole.is_empty() && projected.is_empty()
+            }
+        };
         if argument.access != parameter.access
             || parameter.multiplicity != StructuralMultiplicity::Unrestricted
-            || !parameter.qualifications.is_empty()
-            || !parameter.projected_qualifications.is_empty()
+            || !supported_memberships(
+                parameter.structural_type,
+                &parameter.qualifications,
+                &parameter.projected_qualifications,
+            )
             || self
                 .live_claims
                 .values()
@@ -92,8 +113,6 @@ impl TerminalExecution<'_> {
         let root_type = self.live_structural_type(argument.place)?;
         let source_access = if let Some(source) = machine.structural_parameter(argument.place) {
             if source.structural_type != root_type
-                || !source.qualifications.is_empty()
-                || !source.projected_qualifications.is_empty()
                 || !matches!(
                     source.multiplicity,
                     terminal_psi::nonlinear_multiplicity_pair_pattern!()
@@ -117,21 +136,25 @@ impl TerminalExecution<'_> {
                     terminal_psi::nonlinear_multiplicity_pair_pattern!()
                 )
                 || !source.claims.is_empty()
-                || !source.qualifications.is_empty()
-                || !source.projected_qualifications.is_empty()
             {
                 return Err(malformed());
             }
             StructuralAccess::Owned
         };
+        // Root declarations authenticate access and custody. Only the selected
+        // array's memberships classify this loan; unrelated containing-record
+        // invariants remain with checked formation and ancestor preservation.
         // Capturing a loan pins backing; it never observes its contents. The
         // requested access must still fit the actual source, including when
         // forwarding a write-only loan or attenuating mutable access.
         if !parameter.access.admits(source_access)
-            || self
-                .live_affine_frontier
-                .iter()
-                .any(|entry| entry.place == argument.place && !entry.path.is_empty())
+            || (!argument
+                .path
+                .contains(&terminal_psi::StructuralPathSegment::Referent)
+                && self
+                    .live_affine_frontier
+                    .iter()
+                    .any(|entry| entry.place == argument.place && !entry.path.is_empty()))
         {
             return Err(malformed());
         }
@@ -143,8 +166,14 @@ impl TerminalExecution<'_> {
                 .get(&argument.place)
                 .ok_or_else(malformed)?;
             if referent.structural_type != collection_type
+                || !supported_memberships(
+                    collection_type,
+                    &referent.qualifications,
+                    &referent.projected_qualifications,
+                )
                 || !loan.matches_descriptor_home(referent)
                 || loan.len() != length
+                || fixed_array_formal && !borrowed_array_memberships_match(referent, parameter)
             {
                 return Err(malformed());
             }
@@ -174,15 +203,32 @@ impl TerminalExecution<'_> {
             (projected.value, projected.collection_home)
         };
         if referent.structural_type != collection_type
-            || !referent.qualifications.is_empty()
-            || !referent.projected_qualifications.is_empty()
+            || !supported_memberships(
+                collection_type,
+                &referent.qualifications,
+                &referent.projected_qualifications,
+            )
+            || fixed_array_formal && !borrowed_array_memberships_match(&referent, parameter)
         {
             return Err(malformed());
+        }
+        // A resident fixed-array reference binds the already-loaded opaque
+        // referent through ordinary aggregate transport. Pinning the argument's
+        // descriptor path here would replay a replaceable pointer after the
+        // call or state edge. Only packed storage and existing collection loans
+        // need an activation-home companion. A real element-view formal still
+        // forms its explicit descriptor through the collection path below.
+        if fixed_array_formal
+            && captured_home.is_none()
+            && !self.scalar_array_values.contains_key(&argument.place)
+            && !self.element_view_values.contains_key(&argument.place)
+        {
+            return Ok(None);
         }
         let mut presented = referent.clone();
         presented.structural_type = parameter.structural_type;
         let home = match captured_home {
-            Some(home) => home,
+            Some(home) => Some(home),
             None if let Some(loan) = self.element_view_values.get(&argument.place) => {
                 // A selected row of a fixed-array formal has no descriptor
                 // crossing in its path, but still borrows the formal's original
@@ -195,13 +241,14 @@ impl TerminalExecution<'_> {
                 }
                 loan.captured_storage_home(&self.program.structural_types(), &argument.path)?
             }
-            None => ElementViewHome {
+            None => Some(ElementViewHome {
                 storage: self.capture_primitive_home(argument.place)?,
                 path: argument.path.clone(),
-            },
+            }),
         };
-        let loan = ElementView::structural(referent, length, parameter.access, home)
-            .with_descriptor_home(presented.clone());
+        let loan =
+            ElementView::structural(referent, length, parameter.access, home, argument.place)
+                .with_descriptor_home(presented.clone());
         Ok(Some((presented, loan)))
     }
 
@@ -237,4 +284,30 @@ impl TerminalExecution<'_> {
             _ => None,
         }
     }
+}
+
+/// Ordinary array loans preserve the selected standing contract without reading
+/// its bytes. Shared access may forget facts; exclusive access retains every
+/// receiving obligation. The caller independently classifies supported theories.
+pub(crate) fn borrowed_array_memberships_match(
+    value: &TerminalStructuralValue,
+    parameter: &StructuralParameterDeclaration,
+) -> bool {
+    parameter
+        .qualifications
+        .iter()
+        .all(|domain| value.qualifications.contains(domain))
+        && parameter
+            .projected_qualifications
+            .iter()
+            .all(|row| value.projected_qualifications.contains(row))
+        && (parameter.access == StructuralAccess::SharedBorrow
+            || value
+                .qualifications
+                .iter()
+                .all(|domain| parameter.qualifications.contains(domain))
+                && value
+                    .projected_qualifications
+                    .iter()
+                    .all(|row| parameter.projected_qualifications.contains(row)))
 }

@@ -111,13 +111,29 @@ fn place(
         &place,
         &selector,
     )?;
-    if program.normalized_type_identity(projected) != program.normalized_type_identity(target) {
+    // An explicit readable borrow observes its referent's current bytes.
+    // The source place supplies that storage directly; the predicate does
+    // not need a freshly materialized pointer wrapper to scan the same bytes.
+    let observed = if program.normalized_type_identity(projected)
+        == program.normalized_type_identity(target)
+    {
+        target
+    } else {
+        match validation::reference_shell(program, target) {
+            Some(shell) if shell.access != language_semantics::ReferenceAccess::WriteOnly => {
+                shell.referee
+            }
+            Some(_) => return None,
+            None => target,
+        }
+    };
+    if program.normalized_type_identity(projected) != program.normalized_type_identity(observed) {
         return None;
     }
     Some(CheckedUnitStructuralArgumentPlan {
         source,
         path,
-        type_identity: types::byte_sequence_type_identity(program, target, &[], &[])?,
+        type_identity: validation::stored_structural_type_identity(program, projected, &[], &[]),
         access: CheckedStructuralAccess::SharedBorrow,
     })
 }

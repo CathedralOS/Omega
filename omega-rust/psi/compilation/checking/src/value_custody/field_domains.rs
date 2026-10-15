@@ -822,22 +822,24 @@ pub fn domain_membership_implies(
     let Some(target) = program.domain_definition(target_domain) else {
         return false;
     };
+    // Content predicates transport across byte presentations independently of
+    // layout. Neither semantic roles nor routed target authority reduce to them.
     let bytes = |reference| {
         is_fixed_byte_carrier(program, reference) || is_byte_slice_carrier(program, reference)
     };
     if !bytes(source.target_type)
         || !bytes(target.target_type)
         || source.semantic_roles != Default::default()
+        || target.classification.is_some()
         || target.semantic_roles != Default::default()
     {
         return false;
     }
-
     match (
         domain_byte_predicate(program, source_domain),
         domain_byte_predicate(program, target_domain),
     ) {
-        (Some(source), Some(target)) => source == target,
+        (Some(source), Some(target)) => source.implies(target),
         _ => false,
     }
 }
@@ -879,24 +881,22 @@ fn is_byte_slice_carrier(
 // --- comptime byte-predicate machinery (moved here from
 // `checks::contracts::grants` so the `semantic` fact-producer can reuse it) ---
 
-/// Whether the string literal `expression`'s compile-time bytes satisfy
+/// Whether the byte literal `expression`'s compile-time bytes satisfy
 /// `domain_symbol`'s declared comptime byte-predicate fact. `false` when
-/// `expression` is not a string literal, or the domain has no recognized
+/// `expression` has no exact literal bytes, or the domain has no recognized
 /// comptime byte-predicate fact.
 pub fn string_literal_expression_grants_domain(
     program: &dyn crate::CheckingInput,
     expression: typed_trees::expression::ExpressionHandle,
     domain_symbol: SymbolHandle,
 ) -> bool {
-    let typed_trees::expression::ExpressionNode::String(literal) =
-        program.expression_table.expression(expression)
-    else {
+    let Some(literal) = typed_trees::byte_predicates::literal_bytes(program, expression) else {
         return false;
     };
     let Some(predicate) = domain_byte_predicate(program, domain_symbol) else {
         return false;
     };
-    predicate.holds_for(literal)
+    predicate.holds_for(&literal)
 }
 
 /// Whether the string literal `expression` may become the stored value of a
@@ -925,23 +925,42 @@ pub fn string_literal_grants_view_domains(
         })
 }
 
-/// Whether the domain's ZERO/ZII value -- for a slice carrier, the EMPTY byte
-/// sequence -- provably satisfies `domain_symbol`'s declared facts. True only
-/// when its sole fact is a recognized comptime byte predicate that holds for
-/// `&[]`. An unrecognized fact set returns `false` (we cannot prove
-/// the zero value is in-domain -> conservative).
-///
-/// This underwrites the machine-field entry-invariant in
-/// `semantic::field_domains`: that invariant treats a field's declared domain as
-/// ALWAYS-holding at machine entry, which is sound for a read-with-no-prior-write
-/// ONLY IF the field's zero value is itself in-domain. Utf8/NoNul/AsciiOnly admit
-/// the empty sequence; a `len > 0`-style domain (e.g. `non_empty`) does not, so
-/// its entry-invariant must be withheld.
-pub fn domain_admits_empty_byte_sequence(
+/// Whether the actual byte carrier's zero value satisfies the selected domain.
+/// Fixed arrays contain their declared number of zero bytes; only a slice's
+/// empty descriptor denotes no bytes. Qualification cannot choose between them.
+/// Other predicates and unresolved carriers remain ordinary proof obligations.
+pub fn domain_admits_zero_byte_carrier(
     program: &dyn crate::CheckingInput,
     domain_symbol: SymbolHandle,
+    carrier: TypeReferenceHandle,
 ) -> bool {
-    domain_byte_predicate(program, domain_symbol).is_some_and(|predicate| predicate.holds_for(&[]))
+    if !program
+        .domain_definition(domain_symbol)
+        .is_some_and(|domain| domain.semantic_roles == Default::default())
+    {
+        return false;
+    }
+    let Some(predicate) = domain_byte_predicate(program, domain_symbol) else {
+        return false;
+    };
+    let carrier = program.type_reference_table.peeled_type_reference(carrier);
+    let (element, length) = match program.type_reference_table.type_reference(carrier) {
+        TypeReferenceNode::FixedArray {
+            element_type,
+            length: FixedArrayLength::Literal(length),
+        } => (*element_type, *length),
+        TypeReferenceNode::Slice { element_type } => (*element_type, 0),
+        _ => return false,
+    };
+    if program.primitive_type_reference(element) != Some(typed_trees::types::PrimitiveType::U8) {
+        return false;
+    }
+    // Evaluate the closed byte-predicate vocabulary without allocating N zeros.
+    match predicate {
+        ByteSequencePredicate::ValidUtf8 | ByteSequencePredicate::AsciiOnly => true,
+        ByteSequencePredicate::NoNul => length == 0,
+        ByteSequencePredicate::NonEmpty => length != 0,
+    }
 }
 
 /// Whether `domain_symbol`'s sole fact is a recognized comptime byte predicate
@@ -974,8 +993,7 @@ pub fn domain_is_subslice_preserving(
 /// capacity such as a `&[u8]` view. The fixed-array length is a `Literal` by the
 /// time checking runs (the orchestration const-eval pass lowers `ConstParameter`
 /// / `ConstCall` lengths first), so an unresolved length conservatively yields
-/// `None`. Used by the length-fits check to bound writes into a bounded text
-/// carrier.
+/// `None`. This is the exact array extent, never a variable live length.
 pub fn type_reference_fixed_array_capacity(
     program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,

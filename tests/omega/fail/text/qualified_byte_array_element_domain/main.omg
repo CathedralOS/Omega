@@ -1,3 +1,3 @@
 // Array construction must establish each element's declared encoding.
-domain [u8; 8]::Ascii(bytes) requires ascii_only(bytes);
-machine bad() -> [[u8; 8] in Ascii; 2] { ["a", "é"] }
+domain [u8; 2]::Ascii(bytes) requires ascii_only(bytes);
+machine bad() -> [[u8; 2] in Ascii; 2] { ["a\0", "é"] }

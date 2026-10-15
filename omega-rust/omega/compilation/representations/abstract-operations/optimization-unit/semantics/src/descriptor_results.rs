@@ -273,6 +273,9 @@ fn adapt(
         projections: BTreeMap::new(),
         contents_queries: BTreeMap::new(),
         contents_transfers: BTreeMap::new(),
+        payload_invalidations: BTreeMap::new(),
+        payload_producers: BTreeMap::new(),
+        payload_arrivals: BTreeMap::new(),
         unresolved_contents_writes: BTreeSet::new(),
         storage_derivations: BTreeSet::new(),
         calls: BTreeMap::new(),
@@ -395,6 +398,7 @@ fn adapt(
                 ..Default::default()
             };
             if let Some(result) = result {
+                graph.payload_producers.insert(position, result.place);
                 let destination = DescriptorLocation::whole(result.place);
                 step.definitions.push(destination.clone());
                 if !kernel::is_descriptor(types.iter(), result.structural_type)
@@ -409,6 +413,140 @@ fn adapt(
                     ));
                 }
             }
+            // Payload footprints are typed observations, never fabricated
+            // exact addresses for dynamic selectors. Unknown writes remain
+            // explicit and retire evidence conservatively in membership replay.
+            let payload_query = |root, path: &[StructuralPathSegment], field| {
+                let mut query = kernel::descriptor_contents_query(
+                    types,
+                    root,
+                    *graph.place_types.get(&root)?,
+                    path,
+                    field,
+                )?;
+                if field.is_none() {
+                    let selected = terminal_semantics::runtime_structural_path_tip(
+                        types.iter(),
+                        *graph.place_types.get(&root)?,
+                        path,
+                    )?;
+                    match selected.shape {
+                        StructuralTypeShape::ElementView { element, .. } => {
+                            query
+                                .steps
+                                .push(kernel::DescriptorContentsStep::AnyElement { element });
+                        }
+                        StructuralTypeShape::ByteSequence(_)
+                            if kernel::is_descriptor(types.iter(), selected.id) =>
+                        {
+                            return None;
+                        }
+                        _ => {}
+                    }
+                }
+                Some(query)
+            };
+            let mut payload_writes = Vec::new();
+            match operation {
+                O::WriteOnlyPrimitiveStore {
+                    destination, path, ..
+                } => {
+                    payload_writes.push(payload_query(destination.place(), path, None));
+                }
+                O::StructuralScalarFieldStore {
+                    destination,
+                    path,
+                    field,
+                    ..
+                } => {
+                    payload_writes.push(payload_query(destination.place(), path, Some(*field)));
+                }
+                O::StructuralByteSequenceFieldByteStore {
+                    destination,
+                    path,
+                    field,
+                    ..
+                }
+                | O::StructuralByteSequenceFieldStore {
+                    destination,
+                    path,
+                    field,
+                    ..
+                } => {
+                    payload_writes.push(payload_query(*destination, path, Some(*field)));
+                }
+                O::StructuralByteViewFieldStore {
+                    destination,
+                    path,
+                    field,
+                    ..
+                } => {
+                    payload_writes.push(payload_query(*destination, path, *field));
+                }
+                O::ByteSequenceWrite { .. } | O::ByteSequenceStore { .. } => {
+                    payload_writes.push(None);
+                }
+                O::ElementViewWrite {
+                    destination,
+                    index,
+                    obligation,
+                    path,
+                    ..
+                } => {
+                    let mut selected = destination.path.clone();
+                    selected.push(StructuralPathSegment::RuntimeIndex {
+                        index: *index,
+                        obligation: *obligation,
+                    });
+                    selected.extend_from_slice(path);
+                    payload_writes.push(payload_query(destination.place, &selected, None));
+                }
+                O::CallStructural {
+                    structural_arguments: arguments,
+                    ..
+                }
+                | O::BoundaryCall {
+                    structural_arguments: arguments,
+                    ..
+                } => {
+                    for argument in arguments {
+                        let selected = terminal_semantics::runtime_structural_path_tip(
+                            types.iter(),
+                            *graph.place_types.get(&argument.place)?,
+                            &argument.path,
+                        );
+                        let mutation = selected
+                            .map(|selected| {
+                                terminal_semantics::shared_mutation(types.iter(), selected.id, &[])
+                            })
+                            .unwrap_or(terminal_semantics::SharedMutation::Unbounded);
+                        if mutation == terminal_semantics::SharedMutation::Unbounded {
+                            payload_writes.push(None);
+                        } else if argument.access != StructuralAccess::SharedBorrow
+                            || mutation != terminal_semantics::SharedMutation::None
+                        {
+                            payload_writes.push(payload_query(
+                                argument.place,
+                                &argument.path,
+                                None,
+                            ));
+                        }
+                    }
+                }
+                O::AtomicEvent { event, .. } => {
+                    if let Some(location) = event.location() {
+                        payload_writes.push(payload_query(
+                            location.root,
+                            &location.path,
+                            Some(location.field),
+                        ));
+                    }
+                }
+                _ => {}
+            }
+            if !payload_writes.is_empty() {
+                graph.payload_invalidations.insert(position, payload_writes);
+            }
             match operation {
                 O::ByteSequenceLength { source, .. } | O::ElementViewLength { source, .. } => {
                     let query = kernel::descriptor_contents_query(
@@ -421,6 +559,7 @@ fn adapt(
                     step.inputs = vec![query.observation()];
                 }
                 O::EstablishByteSequenceLiteral { place, .. } => {
+                    graph.payload_producers.insert(position, place.id);
                     let destination = DescriptorLocation::whole(place.id);
                     step.definitions.push(destination.clone());
                     graph.originations.entry(position).or_default().push((
@@ -782,6 +921,7 @@ fn adapt(
                             return None;
                         }
                         let mut arguments = Vec::new();
+                        let mut argument_contents = Vec::new();
                         let mut exact_arguments = true;
                         for (actual, formal) in structural_arguments
                             .iter()
@@ -790,6 +930,17 @@ fn adapt(
                             if actual.access != formal.access {
                                 return None;
                             }
+                            argument_contents.push(graph.place_types.get(&actual.place).and_then(
+                                |root_type| {
+                                    kernel::descriptor_contents_query(
+                                        types,
+                                        actual.place,
+                                        *root_type,
+                                        &actual.path,
+                                        None,
+                                    )
+                                },
+                            ));
                             let actual = location(actual.place, &actual.path, None);
                             exact_arguments &= actual.is_some();
                             arguments.push(actual);
@@ -819,6 +970,7 @@ fn adapt(
                             DescriptorInvocation {
                                 callee: callee.machine,
                                 arguments,
+                                argument_contents,
                                 result: descriptor_result
                                     .map(|result| DescriptorLocation::whole(result.place)),
                             },
@@ -1021,6 +1173,7 @@ fn adapt(
                         .map(|parameter| DescriptorLocation::whole(parameter.place))
                         .collect::<Vec<_>>();
                     let mut bindings = Vec::new();
+                    let mut payload_bindings = Vec::new();
                     for parameter in &target.structural_parameters {
                         let mut matching = edge
                             .structural_bindings
@@ -1035,6 +1188,16 @@ fn adapt(
                         {
                             bindings.push((source, DescriptorLocation::whole(parameter.place)));
                         } else {
+                            payload_bindings.push(kernel::PayloadMembershipBinding {
+                                parameter: parameter.place,
+                                source: kernel::descriptor_contents_query(
+                                    types,
+                                    binding.argument.place,
+                                    *graph.place_types.get(&binding.argument.place)?,
+                                    &binding.argument.path,
+                                    None,
+                                ),
+                            });
                             step.inputs
                                 .push(DescriptorLocation::whole(binding.argument.place));
                             step.may_escape = true;
@@ -1042,6 +1205,11 @@ fn adapt(
                     }
                     step.inputs
                         .extend(bindings.iter().map(|(source, _)| source.clone()));
+                    if !payload_bindings.is_empty() {
+                        let arrivals = graph.payload_arrivals.entry(position).or_default();
+                        arrivals.resize_with(step.successors.len() + 1, Vec::new);
+                        arrivals[step.successors.len()] = payload_bindings;
+                    }
                     step.successors.push(DescriptorFlowEdge {
                         target: (edge.target, 0),
                         parameters,

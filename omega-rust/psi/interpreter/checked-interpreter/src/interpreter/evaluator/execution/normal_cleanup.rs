@@ -328,6 +328,9 @@ impl<'program> Evaluator<'program> {
         for segment in path {
             source = self.deref_cell(source);
             match segment {
+                CheckedUnitStructuralPathSegment::AllElements => {
+                    return unsupported("universal qualification is not a cleanup address");
+                }
                 CheckedUnitStructuralPathSegment::RepresentationView { .. } => {
                     return unsupported(
                         "storage interpretation cannot provide an owned cleanup receiver",

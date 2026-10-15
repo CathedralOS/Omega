@@ -193,6 +193,7 @@ impl OperationFrame<'_, '_> {
     ) -> Result<(), LoweringError> {
         let CheckedUnitEffectOperationPlan::EstablishLocal(
             checked_trees::CheckedUnitLocalBindingPlan::ScalarArray {
+                qualifications,
                 source,
                 result,
                 elements,
@@ -228,8 +229,20 @@ impl OperationFrame<'_, '_> {
             )?;
             self.values.push(value);
         }
+        let structural_type = lookup_type_id(self.type_ids, &result.type_identity)?;
+        let qualifications = qualifications
+            .iter()
+            .map(|domain| {
+                crate::terminal_identities::lookup_domain_id_for_carrier(
+                    self.callees.domain_ids,
+                    *domain,
+                    structural_type,
+                )
+            })
+            .collect::<Result<Vec<_>, _>>()?;
         let declaration = super::super::scalar_arrays::emit(
             result,
+            qualifications,
             &self.values[leaf_start..],
             self.type_ids,
             self.next_place,
@@ -1194,7 +1207,7 @@ impl OperationFrame<'_, '_> {
                     _ => None,
                 };
                 if let Some(captured) = captured {
-                    return Ok(captured);
+                    return Ok((captured.source, captured.path));
                 }
                 let mut storage = self.evaluation.cleanup_storage(
                     source,

@@ -1,18 +1,19 @@
+domain [u8]::Utf8(bytes) requires valid_utf8(bytes);
 // Bounded-text concatenation on the `+` operator: `main.text =
-// main.text + "c"` extends a `[u8; 16] in Utf8` field in place across
+// main.text + "c"` extends a `Buffer16` field in place across
 // iterations — immutable literal storage creates no disposal debt at
 // the join.
 domain [u8; 16]::Utf8(bytes) requires valid_utf8(bytes);
 data Main {
-    text: [u8; 16] in Utf8;
+    text: Buffer16;
     count: u64 in Wrapping;
 }
-machine Main::main(main: &mut Main) {
+machine Main::main(main: &mut Main) crashes Trap {
     main.count = 0;
     transition { _ -> write(main) }
     state write(main: &mut Main) {
-        main.text = "ab";
-        main.text = main.text + "c";
+        main.text = Buffer16 { storage: [97u8, 98u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8], used: 2 };
+        main.text = Buffer16::join(Buffer16::view(&main.text), "c");
         main.count = main.count + 1;
         transition main.count < 3 {
             true -> write(main)
@@ -20,4 +21,62 @@ machine Main::main(main: &mut Main) {
         }
     }
     state done(main: &mut Main) { }
+}
+
+// Explicit fixed capacity and live-prefix length; qualification belongs to the checked view.
+data Buffer16 [copy] where used <= 16 { storage: [u8; 16]; used: u64; }
+machine Buffer16::view(buffer: &Buffer16) -> &[u8] in Utf8 crashes Trap {
+    let bytes: &[u8] = &buffer.storage[..buffer.used];
+    transition valid_utf8(bytes) {
+        true -> checked(bytes)
+        false -> bad()
+    }
+    state checked(bytes: &[u8] in Utf8) -> &[u8] in Utf8 { bytes }
+    state bad() { crash Trap; }
+}
+machine Buffer16::equal(buffer: &Buffer16, expected: &[u8]) -> bool crashes Trap {
+    let bytes: &[u8] in Utf8 = Buffer16::view(buffer);
+    bytes == expected
+}
+
+machine Buffer16::copy(storage: &mut [u8; 16], bytes: &[u8], start: u64)
+requires start <= 16; bytes.len <= 16 - start {
+    transition { _ -> copying(storage, bytes, start, 0) }
+    state copying(storage: &mut [u8; 16], bytes: &[u8], start: u64, index: u64)
+    requires start <= 16; index <= 16 {
+        transition index < bytes.len && start + index < 16 {
+            true -> writing(storage, bytes, start, index)
+            _ -> done()
+        }
+    }
+    state writing(storage: &mut [u8; 16], bytes: &[u8], start: u64, index: u64)
+    requires start <= 16; index < 16; index < bytes.len; start + index < 16 {
+        storage[start + index] = bytes[index];
+        transition { _ -> copying(storage, bytes, start, index + 1) }
+    }
+    state done() {}
+}
+machine Buffer16::join(left: &[u8], right: &[u8]) -> Buffer16 crashes Trap {
+    transition left.len <= 16 && right.len <= 16 - left.len {
+        true -> joining(left, right)
+        _ -> bad()
+    }
+    state joining(left: &[u8], right: &[u8]) -> Buffer16
+    requires left.len <= 16; right.len <= 16 - left.len {
+    let mut result: Buffer16;
+    Buffer16::copy(&mut result.storage, left, 0);
+    Buffer16::copy(&mut result.storage, right, left.len);
+    let total: u64 = left.len + right.len;
+    transition total <= 16 {
+        true -> checked(result, total)
+        _ -> bad()
+    }
+    }
+    state checked(result: Buffer16, total: u64) -> Buffer16
+    requires total <= 16 {
+        let mut value: Buffer16 = result;
+        value.used = total;
+        value
+    }
+    state bad() { crash Trap; }
 }

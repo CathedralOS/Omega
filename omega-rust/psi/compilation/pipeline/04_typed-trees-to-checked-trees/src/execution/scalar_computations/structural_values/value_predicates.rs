@@ -189,7 +189,7 @@ pub(in crate::execution::scalar_computations) fn is_fixed_array_value(
             program.type_reference_table.type_reference(reference),
             typed_trees::types::TypeReferenceNode::FixedArray { .. }
         )
-    }) && !validation::is_closed_primitive_array_type(program, expected)
+    }) && !validation::scalar_array_preserves_memberships(program, expected)
 }
 
 /// The referent of a shared record or primitive view. This classifies the

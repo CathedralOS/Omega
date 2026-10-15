@@ -1,36 +1,49 @@
-// Bounded text carriers concatenate: `"Room " + main.label` copies
-// the literal and the label's live bytes into a fresh owned result
-// before replacing text's inline storage. Capacity is a bound, not
-// readable content — label has capacity 4 but holds 2 bytes. The
-// receiving proof establishes that the result fits text's
-// capacity 16.
-//
-//   * Two coexisting capacities: `[u8; 4]::Utf8` and
-//     `[u8; 16]::Utf8` domain declarations.
-//   * `main.text == "Room A1"` — byte-equality observes length 7.
-//   * `hits` records the reached arm.
-//
-// Compile-checked only: no standard-library dependency, no ProcessExit
-// provider.
+// Explicit buffer construction preserves Room A1 and live length 7.
+// Compile-checked probe; hit remains 1 on success.
+domain [u8; 16]::Ascii(bytes) requires ascii_only(bytes);
+domain [u8]::Ascii(bytes) requires ascii_only(bytes);
+data TextBuffer where used <= 16 { storage: [u8; 16] in Ascii; used: u64; }
+machine live(buffer: &TextBuffer) -> &[u8] in Ascii { &buffer.storage[..buffer.used] }
+machine copy(buffer: &mut [u8; 16] in Ascii, bytes: &[u8] in Ascii, start: u64)
+requires start <= 16; bytes.len <= 16 - start
+{
+    transition { _ -> copying(buffer, bytes, start, 0) }
+    state copying(buffer: &mut [u8; 16] in Ascii, bytes: &[u8] in Ascii, start: u64, index: u64)
+    requires start <= 16; index <= 16
+    {
+        transition index < bytes.len && start + index < 16 {
+            true -> writing(buffer, bytes, start, index)
+            _ -> done()
+        }
+    }
+    state writing(buffer: &mut [u8; 16] in Ascii, bytes: &[u8] in Ascii, start: u64, index: u64)
+    requires start <= 16; index < 16; index < bytes.len; start + index < 16
+    {
+        buffer[start + index] = bytes[index];
+        transition { _ -> copying(buffer, bytes, start, index + 1) }
+    }
+    state done() {}
+}
 
-domain [u8; 4]::Utf8(bytes)
-requires
-    valid_utf8(bytes);
-domain [u8; 16]::Utf8(bytes)
-requires
-    valid_utf8(bytes);
-
+domain [u8; 4]::Ascii(bytes) requires ascii_only(bytes);
+data Label where used <= 4 { storage: [u8; 4] in Ascii; used: u64; }
+machine label_live(label: &Label) -> &[u8] in Ascii
+ensures result.len == label.used && result.len <= 4
+{ &label.storage[..label.used] }
 data Main {
-    label: [u8; 4] in Utf8;
-    text: [u8; 16] in Utf8;
+    label: Label;
+    text: TextBuffer;
     hits: i32 in Wrapping;
 }
 
 machine Main::main(main: &mut Main) {
     main.hits = 0;
-    main.label = "A1";
-    main.text = "Room " + main.label;
-    transition main.text == "Room A1" && main.text.len == 7 {
+    main.label = Label { storage: [65u8, 49u8, 0u8, 0u8], used: 2 };
+    copy(&mut main.text.storage, "Room ", 0);
+    copy(&mut main.text.storage, label_live(&main.label), 5);
+    main.text.used = 7;
+    let view: &[u8] in Ascii = live(&main.text);
+    transition view == "Room A1" && view.len == 7 {
         true -> pass(main)
         _ -> fail(main)
     }

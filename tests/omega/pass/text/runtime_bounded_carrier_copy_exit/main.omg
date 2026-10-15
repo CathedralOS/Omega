@@ -1,3 +1,4 @@
+domain [u8]::Utf8(bytes) requires valid_utf8(bytes);
 // Observe whole-byte replacement through direct copies and nested destinations.
 // Shorter and empty replacements publish their own live length. Copies preserve
 // the source and unrelated sibling storage; successful execution prints the
@@ -9,43 +10,43 @@ requires
     valid_utf8(bytes);
 
 data Bucket {
-    text: [u8; 32] in Utf8;
-    sibling: [u8; 32] in Utf8;
+    text: Buffer32;
+    sibling: Buffer32;
 }
 
 data Main {
-    greeting: [u8; 32] in Utf8;
-    source: [u8; 32] in Utf8;
+    greeting: Buffer32;
+    source: Buffer32;
     bucket: Bucket;
 }
 
-machine Main::main(main: &mut Main) reaches Console {
-    main.greeting = "Hello, " + "Ada!";
-    main.source = "Longer source";
-    main.bucket.sibling = "keep";
-    transition main.greeting == "Hello, Ada!" {
+machine Main::main(main: &mut Main) reaches Console crashes Trap {
+    main.greeting = Buffer32::join("Hello, ", "Ada!");
+    main.source = Buffer32 { storage: [76u8, 111u8, 110u8, 103u8, 101u8, 114u8, 32u8, 115u8, 111u8, 117u8, 114u8, 99u8, 101u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8], used: 13 };
+    main.bucket.sibling = Buffer32 { storage: [107u8, 101u8, 101u8, 112u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8], used: 4 };
+    transition Buffer32::equal(&main.greeting, "Hello, Ada!") {
         true -> copy(main)
         false -> bad(main)
     }
 
     state copy(main: &mut Main) {
         main.bucket.text = main.source;
-        transition main.bucket.text == "Longer source" {
+        transition Buffer32::equal(&main.bucket.text, "Longer source") {
             true -> preserved(main)
             false -> bad(main)
         }
     }
 
     state preserved(main: &mut Main) {
-        transition main.source == "Longer source" && main.bucket.sibling == "keep" {
+        transition Buffer32::equal(&main.source, "Longer source") && Buffer32::equal(&main.bucket.sibling, "keep") {
             true -> shorter(main)
             false -> bad(main)
         }
     }
 
     state shorter(main: &mut Main) {
-        main.source = "Ada";
-        transition main.bucket.text == "Longer source" {
+        main.source = Buffer32 { storage: [65u8, 100u8, 97u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8], used: 3 };
+        transition Buffer32::equal(&main.bucket.text, "Longer source") {
             true -> copy_shorter(main)
             false -> bad(main)
         }
@@ -53,15 +54,15 @@ machine Main::main(main: &mut Main) reaches Console {
 
     state copy_shorter(main: &mut Main) {
         main.bucket.text = main.source;
-        transition main.bucket.text == "Ada" && main.bucket.text.len == 3 {
+        transition Buffer32::equal(&main.bucket.text, "Ada") && main.bucket.text.used == 3 {
             true -> empty(main)
             false -> bad(main)
         }
     }
 
     state empty(main: &mut Main) {
-        main.source = "";
-        transition main.bucket.text == "Ada" {
+        main.source = Buffer32 { storage: [0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8], used: 0 };
+        transition Buffer32::equal(&main.bucket.text, "Ada") {
             true -> copy_empty(main)
             false -> bad(main)
         }
@@ -69,18 +70,76 @@ machine Main::main(main: &mut Main) reaches Console {
 
     state copy_empty(main: &mut Main) {
         main.bucket.text = main.source;
-        transition main.bucket.text == "" && main.bucket.text.len == 0 && main.bucket.sibling == "keep" {
+        transition Buffer32::equal(&main.bucket.text, "") && main.bucket.text.used == 0 && Buffer32::equal(&main.bucket.sibling, "keep") {
             true -> good(main)
             false -> bad(main)
         }
     }
 
     state good(main: &mut Main) {
-        Console::write_line(main.greeting);
+        Console::write_line(Buffer32::view(&main.greeting));
         Console::exit_process(70);
     }
 
     state bad(main: &mut Main) {
         Console::exit_process(71);
     }
+}
+
+// Explicit fixed capacity and live-prefix length; qualification belongs to the checked view.
+data Buffer32 [copy] where used <= 32 { storage: [u8; 32]; used: u64; }
+machine Buffer32::view(buffer: &Buffer32) -> &[u8] in Utf8 crashes Trap {
+    let bytes: &[u8] = &buffer.storage[..buffer.used];
+    transition valid_utf8(bytes) {
+        true -> checked(bytes)
+        false -> bad()
+    }
+    state checked(bytes: &[u8] in Utf8) -> &[u8] in Utf8 { bytes }
+    state bad() { crash Trap; }
+}
+machine Buffer32::equal(buffer: &Buffer32, expected: &[u8]) -> bool crashes Trap {
+    let bytes: &[u8] in Utf8 = Buffer32::view(buffer);
+    bytes == expected
+}
+
+machine Buffer32::copy(storage: &mut [u8; 32], bytes: &[u8], start: u64)
+requires start <= 32; bytes.len <= 32 - start {
+    transition { _ -> copying(storage, bytes, start, 0) }
+    state copying(storage: &mut [u8; 32], bytes: &[u8], start: u64, index: u64)
+    requires start <= 32; index <= 32 {
+        transition index < bytes.len && start + index < 32 {
+            true -> writing(storage, bytes, start, index)
+            _ -> done()
+        }
+    }
+    state writing(storage: &mut [u8; 32], bytes: &[u8], start: u64, index: u64)
+    requires start <= 32; index < 32; index < bytes.len; start + index < 32 {
+        storage[start + index] = bytes[index];
+        transition { _ -> copying(storage, bytes, start, index + 1) }
+    }
+    state done() {}
+}
+machine Buffer32::join(left: &[u8], right: &[u8]) -> Buffer32 crashes Trap {
+    transition left.len <= 32 && right.len <= 32 - left.len {
+        true -> joining(left, right)
+        _ -> bad()
+    }
+    state joining(left: &[u8], right: &[u8]) -> Buffer32
+    requires left.len <= 32; right.len <= 32 - left.len {
+    let mut result: Buffer32;
+    Buffer32::copy(&mut result.storage, left, 0);
+    Buffer32::copy(&mut result.storage, right, left.len);
+    let total: u64 = left.len + right.len;
+    transition total <= 32 {
+        true -> checked(result, total)
+        _ -> bad()
+    }
+    }
+    state checked(result: Buffer32, total: u64) -> Buffer32
+    requires total <= 32 {
+        let mut value: Buffer32 = result;
+        value.used = total;
+        value
+    }
+    state bad() { crash Trap; }
 }

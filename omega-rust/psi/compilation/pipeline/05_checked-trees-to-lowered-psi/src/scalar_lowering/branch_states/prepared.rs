@@ -305,6 +305,7 @@ pub(crate) enum LoweredScalarEffect {
     /// A declared-only local's zeroed whole-shape establishment: a fresh home
     /// with no field operands, realized by the dedicated zeroed operation.
     EstablishZeroedStructural {
+        projected_qualifications: Vec<checked_trees::CheckedStructuralPathQualification>,
         place: PlaceId,
         structural_type: StructuralTypeId,
         multiplicity: StructuralMultiplicity,
@@ -362,6 +363,7 @@ pub(crate) enum EffectCallTarget {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct LoweredScalarArrayConstruction {
+    pub(crate) memberships: Vec<language_semantics::SemanticDomainId>,
     pub(crate) place: PlaceId,
     pub(crate) structural_type: StructuralTypeId,
     pub(crate) elements: Vec<LoweredDirectExpression>,

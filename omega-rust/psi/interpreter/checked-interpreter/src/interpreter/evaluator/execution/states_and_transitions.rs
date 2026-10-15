@@ -663,18 +663,6 @@ impl<'program> Evaluator<'program> {
                 return self.default_value_for_type_with_bindings(argument, bindings);
             }
 
-            // An owned `[u8; N] in <text-domain>` is not an always-full fixed
-            // array. Its runtime representation is the bounded carrier
-            // `{ len, bytes[N] }`, whose honest ZII value has `len == 0`.
-            // Recognize that shape BEFORE stripping the domain constraint;
-            // otherwise the interpreter constructs N zero-valued array
-            // elements and compares it against text literals as a non-text
-            // value, diverging from both the checked semantics and native
-            // `BoundedByteBuffer` layout.
-            if self.declared_type_is_bounded_byte_buffer(type_reference) {
-                return self.allocate_text(Vec::new());
-            }
-
             // See THROUGH a domain constraint (`[i32; N] in Wrapping`, `i32 in Saturating`):
             // the default of a constrained type is the default of its base type (zero in every
             // arithmetic domain). Without this, a domain-constrained ARRAY field falls past the

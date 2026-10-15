@@ -9,19 +9,13 @@
 //!
 //! - A loan's access binds on the field, parameter or local that uses a type,
 //!   not on the type, so a reference shell is looked through to the storage it
-//!   lends. A `&[u8; N]` bounded view is the exception: its referent stays in
-//!   the caller's frame and the descriptor itself is the carrier, so it keeps
-//!   its shell and never names the plain array it borrows.
+//!   lends, including a reference to a fixed byte array.
 //! - A qualification restricts values without changing their storage and is
 //!   looked through unless its declaration owns a storage restriction. A
 //!   primitive interval or scalar predicate keeps its qualification so its
 //!   receiving stores and fresh reads can name the exact restriction. Value
 //!   domain membership such as Finite remains in the separate custody channel.
-//!   A domain over a fixed byte array also turns plain array storage into a
-//!   bounded byte owner with a live extent.
-//!   That owner keeps its qualification, so a plain `[u8; N]` and a
-//!   `[u8; N] in D` never share an identity, and with it one plan, in a module
-//!   that holds both — whichever target's bodies happen to name them.
+//!   Fixed arrays retain their exact carrier identity under qualification.
 //! - A type parameter bound in `substitutions` stands for its actual.
 //!
 //! A stored loan that is neither a byte carrier nor an element view keeps its
@@ -31,39 +25,25 @@
 use crate::value_custody::reference_shells::{
     byte_sequence_carrier, reference_shell, slice_view_shell,
 };
-use checked_trees::CheckedByteSequenceCarrier;
 use symbols::SymbolHandle;
 use typed_trees::type_identity::TypeIdentityRequest;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 /// The type node whose identity a structural plan for `type_reference`
 /// registers under: the storage beneath its loan and qualification shells,
-/// with a bounded view keeping its loan and a bounded byte owner keeping its
-/// qualification (see the module comment).
+/// as described in the module comment.
 pub fn structural_identity_type(
     program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
 ) -> TypeReferenceHandle {
-    let carrier = byte_sequence_carrier(program, type_reference, substitutions);
-    if matches!(
-        carrier,
-        Some(CheckedByteSequenceCarrier::BoundedView { .. })
-    ) {
-        return type_reference;
-    }
-    let keeps_qualification = matches!(
-        carrier,
-        Some(CheckedByteSequenceCarrier::BoundedOwned { .. })
-    );
     let mut reference = type_reference;
     // A walk longer than the table has nodes has revisited one.
     for _ in 0..=program.type_reference_table.type_reference_count() {
         match program.type_reference_table.type_reference(reference) {
             TypeReferenceNode::Reference { referee, .. } => reference = *referee,
             TypeReferenceNode::Constrained { constraints, .. }
-                if keeps_qualification
-                    || (program.primitive_type_reference(reference).is_some()
+                if (program.primitive_type_reference(reference).is_some()
                         && program.type_reference_table.constraints(*constraints).iter().any(|constraint|
                             matches!(constraint, typed_trees::types::TypeConstraintNode::Range { .. }
                                 | typed_trees::types::TypeConstraintNode::Named(_))
@@ -115,14 +95,7 @@ pub fn stores_reference_shape(
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
 ) -> bool {
     reference_shell(program, type_reference).is_some()
-        && !matches!(
-            byte_sequence_carrier(program, type_reference, substitutions),
-            Some(
-                CheckedByteSequenceCarrier::BorrowedView { .. }
-                    | CheckedByteSequenceCarrier::BoundedView { .. }
-            )
-        )
-        && slice_view_shell(program, type_reference, substitutions).is_none()
+        && crate::stored_view_shell(program, type_reference, substitutions).is_none()
 }
 
 /// The identity of the plan a stored value of `type_reference` occupies — a

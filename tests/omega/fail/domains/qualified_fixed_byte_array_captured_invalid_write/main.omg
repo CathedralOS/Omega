@@ -1,0 +1,24 @@
+// A captured reference replacement cannot permit a non-ASCII byte in the old qualified backing.
+domain [u8; 8]::Ascii(bytes) requires ascii_only(bytes);
+data Owner { before: u8; bytes: [u8; 8] in Ascii; after: u8; }
+data Bundle<'storage> { raw: &'storage mut [u8; 8] in Ascii; }
+machine replace_carrier<'storage>(home: &write Bundle<'storage>, replacement: &'storage mut [u8; 8] in Ascii) -> u8
+ensures result == 255 {
+    home = Bundle { raw: replacement };
+    255
+}
+machine write_selected<'storage>(mut home: Bundle<'storage>, replacement: &'storage mut [u8; 8] in Ascii) {
+    home.raw[0] = replace_carrier(&write home, replacement);
+}
+machine main() crashes Trap {
+    let mut first: Owner = Owner { before: 17u8, bytes: "omega600", after: 29u8 };
+    let mut second: [u8; 8] in Ascii = "omega601";
+    let bundle: Bundle = Bundle { raw: &mut first.bytes };
+    write_selected(bundle, &mut second);
+    transition first.bytes == "Amega600" && second == "omega601"
+        && first.before == 17 && first.after == 29
+        && first.bytes.len == 8 && second.len == 8 && size_of<Owner>() == 10 {
+        true -> {} _ -> bad()
+    }
+    state bad() { crash Trap; }
+}

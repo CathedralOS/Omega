@@ -200,6 +200,7 @@ pub(super) fn encode_structural_path(bytes: &mut Vec<u8>, path: &[StructuralPath
 
 fn encode_structural_projection(bytes: &mut Vec<u8>, segment: &StructuralPathSegment) {
     match segment {
+        StructuralPathSegment::AllElements => bytes.push(10),
         StructuralPathSegment::Case(case) => {
             bytes.push(7);
             crate::codec_bytes::push_encoded(bytes, case.get().to_le_bytes());

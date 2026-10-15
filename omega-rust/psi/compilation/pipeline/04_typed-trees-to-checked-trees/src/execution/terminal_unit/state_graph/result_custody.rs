@@ -670,6 +670,10 @@ pub(super) fn account(
                                 })
                             });
                         if !consumed_by_forming_call {
+                            trace.phase(
+                                "state graph: closed-sum exit has no exact view disposition",
+                            );
+                            trace.statement(Some(result.statement_index));
                             return None;
                         }
                     }

@@ -142,6 +142,18 @@ pub fn structural_paths_may_overlap(
             return true;
         }
         let overlaps = match (left, right) {
+            (
+                StructuralPathSegment::AllElements,
+                StructuralPathSegment::FixedIndex(_)
+                | StructuralPathSegment::RuntimeIndex { .. }
+                | StructuralPathSegment::FixedByteRange { .. },
+            )
+            | (
+                StructuralPathSegment::FixedIndex(_)
+                | StructuralPathSegment::RuntimeIndex { .. }
+                | StructuralPathSegment::FixedByteRange { .. },
+                StructuralPathSegment::AllElements,
+            ) => true,
             // Empty loans still retain their backing: do not derive exclusive
             // alias freedom from the absence of writable bytes. Invalid ranges
             // are rejected by presentation validation, never trusted here.
@@ -339,4 +351,49 @@ fn canonical_projection_type<'a>(
         }
     }
     case_fields.is_none().then_some(declaration(root)?.id)
+}
+
+/// A scalar replacement preserves memberships only on disjoint storage.
+/// Whole-value and overlapping predicates need their own restoration proof.
+pub fn structural_memberships_disjoint_from_write(
+    whole: &[semantic_vocabulary::StructuralDomainId],
+    projected: &[terminal_psi::StructuralPathQualification],
+    written: &[StructuralPathSegment],
+) -> bool {
+    whole.is_empty()
+        && projected
+            .iter()
+            .all(|row| !structural_paths_may_overlap(&row.path, written))
+}
+
+/// Resolve qualification metadata independently of executable addresses.
+/// Universal steps descend through a collection's element type and never
+/// produce a selector, an address, a bound, or permission to read the element.
+pub fn qualification_path_carrier<'types>(
+    types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+    mut root: StructuralTypeId,
+    path: &[StructuralPathSegment],
+) -> Option<StructuralTypeId> {
+    let mut cursor = path;
+    loop {
+        let count = cursor
+            .iter()
+            .position(|step| matches!(step, StructuralPathSegment::AllElements))
+            .unwrap_or(cursor.len());
+        root = crate::runtime_structural_path_tip(types.clone(), root, &cursor[..count])?.id;
+        if count == cursor.len() {
+            return Some(root);
+        }
+        let mut declarations = types.clone().filter(|row| row.id == root);
+        let declaration = declarations.next()?;
+        if declarations.next().is_some() {
+            return None;
+        }
+        root = match declaration.shape {
+            StructuralTypeShape::FixedArray { element, .. }
+            | StructuralTypeShape::ElementView { element, .. } => element,
+            _ => return None,
+        };
+        cursor = &cursor[count + 1..];
+    }
 }

@@ -257,6 +257,7 @@ impl Preparation<'_> {
             .collect::<Vec<_>>();
         let mut positions = vec![Vec::new(); operations.len()];
         let mut structural_arguments = vec![Vec::new(); operations.len()];
+        let mut selector_positions = vec![Vec::<(usize, usize, usize)>::new(); operations.len()];
         let mut results: Vec<(u32, StructuralBinding)> = Vec::new();
         // Each completed producer enters the namespace used by subsequent
         // actuals. A side list of result ordinals alone loses expression-backed
@@ -300,6 +301,87 @@ impl Preparation<'_> {
                         statement: call.coordinate.statement_index,
                         prefix: self.prefix.clone(),
                     });
+                }
+                argument_schedule::Step::Selector {
+                    operation,
+                    argument,
+                    segment,
+                } => {
+                    let call = operations[operation]
+                        .call()
+                        .ok_or(LoweringError::Unsupported(
+                            "selector schedule lost its call",
+                        ))?;
+                    let selector = call
+                        .structural_arguments
+                        .get(argument)
+                        .and_then(|argument| argument.call_projection().get(segment))
+                        .ok_or(LoweringError::Unsupported(
+                            "selector schedule lost its path",
+                        ))?;
+                    let result_type = match selector {
+                        checked_trees::CheckedUnitStructuralPathSegment::ComputedIndex(root) => {
+                            let source = self
+                                .checked
+                                .facts
+                                .values
+                                .scalar_computations
+                                .roots
+                                .iter()
+                                .map(|(_, source)| source)
+                                .find(|source| {
+                                    source.root == *root
+                                        && source.state == self.state
+                                        && source.statement_ordinal
+                                            == call.coordinate.statement_index
+                                })
+                                .ok_or(LoweringError::Unsupported(
+                                    "call selector lost its source computation",
+                                ))?;
+                            let result_type = computations::computation_value_type(
+                                identities,
+                                self.checked,
+                                self.qualifications,
+                                *root,
+                                &bindings,
+                                &self.prefix,
+                            )?;
+                            self.steps.push(Step::Scalar {
+                                role: source.role,
+                                result_type,
+                                prefix: self.prefix.clone(),
+                            });
+                            result_type
+                        }
+                        checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex(index) => {
+                            let value = match index {
+                                checked_trees::CheckedRuntimeIndex::StructuralField(field) => {
+                                    bindings.runtime_index_field(identities, field)?
+                                }
+                                checked_trees::CheckedRuntimeIndex::StorageRead { symbol } => {
+                                    bindings.runtime_index_storage(*symbol)?
+                                }
+                                _ => {
+                                    return unsupported(
+                                        "scheduled selector has no evaluated operand",
+                                    );
+                                }
+                            };
+                            let result_type = value.value_type(&self.prefix)?;
+                            self.steps.push(Step::Snapshot {
+                                value,
+                                prefix: self.prefix.clone(),
+                            });
+                            result_type
+                        }
+                        _ => return unsupported("scheduled selector has no evaluated operand"),
+                    };
+                    if !matches!(result_type.scalar_type, semantic_vocabulary::ScalarType::Integer(integer) if !integer.is_address())
+                    {
+                        return unsupported("call selector is not an integer operand");
+                    }
+                    selector_positions[operation].push((argument, segment, self.prefix.len()));
+                    self.prefix.push(result_type);
                 }
                 argument_schedule::Step::Argument { operation, ordinal } => {
                     let call = operations[operation]
@@ -364,7 +446,7 @@ impl Preparation<'_> {
                             scalar_type: self.prefix[*position].scalar_type,
                         })
                         .collect();
-                    let prepared = super::super::unit_operations::prepare(
+                    let mut prepared = super::super::unit_operations::prepare(
                         identities,
                         self.checked,
                         &caller,
@@ -376,6 +458,25 @@ impl Preparation<'_> {
                         &results,
                         &structural_arguments[operation],
                     )?;
+                    // Paths consume the snapshots at their authored schedule
+                    // positions; later arguments cannot make them read storage again.
+                    for (ordinal, argument) in call.structural_arguments.iter().enumerate() {
+                        let saved = selector_positions[operation]
+                            .iter()
+                            .filter(|(argument, _, _)| *argument == ordinal)
+                            .collect::<Vec<_>>();
+                        let expected = argument.call_selector_segments().collect::<Vec<_>>();
+                        if saved.len() != expected.len()
+                            || saved
+                                .iter()
+                                .zip(&expected)
+                                .any(|((_, segment, _), (expected, _))| segment != expected)
+                        {
+                            return unsupported("call selector snapshots disagree with its path");
+                        }
+                        prepared.call.structural_arguments[ordinal].selector_positions =
+                            saved.iter().map(|(_, _, position)| *position).collect();
+                    }
                     self.steps.push(Step::Call {
                         prepared,
                         prefix: self.prefix.clone(),

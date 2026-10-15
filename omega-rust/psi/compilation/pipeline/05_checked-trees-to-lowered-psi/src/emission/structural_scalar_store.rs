@@ -143,11 +143,14 @@ pub(crate) fn lower_structural_scalar_store_place(
     structural_types: &[StructuralTypeDeclaration],
 ) -> Result<LoweredStructuralScalarStore, LoweringError> {
     let scalar_type = terminal_scalar_type(primitive_type)?;
-    let (steps, field) = lower_structural_field_place_steps(
+    validate_storage_access(parameter)?;
+    // The caller compares the completed write path with retained memberships.
+    // Geometry cannot reject an unrelated qualified sibling field.
+    let (steps, field) = lower_structural_field_steps(
         identities,
+        parameter.structural_type,
         carrier_path,
         field_identity,
-        parameter,
         structural_types,
     )?;
     LoweredStructuralScalarStore::at_field(scalar_type, steps, field)
@@ -220,7 +223,7 @@ pub(crate) fn lower_structural_field_place_steps<'a>(
     ),
     LoweringError,
 > {
-    validate_root_access(parameter)?;
+    validate_storage_access(parameter)?;
     lower_structural_field_steps(
         identities,
         parameter.structural_type,
@@ -238,6 +241,16 @@ pub(crate) fn lower_structural_field_place_steps<'a>(
 pub(crate) fn validate_root_access(
     parameter: &StructuralParameterDeclaration,
 ) -> Result<(), LoweringError> {
+    validate_storage_access(parameter)?;
+    if !parameter.qualifications.is_empty() || !parameter.projected_qualifications.is_empty() {
+        return unsupported("structural store requires qualification preservation");
+    }
+    Ok(())
+}
+
+fn validate_storage_access(
+    parameter: &StructuralParameterDeclaration,
+) -> Result<(), LoweringError> {
     let access_matches = match parameter.access {
         terminal_psi::ownership::StructuralAccess::Owned => true,
         terminal_psi::exclusive_borrow_pair_pattern!() => true,
@@ -248,8 +261,6 @@ pub(crate) fn validate_root_access(
             parameter.multiplicity,
             terminal_psi::nonlinear_multiplicity_pair_pattern!()
         )
-        || !parameter.qualifications.is_empty()
-        || !parameter.projected_qualifications.is_empty()
     {
         return unsupported("structural scalar store lost exact exclusive custody");
     }

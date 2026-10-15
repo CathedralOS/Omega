@@ -61,8 +61,13 @@ pub(super) fn callee_value_place(
             ExpressionNode::StructLiteral(_) | ExpressionNode::ArrayLiteral(_)
         )
     {
-        let mut projections =
-            flow::literal_value_projections(program, expression, declared_type, relative, false)?;
+        let mut projections = flow::literal_expression_projections(
+            program,
+            expression,
+            declared_type,
+            relative,
+            false,
+        )?;
         if projections.len() != 1 {
             return None;
         }
@@ -125,7 +130,7 @@ pub(super) fn callee_value_place_leaf(
                     if peeled.is_empty() {
                         return None;
                     }
-                    let mut projections = flow::literal_value_projections(
+                    let mut projections = flow::literal_expression_projections(
                         program,
                         rooted,
                         literal_operand_type(program, rooted, None)?,

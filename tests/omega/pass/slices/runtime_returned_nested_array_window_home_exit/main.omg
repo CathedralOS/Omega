@@ -1,0 +1,19 @@
+// Expected exit: 0. Returning a row window preserves its original array.
+machine row(items: &mut [[i32; 3]; 2]) -> &mut [i32] { &mut items[1][1..2] }
+machine forward(items: &mut [[i32; 3]; 2]) -> &mut [i32] { row(items) }
+machine write(items: &mut [i32]) requires items.len > 0 { items[0] = 27; }
+machine main() crashes Trap {
+    let mut items: [[i32; 3]; 2];
+    items[0][1] = 13;
+    items[1][0] = 11;
+    items[1][1] = 39;
+    items[1][2] = 17;
+    let selected: &mut [i32] = forward(&mut items);
+    write(selected);
+    transition items[0][1] == 13 && items[1][0] == 11 && items[1][1] == 27 && items[1][2] == 17 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

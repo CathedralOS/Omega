@@ -1,12 +1,6 @@
-// RUN CANARY (exit 70) + interpreter differential. ZII DEFAULT TEXT CARRIERS
-// through content equality: a never-written bounded carrier is an all-zero
-// {len, bytes} value, and ZII semantics say that IS empty text.
-// Three legs: (1) zii == "" must be TRUE (len 0 == len 0; the loop never
-// runs); (2) zii == "omega" must be FALSE WITHOUT dereferencing the null
-// pointer (the length mismatch exits before any byte read -- both encoders
-// document this guard); (3) zii == zii (place==place TextEquals) must be
-// TRUE. A regression on leg 2 is a SIGSEGV, not a wrong exit -- the canary
-// still catches it as a non-70 outcome. exits: 71/72/73 per leg.
+// Exit 70: explicit variable-fill owners default to used == 0 while their
+// fixed storage still occupies eight bytes. Equal empty views compare true;
+// a wider literal compares false without observing spare storage.
 domain [u8]::Utf8(bytes)
 requires
     valid_utf8(bytes);
@@ -14,25 +8,25 @@ domain [u8; 8]::Utf8(bytes)
 requires
     valid_utf8(bytes);
 use omega_language_std::console;
-data Main { never: [u8; 8] in Utf8; also_never: [u8; 8] in Utf8; okf: bool; }
-machine Main::main(main: &mut Main) {
+data Main { never: TextBuffer; also_never: TextBuffer; okf: bool; }
+machine Main::main(main: &mut Main) crashes Trap {
     Main::build(main);
 }
-machine Main::build(main: &mut Main) reaches Console {
-    main.okf = main.never == "";
+machine Main::build(main: &mut Main) reaches Console crashes Trap {
+    main.okf = TextBuffer::equal(&main.never, "");
     transition main.okf {
         true -> leg2(main)
         _ -> wrong_zii_empty(main)
     }
     state leg2(main: &mut Main) {
-        let ne: bool = main.never == "omega";
+        let ne: bool = TextBuffer::equal(&main.never, "omega");
         transition ne {
             true -> wrong_zii_nonempty(main)
             _ -> leg3(main)
         }
     }
     state leg3(main: &mut Main) {
-        let both: bool = main.never == main.also_never;
+        let both: bool = TextBuffer::equal(&main.never, TextBuffer::view(&main.also_never));
         transition both {
             true -> good(main)
             _ -> wrong_zii_pair(main)
@@ -42,4 +36,21 @@ machine Main::build(main: &mut Main) reaches Console {
     state wrong_zii_empty(main: &mut Main)   { Console::exit_process(71); }
     state wrong_zii_nonempty(main: &mut Main){ Console::exit_process(72); }
     state wrong_zii_pair(main: &mut Main)    { Console::exit_process(73); }
+}
+
+// A variable-fill value explicitly owns its fixed storage and live length.
+// Copies retain both; an accessor borrows and checks the selected copy's prefix.
+data TextBuffer [copy] where used <= 8 { storage: [u8; 8] in Utf8; used: u64; }
+machine TextBuffer::view(buffer: &TextBuffer) -> &[u8] in Utf8 crashes Trap {
+    let bytes: &[u8] = &buffer.storage[..buffer.used];
+    transition valid_utf8(bytes) {
+        true -> checked(bytes)
+        false -> bad()
+    }
+    state checked(bytes: &[u8] in Utf8) -> &[u8] in Utf8 { bytes }
+    state bad() { crash Trap; }
+}
+machine TextBuffer::equal(buffer: &TextBuffer, expected: &[u8]) -> bool crashes Trap {
+    let bytes: &[u8] in Utf8 = TextBuffer::view(buffer);
+    bytes == expected
 }

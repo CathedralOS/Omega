@@ -1,32 +1,106 @@
+domain [u8]::Utf8(bytes) requires valid_utf8(bytes);
 domain [u8; 4]::Utf8(bytes) requires valid_utf8(bytes);
 domain [u8; 8]::Utf8(bytes) requires valid_utf8(bytes);
-data Tagged { label: [u8; 8] in Utf8; }
-data Main { tagged: Tagged; prefix: [u8; 4] in Utf8; suffix: [u8; 4] in Utf8; neighbor: i64; }
+data Tagged { label: Buffer8; }
+data Main { tagged: Tagged; prefix: Buffer4; suffix: Buffer4; neighbor: i64; }
 
-machine compose(tagged: &write Tagged, left: [u8; 4] in Utf8, right: [u8; 4] in Utf8) {
-    tagged.label = left + right;
+machine compose(tagged: &write Tagged, left: Buffer4, right: Buffer4) crashes Trap {
+    tagged.label = Buffer8::join(Buffer4::view(&left), Buffer4::view(&right));
 }
-machine rename(tagged: &write Tagged, label: [u8; 8] in Utf8) {
+machine rename(tagged: &write Tagged, label: Buffer8) {
     tagged.label = label;
 }
 
 machine Main::main(main: &mut Main) crashes Trap {
     main.neighbor = 85;
-    main.prefix = "λ";
-    main.suffix = "ok";
+    main.prefix = Buffer4 { storage: [206u8, 187u8, 0u8, 0u8], used: 2 };
+    main.suffix = Buffer4 { storage: [111u8, 107u8, 0u8, 0u8], used: 2 };
     compose(&write main.tagged, main.prefix, main.suffix);
-    transition main.tagged.label == "λok" && main.tagged.label.len == 4
-        && main.prefix == "λ" && main.suffix == "ok" && main.neighbor == 85 {
+    transition Buffer8::equal(&main.tagged.label, "λok") && main.tagged.label.used == 4
+        && Buffer4::equal(&main.prefix, "λ") && Buffer4::equal(&main.suffix, "ok") && main.neighbor == 85 {
         true -> clear(main)
         _ -> bad()
     }
     state clear(main: &mut Main) {
-        rename(&write main.tagged, "");
-        transition main.tagged.label.len == 0 && main.neighbor == 85 {
+        rename(&write main.tagged, Buffer8 { storage: [0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8], used: 0 });
+        transition main.tagged.label.used == 0 && main.neighbor == 85 {
             true -> done()
             _ -> bad()
         }
     }
     state done() {}
+    state bad() { crash Trap; }
+}
+
+data Buffer4 [copy] where used <= 4 { storage: [u8; 4]; used: u64; }
+machine Buffer4::view(buffer: &Buffer4) -> &[u8] in Utf8 crashes Trap {
+    let bytes: &[u8] = &buffer.storage[..buffer.used];
+    transition valid_utf8(bytes) {
+        true -> checked(bytes)
+        false -> bad()
+    }
+    state checked(bytes: &[u8] in Utf8) -> &[u8] in Utf8 { bytes }
+    state bad() { crash Trap; }
+}
+machine Buffer4::equal(buffer: &Buffer4, expected: &[u8]) -> bool crashes Trap {
+    let bytes: &[u8] in Utf8 = Buffer4::view(buffer);
+    bytes == expected
+}
+
+
+data Buffer8 [copy] where used <= 8 { storage: [u8; 8]; used: u64; }
+machine Buffer8::view(buffer: &Buffer8) -> &[u8] in Utf8 crashes Trap {
+    let bytes: &[u8] = &buffer.storage[..buffer.used];
+    transition valid_utf8(bytes) {
+        true -> checked(bytes)
+        false -> bad()
+    }
+    state checked(bytes: &[u8] in Utf8) -> &[u8] in Utf8 { bytes }
+    state bad() { crash Trap; }
+}
+machine Buffer8::equal(buffer: &Buffer8, expected: &[u8]) -> bool crashes Trap {
+    let bytes: &[u8] in Utf8 = Buffer8::view(buffer);
+    bytes == expected
+}
+
+machine Buffer8::copy(storage: &mut [u8; 8], bytes: &[u8], start: u64)
+requires start <= 8; bytes.len <= 8 - start {
+    transition { _ -> copying(storage, bytes, start, 0) }
+    state copying(storage: &mut [u8; 8], bytes: &[u8], start: u64, index: u64)
+    requires start <= 8; index <= 8 {
+        transition index < bytes.len && start + index < 8 {
+            true -> writing(storage, bytes, start, index)
+            _ -> done()
+        }
+    }
+    state writing(storage: &mut [u8; 8], bytes: &[u8], start: u64, index: u64)
+    requires start <= 8; index < 8; index < bytes.len; start + index < 8 {
+        storage[start + index] = bytes[index];
+        transition { _ -> copying(storage, bytes, start, index + 1) }
+    }
+    state done() {}
+}
+machine Buffer8::join(left: &[u8], right: &[u8]) -> Buffer8 crashes Trap {
+    transition left.len <= 8 && right.len <= 8 - left.len {
+        true -> joining(left, right)
+        _ -> bad()
+    }
+    state joining(left: &[u8], right: &[u8]) -> Buffer8
+    requires left.len <= 8; right.len <= 8 - left.len {
+    let mut result: Buffer8;
+    Buffer8::copy(&mut result.storage, left, 0);
+    Buffer8::copy(&mut result.storage, right, left.len);
+    let total: u64 = left.len + right.len;
+    transition total <= 8 {
+        true -> checked(result, total)
+        _ -> bad()
+    }
+    }
+    state checked(result: Buffer8, total: u64) -> Buffer8
+    requires total <= 8 {
+        let mut value: Buffer8 = result;
+        value.used = total;
+        value
+    }
     state bad() { crash Trap; }
 }

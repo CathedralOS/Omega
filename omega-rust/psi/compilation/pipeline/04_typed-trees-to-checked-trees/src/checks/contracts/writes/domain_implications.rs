@@ -396,7 +396,11 @@ fn declared_value_domain_implies(
     validation::field_domains::predicate_domain_constraint_symbols(program, value_type)
         .into_iter()
         .filter(|value_domain| {
-            validation::field_domains::domain_admits_empty_byte_sequence(program, *value_domain)
+            validation::field_domains::domain_admits_zero_byte_carrier(
+                program,
+                *value_domain,
+                value_type,
+            )
         })
         .any(|value_domain| {
             validation::field_domains::domain_membership_implies(
@@ -565,7 +569,7 @@ fn state_place_root_symbol(
 
 /// Whether `domain_symbol`'s `self`-facts provably hold on the ZERO value of
 /// its declared carrier -- the scalar-carrier half of the ZII soundness gate
-/// `domain_admits_empty_byte_sequence` covers for recognized byte predicates.
+/// `domain_admits_zero_byte_carrier` covers for recognized byte predicates.
 /// An integer leaf's ZII is `0` and a `bool` leaf's is `false`; `self`-relative
 /// membership facts recurse because a member's ZII is again the all-zero value
 /// of its own declared type. A leaf the evaluator cannot decide -- a float,
@@ -584,15 +588,19 @@ fn domain_admits_zero_value_inner(
     domain_symbol: SymbolHandle,
     active: &mut Vec<SymbolHandle>,
 ) -> bool {
-    if validation::field_domains::domain_admits_empty_byte_sequence(program, domain_symbol) {
-        return true;
-    }
     if active.contains(&domain_symbol) {
         return false;
     }
     let Some(domain) = program.domain_definition(domain_symbol) else {
         return false;
     };
+    if validation::field_domains::domain_admits_zero_byte_carrier(
+        program,
+        domain_symbol,
+        domain.target_type,
+    ) {
+        return true;
+    }
     // Generic or indexed domain instances can bind their zero question to the
     // instance arguments; only closed symbol-only theories are answered here.
     if !domain.type_parameters.is_empty() || !domain.index_arguments.is_empty() {

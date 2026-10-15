@@ -39,7 +39,7 @@ pub(super) fn establish(
                 | terminal_psi::StructuralMultiplicity::Affine
         )
         || !result.qualifications.is_empty()
-        || !result.projected_qualifications.is_empty()
+        || result.projected_qualifications.iter().any(|row| !matches!(row.path.first(), Some(terminal_psi::StructuralPathSegment::AllElements)))
         || !result.claims.is_empty()
         || !matches!(
             source.access,terminal_psi::reading_borrow_pair_pattern!())

@@ -1,6 +1,6 @@
 // Parse a movement command by its first byte -- the classic game-input dispatch.
-// `main.command[0]` indexes the first byte of a `[u8; N] in Utf8` carrier (content
-// lives inline after the length word), and a chain of guards classifies it: 'n'
+// `main.command[0]` indexes the first of exactly five inline bytes. Utf8
+// qualification adds no length word. A chain of guards classifies it: 'n'
 // (110) -> 1, 's' (115) -> 2, 'e' (101) -> 3, 'w' (119) -> 4, else 0. Carrier byte
 // indexing in guard subjects is the text parsing/scanning workhorse. For "north"
 // the first byte is 'n', so the program exits 1.
@@ -9,13 +9,13 @@
 domain [u8]::Utf8(bytes)
 requires
     valid_utf8(bytes);
-domain [u8; 8]::Utf8(bytes)
+domain [u8; 5]::Utf8(bytes)
 requires
     valid_utf8(bytes);
 use omega_language_std::console;
 
 data Main {
-    command: [u8; 8] in Utf8;
+    command: [u8; 5] in Utf8;
     pause: [u8; 256];
 }
 

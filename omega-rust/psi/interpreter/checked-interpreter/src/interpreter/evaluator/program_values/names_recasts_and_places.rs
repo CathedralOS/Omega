@@ -752,49 +752,6 @@ impl<'program> Evaluator<'program> {
         }
     }
 
-    /// True for the owned variable-fill text carrier `[u8; N] in <domain>`.
-    /// This mirrors `layout`'s `BoundedByteBuffer` classification rather
-    /// than treating the carrier as an always-full `[u8; N]` array.
-    pub(in crate::interpreter::evaluator) fn declared_type_is_bounded_byte_buffer(
-        &self,
-        type_reference: typed_trees::types::TypeReferenceHandle,
-    ) -> bool {
-        if !type_reference.is_valid() {
-            return false;
-        }
-        let typed_trees::types::TypeReferenceNode::Constrained {
-            base_type,
-            constraints,
-        } = self
-            .program
-            .type_reference_table
-            .type_reference(type_reference)
-        else {
-            return false;
-        };
-        let has_value_domain = self
-            .program
-            .type_reference_table
-            .constraints(*constraints)
-            .iter()
-            .any(|constraint| match constraint {
-                typed_trees::types::TypeConstraintNode::Domain(name) => {
-                    !typed_trees::wire::is_layout_domain_constraint(name)
-                        && language_semantics::CarryPermission::from_name(name.as_str()).is_none()
-                }
-                _ => false,
-            });
-        if !has_value_domain {
-            return false;
-        }
-        let typed_trees::types::TypeReferenceNode::FixedArray { element_type, .. } =
-            self.program.type_reference_table.type_reference(*base_type)
-        else {
-            return false;
-        };
-        self.program.primitive_type_reference(*element_type) == Some(PrimitiveType::U8)
-    }
-
     /// The ELEMENT type of an owned fixed array `[T; N]` -- seeing THROUGH a
     /// domain `Constrained` wrapper (`[u8; N] in Wrapping`). `None` for a slice,
     /// scalar, or invalid reference. Used to wrap an array-element store to the

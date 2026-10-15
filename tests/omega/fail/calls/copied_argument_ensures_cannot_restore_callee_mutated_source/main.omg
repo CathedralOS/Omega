@@ -1,17 +1,17 @@
 // A guarantee on an owned copy cannot requalify the caller's backing after
 // the callee changes that backing through a separate exclusive argument.
-domain [u8; 16]::Utf8(bytes) requires valid_utf8(bytes);
+domain [u8; 4]::Utf8(bytes) requires valid_utf8(bytes);
 
-data Main { line: [u8; 16] in Utf8; }
+data Main { line: [u8; 4] in Utf8; }
 
-machine saved_ascii(value: [u8; 16] in Utf8, main: &mut Main) -> bool
+machine saved_ascii(value: [u8; 4] in Utf8, main: &mut Main) -> bool
 requires ascii_only(value)
 ensures ascii_only(value) {
-    main.line = "é";
+    main.line = [195u8, 169u8, 0u8, 0u8];
     true
 }
 
-machine take_ascii(value: [u8; 16] in Utf8)
+machine take_ascii(value: [u8; 4] in Utf8)
 requires ascii_only(value) {}
 
 machine Main::main(main: &mut Main) {

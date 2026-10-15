@@ -51,6 +51,31 @@ pub(super) fn validate_indexed_byte_stores(
     ascii.insert(ByteSequencePredicate::AsciiOnly);
     for (block_position, block) in function.blocks.iter().enumerate() {
         for (node_position, node) in block.nodes.iter().enumerate() {
+            if let Operation::WriteOnlyPrimitiveStore {
+                destination, path, ..
+            } = &node.operation
+            {
+                if super::fixed_byte_freshness::requires_ascii(unit, destination, path)
+                    == Some(true)
+                    && !super::fixed_byte_freshness::holds(
+                        unit,
+                        function,
+                        types,
+                        predecessors,
+                        (block_position, node_position),
+                        destination.place(),
+                        &path[..path.len() - 1],
+                        function.structural_places.len() + 1,
+                    )
+                {
+                    return Err(OptimizationUnitValidationError::InvalidByteSequenceWrite {
+                        machine: function.machine,
+                        block: block.id,
+                        node: u32::try_from(node_position).unwrap_or(u32::MAX),
+                    });
+                }
+                continue;
+            }
             if let Operation::ByteSequenceWrite { destination, .. } = &node.operation {
                 if let Some(predicates) = byte_write_predicates(unit, function, *destination) {
                     let splits_scalars = predicates

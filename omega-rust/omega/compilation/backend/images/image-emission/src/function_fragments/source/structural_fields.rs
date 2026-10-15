@@ -1468,7 +1468,11 @@ fn read_access(
             });
             if result.multiplicity == StructuralMultiplicity::Linear
                 || !result.qualifications.is_empty()
-                || !result.projected_qualifications.is_empty()
+                || !terminal_semantics::view_descriptor_projected_qualifications(
+                    target.graph.structural_types.iter(),
+                    result.structural_type,
+                    &result.projected_qualifications,
+                )
                 || !result.claims.is_empty()
                 || !retained
                 || access
@@ -1505,7 +1509,11 @@ fn read_access(
                 || (result.multiplicity != StructuralMultiplicity::Linear
                     && result.claims.is_empty()
                     && result.qualifications.is_empty()
-                    && result.projected_qualifications.is_empty())
+                    && terminal_semantics::view_descriptor_projected_qualifications(
+                        target.graph.structural_types.iter(),
+                        result.structural_type,
+                        &result.projected_qualifications,
+                    ))
         };
         if !retained_custody
             || !target.graph.operations().any(|operation| {

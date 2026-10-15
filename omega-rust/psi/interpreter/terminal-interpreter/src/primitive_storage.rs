@@ -840,6 +840,20 @@ impl TerminalExecution<'_> {
             .machines()
             .get(&machine_id)
             .ok_or_else(malformed)?;
+        let preserves =
+            |root,
+             whole: &[semantic_vocabulary::StructuralDomainId],
+             projected: &[terminal_psi::StructuralPathQualification]| {
+                terminal_semantics::primitive_store_restriction(
+                    self.program.structural_types().values(),
+                    self.program.catalogs.structural_domains.iter(),
+                    root,
+                    whole,
+                    projected,
+                    path,
+                )
+                .is_some()
+            };
         let place = home.place;
         let (structural_type, shared_view) = local_type(machine, place)
             .map(|structural_type| (structural_type, false))
@@ -863,7 +877,9 @@ impl TerminalExecution<'_> {
                             // home; the complete path checks that type below.
                             // Owner custody and domains remain on the owner,
                             // not a restriction on observing another field.
-                            && (!writing || parameter.admits_scalar_read_at(path.is_empty()))
+                            && (!writing || ((parameter.multiplicity == StructuralMultiplicity::Unrestricted
+                                || (!path.is_empty() && parameter.multiplicity == StructuralMultiplicity::Affine))
+                                && preserves(parameter.structural_type, &parameter.qualifications, &parameter.projected_qualifications)))
                     })
                     .map(|parameter| {
                         (
@@ -883,8 +899,7 @@ impl TerminalExecution<'_> {
                         result.place == place
                             && (!writing
                                 || (result.claims.is_empty()
-                                    && result.qualifications.is_empty()
-                                    && result.projected_qualifications.is_empty()))
+                                    && preserves(result.structural_type, &result.qualifications, &result.projected_qualifications)))
                     })
                     .map(|result| (result.structural_type, false))
             })
@@ -1870,7 +1885,126 @@ impl TerminalExecution<'_> {
             return Err(malformed());
         }
         let scalar = self.scalar_value(value)?;
+        let machine = self
+            .program
+            .machines()
+            .get(&self.current_machine)
+            .ok_or_else(malformed)?;
+        let (root, whole, projected) = machine
+            .structural_parameter(destination)
+            .map(|parameter| {
+                (
+                    parameter.structural_type,
+                    parameter.qualifications.as_slice(),
+                    parameter.projected_qualifications.as_slice(),
+                )
+            })
+            .or_else(|| {
+                machine
+                    .operations()
+                    .filter_map(|operation| operation.result.structural())
+                    .find(|result| result.place == destination)
+                    .map(|result| {
+                        (
+                            result.structural_type,
+                            result.qualifications.as_slice(),
+                            result.projected_qualifications.as_slice(),
+                        )
+                    })
+            })
+            .ok_or_else(malformed)?;
+        let restriction = terminal_semantics::primitive_store_restriction(
+            self.program.structural_types().values(),
+            self.program.catalogs.structural_domains.iter(),
+            root,
+            whole,
+            projected,
+            path,
+        )
+        .ok_or_else(malformed)?;
+        let predicates = terminal_semantics::primitive_store_byte_predicates(
+            self.program.structural_types().values(),
+            self.program.catalogs.structural_domains.iter(),
+            root,
+            whole,
+            projected,
+            path,
+        )
+        .ok_or_else(malformed)?;
+        if predicates
+            .predicates()
+            .any(|predicate| predicate == terminal_psi::ByteSequencePredicate::ValidUtf8)
+            && !predicates
+                .predicates()
+                .any(|predicate| predicate == terminal_psi::ByteSequencePredicate::AsciiOnly)
+        {
+            self.validate_ascii_backing_for_primitive_write(
+                destination,
+                root,
+                &path[..path.len() - 1],
+            )?;
+        }
+        if let Some(restriction) = restriction {
+            let literal = match scalar {
+                TerminalScalarValue::Integer { scalar_type, value } => {
+                    semantic_vocabulary::ScalarTerm::integer(scalar_type, value)
+                        .map_err(|_| malformed())?
+                }
+                TerminalScalarValue::Boolean(value) => {
+                    semantic_vocabulary::ScalarTerm::Boolean(value)
+                }
+                TerminalScalarValue::IeeeFloat(value) => {
+                    semantic_vocabulary::ScalarTerm::IeeeFloatLiteral(value)
+                }
+            };
+            if !terminal_semantics::scalar_field_accepts_literal(&restriction, &literal) {
+                return Err(malformed());
+            }
+        }
         self.store_primitive_place(destination, path, scalar)
+    }
+
+    /// Check the receiving predicate against the current backing without
+    /// creating an application observation or granting a write-only loan read
+    /// access. Source preservation and current-graph freshness remain separate
+    /// obligations; these internal bits only validate their runtime honesty.
+    fn validate_ascii_backing_for_primitive_write(
+        &self,
+        destination: PlaceId,
+        root: StructuralTypeId,
+        array_path: &[StructuralPathSegment],
+    ) -> Result<(), TerminalInterpretError> {
+        let declaration = terminal_semantics::runtime_structural_path_tip(
+            self.program.structural_types().values(),
+            root,
+            array_path,
+        )
+        .ok_or_else(malformed)?;
+        let terminal_psi::StructuralTypeShape::FixedArray { length, .. } = declaration.shape else {
+            return Err(malformed());
+        };
+        let byte_type =
+            semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 8)
+                .map_err(|_| malformed())?;
+        let mut selected = array_path.to_vec();
+        for index in 0..length {
+            selected.push(StructuralPathSegment::FixedIndex(index));
+            let (storage, stored_type, shared_view) =
+                self.primitive_access(destination, true, &selected)?;
+            let byte = self.read_primitive_storage(
+                destination,
+                storage,
+                stored_type,
+                semantic_vocabulary::ScalarType::Integer(byte_type),
+                shared_view,
+            )?;
+            selected.pop();
+            if !matches!(byte, TerminalScalarValue::Integer { value: IntegerValue::Unsigned(value), .. } if value <= 127)
+            {
+                return Err(malformed());
+            }
+        }
+        Ok(())
     }
 
     pub(crate) fn store_primitive_place(

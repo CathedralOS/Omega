@@ -12,12 +12,12 @@ requires
 use omega_language_std::console;
 
 data Main {
-    text: [u8; 8] in Utf8;
+    text: TextBuffer;
 }
 
-machine Main::main(main: &mut Main) reaches Console {
-    main.text = "A";
-    let bytes: &[u8] in Utf8 = main.text;
+machine Main::main(main: &mut Main) reaches Console crashes Trap {
+    main.text = TextBuffer { storage: [65u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8], used: 1 };
+    let bytes: &[u8] in Utf8 = TextBuffer::view(&main.text);
 
     transition bytes.len > 0 {
         true -> check(main, bytes)
@@ -38,4 +38,22 @@ machine Main::main(main: &mut Main) reaches Console {
     state bad(main: &mut Main) {
         Console::exit_process(71);
     }
+}
+
+
+// A variable-fill value explicitly owns its fixed storage and live length.
+// Copies retain both; an accessor borrows and checks the selected copy's prefix.
+data TextBuffer [copy] where used <= 8 { storage: [u8; 8] in Utf8; used: u64; }
+machine TextBuffer::view(buffer: &TextBuffer) -> &[u8] in Utf8 crashes Trap {
+    let bytes: &[u8] = &buffer.storage[..buffer.used];
+    transition valid_utf8(bytes) {
+        true -> checked(bytes)
+        false -> bad()
+    }
+    state checked(bytes: &[u8] in Utf8) -> &[u8] in Utf8 { bytes }
+    state bad() { crash Trap; }
+}
+machine TextBuffer::equal(buffer: &TextBuffer, expected: &[u8]) -> bool crashes Trap {
+    let bytes: &[u8] in Utf8 = TextBuffer::view(buffer);
+    bytes == expected
 }

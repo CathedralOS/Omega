@@ -9,7 +9,7 @@
 domain [u8]::Utf8(bytes)
 requires
     valid_utf8(bytes);
-domain [u8; 8]::Utf8(bytes)
+domain [u8; 2]::Utf8(bytes)
 requires
     valid_utf8(bytes);
 use omega_language_std::console;
@@ -17,7 +17,7 @@ use omega::language::core::numeric_conversion;
 
 data Main {
     pause: [u8; 256];
-    buffer: [u8; 8] in Utf8;
+    buffer: [u8; 2] in Utf8;
     value: i32;
     tens: i32;
     ones: i32;

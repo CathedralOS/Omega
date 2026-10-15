@@ -213,12 +213,10 @@ pub(super) fn referent_projection(
 ) -> Option<ReferentProjection> {
     let (root_type, multiplicity, access) =
         if let Some(parameter) = function.arrival_parameter(carrier) {
-            if !parameter.qualifications.is_empty()
-                || !parameter.projected_qualifications.is_empty()
-                || function
-                    .entry_claims
-                    .iter()
-                    .any(|claim| claim.input == carrier)
+            if function
+                .entry_claims
+                .iter()
+                .any(|claim| claim.input == carrier)
             {
                 return None;
             }
@@ -229,16 +227,15 @@ pub(super) fn referent_projection(
             )
         } else {
             let home = live.structural_homes.get(&carrier)?;
-            if !home.qualifications().is_empty()
-                || !home.projected_qualifications().is_empty()
-                || home.operation_result().is_some_and(|(_, result)| {
-                    !result.qualification_establishments.is_empty() || !result.claims.is_empty()
-                })
-            {
+            if home.operation_result().is_some_and(|(_, result)| {
+                !result.qualification_establishments.is_empty() || !result.claims.is_empty()
+            }) {
                 return None;
             }
             (home.structural_type(), home.multiplicity(), home.access())
         };
+    // Membership does not select geometry. Each consuming write independently
+    // preserves the original carrier's complete roster and published path.
     // Borrowing an aggregate does not own its descriptors. Their actual access
     // path governs writes; the live roster below still authenticates custody.
     if multiplicity == StructuralMultiplicity::Linear

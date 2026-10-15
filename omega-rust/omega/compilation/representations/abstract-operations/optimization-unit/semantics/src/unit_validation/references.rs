@@ -142,10 +142,12 @@ pub(crate) fn referent(
     }
 }
 
-/// Resolve the declared access of an unqualified carrier through its stored
+/// Resolve the declared access of a carrier through its stored
 /// pointers. Owning the carrier is not required to write its referent. This
-/// declaration walk supplies no availability or live-loan evidence.
-pub fn unqualified_reference_projection(
+/// declaration walk supplies no availability or live-loan evidence. Memberships
+/// do not select geometry; each write separately preserves the original root
+/// roster at its complete typed path, including reference crossings.
+pub fn reference_projection(
     function: &PsiOptimizationFunction,
     types: &[terminal_psi::StructuralTypeDeclaration],
     destination: PlaceId,
@@ -154,7 +156,6 @@ pub fn unqualified_reference_projection(
 ) -> Option<StructuralTypeId> {
     let source = structural_source_contract(function, destination)?;
     (source.multiplicity != terminal_psi::StructuralMultiplicity::Linear
-        && source.is_unqualified()
         && !source.has_result_evidence()
         && terminal_semantics::reference_source_projection_accessible(
             types.iter(),

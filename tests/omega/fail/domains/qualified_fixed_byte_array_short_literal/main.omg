@@ -1,0 +1,5 @@
+domain [u8; 4]::Bytes;
+data Main {}
+machine Main::main(main: &mut Main) {
+    let bytes: [u8; 4] in Bytes = "abc";
+}

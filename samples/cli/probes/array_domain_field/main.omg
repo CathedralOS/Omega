@@ -1,11 +1,8 @@
-// Byte-sequence domains on sized-array fields: `domain [u8; 8]::Utf8`
-// gives the array a whole-replacement + extent the plain `[u8; N]`
-// scalar array lacks. `main.label = "abc"` replaces the whole field
-// through the domain — extent 3 within capacity 8 — and
-// `main.label[0] = 66` writes one byte. Reads live one state after
-// the fill: the extent fact follows the edge.
+// A qualified three-byte fixed array keeps its exact extent across states.
+// `main.label = "abc"` replaces all three bytes; `main.label[0] = 66`
+// preserves UTF-8 membership. Qualification adds no storage or live length.
 //
-//   * `domain [u8; 8]::Utf8(bytes) requires valid_utf8(bytes)` —
+//   * `domain [u8; 3]::Utf8(bytes) requires valid_utf8(bytes)` —
 //     compiler-recognized predicate on the array carrier.
 //   * Whole-replacement and indexed store both keep the domain.
 //   * `hits` records the reached arm.
@@ -13,12 +10,12 @@
 // Compile-checked only: no standard-library dependency, no ProcessExit
 // provider.
 
-domain [u8; 8]::Utf8(bytes)
+domain [u8; 3]::Utf8(bytes)
 requires
     valid_utf8(bytes);
 
 data Main {
-    label: [u8; 8] in Utf8;
+    label: [u8; 3] in Utf8;
     hits: i32 in Wrapping;
 }
 

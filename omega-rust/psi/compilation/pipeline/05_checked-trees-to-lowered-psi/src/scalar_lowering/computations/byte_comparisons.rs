@@ -41,6 +41,7 @@ impl Expansion<'_> {
         &mut self,
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         bytes: &[u8],
+        maximum_length: Option<u64>,
         negated: bool,
         subject: &CheckedUnitStructuralArgumentPlan,
         input_types: &[QualifiedScalarType],
@@ -109,10 +110,15 @@ impl Expansion<'_> {
             let path = observation_path(&subject.path)?;
             (site.bindings, root, path)
         };
-        let mut comparison = CheckedBooleanExpression::byte_literal_equality(root, path, bytes)
-            .ok_or(LoweringError::Unsupported(
-                "byte comparison literal exceeds its index carrier",
-            ))?;
+        let mut comparison = CheckedBooleanExpression::byte_literal_equality_in_extent(
+            root,
+            path,
+            bytes,
+            maximum_length,
+        )
+        .ok_or(LoweringError::Unsupported(
+            "byte comparison literal exceeds its index carrier",
+        ))?;
         if negated {
             comparison = CheckedBooleanExpression::Not(Box::new(comparison));
         }

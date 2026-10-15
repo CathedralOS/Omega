@@ -111,6 +111,7 @@ pub(super) fn encode_structural_path_segment(
     segment: &StructuralPathSegment,
 ) {
     match segment {
+        StructuralPathSegment::AllElements => bytes.u8(10),
         StructuralPathSegment::Case(case) => {
             bytes.u8(7);
             bytes.u64(case.get());

@@ -401,7 +401,13 @@ fn plan_assignment(
         ) || matches!(
             byte_sequence_carrier(program, destination.root_type, &[]),
             Some(checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. })
-        ))
+        ) || match destination.root {
+            destination::Root::Parameter { parameter, .. } => matches!(
+                byte_sequence_carrier(program, parameter.type_reference, &[]),
+                Some(checked_trees::CheckedByteSequenceCarrier::BoundedView { .. })
+            ),
+            destination::Root::Local { .. } => false,
+        })
     {
         return byte_stores::byte_write(
             program,

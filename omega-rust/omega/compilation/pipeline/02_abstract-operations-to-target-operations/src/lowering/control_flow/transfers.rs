@@ -332,8 +332,7 @@ pub(super) fn validate_successors(
                 if terminal_semantics::view_descriptor_parameter(
                     parameter,
                     structural_types.values().copied(),
-                ) && parameter.qualifications.is_empty()
-                {
+                ) {
                     let selected =
                         crate::lowering::scalar::descriptor_operands::descriptor_projection(
                             function,
@@ -413,10 +412,9 @@ pub(super) fn validate_successors(
                             })
                     });
                 let leaf_copy_owned_contract = || {
-                    // A whole leaf copy moves the exact carrier: its result
-                    // mints the standalone type and clears every roster — the
-                    // destination's qualifications were already proven against
-                    // the leaf's declared predicates upstream.
+                    // A whole leaf copy moves the exact carrier. Membership
+                    // transport is checked upstream from the actual source;
+                    // target geometry does not erase or establish its roster.
                     function
                         .operations
                         .iter()
@@ -430,8 +428,6 @@ pub(super) fn validate_successors(
                                 && result.structural_type == parameter.structural_type
                                 && result.multiplicity
                                     == terminal_psi::StructuralMultiplicity::Unrestricted
-                                && result.qualifications.is_empty()
-                                && result.projected_qualifications.is_empty()
                                 && result.claims.is_empty() =>
                             {
                                 let root = function

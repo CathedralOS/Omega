@@ -19,8 +19,6 @@ pub(super) fn store_destination(
         expected.access,
         StructuralAccess::Owned | terminal_psi::exclusive_borrow_pair_pattern!()
     ) || expected.multiplicity == StructuralMultiplicity::Linear
-        || !expected.qualifications.is_empty()
-        || !expected.projected_qualifications.is_empty()
         || signature
             .entry_claims
             .iter()
@@ -28,6 +26,9 @@ pub(super) fn store_destination(
     {
         return false;
     }
+    // The store's receiving and membership obligations were replayed against
+    // the current graph. Rejoin the complete declaration here; qualification
+    // neither changes the arrival's address nor grants access or claims.
     parameter(source, expected.place) == Some(expected)
         && match signature
             .structural_place(expected.place)

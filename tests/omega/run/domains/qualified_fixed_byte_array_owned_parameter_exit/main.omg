@@ -1,0 +1,26 @@
+// Expected exit: 0
+// Mutating an owned parameter changes that call's copy, at entry or after a state edge.
+domain [u8; 4]::Ascii(bytes) requires ascii_only(bytes);
+machine replace(mut bytes: [u8; 4] in Ascii) -> [u8; 4] in Ascii {
+    bytes[0] = 65u8;
+    bytes
+}
+machine later(bytes: [u8; 4] in Ascii, sibling: [u8; 4] in Ascii) -> bool {
+    transition { _ -> editing(bytes, sibling) }
+    state editing(mut bytes: [u8; 4] in Ascii, sibling: [u8; 4] in Ascii) -> bool {
+        bytes[0] = 66u8;
+        bytes == "Bate" && sibling == "gate"
+    }
+}
+machine main() crashes Trap {
+    let original: [u8; 4] in Ascii = "gate";
+    let changed: [u8; 4] in Ascii = replace(original);
+    let valid: bool = later(original, original);
+    transition valid && original == "gate" && changed == "Aate"
+        && original.len == 4 && changed.len == 4 {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

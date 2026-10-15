@@ -343,6 +343,29 @@ fn writable_byte_field(
     {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
+    let (whole, projected) = if let Some(parameter) = function.arrival_parameter(root) {
+        (
+            parameter.qualifications.as_slice(),
+            parameter.projected_qualifications.as_slice(),
+        )
+    } else {
+        let home = live
+            .structural_homes
+            .get(&root)
+            .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
+        (home.qualifications(), home.projected_qualifications())
+    };
+    let mut written = path.to_vec();
+    written.push(terminal_psi::StructuralPathSegment::Field(
+        selected.identity,
+    ));
+    if !terminal_semantics::structural_memberships_disjoint_from_write(whole, projected, &written) {
+        return Err(LoweringError::InvalidStructuralValueInput {
+            machine: function.machine,
+            place: root,
+            reason: "byte field write overlaps a standing carrier membership",
+        });
+    }
     Ok(terminal_psi::StructuralArgument {
         place: root,
         access,

@@ -154,8 +154,8 @@ pub(super) fn validate_borrowed_argument(
             structural_type: result.structural_type,
             multiplicity: result.multiplicity,
             access: StructuralAccess::Owned,
-            qualifications: Vec::new(),
-            projected_qualifications: Vec::new(),
+            qualifications: result.qualifications.clone(),
+            projected_qualifications: result.projected_qualifications.clone(),
         });
     // An address join lends from its joined referent through the address
     // its block entry loaded; it is neither a home nor a descriptor view, yet
@@ -167,6 +167,7 @@ pub(super) fn validate_borrowed_argument(
         .find(|parameter| parameter.semantic.place == semantic.place)
         .map(|parameter| &parameter.semantic)
         .or(local_loan.as_ref())
+        .or(aggregate_block_home.map(|(_, declaration)| declaration))
         .or(address_join.map(|(_, joined)| joined))
         // A bounded view arriving at a state block carries the same backing
         // pointer as an incoming formal. Its exact declared extent supplies a
@@ -479,7 +480,8 @@ pub(super) fn validate_borrowed_argument(
             }
         }
         target_operations::TargetStructuralArgumentSource::BlockParameter { block, place }
-            if aggregate.is_some() =>
+            if aggregate_block_home.is_some()
+                && (aggregate.is_some() || byte_view.is_some() || element_view.is_some()) =>
         {
             // The exact block home retains owned backing. Shared, mutable,
             // and write-only calls borrow that same storage; their access and

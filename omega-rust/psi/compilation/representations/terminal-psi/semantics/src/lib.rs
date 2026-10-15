@@ -70,6 +70,8 @@ mod scalar_leaf_schema;
 mod scalar_leaf_semantics;
 pub mod scalar_ordering;
 mod scalar_representation_view;
+mod selected_memberships;
+pub use selected_memberships::reference_source_memberships;
 mod semantic_rows;
 mod service_binding;
 mod shared_mutation;
@@ -86,18 +88,21 @@ mod zeroed_structural;
 
 pub use arrival_storage::{
     StorageNames, arrival_parameter, root_before_edge, storage_names, view_descriptor_parameter,
+    view_descriptor_projected_qualifications,
 };
 pub use byte_carriers::{ByteCarrierLayout, ByteCarrierScalarLeaf, byte_carrier_scalar_layout};
 pub use byte_sequence_concatenation::{
     byte_sequence_concatenation_capacity_goal, byte_sequence_concatenation_length_equation,
 };
 pub use byte_sequence_predicates::{
-    byte_copied_field_predicates_at_transfer, byte_field_root, byte_literal_qualifications_hold,
-    byte_literal_qualifications_hold_in, byte_owned_call_result, byte_owned_result_predicates,
-    byte_parameter_predicates, byte_parameter_predicates_from_domains,
-    byte_parameter_predicates_in, byte_predicate_requirement, byte_qualification_predicates_in,
+    ScalarConstantOrigin, byte_copied_field_predicates_at_transfer, byte_field_root,
+    byte_literal_qualifications_hold, byte_literal_qualifications_hold_in, byte_owned_call_result,
+    byte_owned_result_predicates, byte_parameter_predicates,
+    byte_parameter_predicates_from_domains, byte_parameter_predicates_in, byte_predicate_carrier,
+    byte_predicate_requirement, byte_qualification_predicates_in,
     byte_sequence_concatenation_predicates, byte_sequence_source_predicates, byte_view_call_result,
-    indexed_byte_store_goal, shared_byte_field_copy_predicates,
+    indexed_byte_store_goal, pure_byte_qualifications, scalar_array_qualifications_hold,
+    scalar_constant_value, shared_byte_field_copy_predicates,
 };
 pub use call_composition::{
     BorrowedReferentPresentation, CallArgumentRule, CallCompositionSchema,
@@ -107,8 +112,8 @@ pub use call_composition::{
     boundary_buffer_capacity, bounded_byte_owner_capacity,
     bounded_byte_owner_capacity_from_catalogs, bounded_byte_owner_capacity_in,
     call_composition_semantic_row, exact_call_composition_semantic_row_in, fixed_byte_array_extent,
-    fixed_byte_array_window, fixed_byte_storage_window, fixed_element_array_extent,
-    shared_boundary_buffer_capacity, stored_view_field_presentation,
+    fixed_byte_array_loan, fixed_byte_array_window, fixed_byte_extent, fixed_byte_storage_window,
+    fixed_element_array_extent, shared_boundary_buffer_capacity, stored_view_field_presentation,
     validate_call_composition_semantic_rows,
 };
 pub use collection_backing::{
@@ -174,7 +179,8 @@ pub use service_binding::{fused_service_field_carrier, fused_service_field_match
 pub use shared_mutation::{SharedMutation, shared_mutation};
 pub use static_path::{
     canonical_case_leaf_type, canonical_structural_path_tip, canonical_structural_storage_path,
-    constant_runtime_index, interior_member_borrow, runtime_index_bound, runtime_index_selects,
+    constant_runtime_index, interior_member_borrow, qualification_path_carrier,
+    runtime_index_bound, runtime_index_selects, structural_memberships_disjoint_from_write,
     structural_paths_may_overlap, structural_paths_select_same_location,
 };
 pub use storage_regions::{
@@ -198,7 +204,8 @@ pub use structural_window::{
 };
 pub use zero_valid_storage::{scalar_declaration_accepts_zero, zero_valid_record_storage};
 pub use zeroed_structural::{
-    EstablishedErasedStructuralField, ZeroedStructuralLeaf, zeroed_structural_leaves,
+    EstablishedErasedStructuralField, ZeroedStructuralLeaf,
+    zeroed_projected_byte_qualifications_hold, zeroed_structural_leaves,
     zeroed_structural_leaves_with_established_erased_fields, zeroed_structural_shape,
 };
 
@@ -230,3 +237,9 @@ pub use scalar_observations::structural_read_scalar_type;
 mod placed_ram_origins;
 pub mod quotients;
 pub use placed_ram_origins::{PlacedRamFormation, PlacedRamOrigin, PlacedRamOriginAnalysis};
+
+mod primitive_store_memberships;
+pub use primitive_store_memberships::{
+    primitive_store_byte_predicates, primitive_store_restriction,
+    primitive_store_restriction_with_predicates,
+};

@@ -245,7 +245,14 @@ pub(super) fn place_pointer_at_site(
             .local_slots
             .iter()
             .filter(|home| home.id.structural_place() == Some(place));
-        let home = homes.next().ok_or_else(|| invalid())?.clone();
+        let home = homes
+            .next()
+            .ok_or_else(|| {
+                SelectedInstructionError::custody_because(
+                    "address transport has neither an incoming pointer nor a local aggregate home",
+                )
+            })?
+            .clone();
         if homes.next().is_some() {
             return Err(invalid());
         }

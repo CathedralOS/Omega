@@ -32,7 +32,6 @@ pub(in crate::lowering) fn lower_field_store(
     operations: &mut Vec<TargetUnitOperation>,
     provenance: &mut TerminalPsiProvenance,
 ) -> Result<(), LoweringError> {
-    let unsupported = || LoweringError::UnsupportedOperationInUnitFunction(function.machine);
     let AbstractOperation::StructuralScalarFieldStore {
         psi_operation,
         destination,
@@ -44,6 +43,51 @@ pub(in crate::lowering) fn lower_field_store(
     else {
         unreachable!("projected field-store lowering receives only field stores")
     };
+    let unsupported = |reason| LoweringError::InvalidStructuralValueInput {
+        machine: function.machine,
+        place: destination.place(),
+        reason,
+    };
+    let preserves = |root,
+                     whole: &[semantic_vocabulary::StructuralDomainId],
+                     projected: &[terminal_psi::StructuralPathQualification]| {
+        terminal_semantics::projected_field_declaration(
+            structural_types.values().copied(),
+            root,
+            path,
+            *field,
+        )
+        .is_some_and(|selected| {
+            let mut written = path.clone();
+            written.push(terminal_psi::StructuralPathSegment::Field(
+                selected.identity.clone(),
+            ));
+            terminal_semantics::structural_memberships_disjoint_from_write(
+                whole, projected, &written,
+            )
+        })
+    };
+    let (whole, projected) = match destination {
+        abstract_operations::StructuralScalarStoreDestination::Parameter(parameter)
+        | abstract_operations::StructuralScalarStoreDestination::OwnedBlockParameter {
+            parameter,
+            ..
+        } => (
+            parameter.qualifications.as_slice(),
+            parameter.projected_qualifications.as_slice(),
+        ),
+        abstract_operations::StructuralScalarStoreDestination::OwnedResult { result, .. } => (
+            result.qualifications.as_slice(),
+            result.projected_qualifications.as_slice(),
+        ),
+    };
+    // Resolve the field through its typed crossing, but preserve memberships
+    // in the original carrier's coordinates, including every Referent step.
+    if !preserves(destination.structural_type(), whole, projected) {
+        return Err(unsupported(
+            "scalar field write overlaps a standing carrier membership",
+        ));
+    }
     let (destination, path, destination_storage) = match destination {
         abstract_operations::StructuralScalarStoreDestination::Parameter(destination) => {
             if function.arrival_parameter(destination.place) != Some(destination)
@@ -53,10 +97,10 @@ pub(in crate::lowering) fn lower_field_store(
                         | StructuralAccess::MutableBorrow
                         | StructuralAccess::WriteOnlyBorrow
                 )
-                || !destination.qualifications.is_empty()
-                || !destination.projected_qualifications.is_empty()
             {
-                return Err(unsupported());
+                return Err(unsupported(
+                    "scalar field parameter access or unaffected membership does not match its declaration",
+                ));
             }
             if function.structural_parameters.contains(destination) {
                 let parameter = parameters_by_place
@@ -69,7 +113,9 @@ pub(in crate::lowering) fn lower_field_store(
                             && parameter.projected_qualifications
                                 == destination.projected_qualifications
                     })
-                    .ok_or(unsupported())?;
+                    .ok_or(unsupported(
+                        "scalar field parameter has no matching native placement",
+                    ))?;
                 (
                     abstract_operations::StructuralScalarStoreDestination::Parameter(
                         destination.clone(),
@@ -87,7 +133,9 @@ pub(in crate::lowering) fn lower_field_store(
                         block.structural_parameters.contains(destination)
                             && destination.access == StructuralAccess::MutableBorrow
                     })
-                    .ok_or(unsupported())?;
+                    .ok_or(unsupported(
+                        "scalar field parameter has no matching block declaration",
+                    ))?;
                 (
                     abstract_operations::StructuralScalarStoreDestination::Parameter(
                         destination.clone(),
@@ -107,7 +155,9 @@ pub(in crate::lowering) fn lower_field_store(
                         .get(&result.place)
                         .is_some_and(|home| home.operation_result() == Some((*producer, result)))
                 {
-                    return Err(unsupported());
+                    return Err(unsupported(
+                        "returned reference has no matching declared carrier home",
+                    ));
                 }
                 (
                     destination.clone(),
@@ -120,11 +170,9 @@ pub(in crate::lowering) fn lower_field_store(
                 let home = structural_homes
                     .get(&result.place)
                     .filter(|home| home.operation_result() == Some((*producer, result)))
-                    .ok_or(unsupported())?;
-                if !home.qualifications().is_empty() || !home.projected_qualifications().is_empty()
-                {
-                    return Err(unsupported());
-                }
+                    .ok_or(unsupported(
+                        "scalar field result has no matching storage home",
+                    ))?;
                 (
                     destination.clone(),
                     path.clone(),
@@ -142,7 +190,7 @@ pub(in crate::lowering) fn lower_field_store(
             parameter,
         } => {
             super::owned_store_home::block_home(structural_homes, *block, parameter)
-                .ok_or_else(unsupported)?;
+                .ok_or_else(|| unsupported("owned scalar arrival has no matching storage home"))?;
             (
                 destination.clone(),
                 path.clone(),
@@ -161,7 +209,9 @@ pub(in crate::lowering) fn lower_field_store(
         .map(|reference| (reference.referent, reference.path.as_slice()))
         .unwrap_or((destination.structural_type(), path.as_slice()));
     if !terminal_psi::is_structural_scalar_store_path(projection_path) {
-        return Err(unsupported());
+        return Err(unsupported(
+            "scalar field destination is not an admitted scalar projection",
+        ));
     }
     let destination_shape = super::super::structural_layout::structural_shape(
         projection_root,
@@ -209,7 +259,9 @@ pub(in crate::lowering) fn lower_field_store(
         || source.source_value() != value.value
         || source.scalar_type() != value.scalar_type
     {
-        return Err(unsupported());
+        return Err(unsupported(
+            "scalar field source does not match its exact dominating value",
+        ));
     }
     // The carrier composes fields and literal or runtime elements in any
     // order: static steps fold into the offset, and each runtime element is

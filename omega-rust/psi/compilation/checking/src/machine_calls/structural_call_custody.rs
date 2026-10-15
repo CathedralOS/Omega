@@ -492,7 +492,22 @@ pub fn structural_result_projected_qualifications(
     program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Result<Vec<CheckedStructuralPathQualification>, &'static str> {
-    qualification_contract(program, type_reference, true).map(|(rows, _)| rows)
+    structural_result_qualification_contract(program, type_reference).map(|(rows, _)| rows)
+}
+
+/// A returned reference publishes its pointer carrier, unlike borrowed ingress
+/// which publishes the referent. Keep every stored pointer crossing explicit.
+pub fn structural_result_qualification_contract(
+    program: &dyn crate::CheckingInput,
+    type_reference: TypeReferenceHandle,
+) -> Result<
+    (
+        Vec<CheckedStructuralPathQualification>,
+        Vec<(SemanticDomainId, TypeReferenceHandle)>,
+    ),
+    &'static str,
+> {
+    structural_qualification_inventory(program, type_reference, false, true)
 }
 
 /// Inventory the same exact source contract for path rows and domain theories.
@@ -508,16 +523,23 @@ pub fn structural_qualification_contract(
     ),
     &'static str,
 > {
-    qualification_contract(program, type_reference, false)
+    structural_qualification_inventory(program, type_reference, false, false)
 }
 
-/// Formal ingress denotes its referent directly. A completed stored value
-/// instead retains its descriptor, so its memberships cross an explicit
-/// Referent path. Neither declaration inventory establishes those memberships.
-fn qualification_contract(
+/// Exact projected byte memberships established by the zero image. Routed
+/// domains and nonzero-admitting predicates receive no authority here.
+pub fn zeroed_byte_projected_qualifications(
     program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
-    stored_root: bool,
+) -> Result<Vec<CheckedStructuralPathQualification>, &'static str> {
+    structural_qualification_inventory(program, type_reference, true, false).map(|(rows, _)| rows)
+}
+
+fn structural_qualification_inventory(
+    program: &dyn crate::CheckingInput,
+    type_reference: TypeReferenceHandle,
+    zero_only: bool,
+    published_root: bool,
 ) -> Result<
     (
         Vec<CheckedStructuralPathQualification>,
@@ -528,34 +550,44 @@ fn qualification_contract(
     fn collect(
         program: &dyn crate::CheckingInput,
         reference: TypeReferenceHandle,
+        zero_only: bool,
         is_root: bool,
-        stored_root: bool,
+        published_root: bool,
         path: &mut Vec<CheckedUnitStructuralPathSegment>,
         output: &mut Vec<CheckedStructuralPathQualification>,
         carriers: &mut Vec<(SemanticDomainId, TypeReferenceHandle)>,
         active: &mut Vec<TypeReferenceHandle>,
     ) -> Result<(), &'static str> {
+        // A zero image establishes its own inline cells, never a referent.
+        if zero_only && crate::reference_shell(program, reference).is_some() {
+            return Ok(());
+        }
         match program.type_reference_table.type_reference(reference) {
             TypeReferenceNode::Reference { referee, .. } => {
-                let stored = (!is_root || stored_root)
-                    && crate::stores_reference_shape(program, reference, &[]);
-                if stored {
-                    path.push(CheckedUnitStructuralPathSegment::Referent);
+                if zero_only {
+                    Ok(())
+                } else {
+                    let pointer = (!is_root || published_root)
+                        && crate::stores_reference_shape(program, reference, &[]);
+                    if pointer {
+                        path.push(CheckedUnitStructuralPathSegment::Referent);
+                    }
+                    let result = collect(
+                        program,
+                        *referee,
+                        zero_only,
+                        is_root && !pointer,
+                        true,
+                        path,
+                        output,
+                        carriers,
+                        active,
+                    );
+                    if pointer {
+                        path.pop();
+                    }
+                    result
                 }
-                let result = collect(
-                    program,
-                    *referee,
-                    is_root,
-                    stored_root,
-                    path,
-                    output,
-                    carriers,
-                    active,
-                );
-                if stored {
-                    path.pop();
-                }
-                result
             }
             TypeReferenceNode::Constrained {
                 base_type,
@@ -595,6 +627,15 @@ fn qualification_contract(
                     {
                         continue;
                     }
+                    if zero_only
+                        && !crate::field_domains::domain_admits_zero_byte_carrier(
+                            program,
+                            domain.symbol,
+                            reference,
+                        )
+                    {
+                        continue;
+                    }
                     if !carriers.contains(&(domain.semantic_id, reference)) {
                         carriers.push((domain.semantic_id, reference));
                     }
@@ -608,13 +649,33 @@ fn qualification_contract(
                 collect(
                     program,
                     *base_type,
+                    zero_only,
                     is_root,
-                    stored_root,
+                    published_root,
                     path,
                     output,
                     carriers,
                     active,
                 )
+            }
+            TypeReferenceNode::Slice { element_type } => {
+                if zero_only {
+                    return Ok(());
+                }
+                path.push(CheckedUnitStructuralPathSegment::AllElements);
+                let result = collect(
+                    program,
+                    *element_type,
+                    false,
+                    false,
+                    false,
+                    path,
+                    output,
+                    carriers,
+                    active,
+                );
+                path.pop();
+                result
             }
             TypeReferenceNode::FixedArray {
                 element_type,
@@ -637,8 +698,9 @@ fn qualification_contract(
                 collect(
                     program,
                     *element_type,
+                    zero_only,
                     false,
-                    stored_root,
+                    false,
                     &mut Vec::new(),
                     &mut element_rows,
                     carriers,
@@ -691,6 +753,7 @@ fn qualification_contract(
                     .data_members(record)
                     .iter()
                     .filter_map(|member| member.as_variant())
+                    .take(if zero_only { 1 } else { usize::MAX })
                 {
                     fields.extend(
                         program
@@ -709,8 +772,8 @@ fn qualification_contract(
                         // are not nominal structural children, and duplicating
                         // that contract as a structural path would erase this
                         // represented/nominal boundary.
-                        || (crate::byte_sequence_carrier(program, field.type_reference, &[])
-                            .is_some() && !crate::stores_reference_shape(program, field.type_reference, &[]))
+                        || crate::byte_sequence_carrier(program, field.type_reference, &[])
+                            .is_some()
                     {
                         continue;
                     }
@@ -731,8 +794,9 @@ fn qualification_contract(
                     collect(
                         program,
                         field.type_reference,
+                        zero_only,
                         false,
-                        stored_root,
+                        false,
                         path,
                         output,
                         carriers,
@@ -754,8 +818,9 @@ fn qualification_contract(
     collect(
         program,
         type_reference,
+        zero_only,
         true,
-        stored_root,
+        published_root,
         &mut Vec::new(),
         &mut output,
         &mut carriers,

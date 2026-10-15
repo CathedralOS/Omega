@@ -1,8 +1,8 @@
 // A case field's receiving domain cannot qualify an invalid completed operand.
-domain [u8; 8]::Ascii(bytes) requires ascii_only(bytes);
+domain [u8; 2]::Ascii(bytes) requires ascii_only(bytes);
 data Reply {
     case Empty;
-    case Message(content: [u8; 8] in Ascii);
+    case Message(content: [u8; 2] in Ascii);
 }
 machine main() {
     let reply: Reply = Reply::Message { content: "é" };

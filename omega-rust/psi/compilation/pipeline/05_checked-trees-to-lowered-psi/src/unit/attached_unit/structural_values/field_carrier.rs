@@ -6,7 +6,9 @@
 use crate::LoweringError;
 use checked_trees::{CheckedTrees, types::TypeReferenceHandle};
 use semantic_vocabulary::StructuralTypeId;
-use terminal_psi::{ByteSequenceCarrier, StructuralFieldType, StructuralTypeDeclaration};
+use terminal_psi::{
+    ByteSequenceCarrier, StructuralFieldType, StructuralTypeDeclaration, StructuralTypeShape,
+};
 
 pub(crate) fn resolve(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
@@ -18,37 +20,36 @@ pub(crate) fn resolve(
     if let Some(identity) = field.as_structural() {
         return Ok(identity);
     }
-    match field.byte_sequence_carrier() {
-        Some(ByteSequenceCarrier::BoundedOwned { .. }) => {
-            let identity =
-                validation::structural_type_identity(&checked.typed, reference, &[], &[]);
-            crate::terminal_identities::structural_declaration_by_identity(
-                declarations,
-                identities,
-                checked,
-                identity,
-                "byte member has no retained carrier",
-            )
-            .map(|declaration| declaration.id)
-        }
-        Some(ByteSequenceCarrier::BorrowedView { .. }) => {
-            // The field embeds a shared descriptor contract, not a nominal
-            // source alias. Its source loan and declared predicates remain
-            // obligations on the completed structural operand.
-            declarations
-                .iter()
-                .find_map(|declaration| {
-                    declaration
-                        .shape
-                        .is_shared_readable_byte_view()
-                        .then_some(declaration.id)
-                })
-                .ok_or(LoweringError::Unsupported(
-                    "shared byte member has no descriptor carrier",
-                ))
-        }
-        _ => Err(LoweringError::Unsupported(
+    let Some(carrier) = field.byte_sequence_carrier() else {
+        return Err(LoweringError::Unsupported(
             "structural operand has a nonstructural field destination",
-        )),
+        ));
+    };
+    let identity = validation::structural_type_identity(&checked.typed, reference, &[], &[]);
+    let declaration = crate::terminal_identities::structural_declaration_by_identity(
+        declarations,
+        identities,
+        checked,
+        identity,
+        "byte member has no retained carrier",
+    )?;
+    // The declaration owns the descriptor family and fixed extent. Access is
+    // bound by the field and completed operand, never selected by an arbitrary
+    // readable-view declaration from the catalog.
+    let expected = match carrier {
+        ByteSequenceCarrier::BorrowedView { .. } => {
+            ByteSequenceCarrier::BorrowedView { access: None }
+        }
+        ByteSequenceCarrier::BoundedView { capacity, .. } => ByteSequenceCarrier::BoundedView {
+            access: None,
+            capacity,
+        },
+        ByteSequenceCarrier::BoundedOwned { .. } => carrier,
+    };
+    if declaration.shape != StructuralTypeShape::ByteSequence(expected) {
+        return Err(LoweringError::Unsupported(
+            "byte member carrier differs from its retained declaration",
+        ));
     }
+    Ok(declaration.id)
 }

@@ -1,0 +1,4 @@
+domain [u8; 8]::NoNul(bytes) requires no_nul(bytes);
+data Inner { bytes: [u8; 8] in NoNul; }
+data Outer { inner: Inner; }
+machine missing() -> Outer { Outer { inner: Inner {} } }

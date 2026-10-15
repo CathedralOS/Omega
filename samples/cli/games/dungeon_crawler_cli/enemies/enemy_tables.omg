@@ -1,3 +1,4 @@
+use text::buffer;
 use enemies::enemies;
 use rng::random;
 use rng::random_state;
@@ -55,7 +56,7 @@ machine EnemyTables::roll_enemy_kind(
         enemy: &mut Enemy
     ) {
         enemy.kind = EnemyKind::Bat;
-        enemy.name = "Cave Bat";
+        EnemyName::set(&mut enemy.name, "Cave Bat");
         enemy.depth = 0;
         enemy.max_health = 6 + ((Random::range(&mut enemy_tables.rng, random, 3) as i32) as i32 in Wrapping);
         enemy.health = enemy.max_health;
@@ -70,7 +71,7 @@ machine EnemyTables::roll_enemy_kind(
         enemy: &mut Enemy
     ) {
         enemy.kind = EnemyKind::Spider;
-        enemy.name = "Gloom Spider";
+        EnemyName::set(&mut enemy.name, "Gloom Spider");
         enemy.depth = 2;
         enemy.max_health = 10 + ((Random::range(&mut enemy_tables.rng, random, 5) as i32) as i32 in Wrapping);
         enemy.health = enemy.max_health;
@@ -85,7 +86,7 @@ machine EnemyTables::roll_enemy_kind(
         enemy: &mut Enemy
     ) {
         enemy.kind = EnemyKind::Skeleton;
-        enemy.name = "Restless Skeleton";
+        EnemyName::set(&mut enemy.name, "Restless Skeleton");
         enemy.depth = 4;
         enemy.max_health = 18 + ((Random::range(&mut enemy_tables.rng, random, 8) as i32) as i32 in Wrapping);
         enemy.health = enemy.max_health;
@@ -100,7 +101,7 @@ machine EnemyTables::roll_enemy_kind(
         enemy: &mut Enemy
     ) {
         enemy.kind = EnemyKind::Cultist;
-        enemy.name = "Ashen Cultist";
+        EnemyName::set(&mut enemy.name, "Ashen Cultist");
         enemy.depth = 6;
         enemy.max_health = 26 + ((Random::range(&mut enemy_tables.rng, random, 12) as i32) as i32 in Wrapping);
         enemy.health = enemy.max_health;
@@ -115,7 +116,7 @@ machine EnemyTables::roll_enemy_kind(
         enemy: &mut Enemy
     ) {
         enemy.kind = EnemyKind::Hellhound;
-        enemy.name = "Hellhound";
+        EnemyName::set(&mut enemy.name, "Hellhound");
         enemy.depth = 8;
         enemy.max_health = 42 + ((Random::range(&mut enemy_tables.rng, random, 20) as i32) as i32 in Wrapping);
         enemy.health = enemy.max_health;
@@ -130,7 +131,7 @@ machine EnemyTables::roll_enemy_kind(
         enemy: &mut Enemy
     ) {
         enemy.kind = EnemyKind::PitFiend;
-        enemy.name = "Pit Fiend";
+        EnemyName::set(&mut enemy.name, "Pit Fiend");
         enemy.depth = 10;
         enemy.max_health = 80 + ((Random::range(&mut enemy_tables.rng, random, 40) as i32) as i32 in Wrapping);
         enemy.health = enemy.max_health;

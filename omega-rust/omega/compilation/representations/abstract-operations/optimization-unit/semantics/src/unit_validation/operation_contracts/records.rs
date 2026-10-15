@@ -82,6 +82,10 @@ pub(crate) fn zeroed_establishment_matches(
     function: &PsiOptimizationFunction,
     operation: &O,
     types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
+    domains: &BTreeMap<
+        semantic_vocabulary::StructuralDomainId,
+        &terminal_psi::StructuralDomainDeclaration,
+    >,
 ) -> bool {
     let O::EstablishZeroedStructural {
         psi_operation,
@@ -96,7 +100,7 @@ pub(crate) fn zeroed_establishment_matches(
                 if producer == *psi_operation && structural_type == result.structural_type)
     }) && matches!(result.multiplicity,terminal_psi::nonlinear_multiplicity_pair_pattern!())
         && result.qualifications.is_empty()
-        && result.projected_qualifications.is_empty()
+        && terminal_semantics::zeroed_projected_byte_qualifications_hold(types.values().copied(), domains.values().copied(), result.structural_type, &result.projected_qualifications)
         && result.qualification_establishments.is_empty()
         && result.claims.is_empty()
         && terminal_semantics::zeroed_structural_shape(types.values().copied(), result.structural_type)

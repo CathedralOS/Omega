@@ -21,7 +21,21 @@ pub(crate) struct LocalStoreRoot<'a> {
 
 impl LocalStoreRoot<'_> {
     pub(crate) fn require_unqualified(&self) -> Result<(), LoweringError> {
-        if !self.qualifications.is_empty() || !self.projected_qualifications.is_empty() {
+        self.require_disjoint_from_write(&[])
+    }
+
+    /// Preserve only evidence whose original published-root region is disjoint
+    /// from the complete normalized write. Overlapping predicates require an
+    /// operation-specific restoration proof, including opaque root predicates.
+    pub(crate) fn require_disjoint_from_write(
+        &self,
+        written: &[terminal_psi::StructuralPathSegment],
+    ) -> Result<(), LoweringError> {
+        if !terminal_semantics::structural_memberships_disjoint_from_write(
+            self.qualifications,
+            self.projected_qualifications,
+            written,
+        ) {
             return unsupported(
                 "store local carries qualification evidence the replacement does not restore",
             );

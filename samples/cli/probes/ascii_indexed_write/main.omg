@@ -34,7 +34,7 @@ data Main { hits: i32 in Wrapping; }
 
 machine Main::main(main: &mut Main) {
     main.hits = 0;
-    let mut bytes: [u8; 8] in Ascii = "ab";
+    let mut bytes: [u8; 8] in Ascii = [97u8, 98u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8];
     let wrote: bool = replace(2, &mut bytes, 99);
     let plain: [u8; 8] = bytes;
     transition wrote && plain[2] == 99 {

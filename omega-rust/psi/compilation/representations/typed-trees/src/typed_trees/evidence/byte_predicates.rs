@@ -111,3 +111,32 @@ pub fn type_reference_domain_predicates(
         }
     }
 }
+
+/// The exact octets of a quoted byte literal or a fixed array of byte-valued
+/// integer literals. Contextual fixed-array landing changes syntax, not the
+/// bytes available to predicate proof. No runtime value or cast supplies facts.
+pub fn literal_bytes(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+) -> Option<std::borrow::Cow<'_, [u8]>> {
+    match program.expression_table.expression(expression) {
+        crate::expression::ExpressionNode::String(bytes) => Some(std::borrow::Cow::Borrowed(bytes)),
+        crate::expression::ExpressionNode::ArrayLiteral(elements) => {
+            let bytes = program
+                .expression_table
+                .expression_handles(*elements)
+                .iter()
+                .map(|element| {
+                    let crate::expression::ExpressionNode::Integer(integer) =
+                        program.expression_table.expression(*element)
+                    else {
+                        return None;
+                    };
+                    u8::try_from(integer.value_u64()?).ok()
+                })
+                .collect::<Option<Vec<_>>>()?;
+            Some(std::borrow::Cow::Owned(bytes))
+        }
+        _ => None,
+    }
+}

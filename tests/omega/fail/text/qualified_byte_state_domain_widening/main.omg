@@ -1,9 +1,9 @@
-domain [u8; 8]::Utf8(bytes) requires valid_utf8(bytes);
-domain [u8; 8]::Ascii(bytes) requires ascii_only(bytes);
+domain [u8; 2]::Utf8(bytes) requires valid_utf8(bytes);
+domain [u8; 2]::Ascii(bytes) requires ascii_only(bytes);
 
-machine relay(value: [u8; 8] in Utf8) {
+machine relay(value: [u8; 2] in Utf8) {
     transition { _ -> narrowed(value) }
-    state narrowed(value: [u8; 8] in Ascii) {}
+    state narrowed(value: [u8; 2] in Ascii) {}
 }
 
 machine main() { relay("é"); }

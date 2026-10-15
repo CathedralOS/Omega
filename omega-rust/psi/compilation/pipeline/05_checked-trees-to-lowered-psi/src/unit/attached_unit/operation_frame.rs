@@ -246,7 +246,6 @@ impl OperationFrame<'_, '_> {
                 *destination_expression,
                 &self.parameters,
                 self.structural_types.declarations(),
-                self.type_ids,
                 &mut crate::emission::borrowed_window::WindowEvaluation {
                     checked: self.checked,
                     machine: self.machine,

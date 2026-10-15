@@ -232,6 +232,42 @@ fn call_write_places(
         call_frames,
         loan,
     );
+    if summarized_places.is_none() && matches!(namespace, WritePlaceNamespace::Storage) {
+        let boundary_target = program.traits().iter().any(|definition| {
+            definition.is_boundary
+                && program
+                    .trait_machine_signature_by_symbol(definition, borrow_call.target_symbol)
+                    .is_some()
+        });
+        if boundary_target {
+            // Boundary effects retain their exact receiver and argument footprint,
+            // including shared interior authority; a signature ceiling is not a
+            // replacement for that separately owned contract.
+            return shared_call_storage_places(
+                program,
+                caller_machine_symbol,
+                caller_state_symbol,
+                borrow,
+                borrow_call,
+                call_frames,
+            )
+            .map(unattributed_writes);
+        }
+        // Flow invalidation is the invocation after its operands completed.
+        // Borrow argument accesses also contain nested operand calls; replaying
+        // those here would retire facts those completed calls just restored.
+        // The callee's declared authority bounds an unknown invocation. An
+        // unrepresentable ceiling stays unknown and invalidates all contexts.
+        return ceiling::signature_ceiling_places(
+            program,
+            caller_machine_symbol,
+            caller_state_symbol,
+            Some(borrow),
+            borrow_call,
+            call_frames,
+        )
+        .map(unattributed_writes);
+    }
     if let Some(summarized_places) = summarized_places {
         return Some(summarized_places);
     }

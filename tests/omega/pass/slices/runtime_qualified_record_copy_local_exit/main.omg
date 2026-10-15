@@ -1,3 +1,4 @@
+domain [u8]::Utf8(bytes) requires valid_utf8(bytes);
 // Copy a slice element into an independent local before lending it onward.
 // Byte-owner metadata and enum fields belong to the copy just as scalar fields
 // do; the copied value must survive a subsequent replacement of its source.
@@ -5,39 +6,57 @@ use omega_language_std::console;
 
 domain [u8; 8]::Utf8(bytes) requires valid_utf8(bytes);
 data Tag [copy] { case First; case Second; }
-data Cell [copy] { label: [u8; 8] in Utf8; tag: Tag; value: u64; }
+data Cell [copy] { label: TextBuffer; tag: Tag; value: u64; }
 data Bag { cells: [Cell; 2]; }
 data Main { source: Bag; destination: Bag; }
 
-machine copy_selected(source: &Bag, destination: &mut Bag) {
+machine copy_selected(source: &Bag, destination: &mut Bag) crashes Trap {
     let input: &[Cell] = &source.cells[0..=1];
     let selected: Cell = input[1];
     destination.cells[0] = selected;
 }
 
-machine initialize(cell: &mut Cell, tag: Tag, value: u64) {
+machine initialize(cell: &mut Cell, tag: Tag, value: u64) crashes Trap {
     cell.tag = tag;
     cell.value = value;
 }
 
-machine Main::main(main: &mut Main) reaches Console {
-    main.source.cells[0].label = "first";
-    main.source.cells[1].label = "second";
-    main.destination.cells[1].label = "kept";
+machine Main::main(main: &mut Main) reaches Console crashes Trap {
+    main.source.cells[0].label = TextBuffer { storage: [102u8, 105u8, 114u8, 115u8, 116u8, 0u8, 0u8, 0u8], used: 5 };
+    main.source.cells[1].label = TextBuffer { storage: [115u8, 101u8, 99u8, 111u8, 110u8, 100u8, 0u8, 0u8], used: 6 };
+    main.destination.cells[1].label = TextBuffer { storage: [107u8, 101u8, 112u8, 116u8, 0u8, 0u8, 0u8, 0u8], used: 4 };
     initialize(&mut main.source.cells[0], Tag::First, 11);
     initialize(&mut main.source.cells[1], Tag::Second, 39);
     initialize(&mut main.destination.cells[1], Tag::First, 31);
     copy_selected(&main.source, &mut main.destination);
-    main.source.cells[1].label = "changed";
+    main.source.cells[1].label = TextBuffer { storage: [99u8, 104u8, 97u8, 110u8, 103u8, 101u8, 100u8, 0u8], used: 7 };
     transition main.destination.cells[0].value == 39
-        && main.destination.cells[0].label == "second"
+        && TextBuffer::equal(&main.destination.cells[0].label, "second")
         && main.destination.cells[0].tag == Tag::Second
         && main.destination.cells[1].value == 31
-        && main.destination.cells[1].label == "kept"
-        && main.source.cells[0].label == "first"
-        && main.source.cells[1].label == "changed" {
+        && TextBuffer::equal(&main.destination.cells[1].label, "kept")
+        && TextBuffer::equal(&main.source.cells[0].label, "first")
+        && TextBuffer::equal(&main.source.cells[1].label, "changed") {
         true -> finish(main, 70)
         false -> finish(main, 1)
     }
     state finish(main: &mut Main, code: i32) { Console::exit_process(code); }
+}
+
+
+// A variable-fill value explicitly owns its fixed storage and live length.
+// Copies retain both; an accessor borrows and checks the selected copy's prefix.
+data TextBuffer [copy] where used <= 8 { storage: [u8; 8] in Utf8; used: u64; }
+machine TextBuffer::view(buffer: &TextBuffer) -> &[u8] in Utf8 crashes Trap {
+    let bytes: &[u8] = &buffer.storage[..buffer.used];
+    transition valid_utf8(bytes) {
+        true -> checked(bytes)
+        false -> bad()
+    }
+    state checked(bytes: &[u8] in Utf8) -> &[u8] in Utf8 { bytes }
+    state bad() { crash Trap; }
+}
+machine TextBuffer::equal(buffer: &TextBuffer, expected: &[u8]) -> bool crashes Trap {
+    let bytes: &[u8] in Utf8 = TextBuffer::view(buffer);
+    bytes == expected
 }

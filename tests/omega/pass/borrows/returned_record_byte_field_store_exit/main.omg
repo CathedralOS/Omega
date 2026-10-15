@@ -1,31 +1,50 @@
+domain [u8]::Utf8(bytes) requires valid_utf8(bytes);
 use omega_language_std::console;
 
 domain [u8; 16]::Utf8(bytes) requires valid_utf8(bytes);
-data Holder { text: [u8; 16] in Utf8; sibling: u64; }
+data Holder { text: TextBuffer; sibling: u64; }
 data Bag { holders: [Holder; 2]; }
 data Main { bag: Bag; }
 
-machine pick(bag: &mut Bag) -> &mut Holder {
+machine pick(bag: &mut Bag) -> &mut Holder crashes Trap {
     let holders: &mut [Holder] = &mut bag.holders[..];
     transition { _ -> &mut holders[1] }
 }
 
-machine label(short: bool) -> [u8; 16] in Utf8 {
-    transition short { true -> "Gate" false -> "Branch Room" }
+machine label(short: bool) -> TextBuffer crashes Trap {
+    transition short { true -> TextBuffer { storage: [71u8, 97u8, 116u8, 101u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8], used: 4 } false -> TextBuffer { storage: [66u8, 114u8, 97u8, 110u8, 99u8, 104u8, 32u8, 82u8, 111u8, 111u8, 109u8, 0u8, 0u8, 0u8, 0u8, 0u8], used: 11 } }
 }
 
-machine Main::main(main: &mut Main) reaches Console {
-    main.bag.holders[0].text = "Neighbor";
+machine Main::main(main: &mut Main) reaches Console crashes Trap {
+    main.bag.holders[0].text = TextBuffer { storage: [78u8, 101u8, 105u8, 103u8, 104u8, 98u8, 111u8, 114u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8], used: 8 };
     let selected: &mut Holder = pick(&mut main.bag);
     selected.text = label(false);
     selected.text = label(true);
     selected.sibling = 29;
-    transition main.bag.holders[1].text == "Gate"
-        && main.bag.holders[1].text.len == 4
+    transition TextBuffer::equal(&main.bag.holders[1].text, "Gate")
+        && main.bag.holders[1].text.used == 4
         && main.bag.holders[1].sibling == 29
-        && main.bag.holders[0].text == "Neighbor" {
+        && TextBuffer::equal(&main.bag.holders[0].text, "Neighbor") {
         true -> finish(main, 70)
         false -> finish(main, 1)
     }
     state finish(main: &mut Main, code: i32) { Console::exit_process(code); }
+}
+
+
+// A variable-fill value explicitly owns its fixed storage and live length.
+// Copies retain both; an accessor borrows and checks the selected copy's prefix.
+data TextBuffer [copy] where used <= 16 { storage: [u8; 16] in Utf8; used: u64; }
+machine TextBuffer::view(buffer: &TextBuffer) -> &[u8] in Utf8 crashes Trap {
+    let bytes: &[u8] = &buffer.storage[..buffer.used];
+    transition valid_utf8(bytes) {
+        true -> checked(bytes)
+        false -> bad()
+    }
+    state checked(bytes: &[u8] in Utf8) -> &[u8] in Utf8 { bytes }
+    state bad() { crash Trap; }
+}
+machine TextBuffer::equal(buffer: &TextBuffer, expected: &[u8]) -> bool crashes Trap {
+    let bytes: &[u8] in Utf8 = TextBuffer::view(buffer);
+    bytes == expected
 }

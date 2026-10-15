@@ -1,19 +1,19 @@
 use omega_language_std::console;
 
-domain [u8; 8]::Utf8(bytes) requires valid_utf8(bytes);
+domain [u8; 4]::Utf8(bytes) requires valid_utf8(bytes);
 data Direction [copy] { case None; case East; }
 data Cell [copy] { value: u64; }
 data Exit [copy] {
-    command: [u8; 8] in Utf8;
+    command: [u8; 4] in Utf8;
     direction: Direction;
     destination: Cell;
 }
 data Room { exits: [Exit; 2]; }
-data Main { room: Room; command: [u8; 8] in Utf8; direction: Direction; }
+data Main { room: Room; command: [u8; 4] in Utf8; direction: Direction; }
 
-machine Room::install(room: &mut Room, command: [u8; 8] in Utf8, direction: Direction, coordinate: u64) {
+machine Room::install(room: &mut Room, command: [u8; 4] in Utf8, direction: Direction, coordinate: u64) {
     transition { _ -> write(room, command, direction, coordinate) }
-    state write(room: &mut Room, command: [u8; 8] in Utf8, direction: Direction, coordinate: u64) {
+    state write(room: &mut Room, command: [u8; 4] in Utf8, direction: Direction, coordinate: u64) {
         room.exits[1] = Exit {
             command: command,
             direction: direction,

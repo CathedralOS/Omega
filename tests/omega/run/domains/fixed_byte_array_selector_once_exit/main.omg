@@ -1,0 +1,26 @@
+// Expected exit: 0
+// A computed selector completes once before a qualified record loan.
+domain [u8; 4]::Utf8(bytes) requires valid_utf8(bytes);
+data Row { bytes: [u8; 4] in Utf8; }
+data Counter { calls: u64 in Wrapping; }
+machine select(counter: &mut Counter) -> u64
+ensures result < 2 {
+    counter.calls = counter.calls + 1;
+    0u64
+}
+machine observe(row: &Row) -> bool {
+    row.bytes.len == 4 && valid_utf8(&row.bytes) && row.bytes == "Gate"
+}
+machine main() crashes Trap {
+    let mut rows: [Row; 2];
+    rows[0].bytes = "Gate";
+    rows[1].bytes = "Else";
+    let mut counter: Counter;
+    let selected: bool = observe(&rows[select(&mut counter)]);
+    transition selected && counter.calls == 1 {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

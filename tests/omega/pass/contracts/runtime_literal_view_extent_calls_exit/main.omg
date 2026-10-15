@@ -18,8 +18,8 @@ machine main() crashes Trap {
     let embedded_zero: u64 = two_bytes("\0x");
     let encoded: u64 = two_bytes("\xC3\xA9");
     let empty: u64 = no_bytes("");
-    let bounded: [u8; 8] in Utf8 = "ab";
-    let empty_bounded: [u8; 8] in Utf8 = "";
+    let bounded: [u8; 2] in Utf8 = "ab";
+    let empty_bounded: [u8; 0] in Utf8 = "";
     let fixed: [u8; 2];
     let bounded_length: u64 = two_bytes(&bounded);
     let bounded_empty_length: u64 = no_bytes(&empty_bounded);
@@ -32,5 +32,7 @@ machine main() crashes Trap {
     state done() {}
     state wrong() { crash Trap; }
 }
-domain [u8; 8]::Utf8(bytes)
+domain [u8; 2]::Utf8(bytes)
 requires valid_utf8(bytes);
+
+domain [u8; 0]::Utf8(bytes) requires valid_utf8(bytes);

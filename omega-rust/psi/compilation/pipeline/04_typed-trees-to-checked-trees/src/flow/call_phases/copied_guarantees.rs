@@ -234,7 +234,7 @@ impl<'program, 'writes> ArgumentSources<'program, 'writes> {
         let Some(argument) = self.arguments.get(position) else {
             return false;
         };
-        let Some(projections) = super::super::literal_value_projections(
+        let Some(projections) = super::super::literal_expression_projections(
             self.program,
             *argument,
             parameter.type_reference,

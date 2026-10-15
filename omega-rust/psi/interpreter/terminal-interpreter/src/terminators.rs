@@ -147,7 +147,11 @@ impl TerminalExecution<'_> {
             }
         }
         let structural_arguments = selected_arguments.as_slice();
-        let bindings = self.prepare_block_bindings(target, arguments, structural_arguments)?;
+        let bindings = self
+            .prepare_block_bindings(target, arguments, structural_arguments)
+            .map_err(|error| {
+                error.in_argument_preparation("state arrival storage and memberships")
+            })?;
         let cleanup_actions =
             bindings.prepare_cleanup_actions(self, structural_arguments, cleanup_actions)?;
         if let Err(error) = meter.charge_edge(edge, terminator) {

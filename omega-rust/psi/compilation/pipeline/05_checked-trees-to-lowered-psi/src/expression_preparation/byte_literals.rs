@@ -71,8 +71,8 @@ pub(crate) fn validate(
                 }
                 reference = *base_type;
             }
-            // This lane establishes a domain-qualified bounded byte owner;
-            // checking bounded the literal by the array's capacity.
+            // This lane establishes a qualified exact fixed byte array;
+            // checking proved that the literal has its declared width.
             TypeReferenceNode::FixedArray {
                 element_type,
                 length: FixedArrayLength::Literal(_),

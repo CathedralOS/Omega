@@ -279,7 +279,12 @@ pub(super) fn validate(
                                 &binding.argument.path,
                                 parameter.access,
                             ) == Some(parameter.structural_type)
-                    })
+                    }) && super::super::operation_contracts::structural_source_contract(function, binding.argument.place)
+                        .is_some_and(|source| source.supplies_qualifications(
+                            &binding.argument.path,
+                            &parameter.qualifications,
+                            &parameter.projected_qualifications,
+                        ))
                 } else if shared_view_carrier(parameter, types) {
                     // A shared loan over a view-carrying record observes the
                     // carrier without moving it: the bound root stays with its

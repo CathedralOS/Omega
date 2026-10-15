@@ -1,3 +1,4 @@
+use text::buffer;
 use omega_language_std::math;
 
 use enemies::enemies;
@@ -43,9 +44,8 @@ machine Dungeon::enter_room(cell: CellId) {
 machine Dungeon::use_event(
     dungeon: &mut Dungeon,
     cell: CellId,
-    line: &mut [u8; 128] in Utf8
+    line: &mut TextBuffer
 )
-ensures line in Utf8
 {
     transition cell {
         CellId::R02 -> try_take_treasure(dungeon, line)
@@ -56,7 +56,7 @@ ensures line in Utf8
 
     state try_take_treasure(
         dungeon: &mut Dungeon,
-        line: &mut [u8; 128] in Utf8
+        line: &mut TextBuffer
     ) {
         transition dungeon.treasure_taken {
             false -> take_treasure(dungeon, line)
@@ -66,16 +66,16 @@ ensures line in Utf8
 
     state take_treasure(
         dungeon: &mut Dungeon,
-        line: &mut [u8; 128] in Utf8
+        line: &mut TextBuffer
     ) {
         dungeon.player.inventory.gold = dungeon.player.inventory.gold + 24;
         dungeon.treasure_taken = true;
-        line = "You take the treasure.";
+        TextBuffer::set(line, "You take the treasure.");
     }
 
     state try_use_fountain(
         dungeon: &mut Dungeon,
-        line: &mut [u8; 128] in Utf8
+        line: &mut TextBuffer
     ) {
         transition dungeon.fountain_used {
             false -> use_fountain(dungeon, line)
@@ -85,16 +85,16 @@ ensures line in Utf8
 
     state use_fountain(
         dungeon: &mut Dungeon,
-        line: &mut [u8; 128] in Utf8
+        line: &mut TextBuffer
     ) {
         dungeon.player.health = min_i32(dungeon.player.max_health as i32, (dungeon.player.health + 12) as i32) as i32 in Wrapping;
         dungeon.fountain_used = true;
-        line = "The fountain heals your wounds.";
+        TextBuffer::set(line, "The fountain heals your wounds.");
     }
 
     state try_take_gold(
         dungeon: &mut Dungeon,
-        line: &mut [u8; 128] in Utf8
+        line: &mut TextBuffer
     ) {
         transition dungeon.gold_taken {
             false -> take_gold(dungeon, line)
@@ -104,24 +104,23 @@ ensures line in Utf8
 
     state take_gold(
         dungeon: &mut Dungeon,
-        line: &mut [u8; 128] in Utf8
+        line: &mut TextBuffer
     ) {
         dungeon.player.inventory.gold = dungeon.player.inventory.gold + 6;
         dungeon.gold_taken = true;
-        line = "You collect the loose gold.";
+        TextBuffer::set(line, "You collect the loose gold.");
     }
 
-    state no_usable_event(line: &mut [u8; 128] in Utf8) {
-        line = "There is nothing here to use.";
+    state no_usable_event(line: &mut TextBuffer) {
+        TextBuffer::set(line, "There is nothing here to use.");
     }
 }
 
 machine Dungeon::fight(
     dungeon: &mut Dungeon,
     cell: CellId,
-    line: &mut [u8; 128] in Utf8
+    line: &mut TextBuffer
 )
-ensures line in Utf8
 {
     transition cell {
         CellId::R03 -> try_defeat_enemy(dungeon, line)
@@ -130,7 +129,7 @@ ensures line in Utf8
 
     state try_defeat_enemy(
         dungeon: &mut Dungeon,
-        line: &mut [u8; 128] in Utf8
+        line: &mut TextBuffer
     ) {
         transition dungeon.enemy_defeated {
             false -> defeat_enemy(dungeon, line)
@@ -140,16 +139,16 @@ ensures line in Utf8
 
     state defeat_enemy(
         dungeon: &mut Dungeon,
-        line: &mut [u8; 128] in Utf8
+        line: &mut TextBuffer
     ) {
         dungeon.player.inventory.gold = dungeon.player.inventory.gold + 6;
         dungeon.player.xp = dungeon.player.xp + 5;
         dungeon.enemy_defeated = true;
-        line = "The enemy collapses. You find a little gold.";
+        TextBuffer::set(line, "The enemy collapses. You find a little gold.");
     }
 
-    state no_enemy(line: &mut [u8; 128] in Utf8) {
-        line = "There is no enemy here.";
+    state no_enemy(line: &mut TextBuffer) {
+        TextBuffer::set(line, "There is no enemy here.");
     }
 }
 

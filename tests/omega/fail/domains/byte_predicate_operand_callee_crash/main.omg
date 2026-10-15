@@ -1,0 +1,6 @@
+// Evaluating a predicate's input retains the producing call's crash route.
+pub machine bytes() -> [u8; 4] crashes Trap { crash Trap; }
+machine main() crashes Trap false {
+    let input: [u8; 4] = bytes();
+    let result: bool = valid_utf8(&input);
+}

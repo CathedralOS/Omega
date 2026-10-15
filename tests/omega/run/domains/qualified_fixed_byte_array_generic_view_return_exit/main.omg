@@ -1,0 +1,18 @@
+// Expected exit: 0.
+domain [u8; 8]::Ascii(bytes) requires ascii_only(bytes);
+data Choice [copy] { case First; case Second; }
+data Room [copy] { value: u64; text: [u8; 8] in Ascii; }
+data Level [copy] { rooms: [Room; 2]; }
+machine pick<Element>(items: &mut [Element], choice: Choice) -> &mut Element
+requires items.len == 2 {
+    let slots: &mut [Element] = &mut items[..];
+    transition choice { Choice::First -> &mut slots[0] Choice::Second -> &mut slots[1] }
+}
+machine main() crashes Trap {
+    let mut level: Level = Level { rooms: [Room { value: 17, text: "omega600" }, Room { value: 29, text: "omega601" }] };
+    let selected: &mut Room = pick(&mut level.rooms[..], Choice::Second);
+    selected.value = 41;
+    transition level.rooms[0].value == 17 && level.rooms[1].value == 41 && level.rooms[0].text == "omega600"
+        && level.rooms[1].text == "omega601" && level.rooms[0].text.len == 8 && level.rooms[1].text.len == 8 { true -> done() false -> wrong() }
+    state done() {} state wrong() { crash Trap; }
+}

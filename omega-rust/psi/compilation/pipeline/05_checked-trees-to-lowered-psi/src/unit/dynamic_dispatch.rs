@@ -264,6 +264,13 @@ pub(crate) fn lower_dynamic_dispatch_catalog(
                     "dynamic domain lost its exact source carrier",
                 ))?;
             Ok(crate::terminal_identities::StructuralDomainBinding {
+                byte_predicate: if domain.content_projection.is_none()
+                    && domain.establishment_routes.is_empty()
+                {
+                    domain.byte_predicate
+                } else {
+                    None
+                },
                 semantic_domain,
                 carrier: domain.carrier,
                 domain: domain.id,

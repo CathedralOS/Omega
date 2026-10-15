@@ -13,7 +13,7 @@ use crate::execution::terminal_unit::calls::{
 use crate::execution::terminal_unit::control::LocalConstructionTrace;
 use crate::execution::terminal_unit::types::{
     ShapeCollector, boundary_domain_requirements, fold_authorized_result_domains, is_unit,
-    machine_binders, parameter_qualifications, projected_parameter_qualifications,
+    machine_binders, parameter_qualifications, projected_result_qualifications,
     substituted_formal_type,
 };
 use crate::execution::terminal_unit::{
@@ -680,7 +680,7 @@ pub(crate) fn boundary_result_plan(
             type_identity: carrier.type_identity,
             multiplicity: carrier.multiplicity,
             qualifications: parameter_qualifications(program, shapes, type_reference, binders)?,
-            projected_qualifications: projected_parameter_qualifications(
+            projected_qualifications: projected_result_qualifications(
                 program,
                 shapes,
                 type_reference,
@@ -695,7 +695,7 @@ pub(crate) fn boundary_result_plan(
         type_identity: shapes.add_type(type_reference, binders, substitutions)?,
         multiplicity: crate::checks::type_multiplicity(program, type_reference),
         qualifications: parameter_qualifications(program, shapes, type_reference, binders)?,
-        projected_qualifications: projected_parameter_qualifications(
+        projected_qualifications: projected_result_qualifications(
             program,
             shapes,
             type_reference,

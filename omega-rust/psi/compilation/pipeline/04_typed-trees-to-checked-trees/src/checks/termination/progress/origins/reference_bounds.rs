@@ -413,13 +413,13 @@ where
             // A record literal has no storage of its own: the demanded leaf
             // arrives from the operand bound to that exact field, which then
             // proves a referent under the same operand rules.
-            // `literal_value_projections` keeps the operand
+            // `literal_expression_projections` keeps the operand
             // exact — a case-qualified, dynamic, or ranged selection yields
             // several candidates and stays unproven — and the chosen operand
             // re-enters this same provenance walk so a nested literal or a
             // leaf store supplies it.
             ExpressionNode::StructLiteral(_) => {
-                let mut projections = flow::literal_value_projections(
+                let mut projections = flow::literal_expression_projections(
                     program,
                     rooted,
                     literal_operand_type(program, rooted, None)?,

@@ -1,34 +1,53 @@
+domain [u8]::Utf8(bytes) requires valid_utf8(bytes);
 use omega_language_std::console;
 
 domain [u8; 16]::Utf8(bytes) requires valid_utf8(bytes);
-data Holder { text: [u8; 16] in Utf8; sibling: u64; }
+data Holder { text: TextBuffer; sibling: u64; }
 data Main { holder: Holder; }
 
-machine label(short: bool) -> [u8; 16] in Utf8 {
+machine label(short: bool) -> TextBuffer crashes Trap {
     transition short {
-        true -> "Gate"
-        false -> "Branch Room"
+        true -> TextBuffer { storage: [71u8, 97u8, 116u8, 101u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8], used: 4 }
+        false -> TextBuffer { storage: [66u8, 114u8, 97u8, 110u8, 99u8, 104u8, 32u8, 82u8, 111u8, 111u8, 109u8, 0u8, 0u8, 0u8, 0u8, 0u8], used: 11 }
     }
 }
 
 // The ordinary helper and the caller's composed state graph must both retain
 // the exact returned buffer before replacing its destination field.
-machine replace(holder: &mut Holder, short: bool) {
+machine replace(holder: &mut Holder, short: bool) crashes Trap {
     holder.text = label(short);
 }
 
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches Console crashes Trap {
     main.holder.sibling = 29;
     replace(&mut main.holder, false);
-    let longer_matches: bool = main.holder.text == "Branch Room"
-        && main.holder.text.len == 11;
+    let longer_matches: bool = TextBuffer::equal(&main.holder.text, "Branch Room")
+        && main.holder.text.used == 11;
     main.holder.text = label(true);
     transition longer_matches
-        && main.holder.text == "Gate"
-        && main.holder.text.len == 4
+        && TextBuffer::equal(&main.holder.text, "Gate")
+        && main.holder.text.used == 4
         && main.holder.sibling == 29 {
         true -> finish(main, 70)
         false -> finish(main, 1)
     }
     state finish(main: &mut Main, code: i32) { Console::exit_process(code); }
+}
+
+
+// A variable-fill value explicitly owns its fixed storage and live length.
+// Copies retain both; an accessor borrows and checks the selected copy's prefix.
+data TextBuffer [copy] where used <= 16 { storage: [u8; 16] in Utf8; used: u64; }
+machine TextBuffer::view(buffer: &TextBuffer) -> &[u8] in Utf8 crashes Trap {
+    let bytes: &[u8] = &buffer.storage[..buffer.used];
+    transition valid_utf8(bytes) {
+        true -> checked(bytes)
+        false -> bad()
+    }
+    state checked(bytes: &[u8] in Utf8) -> &[u8] in Utf8 { bytes }
+    state bad() { crash Trap; }
+}
+machine TextBuffer::equal(buffer: &TextBuffer, expected: &[u8]) -> bool crashes Trap {
+    let bytes: &[u8] in Utf8 = TextBuffer::view(buffer);
+    bytes == expected
 }

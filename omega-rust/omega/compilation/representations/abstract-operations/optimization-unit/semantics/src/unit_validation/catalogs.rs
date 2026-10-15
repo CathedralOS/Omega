@@ -514,6 +514,14 @@ fn validate_structural_field_range_authority(
                 {
                     return Err(invalid);
                 }
+                let mut written = vec![terminal_psi::StructuralPathSegment::RuntimeIndex {
+                    index: *index,
+                    obligation: *obligation,
+                }];
+                written.extend(path.iter().cloned());
+                if !root.memberships_disjoint_from_write(&written) {
+                    return Err(invalid);
+                }
                 let goal = terminal_semantics::element_view_write_goal(
                     &unit.structural_types,
                     *element,
@@ -852,11 +860,20 @@ fn validate_structural_field_range_authority(
                 value,
                 range_obligation,
             } => {
-                let restriction = terminal_semantics::primitive_projection_restriction(
+                let (whole, projected) = match destination {
+                    abstract_operations::StructuralScalarStoreDestination::Parameter(parameter)
+                    | abstract_operations::StructuralScalarStoreDestination::OwnedBlockParameter { parameter, .. } => (&parameter.qualifications, &parameter.projected_qualifications),
+                    abstract_operations::StructuralScalarStoreDestination::OwnedResult { result, .. } => (&result.qualifications, &result.projected_qualifications),
+                };
+                let restriction = terminal_semantics::primitive_store_restriction(
                     types.values().copied(),
+                    unit.structural_domains.iter(),
                     destination.structural_type(),
+                    whole,
+                    projected,
                     path,
-                );
+                )
+                .ok_or(OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch)?;
                 if restriction.is_some() != range_obligation.is_some() {
                     return Err(
                         OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch,
@@ -890,7 +907,7 @@ fn validate_structural_field_range_authority(
                         unit,
                         function.machine,
                         *psi_operation,
-                        restriction,
+                        &restriction,
                         value.value,
                         *range_obligation,
                     )?;

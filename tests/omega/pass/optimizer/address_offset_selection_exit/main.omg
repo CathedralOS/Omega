@@ -1,3 +1,4 @@
+domain [u8]::Utf8(bytes) requires valid_utf8(bytes);
 // `SelectedAddressOffsetFoldV1` fires on real source code here: passing the
 // bounded byte field `context.out` as a shared `[u8]` view stages its call
 // descriptor by projecting the field with `AddressOffset`, then reading its
@@ -10,11 +11,11 @@ domain [u8; 8]::Utf8(bytes) requires valid_utf8(bytes);
 
 data Context {
     flag: u64;
-    out: [u8; 8] in Utf8;
+    out: TextBuffer;
     tail: u64;
 }
 
-machine measure(bytes: &[u8]) -> u64 {
+machine measure(bytes: &[u8]) -> u64 crashes Trap {
     transition bytes.len >= 1 && bytes[0] == 71 {
         true -> read(bytes)
         _ -> (0)
@@ -27,14 +28,32 @@ machine measure(bytes: &[u8]) -> u64 {
 
 machine main(context: &mut Context) crashes Trap {
     context.flag = 5;
-    context.out = "Gate";
+    context.out = TextBuffer { storage: [71u8, 97u8, 116u8, 101u8, 0u8, 0u8, 0u8, 0u8], used: 4 };
     context.tail = 9;
-    let observed: u64 = measure(&context.out);
+    let observed: u64 = measure(TextBuffer::view(&context.out));
     transition observed == 4
-        && context.flag == 5 && context.tail == 9 && context.out.len == 4 {
+        && context.flag == 5 && context.tail == 9 && context.out.used == 4 {
         true -> done()
         _ -> bad()
     }
     state done() {}
     state bad() { crash Trap; }
+}
+
+
+// A variable-fill value explicitly owns its fixed storage and live length.
+// Copies retain both; an accessor borrows and checks the selected copy's prefix.
+data TextBuffer [copy] where used <= 8 { storage: [u8; 8]; used: u64; }
+machine TextBuffer::view(buffer: &TextBuffer) -> &[u8] in Utf8 crashes Trap {
+    let bytes: &[u8] = &buffer.storage[..buffer.used];
+    transition valid_utf8(bytes) {
+        true -> checked(bytes)
+        false -> bad()
+    }
+    state checked(bytes: &[u8] in Utf8) -> &[u8] in Utf8 { bytes }
+    state bad() { crash Trap; }
+}
+machine TextBuffer::equal(buffer: &TextBuffer, expected: &[u8]) -> bool crashes Trap {
+    let bytes: &[u8] in Utf8 = TextBuffer::view(buffer);
+    bytes == expected
 }

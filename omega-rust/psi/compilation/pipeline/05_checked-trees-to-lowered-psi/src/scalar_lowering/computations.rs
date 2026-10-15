@@ -569,12 +569,14 @@ impl<'a> Expansion<'a> {
         let entry = match node.kind {
             CheckedScalarComputationKind::ByteSequenceLiteralComparison {
                 literal,
+                maximum_length,
                 negated,
                 subject,
                 ..
             } => self.byte_literal_comparison(
                 identities,
                 &literal,
+                maximum_length,
                 negated,
                 &subject,
                 input_types,

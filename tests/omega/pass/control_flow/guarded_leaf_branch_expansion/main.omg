@@ -5,7 +5,7 @@
 // Persistent room/line text uses bounded ownership; a borrowed view would need
 // an explicit outlives relation and retained loan, which this canary does not
 // exercise.
-pub domain [u8; 8]::Utf8(bytes)
+pub domain [u8; 2]::Utf8(bytes)
 requires
     valid_utf8(bytes);
 data CellId {
@@ -16,15 +16,15 @@ data CellId {
 
 data Cell {
     id: CellId;
-    label: [u8; 8] in Utf8;
+    label: [u8; 2] in Utf8;
 }
 
 data CellLine {
-    text: [u8; 8] in Utf8;
+    text: [u8; 2] in Utf8;
 }
 
 pub boundary trait Console {
-    machine write_line(text: [u8; 8] in Utf8);
+    machine write_line(text: [u8; 2] in Utf8);
 }
 
 data Main {

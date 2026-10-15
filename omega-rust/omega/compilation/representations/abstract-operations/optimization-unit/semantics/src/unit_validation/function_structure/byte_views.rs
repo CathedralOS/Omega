@@ -162,7 +162,7 @@ pub fn declared_descriptor_home(
         })
 }
 
-/// The declared carrier of one byte field below an exclusive, unqualified,
+/// The declared carrier of one byte field below an exclusive,
 /// claim-free parameter or an explicit mutable-record `Referent` crossing.
 fn writable_byte_field_carrier(
     function: &PsiOptimizationFunction,
@@ -210,9 +210,17 @@ fn writable_byte_field_carrier(
     let StructuralTypeShape::Record { fields, .. } = &structural_types.get(&parent)?.shape else {
         return None;
     };
-    live_field_by_id(fields, field)?
-        .field_type
-        .byte_sequence_carrier()
+    let member = live_field_by_id(fields, field)?;
+    let contract = crate::unit_validation::operation_contracts::structural_source_contract(
+        function,
+        destination,
+    )?;
+    let mut written = path.to_vec();
+    written.push(terminal_psi::StructuralPathSegment::Field(member.identity));
+    if !contract.memberships_disjoint_from_write(&written) {
+        return None;
+    }
+    member.field_type.byte_sequence_carrier()
 }
 
 pub(super) fn validate_byte_view_source(

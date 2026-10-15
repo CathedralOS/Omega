@@ -177,7 +177,10 @@ pub(super) fn store_at(
         statement_index,
         destination.root.destination(),
         projection.path,
-        checked_trees::CheckedStoreLeaf::Primitive { receiving_range },
+        checked_trees::CheckedStoreLeaf::Primitive {
+            receiving_range,
+            preserves_byte_memberships: facts.byte_write_is_proven(assignment.target),
+        },
         checked_trees::CheckedStoreValue::assigned(value),
     ))
 }

@@ -7,7 +7,7 @@
 //   * `ascii_only` — compiler-known byte predicate; no
 //     import or machine needed (same family as
 //     `valid_utf8`).
-//   * `let mut bytes: [u8; 8] in Ascii = "ab"` — a string
+//   * `let mut bytes: [u8; 8] in Ascii = [97u8, 98u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8]` — a string
 //     literal folds the predicate at compile time to
 //     establish the domain.
 //   * Guard `value < 128` preserves ASCII across the
@@ -37,7 +37,7 @@ data Main { hits: i32 in Wrapping; }
 
 machine Main::main(main: &mut Main) {
     main.hits = 0;
-    let mut bytes: [u8; 8] in Ascii = "ab";
+    let mut bytes: [u8; 8] in Ascii = [97u8, 98u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8];
     let first: bool = replace(0, &mut bytes, 65);
     let rejected: bool = replace(1, &mut bytes, 200);
     transition first && !rejected {

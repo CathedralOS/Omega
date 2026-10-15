@@ -715,18 +715,6 @@ crashes Trap
     }
 }
 
-// Whether a collection row is a bounded byte array: a fixed byte array
-// under a declared domain, whose runtime storage is the bounded `{len,
-// bytes}` carrier with a live length rather than an always-full array
-// (wiki/spec/terminal-psi/byte_views.md).
-pub machine Checker::bounded_bytes(typing: &Typing, collection: TypeRow) -> bool
-crashes Trap
-{
-    let element: TypeRow = TypeTable::row(&typing.types, collection.inner);
-    collection.kind == TypeKind::Array && collection.domain == DomainBinding::Declared
-        && element.kind == TypeKind::Builtin && element.builtin == BuiltinType::U8
-}
-
 // The truth of primitive byte predicate `predicate` of `argument`.
 pub machine Checker::predicate_value(checker: &Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, argument: u64 in Trapping, predicate: BytePredicate) -> Value
 crashes Trap
@@ -886,8 +874,7 @@ crashes Trap
 pub machine Checker::collection_length(checker: &mut Checker, typing: &Typing, collection: TypeRow, base: Value) -> Value
 crashes Trap
 {
-    let bounded: bool = Checker::bounded_bytes(typing, collection);
-    transition collection.kind == TypeKind::Array && !bounded {
+    transition collection.kind == TypeKind::Array {
         true -> fixed(typing, collection)
         _ -> sliced(checker, typing, base)
     }
@@ -897,7 +884,7 @@ crashes Trap
         extent
     }
 
-    // A slice or a bounded byte array indexes against its live length.
+    // A slice indexes against its live length; fixed arrays use their extent.
     state sliced(checker: &mut Checker, typing: &Typing, base: Value) -> Value {
         transition base.place > 0 {
             true -> counted(checker, typing, base.place)
