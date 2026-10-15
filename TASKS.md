@@ -3819,11 +3819,6 @@ execution and retained outputs.
   - `operators/receiver.rs::field_type_reference` selects a data definition
     when its symbol **or** name matches, even when a valid symbol names a
     different definition. Use exact identity, preserving closed applications.
-  - `checks/contracts/evaluator/collections.rs::self_data_definition` finds
-    the first data declaration with the attached name. This is legacy `self`
-    contract evaluation: retire it with **STATIC-MACHINE-MIGRATION**, rather
-    than repairing an implicit-receiver path the language has revoked. Retain
-    collection-length reasoning over ordinary explicit arguments.
 
   The former signature, carry-fact, body-cloning and boundary-return site list
   no longer describes this defect. Do not recreate those removed lookups.
