@@ -34,6 +34,7 @@ pub(crate) fn validate_callable_state_signatures(
             &format!("machine `{}`", machine.name),
             program.machine_type_parameters(machine),
             TypeParameterScope {
+                operand_lifetime_owner: symbols::SymbolHandle::invalid(),
                 lexical_owner: machine.symbol,
                 type_parameters: &type_parameters,
                 lifetime_parameters: &lifetime_parameters,
@@ -56,6 +57,7 @@ pub(crate) fn validate_callable_state_signatures(
             diagnostics,
             StateSignatureOwner::Machine(machine),
             TypeParameterScope {
+                operand_lifetime_owner: symbols::SymbolHandle::invalid(),
                 lexical_owner: machine.symbol,
                 type_parameters: &type_parameters,
                 lifetime_parameters: &lifetime_parameters,
@@ -127,6 +129,7 @@ pub(crate) fn validate_callable_state_signatures(
                 diagnostics,
                 StateSignatureOwner::Trait(trait_definition.name.as_str()),
                 TypeParameterScope {
+                    operand_lifetime_owner: symbols::SymbolHandle::invalid(),
                     lexical_owner: machine.symbol,
                     type_parameters: &type_parameters,
                     lifetime_parameters: &lifetime_parameters,
@@ -277,6 +280,7 @@ fn validate_machine_parameter_signatures<'program>(
             diagnostics,
             StateSignatureOwner::Requirement(parameter.name.as_str()),
             TypeParameterScope {
+                operand_lifetime_owner: symbols::SymbolHandle::invalid(),
                 lexical_owner: contract.symbol,
                 type_parameters: &local_type_parameters,
                 lifetime_parameters: &local_lifetime_parameters,

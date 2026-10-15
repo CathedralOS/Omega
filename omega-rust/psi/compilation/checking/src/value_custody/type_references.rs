@@ -22,6 +22,9 @@
 //! declaration: an ordinary type binder is not a higher-kinded constructor.
 //! A named binder in a type position must denote a type, not its value carrier:
 //! const and runtime value binders remain values even in an unused template.
+//! Substituted operands retain their supplying region scope for the entire
+//! nested type walk. A child's explicit supplier overrides the inherited one;
+//! neither can acquire a same-spelled region from the receiving declaration.
 //! `generic_arguments` also exports the exact const-argument checks that
 //! checking, package review and the terminal artifact call.
 //!
@@ -457,6 +460,7 @@ pub fn validate_static_type_argument(
             generic_depth: 0,
         },
         TypeParameterScope {
+            operand_lifetime_owner: symbols::SymbolHandle::invalid(),
             lexical_owner,
             type_parameters,
             lifetime_parameters,
@@ -660,6 +664,7 @@ pub(crate) fn validate_generic_instance_argument_bounds(
         base_name.as_str(),
         *arguments,
         TypeParameterScope {
+            operand_lifetime_owner: symbols::SymbolHandle::invalid(),
             lexical_owner: instance.symbol,
             type_parameters: &[],
             lifetime_parameters: &instance.lifetime_parameters,
@@ -675,8 +680,18 @@ fn validate_type_reference_node(
     diagnostics: &mut Vec<Diagnostic>,
     owner: TypeReferenceOwner<'_>,
     allow_bare_str: bool,
-    type_parameter_scope: TypeParameterScope<'_>,
+    mut type_parameter_scope: TypeParameterScope<'_>,
 ) {
+    let supplying_owner = program
+        .type_reference_table
+        .operand_lifetime_owner(type_reference);
+    if supplying_owner.is_valid() {
+        // A substituted compound carries its supplier at the root. Children
+        // inherit that region scope until a separately substituted operand
+        // supplies its own. Keep this distinct from the receiver's type and
+        // value telescope: no declaration, loan or access is created here.
+        type_parameter_scope.operand_lifetime_owner = supplying_owner;
+    }
     // Generic-argument sites below validate every spelled argument under the
     // application owner's custody.
     let validate_generic_argument =
@@ -705,11 +720,7 @@ fn validate_type_reference_node(
                 )));
             }
             if let Some(lifetime) = lifetime
-                && !type_parameter_scope.contains_lifetime(
-                    program,
-                    type_reference,
-                    lifetime.as_str(),
-                )
+                && !type_parameter_scope.contains_lifetime(program, lifetime.as_str())
             {
                 diagnostics.push(Diagnostic::error(format!(
                     "{owner} uses undeclared lifetime `'{}'; declare it in the owner's generic parameter list",
@@ -822,11 +833,7 @@ fn validate_type_reference_node(
             }
 
             for lifetime in lifetime_arguments {
-                if !type_parameter_scope.contains_lifetime(
-                    program,
-                    type_reference,
-                    lifetime.as_str(),
-                ) {
+                if !type_parameter_scope.contains_lifetime(program, lifetime.as_str()) {
                     diagnostics.push(Diagnostic::error(format!(
                         "{owner} uses undeclared lifetime argument `'{}' in `{base_name}`; declare it in the owner's generic parameter list",
                         lifetime.as_str()
@@ -1067,6 +1074,8 @@ fn validate_type_reference_node(
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct TypeParameterScope<'program> {
+    /// Nearest retained operand supplier; zero uses the authored telescope.
+    pub(crate) operand_lifetime_owner: symbols::SymbolHandle,
     pub(crate) lexical_owner: symbols::SymbolHandle,
     pub(crate) type_parameters: &'program [TypeParameter],
     pub(crate) lifetime_parameters: &'program [typed_trees::name::Identifier],
@@ -1079,15 +1088,8 @@ impl<'program> TypeParameterScope<'program> {
             .any(|parameter| parameter.name.as_str() == name)
     }
 
-    fn contains_lifetime(
-        self,
-        program: &dyn crate::CheckingInput,
-        reference: TypeReferenceHandle,
-        name: &str,
-    ) -> bool {
-        let supplying_owner = program
-            .type_reference_table
-            .operand_lifetime_owner(reference);
+    fn contains_lifetime(self, program: &dyn crate::CheckingInput, name: &str) -> bool {
+        let supplying_owner = self.operand_lifetime_owner;
         if supplying_owner.is_valid() {
             // Substituted operands retain their issuing declaration. Looking
             // for the spelling in the receiver's telescope would either reject

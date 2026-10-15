@@ -94,6 +94,7 @@ pub(crate) fn validate_conformances(
             &format!("conformance `{implementation_name} satisfies {trait_name}`"),
             symbols,
             crate::value_custody::type_references::TypeParameterScope {
+                operand_lifetime_owner: symbols::SymbolHandle::invalid(),
                 lexical_owner: conformance.symbol,
                 type_parameters: program
                     .data_type_parameters

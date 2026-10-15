@@ -57,6 +57,7 @@ pub(crate) fn validate_indexed_qualification_arguments(
         &domain_name,
         arguments,
         TypeParameterScope {
+            operand_lifetime_owner: symbols::SymbolHandle::invalid(),
             lexical_owner: machine.symbol,
             type_parameters: program.machine_type_parameters(machine),
             lifetime_parameters: &machine.lifetime_parameters,

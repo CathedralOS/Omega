@@ -47,6 +47,7 @@ pub(super) fn validate(
             generic_depth: 0,
         },
         crate::value_custody::type_references::TypeParameterScope {
+            operand_lifetime_owner: symbols::SymbolHandle::invalid(),
             lexical_owner: machine.symbol,
             type_parameters: &type_parameters,
             lifetime_parameters: &lifetime_parameters,

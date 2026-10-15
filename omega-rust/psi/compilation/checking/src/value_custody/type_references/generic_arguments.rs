@@ -265,6 +265,7 @@ pub fn validate_closed_const_argument(
         type_reference,
         argument,
         TypeParameterScope {
+            operand_lifetime_owner: symbols::SymbolHandle::invalid(),
             lexical_owner: symbols::SymbolHandle::invalid(),
             type_parameters: &[],
             lifetime_parameters: &[],
@@ -306,6 +307,7 @@ pub(crate) fn const_argument_matches_parameter(
         type_reference,
         argument,
         TypeParameterScope {
+            operand_lifetime_owner: symbols::SymbolHandle::invalid(),
             lexical_owner: symbols::SymbolHandle::invalid(),
             type_parameters: caller_parameters,
             lifetime_parameters: &[],

@@ -42,6 +42,7 @@ pub(crate) fn validate_generic_conformance_bounds(
         &machine.conformance_bounds,
         symbols,
         crate::value_custody::type_references::TypeParameterScope {
+            operand_lifetime_owner: symbols::SymbolHandle::invalid(),
             lexical_owner: machine.symbol,
             type_parameters: program.machine_type_parameters(machine),
             lifetime_parameters: &machine.lifetime_parameters,
@@ -63,6 +64,7 @@ pub(crate) fn validate_trait_conformance_bounds(
         &trait_definition.conformance_bounds,
         symbols,
         crate::value_custody::type_references::TypeParameterScope {
+            operand_lifetime_owner: symbols::SymbolHandle::invalid(),
             lexical_owner: trait_definition.symbol,
             type_parameters: program.trait_type_parameters(trait_definition),
             lifetime_parameters: &trait_definition.lifetime_parameters,

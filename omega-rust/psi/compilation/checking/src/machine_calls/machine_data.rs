@@ -27,6 +27,7 @@ pub(crate) fn validate_owned_data(
                 generic_depth: 0,
             },
             crate::value_custody::type_references::TypeParameterScope {
+                operand_lifetime_owner: symbols::SymbolHandle::invalid(),
                 lexical_owner: machine.symbol,
                 type_parameters: program.machine_type_parameters(machine),
                 lifetime_parameters: &machine.lifetime_parameters,

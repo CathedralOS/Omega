@@ -57,6 +57,7 @@ pub(crate) fn validate_domain_definitions(
                 generic_depth: 0,
             },
             crate::value_custody::type_references::TypeParameterScope {
+                operand_lifetime_owner: symbols::SymbolHandle::invalid(),
                 lexical_owner: domain.symbol,
                 type_parameters: program.domain_type_parameters(domain),
                 lifetime_parameters: &[],

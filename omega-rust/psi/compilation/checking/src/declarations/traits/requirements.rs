@@ -76,6 +76,7 @@ pub(crate) fn validate_trait_requirements(
                     ),
                     symbols,
                     crate::value_custody::type_references::TypeParameterScope {
+                        operand_lifetime_owner: symbols::SymbolHandle::invalid(),
                         lexical_owner: trait_definition.symbol,
                         type_parameters: program.trait_type_parameters(trait_definition),
                         lifetime_parameters: &trait_definition.lifetime_parameters,

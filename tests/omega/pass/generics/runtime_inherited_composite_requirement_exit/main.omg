@@ -91,6 +91,39 @@ machine run_nested<'storage>(source: &'storage mut i32) -> i32 {
     observe_nested<ForwardEnvelope<Envelope<Selected<'storage>>>>(source)
 }
 
+// The supplying scope crosses array and reference nodes as well as generic
+// applications. Both views end before replacement of their backing storage.
+machine observe_array<'storage, Operations satisfies Wrapped<[&'storage i32; 2]>>(
+    source: &'storage mut i32
+) -> i64 {
+    let envelope: Envelope<[&'storage i32; 2]> = Envelope { value: [source, source] };
+    let forwarded: Envelope<[&'storage i32; 2]> = Operations::forward(envelope);
+    let first: i32 = forwarded.value[0];
+    let second: i32 = forwarded.value[1];
+    source = 11;
+    (first as i64) + (second as i64)
+}
+
+machine run_array<'storage>(source: &'storage mut i32) -> i64 {
+    observe_array<ForwardEnvelope<[&'storage i32; 2]>>(source)
+}
+
+// Value's substituted region belongs to the caller. Its following sibling
+// still belongs to preserve_sibling's independently named lifetime telescope.
+machine preserve_sibling<'outer, Value>(value: Value, sibling: &'outer i32) -> Pair<Value, &'outer i32> {
+    Pair { first: value, second: sibling }
+}
+
+machine run_mixed<'first, 'second>(first: &'first mut i32, second: &'second mut i32) -> i64 {
+    let selected: Selected<'first> = Selected { reference: first };
+    let pair: Pair<Selected<'first>, &'second i32> = preserve_sibling(selected, second);
+    let first_value: i32 = pair.first.reference;
+    let second_value: i32 = pair.second;
+    first = 13;
+    second = 19;
+    (first_value as i64) + (second_value as i64)
+}
+
 machine main() crashes Trap {
     let mut choice: Envelope<i32> = relay(false, Envelope { value: 0 }, Envelope { value: 17 });
     let chosen: i32 = choice.value;
@@ -101,7 +134,10 @@ machine main() crashes Trap {
     let mut second: i32 = 25;
     let pair_observed: i64 = run_pair(&mut first, &mut second);
     let nested_observed: i32 = run_nested(&mut source);
-    transition chosen == 17 && choice.value == 43 && observed == 17 && source == 9 && pair_observed == 42 && first == 5 && second == 7 && nested_observed == 7 {
+    let array_observed: i64 = run_array(&mut source);
+    let pair_replacements_correct: bool = first == 5 && second == 7;
+    let mixed_observed: i64 = run_mixed(&mut first, &mut second);
+    transition chosen == 17 && choice.value == 43 && observed == 17 && source == 11 && pair_observed == 42 && pair_replacements_correct && first == 13 && second == 19 && nested_observed == 7 && array_observed == 18 && mixed_observed == 12 {
         true -> passed()
         false -> failed()
     }

@@ -115,6 +115,7 @@ fn validate_operator_types(
                 generic_depth: 0,
             },
             crate::value_custody::type_references::TypeParameterScope {
+                operand_lifetime_owner: symbols::SymbolHandle::invalid(),
                 lexical_owner: operator.symbol,
                 type_parameters,
                 lifetime_parameters: &operator.lifetime_parameters,
@@ -132,6 +133,7 @@ fn validate_operator_types(
                 generic_depth: 0,
             },
             crate::value_custody::type_references::TypeParameterScope {
+                operand_lifetime_owner: symbols::SymbolHandle::invalid(),
                 lexical_owner: operator.symbol,
                 type_parameters,
                 lifetime_parameters: &operator.lifetime_parameters,

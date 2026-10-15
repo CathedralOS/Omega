@@ -123,6 +123,7 @@ pub(crate) fn validate_machine_trait_conformances(
             ),
             symbols,
             crate::value_custody::type_references::TypeParameterScope {
+                operand_lifetime_owner: symbols::SymbolHandle::invalid(),
                 lexical_owner: authored_machine.symbol,
                 type_parameters: program.machine_type_parameters(authored_machine),
                 lifetime_parameters: &authored_machine.lifetime_parameters,
