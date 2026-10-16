@@ -615,8 +615,6 @@ fn collect<'a>(
             || output
                 .iter()
                 .any(|prior| matches!(prior, Operand::Call(prior) if prior.authored_expression == expression))
-            || !authored.carries_only_positional_arguments()
-            || !authored.selects_only_nominal_route()
         {
             return None;
         }

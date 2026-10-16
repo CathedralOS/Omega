@@ -549,8 +549,7 @@ impl TerminalExecution<'_> {
                 .get(&argument.place)
                 .ok_or_else(malformed)?;
             self.check_byte_view_handback(value, argument, parameter)?;
-            let mut borrowed =
-                self.reborrow_byte_sequence_binding(binding, value, parameter.access)?;
+            let borrowed = self.reborrow_byte_sequence_binding(binding, value, parameter.access)?;
             if value.structural_type != parameter.structural_type {
                 // Mutable and shared bounded carriers have distinct identities.
                 // Authenticate attenuation against the actual source declaration
@@ -609,25 +608,25 @@ impl TerminalExecution<'_> {
             // A formal borrows the original array, not the owned descriptor.
             // Rejoin its referent identity after validating the descriptor home;
             // this keeps a simultaneous descriptor move disjoint from the loan.
-            let referent = if let ByteSequenceBinding::MutableArray {
+            // The backing window may retain an earlier canonical carrier while
+            // the current descriptor and formal use a stored access carrier.
+            // Keep that admitted presentation when moving the loan's home back
+            // to its referent; backing identity does not choose the formal type.
+            let presented = if let ByteSequenceBinding::MutableArray {
                 referent,
                 descriptor_home: Some(_),
                 ..
             } = binding
             {
-                if let ByteSequenceBinding::MutableArray {
-                    descriptor_home, ..
-                } = &mut borrowed
-                {
-                    *descriptor_home = None;
-                } else if let ByteSequenceBinding::Immutable(bytes) = &mut borrowed {
-                    *bytes = bytes.clone().with_descriptor_home(referent.clone());
-                }
-                referent.clone()
+                let mut presented = value.clone();
+                presented.opaque_identity = referent.opaque_identity;
+                presented.path = referent.path.clone();
+                presented
             } else {
                 value.clone()
             };
-            return Ok(Some((referent, borrowed)));
+            let borrowed = borrowed.with_descriptor_home(presented.clone());
+            return Ok(Some((presented, borrowed)));
         }
         // A genuine array projection resolves to its own structural type. The
         // bounded byte-field presentation remains owned by its separate path.

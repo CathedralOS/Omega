@@ -1558,15 +1558,17 @@ pub(crate) fn validated_values(
 /// One in-flight block's emission span: the identities and parameter
 /// rosters a dispatch expansion closes on its guard terminator and reopens
 /// at the merge block.
-pub(super) struct BlockEmissionSpan {
-    pub(super) id: BlockId,
-    pub(super) parameters: Vec<ValueDeclaration>,
-    pub(super) structural_parameters: Vec<terminal_psi::StructuralParameterDeclaration>,
-    pub(super) operation_start: usize,
+pub(crate) struct BlockEmissionSpan {
+    pub(crate) erased_scalar_formals: Vec<ValueDeclaration>,
+    pub(crate) erased_proof_formals: Vec<terminal_psi::ErasedProofFormal>,
+    pub(crate) id: BlockId,
+    pub(crate) parameters: Vec<ValueDeclaration>,
+    pub(crate) structural_parameters: Vec<terminal_psi::StructuralParameterDeclaration>,
+    pub(crate) operation_start: usize,
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(super) fn emit_dynamic_family_dispatch(
+pub(crate) fn emit_dynamic_family_dispatch(
     span: &mut BlockEmissionSpan,
     blocks: &mut Vec<Block>,
     operations: &mut OperationBuffer,
@@ -1632,8 +1634,8 @@ pub(super) fn emit_dynamic_family_dispatch(
     blocks.push(Block {
         id: span.id,
         parameters: std::mem::take(&mut span.parameters),
-        erased_scalar_formals: Vec::new(),
-        erased_proof_formals: Vec::new(),
+        erased_scalar_formals: std::mem::take(&mut span.erased_scalar_formals),
+        erased_proof_formals: std::mem::take(&mut span.erased_proof_formals),
         structural_parameters: std::mem::take(&mut span.structural_parameters),
         operations: operations[span.operation_start..].to_vec(),
         terminator: Terminator::Conditional {

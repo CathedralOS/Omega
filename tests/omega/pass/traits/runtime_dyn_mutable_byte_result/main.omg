@@ -1,0 +1,32 @@
+// Expected exit: 0.
+trait Payload {
+ machine window(packet: &mut [u8]) -> &mut [u8] requires packet.len >= 4;
+}
+Header satisfies Payload { machine window(packet: &mut [u8]) -> &mut [u8]
+ requires packet.len >= 4 { &mut packet[0..2] } }
+Trailer satisfies Payload { machine window(packet: &mut [u8]) -> &mut [u8]
+ requires packet.len >= 4 { &mut packet[2..4] } }
+machine forwarded(decoder: dyn Payload, packet: &mut [u8]) -> &mut [u8]
+ requires packet.len >= 4 {
+ Payload::window(decoder, packet)
+}
+machine write(decoder: dyn Payload, packet: &mut [u8], value: u8)
+ requires packet.len >= 4 crashes Trap {
+ let bytes: &mut [u8] = forwarded(decoder, packet);
+ transition bytes.len == 2 { true -> store(bytes, value) false -> bad() }
+ state store(bytes: &mut [u8], value: u8) requires bytes.len == 2 { bytes[0] = value; }
+ state bad() { crash Trap; }
+}
+data Main { packet: [u8; 6]; }
+machine Main::main(main: &mut Main) crashes Trap {
+ main.packet[0] = 7; main.packet[2] = 13; main.packet[4] = 19; main.packet[5] = 31;
+ let mut decoder: dyn Payload = Header as dyn Payload;
+ write(decoder, &mut main.packet[1..5], 11);
+ decoder = Trailer as dyn Payload;
+ write(decoder, &mut main.packet[1..5], 29);
+ transition main.packet[0] == 7 && main.packet[1] == 11 && main.packet[2] == 13
+  && main.packet[3] == 29 && main.packet[4] == 19 && main.packet[5] == 31 {
+  true -> done() false -> bad()
+ }
+ state done() {} state bad() { crash Trap; }
+}

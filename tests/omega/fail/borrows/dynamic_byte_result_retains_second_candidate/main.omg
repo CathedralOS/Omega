@@ -1,0 +1,24 @@
+// A returned selected window retains every public lifetime candidate.
+trait Payload {
+ machine window<'input>(first: &'input mut [u8], second: &'input mut [u8]) -> &'input mut [u8]
+ requires first.len >= 2 && second.len >= 2;
+}
+First satisfies Payload {
+ machine window<'input>(first: &'input mut [u8], second: &'input mut [u8]) -> &'input mut [u8]
+ requires first.len >= 2 && second.len >= 2 { &mut first[0..2] }
+}
+Second satisfies Payload {
+ machine window<'input>(first: &'input mut [u8], second: &'input mut [u8]) -> &'input mut [u8]
+ requires first.len >= 2 && second.len >= 2 { &mut second[0..2] }
+}
+data Main { first: [u8; 2]; second: [u8; 2]; }
+machine choose<'input>(selected: dyn Payload, first: &'input mut [u8], second: &'input mut [u8]) -> &'input mut [u8]
+ requires first.len >= 2 && second.len >= 2 { Payload::window(selected, first, second) }
+machine Main::main(main: &mut Main) crashes Trap {
+ let selected: dyn Payload = First as dyn Payload;
+ let bytes: &mut [u8] = choose(selected, &mut main.first, &mut main.second);
+ main.second[0] = 33;
+ transition bytes.len == 2 { true -> store(bytes) false -> bad() }
+ state store(bytes: &mut [u8]) requires bytes.len == 2 { bytes[0] = 19; }
+ state bad() { crash Trap; }
+}

@@ -59,12 +59,9 @@ impl DescriptorAnalysis<'_> {
                     position: machine.entry,
                 });
             }
-            calls.extend(
-                machine
-                    .calls
-                    .iter()
-                    .map(|(&position, call)| (machine.id, position, call.callee)),
-            );
+            calls.extend(machine.calls.iter().filter_map(|(&position, call)| {
+                call.callee().map(|callee| (machine.id, position, callee))
+            }));
         }
         loop {
             let mut additions = Vec::new();

@@ -234,7 +234,13 @@ pub(super) fn establish(
                                 carrier,
                             )
                         });
-                        if expected.is_none_or(|declaration| declaration.id != nested) {
+                        if expected.is_none_or(|declaration| {
+                            terminal_semantics::borrowed_referent_presentation(
+                                types.values().copied(),
+                                nested,
+                                declaration.id,
+                            ) != Some(terminal_semantics::BorrowedReferentPresentation::Unchanged)
+                        }) {
                             return Err(LoweringError::InvalidStructuralValueInput {
                                 machine: function.machine,
                                 place: argument.place,

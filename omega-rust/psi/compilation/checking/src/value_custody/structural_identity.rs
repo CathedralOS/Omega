@@ -22,9 +22,7 @@
 //! descriptor as a `Reference` shape, registered under its whole reference
 //! type; `stored_structural_type_identity` answers for that family as well.
 
-use crate::value_custody::reference_shells::{
-    byte_sequence_carrier, reference_shell, slice_view_shell,
-};
+use crate::value_custody::reference_shells::{reference_shell, slice_view_shell};
 use symbols::SymbolHandle;
 use typed_trees::type_identity::TypeIdentityRequest;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
@@ -100,8 +98,10 @@ pub fn stores_reference_shape(
 
 /// The identity of the plan a stored value of `type_reference` occupies — a
 /// field, an element, a local or a result holding it. A `Reference` shape is
-/// registered under its whole reference type; every other value under
-/// [`structural_type_identity`].
+/// registered under its whole reference type. Stored slice descriptors do the
+/// same so their own access survives containment in an array or record;
+/// aggregate multiplicity cannot distinguish shared and exclusive leaves.
+/// Other values use [`structural_type_identity`].
 pub fn stored_structural_type_identity(
     program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
@@ -109,8 +109,7 @@ pub fn stored_structural_type_identity(
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
 ) -> typed_trees::type_identity::TypeIdentityId {
     if stores_reference_shape(program, type_reference, substitutions)
-        || (slice_view_shell(program, type_reference, substitutions).is_some()
-            && byte_sequence_carrier(program, type_reference, substitutions).is_none())
+        || slice_view_shell(program, type_reference, substitutions).is_some()
     {
         return program.storage_type_identity(TypeIdentityRequest {
             binders,

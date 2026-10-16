@@ -1,4 +1,5 @@
-//! Nested structural operands retain captured call coordinates and source scope.
+//! Nested call operands retain captured coordinates and source scope independently
+//! of result shape. The consuming planner owns result eligibility and custody.
 use crate::values::scalar::call_lowering::lower_call_arguments;
 use crate::values::scalar::call_lowering::retain_call_arguments;
 use crate::values::scalar::expression_plans::ScalarLocal;
@@ -12,7 +13,6 @@ use checked_trees::FlowFacts;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::expression::ExpressionNode;
 use typed_trees::statement::StatementNode;
-use typed_trees::statement::TransitionGuardNode;
 use typed_trees::types::TypeReferenceHandle;
 
 pub(crate) fn is_scalar_return_call(
@@ -36,7 +36,7 @@ pub(crate) fn is_scalar_return_call(
         program.primitive_type_reference(return_type) == Some(primitive_type)
     })
 }
-pub(crate) fn retain_nested_structural_call_arguments(
+pub(crate) fn retain_nested_call_arguments(
     program: &dyn ::validation::CheckingInput,
     operators: &CheckedOperatorFacts,
     flow: &FlowFacts,
@@ -140,14 +140,7 @@ pub(crate) fn retain_nested_structural_call_arguments(
                 }
                 for (call_ordinal, site) in captured
                     .map(|captured| {
-                        nested_structural_call_sites(
-                            program,
-                            flow,
-                            captured,
-                            machine,
-                            statement,
-                            statement_index,
-                        )
+                        nested_call_sites(program, flow, captured, statement, statement_index)
                     })
                     .unwrap_or_default()
                 {
@@ -197,47 +190,34 @@ pub(crate) fn retain_nested_structural_call_arguments(
 /// acquire a flow call, and execution order never becomes occurrence identity.
 /// `source` is the state's unique flow fact, which the caller resolves once
 /// per state.
-pub(crate) fn nested_structural_call_sites<'program>(
+pub(crate) fn nested_call_sites<'program>(
     program: &'program dyn ::validation::CheckingInput,
     flow: &FlowFacts,
     source: &checked_trees::FlowStateFact,
-    machine: &typed_trees::machine::Machine,
     statement: &StatementNode,
     statement_index: usize,
 ) -> Vec<(usize, validation::CallSite<'program>)> {
     let Some(calls) = flow.control.calls.span(source.calls) else {
         return Vec::new();
     };
-    // A transition's guarded call is the statement's first call site yet its
-    // arguments belong to the guard computation, not to the statement kind's
-    // own root roster: no planner mints its operand rows elsewhere, and its
-    // scalar result keeps it out of the structural-return admission below.
-    let transition_guard = match statement {
-        StatementNode::Transition(transition) => match transition.guard {
-            TransitionGuardNode::When(expression) => Some(expression),
-            TransitionGuardNode::Always => None,
-        },
+    // A root call already has operand metadata from its statement planner.
+    // Ordinal zero alone is insufficient: the first call inside an operator
+    // or constructor is still nested and needs its own operand metadata.
+    let statement_root = match statement {
+        StatementNode::Expression(expression) => Some(*expression),
+        StatementNode::LocalData(local) => {
+            super::call_lowering::value_call_expression(program, local.initial_value)
+        }
+        StatementNode::Assignment(assignment) => {
+            super::call_lowering::value_call_expression(program, assignment.value)
+        }
         _ => None,
     };
-    let state = program.state_in_machine(machine, source.state_symbol);
     calls
         .iter()
         .filter_map(|source| {
-            let is_transition_guard = transition_guard == Some(source.authored_expression);
-            // The first computed case subject also owns ordinary argument
-            // roots. Its surrounding case test is not the call expression;
-            // later guard and payload copies only observe the saved result.
-            let is_saved_subject = source.call_ordinal == 0
-                && state.is_some_and(|state| {
-                    validation::saved_dispatch_subject(
-                        program,
-                        state,
-                        statement_index,
-                        source.authored_expression,
-                    ) == Some((statement_index, source.authored_expression))
-                });
             if source.statement_index != statement_index
-                || (source.call_ordinal == 0 && !is_transition_guard && !is_saved_subject)
+                || (source.call_ordinal == 0 && statement_root == Some(source.authored_expression))
                 || !program
                     .expression_table
                     .expression_is_valid(source.authored_expression)
@@ -257,13 +237,12 @@ pub(crate) fn nested_structural_call_sites<'program>(
                 return None;
             };
             if validation::call_target_symbol(program, call) != source.target_symbol
-                || !call.carries_only_positional_arguments()
                 || !call.selects_only_nominal_route()
+                || !call.evidence_arguments.is_empty()
+                || (program.dynamic_slot_by_symbol(call.target_symbol).is_none()
+                    && !call.machine_arguments.is_empty())
             {
                 return None;
-            }
-            if !is_transition_guard {
-                nested_structural_call_return_type(program, machine.symbol, call)?;
             }
             if source.has_receiver != call.receiver.is_valid()
                 || source.receiver_symbol
@@ -298,7 +277,7 @@ pub(crate) fn nested_structural_call_return_type(
     call: &typed_trees::expression::TableCallExpression,
 ) -> Option<TypeReferenceHandle> {
     if !call.target_symbol.is_valid()
-        || !call.carries_only_positional_arguments()
+        || !call.evidence_arguments.is_empty()
         || !call.selects_only_nominal_route()
     {
         return None;
@@ -311,6 +290,10 @@ pub(crate) fn nested_structural_call_return_type(
         // The instantiated requirement owns this completed value's signature;
         // runtime selection never picks a representative implementation here.
         // Returned loans still need a public slot-relative origin contract.
+        // The slot already owns its concrete result shape. Its finite-family
+        // actuals belong to the ordinary call argument planner, which checks
+        // their roster and retains the exact call ordinal; they do not change
+        // whether this result can be consumed as a structural operand.
         if !validation::has_contents(
             program,
             slot.return_type,
@@ -321,7 +304,8 @@ pub(crate) fn nested_structural_call_return_type(
         }
         slot.return_type
     } else if let Some((owner, target)) = targets.next() {
-        if targets.next().is_some()
+        if !call.carries_only_positional_arguments()
+            || targets.next().is_some()
             || !(owner.supplies_checked_body() || owner.has_bodyless_signature())
             || !program.call_has_no_runtime_receiver(call, owner, target)
         {
@@ -329,6 +313,9 @@ pub(crate) fn nested_structural_call_return_type(
         }
         target.return_type
     } else {
+        if !call.carries_only_positional_arguments() {
+            return None;
+        }
         let selected = program.machine_parameter_signature(call.target_symbol);
         let requirement = match selected {
             Some((owner, signature)) if owner.symbol == caller => signature.symbol,

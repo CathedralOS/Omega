@@ -42,6 +42,7 @@ pub(in crate::lowering) fn catalog(
     functions: &BTreeMap<MachineId, &AbstractFunction>,
     boundaries: &[terminal_psi::BoundaryMachineDeclaration],
     types: &StructuralTypeLookup<'_>,
+    dynamic_dispatch: &terminal_psi::TerminalDynamicDispatchCatalog,
     selected_calls: &crate::lowering::selected_boundary_calls::SelectedCallsByCall,
     settlements: &BTreeMap<BoundaryMachineId, target_operations::BoundarySettlementBinding>,
 ) -> StoredEffectCatalog {
@@ -64,6 +65,7 @@ pub(in crate::lowering) fn catalog(
             functions.values().copied(),
             boundaries,
             types.catalog(),
+        dynamic_dispatch,
             |function, node| {
                 if let AbstractOperation::BoundaryCall { psi_operation, boundary, .. } = &node.operation
                     && let Some(selected) = selected_calls.get(&(function.machine, *psi_operation, *boundary))

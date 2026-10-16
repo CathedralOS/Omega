@@ -1219,7 +1219,8 @@ fn resolve_structural_path_type_with_leaf(
     structural_types: &crate::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
     root: StructuralTypeId,
     path: &[StructuralPathSegment],
-    leaf_type: fn(&terminal_psi::StructuralFieldType) -> Option<terminal_psi::StructuralFieldType>,
+    leaf_type: impl Fn(&terminal_psi::StructuralFieldType) -> Option<terminal_psi::StructuralFieldType>
+    + Copy,
 ) -> Result<StructuralTypeId, TerminalInterpretError> {
     // An inline leaf uses the consuming operation's complete contract before
     // consulting standalone storage identities. A plain shared observation
@@ -1232,7 +1233,11 @@ fn resolve_structural_path_type_with_leaf(
         )
     {
         let declaration = if let Some(leaf) = leaf_type(&field.field_type) {
-            leaf.leaf_declaration(structural_types.values())
+            if let Some(identity) = leaf.as_structural() {
+                structural_types.get(&identity)
+            } else {
+                leaf.leaf_declaration(structural_types.values())
+            }
         } else {
             // An owned byte field names its backing independently of inline
             // scalar admission. View descriptors do not name that backing.
@@ -1388,7 +1393,8 @@ pub(crate) fn project_structural_value_with_leaf(
     structural_types: &crate::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
     root: &TerminalStructuralValue,
     path: &[StructuralPathSegment],
-    leaf_type: fn(&terminal_psi::StructuralFieldType) -> Option<terminal_psi::StructuralFieldType>,
+    leaf_type: impl Fn(&terminal_psi::StructuralFieldType) -> Option<terminal_psi::StructuralFieldType>
+    + Copy,
 ) -> Result<TerminalStructuralValue, TerminalInterpretError> {
     let mut value = root.clone();
     value.structural_type = resolve_structural_path_type_with_leaf(

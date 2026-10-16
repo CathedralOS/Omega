@@ -493,8 +493,18 @@ impl StructuralFieldType {
         }
     }
 
-    pub fn leaf_copy_type(&self) -> Option<Self> {
-        self.leaf_copy_shape().and_then(Self::from_leaf_shape)
+    /// A copy with a checked destination retains that exact declaration when
+    /// it satisfies the field's complete copy contract. Equal-shaped catalog
+    /// entries must not select an identity for an already typed operation.
+    pub fn leaf_copy_type(&self, expected: Option<&StructuralTypeDeclaration>) -> Option<Self> {
+        let contract = self.leaf_copy_shape().and_then(Self::from_leaf_shape)?;
+        if let Some(expected) = expected
+            && contract.declares_leaf(expected)
+        {
+            Some(Self::Structural(expected.id))
+        } else {
+            Some(contract)
+        }
     }
 
     fn from_leaf_shape(shape: StructuralTypeShape) -> Option<Self> {
@@ -561,14 +571,11 @@ impl StructuralFieldType {
             Some(carrier @ ByteSequenceCarrier::BoundedOwned { .. }) => {
                 Some(StructuralTypeShape::ByteSequence(carrier))
             }
-            // The copy yields a whole borrowed view TYPE, whose identity
-            // peels the reference shell, so the field's own access does not
-            // travel with it — nor do its byte predicates, which the
-            // consuming operation proves independently.
-            Some(ByteSequenceCarrier::BorrowedView { .. }) => {
-                Some(StructuralTypeShape::ByteSequence(
-                    ByteSequenceCarrier::BorrowedView { access: None },
-                ))
+            // A materialized stored descriptor retains the field's own
+            // backing permission. Its enclosing aggregate's multiplicity is
+            // not an access contract for this leaf.
+            Some(carrier @ ByteSequenceCarrier::BorrowedView { .. }) => {
+                Some(StructuralTypeShape::ByteSequence(carrier))
             }
             _ => self.canonical_leaf_shape(),
         }
@@ -583,9 +590,9 @@ pub enum ByteSequenceCarrier {
     /// does. A record field binds one: independent verification has nothing
     /// else to read a byte store's authority from, and without it a shared and
     /// an exclusive view field are the same carrier after checking. A
-    /// standalone view type binds none -- its identity deliberately peels the
-    /// reference shell, so `&mut [u8]` and `&write [u8]` share one identity and
-    /// could not share one carrier if the access rode inside it.
+    /// canonical call presentation binds none: its identity peels the reference
+    /// shell and the formal carries access separately. A stored standalone
+    /// descriptor retains its shell and access just as a record field does.
     BorrowedView {
         access: Option<crate::terminal_module::ownership::StructuralAccess>,
     },

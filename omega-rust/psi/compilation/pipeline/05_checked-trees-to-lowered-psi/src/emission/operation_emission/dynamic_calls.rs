@@ -155,3 +155,111 @@ pub(crate) fn emit_dynamic_call_leaf(
         },
     });
 }
+
+/// Emit one completed invocation, including finite-family row selection. Every
+/// caller supplies already evaluated operands and its surrounding block span;
+/// result shape does not select another dispatch pipeline. A structural family
+/// result receives fresh leaf homes and rejoins the authored result at the merge.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn emit_completed_dynamic_call(
+    interface_identity: &typed_trees::type_identity::TypeIdentityId,
+    requirement_identity: &typed_trees::type_identity::CallableIdentityId,
+    operands: &[ValueDeclaration],
+    family_actuals: &[ValueDeclaration],
+    structural_arguments: Vec<terminal_psi::StructuralArgument>,
+    claim_transfers: Vec<terminal_psi::ClaimTransfer>,
+    result: &OperationResult,
+    operation: OperationId,
+    span: &mut crate::unit::attached_unit::argument_evaluation::BlockEmissionSpan,
+    blocks: &mut Vec<terminal_psi::Block>,
+    next_value: &mut u64,
+    next_block: &mut u64,
+    next_edge: &mut u64,
+    operations: &mut OperationBuffer,
+    mut structural_result_place: impl FnMut(
+        usize,
+    ) -> Result<semantic_vocabulary::PlaceId, LoweringError>,
+) -> Result<bool, LoweringError> {
+    let (selector, arguments) = operands.split_first().ok_or(LoweringError::Unsupported(
+        "selector call has no evaluated selector operand",
+    ))?;
+    let (interface, slot) = operations
+        .dynamic_dispatch
+        .resolve_slot(interface_identity, requirement_identity)?;
+    let arguments = arguments.iter().map(|value| value.id).collect::<Vec<_>>();
+    let actuals = family_actuals
+        .iter()
+        .map(|value| value.id)
+        .collect::<Vec<_>>();
+    if family_actuals.is_empty() {
+        emit_dynamic_call_leaf(
+            selector.id,
+            interface,
+            slot,
+            arguments,
+            actuals,
+            structural_arguments,
+            claim_transfers,
+            result.clone(),
+            operation,
+            operations,
+        );
+        return Ok(false);
+    }
+    let roster =
+        operations
+            .dynamic_dispatch
+            .family_roster(interface, slot, requirement_identity)?;
+    let actual_types = family_actuals
+        .iter()
+        .map(|value| value.scalar_type)
+        .collect::<Vec<_>>();
+    let mut first_leaf = Some(operation);
+    crate::unit::attached_unit::argument_evaluation::emit_dynamic_family_dispatch(
+        span,
+        blocks,
+        operations,
+        next_value,
+        next_block,
+        next_edge,
+        &roster,
+        &actuals,
+        &actual_types,
+        result,
+        |operations, next_value, tuple| {
+            let produced = match result {
+                OperationResult::Unit => OperationResult::Unit,
+                OperationResult::Scalar(value) => OperationResult::Scalar(ValueDeclaration {
+                    id: value_id(crate::terminal_identities::allocate_dense(next_value)?),
+                    ..*value
+                }),
+                OperationResult::Structural(value) => {
+                    let mut value = value.clone();
+                    value.place = structural_result_place(tuple)?;
+                    OperationResult::Structural(value)
+                }
+            };
+            let operation = first_leaf.take().unwrap_or_else(|| operations.allocate());
+            let slot = slot
+                .checked_add(
+                    u32::try_from(tuple)
+                        .map_err(|_| LoweringError::Unsupported("dynamic family slot overflows"))?,
+                )
+                .ok_or(LoweringError::Unsupported("dynamic family slot overflows"))?;
+            emit_dynamic_call_leaf(
+                selector.id,
+                interface,
+                slot,
+                arguments.clone(),
+                actuals.clone(),
+                structural_arguments.clone(),
+                claim_transfers.clone(),
+                produced.clone(),
+                operation,
+                operations,
+            );
+            Ok(produced)
+        },
+    )?;
+    Ok(true)
+}

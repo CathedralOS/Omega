@@ -169,6 +169,40 @@ impl Storage {
                         .ok_or(LoweringError::Unsupported(
                             "structural operand preparation has no result binding",
                         ))?;
+                if let Some(planned) = operation.call()
+                    && let checked_trees::CheckedUnitCallRoute::Dynamic {
+                        interface_identity,
+                        family_operands,
+                        ..
+                    } = planned.route()
+                    && !family_operands.is_empty()
+                    && !self
+                        .family_results
+                        .iter()
+                        .any(|(ordinal, _)| *ordinal == result.binding_ordinal)
+                {
+                    let slot = checked
+                        .facts
+                        .flow
+                        .terminal_unit_effects
+                        .dynamic_slots
+                        .iter()
+                        .find(|slot| slot.slot == planned.target.machine)
+                        .ok_or(LoweringError::Unsupported(
+                            "dynamic family has no checked slot",
+                        ))?;
+                    let dispatch =
+                        crate::unit::dynamic_dispatch::DynamicDispatchIndex::new(checked);
+                    let (interface, position) =
+                        dispatch.resolve_slot(interface_identity, &slot.requirement_identity)?;
+                    let roster =
+                        dispatch.family_roster(interface, position, &slot.requirement_identity)?;
+                    let places = roster
+                        .iter()
+                        .map(|_| allocate_dense(next_place).map(place_id))
+                        .collect::<Result<Vec<_>, _>>()?;
+                    self.family_results.push((result.binding_ordinal, places));
+                }
                 let place = if index == call.operands().iter().count() {
                     self.producer_place(call.value)?
                 } else if let CheckedUnitEffectOperationPlan::EstablishLocal(
@@ -389,12 +423,9 @@ impl Preparation<'_> {
                         .ok_or(LoweringError::Unsupported(
                             "argument schedule lost its call",
                         ))?;
-                    let argument =
-                        call.scalar_arguments
-                            .get(ordinal)
-                            .ok_or(LoweringError::Unsupported(
-                                "argument schedule lost its scalar actual",
-                            ))?;
+                    let argument = call.scalar_operands().get(ordinal).copied().ok_or(
+                        LoweringError::Unsupported("argument schedule lost its scalar actual"),
+                    )?;
                     if positions[operation].len() != ordinal {
                         return unsupported("argument schedule reordered scalar operands");
                     }
@@ -435,7 +466,7 @@ impl Preparation<'_> {
                     let binding = call.structural_result().ok_or(LoweringError::Unsupported(
                         "structural operand call lost its result",
                     ))?;
-                    if positions[operation].len() != call.scalar_arguments.len() {
+                    if positions[operation].len() != call.scalar_operands().len() {
                         return unsupported("structural call has incomplete scalar preparation");
                     }
                     let result = self.result(identities, binding)?;
@@ -457,6 +488,12 @@ impl Preparation<'_> {
                         Some(result.clone()),
                         &results,
                         &structural_arguments[operation],
+                        self.reserved
+                            .family_results
+                            .iter()
+                            .find(|(ordinal, _)| *ordinal == binding.binding_ordinal)
+                            .map(|(_, places)| places.as_slice())
+                            .unwrap_or(&[]),
                     )?;
                     // Paths consume the snapshots at their authored schedule
                     // positions; later arguments cannot make them read storage again.

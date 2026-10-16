@@ -27,7 +27,8 @@ impl Builder<'_, '_> {
     ) -> Option<CheckedScalarComputationHandle> {
         let program = self.program;
         let slot = program.dynamic_slot_by_symbol(call.target_symbol)?;
-        if !call.carries_only_positional_arguments()
+        if !call.evidence_arguments.is_empty()
+            || !call.selects_only_nominal_route()
             || program.primitive_type_reference(slot.return_type)? != expected_type
         {
             return None;
@@ -37,6 +38,27 @@ impl Builder<'_, '_> {
             return None;
         }
         let (source_call, call_ordinal) = self.call_ordinal(expression, call.target_symbol)?;
+        let arity = match program.finite_signature_family(requirement) {
+            typed_trees::finite_family::FamilyProbe::Finite { arity, .. } => arity,
+            _ if call.machine_arguments.is_empty() => 0,
+            _ => return None,
+        };
+        if call.machine_arguments.len() != arity {
+            return None;
+        }
+        // The shared operand planner owns family argument typing. A computed
+        // call must retain every exact occurrence row before it can execute;
+        // absent metadata cannot turn a family call into a nongeneric call.
+        for family_ordinal in 0..arity {
+            self.pure.bound_expression_at(
+                self.state,
+                u32::try_from(self.statement_index).ok()?,
+                checked_trees::CheckedScalarExpressionRole::DynamicFamilyArgument {
+                    call_ordinal,
+                    family_ordinal: u32::try_from(family_ordinal).ok()?,
+                },
+            )?;
+        }
         let arguments = program.expression_table.expression_handles(call.arguments);
         let (&selector_argument, data_arguments) = arguments.split_first()?;
         let selector = self.expression(selector_argument, PrimitiveType::Selector)?;

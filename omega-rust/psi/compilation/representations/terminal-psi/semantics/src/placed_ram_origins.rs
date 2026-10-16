@@ -276,7 +276,7 @@ impl<'a> PlacedRamOriginAnalysis<'a> {
                             caller
                                 .calls
                                 .iter()
-                                .filter(move |(_, call)| call.callee == machine)
+                                .filter(move |(_, call)| call.callee() == Some(machine))
                                 .map(move |(position, call)| {
                                     (
                                         caller.id,

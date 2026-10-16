@@ -1356,16 +1356,24 @@ impl Emission<'_, '_, '_> {
         // Retain that exact home and custody instead of choosing a leaf or
         // reconstructing the producer from the receiving local.
         let node = structural_values(self.checked).nodes.get(call.value);
+        let result =
+            call.operation()
+                .structural_result_binding()
+                .ok_or(LoweringError::Unsupported(
+                    "structural operand call lost its checked result",
+                ))?;
         let binding = self
             .operations
             .structural_values
             .iter()
-            .rev()
-            .find(|(_, binding)| binding.place() == completed.id)
+            .find(|(ordinal, _)| *ordinal == result.binding_ordinal)
             .map(|(_, binding)| binding)
             .ok_or(LoweringError::Unsupported(
                 "structural operand call has no completed binding",
             ))?;
+        if binding.place() != completed.id || !binding.path().is_empty() {
+            return unsupported("structural operand call completion names different storage");
+        }
         let result = completed_storage::completed_result(
             completed.id,
             &completed,
@@ -2334,11 +2342,19 @@ impl Emission<'_, '_, '_> {
         // Ordinary records and bytes retain the same occurrence-relative
         // source roster. Receiving annotations never manufacture membership.
         let source_contract = self.completed_memberships(argument.place);
-        let (mut qualifications, projected_qualifications) = source_contract
+        let (mut qualifications, mut projected_qualifications) = source_contract
             .map(|(whole, projected)| {
                 terminal_psi::StructuralPathQualification::select(whole, projected, &path)
             })
             .unwrap_or_default();
+        terminal_semantics::present_structural_memberships(
+            self.structural_types,
+            self.domain_declarations,
+            self.structural_type,
+            &mut qualifications,
+            &mut projected_qualifications,
+        )
+        .map_err(LoweringError::Unsupported)?;
         // The checker proved these exact memberships at this operand's
         // evaluation point, before a later constructor child may mutate the
         // source home. This is decision transport, not a second proof replay.

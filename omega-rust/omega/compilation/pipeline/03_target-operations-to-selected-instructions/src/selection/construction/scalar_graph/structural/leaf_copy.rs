@@ -65,6 +65,7 @@ pub(super) fn copy(
                 crate::structural_inputs::structural_reference_input::leaf_copy_geometry(
                     root,
                     path,
+                    result.structural_type,
                     &signature.structural_types,
                 )
                 .filter(|geometry| geometry.readable)

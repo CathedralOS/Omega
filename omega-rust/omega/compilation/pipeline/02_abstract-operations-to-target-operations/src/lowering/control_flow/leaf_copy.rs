@@ -104,6 +104,7 @@ pub(super) fn copy_extent(
             crate::lowering::structural_layout::runtime_leaf_copy_projection(
                 root_type,
                 path,
+                result.structural_type,
                 types,
                 &mut BTreeMap::new(),
                 &mut BTreeSet::new(),

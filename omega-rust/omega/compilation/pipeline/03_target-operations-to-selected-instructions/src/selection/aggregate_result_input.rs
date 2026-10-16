@@ -973,9 +973,16 @@ pub(super) fn block_parameter_transport(
             crate::structural_inputs::structural_reference_input::leaf_copy_projection(
                 root,
                 &argument.path,
+                parameter.structural_type,
                 declarations,
             )?;
-        if selected != parameter.structural_type {
+        if selected != parameter.structural_type
+            && terminal_semantics::borrowed_referent_presentation(
+                declarations.iter(),
+                selected,
+                parameter.structural_type,
+            ) != Some(terminal_semantics::BorrowedReferentPresentation::Unchanged)
+        {
             return None;
         }
         let root_shape = crate::structural_inputs::structural_reference_input::stored_value_shape(

@@ -115,6 +115,7 @@ pub(super) fn index_and_validate_unit_catalogs<'unit>(
     let call_accesses = crate::current_ownership::CallAccesses::new(
         &machines,
         boundary_machines.values().copied(),
+        &unit.dynamic_dispatch,
         &structural_types,
     );
     let mut descriptor_requirements = BTreeMap::new();

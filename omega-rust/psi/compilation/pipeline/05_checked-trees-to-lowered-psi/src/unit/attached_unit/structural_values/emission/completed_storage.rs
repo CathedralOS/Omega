@@ -23,12 +23,20 @@ impl Emission<'_, '_, '_> {
             .ok_or(LoweringError::Unsupported(
             "owned transport has no source membership declaration",
         ))?;
-        let (qualifications, projected_qualifications) =
+        let (mut qualifications, mut projected_qualifications) =
             terminal_psi::StructuralPathQualification::select(
                 qualifications,
                 projected_qualifications,
                 &source.path,
             );
+        terminal_semantics::present_structural_memberships(
+            self.structural_types,
+            self.domain_declarations,
+            structural_type,
+            &mut qualifications,
+            &mut projected_qualifications,
+        )
+        .map_err(LoweringError::Unsupported)?;
         Ok(StructuralParameterDeclaration {
             place,
             position,

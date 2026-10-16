@@ -37,6 +37,7 @@ pub(crate) fn validate_compatibility(
         unit.functions.iter(),
         &unit.boundary_machines,
         &unit.structural_types,
+        &unit.dynamic_dispatch,
         |_, node| Some(std::borrow::Cow::Borrowed(&node.operation)),
     )
     .ok_or_else(|| {

@@ -88,6 +88,7 @@ pub(crate) fn resolve_leaf_copy_path(
     types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
     structural_type: StructuralTypeId,
     path: &[terminal_psi::StructuralPathSegment],
+    expected: StructuralTypeId,
 ) -> Option<StructuralTypeId> {
     // Case copies carry their own active-payload evidence in StructuralCopyPath.
     // General endpoint geometry must not admit them as Ordinary copies.
@@ -97,12 +98,13 @@ pub(crate) fn resolve_leaf_copy_path(
     {
         return None;
     }
+    let expected = types.get(&expected).copied()?;
     resolve_path(
         types.values().copied(),
         |identity| types.get(&identity).copied(),
         structural_type,
         path,
-        terminal_psi::StructuralFieldType::leaf_copy_type,
+        |field| field.leaf_copy_type(Some(expected)),
     )
 }
 
@@ -142,7 +144,7 @@ fn resolve_path<'types>(
     declaration: impl Fn(StructuralTypeId) -> Option<&'types terminal_psi::StructuralTypeDeclaration>,
     mut structural_type: StructuralTypeId,
     path: &[terminal_psi::StructuralPathSegment],
-    field_type: fn(&terminal_psi::StructuralFieldType) -> Option<terminal_psi::StructuralFieldType>,
+    field_type: impl Fn(&terminal_psi::StructuralFieldType) -> Option<terminal_psi::StructuralFieldType>,
 ) -> Option<StructuralTypeId> {
     declaration(structural_type)?;
     let mut payload_fields = None;

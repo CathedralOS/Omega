@@ -58,7 +58,13 @@ impl BorrowedRegions {
         types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
         call_accesses: &crate::current_ownership::CallAccesses,
     ) -> Self {
-        let mut result = Self::origins(function, functions, call_accesses.boundaries(), types);
+        let mut result = Self::origins(
+            function,
+            functions,
+            call_accesses.boundaries(),
+            call_accesses.dynamic_dispatch,
+            types,
+        );
         let mut writes = BTreeMap::new();
         for block in &function.blocks {
             for (index, node) in block.nodes.iter().enumerate() {
@@ -103,6 +109,7 @@ impl BorrowedRegions {
         function: &PsiOptimizationFunction,
         functions: &BTreeMap<MachineId, &PsiOptimizationFunction>,
         boundaries: &[&terminal_psi::BoundaryMachineDeclaration],
+        dynamic_dispatch: &terminal_psi::TerminalDynamicDispatchCatalog,
         types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     ) -> Self {
         // Origin and cohort queries share one disposable current-body replay.
@@ -116,6 +123,7 @@ impl BorrowedRegions {
             catalog,
             boundaries.iter().copied(),
             &declarations,
+            dynamic_dispatch,
             |_, node| Some(std::borrow::Cow::Borrowed(&node.operation)),
         );
         let mut reference_sources = BorrowedReferenceSources::new();

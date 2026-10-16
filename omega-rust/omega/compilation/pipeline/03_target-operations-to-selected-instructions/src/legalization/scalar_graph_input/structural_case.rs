@@ -299,6 +299,7 @@ pub(in crate::legalization) fn leaf_copy_layout(
                 crate::structural_inputs::structural_reference_input::leaf_copy_geometry(
                     identity,
                     path,
+                    result.structural_type,
                     &plan.structural_types,
                 )
                 .filter(|geometry| geometry.readable)

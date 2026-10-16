@@ -61,25 +61,62 @@ impl<'a> UnitPlans<'a> {
         &self.checked.boundary_machines
     }
 
-    /// Operand preparation consumes a callable's signature, not its body.
-    /// Dispatch remains the checked call's decision; a boundary must never
-    /// fall through to a module body or acquire a selected provider here.
-    pub(crate) fn call_entry(
+    /// Operand preparation consumes the published callable, not a selected
+    /// implementation body. Static report/reach identities and public dynamic
+    /// slot identities authenticate their respective signatures here.
+    pub(crate) fn call_parameters(
         self,
         call: &checked_trees::CheckedUnitCallPlan,
-    ) -> Result<UnitEntry<'a>, LoweringError> {
-        match call.route() {
+    ) -> Result<CallParameters<'a>, LoweringError> {
+        let entry = match call.route() {
             checked_trees::CheckedUnitCallRoute::Module { .. } => {
-                UnitBody::find(self, call.target.machine)?.entry()
+                UnitBody::find(self, call.target.machine)?.entry()?
             }
-            checked_trees::CheckedUnitCallRoute::Boundary => Ok(
+            checked_trees::CheckedUnitCallRoute::Boundary => {
                 super::call_closure::unique_unit_boundary(self, call.target.machine)?
-                    .callable_entry(),
-            ),
-            checked_trees::CheckedUnitCallRoute::Dynamic { .. } => {
-                unsupported("structural expression calls require selector dispatch lowering")
+                    .callable_entry()
             }
+            checked_trees::CheckedUnitCallRoute::Dynamic {
+                interface_identity,
+                requirement,
+                ..
+            } => {
+                let slot = self
+                    .checked
+                    .dynamic_slots
+                    .iter()
+                    .find(|slot| slot.slot == call.target.machine)
+                    .ok_or(LoweringError::Unsupported(
+                        "selector call has no published slot",
+                    ))?;
+                if call.target.state != slot.slot
+                    || call.target.contract_report_fingerprint != 0
+                    || slot.interface_identity != *interface_identity
+                    || slot.requirement != *requirement
+                {
+                    return unsupported("selector call disagrees with its published slot");
+                }
+                // No single implementation report describes a dynamic call.
+                // Checking owns its envelope; the public slot owns the ABI.
+                return Ok(CallParameters {
+                    structural: &slot.structural_parameters,
+                    scalar: &slot.scalar_parameters,
+                });
+            }
+        };
+        if entry.state != call.target.state
+            || entry.contract_report_fingerprint != call.target.contract_report_fingerprint
+            || !super::catalog::checked_unit_target_reach_matches(
+                call.target.service_reach,
+                entry.contract_service_reach,
+            )
+        {
+            return unsupported("expression call disagrees with its published contract");
         }
+        Ok(CallParameters {
+            structural: entry.structural_parameters,
+            scalar: entry.scalar_parameters,
+        })
     }
 
     pub(crate) fn structural_domains(self) -> &'a [checked_trees::CheckedUnitStructuralDomainPlan] {
@@ -91,6 +128,12 @@ impl<'a> UnitPlans<'a> {
     ) -> impl Iterator<Item = &'a checked_trees::CheckedUnitStructuralTypePlan> {
         self.checked.structural_types.iter()
     }
+}
+
+/// Borrowed runtime parameter lanes after authenticating the callable identity.
+pub(crate) struct CallParameters<'a> {
+    pub(crate) structural: &'a [checked_trees::CheckedUnitStructuralParameterPlan],
+    pub(crate) scalar: &'a [checked_trees::CheckedStructuralScalarParameterPlan],
 }
 
 #[derive(Clone, Copy)]

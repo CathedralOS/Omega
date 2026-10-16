@@ -5,7 +5,7 @@ use std::sync::Arc;
 pub(super) enum Origin {
     Backing(DescriptorCallOrigin),
     Incoming(DescriptorLocation),
-    IncomingContents(DescriptorContentsQuery),
+    IncomingContents(DescriptorContentsQuery, Projection),
     Storage(DescriptorLocation),
 }
 pub(super) type Value = Option<BTreeSet<Origin>>;
@@ -26,13 +26,8 @@ pub(super) struct State {
 pub(super) type States = BTreeMap<DescriptorPosition, State>;
 
 #[derive(Clone)]
-pub(super) struct ResultSlot {
-    pub(super) path: Vec<DescriptorPathSegment>,
-    pub(super) origins: Vec<DescriptorStoredOrigin>,
-}
-#[derive(Clone)]
 pub(super) struct Summary {
-    pub(super) result: Option<Vec<ResultSlot>>,
+    pub(super) result: Option<Vec<DescriptorResultSlot>>,
     pub(super) effects: Vec<DescriptorStoredEffect>,
     pub(super) invalidates_contents: bool,
 }
@@ -371,6 +366,9 @@ impl<'a> Replay<'a> {
         let Some(projection) = projection else {
             return value;
         };
+        if *projection == Projection::new(&[]) {
+            return value;
+        }
         value?
             .into_iter()
             .map(|origin| match origin {
@@ -398,7 +396,13 @@ impl<'a> Replay<'a> {
                 ) => Some(literal),
                 // Incoming descriptor extents may be narrowed, but its storage
                 // identity remains the same until substituted in the caller.
-                incoming @ (Origin::Incoming(_) | Origin::IncomingContents(_)) => Some(incoming),
+                Origin::Incoming(location) => Some(Origin::IncomingContents(
+                    DescriptorContentsQuery::from_location(&location),
+                    projection.clone(),
+                )),
+                Origin::IncomingContents(query, prefix) => {
+                    Some(Origin::IncomingContents(query, prefix.then(projection)))
+                }
             })
             .collect()
     }
@@ -570,7 +574,7 @@ impl<'a> Replay<'a> {
             if let Some(call) = machine.calls.get(&position)
                 && call.argument_contents.iter().all(Option::is_some)
             {
-                let summary = self.summary(call.callee, depth + 1)?;
+                let summary = self.invocation_summary(call, depth + 1)?;
                 after.contents_invalidated |= summary.invalidates_contents;
                 let mut replacements = BTreeMap::new();
                 let mut destinations = Vec::new();
@@ -620,7 +624,7 @@ impl<'a> Replay<'a> {
                         )?;
                         let mut origins = BTreeSet::new();
                         for origin in &slot.origins {
-                            origins.extend(self.substitute(machine, &before, call, origin)?);
+                            origins.extend(self.substitute_result(machine, &before, call, origin)?);
                         }
                         replacements
                             .insert(DescriptorPayloadTarget::Storage(destination), Some(origins));
@@ -663,6 +667,65 @@ impl<'a> Replay<'a> {
         }
         self.snapshots.get(&identity)?.as_ref().map(|_| ())
     }
+    pub(super) fn invocation_summary(
+        &mut self,
+        call: &DescriptorInvocation,
+        depth: usize,
+    ) -> Option<Summary> {
+        match &call.target {
+            DescriptorInvocationTarget::Machine(machine) => self.summary(*machine, depth),
+            DescriptorInvocationTarget::Public {
+                results,
+                invalidates_contents,
+                ..
+            } => Some(Summary {
+                result: Some(results.clone()),
+                effects: Vec::new(),
+                invalidates_contents: *invalidates_contents,
+            }),
+        }
+    }
+
+    pub(super) fn cached_invocation_summary(&self, call: &DescriptorInvocation) -> Option<Summary> {
+        match &call.target {
+            DescriptorInvocationTarget::Machine(machine) => self.summaries.get(machine)?.clone(),
+            DescriptorInvocationTarget::Public {
+                results,
+                invalidates_contents,
+                ..
+            } => Some(Summary {
+                result: Some(results.clone()),
+                effects: Vec::new(),
+                invalidates_contents: *invalidates_contents,
+            }),
+        }
+    }
+
+    pub(super) fn substitute_result(
+        &self,
+        machine: &DescriptorMachine,
+        state: &State,
+        call: &DescriptorInvocation,
+        origin: &DescriptorStoredOrigin,
+    ) -> Value {
+        let value = self.substitute(machine, state, call, origin);
+        if matches!(
+            call.target,
+            DescriptorInvocationTarget::Public {
+                extent: semantic_vocabulary::ReferenceOriginExtent::WithinRegion,
+                ..
+            }
+        ) {
+            // A requirement promises a subregion, not its private offset. Keep
+            // the captured input backing while refusing exact-address reuse.
+            let mut region = Projection::new(&[]);
+            region.forget_address();
+            self.project(machine, value, Some(&region))
+        } else {
+            value
+        }
+    }
+
     pub(super) fn actual_slot(
         &self,
         call: &DescriptorInvocation,
@@ -724,10 +787,18 @@ impl<'a> Replay<'a> {
                     .extend(path.iter().cloned().map(DescriptorContentsStep::Address));
                 self.read_contents(machine, state, &query)
             }
-            DescriptorStoredOrigin::IncomingContents { position, steps } => {
+            DescriptorStoredOrigin::IncomingContents {
+                position,
+                steps,
+                projection,
+            } => {
                 let mut query = call.argument_contents.get(*position)?.as_ref()?.clone();
                 query.steps.extend_from_slice(steps);
-                self.read_contents(machine, state, &query)
+                self.project(
+                    machine,
+                    self.read_contents(machine, state, &query),
+                    Some(projection),
+                )
             }
         }
     }
@@ -760,12 +831,13 @@ impl<'a> Replay<'a> {
                     path: location.path.clone(),
                 })
             }
-            Origin::IncomingContents(query) => {
+            Origin::IncomingContents(query, projection) => {
                 let (position, _, root_type) = self.parameter(machine, query.root)?;
                 query.validate(self.types, root_type)?;
                 Some(DescriptorStoredOrigin::IncomingContents {
                     position,
                     steps: query.steps.clone(),
+                    projection: projection.clone(),
                 })
             }
             Origin::Backing(DescriptorCallOrigin::Literal { machine, place }) => {
@@ -800,7 +872,7 @@ impl<'a> Replay<'a> {
         // slots export backing, under the same case/field paths as construction
         // and copying. Missing live-slot contents are unknown, never empty.
         let result = if let Some(returns) = &machine.returns {
-            let mut slots: Option<Vec<ResultSlot>> = None;
+            let mut slots: Option<Vec<DescriptorResultSlot>> = None;
             let mut result_type = None;
             for (position, location) in returns {
                 if !location.path.is_empty() {
@@ -811,13 +883,13 @@ impl<'a> Replay<'a> {
                     return None;
                 }
                 result_type = Some(structural_type);
-                let returned = self
-                    .slot_kind
-                    .slots(self.types, location.root, structural_type)?;
+                let returned =
+                    self.slot_kind
+                        .owned_slots(self.types, location.root, structural_type)?;
                 let accumulated = slots.get_or_insert_with(|| {
                     returned
                         .iter()
-                        .map(|slot| ResultSlot {
+                        .map(|slot| DescriptorResultSlot {
                             path: slot.path.clone(),
                             origins: Vec::new(),
                         })
@@ -951,8 +1023,20 @@ impl<'a> Replay<'a> {
                     self.storage_projection(machine, &location)?,
                 )),
                 Origin::Incoming(location) => Some(DescriptorSourceOrigin::IncomingSlot(location)),
-                Origin::IncomingContents(query) => {
-                    Some(DescriptorSourceOrigin::IncomingContents(query))
+                Origin::IncomingContents(query, projection) => {
+                    if projection == Projection::new(&[]) {
+                        Some(DescriptorSourceOrigin::IncomingContents(query))
+                    } else {
+                        let root_type = *machine.place_types.get(&query.root)?;
+                        Some(DescriptorSourceOrigin::Backing(
+                            DescriptorCallOrigin::Argument {
+                                source: query.root,
+                                projection: query
+                                    .conservative_projection(self.types, root_type)?
+                                    .then(&projection),
+                            },
+                        ))
+                    }
                 }
             })
             .collect()
@@ -1092,7 +1176,10 @@ impl State {
     }
 
     pub(super) fn incoming_contents(&self, query: &DescriptorContentsQuery) -> Value {
-        let mut origins = BTreeSet::from([Origin::IncomingContents(query.clone())]);
+        let mut origins = BTreeSet::from([Origin::IncomingContents(
+            query.clone(),
+            Projection::new(&[]),
+        )]);
         for (written, value) in self.contents.iter() {
             if written.root != query.root {
                 continue;

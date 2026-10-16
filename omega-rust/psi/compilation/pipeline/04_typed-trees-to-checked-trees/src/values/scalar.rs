@@ -43,9 +43,7 @@ pub(crate) use subslice_endpoints::subslice_endpoints;
 
 pub(crate) use boolean_lowering::evaluate_closed_boolean_expression;
 pub(crate) use call_arguments::is_scalar_return_call;
-pub(crate) use call_arguments::{
-    nested_structural_call_return_type, retain_nested_structural_call_arguments,
-};
+pub(crate) use call_arguments::{nested_structural_call_return_type, retain_nested_call_arguments};
 pub(crate) use contract_entry::{
     lower_entry_predicate, lower_entry_scalar, lower_machine_entry_boolean_expression,
     lower_machine_entry_crash_contract_expression, lower_operator_crash_contract_expression,

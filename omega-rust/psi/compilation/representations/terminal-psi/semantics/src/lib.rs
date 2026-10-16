@@ -61,22 +61,25 @@ pub use reference_completion::{
     validate_reference_result_completion,
 };
 pub use reference_origins::{
-    ReferenceCallContract, ReferenceCallResult, ReferenceCallSource, ReferenceLeaf,
-    ReferenceOriginBinding, bind_reference_call_results, bind_reference_origin,
-    captured_reference_origin_type, collection_element_type, reference_leaves,
-    reference_origin_is_covered, reference_origin_paths_may_overlap, reference_origin_type,
-    reference_result_refines_regions, validate_dynamic_reference_regions,
+    BorrowedResultLeaf, BorrowedResultLeafKind, ReferenceCallContract, ReferenceCallResult,
+    ReferenceCallSource, ReferenceLeaf, ReferenceOriginBinding, bind_reference_call_results,
+    bind_reference_origin, borrowed_result_leaves, captured_reference_origin_type,
+    collection_element_type, reference_leaves, reference_origin_is_covered,
+    reference_origin_paths_may_overlap, reference_origin_type, reference_result_refines_regions,
+    validate_descriptor_result_regions, validate_dynamic_reference_regions,
 };
 pub use reference_storage_geometry::{
     ReferenceStorageProjection, ReferenceStorageRegion, reference_storage_layout,
     reference_storage_projection, reference_storage_region, reference_storage_size,
 };
+mod membership_presentations;
 mod scalar_array;
 mod scalar_field_requirements;
 mod scalar_leaf_schema;
 mod scalar_leaf_semantics;
 pub mod scalar_ordering;
 mod scalar_representation_view;
+pub use membership_presentations::present_structural_memberships;
 mod selected_memberships;
 pub use selected_memberships::reference_source_memberships;
 mod semantic_rows;
@@ -155,8 +158,8 @@ pub use record_field::{
     static_field_projection,
 };
 pub use reference_views::{
-    descriptor_source_projection_accessible, is_shared_reference_carrier,
-    reference_byte_field_compatible, reference_source_compatible,
+    descriptor_reborrow_matches, descriptor_source_projection_accessible,
+    is_shared_reference_carrier, reference_byte_field_compatible, reference_source_compatible,
     reference_source_projection_accessible, reference_source_projection_compatible,
     reference_source_storage_path, reference_storage_byte_width,
     reference_storage_export_byte_width, reference_storage_source_compatible,

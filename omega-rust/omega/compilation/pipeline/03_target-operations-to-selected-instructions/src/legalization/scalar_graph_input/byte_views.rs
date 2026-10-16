@@ -410,6 +410,7 @@ pub(in crate::legalization) fn call_descriptor_origins(
         unit.functions.iter(),
         &unit.boundary_machines,
         &unit.structural_types,
+        &unit.dynamic_dispatch,
         |function, node| {
             super::call_origin::selected_boundary_operation(node, function, native, plan)
                 .ok()

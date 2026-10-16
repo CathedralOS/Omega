@@ -150,7 +150,10 @@ impl Replay<'_> {
                 return self.contents_targets_at(machine, state, &location, &steps, depth + 1);
             }
             Origin::Incoming(location) => Some(DescriptorContentsQuery::from_location(&location)),
-            Origin::IncomingContents(query) => Some(query),
+            Origin::IncomingContents(query, projection) if projection == Projection::new(&[]) => {
+                Some(query)
+            }
+            Origin::IncomingContents(..) => return None,
             Origin::Backing(DescriptorCallOrigin::Argument { source, projection }) => {
                 if projection.indirect {
                     return None;

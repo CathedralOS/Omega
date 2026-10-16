@@ -69,6 +69,7 @@ pub(crate) fn validate_structural_root_operations(
                     unit.functions.iter(),
                     &unit.boundary_machines,
                     &unit.structural_types,
+                    &unit.dynamic_dispatch,
                 )
         }
     };
@@ -971,7 +972,7 @@ pub(crate) fn validate_structural_root_operations(
                                     // record out of a `u8` element window
                                     // instead of the spelled leaf type.
                                     let expected = result.structural_type;
-                                    let selected = crate::unit_validation::structural_catalog::resolve_leaf_copy_path(structural_types, signature.structural_type, path);
+                                    let selected = crate::unit_validation::structural_catalog::resolve_leaf_copy_path(structural_types, signature.structural_type, path, expected);
                                     selected == Some(expected)
                                         || selected.is_some_and(|selected| terminal_semantics::shared_descriptor_copy_matches(
                                             structural_types.values().copied(), selected,

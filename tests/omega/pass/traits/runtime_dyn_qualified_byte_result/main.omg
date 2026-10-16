@@ -1,0 +1,29 @@
+// Expected exit: 0. Memberships follow the selected descriptor's original bytes.
+pub domain [u8]::Utf8(bytes) requires valid_utf8(bytes);
+trait Payload {
+    machine window<'input>(packet: &'input [u8] in Utf8) -> &'input [u8] in Utf8;
+}
+Direct satisfies Payload {
+    machine window<'input>(packet: &'input [u8] in Utf8) -> &'input [u8] in Utf8 { packet }
+}
+Forwarded satisfies Payload {
+    machine window<'input>(packet: &'input [u8] in Utf8) -> &'input [u8] in Utf8 {
+        let bytes: &'input [u8] in Utf8 = packet;
+        bytes
+    }
+}
+machine observe(bytes: &[u8] in Utf8) -> bool { bytes == "é" }
+machine read(decoder: dyn Payload, packet: &[u8] in Utf8) -> bool {
+    observe(Payload::window(decoder, packet))
+}
+data Main {}
+machine Main::main(main: &mut Main) crashes Trap {
+    let packet: &[u8] in Utf8 = "é";
+    let mut decoder: dyn Payload = Direct as dyn Payload;
+    let first: bool = read(decoder, packet);
+    decoder = Forwarded as dyn Payload;
+    let second: bool = read(decoder, packet);
+    transition first && second { true -> done() false -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}

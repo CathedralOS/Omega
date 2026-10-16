@@ -31,6 +31,7 @@ pub(in crate::lowering) fn borrowed_source_catalog(
     functions: &BTreeMap<semantic_vocabulary::MachineId, &AbstractFunction>,
     boundary_machines: &[terminal_psi::BoundaryMachineDeclaration],
     types: &StructuralTypeLookup<'_>,
+    dynamic_dispatch: &terminal_psi::TerminalDynamicDispatchCatalog,
 ) -> BTreeMap<semantic_vocabulary::MachineId, BorrowedSources> {
     use terminal_semantics::descriptor_lifetimes::{DescriptorLocation, descriptor_path};
     use terminal_semantics::descriptor_results::DescriptorAnalysis;
@@ -58,6 +59,7 @@ pub(in crate::lowering) fn borrowed_source_catalog(
         functions.values().copied(),
         boundary_machines,
         types.catalog(),
+        dynamic_dispatch,
     ) {
         let mut analysis = DescriptorAnalysis::new(types.catalog(), &graph);
         for function in functions.values() {

@@ -725,6 +725,10 @@ fail/borrows/dispatch_boundary_returning_sibling_escape rejected 1501ms expected
 	machine `invalid` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 fail/borrows/duplicate_retained_subject_arguments rejected 1702ms expected @a9ae30e1c334+wt
 	state `take` receives `main` as mutable more than once
+fail/borrows/dynamic_byte_result_retains_first_candidate rejected 779ms expected @8c69b643aa24
+	statement 2 mutates `main.first[0]` while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 3)
+fail/borrows/dynamic_byte_result_retains_second_candidate rejected 731ms expected @8c69b643aa24
+	statement 2 mutates `main.second[0]` while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 3)
 fail/borrows/dynamic_reference_result_holds_input_loan rejected 446ms expected @5e5835ccaddc+wt
 	statement 3 mutates `grid.cursor` while local borrow `selected` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
 	statement 3 mutates `grid.cursor` while local borrow `selected` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
@@ -8818,18 +8822,27 @@ pass/traits/renamed_invocation_contract_binders checked 4765ms @f3014db3f225+wt
 pass/traits/resultless_law_float_equality_exit checked 24646ms check-target:macos_arm64 @9c4d1c444502
 pass/traits/ring_requirement_satisfies_exit checked 5521ms check-target:macos_arm64 @b7248b14be49
 pass/traits/runtime_dyn_array_result_exit checked 10602ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/traits/runtime_dyn_byte_array_result checked 4369ms check-target:macos_arm64 @8c69b643aa24
+pass/traits/runtime_dyn_byte_record_result checked 4394ms check-target:macos_arm64 @8c69b643aa24
+pass/traits/runtime_dyn_byte_result_candidates checked 4503ms check-target:macos_arm64 @8c69b643aa24
+pass/traits/runtime_dyn_byte_subview_join checked 4578ms check-target:macos_arm64 @8c69b643aa24
 pass/traits/runtime_dyn_data_argument_counts_exit checked 11271ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/traits/runtime_dyn_family_nested_result checked 7638ms check-target:macos_arm64 @8c69b643aa24
+pass/traits/runtime_dyn_family_scalar_continuation checked 4394ms check-target:macos_arm64 @8c69b643aa24
 pass/traits/runtime_dyn_guarded_result_exit checked 10652ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/traits/runtime_dyn_joined_selector_exit checked 11574ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/traits/runtime_dyn_linear_result_exit checked 11438ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/traits/runtime_dyn_local_selection_exit checked 11573ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/traits/runtime_dyn_mixed_scalar_borrow_boolean_exit checked 11250ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/traits/runtime_dyn_mutable_byte_result checked 4519ms check-target:macos_arm64 @8c69b643aa24
 pass/traits/runtime_dyn_nested_result_exit checked 10637ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/traits/runtime_dyn_qualified_byte_result checked 4343ms check-target:macos_arm64 @8c69b643aa24
 pass/traits/runtime_dyn_rebound_selector_forwarded_exit checked 11037ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/traits/runtime_dyn_requirement_contract_exit checked 12200ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/traits/runtime_dyn_selector_beside_scalar_field_variants_exit checked 5062ms check-target:macos_arm64 @2ff7be544fd3
 pass/traits/runtime_dyn_selector_beside_u64_field_store_exit checked 5058ms check-target:macos_arm64 @2ff7be544fd3
 pass/traits/runtime_dyn_selector_record_field_exit checked 11577ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/traits/runtime_dyn_stored_byte_input checked 4323ms check-target:macos_arm64 @8c69b643aa24
 pass/traits/runtime_dyn_structural_result_exit checked 10517ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/traits/runtime_dyn_two_impl_dispatch_exit checked 11169ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/traits/runtime_exact_requirement_edge_exit checked 11814ms check-target:macos_arm64 @a9ae30e1c334+wt

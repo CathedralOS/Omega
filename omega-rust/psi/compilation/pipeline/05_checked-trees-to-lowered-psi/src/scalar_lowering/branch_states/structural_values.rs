@@ -55,6 +55,7 @@ pub(crate) struct Storage {
     )>,
     results: Vec<(u32, PlaceId)>,
     ranges: Vec<computations::subslices::Slot>,
+    family_results: Vec<(u32, Vec<PlaceId>)>,
 }
 
 impl Storage {
@@ -71,6 +72,7 @@ impl Storage {
             literals: Vec::new(),
             results: Vec::new(),
             ranges: Vec::new(),
+            family_results: Vec::new(),
         };
         storage.reserve_value(identities, checked, root, types, next_place)?;
         Ok(storage)

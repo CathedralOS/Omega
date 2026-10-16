@@ -36,7 +36,9 @@ mod owned_shape;
 mod replay;
 pub use compatibility::{DescriptorCompatibilityFailure, DescriptorCompatibilityRequirement};
 pub use owned_shape::{owned_shared_byte_descriptor_shape, plain_owned_shape};
+mod invocation;
 mod terminal_flow;
+pub use invocation::{public_invocation, public_result_slots, writable_descriptor_slots};
 pub use replay::{
     DescriptorAnalysis, DescriptorSlotInventory, DescriptorSlotKind, DescriptorStoredCallEffect,
     DescriptorStoredEffect, DescriptorStoredOrigin, descriptor_slot_inventory, descriptor_slots,
@@ -310,7 +312,7 @@ pub fn call_origins_in(
 ) -> Option<Vec<DescriptorCallOrigin>> {
     if !matches!(
         operation.kind,
-        terminal_psi::call_structural_pair_pattern!(..)
+        terminal_psi::call_structural_pair_pattern!(..) | OperationKind::CallDynamic { .. }
     ) {
         return None;
     }
@@ -373,7 +375,7 @@ pub fn descriptor_machine<'graph>(
 }
 
 pub struct DescriptorInvocation {
-    pub callee: MachineId,
+    pub target: DescriptorInvocationTarget,
     /// Every formal position is retained. None means its actual storage
     /// coordinate is unresolved, never that the invocation is absent.
     pub arguments: Vec<Option<DescriptorLocation>>,
@@ -381,6 +383,33 @@ pub struct DescriptorInvocation {
     /// Runtime selections remain typed queries, never exact write addresses.
     pub argument_contents: Vec<Option<DescriptorContentsQuery>>,
     pub result: Option<DescriptorLocation>,
+}
+
+/// A direct body and a public requirement provide distinct invocation contracts.
+/// Public regions bound backing reach, never the selected runtime descriptor.
+pub enum DescriptorInvocationTarget {
+    Machine(MachineId),
+    Public {
+        extent: semantic_vocabulary::ReferenceOriginExtent,
+        results: Vec<DescriptorResultSlot>,
+        invalidates_contents: bool,
+    },
+}
+
+impl DescriptorInvocation {
+    pub fn callee(&self) -> Option<MachineId> {
+        match self.target {
+            DescriptorInvocationTarget::Machine(machine) => Some(machine),
+            DescriptorInvocationTarget::Public { .. } => None,
+        }
+    }
+}
+
+/// One typed returned descriptor slot and its complete possible backing origins.
+#[derive(Clone)]
+pub struct DescriptorResultSlot {
+    pub path: Vec<crate::descriptor_lifetimes::DescriptorPathSegment>,
+    pub origins: Vec<DescriptorStoredOrigin>,
 }
 
 pub struct DescriptorPlace {
@@ -513,7 +542,7 @@ pub fn aggregate_descriptor_slots(
             | terminal_psi::sum_or_mixed_shape_pattern!()
             | StructuralTypeShape::FixedArray { .. }
     ) {
-        descriptor_slots(types, root, structural_type)
+        DescriptorSlotKind::Views.owned_slots(types, root, structural_type)
     } else {
         Some(Vec::new())
     }

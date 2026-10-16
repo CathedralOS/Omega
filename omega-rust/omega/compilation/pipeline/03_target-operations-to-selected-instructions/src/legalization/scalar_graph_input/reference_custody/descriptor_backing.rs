@@ -65,6 +65,7 @@ pub(super) fn prepare(
         &unit.functions,
         &unit.boundary_machines,
         types,
+        &unit.dynamic_dispatch,
         |caller, node| {
             super::super::call_origin::selected_boundary_operation(node, caller, native, plan)
                 .ok()

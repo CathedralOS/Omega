@@ -153,9 +153,13 @@ pub fn current_payload_contract(
                         // conversions. Memberships are carrier-specific: an
                         // incompatible row supplies no evidence for that formal,
                         // but cannot invalidate other payloads on the edge.
-                        if contract.carrier != *machine.place_types.get(&parameter.root)? {
+                        let Some(contract) = contract.presented(
+                            types,
+                            domains,
+                            *machine.place_types.get(&parameter.root)?,
+                        ) else {
                             continue;
-                        }
+                        };
                         bindings.push((parameter.root, contract));
                     }
                 }
@@ -177,9 +181,11 @@ pub fn current_payload_contract(
                         });
                         if let Some(contract) = contract {
                             failure = "selected edge actual and formal payload carriers differ";
-                            if contract.carrier != *machine.place_types.get(&binding.parameter)? {
-                                return None;
-                            }
+                            let contract = contract.presented(
+                                types,
+                                domains,
+                                *machine.place_types.get(&binding.parameter)?,
+                            )?;
                             bindings.push((binding.parameter, contract));
                         }
                     }

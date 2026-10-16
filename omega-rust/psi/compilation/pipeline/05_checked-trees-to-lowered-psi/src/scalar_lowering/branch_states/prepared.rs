@@ -355,6 +355,12 @@ pub(crate) struct LoweredEffectCall {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum EffectCallTarget {
+    Dynamic {
+        interface_identity: typed_trees::type_identity::TypeIdentityId,
+        requirement_identity: typed_trees::type_identity::CallableIdentityId,
+        family_actuals: Vec<LoweredDirectExpression>,
+        family_results: Vec<PlaceId>,
+    },
     Module {
         erased_proof_arguments: Vec<LoweredProofTerm>,
         crash_routes: Vec<checked_trees::CrashRouteBucket>,

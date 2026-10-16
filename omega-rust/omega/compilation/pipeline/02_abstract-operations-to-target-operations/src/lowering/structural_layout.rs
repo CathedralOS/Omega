@@ -1351,6 +1351,7 @@ pub(super) fn runtime_projection(
 pub(super) fn runtime_leaf_copy_projection(
     structural_type: StructuralTypeId,
     path: &[StructuralPathSegment],
+    expected: StructuralTypeId,
     declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
     active: &mut BTreeSet<StructuralTypeId>,
@@ -1358,6 +1359,10 @@ pub(super) fn runtime_leaf_copy_projection(
     // A snapshot follows the same ordered descriptor crossings as other
     // observations. Flatten only the selector roster for operand custody;
     // selection reconstructs each region from the retained path.
+    let expected = declarations
+        .get(&expected)
+        .copied()
+        .ok_or(LoweringError::UnknownStructuralType(expected))?;
     let regions = reference_projection_regions(structural_type, path, declarations)
         .filter(|regions| regions.readable)
         .ok_or(LoweringError::UnsupportedStructuralReference(
@@ -1369,7 +1374,7 @@ pub(super) fn runtime_leaf_copy_projection(
         declarations,
         cache,
         active,
-        StructuralFieldType::leaf_copy_type,
+        |field| field.leaf_copy_type(Some(expected)),
     )?;
     let indices = regions
         .pointer_slots

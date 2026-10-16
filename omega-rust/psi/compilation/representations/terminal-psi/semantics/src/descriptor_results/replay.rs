@@ -49,6 +49,8 @@ pub enum DescriptorStoredOrigin {
     IncomingContents {
         position: usize,
         steps: Vec<DescriptorContentsStep>,
+        /// Projection of the captured contents, never a current slot address.
+        projection: Projection,
     },
     Literal {
         machine: MachineId,
@@ -130,7 +132,11 @@ fn result_origin(
                 projection,
             })
         }
-        DescriptorStoredOrigin::IncomingContents { position, steps } => {
+        DescriptorStoredOrigin::IncomingContents {
+            position,
+            steps,
+            projection,
+        } => {
             let parameter = machine.places.iter().find_map(|row| match row.definition {
                 DescriptorDefinition::Parameter {
                     position: actual,
@@ -145,7 +151,9 @@ fn result_origin(
             };
             Some(DescriptorResultOrigin::Parameter {
                 position,
-                projection: query.conservative_projection(types, parameter.1)?,
+                projection: query
+                    .conservative_projection(types, parameter.1)?
+                    .then(&projection),
             })
         }
     }
@@ -192,7 +200,8 @@ pub(super) fn return_slots_have_external_backing(
 ) -> Option<()> {
     let mut replay = Replay::new(types, machines);
     let machine = replay.machine(identity)?;
-    let slots = descriptor_slots(types, source, *machine.place_types.get(&source)?)?;
+    let slots =
+        DescriptorSlotKind::Views.owned_slots(types, source, *machine.place_types.get(&source)?)?;
     if slots.is_empty() || slots.iter().any(|slot| slot.path.is_empty()) {
         return None;
     }
@@ -221,6 +230,7 @@ pub(super) fn call_origins(
 
 fn may_contain_descriptor(
     kind: DescriptorSlotKind,
+    scope: DescriptorStorageScope,
     types: &[StructuralTypeDeclaration],
     ty: StructuralTypeId,
     active: &mut BTreeSet<StructuralTypeId>,
@@ -234,7 +244,7 @@ fn may_contain_descriptor(
     let mut fields_contain = |fields: &[terminal_psi::StructuralFieldDeclaration]| {
         fields.iter().any(|field| match field.field_type {
             terminal_psi::StructuralFieldType::Structural(ty) => {
-                may_contain_descriptor(kind, types, ty, active)
+                may_contain_descriptor(kind, scope, types, ty, active)
             }
             _ => {
                 kind == DescriptorSlotKind::Views
@@ -242,7 +252,11 @@ fn may_contain_descriptor(
                         .field_type
                         .byte_sequence_carrier()
                         .is_some_and(|carrier| {
-                            matches!(carrier, ByteSequenceCarrier::BorrowedView { .. })
+                            matches!(
+                                carrier,
+                                ByteSequenceCarrier::BorrowedView { .. }
+                                    | ByteSequenceCarrier::BoundedView { .. }
+                            )
                         })
             }
         })
@@ -254,11 +268,12 @@ fn may_contain_descriptor(
         }
         StructuralTypeShape::Sum { cases } => cases.iter().any(|case| fields_contain(&case.fields)),
         StructuralTypeShape::Reference { referent, .. } => {
-            kind == DescriptorSlotKind::References
-                || may_contain_descriptor(kind, types, *referent, active)
+            kind.is_slot(types, ty)
+                || (scope == DescriptorStorageScope::Reachable
+                    && may_contain_descriptor(kind, scope, types, *referent, active))
         }
         StructuralTypeShape::FixedArray { element, .. } => {
-            may_contain_descriptor(kind, types, *element, active)
+            may_contain_descriptor(kind, scope, types, *element, active)
         }
         _ => kind.is_slot(types, ty),
     };
@@ -307,13 +322,41 @@ impl DescriptorSlotKind {
             .is_empty()
             .then_some(inventory.slots)
     }
+    /// Slots contained in the returned value itself. Pointer referents are
+    /// external storage, even when their declarations expose further slots.
+    /// This inventory supplies no access; result contracts validate each leaf's
+    /// occurrence or declared permission independently.
+    pub fn owned_slots(
+        self,
+        types: &[StructuralTypeDeclaration],
+        root: PlaceId,
+        structural_type: StructuralTypeId,
+    ) -> Option<Vec<DescriptorLocation>> {
+        Some(
+            slot_inventory(
+                self,
+                DescriptorStorageScope::Owned,
+                types,
+                root,
+                structural_type,
+            )?
+            .slots,
+        )
+    }
+
     pub fn inventory(
         self,
         types: &[StructuralTypeDeclaration],
         root: PlaceId,
         structural_type: StructuralTypeId,
     ) -> Option<DescriptorSlotInventory> {
-        slot_inventory(self, types, root, structural_type)
+        slot_inventory(
+            self,
+            DescriptorStorageScope::Reachable,
+            types,
+            root,
+            structural_type,
+        )
     }
 
     /// Whether an opaque call can reach tracked slots through view backing.
@@ -436,7 +479,11 @@ fn indirect_contents_contain_slot(
                         .field_type
                         .byte_sequence_carrier()
                         .is_some_and(|carrier| {
-                            matches!(carrier, ByteSequenceCarrier::BorrowedView { .. })
+                            matches!(
+                                carrier,
+                                ByteSequenceCarrier::BorrowedView { .. }
+                                    | ByteSequenceCarrier::BoundedView { .. }
+                            )
                         })
             }
         })
@@ -550,14 +597,22 @@ pub fn descriptor_slot_inventory(
     DescriptorSlotKind::Views.inventory(types, root, structural_type)
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum DescriptorStorageScope {
+    Owned,
+    Reachable,
+}
+
 fn slot_inventory(
     kind: DescriptorSlotKind,
+    scope: DescriptorStorageScope,
     types: &[StructuralTypeDeclaration],
     root: PlaceId,
     structural_type: StructuralTypeId,
 ) -> Option<DescriptorSlotInventory> {
     fn walk(
         kind: DescriptorSlotKind,
+        scope: DescriptorStorageScope,
         types: &[StructuralTypeDeclaration],
         ty: StructuralTypeId,
         location: DescriptorLocation,
@@ -574,19 +629,21 @@ fn slot_inventory(
         }
         if kind.is_slot(types, ty) {
             result.slots.push(location.clone());
-            if kind != DescriptorSlotKind::References {
+            if kind != DescriptorSlotKind::References || scope == DescriptorStorageScope::Owned {
                 active.remove(&ty);
                 return Some(());
             }
         }
         match &declaration.shape {
-            StructuralTypeShape::Reference { referent, .. } => {
+            StructuralTypeShape::Reference { referent, .. }
+                if scope == DescriptorStorageScope::Reachable =>
+            {
                 let mut child = location.clone();
                 child.path.push(DescriptorPathSegment::Referent);
                 if active.contains(referent) || find_structural_type(types, *referent).is_none() {
                     result.opaque_referents.push(child);
                 } else {
-                    walk(kind, types, *referent, child, active, result)?;
+                    walk(kind, scope, types, *referent, child, active, result)?;
                 }
             }
             terminal_psi::record_or_mixed_shape_pattern!(fields) => {
@@ -595,12 +652,16 @@ fn slot_inventory(
                     child.path.push(DescriptorPathSegment::Field(field.id));
                     match field.field_type {
                         terminal_psi::StructuralFieldType::Structural(ty) => {
-                            walk(kind, types, ty, child, active, result)?
+                            walk(kind, scope, types, ty, child, active, result)?
                         }
                         _ if kind == DescriptorSlotKind::Views
                             && field.field_type.byte_sequence_carrier().is_some_and(
                                 |carrier| {
-                                    matches!(carrier, ByteSequenceCarrier::BorrowedView { .. })
+                                    matches!(
+                                        carrier,
+                                        ByteSequenceCarrier::BorrowedView { .. }
+                                            | ByteSequenceCarrier::BoundedView { .. }
+                                    )
                                 },
                             ) =>
                         {
@@ -611,7 +672,7 @@ fn slot_inventory(
                 }
             }
             StructuralTypeShape::FixedArray { element, length } => {
-                if !may_contain_descriptor(kind, types, *element, &mut BTreeSet::new()) {
+                if !may_contain_descriptor(kind, scope, types, *element, &mut BTreeSet::new()) {
                     active.remove(&ty);
                     return Some(());
                 }
@@ -621,7 +682,7 @@ fn slot_inventory(
                 for index in 0..*length {
                     let mut child = location.clone();
                     child.path.push(DescriptorPathSegment::FixedIndex(index));
-                    walk(kind, types, *element, child, active, result)?;
+                    walk(kind, scope, types, *element, child, active, result)?;
                 }
             }
             _ => {}
@@ -642,12 +703,16 @@ fn slot_inventory(
                     ]);
                     match field.field_type {
                         terminal_psi::StructuralFieldType::Structural(ty) => {
-                            walk(kind, types, ty, child, active, result)?
+                            walk(kind, scope, types, ty, child, active, result)?
                         }
                         _ if kind == DescriptorSlotKind::Views
                             && field.field_type.byte_sequence_carrier().is_some_and(
                                 |carrier| {
-                                    matches!(carrier, ByteSequenceCarrier::BorrowedView { .. })
+                                    matches!(
+                                        carrier,
+                                        ByteSequenceCarrier::BorrowedView { .. }
+                                            | ByteSequenceCarrier::BoundedView { .. }
+                                    )
                                 },
                             ) =>
                         {
@@ -667,6 +732,7 @@ fn slot_inventory(
     };
     walk(
         kind,
+        scope,
         types,
         structural_type,
         DescriptorLocation::whole(root),

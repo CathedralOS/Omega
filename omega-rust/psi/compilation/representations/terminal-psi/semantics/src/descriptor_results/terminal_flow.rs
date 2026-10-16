@@ -16,7 +16,7 @@ pub(super) fn adapt(
             .structural()
             .filter(|result| {
                 slot_kind
-                    .slots(
+                    .owned_slots(
                         &module.structural_types,
                         result.place,
                         result.structural_type,
@@ -637,6 +637,48 @@ pub(super) fn adapt(
                         }
                     }
                 }
+                OperationKind::CallDynamic {
+                    interface,
+                    slot,
+                    structural_arguments,
+                    ..
+                } => {
+                    let slot = module
+                        .dynamic_dispatch
+                        .interface(*interface)?
+                        .slots
+                        .get(usize::try_from(*slot).ok()?)?;
+                    let call = public_invocation(
+                        &module.structural_types,
+                        slot_kind,
+                        slot,
+                        structural_arguments,
+                        result,
+                        &graph.place_types,
+                    )?;
+                    for actual in structural_arguments
+                        .iter()
+                        .filter(|actual| actual.access != StructuralAccess::SharedBorrow)
+                    {
+                        step.definitions.extend(writable_descriptor_slots(
+                            &module.structural_types,
+                            &graph.place_types,
+                            actual,
+                            slot_kind,
+                        )?);
+                    }
+                    if matches!(
+                        call.target,
+                        DescriptorInvocationTarget::Public {
+                            invalidates_contents: true,
+                            ..
+                        }
+                    ) {
+                        graph.unresolved_contents_writes.insert(position);
+                        step.may_escape = true;
+                    }
+                    graph.calls.insert(position, call);
+                }
                 OperationKind::CallUnit {
                     callee,
                     structural_arguments,
@@ -685,7 +727,7 @@ pub(super) fn adapt(
                     }
                     let descriptor_result = result.filter(|result| {
                         slot_kind
-                            .slots(
+                            .owned_slots(
                                 &module.structural_types,
                                 result.place,
                                 result.structural_type,
@@ -733,7 +775,7 @@ pub(super) fn adapt(
                     graph.calls.insert(
                         position,
                         DescriptorInvocation {
-                            callee: callee.id,
+                            target: DescriptorInvocationTarget::Machine(callee.id),
                             arguments,
                             argument_contents,
                             result: descriptor_result

@@ -245,7 +245,7 @@ pub(crate) fn build_check_facts(
             break;
         }
     }
-    crate::values::retain_nested_structural_call_arguments(
+    crate::values::retain_nested_call_arguments(
         program,
         &prepared.operators,
         &prepared.flow,

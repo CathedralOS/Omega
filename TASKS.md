@@ -355,10 +355,8 @@ helper that passes does not close an item.
     correspondence, transparent proposition aliases and supported integer
     arithmetic. Preserve the requirement's public contract at
     selector calls independently of stronger implementation guarantees.
-  - Next: suspending requirements and finite-family selector
-    calls (which keep their requirement targets, unslotted) decline at planning.
-    Byte-backed returned-region containment remains unsupported by Terminal
-    interpretation. Preserve owned result shapes,
+  - Next: suspending requirements decline at planning.
+    Preserve owned result shapes,
     qualifications and exact active claims through the common call/return path
     (`pass/traits/runtime_dyn_{structural,nested,array,guarded,linear}_result_exit`).
     A requirement with published crash routes keeps no

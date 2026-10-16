@@ -163,16 +163,28 @@ impl<'program> ShapeCollector<'program> {
             carrier_type_identity,
             establishment_routes,
         };
-        if let Some(existing) = self.domains.iter().find(|existing| {
-            existing.domain == domain
-                && existing.carrier_type_identity == plan.carrier_type_identity
-        }) {
-            return (existing == &plan).then_some(carrier_type_identity);
+        // A view's canonical loan and stored descriptor classify the same
+        // contents under distinct access-bearing identities. Register the
+        // selected theory for both presentations; this creates no membership
+        // evidence and never applies a referent's theory to a stored pointer.
+        let stored_carrier = if validation::slice_view_shell(self.program, carrier, &[]).is_some() {
+            self.add_stored_type(carrier, binders, &[])?
+        } else {
+            carrier_type_identity
+        };
+        for identity in [carrier_type_identity, stored_carrier] {
+            let mut presented = plan.clone();
+            presented.carrier_type_identity = identity;
+            if let Some(existing) = self.domains.iter().find(|existing| {
+                existing.domain == domain && existing.carrier_type_identity == identity
+            }) {
+                if existing != &presented {
+                    return None;
+                }
+            } else {
+                self.domains.push(presented);
+            }
         }
-        // A semantic domain names a family, not one storage carrier. Separate
-        // bounded capacities retain that family under distinct exact carriers;
-        // conflicting descriptions of the same pair still reject above.
-        self.domains.push(plan);
         Some(carrier_type_identity)
     }
 
@@ -456,9 +468,7 @@ impl<'program> ShapeCollector<'program> {
         substitutions: &[(SymbolHandle, TypeReferenceHandle)],
     ) -> Option<typed_trees::type_identity::TypeIdentityId> {
         let reference = substituted_formal_type(self.program, reference, substitutions);
-        if let Some(shell) = validation::slice_view_shell(self.program, reference, substitutions)
-            && byte_sequence_carrier(self.program, reference, substitutions).is_none()
-        {
+        if let Some(shell) = validation::slice_view_shell(self.program, reference, substitutions) {
             let canonical = self.add_type(reference, binders, substitutions)?;
             let identity = validation::stored_structural_type_identity(
                 self.program,
@@ -467,22 +477,15 @@ impl<'program> ShapeCollector<'program> {
                 substitutions,
             );
             let mut stored = self.types.get(&canonical)?.clone();
-            let CheckedUnitStructuralTypeShape::BorrowedSliceView { access, .. } =
-                &mut stored.shape
-            else {
-                return None;
+            let access = match &mut stored.shape {
+                CheckedUnitStructuralTypeShape::BorrowedSliceView { access, .. }
+                | CheckedUnitStructuralTypeShape::ByteSequence(
+                    checked_trees::CheckedByteSequenceCarrier::BorrowedView { access }
+                    | checked_trees::CheckedByteSequenceCarrier::BoundedView { access, .. },
+                ) => access,
+                _ => return None,
             };
-            *access = Some(match shell.access {
-                language_semantics::ReferenceAccess::Shared => {
-                    CheckedStructuralAccess::SharedBorrow
-                }
-                language_semantics::ReferenceAccess::Mutable => {
-                    CheckedStructuralAccess::MutableBorrow
-                }
-                language_semantics::ReferenceAccess::WriteOnly => {
-                    CheckedStructuralAccess::WriteOnlyBorrow
-                }
-            });
+            *access = Some(shell.access.into());
             stored.identity = identity;
             if self
                 .types

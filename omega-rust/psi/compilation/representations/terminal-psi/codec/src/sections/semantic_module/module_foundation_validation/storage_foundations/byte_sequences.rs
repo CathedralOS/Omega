@@ -1,4 +1,5 @@
 use super::*;
+use terminal_psi::StructuralAccess;
 
 /// Canonical shape only: a Unit store of a shared borrowed-view slot -- a
 /// field below a current declared storage carrier, or, without a field and
@@ -307,14 +308,68 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
     validate_byte_descriptor_source(module, machine, source, true)?;
     let root = place_structural_type(machine, source.place).expect("source checked above");
     let selected = validate_structural_path(module, root, &source.path)?;
-    if selected != result.structural_type
-        || (result.multiplicity == StructuralMultiplicity::Affine
-            && !matches!(
-                source.access,
-                terminal_psi::StructuralAccess::Owned
-                    | terminal_psi::StructuralAccess::MutableBorrow
-            ))
-    {
+    let source_occurrence_access = if source.path.is_empty() {
+        terminal_semantics::arrival_parameter(machine, source.place)
+            .and_then(|parameter| {
+                if parameter.access != StructuralAccess::Owned {
+                    Some(parameter.access)
+                } else {
+                    terminal_semantics::descriptor_results::descriptor_value_access(
+                        module.structural_types.iter(),
+                        selected,
+                        parameter.multiplicity,
+                    )
+                }
+            })
+            .or_else(|| {
+                machine.operations().find_map(|operation| {
+                    operation
+                        .result
+                        .structural()
+                        .filter(|result| result.place == source.place)
+                        .and_then(|result| {
+                            terminal_semantics::descriptor_results::descriptor_value_access(
+                                module.structural_types.iter(),
+                                selected,
+                                result.multiplicity,
+                            )
+                        })
+                })
+            })
+            .or_else(|| {
+                machine.structural_place(source.place).and_then(|place| {
+                    matches!(place.kind, StructuralPlaceKind::ByteSequenceLiteral { .. })
+                        .then_some(StructuralAccess::SharedBorrow)
+                })
+            })
+    } else {
+        terminal_semantics::runtime_structural_field(
+            module.structural_types.iter(),
+            root,
+            &source.path,
+        )
+        .and_then(|field| field.field_type.byte_sequence_carrier())
+        .and_then(|carrier| match carrier {
+            terminal_psi::ByteSequenceCarrier::BorrowedView { access }
+            | terminal_psi::ByteSequenceCarrier::BoundedView { access, .. } => access,
+            _ => None,
+        })
+    };
+    let Some(result_access) = terminal_semantics::descriptor_results::descriptor_value_access(
+        module.structural_types.iter(),
+        result.structural_type,
+        result.multiplicity,
+    ) else {
+        return malformed("byte subslice result lacks descriptor permission");
+    };
+    if !terminal_semantics::descriptor_reborrow_matches(
+        module.structural_types.iter(),
+        selected,
+        source.access,
+        source_occurrence_access,
+        result.structural_type,
+        result_access,
+    ) {
         return malformed("byte subslice must preserve its selected descriptor and access");
     }
     // Shape admission does not grant access. Independent module validation

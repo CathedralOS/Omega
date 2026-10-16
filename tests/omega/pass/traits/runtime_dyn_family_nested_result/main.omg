@@ -1,0 +1,85 @@
+// Common record results retain the selected implementation across runtime
+// family dispatch, local binding, forwarding, field storage and call operands.
+use omega_language_std::console;
+
+data Packet { value: u32; stamp: u32; }
+
+trait Shape<T> {
+    machine code<Width: u32>(subject: &T) -> Packet where Width == 64 || Width == 16 || Width == 16 || Width == 32;
+}
+
+data Item {
+    value: u32 in Wrapping;
+}
+
+machine Item::code<Width: u32>(item: &Item) -> Packet satisfies Shape<Item>::code {
+    let width: u32 in Wrapping = Width as u32 in Wrapping;
+    let result: u32 = (item.value + width) as u32;
+    transition {
+        _ -> Packet { value: result, stamp: 42 }
+    }
+}
+
+machine Item::lifted_code<Width: u32>(item: &Item) -> Packet satisfies Shape<Item>::code {
+    let width: u32 in Wrapping = Width as u32 in Wrapping;
+    let result: u32 = (item.value + width + 1) as u32;
+    transition {
+        _ -> Packet { value: result, stamp: 42 }
+    }
+}
+
+Primary satisfies Shape<Item> {
+    machine code<Width: u32>(item: &Item) -> Packet {
+        Item::code<Width>(item)
+    }
+}
+
+Bumped satisfies Shape<Item> {
+    machine code<Width: u32>(item: &Item) -> Packet {
+        Item::lifted_code<Width>(item)
+    }
+}
+
+machine scan(selected: dyn Shape<Item>, item: &Item, width: u32) -> Packet
+requires
+    width == 16 || width == 32 || width == 64;
+{
+    let result: Packet = Shape::code<width>(selected, item);
+    transition {
+        _ -> result
+    }
+}
+
+data Main {
+    item: Item;
+    packet: Packet;
+}
+
+machine Main::main(main: &mut Main) reaches Console {
+    main.item.value = 99;
+    let mut selected: dyn Shape<Item> = Primary as dyn Shape<Item>;
+    let first: Packet = scan(selected, &main.item, 16);
+    selected = Bumped as dyn Shape<Item>;
+    let second: Packet = scan(selected, &main.item, 32);
+    main.packet = scan(selected, &main.item, 64);
+    let nested: u32 = nested_read(selected, &main.item, 16);
+    transition first.value == 115 && first.stamp == 42 && second.value == 132 && second.stamp == 42 && main.packet.value == 164 && main.packet.stamp == 42 && nested == 116 {
+        true -> good(main)
+        _ -> bad(main)
+    }
+
+    state good(main: &mut Main) {
+        Console::exit_process(70);
+    }
+
+    state bad(main: &mut Main) {
+        Console::exit_process(71);
+    }
+}
+
+machine read(packet: Packet) -> u32 { packet.value }
+
+machine nested_read(selected: dyn Shape<Item>, item: &Item, width: u32) -> u32
+requires width == 16 || width == 32 || width == 64 {
+    read(Shape::code<width>(selected, item))
+}

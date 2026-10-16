@@ -28,6 +28,7 @@ impl ReferenceCallEffects {
     pub(crate) fn new(
         functions: &BTreeMap<MachineId, &PsiOptimizationFunction>,
         boundaries: &[&BoundaryMachineDeclaration],
+        dynamic_dispatch: &terminal_psi::TerminalDynamicDispatchCatalog,
         types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     ) -> Self {
         let declarations = types
@@ -38,6 +39,7 @@ impl ReferenceCallEffects {
             functions.values().copied(),
             boundaries.iter().copied(),
             &declarations,
+            dynamic_dispatch,
             |_, node| Some(Cow::Borrowed(&node.operation)),
         );
         let mut analysis = graph

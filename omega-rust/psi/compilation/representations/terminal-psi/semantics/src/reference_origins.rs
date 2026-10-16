@@ -8,11 +8,15 @@ use terminal_psi::{
     StructuralTypeShape,
 };
 
+mod borrowed_leaves;
 mod call_results;
+pub use borrowed_leaves::{BorrowedResultLeaf, BorrowedResultLeafKind, borrowed_result_leaves};
+mod descriptor_regions;
 mod result_regions;
 pub use call_results::{
     ReferenceCallContract, ReferenceCallResult, ReferenceCallSource, bind_reference_call_results,
 };
+pub use descriptor_regions::validate_descriptor_result_regions;
 pub use result_regions::{ReferenceLeaf, reference_leaves, validate_dynamic_reference_regions};
 
 /// The exact supplying permission and the relation below it. All consumers use

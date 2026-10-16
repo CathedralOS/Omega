@@ -54,19 +54,18 @@ pub(super) fn prepare(
         crate::emission::operation_emission::buffer::StructuralBinding,
     )],
     completed_arguments: &[(usize, PreparedStructuralArgument)],
+    family_results: &[semantic_vocabulary::PlaceId],
 ) -> Result<Prepared, LoweringError> {
     let call = operation.call().ok_or(LoweringError::Unsupported(
         "expression call preparation received a non-call operation",
     ))?;
-    let target = UnitPlans::published(&checked.facts.flow).call_entry(call)?;
-    if target.state != call.target.state
-        || target.contract_report_fingerprint != call.target.contract_report_fingerprint
-        || !crate::unit::attached_unit::catalog::checked_unit_target_reach_matches(
-            call.target.service_reach,
-            target.contract_service_reach,
-        )
-        || call.structural_arguments.len() != target.structural_parameters.len()
-        || call.scalar_arguments.len() != target.scalar_parameters.len()
+    let target = UnitPlans::published(&checked.facts.flow).call_parameters(call)?;
+    if call.structural_arguments.len() != target.structural.len()
+        || call.scalar_operands().len() != target.scalar.len()
+        || arguments.len() != target.scalar.len()
+        || arguments.iter().zip(target.scalar).any(|(actual, formal)| {
+            terminal_scalar_type(formal.primitive_type).ok() != Some(actual.scalar_type())
+        })
     {
         return unsupported("expression call disagrees with its published callable");
     }
@@ -100,8 +99,42 @@ pub(super) fn prepare(
             }
         }
         CheckedUnitCallRoute::Boundary => EffectCallTarget::Boundary,
-        CheckedUnitCallRoute::Dynamic { .. } => {
-            return unsupported("structural expression calls require selector dispatch lowering");
+        CheckedUnitCallRoute::Dynamic {
+            interface_identity,
+            family_operands,
+            ..
+        } => {
+            let slot = checked
+                .facts
+                .flow
+                .terminal_unit_effects
+                .dynamic_slots
+                .iter()
+                .find(|slot| slot.slot == call.target.machine)
+                .ok_or(LoweringError::Unsupported(
+                    "selector call has no checked slot",
+                ))?;
+            EffectCallTarget::Dynamic {
+                interface_identity: *interface_identity,
+                requirement_identity: slot.requirement_identity,
+                family_actuals: family_operands
+                    .iter()
+                    .map(|operand| {
+                        let checked_trees::CheckedCallScalarArgument::Pure(expression) = operand
+                        else {
+                            return unsupported(
+                                "dynamic family operand is not a pure scalar expression",
+                            );
+                        };
+                        bindings.expression(
+                            identities,
+                            &checked.facts.proven_scalar_indexes,
+                            expression,
+                        )
+                    })
+                    .collect::<Result<Vec<_>, _>>()?,
+                family_results: family_results.to_vec(),
+            }
         }
     };
     let (caller_machine, caller_state) =
@@ -110,7 +143,7 @@ pub(super) fn prepare(
     for (ordinal, (argument, parameter)) in call
         .structural_arguments
         .iter()
-        .zip(target.structural_parameters)
+        .zip(target.structural)
         .enumerate()
     {
         if parameter.access != argument.access || parameter.type_identity != argument.type_identity
@@ -184,7 +217,7 @@ pub(super) fn prepare(
                 identities,
                 checked,
                 call.claim_transfers(),
-                target.structural_parameters,
+                target.structural,
                 structural_types,
             )?,
             loan_completions,

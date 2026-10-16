@@ -97,7 +97,14 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
                     .ok()
                 },
             )
-        })();
+        })()
+        .and_then(|contract| {
+            contract.presented(
+                &module.structural_types,
+                &module.structural_domains,
+                result.structural_type,
+            )
+        });
         if !memberships.as_ref().is_some_and(|contract| {
             contract.carrier == result.structural_type
                 && result

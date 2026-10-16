@@ -260,6 +260,7 @@ pub(crate) fn operation_structural_call_contract_matches(
                             functions,
                             boundary_machines,
                             types,
+                            &unit.dynamic_dispatch,
                         ))
             }),
         O::BoundaryCall {
@@ -439,12 +440,14 @@ fn descriptor_call_origins_match(
     functions: &BTreeMap<MachineId, &PsiOptimizationFunction>,
     boundaries: &BTreeMap<BoundaryMachineId, &terminal_psi::BoundaryMachineDeclaration>,
     types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
+    dynamic_dispatch: &terminal_psi::TerminalDynamicDispatchCatalog,
 ) -> bool {
     let types = types.values().copied().cloned().collect::<Vec<_>>();
     let Some(graph) = crate::descriptor_results::optimized_catalog_graph(
         functions.values().copied(),
         boundaries.values().copied(),
         &types,
+        dynamic_dispatch,
         |_, node| Some(std::borrow::Cow::Borrowed(&node.operation)),
     ) else {
         return false;

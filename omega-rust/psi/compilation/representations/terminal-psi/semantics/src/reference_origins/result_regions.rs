@@ -26,9 +26,12 @@ pub fn validate_dynamic_reference_regions<'types>(
     if regions.windows(2).any(|pair| pair[0] >= pair[1]) {
         return Err("dynamic reference regions are not unique and ordered");
     }
-    validate_result_storage(types.clone(), result.structural_type, &mut Vec::new())?;
-    let leaves = reference_leaves(types.clone(), result.structural_type, regions.len())
-        .ok_or("dynamic result has no complete bounded reference leaf roster")?;
+    let leaves = super::borrowed_result_leaves(
+        types.clone(),
+        result.structural_type,
+        result.multiplicity,
+        regions.len(),
+    )?;
     if leaves
         .iter()
         .any(|leaf| !regions.iter().any(|region| region.path == leaf.path))
@@ -36,19 +39,11 @@ pub fn validate_dynamic_reference_regions<'types>(
         return Err("dynamic reference regions omit a result leaf");
     }
     for region in regions {
-        let leaf_type = leaves
+        let leaf = leaves
             .iter()
             .find(|leaf| leaf.path == region.path)
-            .ok_or("dynamic reference region does not name an owned result leaf")?
-            .structural_type;
-        let leaf = types
-            .clone()
-            .find(|row| row.id == leaf_type)
-            .ok_or("dynamic reference region result path has no type")?;
-        let StructuralTypeShape::Reference { access, .. } = leaf.shape else {
-            return Err("dynamic reference region result is not a reference");
-        };
-        if access != region.access {
+            .ok_or("dynamic reference region does not name an owned result leaf")?;
+        if leaf.access != region.access {
             return Err("dynamic reference region disagrees with result access");
         }
         let parameter = usize::try_from(region.argument_index)
@@ -62,70 +57,6 @@ pub fn validate_dynamic_reference_regions<'types>(
             &region.source_path,
             region.access,
         )?;
-    }
-    Ok(())
-}
-
-/// A returned reference is a leaf: its pointee is not owned containment.
-/// Borrowed view carriers need their own result custody, not an empty reference
-/// roster accepted merely because they contain no Reference declaration.
-fn validate_result_storage<'types>(
-    types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
-    root: StructuralTypeId,
-    active: &mut Vec<StructuralTypeId>,
-) -> Result<(), &'static str> {
-    if active.contains(&root) {
-        return Err("dynamic result contains a cyclic owned type");
-    }
-    let declaration = types
-        .clone()
-        .find(|row| row.id == root)
-        .ok_or("dynamic result has an unknown structural type")?;
-    if matches!(declaration.shape, StructuralTypeShape::Reference { .. }) {
-        return Ok(());
-    }
-    if super::descriptor_region(&declaration.shape) {
-        return Err("dynamic borrowed-view result requires view-specific custody");
-    }
-    active.push(root);
-    match &declaration.shape {
-        StructuralTypeShape::FixedArray { element, length } if *length != 0 => {
-            validate_result_storage(types.clone(), *element, active)?;
-        }
-        StructuralTypeShape::Record { fields, .. } | StructuralTypeShape::Mixed { fields, .. } => {
-            validate_result_fields(types.clone(), fields, active)?;
-        }
-        _ => {}
-    }
-    if let StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. } =
-        &declaration.shape
-    {
-        for case in cases {
-            validate_result_fields(types.clone(), &case.fields, active)?;
-        }
-    }
-    active.pop();
-    Ok(())
-}
-
-fn validate_result_fields<'types>(
-    types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
-    fields: &[terminal_psi::StructuralFieldDeclaration],
-    active: &mut Vec<StructuralTypeId>,
-) -> Result<(), &'static str> {
-    for field in fields {
-        if matches!(
-            field.field_type.byte_sequence_carrier(),
-            Some(
-                terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
-                    | terminal_psi::ByteSequenceCarrier::BoundedView { .. }
-            )
-        ) {
-            return Err("dynamic borrowed-view field requires view-specific custody");
-        }
-        if let Some(child) = field.field_type.as_structural() {
-            validate_result_storage(types.clone(), child, active)?;
-        }
     }
     Ok(())
 }
@@ -193,8 +124,22 @@ fn validate_input_region<'types>(
         .cloned()
         .map(ReferenceOriginProjection::Exact)
         .collect::<Vec<_>>();
-    super::reference_origin_type(types, root, &origin)
-        .ok_or("dynamic input region path has no typed endpoint")?;
+    let storage_path = crate::reference_source_storage_path(types.clone(), root, path);
+    let inline_view = crate::runtime_structural_field(types.clone(), root, storage_path)
+        .and_then(|field| field.field_type.byte_sequence_carrier())
+        .is_some_and(|carrier| {
+            matches!(
+                carrier,
+                terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
+                    | terminal_psi::ByteSequenceCarrier::BoundedView { .. }
+            )
+        });
+    // Inline byte fields retain their declaring field and have no standalone
+    // structural type. The complete typed field path above is their endpoint.
+    if !inline_view {
+        super::reference_origin_type(types, root, &origin)
+            .ok_or("dynamic input region path has no typed endpoint")?;
+    }
     if !borrowed {
         return Err("dynamic result cannot borrow private owned parameter storage");
     }

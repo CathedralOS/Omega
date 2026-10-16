@@ -13,11 +13,12 @@ pub(crate) mod block_wire;
 pub(crate) mod canonical_order;
 pub(crate) mod content_wire;
 pub(crate) mod contract_wire;
+pub(crate) mod dynamic_result_admission;
 pub(crate) mod integer_math_term_wire;
 mod machine_declaration_wire;
 pub(crate) mod machine_wire;
 pub(crate) mod mathematical_certificate_wire;
-pub(crate) mod module_foundation_validation;
+mod module_foundation_validation;
 pub(crate) mod module_wire;
 pub(crate) mod proof_declaration_wire;
 pub(crate) mod proof_term_wire;
@@ -148,6 +149,7 @@ pub fn decode_module(bytes: &[u8]) -> Result<TerminalModule, CodecError> {
     scalar_qualification_wire::validate(&module.scalar_qualifications)?;
     validate_canonical_order(&module)?;
     validate_structural_foundation(&module)?;
+    dynamic_result_admission::validate_dynamic_descriptor_results(&module)?;
     let canonical = encode_raw(&module)?;
     if canonical != bytes {
         return Err(CodecError::NonCanonicalEncoding);

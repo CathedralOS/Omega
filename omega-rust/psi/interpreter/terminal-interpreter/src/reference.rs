@@ -980,6 +980,7 @@ impl TerminalExecution<'_> {
         &self,
         place: PlaceId,
         path: &[StructuralPathSegment],
+        expected: StructuralTypeId,
     ) -> Result<
         (
             TerminalStructuralValue,
@@ -987,11 +988,16 @@ impl TerminalExecution<'_> {
         ),
         TerminalInterpretError,
     > {
+        let expected = self
+            .program
+            .structural_types()
+            .get(&expected)
+            .ok_or_else(malformed)?;
         self.resolve_live_projection_with_leaf_type(
             place,
             path,
             StructuralAccess::SharedBorrow,
-            terminal_psi::StructuralFieldType::leaf_copy_type,
+            |field| field.leaf_copy_type(Some(expected)),
         )
         .map(|projection| (projection.value, projection.endpoint_field))
     }
@@ -1001,9 +1007,10 @@ impl TerminalExecution<'_> {
         place: PlaceId,
         path: &[StructuralPathSegment],
         access: StructuralAccess,
-        leaf_type: fn(
+        leaf_type: impl Fn(
             &terminal_psi::StructuralFieldType,
-        ) -> Option<terminal_psi::StructuralFieldType>,
+        ) -> Option<terminal_psi::StructuralFieldType>
+        + Copy,
     ) -> Result<ResolvedStructuralProjection, TerminalInterpretError> {
         let owner = self.structural_values.get(&place).ok_or_else(malformed)?;
         self.resolve_storage_projection_with_leaf_type(place, owner, path, access, leaf_type)
@@ -1019,9 +1026,10 @@ impl TerminalExecution<'_> {
         owner: &TerminalStructuralValue,
         path: &[StructuralPathSegment],
         access: StructuralAccess,
-        leaf_type: fn(
+        leaf_type: impl Fn(
             &terminal_psi::StructuralFieldType,
-        ) -> Option<terminal_psi::StructuralFieldType>,
+        ) -> Option<terminal_psi::StructuralFieldType>
+        + Copy,
     ) -> Result<ResolvedStructuralProjection, TerminalInterpretError> {
         if path.contains(&StructuralPathSegment::Referent) {
             let authority = self.reference_carrier_access(place, owner.structural_type, path)?;
@@ -1116,9 +1124,10 @@ impl TerminalExecution<'_> {
         owner: &TerminalStructuralValue,
         path: &[StructuralPathSegment],
         access: Option<StructuralAccess>,
-        leaf_type: fn(
+        leaf_type: impl Fn(
             &terminal_psi::StructuralFieldType,
-        ) -> Option<terminal_psi::StructuralFieldType>,
+        ) -> Option<terminal_psi::StructuralFieldType>
+        + Copy,
         initial_view: Option<AggregateViewRegion>,
         initial_placed: Option<PlacedRamReference>,
         initial_array: Option<crate::element_views::ElementView>,

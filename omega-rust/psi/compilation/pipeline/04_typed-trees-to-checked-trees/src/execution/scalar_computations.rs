@@ -286,11 +286,10 @@ pub(crate) fn build_checked_value_computation_plans(
                 }
                 for (call_ordinal, site) in captured
                     .map(|captured| {
-                        crate::values::scalar::call_arguments::nested_structural_call_sites(
+                        crate::values::scalar::call_arguments::nested_call_sites(
                             program,
                             flow,
                             captured,
-                            machine,
                             statement,
                             statement_index,
                         )

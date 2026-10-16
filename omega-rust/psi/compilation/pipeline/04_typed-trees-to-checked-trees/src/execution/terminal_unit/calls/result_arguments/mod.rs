@@ -102,22 +102,36 @@ fn argument_contract(
     };
     phase("call result argument: producer contract");
     let (source_machine, source_state) = validation::find_state(program, state)?;
-    // This is the completed owner's type, independently of the selected
-    // argument or receiving formal. Both loan settlement and final producer
-    // correspondence consume this same retained construction identity.
+    // Contextual roots retain constructor formation types, but a call's root
+    // may describe its receiving annotation instead of its declared result.
+    // Select the completed producer by the emitted identity and multiplicity;
+    // neither the consumer type nor an equal payload shape authenticates it.
     let produced_type = place.root.as_expression().and_then(|source| {
-        facts
+        let contextual = facts
             .values
             .structural_values
             .root_for_expression(state, result.statement_index, source)
-            .map(|root| root.type_reference)
-            .or_else(|| {
-                validation::declared_place_type_raw(
-                    program,
-                    source_machine,
-                    Some(source_state),
-                    source,
-                )
+            .map(|root| root.type_reference);
+        let declared = validation::declared_place_type_raw(
+            program,
+            source_machine,
+            Some(source_state),
+            source,
+        );
+        [contextual, declared]
+            .into_iter()
+            .flatten()
+            .find(|source_type| {
+                validation::reference_result_custody::result_multiplicity(program, *source_type)
+                    == result.multiplicity
+                    && (validation::stored_structural_type_identity(
+                        program,
+                        *source_type,
+                        &[],
+                        &[],
+                    ) == result.type_identity
+                        || validation::structural_type_identity(program, *source_type, &[], &[])
+                            == result.type_identity)
             })
     });
     if let Some(argument) = super::super::reference_results::record_argument(
@@ -297,15 +311,21 @@ fn argument_contract(
     // borrowed formal presents the canonical view geometry. Rejoin both from
     // the same declared source type; equality of payload shapes alone cannot
     // authorize an unrelated result or change the call's checked loan access.
-    let result_presents_formal = result.type_identity == target_identity
-        || storage_type.or(produced_type).is_some_and(|source| {
-            crate::execution::terminal_unit::types::stored_type_presents_borrowed(
-                program,
-                source,
-                result.type_identity,
-                target_identity,
-            )
-        });
+    let result_presents = |identity| {
+        result.type_identity == identity
+            || [storage_type, produced_type]
+                .into_iter()
+                .flatten()
+                .any(|source| {
+                    crate::execution::terminal_unit::types::stored_type_presents_borrowed(
+                        program,
+                        source,
+                        result.type_identity,
+                        identity,
+                    )
+                })
+    };
+    let result_presents_formal = result_presents(target_identity);
     // A local array lends the same element view as an array parameter or
     // field. The local keeps its backing identity; the call presents only
     // the checked view, with its exact loan replayed below.
@@ -630,7 +650,7 @@ fn argument_contract(
         || if access == CheckedStructuralAccess::Owned {
             result.type_identity == target_identity
         } else {
-            base_type_identity(program, referent, &[], &[])? == result.type_identity
+            result_presents(base_type_identity(program, referent, &[], &[])?)
         };
     // Only owned transfer carries the selected storage's disposal obligation.
     // A loan retains its owner's custody; its source/formal presentation and

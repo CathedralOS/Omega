@@ -1,0 +1,22 @@
+// A runtime family result preserves the caller values used by its continuation.
+trait Shape<T> {
+    machine code<Width: u32>(item: &T) -> u32 where Width == 16 || Width == 32;
+}
+data Item { value: u32; }
+Primary satisfies Shape<Item> {
+    machine code<Width: u32>(item: &Item) -> u32 { item.value }
+}
+machine compare(selected: dyn Shape<Item>, item: &Item, width: u32, expected: u32) -> bool
+requires width == 16 || width == 32 {
+    Shape::code<width>(selected, item) == expected
+}
+data Main { item: Item; }
+machine Main::main(main: &mut Main) crashes Trap {
+    main.item.value = 17;
+    let selected: dyn Shape<Item> = Primary as dyn Shape<Item>;
+    let first: bool = compare(selected, &main.item, 16, 17);
+    let second: bool = compare(selected, &main.item, 32, 17);
+    transition first && second { true -> done() false -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}

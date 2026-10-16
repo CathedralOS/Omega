@@ -232,6 +232,34 @@ pub struct PayloadMembershipContract {
     pub projected_qualifications: Vec<terminal_psi::StructuralPathQualification>,
 }
 
+impl PayloadMembershipContract {
+    /// Present the same completed payload without introducing a membership.
+    /// Geometry permits descriptor rebinding only; source history and access
+    /// stay with the caller, and every domain retains its full semantic theory.
+    pub fn presented(
+        mut self,
+        types: &[StructuralTypeDeclaration],
+        domains: &[terminal_psi::StructuralDomainDeclaration],
+        destination: StructuralTypeId,
+    ) -> Option<Self> {
+        if crate::borrowed_referent_presentation(types.iter(), self.carrier, destination)
+            != Some(crate::BorrowedReferentPresentation::Unchanged)
+        {
+            return None;
+        }
+        crate::present_structural_memberships(
+            types,
+            domains,
+            destination,
+            &mut self.qualifications,
+            &mut self.projected_qualifications,
+        )
+        .ok()?;
+        self.carrier = destination;
+        Some(self)
+    }
+}
+
 /// Copy only memberships held by every possible backing subtree. Unknown or
 /// symbolic contents cannot be filled from the receiving type's declaration.
 pub fn payload_memberships(

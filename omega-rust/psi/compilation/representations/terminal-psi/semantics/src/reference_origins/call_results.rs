@@ -83,7 +83,26 @@ pub fn bind_reference_call_results<'types>(
             }
         }
         ReferenceCallContract::Requirement(slot) => {
+            let leaves = match &slot.result {
+                terminal_psi::BoundaryMachineResult::Structural(result) => {
+                    super::borrowed_result_leaves(
+                        types.clone(),
+                        result.structural_type,
+                        result.multiplicity,
+                        slot.result_reference_regions.len(),
+                    )?
+                }
+                _ => Vec::new(),
+            };
             for region in &slot.result_reference_regions {
+                // Views carry pointer/extent provenance through descriptor
+                // replay. They must not manufacture a pointer-reference loan.
+                if !leaves.iter().any(|leaf| {
+                    leaf.path == region.path
+                        && matches!(leaf.kind, super::BorrowedResultLeafKind::Reference(_))
+                }) {
+                    continue;
+                }
                 let argument_index = usize::try_from(region.argument_index)
                     .map_err(|_| "dynamic returned region input ordinal overflows")?;
                 let parameter = slot

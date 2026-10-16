@@ -1,0 +1,30 @@
+// A returned selected window retains every public lifetime candidate.
+trait Payload {
+ machine window<'input>(first: &'input mut [u8], second: &'input mut [u8]) -> &'input mut [u8]
+ requires first.len >= 2 && second.len >= 2;
+}
+First satisfies Payload {
+ machine window<'input>(first: &'input mut [u8], second: &'input mut [u8]) -> &'input mut [u8]
+ requires first.len >= 2 && second.len >= 2 { &mut first[0..2] }
+}
+Second satisfies Payload {
+ machine window<'input>(first: &'input mut [u8], second: &'input mut [u8]) -> &'input mut [u8]
+ requires first.len >= 2 && second.len >= 2 { &mut second[0..2] }
+}
+data Main { first: [u8; 2]; second: [u8; 2]; }
+machine read(selected: dyn Payload, first: &mut [u8], second: &mut [u8]) -> u8
+ requires first.len >= 2 && second.len >= 2 crashes Trap {
+ let bytes: &mut [u8] = Payload::window(selected, first, second);
+ transition bytes.len == 2 { true -> inspect(bytes) false -> bad() }
+ state inspect(bytes: &mut [u8]) -> u8 requires bytes.len == 2 { bytes[0] }
+ state bad() -> u8 { crash Trap; }
+}
+machine Main::main(main: &mut Main) crashes Trap {
+ main.first[0] = 11; main.second[0] = 29;
+ let mut selected: dyn Payload = First as dyn Payload;
+ let first: u8 = read(selected, &mut main.first, &mut main.second);
+ selected = Second as dyn Payload;
+ let second: u8 = read(selected, &mut main.first, &mut main.second);
+ transition first == 11 && second == 29 { true -> done() false -> bad() }
+ state done() {} state bad() { crash Trap; }
+}

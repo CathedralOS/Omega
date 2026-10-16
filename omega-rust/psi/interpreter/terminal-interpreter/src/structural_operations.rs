@@ -1478,7 +1478,10 @@ impl TerminalExecution<'_> {
             let value = if self.scalar_array_values.contains_key(source) {
                 ConstructorValue::resolve(self, &argument)?
             } else {
-                ConstructorValue::Placed(self.resolve_live_leaf_copy(*source, path)?.0)
+                ConstructorValue::Placed(
+                    self.resolve_live_leaf_copy(*source, path, result.structural_type)?
+                        .0,
+                )
             };
             if value.structural_type() == result.structural_type {
                 if self.scalar_array_values.contains_key(&result.place) {
@@ -1538,7 +1541,8 @@ impl TerminalExecution<'_> {
         }
         let (leaf, source, endpoint_field, copy_path) = match &operation.kind {
             OperationKind::StructuralLeafCopy { source, path } => {
-                let (leaf, field) = self.resolve_live_leaf_copy(*source, path)?;
+                let (leaf, field) =
+                    self.resolve_live_leaf_copy(*source, path, result.structural_type)?;
                 (leaf, *source, field, path.clone())
             }
             OperationKind::StructuralCaseLeafCopy { source, path } => {
@@ -1568,6 +1572,11 @@ impl TerminalExecution<'_> {
                 self.element_view_values
                     .get(&source)
                     .map(|descriptor| descriptor.access())
+                    .or_else(|| {
+                        self.byte_sequence_values
+                            .get(&source)
+                            .map(|descriptor| descriptor.access())
+                    })
             })
             .flatten();
         if leaf.structural_type != result.structural_type

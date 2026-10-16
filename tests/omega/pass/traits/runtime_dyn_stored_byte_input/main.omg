@@ -1,0 +1,51 @@
+// Expected exit: 0. Selected decoders return windows of the caller's packet.
+data Input<'input> { bytes: &'input [u8]; }
+trait Payload {
+    machine window<'input>(packet: Input<'input>) -> &'input [u8]
+    requires packet.bytes.len >= 4;
+}
+
+Header satisfies Payload {
+    machine window<'input>(packet: Input<'input>) -> &'input [u8]
+    requires packet.bytes.len >= 4 {
+        packet.bytes[0..2]
+    }
+}
+
+Trailer satisfies Payload {
+    machine window<'input>(packet: Input<'input>) -> &'input [u8]
+    requires packet.bytes.len >= 4 {
+        packet.bytes[2..4]
+    }
+}
+
+machine read_first<'input>(decoder: dyn Payload, packet: Input<'input>) -> u8
+requires packet.bytes.len >= 4
+crashes Trap {
+    let bytes: &[u8] = Payload::window(decoder, packet);
+    transition bytes.len == 2 {
+        true -> read(bytes)
+        false -> bad()
+    }
+    state read(bytes: &[u8]) -> u8
+    requires bytes.len == 2 {
+        bytes[0]
+    }
+    state bad() -> u8 { crash Trap; }
+}
+
+data Main { packet: [u8; 4]; }
+machine Main::main(main: &mut Main) crashes Trap {
+    main.packet[0] = 11;
+    main.packet[2] = 29;
+    let mut decoder: dyn Payload = Header as dyn Payload;
+    let header: u8 = read_first(decoder, Input { bytes: &main.packet });
+    decoder = Trailer as dyn Payload;
+    let trailer: u8 = read_first(decoder, Input { bytes: &main.packet });
+    transition header == 11 && trailer == 29 {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

@@ -25,7 +25,7 @@ impl OperationFrame<'_, '_> {
         interface_identity: &typed_trees::type_identity::TypeIdentityId,
         inputs: &CallInputs<'_>,
     ) -> Result<(), LoweringError> {
-        let Some((selector, data)) = inputs
+        let Some((_, data)) = inputs
             .evaluated_scalar_arguments
             .and_then(|evaluated| evaluated.split_first())
         else {
@@ -58,10 +58,6 @@ impl OperationFrame<'_, '_> {
         {
             return unsupported("selector call operands disagree with its slot");
         }
-        let (interface, slot) = self
-            .operations
-            .dynamic_dispatch
-            .resolve_slot(interface_identity, &slot_plan.requirement_identity)?;
         let structural_arguments = &call.structural_arguments;
         let earlier = self
             .results
@@ -108,7 +104,6 @@ impl OperationFrame<'_, '_> {
         // position names the first tuple slot, and dispatch matches these
         // values against each family slot's declared tuple identities.
         let mut family_actuals = Vec::new();
-        let mut family_actual_types = Vec::new();
         for operand in match call.route() {
             checked_trees::CheckedUnitCallRoute::Dynamic {
                 family_operands, ..
@@ -124,107 +119,59 @@ impl OperationFrame<'_, '_> {
                 &checked.facts.proven_scalar_indexes,
                 expression,
             )?;
-            family_actual_types.push(lowered.scalar_type());
-            family_actuals.push(
-                crate::emission::operation_emission::expressions::emit_direct_expression(
+            family_actuals.push(ValueDeclaration {
+                id: crate::emission::operation_emission::expressions::emit_direct_expression(
                     &lowered,
                     self.values,
                     self.next_value,
                     self.operations,
                 ),
-            );
+                scalar_type: lowered.scalar_type(),
+                qualifications: Default::default(),
+            });
         }
-        if !family_actuals.is_empty() {
-            let roster = self.operations.dynamic_dispatch.family_roster(
-                interface,
-                slot,
+        if declaration.is_none() {
+            self.record_source_call(call.coordinate, None, id, call.target.machine)?;
+        }
+        let mut span = super::super::argument_evaluation::BlockEmissionSpan {
+            erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
+            id: self.evaluation.current,
+            parameters: std::mem::take(&mut self.evaluation.parameters),
+            structural_parameters: std::mem::take(&mut self.evaluation.block_structural_parameters),
+            operation_start: self.evaluation.operation_start,
+        };
+        let dispatched =
+            crate::emission::operation_emission::dynamic_calls::emit_completed_dynamic_call(
+                interface_identity,
                 &slot_plan.requirement_identity,
-            )?;
-            let leaf_selector = selector.id;
-            let leaf_arguments: Vec<_> = data.iter().map(|value| value.id).collect();
-            let mut first_leaf = Some(id);
-            if declaration.is_none() {
-                self.record_source_call(call.coordinate, None, id, call.target.machine)?;
-            }
-            let mut span = super::super::argument_evaluation::BlockEmissionSpan {
-                id: self.evaluation.current,
-                parameters: std::mem::take(&mut self.evaluation.parameters),
-                structural_parameters: std::mem::take(
-                    &mut self.evaluation.block_structural_parameters,
-                ),
-                operation_start: self.evaluation.operation_start,
-            };
-            let dispatch_result = super::super::argument_evaluation::emit_dynamic_family_dispatch(
+                inputs
+                    .evaluated_scalar_arguments
+                    .ok_or(LoweringError::Unsupported(
+                        "selector call has no evaluated operands",
+                    ))?,
+                &family_actuals,
+                structural_arguments,
+                claim_transfers,
+                &result,
+                id,
                 &mut span,
                 &mut self.evaluation.blocks,
-                self.operations,
                 self.next_value,
                 self.next_block,
                 self.next_edge,
-                &roster,
-                &family_actuals,
-                &family_actual_types,
-                &result,
-                |operations, next_value, tuple_index| {
-                    let produced = match &result {
-                        OperationResult::Unit => OperationResult::Unit,
-                        OperationResult::Scalar(value) => {
-                            OperationResult::Scalar(ValueDeclaration {
-                                id: value_id(allocate_dense(next_value)?),
-                                ..*value
-                            })
-                        }
-                        OperationResult::Structural(value) => {
-                            let mut value = value.clone();
-                            value.place = crate::unit::place_id(allocate_dense(self.next_place)?);
-                            OperationResult::Structural(value)
-                        }
-                    };
-                    let operation = first_leaf.take().unwrap_or_else(|| operations.allocate());
-                    crate::emission::operation_emission::dynamic_calls::emit_dynamic_call_leaf(
-                        leaf_selector,
-                        interface,
-                        slot + u32::try_from(tuple_index).map_err(|_| {
-                            LoweringError::Unsupported("dynamic family slot overflows")
-                        })?,
-                        leaf_arguments.clone(),
-                        family_actuals.clone(),
-                        structural_arguments.clone(),
-                        claim_transfers.clone(),
-                        produced.clone(),
-                        operation,
-                        operations,
-                    );
-                    Ok(produced)
-                },
-            );
-            self.evaluation.current = span.id;
-            self.evaluation.parameters = span.parameters;
-            self.evaluation.block_structural_parameters = span.structural_parameters;
-            self.evaluation.operation_start = span.operation_start;
-            dispatch_result?;
-            if let Some(declaration) = &mut declaration {
-                declaration.kind = semantic_vocabulary::StructuralPlaceKind::BlockParameter {
-                    block: span.id,
-                    position: 0,
-                };
-            }
-        } else {
-            if declaration.is_none() {
-                self.record_source_call(call.coordinate, None, id, call.target.machine)?;
-            }
-            crate::emission::operation_emission::dynamic_calls::emit_dynamic_call_leaf(
-                selector.id,
-                interface,
-                slot,
-                data.iter().map(|value| value.id).collect(),
-                family_actuals,
-                structural_arguments,
-                claim_transfers,
-                result.clone(),
-                id,
                 self.operations,
+                |_| Ok(crate::unit::place_id(allocate_dense(self.next_place)?)),
             );
+        self.evaluation.current = span.id;
+        self.evaluation.parameters = span.parameters;
+        self.evaluation.block_structural_parameters = span.structural_parameters;
+        self.evaluation.operation_start = span.operation_start;
+        if dispatched? && let Some(declaration) = &mut declaration {
+            declaration.kind = semantic_vocabulary::StructuralPlaceKind::BlockParameter {
+                block: span.id,
+                position: 0,
+            };
         }
         match (result, call.result(), declaration) {
             (OperationResult::Scalar(value), _, _) => {

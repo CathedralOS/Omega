@@ -39,7 +39,7 @@ pub(super) fn shared_projection(
     };
     let (selected, offset, elements, shared_field) = match path {
         abstract_operations::StructuralCopyPath::Ordinary(path) => {
-            let geometry = geometry::leaf_copy_geometry(root, path, types)?;
+            let geometry = geometry::leaf_copy_geometry(root, path, result.structural_type, types)?;
             if !geometry.readable {
                 return None;
             }

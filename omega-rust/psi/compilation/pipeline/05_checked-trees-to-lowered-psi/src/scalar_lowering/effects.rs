@@ -20,6 +20,10 @@ pub(crate) fn emit(
     next_value: &mut u64,
     operations: &mut OperationBuffer,
     calls: &mut CallEmissionContext<'_>,
+    span: &mut crate::unit::attached_unit::argument_evaluation::BlockEmissionSpan,
+    blocks: &mut Vec<terminal_psi::Block>,
+    next_block: &mut u64,
+    next_edge: &mut u64,
 ) -> Result<(), LoweringError> {
     for effect in effects {
         match effect {
@@ -331,6 +335,77 @@ pub(crate) fn emit(
                 // Only dispatch changes the operation kind. The common result
                 // receiver below binds declared qualifications and actual claims.
                 let kind = match &call.endpoint {
+                    EffectCallTarget::Dynamic {
+                        interface_identity,
+                        requirement_identity,
+                        family_actuals,
+                        family_results,
+                    } => {
+                        let structural_arguments = call
+                            .structural_arguments
+                            .iter()
+                            .map(|argument| argument.emit(values, calls, next_value, operations))
+                            .collect::<Result<Vec<_>, _>>()?;
+                        let claim_transfers =
+                            crate::emission::claim_bindings::emit_prepared_claim_transfers(
+                                &call.claim_transfers,
+                                calls.claims.bindings(),
+                            )?;
+                        let family_actuals = family_actuals
+                            .iter()
+                            .map(|actual| {
+                                validate_direct_parameter_types(actual, &types)?;
+                                let value_type = actual.value_type(&value_types)?;
+                                Ok(ValueDeclaration {
+                                    id: emit_direct_expression(
+                                        actual, values, next_value, operations,
+                                    ),
+                                    scalar_type: value_type.scalar_type,
+                                    qualifications: value_type.qualifications,
+                                })
+                            })
+                            .collect::<Result<Vec<_>, LoweringError>>()?;
+                        let result = call
+                            .result
+                            .as_ref()
+                            .map(|result| {
+                                result.emit(
+                                    identities,
+                                    checked,
+                                    call.source_coordinate.state,
+                                    call.checked_coordinate,
+                                    calls.domain_ids,
+                                    calls.structural_types,
+                                    &mut calls.claims,
+                                )
+                            })
+                            .transpose()?
+                            .map(OperationResult::Structural)
+                            .unwrap_or(OperationResult::Unit);
+                        let operation = operations.allocate();
+                        operations.record_source_call_with_values(
+                            call.source_coordinate,
+                            call.source_site,
+                            operation,
+                            call.target_machine,
+                            values,
+                        )?;
+                        crate::emission::operation_emission::dynamic_calls::emit_completed_dynamic_call(
+                            interface_identity, requirement_identity, &arguments, &family_actuals,
+                            structural_arguments, claim_transfers, &result, operation, span, blocks,
+                            next_value, next_block, next_edge, operations,
+                            |tuple| family_results.get(tuple).copied().ok_or(LoweringError::Unsupported(
+                                "dynamic family result has no reserved leaf home",
+                            )),
+                        )?;
+                        crate::emission::loan_completions::emit(
+                            &call.loan_completions,
+                            call.source_coordinate,
+                            operations,
+                            calls,
+                        )?;
+                        continue;
+                    }
                     EffectCallTarget::Boundary => {
                         // Each endpoint prepares these completed operands once.
                         // Module preparation owns its structural lanes below;

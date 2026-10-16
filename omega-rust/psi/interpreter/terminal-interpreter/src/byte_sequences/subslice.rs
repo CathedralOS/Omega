@@ -35,12 +35,13 @@ impl TerminalExecution<'_> {
         let start = count(start)?;
         let end = count(end)?;
         let length = count(length)?;
-        let mutable = result.multiplicity == StructuralMultiplicity::Affine;
-        let access = if mutable {
-            StructuralAccess::MutableBorrow
-        } else {
-            StructuralAccess::SharedBorrow
-        };
+        let access = terminal_semantics::descriptor_results::descriptor_value_access(
+            self.program.structural_types().values(),
+            result.structural_type,
+            result.multiplicity,
+        )
+        .ok_or_else(malformed)?;
+        let mutable = access == StructuralAccess::MutableBorrow;
         self.validate_descriptor_borrow(source, access)?;
         let source_value = self.resolve_live_projection(source.place, &source.path, access)?;
         let binding = self.byte_descriptor_binding(source, &source_value)?;
@@ -60,7 +61,11 @@ impl TerminalExecution<'_> {
         ) || u64::try_from(length).ok() != Some(source_length)
             || start > end
             || end > length
-            || source_value.structural_type != result.structural_type
+            || !terminal_semantics::descriptor_reborrow_matches(
+                self.program.structural_types().values(),
+                source_value.structural_type, source.access, Some(binding.access()),
+                result.structural_type, access,
+            )
             // A shared window only reads its source; it claims none of the
             // source's predicates (its result is unqualified), so a qualified
             // source lends it as freely as a plain one. A mutable window
@@ -119,7 +124,7 @@ impl TerminalExecution<'_> {
             .commit_cursor(identity_cursor);
         self.byte_sequence_values.insert(result.place, view);
         self.structural_values.insert(result.place, destination);
-        if mutable {
+        if result.multiplicity == StructuralMultiplicity::Affine {
             self.live_affine_frontier
                 .insert(terminal_psi::StructuralAffineDiscard {
                     place: result.place,
@@ -143,7 +148,12 @@ impl TerminalExecution<'_> {
         if window.start > window.end
             || !matches!(
                 access,terminal_psi::reading_borrow_pair_pattern!())
-            || source.structural_type != destination.structural_type
+            || !terminal_semantics::descriptor_reborrow_matches(
+                self.program.structural_types().values(),
+                source.structural_type, access, Some(binding.access()),
+                destination.structural_type,
+                access,
+            )
             // As for an established window: a shared narrowing reads its
             // qualified source without claiming its predicates.
             || (access != StructuralAccess::SharedBorrow && !source.qualifications.is_empty())

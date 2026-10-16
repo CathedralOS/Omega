@@ -52,7 +52,11 @@ pub(super) fn validate(
                     owned_projected_field_source(optimized, argument, &unit.structural_types)?;
                 if argument.access != terminal_psi::StructuralAccess::Owned
                     || argument.place == result.place
-                    || actual != element
+                    || terminal_semantics::borrowed_referent_presentation(
+                        unit.structural_types.iter(),
+                        actual,
+                        element,
+                    ) != Some(terminal_semantics::BorrowedReferentPresentation::Unchanged)
                 {
                     return Err(LegalizationError::custody());
                 }
@@ -321,7 +325,9 @@ fn validate_owned_field_operand(
     }
     if let Some(expected) = field.as_structural() {
         let actual = owned_projected_field_source(function, argument, types)?;
-        return if actual == expected {
+        return if terminal_semantics::borrowed_referent_presentation(types.iter(), actual, expected)
+            == Some(terminal_semantics::BorrowedReferentPresentation::Unchanged)
+        {
             Ok(())
         } else {
             Err(LegalizationError::custody())
@@ -339,7 +345,12 @@ fn validate_owned_field_operand(
         // Copy/transfer and permission remain the retained source judgments.
         let expected = terminal_semantics::byte_carrier_field_declaration(types.iter(), carrier)
             .ok_or(LegalizationError::custody())?;
-        return if owned_projected_field_source(function, argument, types)? == expected.id {
+        return if terminal_semantics::borrowed_referent_presentation(
+            types.iter(),
+            owned_projected_field_source(function, argument, types)?,
+            expected.id,
+        ) == Some(terminal_semantics::BorrowedReferentPresentation::Unchanged)
+        {
             Ok(())
         } else {
             Err(LegalizationError::custody())

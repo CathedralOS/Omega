@@ -56,6 +56,17 @@ pub(crate) enum ByteOwnerHome {
 }
 
 impl ByteSequenceBinding {
+    /// Access belongs to the captured backing, independently of the descriptor
+    /// home's ownership or later placement in another structural value.
+    pub(crate) fn access(&self) -> StructuralAccess {
+        match self {
+            Self::Immutable(_) => StructuralAccess::SharedBorrow,
+            Self::MutableArray { .. } | Self::MutableField { .. } | Self::MutableOwner { .. } => {
+                StructuralAccess::MutableBorrow
+            }
+        }
+    }
+
     pub(crate) fn descriptor_home(&self) -> Option<&TerminalStructuralValue> {
         match self {
             Self::Immutable(_) => None,
@@ -162,9 +173,15 @@ impl ByteSequenceBinding {
             };
             return if value == descriptor_home.as_ref().unwrap_or(referent)
                 && descriptor_home.as_ref().is_none_or(|home| {
-                    home.structural_type == referent.structural_type
-                        && (home.qualifications.is_empty()
-                            || home.qualifications == referent.qualifications)
+                    terminal_semantics::descriptor_reborrow_matches(
+                        structural_types.values(),
+                        referent.structural_type,
+                        StructuralAccess::MutableBorrow,
+                        Some(StructuralAccess::MutableBorrow),
+                        home.structural_type,
+                        StructuralAccess::MutableBorrow,
+                    ) && (home.qualifications.is_empty()
+                        || home.qualifications == referent.qualifications)
                         && home.projected_qualifications.is_empty()
                 })
                 && array.referent.opaque_identity == referent.opaque_identity
@@ -656,12 +673,10 @@ impl TerminalExecution<'_> {
         // A loan captures the actual descriptor, whether frame-local or in a
         // field. Declared geometry grants no read/write permission: authenticate
         // every source crossing before retaining or attenuating its binding.
-        if parameter.structural_type != value.structural_type
-            || !matches!(
-                parameter.access,
-                terminal_psi::reading_borrow_pair_pattern!()
-            )
-            || argument.access != parameter.access
+        if !matches!(
+            parameter.access,
+            terminal_psi::reading_borrow_pair_pattern!()
+        ) || argument.access != parameter.access
             || parameter.multiplicity != StructuralMultiplicity::Unrestricted
             || !parameter.projected_qualifications.is_empty()
             || self
@@ -673,6 +688,16 @@ impl TerminalExecution<'_> {
         }
         self.validate_descriptor_borrow(argument, parameter.access)?;
         let binding = self.byte_descriptor_binding(argument, &value)?;
+        if !terminal_semantics::descriptor_reborrow_matches(
+            self.program.structural_types().values(),
+            value.structural_type,
+            parameter.access,
+            Some(binding.access()),
+            parameter.structural_type,
+            parameter.access,
+        ) {
+            return Err(malformed());
+        }
         let binding = self.reborrow_byte_sequence_binding(&binding, &value, parameter.access)?;
         // A lent descriptor must satisfy every domain the formal names
         // (structural access, shared view fields). The checked call proved
@@ -692,6 +717,7 @@ impl TerminalExecution<'_> {
             return Err(malformed());
         }
         let mut value = value;
+        value.structural_type = parameter.structural_type;
         value.absorb_qualifications(&parameter.qualifications);
         let binding = binding.with_descriptor_home(value.clone());
         Ok(Some((value, binding)))

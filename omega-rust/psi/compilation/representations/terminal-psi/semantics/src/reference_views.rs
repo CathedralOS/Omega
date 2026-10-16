@@ -17,28 +17,94 @@ pub fn shared_descriptor_copy_matches<'types>(
     occurrence_access: Option<StructuralAccess>,
     destination: StructuralTypeId,
 ) -> bool {
-    let Some(StructuralTypeShape::ElementView {
-        element: source_element,
-        access: source_access,
-    }) = types
-        .clone()
-        .find(|row| row.id == source)
-        .map(|row| &row.shape)
-    else {
+    let Some(source) = types.clone().find(|row| row.id == source) else {
         return false;
     };
-    let Some(StructuralTypeShape::ElementView {
-        element: destination_element,
-        access: Some(StructuralAccess::SharedBorrow),
-    }) = types
-        .clone()
-        .find(|row| row.id == destination)
-        .map(|row| &row.shape)
-    else {
+    let Some(destination) = types.clone().find(|row| row.id == destination) else {
         return false;
     };
-    source_element == destination_element
-        && source_access.or(occurrence_access) == Some(StructuralAccess::SharedBorrow)
+    descriptor_geometry_matches(&source.shape, &destination.shape)
+        && descriptor_declared_access(&source.shape)
+            .flatten()
+            .or(occurrence_access)
+            == Some(StructuralAccess::SharedBorrow)
+        && descriptor_declared_access(&destination.shape).flatten()
+            == Some(StructuralAccess::SharedBorrow)
+}
+
+/// Reborrowing preserves element geometry while the result occurrence and
+/// stored carrier each constrain access. Canonical and stored descriptors may
+/// have different type identities without denoting different backing shapes.
+/// Bounds, current loans and result custody remain independent obligations.
+pub fn descriptor_reborrow_matches<'types>(
+    types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+    source: StructuralTypeId,
+    source_access: StructuralAccess,
+    source_occurrence_access: Option<StructuralAccess>,
+    destination: StructuralTypeId,
+    requested_access: StructuralAccess,
+) -> bool {
+    let Some(source) = types.clone().find(|row| row.id == source) else {
+        return false;
+    };
+    let Some(destination) = types.clone().find(|row| row.id == destination) else {
+        return false;
+    };
+    let source_ceiling = descriptor_declared_access(&source.shape).flatten();
+    let destination_ceiling = descriptor_declared_access(&destination.shape).flatten();
+    // Stored access cannot override an attenuated occurrence, and a canonical
+    // occurrence cannot widen the declared permission of its stored carrier.
+    descriptor_geometry_matches(&source.shape, &destination.shape)
+        && requested_access.admits(source_access)
+        && source_occurrence_access
+            .or(source_ceiling)
+            .is_some_and(|access| requested_access.admits_referent(access))
+        && source_ceiling.is_none_or(|access| requested_access.admits_referent(access))
+        && destination_ceiling.is_none_or(|access| requested_access.admits_referent(access))
+}
+
+fn descriptor_declared_access(shape: &StructuralTypeShape) -> Option<Option<StructuralAccess>> {
+    match shape {
+        StructuralTypeShape::ElementView { access, .. }
+        | StructuralTypeShape::ByteSequence(
+            terminal_psi::ByteSequenceCarrier::BorrowedView { access }
+            | terminal_psi::ByteSequenceCarrier::BoundedView { access, .. },
+        ) => Some(*access),
+        _ => None,
+    }
+}
+
+pub(crate) fn descriptor_geometry_matches(
+    source: &StructuralTypeShape,
+    destination: &StructuralTypeShape,
+) -> bool {
+    use terminal_psi::ByteSequenceCarrier;
+    match (source, destination) {
+        (
+            StructuralTypeShape::ElementView {
+                element: source, ..
+            },
+            StructuralTypeShape::ElementView {
+                element: destination,
+                ..
+            },
+        ) => source == destination,
+        (
+            StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView { .. }),
+            StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView { .. }),
+        ) => true,
+        (
+            StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedView {
+                capacity: source,
+                ..
+            }),
+            StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedView {
+                capacity: destination,
+                ..
+            }),
+        ) => source == destination,
+        _ => false,
+    }
 }
 
 /// Shared references can be copied even when their materialized carriers have
@@ -69,7 +135,16 @@ pub fn is_shared_reference_carrier<'types>(
             StructuralTypeShape::ElementView {
                 access: Some(access),
                 ..
-            } => {
+            }
+            | StructuralTypeShape::ByteSequence(
+                terminal_psi::ByteSequenceCarrier::BorrowedView {
+                    access: Some(access),
+                }
+                | terminal_psi::ByteSequenceCarrier::BoundedView {
+                    access: Some(access),
+                    ..
+                },
+            ) => {
                 return access == StructuralAccess::SharedBorrow;
             }
             StructuralTypeShape::FixedArray { element, .. } => structural_type = element,

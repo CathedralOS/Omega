@@ -278,21 +278,20 @@ pub(crate) fn owner_loan_geometry(
 pub(crate) fn leaf_copy_geometry(
     root: StructuralTypeId,
     path: &[StructuralPathSegment],
+    expected: StructuralTypeId,
     declarations: &[StructuralTypeDeclaration],
 ) -> Option<ReferenceSourceGeometry> {
-    reference_source_geometry_with_leaf_type(
-        root,
-        path,
-        declarations,
-        StructuralFieldType::leaf_copy_type,
-    )
+    let expected = declarations.iter().find(|row| row.id == expected)?;
+    reference_source_geometry_with_leaf_type(root, path, declarations, |field| {
+        field.leaf_copy_type(Some(expected))
+    })
 }
 
 fn reference_source_geometry_with_leaf_type(
     root: StructuralTypeId,
     path: &[StructuralPathSegment],
     declarations: &[StructuralTypeDeclaration],
-    leaf_type: fn(&StructuralFieldType) -> Option<StructuralFieldType>,
+    leaf_type: impl Fn(&StructuralFieldType) -> Option<StructuralFieldType> + Copy,
 ) -> Option<ReferenceSourceGeometry> {
     reference_geometry(root, path, declarations, |root, path| {
         runtime_projection_with_leaf_type(root, path, declarations, leaf_type)
@@ -1899,21 +1898,20 @@ fn borrowed_leaf_type(
 pub(crate) fn leaf_copy_projection(
     root: StructuralTypeId,
     path: &[StructuralPathSegment],
+    expected: StructuralTypeId,
     declarations: &[StructuralTypeDeclaration],
 ) -> Option<(StructuralTypeId, u32)> {
-    project_with_leaf_type(
-        root,
-        path,
-        declarations,
-        StructuralFieldType::leaf_copy_type,
-    )
+    let expected = declarations.iter().find(|row| row.id == expected)?;
+    project_with_leaf_type(root, path, declarations, |field| {
+        field.leaf_copy_type(Some(expected))
+    })
 }
 
 fn project_with_leaf_type(
     root: StructuralTypeId,
     path: &[StructuralPathSegment],
     declarations: &[StructuralTypeDeclaration],
-    leaf_type: fn(&StructuralFieldType) -> Option<StructuralFieldType>,
+    leaf_type: impl Fn(&StructuralFieldType) -> Option<StructuralFieldType> + Copy,
 ) -> Option<(StructuralTypeId, u32)> {
     project_inner(
         root,
@@ -1994,7 +1992,7 @@ fn project_inner(
     root: StructuralTypeId,
     path: impl Iterator<Item = Projection>,
     declarations: &[StructuralTypeDeclaration],
-    leaf_type: fn(&StructuralFieldType) -> Option<StructuralFieldType>,
+    leaf_type: impl Fn(&StructuralFieldType) -> Option<StructuralFieldType> + Copy,
 ) -> Option<(StructuralTypeId, u32, Vec<RuntimeElement>)> {
     let (storage, offset, elements) = project_storage(root, path, declarations)?;
     let identity = match &*storage {

@@ -416,7 +416,36 @@ pub(super) fn validate_source(
                             )
                         )
                     })
-                && Some(result.structural_type) == structural_type
+                && structural_type.is_some_and(|source_type| {
+                    super::super::operation_contracts::structural_source_contract(function, source)
+                        .is_some_and(|contract| {
+                            let Some(result_access) =
+                                terminal_semantics::descriptor_results::descriptor_value_access(
+                                    structural_types.values().copied(),
+                                    result.structural_type,
+                                    result.multiplicity,
+                                )
+                            else {
+                                return false;
+                            };
+                            terminal_semantics::descriptor_reborrow_matches(
+                                structural_types.values().copied(),
+                                source_type,
+                                contract.access,
+                                if contract.access != StructuralAccess::Owned {
+                                    Some(contract.access)
+                                } else {
+                                    terminal_semantics::descriptor_results::descriptor_value_access(
+                                        structural_types.values().copied(),
+                                        source_type,
+                                        contract.multiplicity,
+                                    )
+                                },
+                                result.structural_type,
+                                result_access,
+                            )
+                        })
+                })
                 && super::super::operation_contracts::structural_operation_result_contract(
                     function, operation,
                 )

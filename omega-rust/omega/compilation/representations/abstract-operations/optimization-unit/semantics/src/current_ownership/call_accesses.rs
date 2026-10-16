@@ -38,6 +38,7 @@ pub(crate) struct CallAccesses<'unit> {
     /// Host declarations a descriptor replay consults at each boundary
     /// completion; boundary bodies are not part of the unit.
     boundaries: Vec<&'unit BoundaryMachineDeclaration>,
+    pub(crate) dynamic_dispatch: &'unit terminal_psi::TerminalDynamicDispatchCatalog,
     pub(super) references: super::references::call_effects::ReferenceCallEffects,
 }
 
@@ -45,17 +46,20 @@ impl<'unit> CallAccesses<'unit> {
     pub(crate) fn new(
         functions: &BTreeMap<MachineId, &PsiOptimizationFunction>,
         boundaries: impl IntoIterator<Item = &'unit BoundaryMachineDeclaration>,
+        dynamic_dispatch: &'unit terminal_psi::TerminalDynamicDispatchCatalog,
         types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     ) -> Self {
         let boundaries = boundaries.into_iter().collect::<Vec<_>>();
         let references = super::references::call_effects::ReferenceCallEffects::new(
             functions,
             &boundaries,
+            dynamic_dispatch,
             types,
         );
         let mut result = Self {
             functions: BTreeMap::new(),
             boundaries,
+            dynamic_dispatch,
             references,
         };
         let mut closed_storage = BTreeMap::new();
@@ -84,7 +88,13 @@ impl<'unit> CallAccesses<'unit> {
         let Some(function) = functions.get(&machine) else {
             return;
         };
-        let origins = BorrowedRegions::origins(function, functions, &self.boundaries, types);
+        let origins = BorrowedRegions::origins(
+            function,
+            functions,
+            &self.boundaries,
+            self.dynamic_dispatch,
+            types,
+        );
         let mut writes = Vec::<ParameterMutation>::new();
         for node in function.block_nodes() {
             if let O::CallStructural { callee, .. } = &node.operation {

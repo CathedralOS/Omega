@@ -579,15 +579,20 @@ impl Expansion<'_> {
             // beside the call as `DynamicFamilyArgument` scalar expressions;
             // lower each through the caller's namespace exactly as an
             // ordinary operand, in roster-binder order.
-            let mut family_actuals = Vec::new();
-            for family_ordinal in 0usize.. {
+            let dispatch = crate::unit::dynamic_dispatch::DynamicDispatchIndex::new(self.checked);
+            let (interface, position) =
+                dispatch.resolve_slot(interface_identity, &requirement_identity)?;
+            let roster = dispatch.family_roster(interface, position, &requirement_identity)?;
+            let arity = roster.first().map_or(0, Vec::len);
+            let mut family_actuals = Vec::with_capacity(arity);
+            for family_ordinal in 0..arity {
                 let role = checked_trees::CheckedScalarExpressionRole::DynamicFamilyArgument {
                     call_ordinal,
                     family_ordinal: u32::try_from(family_ordinal).map_err(|_| {
                         LoweringError::Unsupported("dynamic family operand ordinal overflows")
                     })?,
                 };
-                let Some((_, expression)) = self
+                let (_, expression) = self
                     .checked
                     .facts
                     .values
@@ -601,9 +606,9 @@ impl Expansion<'_> {
                         })?,
                         role,
                     )
-                else {
-                    break;
-                };
+                    .ok_or(LoweringError::Unsupported(
+                        "dynamic family call lost a checked row-selection operand",
+                    ))?;
                 family_actuals.push(site.bindings.expression(
                     identities,
                     &self.checked.facts.proven_scalar_indexes,
