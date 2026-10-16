@@ -11,10 +11,12 @@
 //! comparisons are false for NaN, so a true arm proves an ordered interval
 //! about the compared place: `difference >= 0.5 && difference <= 8.0` is
 //! exactly the declared range `f64 [0.5..=8.0]`. The same interval is what a
-//! later refuted exit guard contributes, with the comparison inverted. An
-//! unsatisfiable strict bound (`value > +inf`) stays empty and proves nothing.
+//! refuted comparison contributes only to the ordered part: NaN also makes
+//! that comparison false. Keep unordered possibility until independent evidence
+//! excludes it, including when that evidence follows a negated conjunct. Guard
+//! effects and crossed writes must preserve the argument being constrained.
 
-use crate::checker::guards::{expressions_equivalent_for_proof, unwrap_true_guard_condition};
+use crate::checker::guards::unwrap_true_guard_condition;
 use crate::checker::integer_ranges::type_constraints;
 use crate::obligations::{
     BoundedAssignmentObligation, BoundedCallArgumentObligation, BoundedInitializerObligation,
@@ -250,45 +252,112 @@ fn resolved_place_identity(
 
 /// The float interval a co-located guard proves about `argument`.
 ///
-/// `base` is the interval already proved from the place's type or a reaching
-/// literal. A missing base starts at the whole extended line, which a finite
-/// declared range does not contain until a comparison cuts it down. Prior
-/// exit guards apply with the comparison inverted: reaching this arm refuted
-/// them. An empty result proves nothing.
-pub(crate) fn guarded_float_range(
+/// A missing base includes both the extended ordered line and NaN. Refuting an
+/// ordered comparison narrows that line but retains NaN. Only an established
+/// ordered interval can discharge a bounded argument; NaN-only intersections
+/// are not unreachable paths. Prior exits contribute only across disjoint writes.
+pub(crate) fn guarded_float_range_for_transition_argument(
     proof_plan: &ProofPlan,
-    base: Option<FloatRange>,
-    argument: ExpressionHandle,
-    guard: &TransitionGuardNode,
-    refuted_exit_guards: &[ExpressionHandle],
-    machine_symbol: symbols::SymbolHandle,
-    source_state: symbols::SymbolHandle,
+    obligation: &BoundedTransitionArgumentObligation,
 ) -> Option<FloatRange> {
-    let mut range = base.unwrap_or(FloatRange {
-        minimum: f64::NEG_INFINITY,
-        maximum: f64::INFINITY,
-        maximum_inclusive: true,
-    });
+    let base = float_range_for_transition_argument(proof_plan, obligation);
+    let program = proof_plan.program;
+    let (machine, state) =
+        program.machine_state(obligation.machine_symbol, obligation.state_symbol)?;
+    let statements = program.statement_table.statements(state.statement_nodes);
+    let current = statements.get(obligation.statement_index)?;
+    let frames = validation::CallFrameResolver::new(program)?;
+    let mut reads = Vec::new();
+    super::assignment_stability::collect_read_place_paths(
+        proof_plan,
+        obligation.argument,
+        &mut reads,
+    );
+    super::assignment_stability::collect_read_place_paths(
+        proof_plan,
+        dehoisted_operand(program, state, obligation.argument),
+        &mut reads,
+    );
+    let preserves = |written: Option<Vec<String>>| {
+        written.is_some_and(|written| {
+            !super::assignment_stability::resolved_writes_overlap_reads(&written, &reads)
+        })
+    };
+    // The guard and all sibling operands precede consumption. A complete,
+    // disjoint frame permits useful effectful guards; an aliasing write does
+    // not become harmless merely because the comparison appeared first.
+    if !preserves(frames.statement_value_may_write_paths(machine, current)) {
+        return None;
+    }
+    let mut range = FloatGuardRange {
+        ordered: base.unwrap_or(FloatRange {
+            minimum: f64::NEG_INFINITY,
+            maximum: f64::INFINITY,
+            maximum_inclusive: true,
+        }),
+        may_be_nan: base.is_none()
+            && !type_constraints(proof_plan, obligation.argument_constraints)
+                .iter()
+                .any(|constraint| {
+                    matches!(constraint,
+                    ProofConstraint::Named(name) if name.as_str() == "finite")
+                }),
+    };
     range = apply_float_guard(
         proof_plan,
         range,
-        argument,
-        guard,
-        machine_symbol,
-        source_state,
+        obligation.argument,
+        &obligation.guard,
+        obligation.machine_symbol,
+        obligation.state_symbol,
+        obligation.statement_index,
     );
-    for refuted in refuted_exit_guards {
-        range = apply_float_condition(
-            proof_plan,
-            range,
-            argument,
-            *refuted,
-            machine_symbol,
-            source_state,
-            true,
-        );
+    for statement in statements[..obligation.statement_index].iter().rev() {
+        if !preserves(frames.statement_value_may_write_paths(machine, statement)) {
+            break;
+        }
+        match statement {
+            StatementNode::Assignment(_) => {
+                if !preserves(
+                    frames
+                        .assignment_write_frame(machine, statement)
+                        .into_complete_paths(),
+                ) {
+                    break;
+                }
+            }
+            StatementNode::Call(call) => {
+                if !preserves(frames.may_write_paths(machine, call)) {
+                    break;
+                }
+            }
+            StatementNode::Transition(transition) => {
+                if let TransitionGuardNode::When(condition) = transition.guard
+                    && obligation.refuted_exit_guards.contains(&condition)
+                {
+                    range = apply_float_condition(
+                        proof_plan,
+                        range,
+                        obligation.argument,
+                        condition,
+                        obligation.machine_symbol,
+                        obligation.state_symbol,
+                        obligation.statement_index,
+                        true,
+                    );
+                }
+            }
+            StatementNode::LocalData(_) | StatementNode::Expression(_) => {}
+            _ => break,
+        }
     }
-    inhabited(range).then_some(range)
+    (!range.may_be_nan && inhabited(range.ordered)).then_some(range.ordered)
+}
+
+#[derive(Clone, Copy)]
+struct FloatGuardRange {
+    ordered: FloatRange,
+    may_be_nan: bool,
 }
 
 fn inhabited(range: FloatRange) -> bool {
@@ -297,12 +366,13 @@ fn inhabited(range: FloatRange) -> bool {
 
 fn apply_float_guard(
     proof_plan: &ProofPlan,
-    range: FloatRange,
+    range: FloatGuardRange,
     argument: ExpressionHandle,
     guard: &TransitionGuardNode,
     machine_symbol: symbols::SymbolHandle,
     source_state: symbols::SymbolHandle,
-) -> FloatRange {
+    statement_index: usize,
+) -> FloatGuardRange {
     match guard {
         TransitionGuardNode::Always => range,
         TransitionGuardNode::When(condition) => apply_float_condition(
@@ -312,6 +382,7 @@ fn apply_float_guard(
             *condition,
             machine_symbol,
             source_state,
+            statement_index,
             false,
         ),
     }
@@ -319,15 +390,21 @@ fn apply_float_guard(
 
 fn apply_float_condition(
     proof_plan: &ProofPlan,
-    range: FloatRange,
+    range: FloatGuardRange,
     argument: ExpressionHandle,
     condition: ExpressionHandle,
     machine_symbol: symbols::SymbolHandle,
     source_state: symbols::SymbolHandle,
+    statement_index: usize,
     refute: bool,
-) -> FloatRange {
-    let condition = dehoisted_guard_condition(proof_plan, machine_symbol, source_state, condition);
-    let condition = unwrap_true_guard_condition(proof_plan, condition);
+) -> FloatGuardRange {
+    let condition = dehoisted_guard_condition(
+        proof_plan,
+        machine_symbol,
+        source_state,
+        statement_index,
+        condition,
+    );
     if let ExpressionNode::Unary(unary) = proof_plan.program.expression_table.expression(condition)
         && unary.operator == UnaryOperator::LogicalNot
     {
@@ -338,6 +415,7 @@ fn apply_float_condition(
             unary.operand,
             machine_symbol,
             source_state,
+            statement_index,
             !refute,
         );
     }
@@ -356,6 +434,7 @@ fn apply_float_condition(
             binary.left,
             machine_symbol,
             source_state,
+            statement_index,
             false,
         );
         return apply_float_condition(
@@ -365,52 +444,96 @@ fn apply_float_condition(
             binary.right,
             machine_symbol,
             source_state,
+            statement_index,
             false,
         );
     }
-    let operator = if refute {
-        match binary.operator {
-            BinaryOperator::Less => BinaryOperator::GreaterOrEqual,
-            BinaryOperator::LessOrEqual => BinaryOperator::Greater,
-            BinaryOperator::Greater => BinaryOperator::LessOrEqual,
-            BinaryOperator::GreaterOrEqual => BinaryOperator::Less,
-            _ => return range,
-        }
-    } else {
-        binary.operator
+    let Some((machine, state)) = proof_plan
+        .program
+        .machine_state(machine_symbol, source_state)
+    else {
+        return range;
     };
+    if !validation::has_builtin_bound_expression_meaning(
+        proof_plan.program,
+        machine,
+        Some(state),
+        condition,
+    ) && !validation::sealed_float_comparison(
+        proof_plan.program,
+        machine,
+        Some(state),
+        condition,
+        binary,
+    ) {
+        return range;
+    }
     apply_float_comparison(
         proof_plan,
         range,
         argument,
-        operator,
+        binary.operator,
         binary.left,
         binary.right,
         machine_symbol,
         source_state,
+        statement_index,
+        refute,
     )
 }
 
 fn apply_float_comparison(
     proof_plan: &ProofPlan,
-    mut range: FloatRange,
+    mut range: FloatGuardRange,
     argument: ExpressionHandle,
     operator: BinaryOperator,
     left: ExpressionHandle,
     right: ExpressionHandle,
     machine_symbol: symbols::SymbolHandle,
     source_state: symbols::SymbolHandle,
-) -> FloatRange {
-    let (state_argument, state_left, state_right) = dehoisted_comparison_sides(
-        proof_plan,
-        machine_symbol,
-        source_state,
-        argument,
-        left,
-        right,
-    );
-    let on_left = expressions_equivalent_for_proof(proof_plan, state_left, state_argument);
-    let on_right = expressions_equivalent_for_proof(proof_plan, state_right, state_argument);
+    statement_index: usize,
+    refute: bool,
+) -> FloatGuardRange {
+    let Some((machine, state)) = proof_plan
+        .program
+        .machine_state(machine_symbol, source_state)
+    else {
+        return range;
+    };
+    let dehoist =
+        |operand| stable_scalar_operand(proof_plan, machine, state, statement_index, operand);
+    let (state_argument, state_left, state_right) =
+        (dehoist(argument), dehoist(left), dehoist(right));
+    // Canonical places retain binder, field and selector identities. Matching
+    // spelling or independently authored calls is not the same observation.
+    let same_argument = |expression| {
+        same_float_place(
+            proof_plan,
+            machine_symbol,
+            source_state,
+            statement_index,
+            state_argument,
+            expression,
+        )
+    };
+    let on_left = same_argument(state_left);
+    let on_right = same_argument(state_right);
+    if on_left && on_right {
+        // Reflexive IEEE equality (or refuted inequality) excludes NaN, not
+        // infinity. It carries no numerical endpoint by itself.
+        if matches!(
+            (operator, refute),
+            (
+                BinaryOperator::Equal
+                    | BinaryOperator::LessOrEqual
+                    | BinaryOperator::GreaterOrEqual,
+                false
+            ) | (BinaryOperator::NotEqual, true)
+        ) {
+            range.may_be_nan = false;
+        }
+        return range;
+    }
     let (operator, literal) = if on_left {
         (operator, float_literal_value(proof_plan, state_right))
     } else if on_right {
@@ -424,24 +547,54 @@ fn apply_float_comparison(
     let Some(literal) = literal else {
         return range;
     };
+    // Complement only the ordered component. A false relation also admits
+    // NaN, whereas a true ordered relation or equality excludes it.
+    let operator = if refute {
+        match operator {
+            BinaryOperator::Less => BinaryOperator::GreaterOrEqual,
+            BinaryOperator::LessOrEqual => BinaryOperator::Greater,
+            BinaryOperator::Greater => BinaryOperator::LessOrEqual,
+            BinaryOperator::GreaterOrEqual => BinaryOperator::Less,
+            BinaryOperator::NotEqual => {
+                range.may_be_nan = false;
+                BinaryOperator::Equal
+            }
+            _ => return range,
+        }
+    } else {
+        if !matches!(
+            operator,
+            BinaryOperator::Equal
+                | BinaryOperator::GreaterOrEqual
+                | BinaryOperator::Greater
+                | BinaryOperator::LessOrEqual
+                | BinaryOperator::Less
+        ) {
+            return range;
+        }
+        range.may_be_nan = false;
+        operator
+    };
     match operator {
         BinaryOperator::Equal => {
-            raise_minimum(&mut range, literal);
-            cap_maximum(&mut range, literal, true);
+            raise_minimum(&mut range.ordered, literal);
+            cap_maximum(&mut range.ordered, literal, true);
         }
-        BinaryOperator::GreaterOrEqual => raise_minimum(&mut range, literal),
+        BinaryOperator::GreaterOrEqual => raise_minimum(&mut range.ordered, literal),
         BinaryOperator::Greater => {
             if literal == f64::INFINITY {
-                return empty_float_range();
+                range.ordered = empty_float_range();
+            } else {
+                raise_minimum(&mut range.ordered, literal.next_up());
             }
-            raise_minimum(&mut range, literal.next_up());
         }
-        BinaryOperator::LessOrEqual => cap_maximum(&mut range, literal, true),
+        BinaryOperator::LessOrEqual => cap_maximum(&mut range.ordered, literal, true),
         BinaryOperator::Less => {
             if literal == f64::NEG_INFINITY {
-                return empty_float_range();
+                range.ordered = empty_float_range();
+            } else {
+                cap_maximum(&mut range.ordered, literal, false);
             }
-            cap_maximum(&mut range, literal, false);
         }
         _ => {}
     }
@@ -462,7 +615,8 @@ fn dehoisted_guard_condition(
     proof_plan: &ProofPlan,
     machine_symbol: symbols::SymbolHandle,
     source_state: symbols::SymbolHandle,
-    condition: ExpressionHandle,
+    statement_index: usize,
+    mut condition: ExpressionHandle,
 ) -> ExpressionHandle {
     let Some((machine, state)) = proof_plan
         .program
@@ -470,29 +624,200 @@ fn dehoisted_guard_condition(
     else {
         return condition;
     };
-    let _ = machine;
-    dehoisted_condition(proof_plan.program, state, condition)
+    let mut previous_declaration = statement_index;
+    loop {
+        let unwrapped = unwrap_true_guard_condition(proof_plan, condition);
+        if unwrapped != condition {
+            if !validation::has_builtin_decomposed_guard_meaning(
+                proof_plan.program,
+                machine,
+                Some(state),
+                condition,
+            ) {
+                return condition;
+            }
+            condition = unwrapped;
+        }
+        let Some((declaration, initializer)) =
+            stable_initializer(proof_plan, machine, state, statement_index, condition)
+        else {
+            return condition;
+        };
+        if declaration >= previous_declaration {
+            return condition;
+        }
+        previous_declaration = declaration;
+        condition = initializer;
+    }
 }
 
-fn dehoisted_comparison_sides(
+/// Resolve stable scalar captures at this observation, including index captures.
+/// Closed literals and exact place reads are values; arbitrary calls or
+/// arithmetic recipes are not replayed to manufacture identity.
+fn stable_scalar_operand(
+    proof_plan: &ProofPlan,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    statement_index: usize,
+    mut operand: ExpressionHandle,
+) -> ExpressionHandle {
+    let mut previous_declaration = statement_index;
+    loop {
+        let Some((declaration, initializer)) =
+            stable_initializer(proof_plan, machine, state, statement_index, operand)
+        else {
+            return operand;
+        };
+        if declaration >= previous_declaration
+            || !matches!(
+                proof_plan.program.expression_table.expression(initializer),
+                ExpressionNode::Name(_)
+                    | ExpressionNode::Member(_)
+                    | ExpressionNode::Indexed(_)
+                    | ExpressionNode::Integer(_)
+                    | ExpressionNode::Float(_)
+            )
+        {
+            return operand;
+        }
+        previous_declaration = declaration;
+        operand = initializer;
+    }
+}
+
+/// A saved Boolean or scalar copy may stand for its initializer only while
+/// both that binding and every observed place retain their values. This is a
+/// query-local snapshot check, not permission to replay arbitrary expressions.
+fn stable_initializer(
+    proof_plan: &ProofPlan,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    statement_index: usize,
+    expression: ExpressionHandle,
+) -> Option<(usize, ExpressionHandle)> {
+    let program = proof_plan.program;
+    let initializer = dehoisted_condition(program, state, expression);
+    if initializer == expression {
+        return None;
+    }
+    let name = program.expression_table.name_path_node(expression)?;
+    let (declaration, _) = program.state_local_declaration(state, name.symbol)?;
+    if declaration >= statement_index {
+        return None;
+    }
+    let mut reads = Vec::new();
+    super::assignment_stability::collect_read_place_paths(proof_plan, expression, &mut reads);
+    super::assignment_stability::collect_read_place_paths(proof_plan, initializer, &mut reads);
+    let frames = validation::CallFrameResolver::new(program)?;
+    let preserves = |written: Option<Vec<String>>| {
+        written.is_some_and(|written| {
+            !super::assignment_stability::resolved_writes_overlap_reads(&written, &reads)
+        })
+    };
+    let statements = program.statement_table.statements(state.statement_nodes);
+    for statement in statements.get(declaration + 1..=statement_index)? {
+        if !preserves(frames.statement_value_may_write_paths(machine, statement)) {
+            return None;
+        }
+        match statement {
+            StatementNode::Assignment(_) => {
+                if !preserves(
+                    frames
+                        .assignment_write_frame(machine, statement)
+                        .into_complete_paths(),
+                ) {
+                    return None;
+                }
+            }
+            StatementNode::Call(call) => {
+                if !preserves(frames.may_write_paths(machine, call)) {
+                    return None;
+                }
+            }
+            StatementNode::Transition(_)
+            | StatementNode::LocalData(_)
+            | StatementNode::Expression(_) => {}
+            _ => return None,
+        }
+    }
+    Some((declaration, initializer))
+}
+
+fn same_float_place(
     proof_plan: &ProofPlan,
     machine_symbol: symbols::SymbolHandle,
-    source_state: symbols::SymbolHandle,
-    argument: ExpressionHandle,
+    state_symbol: symbols::SymbolHandle,
+    statement_index: usize,
     left: ExpressionHandle,
     right: ExpressionHandle,
-) -> (ExpressionHandle, ExpressionHandle, ExpressionHandle) {
-    let Some((_, state)) = proof_plan
-        .program
-        .machine_state(machine_symbol, source_state)
-    else {
-        return (argument, left, right);
+) -> bool {
+    let program = proof_plan.program;
+    let Some((machine, state)) = program.machine_state(machine_symbol, state_symbol) else {
+        return false;
     };
-    (
-        dehoisted_operand(proof_plan.program, state, argument),
-        dehoisted_operand(proof_plan.program, state, left),
-        dehoisted_operand(proof_plan.program, state, right),
-    )
+    // Canonical storage identity erases borrow recasts. Its bytes are not
+    // proof that an integer view and a float view denote the same value.
+    let observed_primitive = |expression| {
+        validation::expression_result_type_reference(program, machine, state, expression)
+            .or_else(|| {
+                validation::declared_place_type_raw(program, machine, Some(state), expression)
+            })
+            .and_then(|reference| program.primitive_type_reference(reference))
+    };
+    let left_primitive = observed_primitive(left);
+    if !matches!(
+        left_primitive,
+        Some(PrimitiveType::F32 | PrimitiveType::F64)
+    ) || left_primitive != observed_primitive(right)
+    {
+        return false;
+    }
+    let canonical = |expression| {
+        // Authenticate the original coordinates before canonicalization can
+        // fold a selector's spelling (such as authored `0 + 0`) into an index.
+        if !validation::place_has_builtin_coordinates(program, machine, Some(state), expression) {
+            return None;
+        }
+        let mut place = validation::canonical_place_from_expression(program, expression)?;
+        for segment in &mut place.segments {
+            if let facts::PlaceSegment::Index { expression } = segment {
+                let operand =
+                    stable_scalar_operand(proof_plan, machine, state, statement_index, *expression);
+                *segment = validation::index_place_segment(program, operand);
+            }
+        }
+        Some(place)
+    };
+    let (Some(left), Some(right)) = (canonical(left), canonical(right)) else {
+        return false;
+    };
+    left.root == right.root
+        && left.segments.len() == right.segments.len()
+        && left
+            .segments
+            .iter()
+            .zip(&right.segments)
+            .all(|(left, right)| match (left, right) {
+                (
+                    facts::PlaceSegment::Index { expression: left },
+                    facts::PlaceSegment::Index { expression: right },
+                ) => {
+                    validation::has_builtin_bound_expression_meaning(
+                        program,
+                        machine,
+                        Some(state),
+                        *left,
+                    ) && validation::has_builtin_bound_expression_meaning(
+                        program,
+                        machine,
+                        Some(state),
+                        *right,
+                    ) && program
+                        .expression_table
+                        .expressions_structurally_equal(*left, *right)
+                }
+                _ => left == right,
+            })
 }
 
 fn float_literal_value(proof_plan: &ProofPlan, expression: ExpressionHandle) -> Option<f64> {

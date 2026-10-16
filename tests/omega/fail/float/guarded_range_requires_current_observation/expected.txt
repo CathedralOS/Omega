@@ -1,0 +1,4 @@
+cannot prove transition argument `reading.value` satisfies bounded parameter `changed` in `mutating_guard.entry`
+cannot prove transition argument `current` satisfies bounded parameter `stale` in `stale_guard.entry`
+cannot prove transition argument `value` satisfies bounded parameter `reassigned` in `reassigned_guard.entry`
+cannot prove transition argument `values[selected]` satisfies bounded parameter `selected` in `changed_selector.entry`

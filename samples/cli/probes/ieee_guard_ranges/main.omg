@@ -1,0 +1,100 @@
+// Expected exit: 0
+// IEEE guards separate ordered bounds from NaN exclusion. Negative controls
+// pin that negated comparisons alone cannot establish a finite range.
+use omega::language::core::float_operations;
+
+data Reading { value: f64; observed: bool; }
+
+machine early(value: f64) -> f64 {
+    transition value == value && !(value < 0.0) && !(value > 1.0) {
+        true -> bounded(value)
+        _ -> 0.0
+    }
+    state bounded(value: f64 [0.0..=1.0]) -> f64 { value }
+}
+machine late(value: f64) -> f64 {
+    transition !(value < 0.0) && !(value > 1.0) && !(value != value) {
+        true -> bounded(value)
+        _ -> 0.0
+    }
+    state bounded(value: f64 [0.0..=1.0]) -> f64 { value }
+}
+machine mixed(value: f64) -> f64 {
+    transition !(value < 0.0) && value <= 1.0 {
+        true -> bounded(value)
+        _ -> 0.0
+    }
+    state bounded(value: f64 [0.0..=1.0]) -> f64 { value }
+}
+machine finite(value: f64 in Finite) -> f64 {
+    transition !(value < 0.0) && !(value > 1.0) {
+        true -> bounded(value)
+        _ -> 0.0
+    }
+    state bounded(value: f64 [0.0..=1.0]) -> f64 { value }
+}
+machine copied(value: f64) -> f64 {
+    let accepted: bool = value >= 0.0 && value <= 1.0;
+    transition accepted { true -> bounded(value) _ -> 0.0 }
+    state bounded(value: f64 [0.0..=1.0]) -> f64 { value }
+}
+machine captured_value(value: f64) -> f64 {
+    let mut current: f64 = value;
+    let captured: f64 = current;
+    current = 2.0;
+    transition captured >= 0.0 && captured <= 1.0 {
+        true -> bounded(captured)
+        _ -> 0.0
+    }
+    state bounded(value: f64 [0.0..=1.0]) -> f64 { value }
+}
+machine refuted_inequality(value: f64) -> f64 {
+    transition !(value != 0.5) { true -> bounded(value) _ -> 0.0 }
+    state bounded(value: f64 [0.0..=1.0]) -> f64 { value }
+}
+machine record_observation(observed: &mut bool) -> bool { observed = true; true }
+machine through_field(reading: &mut Reading) -> f64 {
+    transition {
+        reading.value >= 0.0 && reading.value <= 1.0
+            && record_observation(&mut reading.observed) -> bounded(reading.value)
+        _ -> 0.0
+    }
+    state bounded(value: f64 [0.0..=1.0]) -> f64 { value }
+}
+machine indexed(values: &[f64; 2], index: u64 [0..2]) -> f64 {
+    transition values[index] >= 0.0 && values[index] <= 1.0 {
+        true -> bounded(values[index])
+        _ -> 0.0
+    }
+    state bounded(value: f64 [0.0..=1.0]) -> f64 { value }
+}
+machine narrow(value: f32) -> f32 {
+    transition !(value < 0.0f32) && value <= 1.0f32 {
+        true -> bounded(value)
+        _ -> 0.0f32
+    }
+    state bounded(value: f32 [0.0f32..=1.0f32]) -> f32 { value }
+}
+machine verify(valid: bool) crashes Trap {
+    transition valid { true -> done() _ -> failed() }
+    state done() {}
+    state failed() { crash Trap; }
+}
+machine main() crashes Trap {
+    let zero: f64 = 0.0;
+    let nan: f64 = zero / zero;
+    let infinity: f64 = 1.0 / zero;
+    verify(early(0.5) == 0.5 && late(0.5) == 0.5 && mixed(0.5) == 0.5);
+    verify(early(nan) == 0.0 && late(nan) == 0.0 && mixed(nan) == 0.0);
+    verify(early(infinity) == 0.0 && late(-infinity) == 0.0);
+    verify(early(-0.0) == 0.0 && late(-0.0) == 0.0);
+    verify(finite(0.5) == 0.5 && copied(0.5) == 0.5);
+    verify(captured_value(0.5) == 0.5 && refuted_inequality(0.5) == 0.5);
+    verify(refuted_inequality(nan) == 0.0);
+    let mut reading: Reading = Reading { value: 0.5, observed: false };
+    verify(through_field(&mut reading) == 0.5);
+    verify(reading.observed);
+    let values: [f64; 2] = [0.5, 2.0];
+    verify(indexed(&values, 0) == 0.5 && indexed(&values, 1) == 0.0);
+    verify(narrow(0.5f32) == 0.5f32 && narrow(-0.0f32) == 0.0f32);
+}

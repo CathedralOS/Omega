@@ -1339,6 +1339,7 @@ pass/float/runtime_float_call_same_carrier_cast_exit built 9271ms exit:0 @4f5905
 pass/float/runtime_float_digit_separators_exit built 11752ms exit:0 @9beb2be72f2d+wt
 pass/float/runtime_float_integer_conversion_boundaries_exit built 1554ms exit:70 @0c6abc6d1e0c+wt
 pass/float/runtime_format_conversion_result_bounds_exit built 4686ms exit:0 @c9e4c60b2906+wt
+pass/float/runtime_guarded_float_capture_exit built 6713ms exit:0 @22da6bb2553e+wt
 pass/float/runtime_named_float_to_integer_conversion_exit built 1366ms exit:70 @0c6abc6d1e0c+wt
 pass/float/runtime_named_fma_sequence_exit built 4765ms exit:70 @8b1dc72a53ca+wt
 pass/float/runtime_named_format_conversion_exit built 1813ms exit:70 @0d9777b52aee+wt

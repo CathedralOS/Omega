@@ -1,0 +1,19 @@
+// A selected boundary with the same token and carrier supplies no IEEE law.
+pub boundary machine < Unrelated::less(left: f64, right: f64) -> bool;
+pub boundary machine + Unrelated::add(left: u64, right: u64) -> u64 [0..2];
+machine select(value: f64) -> f64 {
+    transition value >= 0.0 && value < 1.0 {
+        true -> bounded(value)
+        _ -> 0.0
+    }
+    state bounded(value: f64 [0.0..=1.0]) -> f64 { value }
+}
+// Authored addition need not select element zero, despite its constant spelling.
+machine coordinate(values: &[f64; 2]) -> f64 {
+    transition values[0u64 + 0u64] >= 0.0 && values[0u64 + 0u64] <= 1.0 {
+        true -> bounded(values[0])
+        _ -> 0.0
+    }
+    state bounded(selected: f64 [0.0..=1.0]) -> f64 { selected }
+}
+machine main() {}

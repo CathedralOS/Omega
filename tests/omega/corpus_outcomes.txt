@@ -2655,6 +2655,24 @@ fail/float/format_conversion_requires_result_proof rejected 533ms expected @9c4d
 	cannot prove return value `F32.from_f64(value)` satisfies `finite` for bounded return type in `unknown.entry`
 fail/float/generic_constructor_suffix_format_disagrees rejected 315ms expected @1b12798e27f4
 	literal `3.0` is suffixed `f64` but lands in a `f32` place -- a width suffix chooses the literal's format at the spelling, so it must agree with the destination's declared type (drop the suffix or fix one side)
+fail/float/guarded_range_requires_builtin_boolean_wrapper rejected 167ms expected @22da6bb2553e+wt
+	cannot prove transition argument `value` satisfies bounded parameter `value` in `select.entry`; expected 0..=1
+fail/float/guarded_range_requires_current_observation rejected 174ms expected @22da6bb2553e+wt
+	cannot prove transition argument `reading.value` satisfies bounded parameter `changed` in `mutating_guard.entry`; expected 0..=1
+	cannot prove transition argument `current` satisfies bounded parameter `stale` in `stale_guard.entry`; expected 0..=1
+	cannot prove transition argument `value` satisfies bounded parameter `reassigned` in `reassigned_guard.entry`; expected 0..=1
+	cannot prove transition argument `values[selected]` satisfies bounded parameter `selected` in `changed_selector.entry`; expected 0..=1
+fail/float/guarded_range_requires_ieee_comparison rejected 170ms expected @22da6bb2553e+wt
+	cannot prove transition argument `value` satisfies bounded parameter `value` in `select.entry`; expected 0..=1
+	cannot prove transition argument `values[0]` satisfies bounded parameter `selected` in `coordinate.entry`; expected 0..=1
+fail/float/guarded_range_requires_ordered_value rejected 155ms expected @22da6bb2553e+wt
+	cannot prove transition argument `unordered` satisfies bounded parameter `negated` in `negated_bounds.entry`; expected 0..=1
+	cannot prove transition argument `unordered` satisfies bounded parameter `prior` in `false_exit_bounds.entry`; expected 0..=1
+	cannot prove transition argument `unordered` satisfies bounded parameter `inequality` in `inequality_is_not_ordered.entry`; expected 0..=1
+	cannot prove transition argument `unordered` satisfies bounded parameter `empty_ordered` in `nan_only.entry`; expected 0..=1
+	cannot prove transition argument `unordered` satisfies bounded parameter `narrow` in `narrow_negation.entry`; expected 0..=1
+	cannot prove transition argument `unordered` satisfies bounded parameter `other` in `wrong_subject.entry`; expected 0..=1
+	cannot prove transition argument `unordered` satisfies bounded parameter `recast` in `integer_view.entry`; expected 0..=1
 fail/float/integer_conversion_lookalike rejected 443ms expected @b60606588008+wt
 	machine `lookalike` state `entry` local `__hoist_34` stores a value not provably within its declared range: the range is a store-enforced invariant every read trusts (indexes, exact arithmetic), so the stored value must be proven to honor it. Narrow the value with a dominating guard, a dependent bound, or a requires coupling -- or widen/remove the range
 fail/float/integer_to_float_coercion_requires_denotation rejected 511ms expected @9c4d1c444502
@@ -6928,6 +6946,7 @@ pass/float/runtime_float_integer_conversion_boundaries_exit checked 25128ms chec
 pass/float/runtime_float_predicate_domain_exit checked 15064ms check-target:macos_arm64 @abbaf3aaa059+wt
 pass/float/runtime_format_conversion_result_bounds_exit checked 24869ms check-target:macos_arm64 @9c4d1c444502
 pass/float/runtime_generic_constructor_literal_landing_exit checked 14705ms check-target:macos_arm64 @1b12798e27f4
+pass/float/runtime_guarded_float_capture_exit checked 6880ms check-target:macos_arm64 @22da6bb2553e+wt
 pass/float/runtime_named_boundary_transition_exit checked 11907ms check-target:macos_arm64 @0755e2c06ec1
 pass/float/runtime_named_float_to_integer_conversion_exit checked 24284ms check-target:macos_arm64 @9c4d1c444502
 pass/float/runtime_named_fma_sequence_exit checked 23441ms check-target:macos_arm64 @9c4d1c444502

@@ -1,0 +1,11 @@
+// Even a Boolean wrapper owes its selected equality meaning before its
+// operand can be treated as a true IEEE comparison.
+pub boundary machine == Unrelated::equal(left: bool, right: bool) -> bool;
+machine select(value: f64) -> f64 {
+    transition ((value >= 0.0 && value <= 1.0) == true) {
+        true -> bounded(value)
+        _ -> 0.0
+    }
+    state bounded(value: f64 [0.0..=1.0]) -> f64 { value }
+}
+machine main() {}

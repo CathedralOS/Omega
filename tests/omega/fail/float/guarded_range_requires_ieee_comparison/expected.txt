@@ -1,0 +1,2 @@
+cannot prove transition argument `value` satisfies bounded parameter `value` in `select.entry`
+cannot prove transition argument `values[0]` satisfies bounded parameter `selected` in `coordinate.entry`
