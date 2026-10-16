@@ -135,17 +135,41 @@ required host, model request, status `pending`, and the agent id once the
 call returns. A draft file under `build/swarm/` is coordinator memory. It is
 not a Devin manifest and it is not fed to `launch.py`.
 
+## The worker's goal
+
+The session ends when a compiler repair is on `origin/main` and `omega run`
+of a program that failed before that repair exits with its oracle. The
+repair is the work. The program is the witness.
+
+Copy this into every worker prompt:
+
+> Run `omega run` on the assigned program. When it already meets its oracle,
+> that run is not the assignment. Cut a smaller program that uses one
+> construct from it which no passing sample uses yet. When that smaller
+> program also passes, it is not the assignment either: keep cutting until
+> a run fails. Repair the compiler so that failing run passes, and so the
+> same repair passes through a local, a field, a parameter, and a call
+> result. Land the repair and the failing program together through
+> `landing.py`. Leave the original program as authored. A commit that only
+> adds a passing sample, an input file, or a fixture is unfinished.
+
+A host this VM cannot execute, or an owner decision in `OWNER_QUESTIONS.md`,
+ends as `blocked` with the failure named. Publishing the original program
+unchanged, or admitting a feature the compiler already required, does not
+close the session.
+
 Each prompt is the worker's whole assignment. The worker does not see this
 conversation. Include:
 
+- The goal above, in those words
 - Wave, slot, sample path, authored oracle, and the `omega run` acceptance
 - Fetched main SHA, and the instruction to repeat the main preflight
 - Read `AGENTS.md` and run [advance](../advance/SKILL.md) restricted to this
   sample
-- The law of completion: carry the sample through acceptance, required
-  review, and authorized landing verified on remote main; do not wait for
-  another agent; do not publish half-finished functionality; do not bypass a
-  gate; an explicitly read-only probe remains read-only
+- The law of completion: carry the failing run through the compiler repair,
+  required review, and authorized landing verified on remote main; do not
+  wait for another agent; do not publish half-finished functionality; do not
+  bypass a gate; an explicitly read-only probe remains read-only
 - Claim with `python3 tools/claims.py` before editing, and keep the note
   current: sample, acceptance, current failure, next action, prerequisites
 - Publish only through `python3 tools/landing.py`. A Cursor branch or pull
@@ -172,8 +196,11 @@ poll it, wait on its shell, or send a keep-alive nudge. After the launches,
 continue coordinator bookkeeping or end the turn.
 
 On notification, drain that slot before starting a replacement. Read the
-verdict, fetch `origin/main`, and accept `landed` only when the sample's
-commit is an ancestor of fetched main. Do not merge the worker branch into
+verdict, fetch `origin/main`, and accept `landed` only when the repair
+commit is an ancestor of fetched main and the witness failed before that
+commit. A commit that only adds a passing sample, an input file, or a
+fixture is unfinished: resume the same agent with the goal above. Do not
+merge the worker branch into
 the coordinator branch. Resume the same agent id for the next step of the
 same unfinished outcome. A new Task call is a new VM; use it when the
 returned id is gone and the outcome still has an owner. Choose another
