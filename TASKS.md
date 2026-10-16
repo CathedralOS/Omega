@@ -998,18 +998,6 @@ defines the complete product bar.
   phase records the last route entered and can misidentify the declining
   operation.
 
-  Samples that build no native program on macOS ARM64:
-  - `systems/file_journal`: package review exits 200 because `Main::fs` /
-    `Main::files::host` have no Darwin `FilesystemHost` provider
-    (`omega-rust/omega/compilation/realization/provider-planning/src/provider_settlement/canonical_filesystem_host.rs`
-    covers limited Linux x86-64 leaves). Owned by
-    **FILESYSTEM-PLATFORM-SERVICES**. Acceptance: the seven-step workflow,
-    exit 7.
-  - `systems/note_vault`: needs the portable `FilesystemHost` binding under
-    **FILESYSTEM-PLATFORM-SERVICES**. Its one portable binding retains the
-    selected target provider's exact raw-family closure. Acceptance: unchanged
-    workflow, exit 14.
-
   Host coverage still owed:
   - std `Clock` on Linux (`rendering/{bouncing_ball_2d,mandelbrot_zoom,bouncing_particles}`):
     `tests/omega/pass/host/std_clock_sleep_exit` exits 70 on macOS ARM64 and
@@ -1106,14 +1094,6 @@ defines the complete product bar.
   - Fixture package locks and admissions stay local; a committed foreign
     `omega.lock` blocks the ordinary command
     (`pass/calls/local_records_mixed_record_result_arguments_exit` README).
-  - Restore runtime promises lost with deleted per-feature tests.
-    `pass/filesystem/native_wrapper_write_all_result` has no run suffix or exit
-    file and is rejected natively on all three hosts; on macOS ARM64 it must
-    store and dispatch the write result (nonexistent parent -> Error, `/tmp` ->
-    Ok, stdout PASS and no FAIL). Distinct from **FILESYSTEM-RELEASE-CONTRACT**.
-    On macOS ARM64 package review first stops at "selected ProgramEntry
-    Binding field `Main::fs::host` requires a selected Fused provider for
-    boundary `FilesystemHost`" (**FILESYSTEM-PLATFORM-SERVICES**).
   - Separate proof/declaration fixtures from executable customers:
     `pass/terminal_psi/content_custody_exit` invokes `Root::enter` but has no
     `build.omg` or oracle; `pass/core/content_{conservation_contract,retained_custody_round_trip}`
@@ -5592,102 +5572,43 @@ wait for Cathedral's instruction coverage. The interpreter is
   wrappers and install/update lock round trips without granting authority;
   unregistered reach remains inspectable. No synthesized receiver-policy file.
 
-- **FILESYSTEM-PLATFORM-SERVICES.** (new-scope)
-  Implement [platform services](wiki/spec/build/platform_services.md) for the
-  filesystem. `source/library/std/filesystem_host.omg` mixes POSIX and
-  Windows operations in one trait; providers must cover the complete schema,
-  so partial Linux rows and sentinel implementations cannot supply it.
+- **FILESYSTEM-PLATFORM-SERVICES.** Implement the remaining portable
+  [platform services](wiki/spec/build/platform_services.md) providers on
+  Windows x86-64 and Linux ARM64. Portable `FilesystemService` has one routed
+  slot; POSIX algorithms are shared, while each target owns its layouts,
+  flags, errno mapping and raw provider closure. Do not introduce target-varying
+  portable data, raw-family routing fields or hidden source values.
 
-  `PosixFilesystemHost` (`source/library/std/posix_filesystem_host.omg`)
-  has complete authored providers on macos_arm64 (checked adapters over
-  libSystem imports), linux_x86_64 and linux_arm64 (direct system calls).
-  Failures return the negated `errno`, so no provider keeps error state.
-  The raw-seam fixtures statically call `PosixFilesystemHost` and run natively
-  on macOS after source migration. `pass/filesystem/native_{crud,errno,filetype,fs_workflow,metadata_blocks,metadata_ctime_dev,metadata_nlink,read_dir_iter}`
-  match their stdout oracles, and `runtime_local_host_result_dispatch_exit`
-  exits 70. Still open on the raw side:
-  - `WindowsFilesystemHost` (`source/library/std/windows_filesystem_host.omg`)
-    covers synchronous HANDLE create/read/write/flush/seek/duplicate,
-    attributes, rename, directory creation/removal, deletion and file times
-    through kernel32. The raw breadth and set-file-time fixtures use this
-    family and build Windows artifacts; their Windows-specific exit-70
-    oracles still require execution on a Windows x86-64 host. The argument
-    refusal fixture covers oversized reads, asynchronous-handle creation,
-    invalid UTF-8 paths and failed timestamp queries. Linux retains its
-    missing-provider refusal; these foreign artifacts are not Linux runs.
-  - `native_canonicalize`: `canonicalize` is a libc routine on Darwin and
-    has no Linux system call, so it belongs to the target implementations of
-    the portable service, not the raw POSIX trait.
-  - `native_metadata_ino` stops at the proof-search budget
+  Remaining acceptance:
+  - Supply complete target implementations, preserving zero handles as absent,
+    zero OpenOptions as defaults and closed failure results. Windows stores
+    HANDLE; POSIX stores descriptor + 1, preserving descriptor 0.
+    Windows ownership, duplication, file permissions, data synchronization
+    and unsupported operations need explicit portable behavior, not POSIX
+    conventions or sentinel implementations.
+  - Run `file_journal` (exit 7), `note_vault` (exit 14) and applicable
+    filesystem fixture oracles on the remaining hosts. Linux x86-64 retains
+    its portable provider; the moved shared algorithms and Linux-only
+    `write_all_full_device_exit` need Linux execution.
+  - Execute the Windows raw breadth and set-file-time fixtures on Windows
+    x86-64 (exit 70). Foreign artifact production does not establish those
+    outcomes. Preserve oversized-read, asynchronous-handle, invalid UTF-8 and
+    failed-time-query controls.
+  - Remove unnecessary 4096-byte staging in raw read-link, directory,
+    metadata and timestamp adapters while preserving native layout, alignment,
+    minimum storage and separate NUL-terminated path construction.
+  - `native_metadata_ino` still reaches the proof-search budget
     (`proof_search_result_guarantee_work`);
-    **CHECKER-CARRIES-OPERATION-DECISIONS** owns it.
-  - `read_link`, `read_dir`, metadata and timestamp adapters still stage
-    through 4096-byte buffers. Remove unnecessary byte copying; preserve
-    the native layout, alignment and minimum-storage requirements of
-    structure-valued calls. Keep NUL-terminated path construction separate.
-  The portable carrier follows
-  [provider-closure transport](wiki/spec/build/platform_services.md#provider-closure-transport):
-  applications statically call one exact portable `FilesystemHost` application,
-  with an identical data shape on every target. Each selected target implementation retains its
-  exact POSIX or Windows requirement/provider rows as static transitive
-  provider-plan dependencies. Do not add raw-family routing fields, introduce
-  target-scoped data aliases, or manufacture hidden source values. Separate
-  static roles use exact generic applications/wrappers; runtime instances use
-  filesystem protocol handles.
-
-  `samples/cli/audio/wav_output` is the existing miniature: application source
-  calls one exact `WavOutput` slot, and target-scoped named implementations
-  satisfy it while reaching their applicable raw family. Bring its retained
-  closure and call spelling through the same settled provider machinery; its
-  current direct raw calls are migration evidence, not a separate ambient
-  binding route.
-  Migrate `samples/cli/audio/wav_output`'s explicit raw-family reach ceiling
-  to the core filesystem identities together with the raw requirements.
-  Its `invokes` declarations track direct boundary calls, not implicit
-  family reach; keep that distinction when the portable `Filesystem` moves over.
-  Update `source/library/std/targets/<target>/filesystem_impl.omg`:
-  POSIX stores descriptor + 1, Windows stores HANDLE, zero OpenOptions means
-  defaults, failures are closed and unsupported operations return
-  `ErrorKind::Unsupported`. Preserve descriptor 0 as a valid open file.
-
-  The portable wrapper invokes `change_owner`, `change_owner_no_follow`,
-  `change_file_owner`, `duplicate`, `errno`, `set_file_permissions`
-  and `sync_data`; their target-scoped Windows behavior must be explicit.
-  Darwin `errno` uses `___error`, Windows uses `_errno`, while direct
-  Linux syscalls return negative errno. Do not impose one family's error or
-  handle convention on the others.
-
-  Migrate `filesystem.omg`, all five target implementations, filesystem
-  fixtures, `pass/time/runtime_fs_mtime_system_time_interop_exit`,
-  and `samples/cli/systems/file_journal`.
-  Wrapper-only consumers include
-  `pass/filesystem/{dir_walk_wrappers_exit,windows_wrapper_results_exit,wrapper_lock_metadata_exit,wrapper_open_with_exit}`.
-  Rust consumers include package review's `semantic_bindings.rs`,
-  `review_record_encoding.rs`, review-evidence authority/provider capture,
-  selected-dispatch settlement and driver fixture/admission support.
-  The checked interpreter's generated host-operation roster and bare-name
-  fallback retire through the universal cutover, not a new legacy dispatcher.
-
-  Reuse `HostOperation::from_name`, Darwin's `darwin_import_library`
-  and the Windows host-operation catalog to author actual imports. Remove
-  `provider-planning/src/provider_settlement/canonical_filesystem_host.rs`
-  with the authored Linux replacement; remove the mixed trait and its
-  remaining consumers in the same coherent migration.
-
-  Retain every nested raw requirement/provider identity in artifact/cache
-  identity, cycle detection, review, authority evidence, replacement admission
-  and live-era custody. Missing, ambiguous, cyclic, wrong-target, stale or
-  unadmitted closure members reject. Replacing any nested raw provider rechecks
-  the complete portable provider closure before publication.
-
-  Absorbs **UNIT-PLAN-OMISSION-MKALL-WALK-PARAMETER-CUSTODY**:
-  `Filesystem::mkall_walk` reentry planning is repaired; its remaining
-  `pass/filesystem/dir_walk_wrappers_exit` customer needs provider supply,
-  not another Unit-plan repair. Require its unchanged native exit 70.
-
-  Acceptance: file_journal exits 7 on macOS, Linux and Windows; filesystem
-  fixtures execute their authored outcomes on their applicable hosts, including
-  opening a file with stdin closed without treating descriptor 0 as Closed.
+    **CHECKER-CARRIES-OPERATION-DECISIONS** owns that prerequisite.
+  - Retain every nested raw requirement/provider identity in artifact/cache
+    identity, cycle detection, review, authority evidence, replacement admission
+    and live-era custody. Missing, ambiguous, cyclic, wrong-target, stale or
+    unadmitted closure members reject. Replacing a nested raw provider rechecks
+    the complete portable closure.
+  - The checked interpreter's generated host-operation roster and bare-name
+    fallback retire through the universal cutover, not another legacy
+    dispatcher. Terminal execution still needs trusted implementations for
+    the exact authored foreign bindings.
 
 - **FILESYSTEM-RELEASE-CONTRACT.** Run
   `tests/omega/pass/filesystem/windows_canonicalize_exit` on Windows:

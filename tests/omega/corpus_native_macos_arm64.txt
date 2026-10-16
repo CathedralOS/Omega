@@ -1247,10 +1247,8 @@ pass/expressions/scalar_match_boundary_composition_exit built 1964ms exit:70 @de
 pass/expressions/seq_consuming_combinators checked 9993ms @fcc053dc7014+wt
 pass/expressions/unit_case_return_call_product built 17056ms exit:70 @589aedee8ebc+wt
 pass/filesystem/cross_linux_value_syscalls checked 24317ms @e01f73c689de+wt
-pass/filesystem/dir_walk_wrappers_exit rejected 18899ms @e01f73c689de+wt
-	selected ProgramEntry Binding field `Main::fs::host` requires a selected Fused provider for boundary `FilesystemHost`
-pass/filesystem/native_canonicalize rejected 1738ms @e01f73c689de+wt
-	selected ProgramEntry Binding field `Main::fs` requires a selected Fused provider for boundary `FilesystemHost`
+pass/filesystem/dir_walk_wrappers_exit built 18777ms exit:70 @cc43b6679d2a+wt
+pass/filesystem/native_canonicalize built 18026ms exit:0 stdout:match @cc43b6679d2a+wt
 pass/filesystem/native_close built 3369ms @e01f73c689de+wt
 pass/filesystem/native_crud built 4559ms exit:0 stdout:match @e01f73c689de+wt
 pass/filesystem/native_errno built 4045ms exit:0 stdout:match @e01f73c689de+wt
@@ -1261,9 +1259,10 @@ pass/filesystem/native_metadata_ctime_dev built 26003ms exit:0 stdout:match @e01
 pass/filesystem/native_metadata_ino built 14289ms @2740301f86f+wt
 pass/filesystem/native_metadata_nlink built 5648ms exit:0 stdout:match @e01f73c689de+wt
 pass/filesystem/native_read_dir_iter built 5345ms exit:0 stdout:match @e01f73c689de+wt
-pass/filesystem/native_wrapper_write_all_result rejected 17438ms @e01f73c689de+wt
-	selected ProgramEntry Binding field `Main::fs::host` requires a selected Fused provider for boundary `FilesystemHost`
+pass/filesystem/native_wrapper_write_all_result built 16640ms exit:0 stdout:match @cc43b6679d2a+wt
 pass/filesystem/runtime_local_host_result_dispatch_exit built 3686ms exit:70 @e01f73c689de+wt
+pass/filesystem/runtime_portable_copy_errors_exit built 19236ms exit:0 @cc43b6679d2a+wt
+pass/filesystem/runtime_portable_zero_descriptor_exit built 9697ms exit:0 @cc43b6679d2a+wt
 pass/filesystem/runtime_posix_borrowed_view_io_exit built 3171ms exit:0 stdout:match @d1ebe54629b8
 pass/filesystem/runtime_posix_read_runtime_range_view_exit built 7147ms exit:0 stdout:match @2375f5327b1a+wt
 pass/filesystem/windows_canonicalize_exit rejected 17869ms @e01f73c689de+wt
@@ -1275,10 +1274,8 @@ pass/filesystem/windows_set_file_time_exit rejected 2013ms @e01f73c689de+wt
 	selected ProgramEntry Binding field `Main::fs` requires a selected Fused provider for boundary `FilesystemHost`
 pass/filesystem/windows_wrapper_results_exit rejected 16286ms @e01f73c689de+wt
 	selected ProgramEntry Binding field `Main::fs::host` requires a selected Fused provider for boundary `FilesystemHost`
-pass/filesystem/wrapper_lock_metadata_exit rejected 15879ms @e01f73c689de+wt
-	selected ProgramEntry Binding field `Main::fs::host` requires a selected Fused provider for boundary `FilesystemHost`
-pass/filesystem/wrapper_open_with_exit rejected 15773ms @e01f73c689de+wt
-	selected ProgramEntry Binding field `Main::fs::host` requires a selected Fused provider for boundary `FilesystemHost`
+pass/filesystem/wrapper_lock_metadata_exit built 10357ms exit:70 @cc43b6679d2a+wt
+pass/filesystem/wrapper_open_with_exit built 10097ms exit:70 @cc43b6679d2a+wt
 pass/float/admitted_float_conversion_crash built 4993ms exit:signal signal:5 stdout:match @673b838f6d76+wt
 pass/float/admitted_float_lower_boundary_crash built 5076ms exit:signal signal:5 stdout:match @673b838f6d76+wt
 pass/float/admitted_numeric_imports_preserve_semantics built 7854ms exit:70 @673b838f6d76+wt

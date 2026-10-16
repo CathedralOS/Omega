@@ -1,6 +1,6 @@
 // Portable filesystem values and one routed service slot. Target adapters own
 // raw descriptors, flags, foreign record layouts and operation scratch.
-// The complete portable provider currently covers linux_x86_64. Other hosts
+// The complete portable provider covers linux_x86_64 and macos_arm64. Other hosts
 // retain their independent raw services and have no portable default yet.
 
 use filesystem_host;

@@ -1,0 +1,14 @@
+// Expected exit: 0. An acquired writable descriptor can still fail its write.
+// /dev/full is Linux-specific; portable copy/capacity controls run separately.
+use omega_language_std::filesystem;
+use omega_language_std::console;
+data Main { filesystem: Filesystem; }
+machine Main::main(main: &mut Main) reaches Console {
+    let result: UnitResult = Filesystem::write_all(&mut main.filesystem, "/dev/full", "cannot fit");
+    transition result { UnitResult::Error { kind } -> failed_write(kind) _ -> bad() }
+    state failed_write(kind: ErrorKind) {
+        transition kind { ErrorKind::Other -> good() _ -> bad() }
+    }
+    state good() { Console::exit_process(0); }
+    state bad() { Console::exit_process(1); }
+}

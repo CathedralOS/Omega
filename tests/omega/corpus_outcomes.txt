@@ -7015,8 +7015,8 @@ pass/filesystem/native_read_dir_iter checked 10620ms check-target:macos_arm64 @a
 pass/filesystem/native_wrapper_write_all_result rejected 18416ms check-target:macos_arm64 @aebe0714a499+wt
 	selected ProgramEntry Binding field `Main::fs::host` requires a selected Fused provider for boundary `FilesystemService`
 pass/filesystem/runtime_local_host_result_dispatch_exit checked 9920ms check-target:macos_arm64 @aebe0714a499+wt
-pass/filesystem/runtime_portable_copy_errors_exit checked 23928ms check-target:linux_x86_64 @aebe0714a499+wt
-pass/filesystem/runtime_portable_zero_descriptor_exit checked 20310ms check-target:linux_x86_64 @aebe0714a499+wt
+pass/filesystem/runtime_portable_copy_errors_exit checked 13694ms check-target:macos_arm64 @cc43b6679d2a+wt
+pass/filesystem/runtime_portable_zero_descriptor_exit checked 12120ms check-target:macos_arm64 @cc43b6679d2a+wt
 pass/filesystem/runtime_posix_borrowed_view_io_exit checked 9462ms check-target:macos_arm64 @aebe0714a499+wt
 pass/filesystem/runtime_posix_read_runtime_range_view_exit checked 9450ms check-target:macos_arm64 @aebe0714a499+wt
 pass/filesystem/windows_canonicalize_exit checked 20711ms check-target:linux_x86_64 @aebe0714a499+wt
@@ -7030,6 +7030,7 @@ pass/filesystem/wrapper_lock_metadata_exit rejected 17313ms check-target:macos_a
 	selected ProgramEntry Binding field `Main::fs::host` requires a selected Fused provider for boundary `FilesystemService`
 pass/filesystem/wrapper_open_with_exit rejected 17921ms check-target:macos_arm64 @aebe0714a499+wt
 	selected ProgramEntry Binding field `Main::fs::host` requires a selected Fused provider for boundary `FilesystemService`
+pass/filesystem/write_all_full_device_exit checked 8825ms check-target:linux_x86_64 @cc43b6679d2a+wt
 pass/float/admitted_float_conversion_crash checked 33720ms check-target:macos_arm64 @9c4d1c444502
 pass/float/admitted_float_lower_boundary_crash checked 33599ms check-target:macos_arm64 @9c4d1c444502
 pass/float/admitted_numeric_imports_preserve_semantics checked 41383ms check-target:macos_arm64 @9c4d1c444502

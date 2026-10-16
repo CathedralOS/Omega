@@ -3,7 +3,8 @@
 // and metadata(File) (the FSTAT-based wrapper; metadata_path is covered, the
 // File form was a zero-caller). Single-fd flock: exclusive -> unlock ->
 // shared -> unlock -> try exclusive (Acquired, no contention) -> unlock ->
-// try shared (Acquired) -> unlock. The interpreter's virtual fs is the
+// try shared (Acquired) -> unlock. A separately opened descriptor also proves
+// real lock contention maps each OS's errno to WouldBlock. The virtual fs is the
 // differential oracle.
 // exits: 70 ok; 71 create failed; 72 write short; 73 metadata(File) not
 // Ok/len wrong; 74 lock failed; 75 unlock-1 failed; 76 lock_shared failed;
@@ -42,7 +43,19 @@ machine Main::main(main: &mut Main) reaches Console {
     }
     state lockx(main: &mut Main) {
         main.unit_result = Filesystem::lock(&mut main.fs, File { handle: main.file_handle });
-        transition main.unit_result { UnitResult::Ok -> un1(main) _ -> bad(main, 74) }
+        transition main.unit_result { UnitResult::Ok -> contender(main) _ -> bad(main, 74) }
+    }
+    state contender(main: &mut Main) {
+        let opened: OpenResult = Filesystem::open(&mut main.fs, "omega_lock_probe.txt");
+        transition opened { OpenResult::Ok { file } -> try_contender(main, file) _ -> bad(main, 82) }
+    }
+    state try_contender(main: &mut Main, file: File) {
+        let attempted: TryLockResult = Filesystem::try_lock(&mut main.fs, file);
+        transition attempted { TryLockResult::WouldBlock -> close_contender(main, file) _ -> bad(main, 83) }
+    }
+    state close_contender(main: &mut Main, file: File) {
+        let closed: UnitResult = Filesystem::close(&mut main.fs, file);
+        transition closed { UnitResult::Ok -> un1(main) _ -> bad(main, 84) }
     }
     state un1(main: &mut Main) {
         main.unit_result = Filesystem::unlock(&mut main.fs, File { handle: main.file_handle });
