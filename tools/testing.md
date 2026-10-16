@@ -239,7 +239,13 @@ that cannot tell its rule from any rejection) and fixtures whose extra
 diagnostics trip a sibling's pinned rule; tighten those pins before
 relying on `expected` at --record time. Every gate run also prints how
 many golden rows are pinned in a status their tier contradicts (a pass
-fixture recorded `rejected`); `--list-pinned-regressions` names them.
+fixture recorded `rejected`). `python3 tools/corpus_gate.py
+--list-pinned-regressions` reads the selected golden and names those rows without
+building a runner, executing fixtures or rewriting results. It accepts `--golden`
+and the native/interpreter target-selection flags; measurement options such as
+`--record`, `--filter`, `--shard`, `--compare` and `--json` are rejected. Exit 0
+means the stored roster was read, even when it contains regressions; missing or
+malformed goldens exit 4. This query makes no claim about the current compiler.
 That count is the honest size of the pinned backlog whether or not the
 rows carry `regressed-from:`.
 

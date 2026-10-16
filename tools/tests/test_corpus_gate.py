@@ -324,6 +324,110 @@ class PerfContext(unittest.TestCase):
             quiet, dict(quiet, jobs=None)), [])
 
 
+class PinnedRegressionQuery(unittest.TestCase):
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.root = Path(self.temporary.name)
+        self.golden = self.root / "tests" / "omega" / "corpus_outcomes.txt"
+        self.golden.parent.mkdir(parents=True)
+
+    def query(self, *arguments):
+        output, errors = io.StringIO(), io.StringIO()
+        with patch.object(corpus_gate, "ROOT", self.root), \
+             patch.object(corpus_gate, "GOLDEN", self.golden), \
+             patch.object(corpus_gate, "host_target", return_value="macos_arm64"), \
+             patch.object(corpus_gate, "build_runner",
+                          side_effect=AssertionError("listing built the compiler")), \
+             patch.object(corpus_gate, "run_runner",
+                          side_effect=AssertionError("listing executed fixtures")), \
+             patch.object(corpus_gate.subprocess, "run",
+                          side_effect=AssertionError("listing launched a subprocess")), \
+             patch.dict(os.environ, {}, clear=True), \
+             patch.object(sys, "argv", ["corpus_gate", "--list-pinned-regressions",
+                                        *arguments]), \
+             contextlib.redirect_stdout(output), contextlib.redirect_stderr(errors):
+            code = corpus_gate.main()
+        return code, output.getvalue(), errors.getvalue()
+
+    def test_lists_stored_failures_without_building_running_or_rewriting(self):
+        stored = ("pass/a/green checked 1ms\n"
+                  "pass/a/red rejected 1ms\n"
+                  "fail/a/accepted checked 1ms\n"
+                  "run/a/lost timeout 1ms regressed-from:built+exit:70\n")
+        self.golden.write_text(stored, encoding="utf-8")
+        before = self.golden.stat()
+        code, output, errors = self.query()
+        self.assertEqual((code, errors), (0, ""))
+        self.assertIn(str(self.golden), output)
+        self.assertIn("pass/a/red rejected", output)
+        self.assertIn("fail/a/accepted checked", output)
+        self.assertIn("run/a/lost timeout (lost built+exit:70)", output)
+        self.assertNotIn("pass/a/green", output)
+        self.assertNotIn("clean", output)
+        self.assertEqual(self.golden.read_text(encoding="utf-8"), stored)
+        self.assertEqual(self.golden.stat().st_mtime_ns, before.st_mtime_ns)
+
+    def test_selects_each_existing_golden_route(self):
+        choices = [
+            ([], "corpus_outcomes.txt"),
+            (["--native"], "corpus_native_macos_arm64.txt"),
+            (["--native-target", "windows_x86_64"], "corpus_native_windows_x86_64.txt"),
+            (["--interpret"], "corpus_interpreted.txt"),
+            (["--checked-interpreter"], "corpus_checked_interpreted.txt"),
+            (["--both"], "corpus_both_macos_arm64.txt"),
+            (["--both", "--checked-interpreter"], "corpus_checked_both_macos_arm64.txt"),
+        ]
+        for arguments, name in choices:
+            with self.subTest(arguments=arguments):
+                selected = self.golden.parent / name
+                selected.write_text("pass/a/green checked 1ms\n", encoding="utf-8")
+                code, output, errors = self.query(*arguments)
+                self.assertEqual((code, errors), (0, ""))
+                self.assertIn(str(selected), output)
+                self.assertIn("no pinned regressions", output)
+                selected.unlink()
+
+    def test_explicit_golden_overrides_target_default(self):
+        for selected in (self.root / "custom.txt", self.golden):
+            with self.subTest(selected=selected):
+                selected.write_text("pass/a/red rejected 1ms\n", encoding="utf-8")
+                code, output, errors = self.query("--native-target", "windows_x86_64",
+                                                  "--golden", str(selected))
+                self.assertEqual((code, errors), (0, ""))
+                self.assertIn(str(selected), output)
+                self.assertIn("pass/a/red rejected", output)
+
+    def test_missing_and_malformed_golden_fail_without_running(self):
+        code, output, errors = self.query()
+        self.assertEqual(code, 4)
+        self.assertIn(str(self.golden), errors)
+        self.assertNotIn("no pinned regressions", output)
+        self.golden.write_text("malformed row\n", encoding="utf-8")
+        code, output, errors = self.query()
+        self.assertEqual(code, 4)
+        self.assertIn(str(self.golden), errors)
+        self.assertNotIn("no pinned regressions", output)
+
+    def test_execution_options_are_rejected_without_writing_outputs(self):
+        options = [
+            ["--record"], ["--compare", "HEAD"], ["--runner", "unused"],
+            ["--filter", "pass/a"], ["--shard", "0/2"], ["--jev"],
+            ["--json", str(self.root / "result.json")],
+            ["--write-moves", str(self.root / "moves.json")],
+            ["--migration-roster", str(self.root / "roster.json")],
+            ["--bisect"], ["--filter", ""], ["--json", ""],
+        ]
+        for arguments in options:
+            with self.subTest(arguments=arguments):
+                code, output, errors = self.query(*arguments)
+                self.assertEqual(code, 255 if "--bisect" in arguments else 2)
+                self.assertIn(arguments[0], errors)
+                self.assertIn("read-only", errors)
+                self.assertEqual(output, "")
+        self.assertEqual(list(self.root.glob("*.json")), [])
+
+
 class MainVerdicts(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
@@ -365,6 +469,12 @@ class MainVerdicts(unittest.TestCase):
         self.assertEqual(self.run_gate(regressed, golden_records=
                                        [record("pass/a/x", status="built")]), 3)
 
+    def test_explicit_source_golden_is_preserved_for_native_measurement(self):
+        rows = [record("pass/a/x", status="built")]
+        with patch.object(corpus_gate, "GOLDEN", self.golden), \
+             patch.object(corpus_gate, "host_target", return_value="macos_arm64"):
+            self.assertEqual(self.run_gate(rows, "--native"), 0)
+
     def test_clean_path_reports_rows_pinned_against_their_tier(self):
         rows = [record("pass/a/x", status="rejected"),
                 record("fail/a/y", status="rejected")]
@@ -378,14 +488,6 @@ class MainVerdicts(unittest.TestCase):
                       "(0 carry regressed-from)", text)
         self.assertIn("--list-pinned-regressions", text)
         self.assertNotIn("corpus_gate:   pass/a/x", text)
-
-        output = io.StringIO()
-        with contextlib.redirect_stdout(output):
-            code = self.run_gate(rows, "--list-pinned-regressions")
-        self.assertEqual(code, 0)
-        text = output.getvalue()
-        self.assertIn("corpus_gate:   pass/a/x rejected", text)
-        self.assertNotIn("list them with", text)
 
     def test_pinned_regression_lines_names_lost_successes(self):
         rows = corpus_records.parse(
@@ -503,7 +605,12 @@ class MainVerdicts(unittest.TestCase):
                 golden_records=[built]), 3)
         document = json.loads(self.json_path.read_text())
         self.assertEqual(document["observations"], [refused])
-        self.assertEqual(document["fixtures"], [])
+        self.assertEqual(len(document["fixtures"]), 1)
+        change = document["fixtures"][0]
+        self.assertEqual(change["fixture"], "pass/host/buffer")
+        self.assertEqual(change["verdict"], "regressed")
+        self.assertEqual(change["before"]["status"], "built")
+        self.assertEqual(change["after"], refused)
         self.assertEqual(document["counts"]["fixtures"], 1)
         self.assertEqual(self.golden.read_text(), corpus_records.render([built]))
 

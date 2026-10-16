@@ -19,6 +19,7 @@ Usage:
     python3 tools/corpus_gate.py            # build runner, run, diff golden
     python3 tools/corpus_gate.py --record   # rebuild + rewrite the golden
     python3 tools/corpus_gate.py --runner target/debug/deps/corpus_runner-*
+    python3 tools/corpus_gate.py --list-pinned-regressions  # read stored rows only
 
 Subsets — the inner-loop mode:
 
@@ -1062,6 +1063,27 @@ def pinned_regression_lines(records, list_rows=False) -> list[str]:
     return lines
 
 
+def list_pinned_regressions(golden: Path) -> int:
+    """Inspect recorded debt without claiming a new compiler observation.
+
+    This roster must remain usable before a compiler build is available. Keep
+    it ahead of runner preparation, migration admission and measurement so an
+    inspection cannot execute fixtures or rewrite their recorded outcomes.
+    """
+    try:
+        records = corpus_records.read(golden)
+    except (OSError, UnicodeError, ValueError) as error:
+        print(f"corpus_gate: cannot read golden {golden}: {error}", file=sys.stderr)
+        return 4
+    print(f"corpus_gate: recorded outcomes from {golden}; no fixtures executed")
+    lines = pinned_regression_lines(records, list_rows=True)
+    for line in lines:
+        print(line)
+    if not lines:
+        print("corpus_gate: no pinned regressions in the recorded outcomes")
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -1073,7 +1095,8 @@ def main() -> int:
                              "record_safe verdict (needs TYPESAFE_API_KEY)")
     parser.add_argument("--runner", type=Path,
                         help="use an existing corpus_runner binary instead of building")
-    parser.add_argument("--golden", type=Path, default=GOLDEN)
+    parser.add_argument("--golden", type=Path,
+                        help="read/write this golden instead of the selected leg's default")
     parser.add_argument("--native", action="store_true",
                         help="build pass and run fixtures for this host, execute "
                              "the run tier, *_exit and explicit native-exit fixtures, "
@@ -1118,8 +1141,9 @@ def main() -> int:
                         help="k/N — deterministic hash-slice of the corpus "
                              "(sets OMEGA_CORPUS_SHARD for the runner)")
     parser.add_argument("--list-pinned-regressions", action="store_true",
-                        help="name every golden row pinned in a status its "
-                             "tier contradicts")
+                        help="read the selected golden and name rows pinned in a "
+                             "status their tier contradicts; does not build or run "
+                             "fixtures; accepts only golden/target selection options")
     parser.add_argument("--write-moves", type=Path, metavar="PATH",
                         help="write every moved fixture's BEFORE and AFTER "
                              "records to PATH as JSON, untruncated — the "
@@ -1141,6 +1165,21 @@ def main() -> int:
         # Under `git bisect run` every code in 1..127 (except 125) means
         # "bad", so a usage error would convict an innocent commit.
         return 255 if "--bisect" in sys.argv else error.code
+    if options.list_pinned_regressions:
+        selection_options = {"list_pinned_regressions", "golden", "native",
+                             "native_target", "interpret", "checked_interpreter",
+                             "both"}
+        incompatible = ["--" + name.replace("_", "-")
+                        for name, value in vars(options).items()
+                        if value is not None and value is not False
+                        and name not in selection_options]
+        if incompatible:
+            print("corpus_gate: --list-pinned-regressions is read-only; "
+                  "cannot combine with " + ", ".join(incompatible), file=sys.stderr)
+            return 255 if options.bisect else 2
+    use_default_golden = options.golden is None
+    if use_default_golden:
+        options.golden = GOLDEN
     leg = ""
     target = None
     # `git bisect run` reads 1..127 (except 125) as "bad"; usage errors say
@@ -1160,7 +1199,7 @@ def main() -> int:
     if options.interpret:
         os.environ["OMEGA_CORPUS_INTERPRET"] = "1"
         leg = "checked-interpreted" if options.checked_interpreter else "interpreted"
-        if options.golden == GOLDEN and not options.native:
+        if use_default_golden and not options.native:
             name = "checked_interpreted" if options.checked_interpreter else "interpreted"
             options.golden = ROOT / "tests" / "omega" / f"corpus_{name}.txt"
     if options.native:
@@ -1170,9 +1209,11 @@ def main() -> int:
             return usage_error
         os.environ["OMEGA_CORPUS_NATIVE"] = "1"
         leg = ("checked-both" if options.checked_interpreter else "both") if options.interpret else "native"
-        if options.golden == GOLDEN:
+        if use_default_golden:
             name = ("checked_both" if options.checked_interpreter else "both") if options.interpret else "native"
             options.golden = ROOT / "tests" / "omega" / f"corpus_{name}_{target}.txt"
+    if options.list_pinned_regressions:
+        return list_pinned_regressions(options.golden)
     compare_revision = None
     if options.compare:
         if options.record:
@@ -1353,8 +1394,7 @@ def main() -> int:
         print(f"corpus_gate: recorded {len(records)} fixture outcomes "
               f"to {options.golden}; {len(recorded_gaps)} unimplemented rows "
               f"remain, {len(lost)} rows record a lost success")
-        for line in pinned_regression_lines(
-                merged, options.list_pinned_regressions):
+        for line in pinned_regression_lines(merged):
             print(line)
         if failures:
             # The golden now says what the fixture does; it does not say that
@@ -1560,8 +1600,7 @@ def main() -> int:
         print(f"corpus_gate: clean — {summary}")
         print(provenance)
         print_expectation_defects()
-        for line in pinned_regression_lines(
-                prior_records, options.list_pinned_regressions):
+        for line in pinned_regression_lines(prior_records):
             print(line)
         for line in perf_notes[:20]:
             print(line)
@@ -1594,8 +1633,7 @@ def main() -> int:
     print(move_classes(structured_diffs))
     print(provenance)
     print_expectation_defects()
-    for line in pinned_regression_lines(
-            prior_records, options.list_pinned_regressions):
+    for line in pinned_regression_lines(prior_records):
         print(line)
     write_moves()
     if options.jev:
