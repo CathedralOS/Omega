@@ -56,6 +56,63 @@ class QualificationTests(unittest.TestCase):
         self.git("commit", "-m", "tools: incoming change")
         return self.git("rev-parse", "HEAD")
 
+    def test_source_input_batch_preserves_exact_existing_and_missing_objects(self):
+        names = ["source with spaces Ω.txt"]
+        if os.name != "nt":
+            names += ["source\twith\ttabs", "source\nwith\nnewlines", os.fsdecode(b"source-\xff")]
+        for name in names:
+            (self.repository / name).write_text("source payload\n")
+        self.git("add", ".")
+        self.git("commit", "-m", "tools: unusual source paths")
+        head = self.git("rev-parse", "HEAD")
+        paths = ["src", "src/", "src/program", *names, "absent", "absent\npath", "src"]
+        expected = {}
+        for path in paths:
+            query = subprocess.run(["git", "-C", str(self.repository), "rev-parse", head + ":" + path],
+                                   capture_output=True, text=True)
+            expected[path] = query.stdout.strip() if query.returncode == 0 else None
+        actual_run = subprocess.run
+        with mock.patch.object(qualification.subprocess, "run", wraps=actual_run) as commands:
+            self.assertEqual(qualification.source_inputs(self.repository, head, iter(paths)), expected)
+        batches = [call for call in commands.call_args_list if "cat-file" in call.args[0]]
+        self.assertEqual(len(batches), 1)
+        self.assertEqual(qualification.source_inputs(self.repository, self.base, names),
+                         {name: None for name in names})
+
+    def test_source_input_batch_retains_unmaterialized_gitlink_entry(self):
+        unavailable = "1234567890abcdef1234567890abcdef12345678"
+        self.git("update-index", "--add", "--cacheinfo", "160000," + unavailable + ",vendor/library")
+        self.git("commit", "-m", "tools: unavailable gitlink object")
+        head = self.git("rev-parse", "HEAD")
+        self.assertEqual(self.git("rev-parse", head + ":vendor/library"), unavailable)
+        self.assertEqual(qualification.source_inputs(self.repository, head, ["vendor/library", "absent"]),
+                         {"vendor/library": unavailable, "absent": None})
+
+    def test_source_input_batch_empty_paths_and_invalid_revision(self):
+        self.assertEqual(qualification.source_inputs(self.repository, self.base, []), {})
+        self.git("tag", "-a", "source-input-tag", "-m", "annotated tag")
+        invalid = ["not-a-revision", "f" * 40,
+                   self.git("rev-parse", self.base + ":src/program"),
+                   self.git("rev-parse", "refs/tags/source-input-tag")]
+        for value in invalid:
+            for paths in ([], ["src"]):
+                with self.subTest(revision=value, paths=paths):
+                    with self.assertRaises(qualification.RecoveryError):
+                        qualification.source_inputs(self.repository, value, paths)
+
+    def test_source_input_batch_rejects_failed_truncated_and_extra_replies(self):
+        header = self.base.encode("ascii") + b"\n"
+        replies = [(1, b""), (0, header + b"not an object\n"),
+                   (0, header + b"a" * 41 + b"\n"), (0, header + b"a" * 40),
+                   (0, header + b"a" * 40 + b"\nextra\n"),
+                   (0, b"0" * 40 + b"\n" + b"a" * 40 + b"\n")]
+        for status, output in replies:
+            with self.subTest(status=status, output=output):
+                with mock.patch.object(qualification.subprocess, "run",
+                        return_value=subprocess.CompletedProcess([], status, output, b"")):
+                    with self.assertRaises(qualification.RecoveryError):
+                        qualification.source_inputs(self.repository, self.base, ["src"])
+
     def test_unrelated_main_change_reuses_without_running_command_again(self):
         self.assertTrue(self.run_check()[1])
         incoming = self.commit("README.md", "unrelated documentation")

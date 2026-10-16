@@ -140,13 +140,50 @@ def retain_source(repository, path, commit):
 
 
 def source_inputs(repository, commit, paths):
-    revision(repository, commit)
+    require(isinstance(commit, str) and re.fullmatch(r"[0-9a-f]{40}", commit), "full Git SHA required")
+    paths = list(paths)
+    ordinary = [path for path in paths if "\n" not in path]
+    requests = [os.fsencode(commit + ":" + path) for path in ordinary]
     result = {}
-    for path in paths:
+
+    def entry_identity(path):
         query = subprocess.run(["git", "-C", str(repository), "rev-parse", commit + ":" + path],
                                capture_output=True, text=True, timeout=30)
-        result[path] = query.stdout.strip() if query.returncode == 0 else None
-    return result
+        return query.stdout.strip() if query.returncode == 0 else None
+
+    # Batch ordinary object expressions without requiring newer Git protocols.
+    # Delimiter-bearing paths retain argv lookup. Missing objects also need
+    # entry lookup: an unmaterialized gitlink still has a source identity.
+    # Peeling the first request validates the commit in the same Git process.
+    commit_request = os.fsencode(commit + "^{commit}")
+    query = subprocess.run(["git", "-C", str(repository), "cat-file",
+                            "--batch-check=%(objectname)"],
+                           input=b"\n".join([commit_request, *requests]) + b"\n",
+                           capture_output=True, timeout=30)
+    require(query.returncode == 0, "cannot read qualification source objects")
+    offset = query.stdout.find(b"\n")
+    require(offset >= 0 and query.stdout[:offset] == commit.encode("ascii"),
+            "invalid qualification source revision")
+    offset += 1
+    for path in paths:
+        if "\n" in path:
+            result[path] = entry_identity(path)
+    for path, request in zip(ordinary, requests):
+        missing = request + b" missing\n"
+        if query.stdout.startswith(missing, offset):
+            result[path] = entry_identity(path)
+            offset += len(missing)
+            continue
+        end = query.stdout.find(b"\n", offset)
+        value = query.stdout[offset:end]
+        if value.endswith(b" submodule"):
+            value = value[:-len(b" submodule")]
+        require(end >= offset and re.fullmatch(b"(?:[0-9a-f]{40}|[0-9a-f]{64})", value),
+                "malformed qualification source object reply")
+        result[path] = value.decode("ascii")
+        offset = end + 1
+    require(offset == len(query.stdout), "extra qualification source object replies")
+    return {path: result[path] for path in paths}
 
 
 def input_paths(check):
