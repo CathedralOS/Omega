@@ -265,7 +265,7 @@ pub(super) fn close(program: &mut TypedTrees) -> Result<Vec<SymbolHandle>, Vec<D
                 if !super::provider_tuple_closure::operands_are_closed(program, &candidate) {
                     continue;
                 }
-                let mut bindings = super::applications::candidate_bindings(&candidate);
+                let mut bindings = super::applications::candidate_bindings(program, &candidate);
                 // Admission retains the authored tuple; executable substitution
                 // consumes its separately prepared selected callback entries.
                 for (parameter, original) in program

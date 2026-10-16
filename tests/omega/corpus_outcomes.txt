@@ -3510,6 +3510,8 @@ fail/generics/transition_value_generic_result_parameter_mismatch rejected 239ms 
 fail/generics/transition_value_slice_element_mismatch rejected 243ms expected @6ef08ceefee0+wt
 	machine `wrong` state `entry` return value expects `&[Output]`, but the value is delivered as `&[Input]`
 	machine `wrong` state `entry` return value expects `&[Output]`, but the value is delivered as `&[Input]`
+fail/generics/value_binder_unknown_field rejected 313ms expected @73e11f08dcbb+wt
+	value parameter of machine `read_at` received `held.missing`, which is not a field of a local or parameter in this state
 fail/generics/value_binder_used_as_nested_type rejected 3433ms expected @a9ae30e1c334+wt
 	data `Invalid` field `nested` generic argument uses value parameter `Count` as a type; const and runtime value parameters supply values, not types
 fail/generics/value_generic_runtime_static_length rejected 191ms expected @a9ae30e1c334+wt
@@ -8980,6 +8982,7 @@ run/dyn_finite_family_correlated checked 49536ms check-target:linux_x86_64 @4730
 run/dyn_finite_family_owned_carrier checked 34492ms check-target:linux_x86_64 @4730b1ac8a84
 run/dyn_finite_family_runtime_dispatch checked 12276ms check-target:macos_arm64 @55ccf9be57c4
 run/float/folded_anonymous_operator_custody_exit checked 7084ms check-target:macos_arm64 @9c4d1c444502
+run/generics/runtime_value_index_operands checked 5882ms check-target:macos_arm64 @73e11f08dcbb+wt
 run/nested_mut_alias_assignment_return checked 11468ms check-target:macos_arm64 @a9ae30e1c334+wt
 run/ownership/declared_record_selected_exit_disposal checked 11660ms check-target:macos_arm64 @93ba1f664f65+wt
 run/ownership/owned_parameter_member_moves_exit checked 9269ms check-target:macos_arm64 @4a0ccff8236e+wt

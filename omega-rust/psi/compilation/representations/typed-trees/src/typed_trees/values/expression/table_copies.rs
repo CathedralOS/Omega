@@ -116,8 +116,22 @@ impl ExpressionTable {
         for argument in self.static_machine_application_arguments_mut(handle) {
             argument.remap_symbols(symbols);
         }
+        let subject_expressions = self
+            .static_machine_application_bindings(handle)
+            .iter()
+            .filter_map(|binding| match &binding.value {
+                crate::static_applications::StaticMachineBindingValue::RuntimeValue {
+                    expression,
+                    ..
+                } if expression.is_valid() => Some(*expression),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
         for binding in self.static_machine_application_bindings_mut(handle) {
             binding.remap_symbols(symbols);
+        }
+        for expression in subject_expressions {
+            self.remap_symbols_in(expression, symbols);
         }
         for argument in self.static_machine_application_selected_machines_mut(handle) {
             argument.remap_symbols(symbols);

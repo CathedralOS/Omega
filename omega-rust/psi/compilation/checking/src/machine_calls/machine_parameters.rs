@@ -507,9 +507,19 @@ fn form_call_selection(
             return;
         };
 
+    // A `name.field` spelling is evidence only when its slot is not a runtime
+    // value binder. Value slots are classified with the caller's locals.
+    let declared_parameters = declared_type_parameters(program, index, target_symbol);
     if let Some(projection) = arguments
         .iter()
-        .find_map(|argument| argument.evidence_projection.as_ref())
+        .enumerate()
+        .find_map(|(ordinal, argument)| {
+            let projection = argument.evidence_projection.as_ref()?;
+            let value_slot = declared_parameters
+                .get(ordinal)
+                .is_some_and(|parameter| matches!(parameter.kind, TypeParameterKind::Value { .. }));
+            (!value_slot).then_some(projection)
+        })
     {
         diagnostics.push(Diagnostic::error(format!(
             "proof-static evidence projection `{}.{}` cannot select an executable machine parameter; erased evidence cannot eliminate into runtime computation",
@@ -942,6 +952,23 @@ fn machine_state_index(program: &dyn crate::CheckingInput) -> MachineStateIndex 
         }
     }
     index
+}
+
+fn declared_type_parameters<'a>(
+    program: &'a dyn crate::CheckingInput,
+    index: &MachineStateIndex,
+    target_symbol: SymbolHandle,
+) -> &'a [TypeParameter] {
+    if let Some((machine, _)) = machine_and_state(program, index, target_symbol) {
+        return program.machine_type_parameters(machine);
+    }
+    if let Some(machine) = program
+        .machine_by_symbol(target_symbol)
+        .or_else(|| program.machine_holding_state(target_symbol))
+    {
+        return program.machine_type_parameters(machine);
+    }
+    &[]
 }
 
 fn machine_and_state<'a>(

@@ -75,6 +75,55 @@ pub fn first_valid_name_path_symbol(
         .or_else(|| path.symbol.is_valid().then_some(path.symbol))
 }
 
+/// A field projection admitted as a runtime value subject: the term is a
+/// parameter or local in `state`, and `member` is a field of that value's
+/// data type. Evidence projections that do not resolve this way stay evidence.
+pub struct RuntimeFieldSubject {
+    pub receiver: SymbolHandle,
+    pub field: SymbolHandle,
+}
+
+pub fn runtime_field_subject(
+    program: &dyn crate::CheckingInput,
+    state: &typed_trees::state::State,
+    term: &typed_trees::name::Identifier,
+    member: &typed_trees::name::Identifier,
+) -> Option<RuntimeFieldSubject> {
+    let receiver = nearest_scoped_local(program, state, usize::MAX, std::slice::from_ref(term))?;
+    let carrier = scoped_binding_type(program, state, receiver)?;
+    let data = declared_data_type(program, carrier)?;
+    let field = program.data_members(data).iter().find_map(|row| {
+        let typed_trees::data::DataMember::Field(field) = row else {
+            return None;
+        };
+        (field.name.as_str() == member.as_str()).then_some(field.symbol)
+    })?;
+    Some(RuntimeFieldSubject { receiver, field })
+}
+
+fn scoped_binding_type(
+    program: &dyn crate::CheckingInput,
+    state: &typed_trees::state::State,
+    symbol: SymbolHandle,
+) -> Option<typed_trees::types::TypeReferenceHandle> {
+    if let Some(parameter) = program
+        .state_parameters(state)
+        .iter()
+        .find(|parameter| parameter.symbol == symbol)
+    {
+        return Some(parameter.type_reference);
+    }
+    program
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .rev()
+        .find_map(|statement| {
+            let local = statement.as_local_data()?;
+            (local.symbol == symbol).then_some(local.type_reference)
+        })
+}
+
 /// The nearest `let` of a bare name before a call boundary: state parameters
 /// shadow nothing, and a shadowed local re-derives its binding by scope —
 /// the same rule `resolve_runtime_subject` applies during selection.

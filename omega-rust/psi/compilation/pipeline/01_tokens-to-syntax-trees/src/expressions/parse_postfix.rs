@@ -658,6 +658,9 @@ fn try_parse_static_argument<'tokens, 'source>(
         return try_parse_static_value_argument(syntax_trees, input);
     };
     input = rest;
+    // `name.member` is spelled before the binder kind is known. Evidence
+    // projections and runtime field reads share this shape; checking admits a
+    // field of a local or parameter only in a runtime `Value` slot.
     let argument = if input.at_punctuation(PunctuationKind::Dot) {
         input = input.take_punctuation(PunctuationKind::Dot, ".")?;
         let (member, rest) = input.take_identifier()?;

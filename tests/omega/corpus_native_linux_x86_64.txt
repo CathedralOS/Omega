@@ -3373,6 +3373,7 @@ run/dyn_finite_family_correlated built 13160ms exit:70 @6c49683ce714
 run/dyn_finite_family_owned_carrier built 6956ms exit:70 @6c49683ce714
 run/dyn_finite_family_runtime_dispatch built 13366ms exit:70 @6c49683ce714
 run/float/folded_anonymous_operator_custody_exit built 32981ms exit:0 @6c49683ce714
+run/generics/runtime_value_index_operands built 6209ms exit:0 @73e11f08dcbb+wt
 run/layouts/placed_ram_capture_forwarding built 51170ms exit:0 stdout:match stderr:match @6c49683ce714
 run/layouts/placed_ram_capture_helper built 43157ms exit:0 stdout:match stderr:match @6c49683ce714
 run/layouts/placed_ram_capture_retirement built 49798ms exit:0 stdout:match stderr:match @6c49683ce714

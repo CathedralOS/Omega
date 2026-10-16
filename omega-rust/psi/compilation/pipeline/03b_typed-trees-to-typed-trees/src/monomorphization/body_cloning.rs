@@ -1097,6 +1097,7 @@ pub(super) fn copy_binding_type_payloads(
             StaticMachineBindingValue::RuntimeValue {
                 type_reference,
                 subject,
+                expression,
             } => {
                 *type_reference = copy_type_reference(source, program, *type_reference, symbols);
                 if let Some((_, replacement)) =
@@ -1104,6 +1105,7 @@ pub(super) fn copy_binding_type_payloads(
                 {
                     *subject = *replacement;
                 }
+                *expression = copy_expression(source, program, *expression, symbols);
             }
             StaticMachineBindingValue::Machine(argument)
             | StaticMachineBindingValue::Conformance(argument) => {

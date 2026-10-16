@@ -2,10 +2,34 @@
 //! to immutable checking, not this loop.
 
 use symbols::SymbolKind;
-use typed_trees::expression::StaticMachineArgument;
-use typed_trees::types::TypeReferenceHandle;
+use typed_trees::expression::{ExpressionHandle, ExpressionNode, StaticMachineArgument};
+use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 pub(super) use validation::expression_traversal::collect_type_expressions;
-pub(super) use validation::static_arguments::{forwarded_type, is_runtime_value_subject, spelling};
+pub(super) use validation::static_arguments::{
+    forwarded_type, is_runtime_value_expression, is_runtime_value_subject, spelling,
+};
+
+/// The call or member already stored as this argument's const-expression
+/// payload. Field projections spelled `name.member` are not in that payload;
+/// they stay on `evidence_projection` until the value-binder slot reads them.
+pub(super) fn runtime_subject_expression(
+    program: &dyn ::validation::CheckingInput,
+    argument: &StaticMachineArgument,
+) -> Option<ExpressionHandle> {
+    if !is_runtime_value_expression(program, argument) {
+        return None;
+    }
+    let TypeReferenceNode::ConstExpression(expression) = program
+        .type_reference_table
+        .type_reference(argument.type_reference)
+    else {
+        return None;
+    };
+    match program.expression_table.expression(*expression) {
+        ExpressionNode::Call(_) | ExpressionNode::Member(_) => Some(*expression),
+        _ => None,
+    }
+}
 
 /// Resolve the exact value-scope subject one runtime `Value` argument
 /// denotes: the caller's own parameter or the nearest `let` of the same name

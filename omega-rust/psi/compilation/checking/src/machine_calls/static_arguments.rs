@@ -13,6 +13,7 @@ use typed_trees::const_integer::{self, ConstIntegerExpression};
 use typed_trees::data::TypeParameterKind;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, StaticMachineArgument};
 use typed_trees::references::StaticArgumentCall;
+use typed_trees::state::State;
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
 mod requirement_predicates;
@@ -23,12 +24,14 @@ pub fn validate_authored_static_arguments(
     let mut diagnostics = Vec::new();
     let symbols = crate::TopLevelSymbols::build(program, &mut diagnostics);
     let scopes = requirement_predicates::CallScopes::build(program);
+    let expression_states = expression_call_states(program);
     for (handle, expression) in program.expression_table.iter_expressions() {
         if let ExpressionNode::Call(call) = expression {
             validate_call(
                 program,
                 StaticArgumentCall::Expression(handle, call),
                 scopes.context(handle),
+                &expression_states,
                 &symbols,
                 &mut diagnostics,
             );
@@ -42,6 +45,7 @@ pub fn validate_authored_static_arguments(
                         program,
                         StaticArgumentCall::Statement(call),
                         Some((machine, state)),
+                        &expression_states,
                         &symbols,
                         &mut diagnostics,
                     );
@@ -87,6 +91,7 @@ pub fn validate_authored_static_arguments(
             requirement.name.as_str(),
             program.state_signature_type_parameters(signature),
             arguments,
+            None,
         ) {
             diagnostics.push(error);
         }
@@ -130,10 +135,65 @@ fn source_telescope(
     ))
 }
 
+fn expression_call_states<'program>(
+    program: &'program dyn crate::CheckingInput,
+) -> Vec<(typed_trees::expression::ExpressionHandle, &'program State)> {
+    let mut states = Vec::new();
+    let mut expressions = Vec::new();
+    for machine in program.machines() {
+        for state in program.machine_states(machine) {
+            for statement in program.statement_table.statements(state.statement_nodes) {
+                expressions.clear();
+                for (_, root) in program.tables.expression_roots(statement) {
+                    crate::expression_traversal::collect_expression_tree(
+                        program,
+                        root,
+                        &mut expressions,
+                    );
+                }
+                states.extend(expressions.iter().filter_map(|expression| {
+                    program.expression_table.call_node(*expression)?;
+                    Some((*expression, state))
+                }));
+            }
+        }
+    }
+    states.sort_by_key(|(expression, _)| (expression.arena_index(), expression.generation()));
+    states
+}
+
+fn expression_state<'program>(
+    states: &'program [(typed_trees::expression::ExpressionHandle, &'program State)],
+    expression: typed_trees::expression::ExpressionHandle,
+) -> Option<&'program State> {
+    let identity = (expression.arena_index(), expression.generation());
+    let first = states.partition_point(|(candidate, _)| {
+        (candidate.arena_index(), candidate.generation()) < identity
+    });
+    states.get(first).and_then(|(candidate, state)| {
+        ((candidate.arena_index(), candidate.generation()) == identity).then_some(*state)
+    })
+}
+
+fn call_state<'program>(
+    call: StaticArgumentCall<'_>,
+    context: Option<(&'program typed_trees::machine::Machine, &'program State)>,
+    expression_states: &'program [(typed_trees::expression::ExpressionHandle, &'program State)],
+) -> Option<&'program State> {
+    if let Some((_, state)) = context {
+        return Some(state);
+    }
+    let StaticArgumentCall::Expression(handle, _) = call else {
+        return None;
+    };
+    expression_state(expression_states, handle)
+}
+
 fn validate_call(
     program: &dyn crate::CheckingInput,
     call: StaticArgumentCall<'_>,
     context: Option<(&typed_trees::machine::Machine, &typed_trees::state::State)>,
+    expression_states: &[(typed_trees::expression::ExpressionHandle, &State)],
     symbols: &crate::TopLevelSymbols<'_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -170,7 +230,13 @@ fn validate_call(
     if let Some((name, parameters)) =
         source_telescope(program, call.registration_operation(program))
         && !parameters.is_empty()
-        && let Err(error) = validate_arguments(program, name, parameters, arguments)
+        && let Err(error) = validate_arguments(
+            program,
+            name,
+            parameters,
+            arguments,
+            call_state(call, context, expression_states),
+        )
     {
         diagnostics.push(error);
     }
@@ -194,7 +260,10 @@ fn validate_types(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for argument in arguments {
-        if argument.type_reference.is_valid() && !integer_const_argument(program, argument) {
+        if argument.type_reference.is_valid()
+            && !integer_const_argument(program, argument)
+            && !is_runtime_value_expression(program, argument)
+        {
             if let Some(caller) = caller {
                 crate::validate_static_type_argument(
                     program,
@@ -251,10 +320,32 @@ pub fn forwarded_type(
         .unwrap_or_default()
 }
 
+/// A call or field already spelled as a const-expression payload. A `Value`
+/// binder evaluates that expression; it is not a type argument. Names and
+/// evidence-shaped field projections are classified separately.
+pub fn is_runtime_value_expression(
+    program: &dyn crate::CheckingInput,
+    argument: &StaticMachineArgument,
+) -> bool {
+    let TypeReferenceNode::ConstExpression(expression) = program
+        .type_reference_table
+        .type_reference(argument.type_reference)
+    else {
+        return false;
+    };
+    matches!(
+        program.expression_table.expression(*expression),
+        ExpressionNode::Call(_) | ExpressionNode::Member(_)
+    )
+}
+
 /// The shape of one ordinary runtime subject admissible into a `Value`
 /// binder: a single-segment name carrying no static payload. A spelled name
 /// that resolved to no static declaration still qualifies; the caller's value
 /// scope decides whether it denotes a subject (`resolve_runtime_subject`).
+/// A field projection and a call expression are the same kind of subject; they
+/// are recognized by [`is_runtime_value_expression`] and `runtime_field_subject`
+/// because the parser cannot see the binder kind.
 pub fn is_runtime_value_subject(
     program: &dyn crate::CheckingInput,
     argument: &StaticMachineArgument,
@@ -298,6 +389,7 @@ fn validate_arguments(
     name: &str,
     parameters: &[typed_trees::data::TypeParameter],
     arguments: &[StaticMachineArgument],
+    state: Option<&State>,
 ) -> Result<(), Diagnostic> {
     let has_types = parameters
         .iter()
@@ -324,7 +416,26 @@ fn validate_arguments(
             const_index += 1;
             continue;
         }
-        if argument.type_reference.is_valid() || (named_type && has_types) {
+        let value_parameter = parameters
+            .get(ordinal)
+            .is_some_and(|parameter| matches!(parameter.kind, TypeParameterKind::Value { .. }));
+        let runtime_expression = is_runtime_value_expression(program, argument);
+        let runtime_field = state.is_some_and(|state| {
+            argument
+                .evidence_projection
+                .as_ref()
+                .is_some_and(|projection| {
+                    crate::runtime_field_subject(
+                        program,
+                        state,
+                        &projection.term,
+                        &projection.member,
+                    )
+                    .is_some()
+                })
+        });
+        let admitted_runtime = value_parameter && (runtime_expression || runtime_field);
+        if (argument.type_reference.is_valid() && !admitted_runtime) || (named_type && has_types) {
             if !parameters
                 .get(ordinal)
                 .is_some_and(|parameter| matches!(parameter.kind, TypeParameterKind::Type))
@@ -335,6 +446,16 @@ fn validate_arguments(
                     ordinal + 1
                 )));
             }
+        }
+        if admitted_runtime {
+            const_index += 1;
+            continue;
+        }
+        if value_parameter && let Some(projection) = &argument.evidence_projection {
+            return Err(Diagnostic::error(format!(
+                "value parameter of machine `{name}` received `{}.{}`, which is not a field of a local or parameter in this state",
+                projection.term, projection.member
+            )));
         }
         if argument.type_reference.is_valid() {
             validate_structural_type_operand(program, argument).map_err(Diagnostic::error)?;

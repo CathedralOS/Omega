@@ -55,7 +55,7 @@ pub(super) fn retain_provider(
         .static_machine_application_mut(retained);
     record.lexical_owner = owner;
     record.binding_declaration = provider.template.template_symbol;
-    let bindings = super::super::applications::candidate_bindings(provider);
+    let bindings = super::super::applications::candidate_bindings(program, provider);
     program
         .expression_table
         .set_static_machine_application_bindings(retained, &bindings);

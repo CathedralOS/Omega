@@ -7,7 +7,8 @@ use crate::monomorphization::body_rewriting::machine_arguments::{
     forwarded_static_argument_rewrites, substitute_forwarded_machine_arguments,
 };
 use crate::monomorphization::body_rewriting::{
-    cloned_runtime_call_subjects, insert_subject_name, insert_subject_names, runtime_value_subjects,
+    cloned_runtime_call_subjects, insert_subject_name, insert_subject_names,
+    insert_subject_operands, runtime_value_operands,
 };
 use crate::monomorphization::selection::state_by_symbol;
 use crate::monomorphization::{
@@ -122,7 +123,8 @@ pub(crate) fn rewrite_cloned_calls(
                 .iter()
                 .any(|(_, concrete)| *concrete == snapshot.target_symbol)
             {
-                let subjects = runtime_value_subjects(program, &state, &snapshot.machine_arguments);
+                let subjects =
+                    runtime_value_operands(program, state.symbol, &snapshot.machine_arguments);
                 (!subjects.is_empty()).then(|| {
                     super::insert_arguments_with_subjects(program, snapshot.arguments, &subjects)
                 })
@@ -253,7 +255,7 @@ pub(crate) fn rewrite_cloned_calls(
                         .expression_table
                         .expression_handles(snapshot.arguments)
                         .to_vec();
-                    insert_subject_names(&mut program.expression_table, &mut arguments, subjects);
+                    insert_subject_operands(&mut arguments, subjects);
                     program
                         .expression_table
                         .insert_expression_handles(arguments)

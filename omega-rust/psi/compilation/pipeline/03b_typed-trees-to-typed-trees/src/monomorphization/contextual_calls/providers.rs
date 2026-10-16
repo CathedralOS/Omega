@@ -163,7 +163,7 @@ pub(super) fn close(
     {
         return Ok(None);
     }
-    let bindings = super::super::applications::candidate_bindings(&provider);
+    let bindings = super::super::applications::candidate_bindings(program, &provider);
     if program.applied_machine_callable_matches(
         application,
         ordinal,

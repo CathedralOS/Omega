@@ -717,9 +717,11 @@ fn visit_static_machine_bindings_inner(
             StaticMachineBindingValue::RuntimeValue {
                 type_reference,
                 subject,
+                expression,
             } => {
                 visit_type_reference(program, retained, *type_reference);
                 visit_symbol(retained, *subject);
+                visit_expression(program, retained, *expression);
             }
             StaticMachineBindingValue::Machine(argument)
             | StaticMachineBindingValue::Conformance(argument) => {

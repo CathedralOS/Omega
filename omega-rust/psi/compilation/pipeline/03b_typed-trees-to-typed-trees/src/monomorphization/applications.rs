@@ -4,13 +4,18 @@
 //! permission to satisfy a bound. Immutable checking owes that judgment.
 
 use super::{
-    CallSelection, CallSite, Candidate, ExpressionNode, StatementNode, SymbolHandle, TypedTrees,
+    CallSelection, CallSite, Candidate, ExpressionHandle, ExpressionNode, StatementNode,
+    SymbolHandle, TypedTrees,
 };
+use crate::monomorphization::const_arguments;
 use typed_trees::static_applications::{
     StaticMachineApplicationHandle, StaticMachineBinding, StaticMachineBindingValue,
 };
 
-pub(super) fn candidate_bindings(candidate: &Candidate) -> Vec<StaticMachineBinding> {
+pub(super) fn candidate_bindings(
+    program: &dyn ::validation::CheckingInput,
+    candidate: &Candidate,
+) -> Vec<StaticMachineBinding> {
     let mut bindings = Vec::new();
     for ((parameter, _), actual) in candidate
         .template
@@ -37,6 +42,8 @@ pub(super) fn candidate_bindings(candidate: &Candidate) -> Vec<StaticMachineBind
                 StaticMachineBindingValue::RuntimeValue {
                     type_reference: *actual,
                     subject: argument.symbol,
+                    expression: const_arguments::runtime_subject_expression(program, argument)
+                        .unwrap_or_else(ExpressionHandle::invalid),
                 }
             } else {
                 StaticMachineBindingValue::Const(*actual)
@@ -166,9 +173,10 @@ pub(super) fn retain_call(
         .expression_table
         .static_machine_application_mut(application)
         .binding_declaration = candidate.template.template_symbol;
+    let bindings = candidate_bindings(program, candidate);
     program
         .expression_table
-        .set_static_machine_application_bindings(application, &candidate_bindings(candidate));
+        .set_static_machine_application_bindings(application, &bindings);
 }
 
 pub(super) fn retain_instance(
@@ -177,7 +185,7 @@ pub(super) fn retain_instance(
     candidate: &Candidate,
     instance: SymbolHandle,
 ) -> StaticMachineApplicationHandle {
-    let mut bindings = candidate_bindings(candidate);
+    let mut bindings = candidate_bindings(program, candidate);
     // Carrier sharing does not make an instance the author of its operands.
     // Preserve the representative source application's lexical region scope;
     // every other source edge still owns its separate admission. Roster-only
@@ -200,8 +208,14 @@ pub(super) fn retain_instance(
     // Runtime callers share a carrier-specialized instance. No one caller's
     // subject belongs to that instance's static tuple.
     for binding in &mut bindings {
-        if let StaticMachineBindingValue::RuntimeValue { subject, .. } = &mut binding.value {
+        if let StaticMachineBindingValue::RuntimeValue {
+            subject,
+            expression,
+            ..
+        } = &mut binding.value
+        {
             *subject = SymbolHandle::invalid();
+            *expression = ExpressionHandle::invalid();
         }
     }
     if source.is_some() {

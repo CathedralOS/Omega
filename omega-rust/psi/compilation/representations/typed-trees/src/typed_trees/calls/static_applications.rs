@@ -7,7 +7,7 @@
 //! in the shared expression payload arenas; their zero handle means no retained
 //! application. Copies own fresh rows before lexical and type substitution.
 
-use crate::expression::StaticMachineArgument;
+use crate::expression::{ExpressionHandle, StaticMachineArgument};
 use crate::name::Identifier;
 use crate::types::TypeReferenceHandle;
 use arena::{Handle, HandleSpan};
@@ -72,10 +72,13 @@ pub enum StaticMachineBindingValue {
     Type(TypeReferenceHandle),
     Const(TypeReferenceHandle),
     /// Calls retain their exact runtime index subject beside its carrier.
-    /// Shared instances have no caller subject (zero), only the carrier.
+    /// A name subject uses `subject`. A field read or call result uses
+    /// `expression` and leaves `subject` zero. Shared instances have neither:
+    /// only the carrier is common to every caller.
     RuntimeValue {
         type_reference: TypeReferenceHandle,
         subject: SymbolHandle,
+        expression: ExpressionHandle,
     },
     Machine(StaticMachineArgument),
     Conformance(StaticMachineArgument),

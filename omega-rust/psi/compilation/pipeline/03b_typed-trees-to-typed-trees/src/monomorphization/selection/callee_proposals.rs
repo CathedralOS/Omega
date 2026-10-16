@@ -64,7 +64,26 @@ pub(crate) fn collect_machine_proposals_for_callee(
                 None => {}
             }
         }
-        if selected.type_reference.is_valid() {
+        let runtime_expression = const_arguments::runtime_subject_expression(program, selected);
+        let runtime_field = runtime_scope.and_then(|(state, _)| {
+            selected
+                .evidence_projection
+                .as_ref()
+                .and_then(|projection| {
+                    validation::runtime_field_subject(
+                        program,
+                        state,
+                        &projection.term,
+                        &projection.member,
+                    )
+                })
+        });
+        let value_slot = const_index < candidate.template.const_parameters.len()
+            && candidate
+                .template
+                .value_const_parameters
+                .contains(&const_index);
+        if selected.type_reference.is_valid() && !(value_slot && runtime_expression.is_some()) {
             if type_index >= candidate.template.type_parameters.len() {
                 return Err(StaticArgumentOverflow);
             }
@@ -107,35 +126,58 @@ pub(crate) fn collect_machine_proposals_for_callee(
         // one specialization; the resolved argument later becomes an appended
         // ordinary call argument.
         if const_index >= candidate.template.const_parameters.len()
-            && let Some((scope_state, scope_limit)) = runtime_scope
-            && const_arguments::resolve_runtime_subject(program, scope_state, scope_limit, selected)
-                .is_some()
+            && (runtime_expression.is_some()
+                || runtime_field.is_some()
+                || runtime_scope.is_some_and(|(scope_state, scope_limit)| {
+                    const_arguments::resolve_runtime_subject(
+                        program,
+                        scope_state,
+                        scope_limit,
+                        selected,
+                    )
+                    .is_some()
+                }))
         {
             return Err(StaticArgumentOverflow);
         }
-        if const_index < candidate.template.const_parameters.len()
-            && candidate
-                .template
-                .value_const_parameters
-                .contains(&const_index)
-            && let Some((scope_state, scope_limit)) = runtime_scope
-            && let Some(subject) = const_arguments::resolve_runtime_subject(
-                program,
-                scope_state,
-                scope_limit,
-                selected,
-            )
-        {
-            const_proposals.push((
-                callee.candidate_index,
-                const_index,
-                candidate.template.const_parameters[const_index].2,
-            ));
-            let mut subject_argument = selected.clone();
-            subject_argument.symbol = subject;
-            runtime_value_proposals.push((callee.candidate_index, const_index, subject_argument));
-            const_index += 1;
-            continue;
+        if value_slot {
+            if let Some((scope_state, scope_limit)) = runtime_scope
+                && let Some(subject) = const_arguments::resolve_runtime_subject(
+                    program,
+                    scope_state,
+                    scope_limit,
+                    selected,
+                )
+            {
+                const_proposals.push((
+                    callee.candidate_index,
+                    const_index,
+                    candidate.template.const_parameters[const_index].2,
+                ));
+                let mut subject_argument = selected.clone();
+                subject_argument.symbol = subject;
+                runtime_value_proposals.push((
+                    callee.candidate_index,
+                    const_index,
+                    subject_argument,
+                ));
+                const_index += 1;
+                continue;
+            }
+            if runtime_expression.is_some() || runtime_field.is_some() {
+                const_proposals.push((
+                    callee.candidate_index,
+                    const_index,
+                    candidate.template.const_parameters[const_index].2,
+                ));
+                runtime_value_proposals.push((
+                    callee.candidate_index,
+                    const_index,
+                    selected.clone(),
+                ));
+                const_index += 1;
+                continue;
+            }
         }
         if !selected.symbol.is_valid() {
             continue;

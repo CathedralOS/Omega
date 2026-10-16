@@ -439,8 +439,16 @@ fn conformance_arguments_match(
                     StaticMachineBindingValue::Const(actual) => {
                         IndexIdentityArgument::TypeReference(*actual)
                     }
-                    StaticMachineBindingValue::RuntimeValue { subject, .. } => {
-                        IndexIdentityArgument::Subject(*subject)
+                    StaticMachineBindingValue::RuntimeValue {
+                        subject,
+                        expression,
+                        ..
+                    } => {
+                        if expression.is_valid() {
+                            IndexIdentityArgument::Expression(*expression)
+                        } else {
+                            IndexIdentityArgument::Subject(*subject)
+                        }
                     }
                     StaticMachineBindingValue::Machine(argument)
                     | StaticMachineBindingValue::Conformance(argument) => {
