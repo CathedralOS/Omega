@@ -1,6 +1,6 @@
 ---
 name: devin-swarm
-description: Coordinate a requested Devin swarm with complete end-to-end outcome ownership, isolated worktrees and verified main landing. Use for Devin cloud sessions or a Devin swarm; not local agents, a single advance or ordinary feature work.
+description: Coordinate a requested Devin swarm with complete end-to-end outcome ownership, isolated worktrees and verified main landing. Use for Devin cloud sessions or a Devin swarm. Use cursor-swarm for Cursor cloud subagents, local-swarm for agents on one machine, and advance for a single sample.
 ---
 
 # Devin outcome coordination

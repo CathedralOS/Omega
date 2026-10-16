@@ -252,6 +252,9 @@ coordinator-side:
 - The `local-swarm` skill carries the coordinator procedure end to end —
   partition, launch, monitor, recover, drain — and defers here for the
   evidence behind each rule.
+- Cursor cloud subagents started from a Cursor chat follow
+  `.agents/skills/cursor-swarm/SKILL.md`. `launch.py` remains the Devin
+  transport and does not create those sessions.
 
 ### Recovering an interrupted wave
 

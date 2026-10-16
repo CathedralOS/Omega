@@ -479,6 +479,7 @@ class SkillContracts(unittest.TestCase):
         paths = [ROOT / ".agents/skills/dot-swarm/SKILL.md",
                  ROOT / ".agents/skills/devin-swarm/SKILL.md",
                  ROOT / ".agents/skills/codex-swarm/SKILL.md",
+                 ROOT / ".agents/skills/cursor-swarm/SKILL.md",
                  ROOT / ".agents/skills/dot-swarm/references/recovery.md"]
         for path in paths:
             text = path.read_text(encoding="utf-8")
