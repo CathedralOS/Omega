@@ -444,32 +444,50 @@ pub(crate) fn checked_contract_member_path(
 
     let (point, origin) = points::contract_point(compilation, context, checked_fact)?;
     let mut candidates = Vec::new();
-    for (_, semantic_fact) in compilation.facts.semantic.facts.iter() {
-        let contract_fact_matches = matches!(
-            semantic_fact.payload,
-            FactPayload::ContractBooleanExpression { fact, .. }
-                | FactPayload::ContractDomainMembership { fact, .. }
-                if fact == checked_fact
-        );
+    // A requires row's own place is the whole proposition. Operand places live
+    // on storage-dependency rows of that fact, so a write to any operand
+    // retires the assumption without turning each operand into a proposition.
+    // Member projection joins an operand place; the proposition place is the
+    // comparison and usually has an expression root.
+    let mut contract_subjects = Vec::new();
+    let mut dependency_places = Vec::new();
+    for (handle, semantic_fact) in compilation.facts.semantic.facts.iter() {
         if semantic_fact.point != point
             || origin.is_some_and(|origin| semantic_fact.origin != origin)
-            || !contract_fact_matches
         {
             continue;
         }
-        let Some(place_handle) = semantic_fact.place.as_place() else {
-            continue;
-        };
-        let place = compilation.facts.semantic.places.get(place_handle);
-        if place.root != root {
-            continue;
+        match semantic_fact.payload {
+            FactPayload::ContractBooleanExpression { fact, .. }
+            | FactPayload::ContractDomainMembership { fact, .. }
+                if fact == checked_fact =>
+            {
+                contract_subjects.push(handle);
+                push_checked_member_candidate(
+                    compilation,
+                    semantic_fact.place,
+                    root,
+                    source_members,
+                    &mut candidates,
+                );
+            }
+            FactPayload::StorageDependency { dependent } => {
+                if let Some(place) = semantic_fact.place.as_place() {
+                    dependency_places.push((dependent, place));
+                }
+            }
+            _ => {}
         }
-        let Some(selected) = checked_member_segments(compilation, place.segments, source_members)
-        else {
-            continue;
-        };
-        if !candidates.contains(&selected) {
-            candidates.push(selected);
+    }
+    for (dependent, place) in dependency_places {
+        if contract_subjects.contains(&dependent) {
+            push_checked_member_candidate(
+                compilation,
+                facts::FactPlace::Place(place),
+                root,
+                source_members,
+                &mut candidates,
+            );
         }
     }
     let [selected] = candidates.as_slice() else {
@@ -481,6 +499,29 @@ pub(crate) fn checked_contract_member_path(
         ))]);
     };
     Ok(selected.clone())
+}
+
+fn push_checked_member_candidate(
+    compilation: &PackageReviewInput<'_>,
+    place: facts::FactPlace,
+    root: facts::PlaceRoot,
+    source_members: &[typed_trees::name::Identifier],
+    candidates: &mut Vec<Vec<(Option<SymbolHandle>, SymbolHandle)>>,
+) {
+    let Some(place_handle) = place.as_place() else {
+        return;
+    };
+    let place = compilation.facts.semantic.places.get(place_handle);
+    if place.root != root {
+        return;
+    }
+    let Some(selected) = checked_member_segments(compilation, place.segments, source_members)
+    else {
+        return;
+    };
+    if !candidates.contains(&selected) {
+        candidates.push(selected);
+    }
 }
 
 fn select_checked_dependency_member(
