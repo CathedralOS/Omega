@@ -1,0 +1,78 @@
+// Expected exit: 0
+// Expected output contains: 17
+// A const-generic node table indexed by an ordinal whose declared range is
+// the extent parameter. Clearance route planning hardcodes six nodes because
+// a plain integer index is not a proof against `N`.
+use omega_language_std::console;
+
+data Nodes<const N: u64> where N >= 1 && N <= 8 {
+    x: [i64 in Wrapping; N];
+}
+
+machine coordinate<const N: u64>(nodes: &Nodes<N>, index: u64 [0..N]) -> i64 in Wrapping
+requires N >= 1 && N <= 8
+{
+    let ordinal: u64 [0..N] = index;
+    nodes.x[ordinal]
+}
+
+machine origin<const N: u64>() -> u64 [0..N]
+requires N >= 1 && N <= 8
+{
+    0
+}
+
+machine from_call(nodes: &Nodes<4>, index: u64 [0..4]) -> i64 in Wrapping {
+    nodes.x[index]
+}
+
+data Main { }
+
+machine Main::main(main: &mut Main) reaches Console {
+    let roadmap: Nodes<6> = Nodes { x: [0, 10, 3, 7, 3, 7] };
+    let quad: Nodes<4> = Nodes { x: [1, 2, 3, 4] };
+    let paired: i64 in Wrapping = coordinate(&roadmap, 1) + coordinate(&roadmap, 3);
+    let start: u64 [0..4] = origin<4>();
+    let roadmap_origin: u64 [0..6] = origin<6>();
+    let opened: i64 in Wrapping = from_call(&quad, start) + coordinate(&quad, 2);
+    transition paired == 17 && opened == 4 && roadmap_origin == 0 {
+        true -> report(main, paired)
+        false -> Console::exit_process(1)
+    }
+    state report(main: &mut Main, paired: i64 in Wrapping) {
+        number(main, paired);
+        Console::write_line("");
+        Console::exit_process(0);
+    }
+}
+
+machine number(main: &mut Main, value: i64 in Wrapping) reaches Console {
+    transition value >= 0 && value < 100 {
+        true -> tens(main, value, value / 10)
+        false -> Console::exit_process(1)
+    }
+    state tens(main: &mut Main, value: i64 in Wrapping, ten: i64 in Wrapping) {
+        transition ten > 0 {
+            true -> emit(main, value, ten + 48)
+            false -> ones(main, value)
+        }
+    }
+    state emit(main: &mut Main, value: i64 in Wrapping, byte: i64 in Wrapping)
+    requires byte >= 48 && byte <= 57
+    {
+        Console::write_byte(byte as i32);
+        transition { _ -> ones(main, value) }
+    }
+    state ones(main: &mut Main, value: i64 in Wrapping) {
+        let byte: i64 in Wrapping = value % 10 + 48;
+        transition byte >= 48 && byte <= 57 {
+            true -> finish(main, byte)
+            false -> Console::exit_process(1)
+        }
+    }
+    state finish(main: &mut Main, byte: i64 in Wrapping)
+    requires byte >= 48 && byte <= 57
+    {
+        Console::write_byte(byte as i32);
+    }
+}
