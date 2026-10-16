@@ -330,10 +330,15 @@ fn operand_interval(
     if !path.symbol.is_valid() || path.symbol != path.head_symbol {
         return None;
     }
-    let parameter = callee
+    let Some(parameter) = callee
         .parameters
         .iter()
-        .find(|parameter| parameter.symbol == path.symbol)?;
+        .find(|parameter| parameter.symbol == path.symbol)
+    else {
+        // `ensures result < Bound` reads the const binder, not a formal.
+        // Its standing `requires` ceiling is the operand interval.
+        return integer_binder_operand(program, callee, expression);
+    };
     if parameter.is_mutable || parameter.is_const {
         return None;
     }
@@ -348,6 +353,31 @@ fn operand_interval(
         interval = interval.intersect(required);
     }
     Some((interval, Some(parameter.type_reference)))
+}
+
+fn integer_binder_operand(
+    program: &dyn crate::CheckingInput,
+    callee: &CalleeContract<'_>,
+    expression: ExpressionHandle,
+) -> Option<(Interval, Option<TypeReferenceHandle>)> {
+    let machine = program.machine_by_symbol(callee.callable)?;
+    let state = program.machine_states(machine).first()?;
+    let path = program.expression_table.name_path_node(expression)?;
+    if !path.symbol.is_valid() || path.symbol != path.head_symbol {
+        return None;
+    }
+    let binder = program
+        .machine_type_parameters(machine)
+        .iter()
+        .find(|parameter| parameter.symbol == path.symbol)?;
+    let type_reference = match binder.kind {
+        typed_trees::data::TypeParameterKind::Const { type_reference }
+        | typed_trees::data::TypeParameterKind::Value { type_reference } => type_reference,
+        _ => return None,
+    };
+    let interval =
+        super::invariant_bounds::standing_integer_interval(program, machine, state, expression)?;
+    Some((interval, Some(type_reference)))
 }
 
 pub(super) fn builtin(

@@ -694,7 +694,9 @@ pub(super) fn narrow_environment_by_comparison(
     };
     // Identify the (place, bound) sides: a constant bound, or else another
     // place whose standing interval holds at every read (`y <= self.max_y`
-    // with `where max_y <= 2` bounds `y` by 2).
+    // with `where max_y <= 2` bounds `y` by 2). An integer const or value
+    // binder is one of those places: its `requires` ceiling stands at every
+    // read, so `index < Bound` narrows `index` through that ceiling.
     let standing_bound = |bound: ExpressionHandle, place: ExpressionHandle| {
         place_path(program, place)?;
         super::standing_integer_interval(program, machine, state?, bound)

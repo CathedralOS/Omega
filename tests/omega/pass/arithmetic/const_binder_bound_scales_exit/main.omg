@@ -1,0 +1,62 @@
+// Expected exit: 0.
+// A runtime value below an integer const binder inherits that binder's
+// requires ceiling. The product is exact through a parameter, a local, a
+// field, a call result, and a later state.
+data Cell { index: u64; }
+
+machine parameter_scale<const Bound: u64>(index: u64) -> u64
+requires Bound >= 1 && Bound <= 4, index < Bound
+{ index * Bound }
+
+machine local_scale<const Bound: u64>(index: u64) -> u64
+requires Bound >= 1 && Bound <= 4, index < Bound
+{
+    let limited: u64 = index;
+    limited * 4
+}
+
+machine field_scale<const Bound: u64>(cell: &Cell) -> u64
+requires Bound >= 1 && Bound <= 4, cell.index < Bound
+{ cell.index * 4 }
+
+machine unit<const Bound: u64>() -> u64
+requires Bound >= 1 && Bound <= 4
+ensures result < Bound
+{ 0 }
+
+machine call_scale<const Bound: u64>() -> u64
+requires Bound >= 1 && Bound <= 4
+{ unit<Bound>() * 4 }
+
+machine swapped<const Bound: u64>(index: u64) -> u64
+requires Bound >= 1 && Bound <= 4, Bound > index
+{ index * 4 }
+
+machine later<const Bound: u64>(index: u64) -> u64
+requires Bound >= 1 && Bound <= 4, index < Bound
+{
+    transition { _ -> scale(index) }
+    state scale(index: u64) -> u64 requires index < Bound { index * 4 }
+}
+
+machine guarded<const Bound: u64>(index: u64) -> u64
+requires Bound >= 1 && Bound <= 4
+{
+    transition index < Bound { true -> product(index) false -> zero() }
+    state product(index: u64) -> u64 { index * 4 }
+    state zero() -> u64 { 0 }
+}
+
+machine main() crashes Trap {
+    let cell: Cell = Cell { index: 1 };
+    transition parameter_scale<4>(1) == 4
+        && local_scale<4>(1) == 4
+        && field_scale<4>(&cell) == 4
+        && call_scale<4>() == 0
+        && swapped<4>(1) == 4
+        && later<4>(1) == 4
+        && guarded<4>(1) == 4
+    { true -> done() _ -> bad() }
+    state done() { }
+    state bad() { crash Trap; }
+}

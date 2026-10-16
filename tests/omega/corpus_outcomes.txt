@@ -81,6 +81,8 @@ fail/arithmetic/composite_bound_arrival_late_write rejected 196ms expected @8264
 	exact arithmetic in machine `advance` state `commit` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/arithmetic/composite_bound_arrival_unbounded_predecessor rejected 189ms expected @82646dcce47b+wt
 	exact arithmetic in machine `advance` state `commit` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/arithmetic/const_binder_unbounded_product rejected 319ms expected @0e7ef4cb2ac8+wt
+	exact arithmetic in machine `scale` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/arithmetic/construction_payload_out_of_range rejected 672ms expected @2b888a3f0e32
 	data `Slot` case `Found` literal violates the case constraint: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/arithmetic/constructor_divisor_requires_nonzero rejected 938ms expected @a9ae30e1c334+wt
@@ -5486,6 +5488,7 @@ pass/arithmetic/call_surviving_return_exit checked 13025ms check-target:macos_ar
 pass/arithmetic/closed_call_transition_return_proves_exact_sum_exit checked 6759ms check-target:macos_arm64 @97705f5a651d
 pass/arithmetic/collection_result_bound_exit checked 5786ms check-target:macos_arm64 @d840c6ae9019+wt
 pass/arithmetic/compound_assign checked 10321ms @5041ef1af684+wt
+pass/arithmetic/const_binder_bound_scales_exit checked 5671ms check-target:macos_arm64 @0e7ef4cb2ac8+wt
 pass/arithmetic/const_fold_unsigned_landed_ops_exit checked 14580ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/arithmetic/constant_trapping_shift_value_overflow_traps checked 13282ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/arithmetic/disjunctive_requires_exact_slot checked 1049ms @fa9134cda58d+wt

@@ -7,6 +7,10 @@
 //! Declared singleton ranges on parameters/fields do not become static values.
 //! An immutable parameter also carries the literal comparisons its owning
 //! `requires` clause states: every arrival proves them and nothing rewrites it.
+//! An integer const or value binder does not change during the machine, so the
+//! same comparisons bound it in every state. A runtime value compared with that
+//! binder (`index < Bound` where `Bound <= 4`) then stands inside the binder's
+//! ceiling, the same way it would under an immutable parameter bound.
 //! A disjunction contributes only when every alternative bounds that parameter;
 //! the bound is their convex hull, so `side == 0 || side == 1` is `[0, 1]`
 //! while `side == 0 || flag == 1` does not bound `side`.
@@ -233,7 +237,13 @@ pub fn state_parameter_integer_interval(
     }
     let mut interval = type_bounds(program, parameter.type_reference)?.interval;
     if !parameter.is_mutable {
-        interval = interval.intersect(requires_interval(program, machine, state, parameter.symbol));
+        interval = interval.intersect(requires_interval(
+            program,
+            machine,
+            state,
+            parameter.symbol,
+            false,
+        ));
     }
     Some((interval.low, interval.high))
 }
@@ -406,23 +416,26 @@ fn bounds(
         ExpressionNode::Integer(_) => None,
         ExpressionNode::Name(path) if path.symbol.is_valid() && path.head_symbol == path.symbol => {
             let state = state?;
-            let parameter = program.state_parameter_by_symbol(state, path.symbol)?;
-            if parameter.is_const || (parameter.is_mutable && !declared_mutable_leaves) {
-                return None;
+            if let Some(parameter) = program.state_parameter_by_symbol(state, path.symbol) {
+                if parameter.is_const || (parameter.is_mutable && !declared_mutable_leaves) {
+                    return None;
+                }
+                let declared = type_bounds(program, parameter.type_reference)?;
+                if parameter.is_mutable {
+                    return Some(declared);
+                }
+                return Some(Bounds {
+                    interval: declared.interval.intersect(requires_interval(
+                        program,
+                        machine,
+                        state,
+                        parameter.symbol,
+                        false,
+                    )),
+                    ..declared
+                });
             }
-            let declared = type_bounds(program, parameter.type_reference)?;
-            if parameter.is_mutable {
-                return Some(declared);
-            }
-            Some(Bounds {
-                interval: declared.interval.intersect(requires_interval(
-                    program,
-                    machine,
-                    state,
-                    parameter.symbol,
-                )),
-                ..declared
-            })
+            integer_binder_bounds(program, machine, state, path.symbol)
         }
         ExpressionNode::Member(_) => {
             let declared = type_bounds(
@@ -770,25 +783,58 @@ fn ensures_result_interval(
     interval
 }
 
+/// Machine `requires` on an integer const or value binder. The binder is not
+/// storage, so those comparisons remain premises after entry.
+fn integer_binder_bounds(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    symbol: SymbolHandle,
+) -> Option<Bounds> {
+    let binder = program
+        .machine_type_parameters(machine)
+        .iter()
+        .find(|parameter| parameter.symbol == symbol)?;
+    let type_reference = match binder.kind {
+        typed_trees::data::TypeParameterKind::Const { type_reference }
+        | typed_trees::data::TypeParameterKind::Value { type_reference } => type_reference,
+        _ => return None,
+    };
+    let declared = type_bounds(program, type_reference)?;
+    Some(Bounds {
+        interval: declared.interval.intersect(requires_interval(
+            program,
+            machine,
+            state,
+            binder.symbol,
+            true,
+        )),
+        ..declared
+    })
+}
+
 /// The comparisons on `parameter` in the clause every arrival proves: the
-/// machine's `requires` for its entry state, the state's own otherwise. Only
-/// exact builtin orderings and equalities contribute, against a literal or a
-/// place whose stores enforce a bound (`y <= self.max_y` with
-/// `where max_y <= 2` bounds `y` by 2). Conjunctions intersect. A disjunction
-/// is the convex hull of alternatives that each bound this parameter; one
-/// alternative that does not mention it leaves the parameter unbounded,
-/// because that alternative can discharge the clause alone.
+/// machine's `requires` for its entry state, the state's own otherwise.
+/// `include_machine_contracts` also keeps the machine clause in later states,
+/// for a binder that cannot be overwritten. Only exact builtin orderings and
+/// equalities contribute, against a literal or a place whose stores enforce a
+/// bound (`y <= self.max_y` with `where max_y <= 2` bounds `y` by 2).
+/// Conjunctions intersect. A disjunction is the convex hull of alternatives
+/// that each bound this parameter; one alternative that does not mention it
+/// leaves the parameter unbounded, because that alternative can discharge the
+/// clause alone.
 fn requires_interval(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     parameter: SymbolHandle,
+    include_machine_contracts: bool,
 ) -> Interval {
     let entry = program
         .machine_states(machine)
         .first()
         .is_some_and(|entry| entry.symbol == state.symbol);
-    let machine_contracts = if entry {
+    let machine_contracts = if entry || include_machine_contracts {
         program.machine_contracts(machine)
     } else {
         &[]

@@ -17,6 +17,7 @@ pass/arithmetic/call_surviving_return_exit built 27031ms exit:70 stdout:match @6
 pass/arithmetic/closed_call_transition_return_proves_exact_sum_exit built 27045ms exit:112 @6c49683ce714
 pass/arithmetic/collection_result_bound_exit built 16554ms exit:0 @6c49683ce714
 pass/arithmetic/compound_assign checked 16246ms @6c49683ce714
+pass/arithmetic/const_binder_bound_scales_exit built 5541ms exit:0 @0e7ef4cb2ac8+wt
 pass/arithmetic/const_fold_unsigned_landed_ops_exit built 27073ms exit:70 @6c49683ce714
 pass/arithmetic/constant_trapping_shift_value_overflow_traps built 26912ms exit:signal signal:4 @6c49683ce714
 pass/arithmetic/every_width_index checked 17387ms @6c49683ce714

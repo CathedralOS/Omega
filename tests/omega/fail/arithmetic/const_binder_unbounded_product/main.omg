@@ -1,0 +1,10 @@
+// `index < Bound` without a ceiling on Bound does not make `index * 4` exact.
+machine scale<const Bound: u64>(index: u64) -> u64
+requires index < Bound
+{ index * 4 }
+
+machine main() crashes Trap {
+    let value: u64 = scale<4>(1);
+    transition { _ -> done(value) }
+    state done(value: u64) { }
+}
