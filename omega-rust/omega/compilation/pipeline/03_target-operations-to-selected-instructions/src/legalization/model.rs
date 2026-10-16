@@ -82,6 +82,13 @@ pub enum LegalizationError {
         machine: semantic_vocabulary::MachineId,
         operation: abstract_operations::AbstractOperation,
     },
+    /// Retain the exact store and failed contract so a refusal does not need
+    /// another compiler build merely to identify the rejected invariant.
+    InvalidScalarStore {
+        machine: semantic_vocabulary::MachineId,
+        operation: semantic_vocabulary::OperationId,
+        reason: &'static str,
+    },
     UnsupportedSourceShape {
         function: usize,
     },

@@ -667,7 +667,7 @@ pub(super) fn validate(
                     )
                 }
             };
-            let written = match &node.operation {
+            let preserved = match &node.operation {
                 AbstractOperation::StructuralScalarFieldStore { path, field, .. } => {
                     terminal_semantics::projected_field_declaration(
                         types.iter(),
@@ -675,33 +675,68 @@ pub(super) fn validate(
                         path,
                         *field,
                     )
-                    .map(|field| {
+                    .is_some_and(|field| {
                         let mut written = path.clone();
                         written.push(terminal_psi::StructuralPathSegment::Field(field.identity));
-                        written
+                        optimization_unit_semantics::structural_write_preserves_memberships(
+                            optimized,
+                            destination.place(),
+                            &written,
+                            types,
+                            domains,
+                            identities,
+                        )
                     })
                 }
-                AbstractOperation::WriteOnlyPrimitiveStore { path, .. } => Some(path.clone()),
-                _ => unreachable!("scalar store family was selected above"),
+                AbstractOperation::WriteOnlyPrimitiveStore {
+                    path,
+                    range_obligation,
+                    ..
+                } => {
+                    // A primitive replacement can preserve an overlapping
+                    // membership through its checked receiving restriction.
+                    // Reuse that contract instead of requiring disjointness;
+                    // the unit catalog owns the exact scalar-range authority.
+                    terminal_semantics::primitive_store_restriction(
+                        types.iter(),
+                        domains.iter(),
+                        destination.structural_type(),
+                        destination.qualifications(),
+                        destination.projected_qualifications(),
+                        path,
+                    )
+                    .is_some_and(|restriction| restriction.is_some() == range_obligation.is_some())
+                        && terminal_semantics::store_preserves_content(
+                            types.iter(),
+                            domains.iter(),
+                            identities,
+                            destination.structural_type(),
+                            destination.place(),
+                            optimized.content_entry_claims.iter(),
+                            path,
+                        )
+                }
+                _ => false,
             };
-            let preserved = written.is_some_and(|written| {
-                optimization_unit_semantics::structural_write_preserves_memberships(
-                    optimized,
-                    destination.place(),
-                    &written,
-                    types,
-                    domains,
-                    identities,
-                )
-            });
-            if result.is_some()
-                || !node.definitions.is_empty()
-                || !declared
-                || !preserved
-                || value_type(optimized, value.value) != Some(value.scalar_type)
-                || scalar_shape(value.scalar_type).is_none()
-            {
-                return Err(LegalizationError::custody());
+            let refusal = if result.is_some() || !node.definitions.is_empty() {
+                Some("scalar store unexpectedly defines a result")
+            } else if !declared {
+                Some("scalar store destination does not rejoin its declaration")
+            } else if !preserved {
+                Some("scalar store does not preserve destination memberships or content")
+            } else if value_type(optimized, value.value) != Some(value.scalar_type) {
+                Some("scalar store value disagrees with its declared type")
+            } else if scalar_shape(value.scalar_type).is_none() {
+                Some("scalar store value has no native carrier")
+            } else {
+                None
+            };
+            if let Some(reason) = refusal {
+                return Err(LegalizationError::InvalidScalarStore {
+                    machine: optimized.machine,
+                    operation,
+                    reason,
+                });
             }
             continue;
         }

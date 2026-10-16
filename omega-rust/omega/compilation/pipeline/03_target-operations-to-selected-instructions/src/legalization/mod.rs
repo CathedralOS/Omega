@@ -64,6 +64,9 @@ pub(crate) use scalar_graph_input::exact_cast_has_native_carriers;
 /// Independently check retained target rows against their source products.
 /// This is an audit entrypoint for corpus and foreign-artifact review, not
 /// another phase of instruction construction in the producing compile.
+/// Callers supply validated current source products, including exact receiving
+/// obligations and current-graph byte invariants. This checks target/source
+/// correspondence; it does not admit an arbitrary optimization unit.
 pub fn verify_target_operation_plan(
     target: &TargetOperationPlan,
     abstract_plan: &AbstractOperationPlan,
@@ -75,6 +78,8 @@ pub fn verify_target_operation_plan(
 
 /// Audit selected family calls with their immutable portable catalog and
 /// admitted deployment-tag selection, rather than reconstructing installation.
+/// Source admission remains the caller's responsibility, as for
+/// [`verify_target_operation_plan`].
 pub fn verify_target_operation_plan_with_context(
     target: &TargetOperationPlan,
     abstract_plan: &AbstractOperationPlan,
