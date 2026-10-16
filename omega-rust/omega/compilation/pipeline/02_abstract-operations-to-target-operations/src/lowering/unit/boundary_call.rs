@@ -107,7 +107,7 @@ pub(in crate::lowering) fn lower_boundary_call(
                         target,
                         declaration,
                         structural_arguments,
-                        &foreign.boundary_entry_plan,
+                        foreign,
                         structural_types,
                         parameters_by_place,
                         shape_cache,
@@ -126,7 +126,7 @@ pub(in crate::lowering) fn lower_boundary_call(
                     declaration,
                     function,
                     arguments,
-                    &foreign.boundary_entry_plan,
+                    foreign,
                     &ScalarSources {
                         integers: scalar_values,
                         scalar_homes: &*scalar_homes,

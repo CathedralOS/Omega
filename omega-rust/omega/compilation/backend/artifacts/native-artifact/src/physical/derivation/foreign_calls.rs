@@ -196,7 +196,7 @@ pub(crate) fn derive_normalized_foreign_child(
                         calling_conventions::NativePlace::Parameter(_)
                     )
                 }),
-                &foreign.binding.boundary_entry_plan.call.parameters,
+                &foreign.binding.operand_placements(),
                 pointer_shape,
             )?
             else {
@@ -377,15 +377,12 @@ pub(crate) fn derive_normalized_foreign_child(
         let native_position = semantic_position
             + callback_ordinals
                 .iter()
-                .filter(|ordinal| **ordinal <= semantic_position)
+                .filter(|ordinal| {
+                    **ordinal + foreign.binding.dispatch_operand_count() <= semantic_position
+                })
                 .count();
         if usize::try_from(physical.parameter_index).ok() != Some(native_position)
-            || foreign
-                .binding
-                .boundary_entry_plan
-                .call
-                .parameters
-                .get(native_position)
+            || foreign.binding.operand_placements().get(native_position)
                 != Some(&physical.placement)
         {
             return Err("normalized foreign D41 child changed a scalar argument position");
@@ -408,10 +405,16 @@ pub(crate) fn derive_normalized_foreign_child(
         })
         .collect::<Result<Vec<_>, _>>()?;
     for (callback, ordinal) in callbacks.iter().zip(callback_ordinals.iter()) {
-        native_parameter_shapes.insert(*ordinal, callback.target.application.shape);
+        native_parameter_shapes.insert(
+            *ordinal + foreign.binding.dispatch_operand_count(),
+            callback.target.application.shape,
+        );
     }
     let signature = calling_conventions::CallSignature {
-        parameters: native_parameter_shapes,
+        parameters: native_parameter_shapes
+            .into_iter()
+            .skip(foreign.binding.dispatch_operand_count())
+            .collect(),
         result: result_shape,
     };
 
@@ -1145,7 +1148,7 @@ pub(crate) fn normalized_foreign_structural_parameter_shapes(
     caller_structural_parameters: &[terminal_psi::StructuralParameterDeclaration],
     parameter_order: &[terminal_psi::BoundaryParameterKind],
     callback_present: bool,
-    plan_parameters: &[calling_conventions::ValuePlacement],
+    plan_parameters: &target_operations::ForeignCallOperands<'_>,
     pointer_shape: calling_conventions::ValueShape,
 ) -> Result<Option<Vec<calling_conventions::ValueShape>>, &'static str> {
     if structural_arguments.len() != structural_parameters.len() {
@@ -1177,7 +1180,9 @@ pub(crate) fn normalized_foreign_structural_parameter_shapes(
         .zip(structural_positions)
         .enumerate()
     {
-        let placement = &plan_parameters[native_position];
+        let placement = plan_parameters
+            .get(native_position)
+            .ok_or("normalized foreign D41 child lost a source transport operand")?;
         if usize::try_from(parameter.position).ok() != Some(lane_position)
             || argument.access != parameter.access
         {

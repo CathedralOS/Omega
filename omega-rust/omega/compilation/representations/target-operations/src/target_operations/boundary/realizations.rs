@@ -160,6 +160,44 @@ pub struct NormalizedSystemCallBinding {
 }
 
 impl NormalizedForeignCallBinding {
+    /// Source transport includes a table used only for dispatch; the wire ABI
+    /// does not. Keep that operand out of the boundary plan, so it cannot shift
+    /// argument registers, stack slots, callback ordinals or result placement.
+    /// The table occupies the target's volatile indirect-call scratch and is
+    /// consumed by the address load before entering the foreign callee.
+    pub fn operand_placements(&self) -> ForeignCallOperands<'_> {
+        use calling_conventions::{MachineRegister, ValueLocation, ValuePlacement, ValueShape};
+        let dispatch = match &self.mechanism {
+            NormalizedForeignCallMechanism::Table {
+                target,
+                dispatch_only: true,
+                ..
+            } => {
+                let register = match target.native_target().architecture {
+                    target::Architecture::X86_64 => MachineRegister::X86R11,
+                    target::Architecture::Aarch64 => MachineRegister::Aarch64X(16),
+                };
+                Some(ValuePlacement {
+                    shape: ValueShape::integer(8, 8),
+                    locations: vec![ValueLocation::Register {
+                        register,
+                        byte_size: 8,
+                        value_byte_offset: 0,
+                    }],
+                })
+            }
+            _ => None,
+        };
+        ForeignCallOperands {
+            dispatch,
+            parameters: &self.boundary_entry_plan.call.parameters,
+        }
+    }
+
+    pub fn dispatch_operand_count(&self) -> usize {
+        usize::from(matches!(self.table_dispatch(), Some((_, true))))
+    }
+
     /// Resolve only a mechanism-supported native profile. In particular, an
     /// untrusted kernel row cannot ask the native catalog to realize Alpha or
     /// resolve a host-dependent alias while replaying portable custody.
@@ -303,6 +341,36 @@ impl NormalizedForeignCallBinding {
             } => Some((byte_offset, dispatch_only)),
             _ => None,
         }
+    }
+}
+
+/// Borrow the wire placements; only the dispatch operand is synthesized.
+/// Indices in scalar/structural argument records address this source transport
+/// order. Native callback ordinals continue to address the wire plan itself.
+pub struct ForeignCallOperands<'plan> {
+    dispatch: Option<calling_conventions::ValuePlacement>,
+    parameters: &'plan [calling_conventions::ValuePlacement],
+}
+
+impl ForeignCallOperands<'_> {
+    pub fn len(&self) -> usize {
+        self.parameters.len() + usize::from(self.dispatch.is_some())
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.dispatch.is_none() && self.parameters.is_empty()
+    }
+
+    pub fn get(&self, operand_index: usize) -> Option<&calling_conventions::ValuePlacement> {
+        match (&self.dispatch, operand_index) {
+            (Some(dispatch), 0) => Some(dispatch),
+            (Some(_), operand_index) => self.parameters.get(operand_index - 1),
+            (None, operand_index) => self.parameters.get(operand_index),
+        }
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = &calling_conventions::ValuePlacement> {
+        self.dispatch.iter().chain(self.parameters.iter())
     }
 }
 

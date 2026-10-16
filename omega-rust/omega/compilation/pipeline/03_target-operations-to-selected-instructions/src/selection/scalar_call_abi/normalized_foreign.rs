@@ -32,7 +32,7 @@ fn entry_family(call: &LegalizedNormalizedForeignCall) -> register_model::Regist
     }
 }
 
-/// The native ordinals the call's parameter-destination callbacks consume as
+/// The transport ordinals the call's parameter-destination callbacks consume as
 /// private slots; field destinations mint no plan slot and never join here.
 fn private_callback_ordinals(call: &LegalizedNormalizedForeignCall) -> Vec<usize> {
     let mut ordinals: Vec<usize> = call
@@ -44,13 +44,15 @@ fn private_callback_ordinals(call: &LegalizedNormalizedForeignCall) -> Vec<usize
                 calling_conventions::NativePlace::Parameter(_)
             )
         })
-        .map(|callback| callback.application.native_ordinal as usize)
+        .map(|callback| {
+            callback.application.native_ordinal as usize + call.binding.dispatch_operand_count()
+        })
         .collect();
     ordinals.sort_unstable();
     ordinals
 }
 
-/// Scalar rows retain their native ordinals; the remaining ordered slots
+/// Scalar rows retain their source transport ordinals; the remaining ordered slots
 /// belong to the structural lane except each retained callback row's private
 /// slot, which selection emits as materialization bytes rather than an
 /// argument operand.
@@ -58,7 +60,7 @@ pub(crate) fn structural_parameter_positions(
     call: &LegalizedNormalizedForeignCall,
 ) -> impl Iterator<Item = usize> + '_ {
     let private_ordinals = private_callback_ordinals(call);
-    (0..call.binding.boundary_entry_plan.call.parameters.len()).filter(move |position| {
+    (0..call.binding.operand_placements().len()).filter(move |position| {
         !private_ordinals.contains(position)
             && !call
                 .scalar_arguments
@@ -165,6 +167,7 @@ pub(crate) fn validate(
         return Err(invalid!());
     }
     let plan = &call.binding.boundary_entry_plan;
+    let operands = call.binding.operand_placements();
     // Target applicability, calling policy, and entry control are exact
     // coordinates; the entry mechanism's sealed target must name this environment.
     if call.binding.native_target() != Some(environment.target())
@@ -238,10 +241,10 @@ pub(crate) fn validate(
             callback.destination,
             calling_conventions::NativePlace::Parameter(_)
         ) {
-            private_ordinals.push(ordinal);
+            private_ordinals.push(ordinal + call.binding.dispatch_operand_count());
         }
     }
-    if plan.call.parameters.len()
+    if operands.len()
         != call.scalar_arguments.len() + call.structural_arguments.len() + private_ordinals.len()
     {
         return Err(invalid!());
@@ -254,8 +257,7 @@ pub(crate) fn validate(
                 call.scalar_arguments[previous].parameter_index >= argument.parameter_index
             })
             || private_ordinals.contains(&(argument.parameter_index as usize))
-            || plan.call.parameters.get(argument.parameter_index as usize)
-                != Some(&argument.placement)
+            || operands.get(argument.parameter_index as usize) != Some(&argument.placement)
             || scalar_shape(argument.source.scalar_type()) != Some(argument.placement.shape)
             || match &argument.source {
                 TargetUnitScalarArgumentSource::IntegerImmediate {
@@ -505,7 +507,7 @@ pub(crate) fn validate(
                         || target.stride != selected.stride
                 })
             || argument.source != expected_source
-            || plan.call.parameters.get(index) != Some(&argument.destination)
+            || operands.get(index) != Some(&argument.destination)
             || argument.destination.shape != abi_shape
         {
             return Err(invalid!());
@@ -571,10 +573,8 @@ pub(crate) fn validate(
     };
     // Re-validate the retained plan against the independently re-derived
     // signature; the canonical evaluation must equal the carried plan exactly.
-    let mut parameters = vec![
-        ValueShape::integer(u32::from(pointer_size), pointer_alignment);
-        plan.call.parameters.len()
-    ];
+    let mut parameters =
+        vec![ValueShape::integer(u32::from(pointer_size), pointer_alignment); operands.len()];
     for argument in &call.scalar_arguments {
         *parameters
             .get_mut(argument.parameter_index as usize)
@@ -585,7 +585,10 @@ pub(crate) fn validate(
         *parameters.get_mut(position).ok_or_else(|| invalid!())? = shape;
     }
     let signature = CallSignature {
-        parameters,
+        parameters: parameters
+            .into_iter()
+            .skip(call.binding.dispatch_operand_count())
+            .collect(),
         result: result_shape,
     };
     let validated = match call.callbacks.first() {

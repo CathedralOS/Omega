@@ -24,8 +24,9 @@ use terminal_psi::{StructuralAccess, StructuralPathSegment};
 /// path, access mode, and projected byte offset beside the evaluated plan's
 /// destination placement.
 ///
-/// The evaluated `BoundaryEntryPlan` orders `call.parameters` by the authored
-/// formal signature. The Terminal declaration retains that order separately
+/// The transport view retains authored order, including a dispatch-only table
+/// when present; the evaluated wire plan excludes that table. Terminal retains
+/// that order separately
 /// from lane-local proof and custody coordinates. Private callback slots are
 /// inserted by the evaluated calling plan, not by the semantic declaration.
 ///
@@ -52,7 +53,7 @@ pub(super) fn lower_normalized_foreign_structural_arguments(
     target: NativeTarget,
     declaration: &terminal_psi::BoundaryMachineDeclaration,
     structural_arguments: &[terminal_psi::StructuralArgument],
-    boundary_entry_plan: &calling_conventions::BoundaryEntryPlan,
+    binding: &target_operations::NormalizedForeignCallBinding,
     structural_types: &StructuralTypeLookup<'_>,
     parameters_by_place: &BTreeMap<PlaceId, &TargetStructuralParameter>,
     shape_cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
@@ -62,6 +63,8 @@ pub(super) fn lower_normalized_foreign_structural_arguments(
     address_joins: &BTreeSet<PlaceId>,
     block_views: &BTreeSet<PlaceId>,
 ) -> Result<Vec<TargetStructuralArgument>, LoweringError> {
+    let boundary_entry_plan = &binding.boundary_entry_plan;
+    let operands = binding.operand_placements();
     // Only direct parameter destinations insert telescope slots; a field
     // destination's write flows through an already-occupied record parameter.
     let callback_ordinals = native_callbacks
@@ -72,15 +75,17 @@ pub(super) fn lower_normalized_foreign_structural_arguments(
                 calling_conventions::NativePlace::Parameter(_)
             )
         })
-        .map(|callback| usize::try_from(callback.application.native_ordinal))
+        .map(|callback| {
+            usize::try_from(callback.application.native_ordinal)
+                .map(|ordinal| ordinal + binding.dispatch_operand_count())
+        })
         .collect::<Result<Vec<_>, _>>()
         .map_err(|_| LoweringError::BoundaryRealizationMismatch(boundary))?;
     let mut sorted_ordinals = callback_ordinals;
     sorted_ordinals.sort_unstable();
     if structural_arguments.len() != declaration.structural_parameters.len()
         || !declaration.has_valid_parameter_order()
-        || boundary_entry_plan.call.parameters.len()
-            != declaration.parameter_order.len() + sorted_ordinals.len()
+        || operands.len() != declaration.parameter_order.len() + sorted_ordinals.len()
         || native_callbacks
             .iter()
             .any(|callback| callback.registrar_boundary_entry_plan != *boundary_entry_plan)
@@ -154,9 +159,7 @@ pub(super) fn lower_normalized_foreign_structural_arguments(
                         )
                     });
             if descriptor_formal {
-                let destination = boundary_entry_plan
-                    .call
-                    .parameters
+                let destination = operands
                     .get(native_position)
                     .ok_or(LoweringError::BoundaryRealizationMismatch(boundary))?;
                 let carrier = structural_shape(
@@ -474,9 +477,7 @@ pub(super) fn lower_normalized_foreign_structural_arguments(
                 return Err(LoweringError::BoundaryRealizationMismatch(boundary));
             }
             let parameter_shape = structural_parameter_shape(projected_shape, parameter.access);
-            let destination = boundary_entry_plan
-                .call
-                .parameters
+            let destination = operands
                 .get(native_position)
                 .ok_or(LoweringError::BoundaryRealizationMismatch(boundary))?;
             match parameter.access {
@@ -568,12 +569,14 @@ pub(super) fn lower_normalized_foreign_scalar_arguments_with_result(
     declaration: &terminal_psi::BoundaryMachineDeclaration,
     function: &AbstractFunction,
     arguments: &[ValueId],
-    boundary_entry_plan: &calling_conventions::BoundaryEntryPlan,
+    binding: &target_operations::NormalizedForeignCallBinding,
     sources: &ScalarSources<'_>,
     result_shape: Option<ValueShape>,
     native_callbacks: &[target_operations::TargetNativeCallbackArgument],
     structural_parameter_shapes: &[ValueShape],
 ) -> Result<Vec<target_operations::NormalizedForeignScalarArgument>, LoweringError> {
+    let boundary_entry_plan = &binding.boundary_entry_plan;
+    let operands = binding.operand_placements();
     if !declaration.has_valid_parameter_order()
         || structural_parameter_shapes.len() != declaration.structural_parameters.len()
     {
@@ -598,7 +601,8 @@ pub(super) fn lower_normalized_foreign_scalar_arguments_with_result(
             )
         })
         .map(|callback| {
-            usize::try_from(callback.application.native_ordinal).map(|ordinal| (ordinal, callback))
+            usize::try_from(callback.application.native_ordinal)
+                .map(|ordinal| (ordinal + binding.dispatch_operand_count(), callback))
         })
         .collect::<Result<Vec<_>, _>>()
         .map_err(|_| LoweringError::BoundaryRealizationMismatch(boundary))?;
@@ -625,7 +629,10 @@ pub(super) fn lower_normalized_foreign_scalar_arguments_with_result(
         parameter_shapes.insert(insertion, callback.application.shape);
     }
     let signature = CallSignature {
-        parameters: parameter_shapes,
+        parameters: parameter_shapes
+            .into_iter()
+            .skip(binding.dispatch_operand_count())
+            .collect(),
         result: result_shape,
     };
     let validated = match native_callbacks.first() {
@@ -657,7 +664,7 @@ pub(super) fn lower_normalized_foreign_scalar_arguments_with_result(
     .map_err(|_| LoweringError::BoundaryRealizationMismatch(boundary))?;
     if arguments.len() != declaration.scalar_parameters.len()
         || validated.plan() != boundary_entry_plan
-        || boundary_entry_plan.call.parameters.len()
+        || operands.len()
             != scalar_parameter_shapes.len()
                 + structural_parameter_shapes.len()
                 + callback_inserts.len()
@@ -680,9 +687,7 @@ pub(super) fn lower_normalized_foreign_scalar_arguments_with_result(
                         .iter()
                         .filter(|ordinal| semantic_parameter_index >= **ordinal)
                         .count();
-                let placement = boundary_entry_plan
-                    .call
-                    .parameters
+                let placement = operands
                     .get(parameter_index)
                     .ok_or(LoweringError::BoundaryRealizationMismatch(boundary))?;
                 // Keep entry/block coordinates as ordinary SSA sources. In

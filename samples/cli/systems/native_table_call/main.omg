@@ -1,4 +1,4 @@
-// A named table field calls a native function with the table as its first argument.
+// Named table fields support both protocol receivers and dispatch-only tables.
 // QueryPerformanceCounter writes only the first i64; the function address follows it.
 // Expected exit: 0
 use omega::language::core::external_binding;
@@ -9,6 +9,19 @@ boundary trait ModuleSymbols {
 }
 data CounterTable { value: i64; query: addr; }
 data Observations { table: CounterTable; }
+data CounterFunctions { reserved: u64; query: addr; }
+data FunctionHolder { functions: CounterFunctions; }
+data ProcessFunctions { current: addr; }
+data ArithmeticFunctions { multiply_divide: addr; }
+boundary trait Arithmetic {
+    machine multiply_divide(table: &ArithmeticFunctions, numerator: i32, multiplier: i32, denominator: i32) -> i32;
+}
+boundary trait ProcessIdentity {
+    machine current(table: &ProcessFunctions) -> u32;
+}
+boundary trait CounterFunction {
+    machine query(table: &CounterFunctions, output: &mut i64) -> i32;
+}
 boundary trait Counter {
     machine query(table: &mut CounterTable) -> i32;
 }
@@ -28,6 +41,19 @@ windows_x86_64 machine native_symbol(module: addr, name: &[u8; 24]) -> addr
 satisfies ModuleSymbols::symbol via symbol_binding();
 windows_x86_64 machine CounterTable::invoke(table: &mut CounterTable) -> i32
 satisfies Counter::query via ForeignBinding::VtableField(query);
+windows_x86_64 machine CounterFunctions::invoke(table: &CounterFunctions, output: &mut i64) -> i32
+satisfies CounterFunction::query via ForeignBinding::TableFunction(query);
+windows_x86_64 machine ProcessFunctions::invoke(table: &ProcessFunctions) -> u32
+satisfies ProcessIdentity::current via ForeignBinding::TableFunction(current);
+windows_x86_64 machine ArithmeticFunctions::invoke(table: &ArithmeticFunctions, numerator: i32, multiplier: i32, denominator: i32) -> i32
+satisfies Arithmetic::multiply_divide via ForeignBinding::TableFunction(multiply_divide);
+
+machine measure_function(table: &CounterFunctions, output: &mut i64) -> i32
+reaches CounterFunction
+invokes CounterFunction;
+{
+    CounterFunction::query(table, output)
+}
 
 machine measure(table: &mut CounterTable) -> i32
 reaches Counter
@@ -37,10 +63,13 @@ invokes Counter;
 }
 
 machine main()
-reaches ModuleSymbols + Counter
+reaches ModuleSymbols + Counter + CounterFunction + ProcessIdentity + Arithmetic
 crashes Trap
 invokes ModuleSymbols;
 invokes Counter;
+invokes CounterFunction;
+invokes ProcessIdentity;
+invokes Arithmetic;
 {
     let library: [u8; 13] = "kernel32.dll\0";
     let symbol: [u8; 24] = "QueryPerformanceCounter\0";
@@ -50,7 +79,21 @@ invokes Counter;
     let mut nested: Observations = Observations { table: CounterTable { query: function } };
     let success: i32 = Counter::query(&mut table);
     let forwarded: i32 = measure(&mut nested.table);
-    transition success != 0 && table.value > 0 && forwarded != 0 && nested.table.value > 0 {
+    let functions: CounterFunctions = CounterFunctions { query: function };
+    let mut output: i64;
+    let direct_function: i32 = CounterFunction::query(&functions, &mut output);
+    let holder: FunctionHolder = FunctionHolder { functions: CounterFunctions { query: function } };
+    let mut forwarded_output: i64;
+    let forwarded_function: i32 = measure_function(&holder.functions, &mut forwarded_output);
+    let process_symbol: [u8; 24] = "GetCurrentProcessId\0\0\0\0\0";
+    let process_function: addr = ModuleSymbols::symbol(module, &process_symbol);
+    let process_functions: ProcessFunctions = ProcessFunctions { current: process_function };
+    let process: u32 = ProcessIdentity::current(&process_functions);
+    let arithmetic_symbol: [u8; 24] = "MulDiv\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0";
+    let arithmetic_function: addr = ModuleSymbols::symbol(module, &arithmetic_symbol);
+    let arithmetic: ArithmeticFunctions = ArithmeticFunctions { multiply_divide: arithmetic_function };
+    let calculated: i32 = Arithmetic::multiply_divide(&arithmetic, 6, 7, 2);
+    transition success != 0 && table.value > 0 && forwarded != 0 && nested.table.value > 0 && direct_function != 0 && output > 0 && forwarded_function != 0 && forwarded_output > 0 && process != 0 && calculated == 21 {
         true -> done()
         _ -> bad()
     }

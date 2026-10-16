@@ -643,6 +643,7 @@ where
 {
     let invalid = || ObjectError::InvalidForeignCallArgument { caller, owner };
     let plan = &record.call.binding.boundary_entry_plan.call;
+    let placements = record.call.binding.operand_placements();
     // Only a parameter-destination materialization mints a plan slot; a
     // field destination writes through its root record parameter's own
     // slot, which the structural argument roster already carries.
@@ -656,7 +657,7 @@ where
             )
         })
         .count();
-    if plan.parameters.len()
+    if placements.len()
         != record.call.scalar_arguments.len()
             + record.call.structural_arguments.len()
             + parameter_slot_materializations
@@ -692,7 +693,7 @@ where
         let shape = scalar_shape(argument.source.scalar_type()).ok_or_else(invalid)?;
         if scalar_ordinal.checked_sub(1).is_some_and(|previous| {
             record.call.scalar_arguments[previous].parameter_index >= argument.parameter_index
-        }) || plan.parameters.get(native_position) != Some(&argument.placement)
+        }) || placements.get(native_position) != Some(&argument.placement)
             || argument.placement.shape != shape
         {
             return Err(invalid());

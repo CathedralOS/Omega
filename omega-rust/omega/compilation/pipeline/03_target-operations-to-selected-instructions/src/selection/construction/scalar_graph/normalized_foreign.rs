@@ -237,9 +237,12 @@ pub(super) fn emit_invocation(
     }
     // Preserve parameter order and each placement's fragment order, using
     // the same bank ordering as retained-plan constraint reconstruction.
+    let placements = call.binding.operand_placements();
     operands.sort_by_key(|(position, _)| {
         (
-            call.binding.boundary_entry_plan.call.parameters[*position as usize]
+            placements
+                .get(*position as usize)
+                .expect("validated source transport operand")
                 .shape
                 .class
                 == calling_conventions::ValueClass::Float,

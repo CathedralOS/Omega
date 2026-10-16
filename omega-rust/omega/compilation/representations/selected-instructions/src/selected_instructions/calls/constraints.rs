@@ -57,16 +57,16 @@ pub fn foreign_call_record<'function>(
 pub fn foreign_argument_registers(
     call: &LegalizedNormalizedForeignCall,
 ) -> Vec<(usize, MachineRegister)> {
-    let mut parameters = call
-        .binding
-        .boundary_entry_plan
-        .call
-        .parameters
+    let operands = call.binding.operand_placements();
+    let mut parameters = operands
         .iter()
         .enumerate()
         .filter(|(position, _)| {
             !call.callbacks.iter().any(|callback| {
-                usize::try_from(callback.application.native_ordinal) == Ok(*position)
+                usize::try_from(callback.application.native_ordinal)
+                    .ok()
+                    .map(|ordinal| ordinal + call.binding.dispatch_operand_count())
+                    == Some(*position)
                     && matches!(callback.destination, NativePlace::Parameter(_))
             })
         })

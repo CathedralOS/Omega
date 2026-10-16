@@ -81,9 +81,7 @@ pub fn validate_x86_64_selected_table_call_form(
 }
 
 pub(crate) fn table_address(record: &SelectedNormalizedForeignCall) -> Option<(u8, u32)> {
-    let (byte_offset, false) = record.call.binding.table_dispatch()? else {
-        return None;
-    };
+    let (byte_offset, _) = record.call.binding.table_dispatch()?;
     // Callbacks require relocatable prefixes, which the current table form
     // cannot yet publish. Refuse them before producing incomplete bytes.
     if !record.call.callbacks.is_empty() || byte_offset > i32::MAX as u32 {
@@ -117,13 +115,8 @@ pub(crate) fn table_address(record: &SelectedNormalizedForeignCall) -> Option<(u
     {
         return None;
     }
-    let parameter = record
-        .call
-        .binding
-        .boundary_entry_plan
-        .call
-        .parameters
-        .first()?;
+    let operands = record.call.binding.operand_placements();
+    let parameter = operands.get(0)?;
     let [
         calling_conventions::ValueLocation::Register {
             register,

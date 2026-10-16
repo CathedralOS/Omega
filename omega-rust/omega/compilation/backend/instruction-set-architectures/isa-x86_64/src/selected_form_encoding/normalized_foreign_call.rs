@@ -767,6 +767,76 @@ mod tests {
     }
 
     #[test]
+    fn dispatch_only_table_is_loaded_from_scratch_without_shifting_wire_arguments() {
+        use super::super::table_call::{
+            encode_x86_64_selected_table_call_form, validate_x86_64_selected_table_call_form,
+        };
+        for windows in [false, true] {
+            for wire_count in [0, 1] {
+                let (_, _, alternative, _, _, _, mut record) = inputs(windows, wire_count, 1);
+                let same_stack_contribution = record
+                    .call
+                    .binding
+                    .same_stack_contribution()
+                    .unwrap()
+                    .clone();
+                let original_plan = record.call.binding.boundary_entry_plan.clone();
+                record.call.binding.mechanism =
+                    target_operations::NormalizedForeignCallMechanism::Table {
+                        target: if windows {
+                            target::TargetProfile::WindowsX64
+                        } else {
+                            target::TargetProfile::LinuxX64
+                        },
+                        byte_offset: 16,
+                        dispatch_only: true,
+                        same_stack_contribution,
+                    };
+                let constraint =
+                    crate::machine_effects::normalized_foreign_constraint(&record).unwrap();
+                let views: Vec<_> = constraint
+                    .operands
+                    .iter()
+                    .map(|operand| operand.fixed_view.unwrap())
+                    .collect();
+                let accesses: Vec<_> = constraint
+                    .operands
+                    .iter()
+                    .map(|operand| operand.access)
+                    .collect();
+                let encoded =
+                    encode_x86_64_selected_table_call_form(&record, alternative, &views, &accesses)
+                        .unwrap();
+                assert_eq!(
+                    encoded.bytes,
+                    [0x4d, 0x8b, 0x9b, 16, 0, 0, 0, 0x41, 0xff, 0xd3]
+                );
+                assert_eq!(record.call.binding.boundary_entry_plan, original_plan);
+                assert_eq!(
+                    selected_instructions::calls::constraints::foreign_argument_registers(
+                        &record.call
+                    )[0],
+                    (0, calling_conventions::MachineRegister::X86R11)
+                );
+                for position in 0..encoded.bytes.len() {
+                    let mut corrupted = encoded.bytes.clone();
+                    corrupted[position] ^= 1;
+                    assert!(
+                        validate_x86_64_selected_table_call_form(
+                            &record,
+                            alternative,
+                            &views,
+                            &accesses,
+                            &corrupted
+                        )
+                        .is_err()
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
     fn retained_multiple_callbacks_bind_operands_effects_bytes_and_fixups() {
         use calling_conventions::{
             CallbackBinderRequirement, CallbackMaterialization, CallbackMaterializationContext,
