@@ -9,6 +9,14 @@ pub data Problem {
     covariance: Matrix<3, 3>; scatter: Matrix<3, 3>; matrix: Matrix<4, 4>; vectors: Matrix<4, 4>;
     rotation: Matrix<3, 3>; translation: [f64; 3]; quaternion: [f64; 4];
 }
+// A diagonal entry is `position * Extent + position`. The position is below
+// the const extent, and that extent's ceiling keeps the product representable.
+machine diagonal<const Extent: u64>(matrix: &Matrix<Extent, Extent>, index: u64) -> f64
+requires Extent >= 1 && Extent <= 4, index < Extent
+{
+    let position: u64 = index;
+    matrix.values[position * Extent + position]
+}
 // The unit quaternion representation restricts every candidate to SO(3).
 // Maximizing the Davenport quadratic gives the weighted least-squares proper
 // rotation, including the nonzero residual of reflected observations. Cyclic
@@ -16,7 +24,7 @@ pub data Problem {
 // the optimum is identifiable. Source rank two admits noncollinear planes.
 pub machine solve(problem: &mut Problem) -> bool {
     centers(problem, 0); normalize_centers(problem); covariance(problem, 0);
-    let trace: f64 = problem.scatter.values[0] + problem.scatter.values[4] + problem.scatter.values[8];
+    let trace: f64 = diagonal<3>(&problem.scatter, 0) + diagonal<3>(&problem.scatter, 1) + diagonal<3>(&problem.scatter, 2);
     let area: f64 = problem.scatter.values[0] * problem.scatter.values[4] + problem.scatter.values[0] * problem.scatter.values[8] + problem.scatter.values[4] * problem.scatter.values[8]
         - problem.scatter.values[1] * problem.scatter.values[1] - problem.scatter.values[2] * problem.scatter.values[2] - problem.scatter.values[5] * problem.scatter.values[5];
     transition trace > 0.0 && area > 0.000000000001 * trace * trace {
