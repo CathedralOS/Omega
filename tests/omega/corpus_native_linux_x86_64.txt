@@ -2921,8 +2921,8 @@ pass/targets/target_machine_gating_exit built 15208ms exit:70 @6c49683ce714
 pass/targets/target_member_ranked_self_transition_exit built 7515ms exit:70 @6c49683ce714
 pass/targets/unreached_family_missing_member_exit built 17886ms exit:0 @6c49683ce714
 pass/targets/unreached_foreign_body_caller_exit built 7645ms exit:70 @6c49683ce714
-pass/tasks/task_runtime_machine_selection_compile rejected 161ms regressed-from:checked @8665e38f912c
-	static method application requires its complete explicit invocation telescope
+pass/tasks/ordinary_named_task_runtime_compile checked 1369ms @e058ade68ea2+wt
+pass/tasks/task_runtime_machine_selection_compile checked 1459ms @e058ade68ea2+wt
 pass/terminal_psi/content_custody_exit checked 3387ms @6c49683ce714
 pass/terminal_psi/debug_identity_complete_module built 70765ms exit:0 terminal-inspections:match @6c49683ce714
 pass/terminal_psi/integer_control_contract checked 2370ms @6c49683ce714

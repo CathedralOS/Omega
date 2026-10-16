@@ -173,39 +173,36 @@ pub(crate) fn exact_task_runtime_requirement<'program>(
     ),
     Vec<Diagnostic>,
 > {
-    let mut owners = typed
-        .traits()
-        .iter()
-        .filter(|definition| definition.symbol == selection.requirement_owner);
-    let owner = owners.next().ok_or_else(|| {
-        vec![Diagnostic::error(
-            "TaskRuntime activation requirement must name one exact retained trait owner",
-        )]
-    })?;
-    if owners.next().is_some() {
-        return Err(vec![Diagnostic::error(
-            "TaskRuntime activation requirement owner must resolve uniquely",
-        )]);
-    }
+    let owner = typed
+        .trait_definition_by_symbol(selection.requirement_owner)
+        .ok_or_else(|| {
+            vec![Diagnostic::error(
+                "TaskRuntime activation requirement must name one exact retained trait owner",
+            )]
+        })?;
     if !owner.is_boundary {
         return Err(vec![Diagnostic::error(
             "TaskRuntime activation requirement owner must be an exact boundary trait",
         )]);
     }
-    let mut signatures = typed
-        .trait_machine_signatures(owner)
-        .iter()
-        .filter(|signature| signature.symbol == selection.requirement);
-    let signature = signatures.next().ok_or_else(|| {
-        vec![Diagnostic::error(
-            "TaskRuntime activation requirement must belong to its exact retained owner",
-        )]
-    })?;
-    if signatures.next().is_some() {
-        return Err(vec![Diagnostic::error(
-            "TaskRuntime activation requirement must resolve uniquely within its exact owner",
-        )]);
-    }
+    // A selected generic provider covers the authored slot. The call's closed
+    // application remains on the selection and in its strong commitment;
+    // it cannot be mistaken for another method in this provider schema.
+    let application = typed
+        .closed_requirement_application(selection.requirement)
+        .filter(|application| application.declaring_trait == owner.symbol)
+        .ok_or_else(|| {
+            vec![Diagnostic::error(
+                "TaskRuntime activation requirement must retain its exact closed application",
+            )]
+        })?;
+    let signature = typed
+        .trait_machine_signature_by_symbol(owner, application.template)
+        .ok_or_else(|| {
+            vec![Diagnostic::error(
+                "TaskRuntime activation requirement must belong to its exact retained owner",
+            )]
+        })?;
     let identity = typed.trait_requirement_callable_identity(owner, signature);
     Ok((owner, signature, identity))
 }

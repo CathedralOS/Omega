@@ -4996,11 +4996,11 @@ fail/targets/unrealized_conformance_rejected rejected 4375ms expected @a9ae30e1c
 	machine `Helper::value` state `value` does not satisfy trait `Predicate` machine `value`: expected return `bool`, got `u32`
 fail/targets/unrealized_family_signature_rejected rejected 52ms expected @a9ae30e1c334+wt
 	machine `Helper::value` has an incompatible signature for `uefi_x86_64` -- every target's body of one machine shares its signature; incompatible ordinary parameter relevance/calling shape or result
-fail/tasks/task_runtime_machine_selection_effect_mismatch rejected 1355ms expected @a9ae30e1c334+wt
+fail/tasks/task_runtime_machine_selection_effect_mismatch rejected 678ms expected @e058ade68ea2+wt
 	machine argument `Worker::run` for `start` does not refine `Target`: service reach `DiskIo` exceeds its authored ceiling
-fail/tasks/task_runtime_provider_contract_narrowing rejected 1350ms expected @a9ae30e1c334+wt
+fail/tasks/task_runtime_provider_contract_narrowing rejected 603ms expected @e058ade68ea2+wt
 	machine parameter `Target` of provider machine `NarrowTaskRuntime::start` for trait requirement `TaskRuntime::start` does not refine `Target`: it may block, but the requirement omits `blocks;`
-fail/tasks/task_runtime_selected_provider_missing rejected 1678ms expected @a9ae30e1c334+wt
+fail/tasks/task_runtime_selected_provider_missing rejected 1281ms expected @e058ade68ea2+wt
 	TaskRuntime boundary slot has no retained selected provider plan
 fail/termination/bitwise_payload_no_rank_progress rejected 932ms expected @94394d5fbb6f+wt
 	terminating machine stuck: cannot prove strict rank decrease on a recurrent arrival: the transition from `stuck` back to itself is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step
@@ -8473,7 +8473,8 @@ pass/targets/target_member_ranked_self_transition_exit checked 7211ms check-targ
 pass/targets/uefi_table_integrity_exit checked 9517ms check-target:macos_arm64 @94394d5fbb6f+wt
 pass/targets/unreached_family_missing_member_exit checked 11591ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/targets/unreached_foreign_body_caller_exit checked 11335ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/tasks/task_runtime_machine_selection_compile checked 1727ms @a9ae30e1c334+wt
+pass/tasks/ordinary_named_task_runtime_compile checked 1394ms @e058ade68ea2+wt
+pass/tasks/task_runtime_machine_selection_compile checked 1588ms @e058ade68ea2+wt
 pass/terminal_psi/content_custody_exit checked 1599ms @a9ae30e1c334+wt
 pass/terminal_psi/debug_identity_complete_module checked 45206ms check-target:macos_arm64 terminal-inspections:match @a9ae30e1c334+wt
 pass/terminal_psi/integer_control_contract checked 4148ms @a9ae30e1c334+wt

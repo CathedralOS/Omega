@@ -1,4 +1,5 @@
 use omega::language::core::task;
+use omega::language::core::binding;
 
 // MP6/TR3: task activation consumes the ordinary compile-time machine-symbol
 // parameter surface. `Worker::run` is selected statically and survives as the
@@ -18,6 +19,22 @@ machine CanaryTaskRuntime::try_start<T, Arguments, machine Target>(
 where machine Target(arguments: Arguments) -> T suspends; blocks;
 satisfies TaskRuntime::try_start
 via ForeignBinding::CompilerIntrinsic;
+
+CanaryTaskRuntimeProvider satisfies TaskRuntime {
+    TaskRuntime::start = CanaryTaskRuntime::start;
+    TaskRuntime::try_start = CanaryTaskRuntime::try_start;
+}
+
+data TargetProviders {}
+linux_x86_64 machine TargetProviders::provider_defaults(defaults: &mut TargetProviders) {
+    TargetProviders::select_provider<TaskRuntime, CanaryTaskRuntimeProvider>(defaults);
+}
+macos_arm64 machine TargetProviders::provider_defaults(defaults: &mut TargetProviders) {
+    TargetProviders::select_provider<TaskRuntime, CanaryTaskRuntimeProvider>(defaults);
+}
+windows_x86_64 machine TargetProviders::provider_defaults(defaults: &mut TargetProviders) {
+    TargetProviders::select_provider<TaskRuntime, CanaryTaskRuntimeProvider>(defaults);
+}
 
 pub boundary data Sleeper;
 boundary machine Sleeper::park(token: i32) suspends;
@@ -47,16 +64,16 @@ machine Task::settle<T>(task: Task<T>) -> TaskOutcome<T> {
 }
 
 data Main {
-    runtime: &TaskRuntime;
+    runtime: &Binding<TaskRuntime>;
 }
 
 machine Main::probe(main: &mut Main) reaches TokenIssuer + TaskRuntime {
     let token: Token = TokenIssuer::issue(7);
-    let first: Task<Token> = main.runtime.start<Worker::run>(token);
+    let first: Task<Token> = main.runtime.start<Token, Token in Carry::AcrossSuspend, Worker::run>(token);
 
     let retry: Token = TokenIssuer::issue(9);
-    let outcome: StartOutcome<Token, Token> =
-        main.runtime.try_start<Worker::run>(retry);
+    let outcome: StartOutcome<Token, Token in Carry::AcrossSuspend> =
+        main.runtime.try_start<Token, Token in Carry::AcrossSuspend, Worker::run>(retry);
 
     _ = suspend block Task::settle(first);
     // `try_start` may decline. Only the selected `Started` case carries a

@@ -53,9 +53,26 @@ pub(crate) fn task_specialization_commitment<'program>(
         })?;
     let normalized_requirement =
         typed.trait_requirement_callable_identity_text(requirement_owner, requirement);
-    if normalized_requirement != requirement_identity {
+    let application = typed
+        .closed_requirement_application(selection.requirement)
+        .filter(|application| application.declaring_trait == requirement_owner.symbol)
+        .ok_or_else(|| {
+            vec![Diagnostic::error(
+                "task specialization lost its exact closed requirement application",
+            )]
+        })?;
+    let authored_requirement = typed
+        .trait_machine_signature_by_symbol(requirement_owner, application.template)
+        .ok_or_else(|| {
+            vec![Diagnostic::error(
+                "task specialization lost its authored runtime requirement",
+            )]
+        })?;
+    if typed.trait_requirement_callable_identity_text(requirement_owner, authored_requirement)
+        != requirement_identity
+    {
         return Err(vec![Diagnostic::error(
-            "task specialization selected-runtime requirement differs from its exact checked requirement",
+            "task specialization selected-runtime requirement differs from its exact authored requirement",
         )]);
     }
 

@@ -1,6 +1,7 @@
 //! Task start selections and activation targets.
 
 use crate::{fnv1a::Fnv1a, task_plans::entry_report_fingerprint};
+use checked_trees::typed_trees::static_applications::StaticMachineBindingValue;
 use diagnostics::Diagnostic;
 use symbols::JoinedPath;
 use task_plans::TaskStartOperation;
@@ -95,7 +96,6 @@ pub(crate) fn task_start_selections(
             typed,
             call.target_symbol,
             call.target.as_str(),
-            &call.machine_arguments,
             &mut selections,
             &mut diagnostics,
         );
@@ -110,7 +110,6 @@ pub(crate) fn task_start_selections(
                     typed,
                     call.target_symbol,
                     call.target.as_str(),
-                    &call.machine_arguments,
                     &mut selections,
                     &mut diagnostics,
                 );
@@ -129,37 +128,50 @@ fn append_task_start_selection(
     typed: &checked_trees::typed_trees::TypedTrees,
     requirement: symbols::SymbolHandle,
     target_name: &str,
-    machine_arguments: &[checked_trees::expression::StaticMachineArgument],
     selections: &mut Vec<TaskStartSelection>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let Some((definition, signature, operation)) = typed.traits().iter().find_map(|definition| {
         if !definition.is_boundary
-            || definition.name.as_str().rsplit("::").next() != Some("TaskRuntime")
+            || definition.name.as_str() != "TaskRuntime"
+            || !typed
+                .symbol_toolchain_relative_path(definition.symbol)
+                .is_some_and(|path| path == std::path::Path::new("task.omg"))
         {
             return None;
         }
-        typed
-            .trait_machine_signature_by_symbol(definition, requirement)
-            .and_then(|signature| {
-                let result = typed.display_type_reference(signature.return_type);
-                match (signature.name.as_str(), result.as_str()) {
-                    ("start", result) if result.starts_with("Task<") => {
-                        Some((definition, signature, TaskStartOperation::Start))
-                    }
-                    ("try_start", result) if result.starts_with("StartOutcome<") => {
-                        Some((definition, signature, TaskStartOperation::TryStart))
-                    }
-                    _ => None,
-                }
-            })
+        let signature = typed.trait_machine_signature_by_symbol(definition, requirement)?;
+        let operation = match signature.name.as_str() {
+            "start" => TaskStartOperation::Start,
+            "try_start" => TaskStartOperation::TryStart,
+            _ => return None,
+        };
+        Some((definition, signature, operation))
     }) else {
         return;
     };
-    let [target] = machine_arguments else {
+    // The closed requirement retains the complete typed application even
+    // after specialization erases its executable telescope. Machine bindings
+    // select execution; type and value bindings keep their own identities.
+    let Some(application) = typed.closed_requirement_application(requirement) else {
+        diagnostics.push(Diagnostic::error(format!(
+            "TaskRuntime requirement `{target_name}` has no retained checked static application"
+        )));
+        return;
+    };
+    let targets = typed
+        .expression_table
+        .static_machine_application_bindings(application.application)
+        .iter()
+        .filter_map(|binding| match &binding.value {
+            StaticMachineBindingValue::Machine(target) => Some(target),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let [target] = targets.as_slice() else {
         diagnostics.push(Diagnostic::error(format!(
             "TaskRuntime requirement `{target_name}` must select exactly one static target machine, got {}",
-            machine_arguments.len()
+            targets.len()
         )));
         return;
     };

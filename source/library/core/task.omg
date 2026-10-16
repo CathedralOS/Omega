@@ -21,7 +21,7 @@ pub data TaskFailureReceipt {
     code: i32;
 }
 
-data StartRejection {
+pub data StartRejection {
     code: i32;
 }
 
@@ -35,7 +35,7 @@ pub data TaskOutcome<T> {
     case Failed(receipt: TaskFailureReceipt);
 }
 
-data StartOutcome<T, Arguments> {
+pub data StartOutcome<T, Arguments> {
     case Started(task: Task<T>);
     case Rejected(arguments: Arguments, reason: StartRejection);
 }
@@ -48,11 +48,12 @@ pub boundary requirement Task::request_cancel<T>(task: &Task<T>);
 pub boundary requirement Task::finish<T>(task: Task<T>) -> TaskOutcome<T>
 suspends; blocks;
 
-// Runtime authority is an ordinary selected boundary capability. These
-// generic boundary requirements give
+// Runtime authority is a public selected boundary capability carried by
+// Binding<TaskRuntime>. Public start outcomes let callers settle either
+// admitted custody or their returned arguments. These requirements give
 // `start<M>` a nominal, machine-contract-checked surface for activation-plan
 // elaboration; provider admission/dispatch remains the next runtime layer.
-boundary trait TaskRuntime {
+pub boundary trait TaskRuntime {
     machine start<T, Arguments, machine Target>(
         arguments: Arguments
     ) -> Task<T>
