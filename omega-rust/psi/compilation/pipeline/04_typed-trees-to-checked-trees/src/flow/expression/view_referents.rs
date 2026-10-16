@@ -117,7 +117,7 @@ impl Execution<'_, '_, '_> {
             .span_or_empty(statements)
             .iter()
             .rev()
-            .filter(|statement| statement.statement_index < self.statement_index)
+            .filter(|statement| statement.statement_index != self.statement_index)
         {
             if self.semantic.places.is_valid(statement.stored_destination)
                 && self

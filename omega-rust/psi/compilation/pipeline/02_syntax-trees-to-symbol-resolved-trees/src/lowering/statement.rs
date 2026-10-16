@@ -16,6 +16,7 @@
 //! for unconditional reads, writes and loans without extracting their pointee.
 //! All these owners mint their temps through `hoist_temps.rs`.
 
+mod assembly;
 pub(in crate::lowering) mod hoist_temps;
 mod indexed_read_hoisting;
 mod match_subject_hoisting;

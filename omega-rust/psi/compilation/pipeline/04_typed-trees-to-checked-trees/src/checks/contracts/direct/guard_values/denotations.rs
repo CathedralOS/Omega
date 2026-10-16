@@ -345,7 +345,7 @@ impl Denotations<'_> {
                 StatementNode::Call(call) if !preserves(frames.may_write_frame(machine, call)) => {
                     return None;
                 }
-                StatementNode::AssemblyFact(_) => return None,
+                StatementNode::Assembly(_) | StatementNode::AssemblyFact(_) => return None,
                 _ => {}
             }
         }

@@ -88,7 +88,12 @@ pub(super) fn build_structural_scalar_field_store_sequence_traced(
         storage: parameter_storage,
     };
     let mut stores = Vec::new();
-    for (statement_index, statement) in statements.iter().enumerate().skip(statement_start) {
+    let execution_order = program
+        .statement_table
+        .admitted_execution_order(state.statement_nodes);
+    let start = execution_order.position(statement_start)?;
+    for statement_index in execution_order.indices()[start..].iter().copied() {
+        let statement = &statements[statement_index];
         let Some(assignment) = statement.as_assignment() else {
             continue;
         };

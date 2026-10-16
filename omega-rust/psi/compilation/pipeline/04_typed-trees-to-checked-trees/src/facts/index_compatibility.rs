@@ -102,6 +102,7 @@ pub(super) fn build_index_compatibility_facts(
                 statement_index,
             };
             match statement {
+                StatementNode::Assembly(_) => {}
                 StatementNode::LocalData(local) => {
                     let contexts = state_calls.contexts_after_value(
                         statement_index,

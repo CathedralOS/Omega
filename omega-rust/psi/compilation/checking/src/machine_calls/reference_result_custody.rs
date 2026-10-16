@@ -1287,6 +1287,9 @@ pub fn replaced_reference_carrier(
     statement_index: u32,
     selection: &[checked_trees::CheckedUnitStructuralPathSegment],
 ) -> Option<RecordLeafLoans> {
+    let order = program
+        .statement_table
+        .admitted_execution_order(state.statement_nodes);
     let reference = crate::canonical_place_type_reference(
         program,
         state.symbol,
@@ -1317,7 +1320,7 @@ pub fn replaced_reference_carrier(
         if loan.storage_owner != owner || facts.borrow.loan_owner_path(loan) != owner_path {
             continue;
         }
-        if loan.statement_index >= statement_index as usize
+        if !order.precedes(loan.statement_index, statement_index as usize)
             || formation.is_some_and(|previous| previous != loan.statement_index)
         {
             return None;
@@ -1643,7 +1646,10 @@ fn active_record_loans(
     statement_index: u32,
     declaration_statement: u32,
 ) -> Option<Vec<RecordLeafLoans>> {
-    if declaration_statement >= statement_index {
+    let order = program
+        .statement_table
+        .admitted_execution_order(state.statement_nodes);
+    if !order.precedes(declaration_statement as usize, statement_index as usize) {
         return None;
     }
     let local = program
@@ -1666,10 +1672,12 @@ fn active_record_loans(
     // contiguous descriptor groups; do not make context insertion order part
     // of the custody join.
     loans.sort_unstable_by_key(|handle| (handle.arena_index(), handle.generation()));
-    if loans
-        .iter()
-        .any(|handle| facts.borrow.loans.get(*handle).statement_index >= statement_index as usize)
-    {
+    if loans.iter().any(|handle| {
+        !order.precedes(
+            facts.borrow.loans.get(*handle).statement_index,
+            statement_index as usize,
+        )
+    }) {
         return None;
     }
     record_leaf_loan_groups(
@@ -2284,25 +2292,36 @@ pub fn whole_local_release_boundary(
     if loans.is_empty() || !local.symbol.is_valid() {
         return None;
     }
-    let mut boundary = statement_index.checked_add(1)?;
+    let order = program
+        .statement_table
+        .admitted_execution_order(state.statement_nodes);
+    let mut boundary = order.successor(statement_index as usize)?;
     for (_, group) in loans {
         for (loan, _) in facts.borrow.loan_group(group)? {
-            boundary = boundary.max(release_statement(facts, machine, state.symbol, loan)?);
+            let incoming = release_statement(program, facts, machine, state.symbol, loan)? as usize;
+            if order.position(incoming)? > order.position(boundary)? {
+                boundary = incoming;
+            }
         }
     }
-    for (index, statement) in statements
+    for index in order
+        .indices()
         .iter()
-        .enumerate()
-        .skip(statement_index as usize + 1)
+        .copied()
+        .skip(order.position(statement_index as usize)? + 1)
     {
         if crate::value_custody::source_liveness::statement_uses_symbol(
             program,
-            statement,
+            &statements[index],
             local.symbol,
         ) {
-            boundary = boundary.max(u32::try_from(index).ok()?.checked_add(1)?);
+            let incoming = order.successor(index)?;
+            if order.position(incoming)? > order.position(boundary)? {
+                boundary = incoming;
+            }
         }
     }
+    let boundary = u32::try_from(boundary).ok()?;
     Some(boundary)
 }
 
@@ -2361,6 +2380,7 @@ pub fn loan_weakening(
 }
 
 pub fn release_statement(
+    program: &dyn crate::CheckingInput,
     facts: &CheckFacts,
     machine: SymbolHandle,
     state: SymbolHandle,
@@ -2371,17 +2391,16 @@ pub fn release_statement(
     else {
         return None;
     };
+    let state = program.state_by_symbol(state)?;
+    let order = program
+        .statement_table
+        .admitted_execution_order(state.statement_nodes);
     if !matches!(
         weakening.reason,
         checked_trees::FlowBorrowWeakeningReason::LastUseExpired
             | checked_trees::FlowBorrowWeakeningReason::StateExit
-    ) || statement_index
-        != facts
-            .borrow
-            .loans
-            .get(handle)
-            .last_use_statement_index
-            .checked_add(1)?
+    ) || order.successor(facts.borrow.loans.get(handle).last_use_statement_index)
+        != Some(statement_index)
     {
         return None;
     }
@@ -2401,20 +2420,17 @@ pub fn release_boundary(
     state: SymbolHandle,
     handle: arena::Handle<checked_trees::BorrowLoanFact>,
 ) -> Option<u32> {
-    if let Some(boundary) = release_statement(facts, machine, state, handle) {
+    if let Some(boundary) = release_statement(program, facts, machine, state, handle) {
         return Some(boundary);
     }
     let state = program.state_by_symbol(state)?;
-    let statements = program.statement_table.statements(state.statement_nodes);
-    (facts
-        .borrow
-        .loans
-        .get(handle)
-        .last_use_statement_index
-        .checked_add(1)?
-        >= statements.len())
-    .then(|| u32::try_from(statements.len()).ok())
-    .flatten()
+    let order = program
+        .statement_table
+        .admitted_execution_order(state.statement_nodes);
+    let last = facts.borrow.loans.get(handle).last_use_statement_index;
+    (order.successor(last) == Some(state.statement_nodes.len()))
+        .then(|| u32::try_from(state.statement_nodes.len()).ok())
+        .flatten()
 }
 
 fn state_flow(

@@ -281,6 +281,7 @@ pub fn prepare_typed_trees(
     // the unchanged source roster or electing a private realization's fields.
     data_applications::elaborate_new_types(&mut program, signature_type_start)?;
     crate::assignment_destinations::prepare(&mut program);
+    crate::assembly_control::admit(&program)?;
     Ok((
         program.into(),
         TypedPreparation {

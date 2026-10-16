@@ -21,10 +21,10 @@ pub(crate) fn place_is_used_after_statement(
 ) -> bool {
     program
         .statement_table
-        .statements(statements)
-        .iter()
-        .skip(statement_index.saturating_add(1))
-        .any(|statement| {
+        .admitted_execution_statements(statements)
+        .skip_while(|(index, _)| *index != statement_index)
+        .skip(1)
+        .any(|(_, statement)| {
             usage::statement_uses_symbol(program, statement, symbol)
                 || usage::statement_uses_local_name(program, statement, local_name)
         })
@@ -44,6 +44,8 @@ pub(super) fn update_state_loan_last_uses(
         return;
     }
 
+    let order = program.statement_table.admitted_execution_order(statements);
+
     for borrow_call in borrow_calls {
         for access in argument_accesses.span_or_empty(borrow_call.accesses) {
             for tracker in loan_trackers {
@@ -57,8 +59,11 @@ pub(super) fn update_state_loan_last_uses(
                         access_segments.span_or_empty(access.segments),
                     )
                 {
-                    loans.get_mut(tracker.handle).last_use_statement_index =
-                        borrow_call.statement_index;
+                    extend_last_use(
+                        &order,
+                        &mut loans.get_mut(tracker.handle).last_use_statement_index,
+                        borrow_call.statement_index,
+                    );
                 }
             }
         }
@@ -66,9 +71,7 @@ pub(super) fn update_state_loan_last_uses(
 
     for (statement_index, statement) in program
         .statement_table
-        .statements(statements)
-        .iter()
-        .enumerate()
+        .admitted_execution_statements(statements)
     {
         for tracker in loan_trackers {
             if !loans.is_valid(tracker.handle) {
@@ -89,7 +92,11 @@ pub(super) fn update_state_loan_last_uses(
                 )
             };
             if used {
-                loans.get_mut(tracker.handle).last_use_statement_index = statement_index;
+                extend_last_use(
+                    &order,
+                    &mut loans.get_mut(tracker.handle).last_use_statement_index,
+                    statement_index,
+                );
             }
         }
     }
@@ -108,7 +115,7 @@ pub(super) fn update_state_loan_last_uses(
                     .is_some()
             {
                 loans.get_mut(tracker.handle).last_use_statement_index =
-                    state.statement_nodes.count().saturating_sub(1) as usize;
+                    order.indices().last().copied().unwrap_or_default();
             }
         }
     }
@@ -136,14 +143,33 @@ pub(super) fn update_state_loan_last_uses(
                 }
                 let alias_last_use = loans.get(alias.handle).last_use_statement_index;
                 let carried = loans.get_mut(carrier.handle);
-                if carried.last_use_statement_index < alias_last_use {
-                    carried.last_use_statement_index = alias_last_use;
-                    changed = true;
-                }
+                changed |= extend_last_use(
+                    &order,
+                    &mut carried.last_use_statement_index,
+                    alias_last_use,
+                );
             }
         }
         if !changed {
             break;
         }
     }
+}
+
+fn extend_last_use(
+    order: &typed_trees::statement::StatementExecutionOrder,
+    previous: &mut usize,
+    next: usize,
+) -> bool {
+    let Some(next_position) = order.position(next) else {
+        return false;
+    };
+    if order
+        .position(*previous)
+        .is_some_and(|position| position >= next_position)
+    {
+        return false;
+    }
+    *previous = next;
+    true
 }

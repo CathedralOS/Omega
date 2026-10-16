@@ -1065,12 +1065,19 @@ impl<'program> Evaluator<'program> {
                     .len(),
                 kind: checked_trees::FlowClaimJoinExitKind::FinalExpression,
             };
-            for (statement_index, (statement_handle, statement)) in self
+            let order = self
                 .program
                 .statement_table
-                .iter_statements(state.statement_nodes)
-                .enumerate()
-            {
+                .finite_execution_order(state.statement_nodes)
+                .map_err(Halt::Trap)?;
+            let Some(order) = order else {
+                return unsupported(
+                    "cyclic assembly control requires a checked execution plan".to_owned(),
+                );
+            };
+            for statement_index in order {
+                let statement_handle = state.statement_nodes.handle_at(statement_index as u32);
+                let statement = self.program.statement_table.statement(statement_handle);
                 match statement {
                     StatementNode::Transition(transition) => {
                         if let Some((decision, kind)) =

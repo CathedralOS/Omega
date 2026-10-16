@@ -927,12 +927,11 @@ fn parses_asm_jmp_block_as_transition_statement() {
     let machine = super::root_machine(&parsed, "machine root item");
     let entry = super::entry_state_handle(&parsed, machine);
     let state = parsed.items.state(entry);
-    let statement = parsed
-        .items
-        .statements(state.statements)
-        .first()
-        .copied()
-        .expect("asm transition");
+    let instructions = super::inline_assembly::instruction_statements(
+        &parsed,
+        parsed.items.statements(state.statements),
+    );
+    let statement = *instructions.first().expect("asm transition");
     assert!(matches!(
         parsed.statements.statement(statement),
         StatementNode::Transition(_)
@@ -961,7 +960,10 @@ fn parses_asm_mnemonics_as_intrinsic_calls() {
     let machine = super::root_machine(&parsed, "machine root item");
     let entry = super::entry_state_handle(&parsed, machine);
     let state = parsed.items.state(entry);
-    let statements = parsed.items.statements(state.statements).to_vec();
+    let statements = super::inline_assembly::instruction_statements(
+        &parsed,
+        parsed.items.statements(state.statements),
+    );
     assert_eq!(statements.len(), 4, "let + three asm statements");
 
     let StatementNode::Call(hlt) = parsed.statements.statement(statements[1]).clone() else {

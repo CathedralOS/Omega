@@ -70,6 +70,51 @@ pub(super) fn semantic_contexts_prove_boolean_expression(
     })
 }
 
+/// Evaluate selected scalar operations over the live storage observations at
+/// one source point. Unlike symbolic entry propositions, these snapshots have
+/// already survived the flow owner's write and call invalidation.
+pub(super) fn live_contexts_prove_boolean_expression(
+    program: &dyn ::validation::CheckingInput,
+    facts: &checked_trees::CheckFacts,
+    state: &typed_trees::state::State,
+    statement_index: usize,
+    contexts: &[facts::FactContextHandle],
+    expression: typed_trees::expression::ExpressionHandle,
+) -> bool {
+    let Some(selected) = crate::values::lower_unit_scalar_argument(
+        program,
+        &facts.operators,
+        state,
+        statement_index,
+        expression,
+        typed_trees::types::PrimitiveType::Bool,
+    ) else {
+        return false;
+    };
+    let Some(symbols) = crate::values::unit_scalar_binding_symbols(program, state, statement_index)
+    else {
+        return false;
+    };
+    let semantic = &facts.semantic;
+    let mut values = crate::values::PlaceScalarValues {
+        program,
+        parameters: program.state_parameters(state),
+        symbols: &symbols,
+        value_at_place: |place: &validation::CanonicalPlace| {
+            scalar_value_at_place(
+                program,
+                semantic,
+                contexts
+                    .iter()
+                    .map(|context| semantic.contexts.get(*context)),
+                place,
+            )
+        },
+    };
+    crate::values::evaluate_checked_scalar(&selected, &mut values)
+        == Some(ScalarValue::Boolean(true))
+}
+
 pub(super) fn call_entry_contexts_prove_boolean_contract_expression(
     program: &dyn ::validation::CheckingInput,
     facts: &checked_trees::CheckFacts,

@@ -306,6 +306,26 @@ fail/arrays/borrowed_array_call_argument_wrong_extent rejected 826ms expected @a
 	argument `receipts` for state `entry` expects `&[Receipt; 2]`, got `array literal`
 fail/arrays/qualified_array_literal_rejects_element_policy_conversion rejected 811ms expected @a9ae30e1c334+wt
 	store in array literal element of type `u32` implicitly converts `u32 in Saturating` to `u32 in Wrapping` (implicit domain weakening); a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u32 in Wrapping`)
+fail/asm/backward_write_stale_ensures rejected 1050ms expected @9f1c8cc89b93+wt
+	cannot prove asm `ensures` fact at block exit in Subject::change state `change` (statement 5): subject.ready
+fail/asm/borrow_read_after_backward_write rejected 1128ms expected @9f1c8cc89b93+wt
+	statement 6 mutates `main.cell.value` while local borrow `borrowed` is still active (borrowed at statement 1; its last use is at statement 7)
+fail/asm/cyclic_label rejected 171ms expected @9f1c8cc89b93+wt
+	cyclic assembly label control in `Main::main` state `main` requires checked loop invariants; this control domain is not yet implemented
+fail/asm/duplicate_label rejected 7ms expected @9f1c8cc89b93+wt
+	tests/omega/fail/asm/duplicate_label/main.omg:15:5: assembly label `entry` is declared more than once
+fail/asm/requires_after_prior_block_write rejected 1066ms expected @9f1c8cc89b93+wt
+	cannot prove asm `requires` fact at block entry in Subject::change state `change` (statement 5): subject.ready
+fail/asm/skipped_type_error rejected 283ms expected @9f1c8cc89b93+wt
+	machine `Main::main` state `main` assignment stores a boolean into a `u64` place, which holds a numeric value
+fail/asm/transition_argument_invalidates_exit_fact rejected 1120ms expected @9f1c8cc89b93+wt
+	cannot prove asm `ensures` fact at block exit in Main::main state `main` (statement 4): main.ready
+fail/asm/undefined_label rejected 1ms expected @9f1c8cc89b93+wt
+	tests/omega/fail/asm/undefined_label/main.omg:15:5: assembly jump names undeclared label `absent`
+fail/asm/wrong_label_entry_fact rejected 1187ms expected @9f1c8cc89b93+wt
+	cannot prove asm `requires` fact at block entry in Main::main state `main` (statement 8): main.output == 99
+fail/asm/wrong_label_exit_fact rejected 1094ms expected @9f1c8cc89b93+wt
+	cannot prove asm `ensures` fact at block exit in Main::main state `main` (statement 10): main.output == 99
 fail/atomics/atomic_boolean_expected rejected 221ms expected @e460ea1df091+wt
 	machine `replace` state `entry` assignment stores a boolean into a `u32` place, which holds a numeric value
 	store in machine `replace` state `entry` assignment implicitly converts `bool` to `u32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u32`)
@@ -3226,56 +3246,56 @@ fail/host/console_byte_payload_negative rejected 674ms expected @afccbf17d92b+wt
 	data `ByteRead` case `Byte` literal violates the case constraint: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/host/descriptor_read_guarded_prefix_without_admitted_abi rejected 3747ms expected @2375f5327b1a+wt
 	native artifact identity physical pipeline failed: common physical staging failed: Selection(Selection(SourceCustodyMismatch { machine: Some(MachineId(1)), operation: Some(OperationId(9)), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it, reason: Some("descriptor input guard requires its exact admitted native ABI") }))
-fail/inline_asm/asm_cli_requires_machine_authority rejected 75ms expected @4f0f34f3cbb6+wt
+fail/inline_asm/asm_cli_requires_machine_authority rejected 69ms expected @9f1c8cc89b93+wt
 	machine `Main::main` uses asm instruction `cli`, which requires a FREESTANDING boundary root (the contract requires machine-owner authority, and this build's privileged-service admission does not supply it). Set `b.freestanding = true` in build.omg, or remove the asm block
-fail/inline_asm/asm_deriver_only_exit rejected 0ms expected @4f0f34f3cbb6+wt
+fail/inline_asm/asm_deriver_only_exit rejected 0ms expected @9f1c8cc89b93+wt
 	tests/omega/fail/inline_asm/asm_deriver_only_exit/main.omg:6:11: asm instruction `iretq` is deriver-only: user-authored assembly may not spell entry/exit protocol operations or manufacture an unmodeled control exit
-fail/inline_asm/asm_fact_operand_mutation rejected 3327ms expected @4f0f34f3cbb6+wt
-	cannot prove asm `ensures` fact at block exit in Main::main state `main` (statement 3): main.ready
-fail/inline_asm/asm_hidden_return rejected 6ms expected @4f0f34f3cbb6+wt
+fail/inline_asm/asm_fact_operand_mutation rejected 3214ms expected @9f1c8cc89b93+wt
+	cannot prove asm `ensures` fact at block exit in Main::main state `main` (statement 5): main.ready
+fail/inline_asm/asm_hidden_return rejected 0ms expected @9f1c8cc89b93+wt
 	tests/omega/fail/inline_asm/asm_hidden_return/main.omg:6:11: asm instruction `ret` creates a hidden control exit: user assembly may not return, call, or branch indirectly; spell control flow as `jmp state(...)`
-fail/inline_asm/asm_mov_bracket_memory rejected 0ms expected @4f0f34f3cbb6+wt
+fail/inline_asm/asm_mov_bracket_memory rejected 0ms expected @9f1c8cc89b93+wt
 	tests/omega/fail/inline_asm/asm_mov_bracket_memory/main.omg:12:9: asm instruction `mov` operand uses bracketed `[...]` memory addressing: spell authorized access as a typed Omega place such as `self.buffer[index]` — the place carries the provenance/permission contract raw addresses cannot express
-fail/inline_asm/asm_msr_destination_predicate rejected 1961ms expected @4f0f34f3cbb6+wt
+fail/inline_asm/asm_msr_destination_predicate rejected 1942ms expected @9f1c8cc89b93+wt
 	cannot prove assignment value `asm#rdmsr(main.index)` satisfies bounded target `main.value` in `Main::main.main`; expected 0..=1
-fail/inline_asm/asm_msr_destination_width rejected 1874ms expected @4f0f34f3cbb6+wt
+fail/inline_asm/asm_msr_destination_width rejected 1937ms expected @9f1c8cc89b93+wt
 	asm instruction `rdmsr` operand `destination` requires an exact `u64` writable place for target register `edx:eax`, found `u32`
-fail/inline_asm/asm_msr_index_width rejected 1954ms expected @4f0f34f3cbb6+wt
+fail/inline_asm/asm_msr_index_width rejected 1954ms expected @9f1c8cc89b93+wt
 	asm instruction `rdmsr` operand `MSR index` requires an exact `u32` for target register `ecx`, found `u64`
-fail/inline_asm/asm_msr_machine_authority rejected 1664ms expected @4f0f34f3cbb6+wt
+fail/inline_asm/asm_msr_machine_authority rejected 1746ms expected @9f1c8cc89b93+wt
 	machine `Main::main` uses asm instruction `wrmsr`, which requires a FREESTANDING boundary root (the contract requires machine-owner authority, and this build's privileged-service admission does not supply it). Set `b.freestanding = true` in build.omg, or remove the asm block
-fail/inline_asm/asm_port_io_service_required rejected 2535ms expected @4f0f34f3cbb6+wt
+fail/inline_asm/asm_port_io_service_required rejected 2519ms expected @9f1c8cc89b93+wt
 	machine `Main::main` uses asm instruction `out` but does not declare its service contract: add `reaches PortIo` (every asm instruction's service reach must be declared where it is emitted)
 	machine `Main::main` publishes service reach `<none>` but its checked body reaches undeclared service `PortIo`
-fail/inline_asm/asm_port_out_wrong_value_type rejected 1789ms expected @4f0f34f3cbb6+wt
+fail/inline_asm/asm_port_out_wrong_value_type rejected 1975ms expected @9f1c8cc89b93+wt
 	asm instruction `out` operand `value` requires an exact `u8` for target register `al`, found `u16`
-fail/inline_asm/asm_runtime_register_excluded_port_io rejected 6321ms expected @4f0f34f3cbb6+wt
+fail/inline_asm/asm_runtime_register_excluded_port_io rejected 6589ms expected @9f1c8cc89b93+wt
 	requested behavior exclusions could not be satisfied by the reviewed mechanism closure
 	authority subject `toolchain::PortIo` exercises excluded physical authority class PortIo through mechanism CompilerIntrinsic(BuiltinFunction(AsmPortOut))
-fail/inline_asm/asm_runtime_register_wrong_target rejected 6301ms expected @4f0f34f3cbb6+wt
+fail/inline_asm/asm_runtime_register_wrong_target rejected 6544ms expected @9f1c8cc89b93+wt
 	native artifact provider supply failed: reachable machine MachineId(1) uses x86_64 register access outside its target profile `linux_arm64`
-fail/inline_asm/asm_system_register_destination_predicate rejected 1892ms expected @4f0f34f3cbb6+wt
+fail/inline_asm/asm_system_register_destination_predicate rejected 1908ms expected @9f1c8cc89b93+wt
 	cannot prove assignment value `asm#read_sctlr_el1()` satisfies bounded target `main.value` in `Main::main.main`; expected 0..=1
-fail/inline_asm/asm_system_register_destination_width rejected 1904ms expected @4f0f34f3cbb6+wt
+fail/inline_asm/asm_system_register_destination_width rejected 1920ms expected @9f1c8cc89b93+wt
 	asm instruction `read_sctlr_el1` operand `destination` requires an exact `u64` writable place for target register `sctlr_el1`, found `u32`
-fail/inline_asm/asm_system_register_excluded_machine_control rejected 6322ms expected @4f0f34f3cbb6+wt
+fail/inline_asm/asm_system_register_excluded_machine_control rejected 6713ms expected @9f1c8cc89b93+wt
 	requested behavior exclusions could not be satisfied by the reviewed mechanism closure
 	authority subject `toolchain::MachineControl` exercises excluded physical authority class MachineControl through mechanism CompilerIntrinsic(BuiltinFunction(AsmReadSctlrEl1))
-fail/inline_asm/asm_system_register_helper_crash_exclusion rejected 6246ms expected @4f0f34f3cbb6+wt
+fail/inline_asm/asm_system_register_helper_crash_exclusion rejected 6711ms expected @9f1c8cc89b93+wt
 	1 authored behavior exclusion(s) could not be satisfied
 	behavior exclusion violated: crash cause Trap is reachable in machine `read_then_trap` (Terminal machine 2) at crash terminator in block 4
 	the selected composition retains crash cause Trap through machine `read_then_trap` (Terminal machine 2) declared here
-fail/inline_asm/asm_system_register_machine_authority rejected 1574ms expected @4f0f34f3cbb6+wt
+fail/inline_asm/asm_system_register_machine_authority rejected 1653ms expected @9f1c8cc89b93+wt
 	machine `Main::main` uses asm instruction `read_sctlr_el1`, which requires a FREESTANDING boundary root (the contract requires machine-owner authority, and this build's privileged-service admission does not supply it). Set `b.freestanding = true` in build.omg, or remove the asm block
-fail/inline_asm/asm_system_register_missing_clobber rejected 7ms expected @4f0f34f3cbb6+wt
+fail/inline_asm/asm_system_register_missing_clobber rejected 1ms expected @9f1c8cc89b93+wt
 	tests/omega/fail/inline_asm/asm_system_register_missing_clobber/main.omg:5:1: asm where `clobbers` must exactly match the realized instruction contract: missing `x15`
-fail/inline_asm/asm_system_register_wrong_target rejected 6323ms expected @4f0f34f3cbb6+wt
+fail/inline_asm/asm_system_register_wrong_target rejected 6482ms expected @9f1c8cc89b93+wt
 	native artifact provider supply failed: reachable machine MachineId(1) uses aarch64 register access outside its target profile `linux_x86_64`
-fail/inline_asm/asm_where_contract rejected 1848ms expected @4f0f34f3cbb6+wt
+fail/inline_asm/asm_where_contract rejected 1897ms expected @9f1c8cc89b93+wt
 	machine `Main::main` state `main` asm `requires` fact `main.value` is not boolean-shaped
-fail/inline_asm/asm_where_missing_clobber rejected 8ms expected @4f0f34f3cbb6+wt
+fail/inline_asm/asm_where_missing_clobber rejected 1ms expected @9f1c8cc89b93+wt
 	tests/omega/fail/inline_asm/asm_where_missing_clobber/main.omg:10:1: asm where `clobbers` must exactly match the realized instruction contract: missing `r11`, `r15`
-fail/inline_asm/port_write_selected_state_service_required rejected 2426ms expected @4f0f34f3cbb6+wt
+fail/inline_asm/port_write_selected_state_service_required rejected 2361ms expected @9f1c8cc89b93+wt
 	machine `emit_selected_state` uses asm instruction `out` but does not declare its service contract: add `reaches PortIo` (every asm instruction's service reach must be declared where it is emitted)
 	machine `emit_selected_state` publishes service reach `<none>` but its checked body reaches undeclared service `PortIo`
 fail/layouts/authored_placed_accessor_requires_realization rejected 344ms expected @0855a204a2df+wt
@@ -5269,6 +5289,12 @@ pass/arrays/record_array_literal checked 9777ms @5041ef1af684+wt
 pass/arrays/runtime_computed_float_element_store_exit checked 12987ms check-target:macos_arm64 @589aedee8ebc+wt
 pass/arrays/runtime_index_recast checked 12378ms @5041ef1af684+wt
 pass/arrays/subject_field_where_index checked 9537ms @5041ef1af684+wt
+pass/asm/checked_label_borrow_last_use_exit checked 6782ms check-target:linux_x86_64 @9f1c8cc89b93+wt
+pass/asm/checked_label_call_result_exit checked 6675ms check-target:linux_x86_64 @9f1c8cc89b93+wt
+pass/asm/checked_label_edges_exit checked 7124ms check-target:linux_x86_64 @9f1c8cc89b93+wt
+pass/asm/checked_label_reverse_local_exit checked 7134ms check-target:linux_x86_64 @9f1c8cc89b93+wt
+pass/asm/checked_label_specialization_exit checked 7500ms check-target:linux_x86_64 @9f1c8cc89b93+wt
+pass/asm/checked_label_transition_exit checked 7333ms check-target:linux_x86_64 @9f1c8cc89b93+wt
 pass/atomics/atomic_global_order_operations checked 1566ms @a9ae30e1c334+wt
 pass/atomics/atomic_order_surface checked 9337ms @5041ef1af684+wt
 pass/atomics/runtime_atomic_after_quoted_write_exit checked 10962ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -7061,29 +7087,29 @@ pass/host/runtime_gui_window_lifecycle_exit checked 11396ms check-target:windows
 pass/host/runtime_stored_scalar_reference_foreign_export_exit checked 3861ms check-target:macos_arm64 @61ba1df9375e+wt
 pass/host/runtime_windows_gui_argument_failures_exit checked 5913ms check-target:windows_x86_64 @6050c1c112ee+wt
 pass/host/std_clock_sleep_exit checked 12935ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/inline_asm/asm_aarch64_system_registers_compile checked 7146ms check-target:macos_arm64 @4f0f34f3cbb6+wt
-pass/inline_asm/asm_block_jmp_state checked 7140ms check-target:macos_arm64 @4f0f34f3cbb6+wt
-pass/inline_asm/asm_exact_clobbers checked 7176ms @4f0f34f3cbb6+wt
-pass/inline_asm/asm_machine_control_wrapper_reach checked 7231ms @4f0f34f3cbb6+wt
-pass/inline_asm/asm_memory_transfer checked 7355ms @4f0f34f3cbb6+wt
-pass/inline_asm/asm_memory_transfer_compile checked 7385ms check-target:macos_arm64 @4f0f34f3cbb6+wt
-pass/inline_asm/asm_msr_multi checked 7504ms @4f0f34f3cbb6+wt
-pass/inline_asm/asm_port_contract checked 7520ms @4f0f34f3cbb6+wt
-pass/inline_asm/asm_port_immediate checked 7910ms @4f0f34f3cbb6+wt
-pass/inline_asm/asm_port_out_final_validation checked 7957ms check-target:linux_x86_64 @4f0f34f3cbb6+wt
-pass/inline_asm/asm_reach_inherit checked 7769ms @4f0f34f3cbb6+wt
-pass/inline_asm/asm_reach_wrapper checked 7880ms @4f0f34f3cbb6+wt
-pass/inline_asm/asm_runtime_port_msr_final_validation checked 7696ms check-target:linux_x86_64 @4f0f34f3cbb6+wt
-pass/inline_asm/asm_runtime_register_scalar_variants_compile checked 7678ms check-target:linux_x86_64 @4f0f34f3cbb6+wt
-pass/inline_asm/asm_selected_port_write_compositions_compile checked 6817ms check-target:linux_x86_64 @4f0f34f3cbb6+wt
-pass/inline_asm/asm_state_jmp checked 6713ms @4f0f34f3cbb6+wt
-pass/inline_asm/asm_sysreg_rw checked 6786ms @4f0f34f3cbb6+wt
-pass/inline_asm/asm_sysregs checked 6752ms @4f0f34f3cbb6+wt
-pass/inline_asm/asm_system_register_scalar_variants_compile checked 6712ms check-target:macos_arm64 @4f0f34f3cbb6+wt
-pass/inline_asm/asm_typed_places checked 6687ms @4f0f34f3cbb6+wt
-pass/inline_asm/asm_where_contract checked 6277ms @4f0f34f3cbb6+wt
-pass/inline_asm/asm_where_exact_clobbers_compile checked 6257ms @4f0f34f3cbb6+wt
-pass/inline_asm/port_write_terminal_sequences checked 26017ms terminal-inspections:match @4f0f34f3cbb6+wt
+pass/inline_asm/asm_aarch64_system_registers_compile checked 6667ms check-target:macos_arm64 @9f1c8cc89b93+wt
+pass/inline_asm/asm_block_jmp_state checked 6621ms check-target:macos_arm64 @9f1c8cc89b93+wt
+pass/inline_asm/asm_exact_clobbers checked 6470ms @9f1c8cc89b93+wt
+pass/inline_asm/asm_machine_control_wrapper_reach checked 6466ms @9f1c8cc89b93+wt
+pass/inline_asm/asm_memory_transfer checked 6474ms @9f1c8cc89b93+wt
+pass/inline_asm/asm_memory_transfer_compile checked 6476ms check-target:macos_arm64 @9f1c8cc89b93+wt
+pass/inline_asm/asm_msr_multi checked 6660ms @9f1c8cc89b93+wt
+pass/inline_asm/asm_port_contract checked 6656ms @9f1c8cc89b93+wt
+pass/inline_asm/asm_port_immediate checked 6690ms @9f1c8cc89b93+wt
+pass/inline_asm/asm_port_out_final_validation checked 6690ms check-target:linux_x86_64 @9f1c8cc89b93+wt
+pass/inline_asm/asm_reach_inherit checked 6849ms @9f1c8cc89b93+wt
+pass/inline_asm/asm_reach_wrapper checked 6821ms @9f1c8cc89b93+wt
+pass/inline_asm/asm_runtime_port_msr_final_validation checked 6759ms check-target:linux_x86_64 @9f1c8cc89b93+wt
+pass/inline_asm/asm_runtime_register_scalar_variants_compile checked 6738ms check-target:linux_x86_64 @9f1c8cc89b93+wt
+pass/inline_asm/asm_selected_port_write_compositions_compile checked 6649ms check-target:linux_x86_64 @9f1c8cc89b93+wt
+pass/inline_asm/asm_state_jmp checked 6620ms @9f1c8cc89b93+wt
+pass/inline_asm/asm_sysreg_rw checked 6837ms @9f1c8cc89b93+wt
+pass/inline_asm/asm_sysregs checked 6819ms @9f1c8cc89b93+wt
+pass/inline_asm/asm_system_register_scalar_variants_compile checked 6685ms check-target:macos_arm64 @9f1c8cc89b93+wt
+pass/inline_asm/asm_typed_places checked 6665ms @9f1c8cc89b93+wt
+pass/inline_asm/asm_where_contract checked 6746ms @9f1c8cc89b93+wt
+pass/inline_asm/asm_where_exact_clobbers_compile checked 6738ms @9f1c8cc89b93+wt
+pass/inline_asm/port_write_terminal_sequences checked 27155ms terminal-inspections:match @9f1c8cc89b93+wt
 pass/layouts/access_plan_inaccessible_seed checked 1987ms @a9ae30e1c334+wt
 pass/layouts/alternating_member_padding_layout_compile checked 1807ms @a9ae30e1c334+wt
 pass/layouts/array_align_queries_compile checked 1673ms @a9ae30e1c334+wt

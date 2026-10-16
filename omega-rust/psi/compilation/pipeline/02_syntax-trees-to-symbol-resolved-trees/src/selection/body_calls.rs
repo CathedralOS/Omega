@@ -95,6 +95,32 @@ fn retarget_statement_span(
         let statement = program.tables.bodies.statements.statement(handle).clone();
         let mut expressions = Vec::new();
         match statement {
+            symbol_resolved_trees::statement::StatementNode::Assembly(handle) => {
+                let graph = program.tables.declarations.assembly_graphs.get(handle);
+                let blocks = program
+                    .tables
+                    .declarations
+                    .assembly_blocks
+                    .span_or_empty(graph.blocks)
+                    .to_vec();
+                for block in blocks {
+                    expressions.extend_from_slice(
+                        program
+                            .tables
+                            .declarations
+                            .assembly_expressions
+                            .span_or_empty(block.requires),
+                    );
+                    expressions.extend_from_slice(
+                        program
+                            .tables
+                            .declarations
+                            .assembly_expressions
+                            .span_or_empty(block.ensures),
+                    );
+                    retarget_statement_span(program, block.statement_nodes, decide);
+                }
+            }
             symbol_resolved_trees::statement::StatementNode::RootBinding(binding) => {
                 expressions.push(binding.receiver);
                 if binding.implementation_operand.is_valid() {

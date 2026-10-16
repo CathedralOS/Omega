@@ -21,7 +21,10 @@ impl Retirement<'_> {
                     return true;
                 };
                 if result.binding_ordinal == parent.binding_ordinal
-                    || result.statement_index >= self.statement_index
+                    || !self.order.precedes(
+                        result.statement_index as usize,
+                        self.statement_index as usize,
+                    )
                 {
                     return true;
                 }
@@ -61,9 +64,9 @@ impl Retirement<'_> {
         // the independent completion judgment still checks their ancestry
         // and every sibling's actual disposition on this edge.
         if self.at_exit
-            && self
-                .returned
-                .is_some_and(|returned| super::returned_reference_binding(returned, result))
+            && self.returned.is_some_and(|returned| {
+                super::returned_reference_binding(self.order, returned, result)
+            })
         {
             return true;
         }
@@ -84,7 +87,9 @@ impl Retirement<'_> {
                 } => {
                     *released == source
                         && path.is_empty()
-                        && *statement_index <= self.statement_index
+                        && self
+                            .order
+                            .at_or_before(*statement_index as usize, self.statement_index as usize)
                         && (!*defer_to_exit || self.at_exit)
                 }
                 CheckedUnitEffectOperationPlan::ContinuationCleanup {
@@ -154,7 +159,10 @@ impl Retirement<'_> {
                         statement_index,
                         structural_result,
                     } => {
-                        if *statement_index >= self.statement_index {
+                        if !self
+                            .order
+                            .precedes(*statement_index as usize, self.statement_index as usize)
+                        {
                             return false;
                         }
                         if !structural_result {

@@ -217,7 +217,7 @@ fn collect_statement_calls(
                 }
             }
         }
-        StatementNode::AssemblyFact(_) => {}
+        StatementNode::Assembly(_) | StatementNode::AssemblyFact(_) => {}
         StatementNode::Assignment(assignment) => {
             collect_expression_calls(
                 signature_effects,

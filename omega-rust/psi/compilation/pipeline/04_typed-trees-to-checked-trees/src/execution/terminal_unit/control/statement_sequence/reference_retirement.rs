@@ -177,6 +177,7 @@ fn unique_borrow_state(
 /// Its captured origin roster is produced by checking; this join schedules
 /// local disposition without inferring a return from a type or source root.
 pub(super) fn returned_reference_binding(
+    order: &typed_trees::statement::StatementExecutionOrder,
     returned: &checked_trees::CheckedUnitStructuralReturnPlan,
     result: &CheckedUnitStructuralResultBindingPlan,
 ) -> bool {
@@ -190,7 +191,7 @@ pub(super) fn returned_reference_binding(
         && match returned.completion {
             checked_trees::CheckedStructuralReturnCompletion::Value {
                 statement_index, ..
-            } => result.statement_index <= statement_index,
+            } => order.at_or_before(result.statement_index as usize, statement_index as usize),
             checked_trees::CheckedStructuralReturnCompletion::Call { coordinate } => {
                 result.statement_index == coordinate.statement_index
             }
@@ -225,6 +226,7 @@ pub(super) struct Retirement<'a> {
     pub(super) facts: &'a CheckFacts,
     pub(super) machine: SymbolHandle,
     pub(super) state: &'a typed_trees::state::State,
+    pub(super) order: &'a typed_trees::statement::StatementExecutionOrder,
     pub(super) statement_index: u32,
     pub(super) results: &'a Results,
     pub(super) operations: &'a [CheckedUnitEffectOperationPlan],
@@ -259,7 +261,9 @@ impl Retirement<'_> {
         for (handle, loan) in self.facts.borrow.loans.iter() {
             if self.facts.borrow.state_owns_loan(state, handle)
                 && matches!(loan.storage_owner, facts::PlaceRoot::Expression(_))
-                && loan.statement_index < self.statement_index as usize
+                && self
+                    .order
+                    .precedes(loan.statement_index, self.statement_index as usize)
                 && !owners.contains(&(loan.storage_owner, loan.statement_index))
             {
                 owners.push((loan.storage_owner, loan.statement_index));
@@ -270,7 +274,9 @@ impl Retirement<'_> {
             if self.facts.borrow.loans.iter().any(|(handle, loan)| {
                 self.facts.borrow.state_owns_loan(state, handle)
                     && loan.root == owner
-                    && loan.statement_index < self.statement_index as usize
+                    && self
+                        .order
+                        .precedes(loan.statement_index, self.statement_index as usize)
                     && !self.holder_retired(handle)
             }) {
                 continue;
@@ -334,7 +340,10 @@ impl Retirement<'_> {
                             self.state.symbol,
                             handle,
                         )
-                        .is_some_and(|boundary| boundary <= self.statement_index)
+                        .is_some_and(|boundary| {
+                            self.order
+                                .at_or_before(boundary as usize, self.statement_index as usize)
+                        })
                     {
                         ready = false;
                         break;
@@ -377,7 +386,9 @@ impl Retirement<'_> {
             visited.push(parent);
             for (handle, loan) in self.facts.borrow.loans.iter() {
                 if self.facts.borrow.state_owns_loan(state, handle)
-                    && loan.statement_index < self.statement_index as usize
+                    && self
+                        .order
+                        .precedes(loan.statement_index, self.statement_index as usize)
                     && self.retains_parent(handle, parent, &mut Vec::new())
                 {
                     if !self.holder_retired(handle) {
@@ -666,7 +677,10 @@ impl Retirement<'_> {
         structural_result: bool,
         active: &mut Vec<arena::Handle<BorrowLoanFact>>,
     ) -> bool {
-        if statement_index >= self.statement_index {
+        if !self
+            .order
+            .precedes(statement_index as usize, self.statement_index as usize)
+        {
             return false;
         }
         let mut found_receiver = false;
@@ -704,7 +718,10 @@ impl Retirement<'_> {
         active: &mut Vec<arena::Handle<BorrowLoanFact>>,
     ) -> bool {
         let loan = self.facts.borrow.loans.get(handle);
-        if loan.statement_index >= self.statement_index as usize {
+        if !self
+            .order
+            .precedes(loan.statement_index, self.statement_index as usize)
+        {
             return true;
         }
         if self.disposed(handle) {
@@ -759,7 +776,10 @@ impl Retirement<'_> {
                     self.state.symbol,
                     handle,
                 )
-                .is_some_and(|boundary| boundary <= self.statement_index);
+                .is_some_and(|boundary| {
+                    self.order
+                        .at_or_before(boundary as usize, self.statement_index as usize)
+                });
         }
         if holders.next().is_some() {
             return false;
@@ -865,7 +885,10 @@ impl Retirement<'_> {
                     statement_index,
                     path,
                 } => {
-                    if statement_index >= self.statement_index {
+                    if !self
+                        .order
+                        .precedes(statement_index as usize, self.statement_index as usize)
+                    {
                         return false;
                     }
                     let Some((_, local)) = self.program.state_local_declaration(self.state, symbol)
@@ -906,7 +929,10 @@ impl Retirement<'_> {
             };
             // Formation at this boundary establishes live custody; it is not
             // the absent-future-child case handled by holder_retired_inner.
-            if destination.statement_index >= self.statement_index {
+            if !self.order.precedes(
+                destination.statement_index as usize,
+                self.statement_index as usize,
+            ) {
                 return false;
             }
             path.extend_from_slice(&owner_path[selected.len()..]);
@@ -962,7 +988,7 @@ impl Retirement<'_> {
         let Some(returned) = self.returned.filter(|_| self.at_exit) else {
             return false;
         };
-        if !returned_reference_binding(returned, receiver) {
+        if !returned_reference_binding(self.order, returned, receiver) {
             return false;
         }
         let Some(path) = transport::carrier_path(self.program, self.state.return_type, path) else {
@@ -1056,7 +1082,9 @@ impl Retirement<'_> {
         // An old detached value cannot settle a later occurrence installed
         // in the same slot. A statement can extract the old value before
         // forming its replacement loan, so equality is insufficient too.
-        if result.statement_index as usize <= loan.statement_index
+        if !self
+            .order
+            .precedes(loan.statement_index, result.statement_index as usize)
             || producers.next().is_some()
             || source.source
                 != (CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
@@ -1084,7 +1112,9 @@ impl Retirement<'_> {
         // The occurrence and coordinate join also preserve selected evaluation:
         // this owner is established while evaluating that call's operand.
         // Projected deaths and excluded subtrees remain with exact path cleanup.
-        if loan.statement_index < self.statement_index as usize
+        if self
+            .order
+            .precedes(loan.statement_index, self.statement_index as usize)
             && self
                 .facts
                 .contextual_cleanup
@@ -1115,7 +1145,9 @@ impl Retirement<'_> {
                     ..
                 } => {
                     (!*defer_to_exit || self.at_exit)
-                        && *statement_index <= self.statement_index
+                        && self
+                            .order
+                            .at_or_before(*statement_index as usize, self.statement_index as usize)
                         && (self.facts.borrow.loans_contain(*loans, handle)
                             || selection_complements.iter().any(|complement| {
                                 selections::disposes_candidate(self, handle, complement)
@@ -1136,8 +1168,12 @@ impl Retirement<'_> {
                         } => *statement_index,
                         _ => return false,
                     };
-                    if statement > self.statement_index
-                        || statement as usize <= loan.statement_index
+                    if self
+                        .order
+                        .precedes(self.statement_index as usize, statement as usize)
+                        || !self
+                            .order
+                            .precedes(loan.statement_index, statement as usize)
                     {
                         return false;
                     }
@@ -1151,8 +1187,11 @@ impl Retirement<'_> {
                         let CheckedUnitEffectOperationPlan::Store(store) = operation else {
                             return false;
                         };
-                        store.statement_index as usize > loan.statement_index
-                            && store.statement_index < statement
+                        self.order
+                            .precedes(loan.statement_index, store.statement_index as usize)
+                            && self
+                                .order
+                                .precedes(store.statement_index as usize, statement as usize)
                             && store.installed_value().is_some()
                             && store.destination.root
                                 == (checked_trees::CheckedStoreRoot::Local {

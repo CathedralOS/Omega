@@ -1,3 +1,4 @@
+mod assembly;
 mod routing;
 mod tail_calls;
 
@@ -60,6 +61,9 @@ fn assign_machine_references(
     let statement_path_members = &mut tables.declarations.statement_path_members;
     let expression_table = &mut tables.bodies.expressions;
     let state_statements = &mut tables.declarations.state_statements;
+    let assembly_graphs = &tables.declarations.assembly_graphs;
+    let assembly_blocks = &tables.declarations.assembly_blocks;
+    let assembly_expressions = &tables.declarations.assembly_expressions;
     let child_type_references = &mut tables.declarations.child_type_references;
     let type_constraints = &tables.types.constraints;
     machines.for_each_mut(|machine| {
@@ -242,6 +246,18 @@ fn assign_machine_references(
                     statements,
                 );
             }
+            assembly::AssemblyScopeRouting {
+                graphs: assembly_graphs,
+                blocks: assembly_blocks,
+                contracts: assembly_expressions,
+                statements: state_statements,
+                expressions: expression_table,
+                child_types: child_type_references,
+                type_constraints,
+                path_members: statement_path_members,
+                symbols,
+            }
+            .assign(&machine_scope, parameters, state_symbol, state.statements);
         }
     });
     Ok(())

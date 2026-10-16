@@ -846,6 +846,7 @@ fn validate_statement<'p>(
     let machine = machine_definition.name.as_str();
     let state = state_definition.name.as_str();
     match statement {
+        StatementNode::Assembly(_) => {}
         StatementNode::RootBinding(binding) => {
             for expression in [binding.receiver, binding.implementation_operand] {
                 if expression.is_valid() {

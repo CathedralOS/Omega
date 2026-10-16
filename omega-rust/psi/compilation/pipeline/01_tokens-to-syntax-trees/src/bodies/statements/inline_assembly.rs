@@ -4,7 +4,7 @@ use crate::bodies::transitions::targets::parse_target::parse_transition_block_ta
 use crate::diagnostics::parse_error::ParseError;
 use crate::expressions::parse_expression::parse_expression_handle;
 use crate::input::token_cursor::{Input, ParseResult};
-use arena::{Handle, HandleSpan};
+use arena::HandleSpan;
 use language_core::inline_assembly::{
     AsmCatalogEntry, AsmInstructionAvailability, AsmInstructionRefusal, AsmInstructionShape,
     AsmMemoryTransferKind, asm_catalog_entry,
@@ -13,8 +13,8 @@ use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
 use syntax_trees::identifier::Identifier;
 use syntax_trees::statement::{
-    AssemblyFactKind, StatementHandle, StatementNode, TableAssemblyFact, TableAssignment,
-    TableCall, TableTransition, TransitionExit, TransitionGuardNode, TransitionTargetHandle,
+    AssemblyFactKind, StatementHandle, StatementNode, TableAssignment, TableCall, TableTransition,
+    TransitionExit, TransitionGuardNode, TransitionTargetHandle,
 };
 use tokens::PunctuationKind;
 
@@ -23,9 +23,10 @@ use tokens::PunctuationKind;
 /// instruction or the block does not compile -- there is no strictest-default
 /// escape hatch, and opaque forms (`db`, raw bytes) are rejected because no
 /// contract is attributable to them (wiki/spec/build/hardware_materialization.md).
-/// A block may contain multiple instructions; every
-/// one desugars to an ordinary checked Omega statement, so no opaque assembly
-/// node enters the tree. The accepted subset desugars here:
+/// A block may contain multiple instructions. A structured assembly graph
+/// retains lexical labels and their contracts; every instruction lowers to an
+/// ordinary checked Omega statement in the enclosing source frame. The
+/// accepted instruction subset desugars here:
 ///
 /// - `asm { jmp state() }`      -> a plain transition (control flow stays
 ///   Omega control flow)
@@ -72,100 +73,177 @@ pub(crate) fn parse_asm_block_statement_handles<'tokens, 'source>(
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, HandleSpan<StatementHandle>> {
     let input = input.take_contextual("asm")?;
-    let (mut contract, input) = parse_asm_where_contract(syntax_trees, input)?;
-
-    // An ensures-only block still needs an unambiguous entry marker in the
-    // flattened statement stream. `true` is a proof-neutral requires fact: it
-    // brackets the block without granting any authored proposition.
-    if contract.requires.is_empty() && !contract.ensures.is_empty() {
-        contract.requires.push(
-            syntax_trees
-                .expressions
-                .insert(ExpressionNode::Boolean(true)),
-        );
-    }
-
+    let (contract, input) = parse_asm_where_contract(syntax_trees, input)?;
     let mut input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
-    let mut statement_start = Handle::invalid();
-    let mut statement_count = 0u32;
-    let mut instruction_count = 0u32;
+    let mut blocks = Vec::new();
+    let mut block = ParsedAssemblyBlock {
+        label: Identifier::generated("asm#entry"),
+        requires: contract.requires,
+        ..Default::default()
+    };
     let mut realized_clobbers = std::collections::BTreeSet::new();
-    let mut falls_through = true;
-
-    for expression in &contract.requires {
-        append_asm_fact_statement(
-            syntax_trees,
-            &mut statement_start,
-            &mut statement_count,
-            AssemblyFactKind::Requires,
-            *expression,
-        );
-    }
 
     while !input.at_punctuation(PunctuationKind::RightBrace) {
-        let (parsed, rest) = parse_asm_instruction_statement_handle(syntax_trees, input)?;
-        let statement = parsed.statement;
-        realized_clobbers.extend(parsed.contract.clobbers.iter().copied());
-        falls_through &= !matches!(
-            parsed.contract.shape,
-            AsmInstructionShape::Halt
-                | AsmInstructionShape::JumpState
-                | AsmInstructionShape::DerivedExit
-        );
-        let transfers_control = matches!(
-            syntax_trees.statements.statement(statement),
-            StatementNode::Transition(_)
-        );
-        let handle = syntax_trees.items.append_statement_handle(statement);
-        if statement_count == 0 {
-            statement_start = handle;
+        if assembly_label_starts(input) {
+            if block.instruction_count != 0 {
+                blocks.push(block);
+                block = ParsedAssemblyBlock::default();
+            } else if !blocks.is_empty() || block.label.as_str() != "asm#entry" {
+                return Err(
+                    input.error_here("an asm block must contain at least one known instruction")
+                );
+            }
+            let (label, rest) = input.take_identifier()?;
+            block.label = label;
+            input = rest;
+            while input.at_contextual("requires") || input.at_contextual("ensures") {
+                let requires = input.at_contextual("requires");
+                input = input.take_contextual(if requires { "requires" } else { "ensures" })?;
+                let (expression, rest) = parse_expression_handle(syntax_trees, input)?;
+                if requires {
+                    block.requires.push(expression);
+                } else {
+                    block.ensures.push(expression);
+                }
+                input = rest;
+            }
+            input = input.take_punctuation(PunctuationKind::Colon, ":")?;
+            continue;
         }
-        statement_count = statement_count
-            .checked_add(1)
-            .expect("asm statement span count overflow");
-        instruction_count = instruction_count
-            .checked_add(1)
-            .expect("asm instruction count overflow");
+        if !matches!(
+            block.exit,
+            syntax_trees::statement::AssemblyExit::Fallthrough
+        ) {
+            return Err(input.error_here("an asm control transfer must be the final instruction in its block (including a labeled block)"));
+        }
+        // A bare destination is local to this assembly CFG. The existing
+        // parenthesized `jmp state(...)` remains an ordinary machine edge.
+        if input.at_contextual("jmp") {
+            let after_jump = input.take_contextual("jmp")?;
+            if let Ok((label, rest)) = after_jump.take_identifier() {
+                if rest.at_punctuation(PunctuationKind::Semicolon)
+                    || rest.at_punctuation(PunctuationKind::RightBrace)
+                {
+                    block.exit = syntax_trees::statement::AssemblyExit::Jump(label);
+                    block.instruction_count += 1;
+                    input = rest;
+                    if input.at_punctuation(PunctuationKind::Semicolon) {
+                        input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
+                    }
+                    continue;
+                }
+            }
+        }
+        let (instruction, rest) = parse_asm_instruction_statement_handle(syntax_trees, input)?;
+        realized_clobbers.extend(instruction.contract.clobbers.iter().copied());
+        block.has_no_local_post_state |= matches!(
+            instruction.contract.shape,
+            AsmInstructionShape::Halt | AsmInstructionShape::DerivedExit
+        );
+        if matches!(
+            syntax_trees.statements.statement(instruction.statement),
+            StatementNode::Transition(_)
+        ) {
+            block.exit = syntax_trees::statement::AssemblyExit::EnclosingTransition;
+        }
+        block.instructions.push(instruction.statement);
+        block.instruction_count += 1;
         input = rest;
-
         if input.at_punctuation(PunctuationKind::Semicolon) {
             input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
         } else if !input.at_punctuation(PunctuationKind::RightBrace) {
             return Err(input.error_here("multiple asm instructions must be separated by `;`"));
         }
-
-        if transfers_control && !input.at_punctuation(PunctuationKind::RightBrace) {
-            return Err(input
-                .error_here("an asm control transfer must be the final instruction in its block"));
-        }
     }
-
-    if instruction_count == 0 {
+    if block.instruction_count == 0 {
         return Err(input.error_here("an asm block must contain at least one known instruction"));
     }
-
+    blocks.push(block);
     let input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
-    if !falls_through && !contract.ensures.is_empty() {
-        return Err(input.error_here(
-            "asm `ensures` requires a falling-through block; `hlt` and `jmp` have no local post-state",
-        ));
+    for (index, block) in blocks.iter().enumerate() {
+        if block.has_no_local_post_state && !block.ensures.is_empty() {
+            return Err(input.error_here("asm `ensures` requires a falling-through block; this instruction has no local post-state"));
+        }
+        if blocks[..index]
+            .iter()
+            .any(|prior| prior.label.as_str() == block.label.as_str())
+        {
+            return Err(input.error_here(format!(
+                "assembly label `{}` is declared more than once",
+                block.label.as_str()
+            )));
+        }
+        if let syntax_trees::statement::AssemblyExit::Jump(label) = &block.exit {
+            if !blocks
+                .iter()
+                .any(|target| target.label.as_str() == label.as_str())
+            {
+                return Err(input.error_here(format!(
+                    "assembly jump names undeclared label `{}`",
+                    label.as_str()
+                )));
+            }
+        }
     }
-    for expression in &contract.ensures {
-        append_asm_fact_statement(
-            syntax_trees,
-            &mut statement_start,
-            &mut statement_count,
-            AssemblyFactKind::Ensures,
-            *expression,
+    let last = blocks.last_mut().expect("assembly has a nonempty block");
+    if !contract.ensures.is_empty()
+        && (!matches!(
+            last.exit,
+            syntax_trees::statement::AssemblyExit::Fallthrough
+        ) || last.has_no_local_post_state)
+    {
+        return Err(
+            input.error_here("asm `ensures` requires a falling-through block at the body exit")
         );
     }
+    last.ensures.extend(contract.ensures);
     if let Some(declared_clobbers) = contract.clobbers {
         validate_asm_clobber_contract(&declared_clobbers, &realized_clobbers, input)?;
     }
-    Ok((
-        HandleSpan::from_parts(statement_start, statement_count),
-        input,
-    ))
+    let blocks: Vec<_> = blocks
+        .into_iter()
+        .map(|block| syntax_trees::statement::AssemblyBlock {
+            label: block.label,
+            requires: syntax_trees
+                .statements
+                .insert_assembly_expressions(block.requires),
+            ensures: syntax_trees
+                .statements
+                .insert_assembly_expressions(block.ensures),
+            instructions: syntax_trees
+                .statements
+                .insert_assembly_instructions(block.instructions),
+            exit: block.exit,
+        })
+        .collect();
+    let blocks = syntax_trees.statements.insert_assembly_blocks(blocks);
+    let graph = syntax_trees
+        .statements
+        .insert_assembly(syntax_trees::statement::AssemblyControlFlow { blocks });
+    let statement = syntax_trees
+        .statements
+        .insert(StatementNode::Assembly(graph));
+    let handle = syntax_trees.items.append_statement_handle(statement);
+    Ok((HandleSpan::from_parts(handle, 1), input))
+}
+
+#[derive(Default)]
+struct ParsedAssemblyBlock {
+    label: Identifier,
+    requires: Vec<ExpressionHandle>,
+    ensures: Vec<ExpressionHandle>,
+    instructions: Vec<StatementHandle>,
+    instruction_count: u32,
+    has_no_local_post_state: bool,
+    exit: syntax_trees::statement::AssemblyExit,
+}
+
+fn assembly_label_starts(input: Input<'_, '_>) -> bool {
+    input.take_identifier().is_ok_and(|(_, rest)| {
+        rest.at_punctuation(PunctuationKind::Colon)
+            || rest.at_contextual("requires")
+            || rest.at_contextual("ensures")
+    })
 }
 
 #[derive(Default)]
@@ -256,29 +334,6 @@ fn parse_asm_where_contract<'tokens, 'source>(
         ));
     }
     Ok((contract, input))
-}
-
-fn append_asm_fact_statement(
-    syntax_trees: &mut SyntaxTrees,
-    statement_start: &mut Handle<StatementHandle>,
-    statement_count: &mut u32,
-    kind: AssemblyFactKind,
-    expression: ExpressionHandle,
-) {
-    let statement =
-        syntax_trees
-            .statements
-            .insert(StatementNode::AssemblyFact(TableAssemblyFact {
-                kind,
-                expression,
-            }));
-    let handle = syntax_trees.items.append_statement_handle(statement);
-    if *statement_count == 0 {
-        *statement_start = handle;
-    }
-    *statement_count = statement_count
-        .checked_add(1)
-        .expect("asm statement span count overflow");
 }
 
 fn validate_asm_clobber_contract<'tokens, 'source>(

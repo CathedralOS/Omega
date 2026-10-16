@@ -51,7 +51,7 @@ pub(super) fn append_state_borrow_facts(
     let mut returned_loans_span = arena::HandleSpan::empty();
     for (statement_index, statement) in program
         .statement_table
-        .indexed_statements(state.statement_nodes)
+        .admitted_execution_statements(state.statement_nodes)
     {
         // Establish computed storage before any descriptor consumes its
         // contents, including the state's normal result. Child homes belong

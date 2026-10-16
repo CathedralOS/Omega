@@ -27,7 +27,7 @@ pub(super) fn statement_uses_local_name(
                         local_name,
                     ))
         }
-        StatementNode::AssemblyFact(_) => false,
+        StatementNode::Assembly(_) | StatementNode::AssemblyFact(_) => false,
         StatementNode::Assignment(assignment) => {
             expression_uses_local_name(program, assignment.target, local_name)
                 || expression_uses_local_name(program, assignment.value, local_name)
@@ -93,7 +93,7 @@ pub(super) fn statement_uses_owner_path(
                 || (binding.implementation_operand.is_valid()
                     && uses(binding.implementation_operand))
         }
-        StatementNode::AssemblyFact(_) => false,
+        StatementNode::Assembly(_) | StatementNode::AssemblyFact(_) => false,
         StatementNode::Assignment(assignment) => uses(assignment.target) || uses(assignment.value),
         StatementNode::Call(call) => {
             call.receiver_symbol == owner_symbol

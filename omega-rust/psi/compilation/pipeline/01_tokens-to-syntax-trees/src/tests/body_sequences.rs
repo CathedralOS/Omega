@@ -18,9 +18,12 @@ fn entry_and_state_bodies_preserve_expanded_statement_order_and_boundaries() {
         };
         let states = trees.items.state_handles(machine.states);
         assert_eq!(states.len(), 2);
-        let statements = trees
-            .items
-            .statements(trees.items.state(states[0]).statements);
+        let statements = super::inline_assembly::instruction_statements(
+            &trees,
+            trees
+                .items
+                .statements(trees.items.state(states[0]).statements),
+        );
         assert_eq!(statements.len(), 4);
         assert!(matches!(
             trees.statements.statement(statements[0]),

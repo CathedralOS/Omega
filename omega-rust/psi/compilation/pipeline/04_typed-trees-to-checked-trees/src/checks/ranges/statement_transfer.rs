@@ -90,7 +90,7 @@ pub(super) fn transfer_statement_facts<'program>(
                 }
             }
         }
-        StatementNode::AssemblyFact(_) => {}
+        StatementNode::Assembly(_) | StatementNode::AssemblyFact(_) => {}
         StatementNode::Assignment(assignment) => {
             sink.visit_expression(facts, assignment.target);
             sink.check_assignment_extent_window(facts, assignment);

@@ -113,6 +113,7 @@ fn collect_statement(
     statement: &StatementNode,
 ) {
     match statement {
+        StatementNode::Assembly(_) => {}
         StatementNode::RootBinding(binding) => {
             collect_expression(program, expressions, binding.receiver);
             if binding.implementation_operand.is_valid() {

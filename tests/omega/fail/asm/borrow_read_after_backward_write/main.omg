@@ -1,0 +1,26 @@
+// Expected exit: 0. The last shared read precedes a write in execution
+// order even though its source label appears later in the assembly body.
+data Cell { value: u64; }
+data Main { cell: Cell; }
+machine read(cell: &Cell) -> u64 { cell.value }
+machine Main::main(main: &mut Main) crashes Trap {
+    main.cell.value = 17;
+    let borrowed: &Cell = &main.cell;
+    let mut observed: u64 = 0;
+    asm {
+    entry:
+        jmp read_value;
+    released:
+        mov main.cell.value, 29;
+        mov observed, read(borrowed);
+        jmp done;
+    read_value:
+        mov observed, read(borrowed);
+        jmp released;
+    done:
+        mov observed, observed
+    }
+    transition observed == 17 && main.cell.value == 29 { true -> good() _ -> bad() }
+    state good() {}
+    state bad() { crash Trap; }
+}

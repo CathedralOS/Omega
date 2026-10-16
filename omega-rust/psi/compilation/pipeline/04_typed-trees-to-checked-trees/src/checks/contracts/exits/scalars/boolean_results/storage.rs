@@ -162,7 +162,7 @@ impl ExitScalars<'_, '_> {
                 preserves(frames.assignment_write_frame(self.machine, node))
             }
             StatementNode::Call(call) => preserves(frames.may_write_frame(self.machine, call)),
-            StatementNode::AssemblyFact(_) => false,
+            StatementNode::Assembly(_) | StatementNode::AssemblyFact(_) => false,
             _ => true,
         }
     }

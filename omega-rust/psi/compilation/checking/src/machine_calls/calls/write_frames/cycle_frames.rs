@@ -320,6 +320,7 @@ fn build_cycle_frame_equation<'program>(
         }
         match statement {
             StatementNode::RootBinding(_)
+            | StatementNode::Assembly(_)
             | StatementNode::AssemblyFact(_)
             | StatementNode::Expression(_) => {}
             StatementNode::Assignment(assignment) => {

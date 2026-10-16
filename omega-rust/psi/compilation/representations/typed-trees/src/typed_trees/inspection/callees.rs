@@ -50,6 +50,7 @@ fn collect_statement_callees(
 ) {
     use crate::statement::StatementNode;
     match statement {
+        StatementNode::Assembly(_) => {} // Its instruction window is visited in source order.
         StatementNode::Call(call) => {
             note_callee(called, call.target_symbol);
             for argument in typed.expression_table.expression_handles(call.arguments) {

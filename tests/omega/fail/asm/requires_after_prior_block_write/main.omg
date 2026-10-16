@@ -1,0 +1,10 @@
+// A machine-entry boolean observation cannot survive a write in an earlier
+// assembly body. The next body must prove its own entry condition.
+data Subject { ready: bool; }
+machine Subject::change(subject: &mut Subject)
+requires subject.ready;
+{
+    asm { mov subject.ready, false }
+    asm where requires subject.ready { nop }
+}
+machine main() {}

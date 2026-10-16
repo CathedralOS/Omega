@@ -3,6 +3,13 @@ use crate::typed_trees::remapped;
 use arena::{Arena, Handle, HandleSpan};
 use source::SourceSpan;
 use symbols::SymbolHandle;
+mod assembly;
+mod control_graph;
+pub use assembly::{AssemblyBlock, AssemblyControlFlow, AssemblyControlPoint, AssemblyExit};
+pub use control_graph::{
+    StatementControlBlock, StatementControlExit, StatementControlGraph, StatementExecutionIter,
+    StatementExecutionOrder,
+};
 
 pub type StatementHandle = Handle<StatementNode>;
 
@@ -56,6 +63,8 @@ pub type TransitionTargetHandle = Handle<TransitionTargetNode>;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StatementTable {
+    assembly_graphs: Arena<AssemblyControlFlow>,
+    assembly_blocks: Arena<AssemblyBlock>,
     statements: Arena<StatementNode>,
     expression_handles: Arena<crate::expression::ExpressionHandle>,
     name_path_members: Arena<Identifier>,
@@ -66,33 +75,42 @@ pub struct StatementTable {
 impl StatementTable {
     pub(crate) fn retains_exact_prefix(&self, base: &Self) -> bool {
         let Self {
+            assembly_graphs,
+            assembly_blocks,
             statements,
             expression_handles,
             name_path_members,
             transition_targets,
             outcome_proof_selectors,
         } = base;
-        crate::typed_trees::retained_prefix::arena_is_exact_prefix(statements, &self.statements)
-            && crate::typed_trees::retained_prefix::arena_is_exact_prefix(
-                expression_handles,
-                &self.expression_handles,
-            )
-            && crate::typed_trees::retained_prefix::arena_is_exact_prefix(
-                name_path_members,
-                &self.name_path_members,
-            )
-            && crate::typed_trees::retained_prefix::arena_is_exact_prefix(
-                transition_targets,
-                &self.transition_targets,
-            )
-            && crate::typed_trees::retained_prefix::arena_is_exact_prefix(
-                outcome_proof_selectors,
-                &self.outcome_proof_selectors,
-            )
+        crate::typed_trees::retained_prefix::arena_is_exact_prefix(
+            assembly_graphs,
+            &self.assembly_graphs,
+        ) && crate::typed_trees::retained_prefix::arena_is_exact_prefix(
+            assembly_blocks,
+            &self.assembly_blocks,
+        ) && crate::typed_trees::retained_prefix::arena_is_exact_prefix(
+            statements,
+            &self.statements,
+        ) && crate::typed_trees::retained_prefix::arena_is_exact_prefix(
+            expression_handles,
+            &self.expression_handles,
+        ) && crate::typed_trees::retained_prefix::arena_is_exact_prefix(
+            name_path_members,
+            &self.name_path_members,
+        ) && crate::typed_trees::retained_prefix::arena_is_exact_prefix(
+            transition_targets,
+            &self.transition_targets,
+        ) && crate::typed_trees::retained_prefix::arena_is_exact_prefix(
+            outcome_proof_selectors,
+            &self.outcome_proof_selectors,
+        )
     }
 
     pub fn new() -> Self {
         Self {
+            assembly_graphs: Arena::new(),
+            assembly_blocks: Arena::new(),
             statements: Arena::new(),
             expression_handles: Arena::new(),
             name_path_members: Arena::new(),
@@ -103,6 +121,13 @@ impl StatementTable {
 
     pub fn insert(&mut self, statement: StatementNode) -> StatementHandle {
         self.statements.append(statement)
+    }
+
+    pub fn insert_statements(
+        &mut self,
+        statements: impl IntoIterator<Item = StatementNode>,
+    ) -> HandleSpan<StatementNode> {
+        self.statements.insert_many(statements)
     }
 
     pub fn push_statement(
@@ -188,10 +213,30 @@ impl StatementTable {
         target_types: &mut crate::types::TypeReferenceTable,
         statements: HandleSpan<StatementNode>,
     ) -> HandleSpan<StatementNode> {
-        let mut copied = HandleSpan::empty();
+        let mut copied = Vec::new();
+        let mut assembly_blocks = Vec::new();
 
         for statement in source.statements(statements) {
             let statement = match statement {
+                StatementNode::Assembly(AssemblyControlPoint::Entry(handle)) => {
+                    let target = self.copy_assembly_from(source, *handle);
+                    assembly_blocks.extend(
+                        source
+                            .assembly(*handle)
+                            .blocks
+                            .handles()
+                            .zip(self.assembly(target).blocks.handles()),
+                    );
+                    StatementNode::Assembly(AssemblyControlPoint::Entry(target))
+                }
+                StatementNode::Assembly(AssemblyControlPoint::Label(handle)) => {
+                    let target = assembly_blocks
+                        .iter()
+                        .find(|(source, _)| source == handle)
+                        .map(|(_, target)| *target)
+                        .expect("assembly window copying includes its owning header");
+                    StatementNode::Assembly(AssemblyControlPoint::Label(target))
+                }
                 StatementNode::RootBinding(binding) => StatementNode::RootBinding(RootBinding {
                     receiver: target_expressions.copy_from(source_expressions, binding.receiver),
                     implementation_operand: if binding.implementation_operand.is_valid() {
@@ -321,10 +366,10 @@ impl StatementTable {
                     })
                 }
             };
-            self.push_statement(&mut copied, statement);
+            copied.push(statement);
         }
 
-        copied
+        self.insert_statements(copied)
     }
 
     fn copy_transition_target_deep_from(
@@ -394,6 +439,7 @@ impl StatementTable {
         for handle in statement_handles {
             let statement = self.statement(handle).clone();
             match statement {
+                StatementNode::Assembly(_) => {} // Control metadata has no lexical value operands.
                 StatementNode::RootBinding(binding) => {
                     expressions.remap_symbols_in(binding.receiver, symbols);
                     if binding.implementation_operand.is_valid() {
@@ -588,6 +634,7 @@ impl StatementTable {
         use StatementRootRole as Role;
         let mut roots = Vec::new();
         match statement {
+            StatementNode::Assembly(_) => {} // Owned instructions follow in the lexical window.
             StatementNode::RootBinding(binding) => {
                 roots.push((Role::BindingReceiver, binding.receiver));
                 roots.push((Role::BindingImplementation, binding.implementation_operand));
@@ -689,6 +736,7 @@ pub enum StatementRootRole {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum StatementNode {
+    Assembly(AssemblyControlPoint),
     RootBinding(RootBinding),
     AssemblyFact(TableAssemblyFact),
     Assignment(TableAssignment),

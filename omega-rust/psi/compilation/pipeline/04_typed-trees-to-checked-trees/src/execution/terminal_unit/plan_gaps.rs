@@ -88,6 +88,7 @@ fn statement_site(
         }
     };
     match statement {
+        StatementNode::Assembly(_) => (CoverageForm::StatementForm, SourceSpan::default()),
         StatementNode::Call(call) => (CoverageForm::CallForm, call.source_span),
         StatementNode::Transition(transition) => {
             (CoverageForm::TransitionForm, transition.source_span)

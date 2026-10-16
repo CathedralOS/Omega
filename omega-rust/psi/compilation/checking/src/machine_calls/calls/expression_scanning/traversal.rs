@@ -111,7 +111,7 @@ pub(crate) fn validate_value_position_calls(
                 }
             }
         }
-        StatementNode::AssemblyFact(_) => {}
+        StatementNode::Assembly(_) | StatementNode::AssemblyFact(_) => {}
         StatementNode::Assignment(assignment) => {
             scan_expression_calls(
                 program,

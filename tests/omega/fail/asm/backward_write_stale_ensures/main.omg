@@ -1,0 +1,16 @@
+data Subject { ready: bool; }
+machine Subject::change(subject: &mut Subject) requires subject.ready; {
+    asm {
+    entry requires subject.ready:
+        jmp write;
+    exit ensures subject.ready:
+        mov subject.ready, subject.ready;
+        jmp done;
+    write:
+        mov subject.ready, false;
+        jmp exit;
+    done:
+        mov subject.ready, subject.ready
+    }
+}
+machine main() {}

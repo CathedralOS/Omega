@@ -1,0 +1,32 @@
+// Expected exit: 0. A backward acyclic label edge retains local storage,
+// and a second assembly graph has its own labels in the same source frame.
+machine selected() -> u64 { 17 }
+machine transform(input: u64) -> u64 {
+    let mut output: u64 = 0;
+    asm {
+    entry:
+        jmp write;
+    finish ensures output == 17:
+        mov output, output;
+        jmp tail;
+    write:
+        mov output, input;
+        mov output, 17;
+        jmp finish;
+    tail:
+        mov output, output
+    }
+    asm {
+    entry requires output == 17:
+        jmp finish;
+    finish ensures output == 17:
+        mov output, output
+    }
+    output
+}
+machine main() crashes Trap {
+    let actual: u64 = transform(selected());
+    transition actual == 17 { true -> good() _ -> bad() }
+    state good() {}
+    state bad() { crash Trap; }
+}

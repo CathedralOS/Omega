@@ -166,6 +166,7 @@ fn collect_statement_expressions(
     expressions: &mut Vec<ExpressionHandle>,
 ) {
     match statement {
+        StatementNode::Assembly(_) => {}
         StatementNode::RootBinding(binding) => {
             expressions.push(binding.receiver);
             if binding.implementation_operand.is_valid() {

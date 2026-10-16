@@ -1,0 +1,11 @@
+data Main { ready: bool; }
+machine change(main: &mut Main) -> u64 { main.ready = false; 0 }
+machine Main::main(main: &mut Main) {
+    main.ready = true;
+    asm {
+    entry requires main.ready ensures main.ready:
+        jmp done(change(main))
+    }
+    state done(value: u64) {}
+}
+machine main() {}

@@ -13,6 +13,7 @@ use checked_trees::CheckedUnitStructuralReturnPlan;
 /// The latest release boundary any loan in the group reaches: a descriptor
 /// retires after every alternative source and every descendant can end.
 fn latest_loan_release_boundary(
+    order: &typed_trees::statement::StatementExecutionOrder,
     facts: &CheckFacts,
     loans: arena::HandleSpan<checked_trees::BorrowLoanFact>,
     release: impl Fn(arena::Handle<checked_trees::BorrowLoanFact>) -> Option<u32>,
@@ -21,7 +22,7 @@ fn latest_loan_release_boundary(
         .borrow
         .loan_group(loans)?
         .try_fold(0u32, |boundary, (loan, _)| {
-            Some(boundary.max(release(loan)?))
+            u32::try_from(order.latest(boundary as usize, release(loan)? as usize)?).ok()
         })
 }
 
@@ -34,6 +35,7 @@ fn latest_loan_release_boundary(
 /// A descendant can keep the backing loan live beyond this carrier's death;
 /// its lexical last use does not move the recorded replacement boundary.
 fn replacement_owns_release(
+    order: &typed_trees::statement::StatementExecutionOrder,
     facts: &CheckFacts,
     machine: SymbolHandle,
     state: SymbolHandle,
@@ -54,7 +56,7 @@ fn replacement_owns_release(
             return false;
         };
         if weakening.reason != checked_trees::FlowBorrowWeakeningReason::LocalReassigned
-            || statement_index <= loan.statement_index
+            || !order.precedes(loan.statement_index, statement_index)
             || replacement.is_some_and(|previous| previous != statement_index)
         {
             return false;
@@ -270,6 +272,9 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
     operations: &mut Vec<CheckedUnitEffectOperationPlan>,
 ) -> Option<()> {
     let authored_state = program.state_by_symbol(state)?;
+    let order = program
+        .statement_table
+        .admitted_execution_order(authored_state.statement_nodes);
     let transported_loans = super::reference_retirement::transport::collect(
         program,
         facts,
@@ -287,6 +292,7 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
                 facts,
                 machine,
                 state: authored_state,
+                order: &order,
                 statement_index,
                 results,
                 operations,
@@ -316,6 +322,7 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
                 facts,
                 machine,
                 state: authored_state,
+                order: &order,
                 statement_index,
                 results,
                 operations,
@@ -333,7 +340,7 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
         if let Some(captured) = reference_result {
             let result = captured.result;
             let loans = captured.loans;
-            if replacement_owns_release(facts, machine, state, loans) {
+            if replacement_owns_release(&order, facts, machine, state, loans) {
                 continue;
             }
             if custody_transferred(program, facts, results, result.binding_ordinal, operations)? {
@@ -345,18 +352,24 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
             // A descriptor retires once, after every alternative source and
             // every descendant can end. Never release an arbitrary candidate
             // early or emit one destructive operation per possible referent.
-            let boundary = latest_loan_release_boundary(facts, loans, |loan| {
+            let boundary = latest_loan_release_boundary(&order, facts, loans, |loan| {
                 super::super::super::reference_results::release_boundary(
                     program, facts, machine, state, loan,
                 )
-            })?
-            .max(result.statement_index.checked_add(1)?)
-            .max(captured.whole_storage_boundary);
+            })?;
+            let boundary = order.latest(
+                boundary as usize,
+                order.successor(result.statement_index as usize)?,
+            )?;
+            let boundary =
+                u32::try_from(order.latest(boundary, captured.whole_storage_boundary as usize)?)
+                    .ok()?;
             let retirement = super::reference_retirement::Retirement {
                 program,
                 facts,
                 machine,
                 state: authored_state,
+                order: &order,
                 statement_index,
                 results,
                 operations,
@@ -365,7 +378,7 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
                 returned: None,
                 transported_loans: &transported_loans,
             };
-            if boundary <= statement_index
+            if order.at_or_before(boundary as usize, statement_index as usize)
                 && retirement.carrier_children_retired(result)
                 && captured
                     .storage_loans
@@ -412,7 +425,8 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
         let Some((result, _)) = operation.discardable_structural_result() else {
             continue;
         };
-        if result.multiplicity != Multiplicity::Affine || result.statement_index >= statement_index
+        if result.multiplicity != Multiplicity::Affine
+            || !order.precedes(result.statement_index as usize, statement_index as usize)
         {
             continue;
         }
@@ -466,7 +480,7 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
         if facts.borrow.loans.iter().any(|(_, loan)| {
             loan.owner_symbol == local.symbol
                 && loan.statement_index != result.statement_index as usize
-                && loan.statement_index < statement_index as usize
+                && order.precedes(loan.statement_index, statement_index as usize)
         }) {
             continue;
         }
@@ -490,12 +504,14 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
         ) else {
             continue;
         };
-        let retains_siblings = boundary > statement_index || !transferred_paths.is_empty();
+        let retains_siblings = order.precedes(statement_index as usize, boundary as usize)
+            || !transferred_paths.is_empty();
         let retirement = super::reference_retirement::Retirement {
             program,
             facts,
             machine,
             state: authored_state,
+            order: &order,
             statement_index,
             results,
             operations,
@@ -520,32 +536,33 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
         {
             continue;
         }
-        let leaf_releases = if retains_siblings {
-            local_loans
-                .into_iter()
-                .rev()
-                .filter(|(source, group)| {
-                    facts.borrow.loan_group(*group).is_some_and(|mut loans| {
-                        loans.all(|(loan, _)| retirement.children_retired(loan))
-                    }) && !transferred_paths
-                        .iter()
-                        .any(|path| path.starts_with(&source.path) || source.path.starts_with(path))
-                        && latest_loan_release_boundary(facts, *group, |loan| {
+        let leaf_releases =
+            if retains_siblings {
+                local_loans
+                    .into_iter()
+                    .rev()
+                    .filter(|(source, group)| {
+                        facts.borrow.loan_group(*group).is_some_and(|mut loans| {
+                            loans.all(|(loan, _)| retirement.children_retired(loan))
+                        }) && !transferred_paths.iter().any(|path| {
+                            path.starts_with(&source.path) || source.path.starts_with(path)
+                        }) && latest_loan_release_boundary(&order, facts, *group, |loan| {
                             validation::reference_result_custody::release_statement(
-                                facts, machine, state, loan,
+                                program, facts, machine, state, loan,
                             )
                         })
-                        .is_some_and(|boundary| boundary <= statement_index)
-                        && !operations.iter().chain(&pending).any(|operation| {
+                        .is_some_and(|boundary| {
+                            order.at_or_before(boundary as usize, statement_index as usize)
+                        }) && !operations.iter().chain(&pending).any(|operation| {
                             matches!(operation, CheckedUnitEffectOperationPlan::ReleaseReference {
                             loans: released, ..
                         } if *released == *group)
                         })
-                })
-                .collect::<Vec<_>>()
-        } else {
-            Vec::new()
-        };
+                    })
+                    .collect::<Vec<_>>()
+            } else {
+                Vec::new()
+            };
         if retains_siblings && leaf_releases.is_empty() {
             continue;
         }
@@ -612,6 +629,7 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
             facts,
             machine,
             state: authored_state,
+            order: &order,
             statement_index,
             results,
             operations,
@@ -663,6 +681,10 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
     results: &[(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)],
     operations: &mut Vec<CheckedUnitEffectOperationPlan>,
 ) -> Option<()> {
+    let authored_state = program.state_by_symbol(state)?;
+    let order = program
+        .statement_table
+        .admitted_execution_order(authored_state.statement_nodes);
     let mut pending = Vec::new();
     for operation in operations.iter() {
         if let Some(captured) = captured_reference_result(
@@ -670,7 +692,7 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
         ) {
             let result = captured.result;
             let loans = captured.loans;
-            if replacement_owns_release(facts, machine, state, loans) {
+            if replacement_owns_release(&order, facts, machine, state, loans) {
                 continue;
             }
             // The exit boundary consumes the same current custody as an
@@ -684,7 +706,7 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
             // still belongs to statement scheduling; only a loan live through
             // this state's final statement can cross its result boundary.
             if returned.is_some_and(|returned| {
-                super::reference_retirement::returned_reference_binding(returned, result)
+                super::reference_retirement::returned_reference_binding(&order, returned, result)
             }) {
                 let authored = program.state_by_symbol(state)?;
                 let statement_count = program
@@ -695,19 +717,24 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
                     super::super::super::reference_results::release_boundary(
                         program, facts, machine, state, loan,
                     )
-                    .is_some_and(|boundary| boundary as usize >= statement_count)
+                    .is_some_and(|boundary| boundary as usize == statement_count)
                 }) {
                     return None;
                 }
                 continue;
             }
-            let boundary = latest_loan_release_boundary(facts, loans, |loan| {
+            let boundary = latest_loan_release_boundary(&order, facts, loans, |loan| {
                 super::super::super::reference_results::release_statement(
-                    facts, machine, state, loan,
+                    program, facts, machine, state, loan,
                 )
-            })?
-            .max(result.statement_index.checked_add(1)?)
-            .max(captured.whole_storage_boundary);
+            })?;
+            let boundary = order.latest(
+                boundary as usize,
+                order.successor(result.statement_index as usize)?,
+            )?;
+            let boundary =
+                u32::try_from(order.latest(boundary, captured.whole_storage_boundary as usize)?)
+                    .ok()?;
             if !operations
                 .iter()
                 .any(|operation| release_matches(operation, result, loans))
@@ -740,8 +767,7 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
             }
         }
     }
-    pending.sort_by_key(|(boundary, _, _)| *boundary);
-    let authored_state = program.state_by_symbol(state)?;
+    pending.sort_by_key(|(boundary, _, _)| order.position(*boundary as usize));
     let statement_index = authored_state.statement_nodes.count();
     let transported_loans = super::reference_retirement::transport::collect(
         program,
@@ -763,6 +789,7 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
             facts,
             machine,
             state: authored_state,
+            order: &order,
             statement_index,
             results,
             operations,

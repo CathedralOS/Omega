@@ -56,6 +56,7 @@ pub(crate) fn validate_relevance(
         for state in program.machine_states(machine) {
             for statement in program.statement_table.statements(state.statement_nodes) {
                 match statement {
+                    StatementNode::Assembly(_) => {}
                     StatementNode::RootBinding(binding) => {
                         // A root binding is a Build declaration, not a
                         // runtime call, but its two expression operands are

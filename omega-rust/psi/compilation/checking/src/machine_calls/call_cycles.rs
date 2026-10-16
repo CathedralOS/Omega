@@ -282,6 +282,7 @@ fn collect_statement_dependency_symbols(
     symbols: &mut Vec<SymbolHandle>,
 ) {
     match statement {
+        StatementNode::Assembly(_) => {}
         StatementNode::RootBinding(binding) => {
             for expression in [binding.receiver, binding.implementation_operand] {
                 if expression.is_valid() {
@@ -870,7 +871,7 @@ fn collect_exact_proof_statement_edges(
                 }
             }
         }
-        StatementNode::AssemblyFact(_) => {}
+        StatementNode::Assembly(_) | StatementNode::AssemblyFact(_) => {}
         StatementNode::Call(call) => {
             let receiver_members = program.statement_table.name_path_members(call.receiver);
             if (receiver_members.is_empty()

@@ -31,9 +31,27 @@ use self::arguments::lower_statement_expression;
 use self::calls::lower_call_statement;
 use self::hoist_temp_type::infer_hoist_temp_type;
 use self::transitions::lower_transition_statement;
+mod assembly;
+
+/// One source operation can introduce a whole lexical instruction window.
+/// The enclosing producer inserts the complete window contiguously.
+pub(crate) fn lower_statement(
+    lowerer: &mut Lowerer,
+    attached_data: Option<&resolved::name::DiagnosticName>,
+    state: &resolved::state::State,
+    statement: &resolved::statement::StatementNode,
+    closes_run: bool,
+) -> Result<Vec<typed::statement::StatementNode>, Diagnostic> {
+    if let resolved::statement::StatementNode::Assembly(handle) = statement {
+        assembly::lower(lowerer, attached_data, state, *handle)
+    } else {
+        lower_statement_node(lowerer, attached_data, state, statement, closes_run)
+            .map(|statement| vec![statement])
+    }
+}
 
 /// `closes_run` says this statement ends its authored dispatch.
-pub(crate) fn lower_statement_node(
+fn lower_statement_node(
     lowerer: &mut Lowerer,
     attached_data: Option<&resolved::name::DiagnosticName>,
     state: &resolved::state::State,
@@ -41,6 +59,9 @@ pub(crate) fn lower_statement_node(
     closes_run: bool,
 ) -> Result<typed::statement::StatementNode, Diagnostic> {
     match statement {
+        resolved::statement::StatementNode::Assembly(_) => Err(Diagnostic::error(
+            "assembly typing requires its complete enclosing statement window",
+        )),
         resolved::statement::StatementNode::RootBinding(binding) => Ok(
             typed::statement::StatementNode::RootBinding(typed::statement::RootBinding {
                 receiver: lower_statement_expression(lowerer, binding.receiver)?,

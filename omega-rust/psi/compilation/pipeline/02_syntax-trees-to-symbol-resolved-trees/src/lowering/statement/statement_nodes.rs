@@ -39,6 +39,10 @@ pub(crate) fn lower_statement_node(
     has_preceding_transition: bool,
 ) -> Result<Vec<Statement>, Diagnostic> {
     match statement {
+        syntax::statement::StatementNode::Assembly(handle) => {
+            super::assembly::lower(lowerer, syntax_trees, *handle, statement_index)
+                .map(|handle| vec![Statement::Assembly(handle)])
+        }
         syntax::statement::StatementNode::RootBinding(binding) => Ok(vec![Statement::RootBinding(
             symbol_resolved_trees::statement::RootBinding {
                 receiver: lower_statement_expression(lowerer, syntax_trees, binding.receiver)?,
@@ -629,7 +633,7 @@ pub(crate) fn set_expression(
         .expression_mut(handle) = node;
 }
 
-fn lower_statement_expression(
+pub(super) fn lower_statement_expression(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
     expression: syntax::expression::ExpressionHandle,

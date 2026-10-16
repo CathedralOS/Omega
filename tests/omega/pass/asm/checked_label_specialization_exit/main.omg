@@ -1,0 +1,26 @@
+// Expected exit: 0. Specialization copies the assembly graph and remaps
+// every local label identity with its ordinary statement window.
+machine selected<const Value: u64>(input: u64) -> u64 {
+    let mut output: u64 = 0;
+    asm {
+    entry:
+        jmp write;
+    finished:
+        mov output, output;
+        jmp done;
+    write:
+        mov output, input;
+        mov output, Value;
+        jmp finished;
+    done:
+        mov output, output
+    }
+    output
+}
+machine main() crashes Trap {
+    let first: u64 = selected<17>(3);
+    let second: u64 = selected<29>(5);
+    transition first == 17 && second == 29 { true -> good() _ -> bad() }
+    state good() {}
+    state bad() { crash Trap; }
+}

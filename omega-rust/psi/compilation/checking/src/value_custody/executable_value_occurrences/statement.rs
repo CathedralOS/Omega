@@ -30,7 +30,7 @@ impl ValueOccurrenceVisitor<'_, '_> {
                     );
                 }
             }
-            StatementNode::AssemblyFact(_) => {}
+            StatementNode::Assembly(_) | StatementNode::AssemblyFact(_) => {}
             StatementNode::Assignment(assignment) => {
                 self.collect_statement_expression(
                     machine_symbol,

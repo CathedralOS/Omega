@@ -42,6 +42,9 @@ fn exact_mutable_referent(
         borrow_state.machine_symbol,
         borrow_state.state_symbol,
     )?;
+    let order = program
+        .statement_table
+        .admitted_execution_order(state.statement_nodes);
     let mut sources = program
         .state_parameters(state)
         .iter()
@@ -150,8 +153,8 @@ fn exact_mutable_referent(
         .filter(|(handle, _)| borrow.state_owns_loan(borrow_state, *handle))
         .any(|(handle, loan)| {
             !returned_loans.contains(&handle)
-                && loan.statement_index <= call.statement_index
-                && loan.last_use_statement_index >= call.statement_index
+                && order.at_or_before(loan.statement_index, call.statement_index)
+                && order.at_or_before(call.statement_index, loan.last_use_statement_index)
                 && (loan.root == facts::PlaceRoot::Symbol(source_symbol)
                     || loan.owner_symbol == source_symbol
                     || loan.source_owner_symbol == source_symbol)
@@ -187,9 +190,15 @@ fn prefix_preserves_parameter(
         borrow_state.machine_symbol,
         borrow_state.state_symbol,
     )?;
-    let statements = program.statement_table.statements(state.statement_nodes);
+    let order = program
+        .statement_table
+        .admitted_execution_order(state.statement_nodes);
     let call_frames = validation::CallFrameResolver::new(program);
-    for (statement_index, statement) in statements.get(..call.statement_index)?.iter().enumerate() {
+    for (statement_index, statement) in program
+        .statement_table
+        .admitted_execution_statements(state.statement_nodes)
+        .take(order.position(call.statement_index)?)
+    {
         let writes = crate::flow::statement_storage_writes(
             program,
             borrow_state.machine_symbol,
@@ -207,7 +216,7 @@ fn prefix_preserves_parameter(
     }
     let summaries = crate::flow::StateMutationSummaryCache::default();
     for preceding in borrow.calls.span_or_empty(borrow_state.calls) {
-        if preceding.statement_index > call.statement_index
+        if order.precedes(call.statement_index, preceding.statement_index)
             || (preceding.statement_index == call.statement_index
                 && preceding.call_ordinal == call.call_ordinal)
         {
@@ -235,7 +244,7 @@ fn prefix_preserves_parameter(
         if writes
             .iter()
             .any(|place| replaces_carrier(place, source_symbol))
-            && !(preceding.statement_index < call.statement_index
+            && !(order.precedes(preceding.statement_index, call.statement_index)
                 && preceding_reborrow_preserves_carrier(
                     program,
                     borrow,

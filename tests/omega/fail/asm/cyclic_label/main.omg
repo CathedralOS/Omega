@@ -1,0 +1,18 @@
+// Expected exit: 0. A checked assembly jump carries the exact value and
+// proposition to its declared label; the skipped write must not execute.
+data Main { input: u64; output: u64; }
+machine Main::main(main: &mut Main) crashes Trap {
+    main.input = 17;
+    asm {
+    entry requires main.input == 17:
+        mov main.output, main.input;
+        jmp entry;
+    skipped:
+        mov main.output, 99;
+    done requires main.output == main.input ensures main.output == 17:
+        mov main.output, main.output
+    }
+    transition main.output == 17 { true -> good() _ -> bad() }
+    state good() {}
+    state bad() { crash Trap; }
+}

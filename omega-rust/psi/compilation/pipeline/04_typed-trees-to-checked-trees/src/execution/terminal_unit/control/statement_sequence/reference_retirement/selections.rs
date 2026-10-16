@@ -32,7 +32,9 @@ pub(super) fn disposes_candidate(
         .span_or_empty(receipt.sources)
         .iter()
         .any(|source| source.symbol == loan.owner_symbol)
-        || loan.statement_index >= receipt.statement_ordinal as usize
+        || !retirement
+            .order
+            .precedes(loan.statement_index, receipt.statement_ordinal as usize)
     {
         return false;
     }
@@ -55,11 +57,14 @@ pub(super) fn disposes_candidate(
         .iter()
         .filter(|(_, candidate)| {
             candidate.owner_symbol == loan.owner_symbol
-                && candidate.statement_index < receipt.statement_ordinal as usize
+                && retirement.order.precedes(
+                    candidate.statement_index,
+                    receipt.statement_ordinal as usize,
+                )
                 && retirement.facts.borrow.loan_owner_path(candidate) == path
         })
         .map(|(_, candidate)| candidate.statement_index)
-        .max()
+        .max_by_key(|statement| retirement.order.position(*statement))
         == Some(loan.statement_index)
 }
 

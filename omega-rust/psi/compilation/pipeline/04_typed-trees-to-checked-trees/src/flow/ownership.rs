@@ -62,7 +62,7 @@ pub(super) fn append_statement_ownership_events(
                 );
             }
         }
-        StatementNode::AssemblyFact(_) => {}
+        StatementNode::Assembly(_) | StatementNode::AssemblyFact(_) => {}
         StatementNode::Assignment(assignment) => {
             let source = FlowOwnershipEventSource::Statement { statement_index };
             // The store's prepared receiving type identifies the transferred

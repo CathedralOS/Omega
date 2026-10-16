@@ -102,6 +102,9 @@ pub(super) fn assign_statement_symbols(
     }
 
     match statement {
+        // The enclosing state routes graph instructions and contracts under
+        // their exact outer prefix in `assign_assembly_scope_symbols`.
+        symbol_resolved_trees::statement::Statement::Assembly(_) => {}
         symbol_resolved_trees::statement::Statement::RootBinding(binding) => {
             assign_expr!(binding.receiver);
             if binding.implementation_operand.is_valid() {

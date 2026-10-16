@@ -17,7 +17,7 @@ pub fn statement_uses_symbol(
                 || (binding.implementation_operand.is_valid()
                     && expression_uses_symbol(program, binding.implementation_operand, symbol))
         }
-        StatementNode::AssemblyFact(_) => false,
+        StatementNode::Assembly(_) | StatementNode::AssemblyFact(_) => false,
         StatementNode::Assignment(assignment) => {
             expression_uses_symbol(program, assignment.target, symbol)
                 || expression_uses_symbol(program, assignment.value, symbol)

@@ -69,6 +69,9 @@ pub struct StateParameterSnapshot {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum StatementSnapshot {
+    Assembly {
+        blocks: Vec<AssemblyBlockSnapshot>,
+    },
     RootBinding {
         receiver: ExpressionSnapshot,
         slot: Vec<String>,
@@ -118,6 +121,22 @@ pub enum StatementSnapshot {
         #[serde(skip_serializing_if = "Option::is_none")]
         crash_cause: Option<&'static str>,
     },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct AssemblyBlockSnapshot {
+    pub label: IdentifierSnapshot,
+    pub requires: Vec<ExpressionSnapshot>,
+    pub ensures: Vec<ExpressionSnapshot>,
+    pub instructions: Vec<StatementSnapshot>,
+    pub exit: AssemblyExitSnapshot,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub enum AssemblyExitSnapshot {
+    Fallthrough,
+    Jump(IdentifierSnapshot),
+    EnclosingTransition,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -274,6 +293,53 @@ pub(crate) fn snapshot_state_parameter(
 
 fn snapshot_statement(syntax_trees: &SyntaxTrees, statement: &StatementNode) -> StatementSnapshot {
     match statement {
+        StatementNode::Assembly(handle) => {
+            let graph = syntax_trees.statements.assembly(*handle);
+            StatementSnapshot::Assembly {
+                blocks: syntax_trees
+                    .statements
+                    .assembly_blocks(graph.blocks)
+                    .iter()
+                    .map(|block| AssemblyBlockSnapshot {
+                        label: snapshot_identifier(&block.label),
+                        requires: syntax_trees
+                            .statements
+                            .assembly_expressions(block.requires)
+                            .iter()
+                            .map(|expression| snapshot_expression_handle(syntax_trees, *expression))
+                            .collect(),
+                        ensures: syntax_trees
+                            .statements
+                            .assembly_expressions(block.ensures)
+                            .iter()
+                            .map(|expression| snapshot_expression_handle(syntax_trees, *expression))
+                            .collect(),
+                        instructions: syntax_trees
+                            .statements
+                            .assembly_instructions(block.instructions)
+                            .iter()
+                            .map(|handle| {
+                                snapshot_statement(
+                                    syntax_trees,
+                                    syntax_trees.statements.statement(*handle),
+                                )
+                            })
+                            .collect(),
+                        exit: match &block.exit {
+                            crate::statement::AssemblyExit::Fallthrough => {
+                                AssemblyExitSnapshot::Fallthrough
+                            }
+                            crate::statement::AssemblyExit::Jump(label) => {
+                                AssemblyExitSnapshot::Jump(snapshot_identifier(label))
+                            }
+                            crate::statement::AssemblyExit::EnclosingTransition => {
+                                AssemblyExitSnapshot::EnclosingTransition
+                            }
+                        },
+                    })
+                    .collect(),
+            }
+        }
         StatementNode::RootBinding(binding) => StatementSnapshot::RootBinding {
             receiver: snapshot_expression_handle(syntax_trees, binding.receiver),
             slot: binding.slot.iter().map(ToString::to_string).collect(),

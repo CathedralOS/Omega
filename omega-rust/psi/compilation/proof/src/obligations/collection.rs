@@ -133,6 +133,7 @@ pub fn build_proof_plan(program: &dyn ::validation::CheckingInput) -> ProofPlan<
             let mut incoming_guard = None;
             for (statement_index, statement) in table_statements.iter().enumerate() {
                 match statement {
+                    StatementNode::Assembly(_) => {}
                     StatementNode::Assignment(assignment) => {
                         collect_bounded_assignment_obligation(
                             program,

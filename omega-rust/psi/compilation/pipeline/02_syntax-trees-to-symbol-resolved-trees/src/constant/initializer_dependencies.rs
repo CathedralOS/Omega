@@ -426,8 +426,36 @@ impl<'program> Collector<'program> {
             if body.len() != state.statements.len() {
                 return Err("constant dependency state has stale statements".to_owned());
             }
-            for statement in body {
+            let mut statements: Vec<_> = body.iter().rev().collect();
+            while let Some(statement) = statements.pop() {
                 match statement {
+                    Statement::Assembly(handle) => {
+                        let declarations = &program.tables.declarations;
+                        let graph = declarations.assembly_graphs.get(*handle);
+                        let blocks = declarations.assembly_blocks.span_or_empty(graph.blocks);
+                        if blocks.len() != graph.blocks.len() {
+                            return Err("constant dependency assembly has stale blocks".to_owned());
+                        }
+                        for block in blocks.iter().rev() {
+                            for span in [block.requires, block.ensures] {
+                                let expressions =
+                                    declarations.assembly_expressions.span_or_empty(span);
+                                if expressions.len() != span.len() {
+                                    return Err("constant dependency assembly has stale contracts"
+                                        .to_owned());
+                                }
+                                self.expressions.extend(expressions.iter().copied());
+                            }
+                            let body = declarations
+                                .state_statements
+                                .span_or_empty(block.instructions);
+                            if body.len() != block.instructions.len() {
+                                return Err("constant dependency assembly has stale instructions"
+                                    .to_owned());
+                            }
+                            statements.extend(body.iter().rev());
+                        }
+                    }
                     Statement::Expression(expression) => self.expressions.push(*expression),
                     Statement::LocalData(local) => {
                         self.types.push(&local.type_reference);

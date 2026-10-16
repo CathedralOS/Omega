@@ -195,6 +195,7 @@ impl ActivationCarryAccumulator<'_> {
 
     fn visit_statement(&mut self, statement: &StatementNode) {
         match statement {
+            StatementNode::Assembly(_) => {}
             StatementNode::RootBinding(binding) => {
                 self.visit_expression(binding.receiver);
                 self.visit_expression(binding.implementation_operand);

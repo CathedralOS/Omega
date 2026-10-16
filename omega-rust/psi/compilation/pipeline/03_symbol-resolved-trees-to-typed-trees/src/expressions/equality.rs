@@ -73,6 +73,33 @@ fn scan_statement(
     statement: &StatementNode,
 ) -> Result<(), Diagnostic> {
     match statement {
+        StatementNode::Assembly(handle) => {
+            let declarations = &program.tables.declarations;
+            let graph = declarations.assembly_graphs.get(*handle);
+            for block in declarations.assembly_blocks.span_or_empty(graph.blocks) {
+                for expression in declarations
+                    .assembly_expressions
+                    .span_or_empty(block.requires)
+                    .iter()
+                    .chain(
+                        declarations
+                            .assembly_expressions
+                            .span_or_empty(block.ensures),
+                    )
+                {
+                    scan_expression(program, *expression, true)?;
+                }
+                for instruction in program
+                    .tables
+                    .bodies
+                    .statements
+                    .statements(block.statement_nodes)
+                {
+                    scan_statement(program, instruction)?;
+                }
+            }
+            Ok(())
+        }
         StatementNode::RootBinding(binding) => {
             scan_expression(program, binding.receiver, false)?;
             if binding.implementation_operand.is_valid() {

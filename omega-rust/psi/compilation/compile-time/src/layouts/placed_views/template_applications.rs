@@ -420,6 +420,22 @@ fn visit_statement(
     deferred: &mut Vec<TypeReferenceHandle>,
 ) {
     match syntax.statements.statement(statement) {
+        StatementNode::Assembly(handle) => {
+            let graph = syntax.statements.assembly(*handle);
+            for block in syntax.statements.assembly_blocks(graph.blocks) {
+                for expression in syntax
+                    .statements
+                    .assembly_expressions(block.requires)
+                    .iter()
+                    .chain(syntax.statements.assembly_expressions(block.ensures))
+                {
+                    visit_expression(syntax, *expression, binders, deferred);
+                }
+                for instruction in syntax.statements.assembly_instructions(block.instructions) {
+                    visit_statement(syntax, *instruction, binders, deferred);
+                }
+            }
+        }
         StatementNode::RootBinding(binding) => {
             visit_expression(syntax, binding.receiver, binders, deferred);
             visit_expression(syntax, binding.implementation_operand, binders, deferred);

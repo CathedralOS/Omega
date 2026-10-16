@@ -211,6 +211,7 @@ impl ExitScalars<'_, '_> {
                 // predecessor evidence, not ordinal adjacency.
                 StatementNode::Transition(_)
                 | StatementNode::RootBinding(_)
+                | StatementNode::Assembly(_)
                 | StatementNode::AssemblyFact(_) => false,
             };
             if !stable {

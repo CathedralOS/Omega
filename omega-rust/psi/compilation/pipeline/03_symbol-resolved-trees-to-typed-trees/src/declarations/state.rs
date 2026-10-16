@@ -1,4 +1,4 @@
-use crate::expressions::statement::lower_statement_node;
+use crate::expressions::statement::lower_statement;
 use crate::lowerer::Lowerer;
 use crate::type_reference::lower_type_reference_into_table;
 use diagnostics::Diagnostic;
@@ -72,6 +72,7 @@ pub(crate) fn complete_state_body(
         .bodies
         .statements
         .statements(state.statement_nodes);
+    let mut pending = Vec::new();
     for (index, statement) in statements.iter().enumerate() {
         let closes_run = matches!(statement,
             resolved::statement::StatementNode::Transition(transition) if transition.ends_dispatch
@@ -90,21 +91,17 @@ pub(crate) fn complete_state_body(
                     binding.output_field.as_str() == "value" && binding.binding.as_str() != "_"
                 })
                 .then(|| {
-                    usize::try_from(typed_state.statement_nodes.count())
-                        .expect("typed statement count fits usize")
+                    pending
+                        .len()
                         .checked_sub(1)
                         .expect("a proof-output Type value has its synthesized local first")
                 });
             let runtime_call_statement_index = if runtime_call_statement_index.is_some() {
                 runtime_call_statement_index
             } else if proof_output_call_requires_execution(lowerer, call) {
-                let statement_index = usize::try_from(typed_state.statement_nodes.count())
-                    .expect("typed statement count fits usize");
+                let statement_index = pending.len();
                 let call = proof_output_runtime_call(lowerer, call)?;
-                lowerer.typed_trees.statement_table.push_statement(
-                    &mut typed_state.statement_nodes,
-                    typed::statement::StatementNode::Call(call),
-                );
+                pending.push(typed::statement::StatementNode::Call(call));
                 Some(statement_index)
             } else {
                 None
@@ -115,7 +112,7 @@ pub(crate) fn complete_state_body(
                 .push(typed::typed_trees::ProofOutputCall {
                     machine_symbol: package.machine_symbol,
                     state_symbol: package.state_symbol,
-                    statement_index: typed_state.statement_nodes.count() as usize,
+                    statement_index: pending.len(),
                     source_statement_index: package.statement_index,
                     runtime_call_statement_index,
                     bindings: package
@@ -131,13 +128,19 @@ pub(crate) fn complete_state_body(
                 });
             continue;
         }
-        let statement = lower_statement_node(lowerer, attached_data, state, statement, closes_run)?;
-        lowerer
-            .typed_trees
-            .statement_table
-            .push_statement(&mut typed_state.statement_nodes, statement);
+        pending.extend(lower_statement(
+            lowerer,
+            attached_data,
+            state,
+            statement,
+            closes_run,
+        )?);
     }
 
+    typed_state.statement_nodes = lowerer
+        .typed_trees
+        .statement_table
+        .insert_statements(pending);
     Ok(())
 }
 

@@ -240,7 +240,7 @@ fn push_once(diagnostics: &mut Vec<Diagnostic>, message: String) {
 /// proof reads; neither evaluates the owner at run time.
 fn is_operational(statement: &StatementNode) -> bool {
     match statement {
-        StatementNode::AssemblyFact(_) => false,
+        StatementNode::Assembly(_) | StatementNode::AssemblyFact(_) => false,
         StatementNode::LocalData(local) => {
             local.role != language_core::LocalBindingRole::ArmPattern
         }

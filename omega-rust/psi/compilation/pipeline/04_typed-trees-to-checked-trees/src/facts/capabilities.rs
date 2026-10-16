@@ -370,7 +370,9 @@ fn call_receiver_provenance(
     };
 
     let head = match statement {
-        StatementNode::RootBinding(_) | StatementNode::AssemblyFact(_) => None,
+        StatementNode::RootBinding(_)
+        | StatementNode::Assembly(_)
+        | StatementNode::AssemblyFact(_) => None,
         StatementNode::Call(call) => program
             .statement_table
             .name_path_members(call.receiver)

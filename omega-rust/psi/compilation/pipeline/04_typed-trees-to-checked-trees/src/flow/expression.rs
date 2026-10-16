@@ -129,6 +129,7 @@ pub(super) fn append_statement_calls<'plans>(
     let mut stored_value = Handle::invalid();
     let mut store_target = Handle::invalid();
     match statement {
+        StatementNode::Assembly(_) => {}
         StatementNode::Assignment(assignment) => {
             let mut owned_frames = None;
             let replaces_reference = super::shared_call_frames_or(

@@ -170,6 +170,54 @@ impl SyntaxCopy<'_> {
         statement: &StatementNode,
     ) -> StatementNode {
         match statement {
+            StatementNode::Assembly(handle) => {
+                let graph = other.statements.assembly(*handle);
+                let blocks: Vec<_> = other
+                    .statements
+                    .assembly_blocks(graph.blocks)
+                    .iter()
+                    .map(|block| {
+                        let requires: Vec<_> = other
+                            .statements
+                            .assembly_expressions(block.requires)
+                            .iter()
+                            .map(|expression| self.copy_expression_handle(other, *expression))
+                            .collect();
+                        let ensures: Vec<_> = other
+                            .statements
+                            .assembly_expressions(block.ensures)
+                            .iter()
+                            .map(|expression| self.copy_expression_handle(other, *expression))
+                            .collect();
+                        let instructions: Vec<_> = other
+                            .statements
+                            .assembly_instructions(block.instructions)
+                            .iter()
+                            .map(|handle| {
+                                let statement = self.copy_statement_node(
+                                    other,
+                                    other.statements.statement(*handle),
+                                );
+                                self.statements.insert(statement)
+                            })
+                            .collect();
+                        crate::statement::AssemblyBlock {
+                            label: block.label.clone(),
+                            requires: self.statements.insert_assembly_expressions(requires),
+                            ensures: self.statements.insert_assembly_expressions(ensures),
+                            instructions: self
+                                .statements
+                                .insert_assembly_instructions(instructions),
+                            exit: block.exit.clone(),
+                        }
+                    })
+                    .collect();
+                let blocks = self.statements.insert_assembly_blocks(blocks);
+                StatementNode::Assembly(
+                    self.statements
+                        .insert_assembly(crate::statement::AssemblyControlFlow { blocks }),
+                )
+            }
             StatementNode::RootBinding(binding) => {
                 StatementNode::RootBinding(crate::statement::RootBinding {
                     receiver: self.copy_expression_handle(other, binding.receiver),

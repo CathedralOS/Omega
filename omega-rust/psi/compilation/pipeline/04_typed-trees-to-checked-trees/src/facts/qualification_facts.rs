@@ -298,7 +298,7 @@ pub(crate) fn build_qualification_facts(
                             }
                         }
                     }
-                    StatementNode::AssemblyFact(_) => {}
+                    StatementNode::Assembly(_) | StatementNode::AssemblyFact(_) => {}
                     StatementNode::Assignment(assignment) => {
                         collect_casts(
                             program,

@@ -145,6 +145,7 @@ fn primitive_value_closure(
                     StatementNode::Call(_)
                     | StatementNode::Assignment(_)
                     | StatementNode::RootBinding(_)
+                    | StatementNode::Assembly(_)
                     | StatementNode::AssemblyFact(_) => false,
                 };
                 if !allowed {

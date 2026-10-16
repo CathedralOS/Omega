@@ -42,7 +42,7 @@ pub(crate) fn collect_statement_borrow_calls(
                 }
             }
         }
-        StatementNode::AssemblyFact(_) => {}
+        StatementNode::Assembly(_) | StatementNode::AssemblyFact(_) => {}
         StatementNode::Assignment(assignment) => {
             // The authored target precedes the value. An indexed store such as
             // `self.cells[pick()] = value` evaluates its call-valued index like

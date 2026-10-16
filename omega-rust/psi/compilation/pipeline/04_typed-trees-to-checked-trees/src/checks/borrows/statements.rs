@@ -749,6 +749,9 @@ pub(super) fn local_loan_ends_before_successor(
     // including derived views. Scope closure ends a non-carried local binding;
     // it does not promote the view's lineage or restore parent authority inside
     // the source state. Reassignment remains a separate evaluation boundary.
+    let execution_order = program
+        .statement_table
+        .admitted_execution_order(source.statement_nodes);
     facts
         .flow
         .borrow_lifetimes
@@ -766,7 +769,8 @@ pub(super) fn local_loan_ends_before_successor(
                         checked_trees::FlowBorrowWeakeningReason::LastUseExpired,
                         checked_trees::FlowInvalidationSource::Statement { statement_index },
                     ) => {
-                        statement_index == loan.last_use_statement_index + 1
+                        Some(statement_index)
+                            == execution_order.successor(loan.last_use_statement_index)
                             && statement_index <= source.statement_nodes.count() as usize
                     }
                     _ => false,

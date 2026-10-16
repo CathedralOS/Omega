@@ -323,63 +323,84 @@ struct AuthoredStatementCallCandidate {
     target: CandidateTarget,
 }
 
+fn collect_authored_statement_call_candidates(
+    program: &SymbolResolvedTrees,
+    statements: arena::HandleSpan<symbol_resolved_trees::statement::Statement>,
+    partition: Option<CompilerDerivedSelectionPartition>,
+    candidates: &mut Vec<AuthoredStatementCallCandidate>,
+) {
+    use symbol_resolved_trees::statement::Statement;
+    for (offset, statement) in program.state_statements(statements).iter().enumerate() {
+        match statement {
+            Statement::Call(call)
+                if call.operational_acknowledgement.origin
+                    == language_semantics::CallOperationalAcknowledgementOrigin::Source
+                    && call.authored_call_selection.is_none()
+                    && nonempty(call.target.source_span()) =>
+            {
+                candidates.push(AuthoredStatementCallCandidate {
+                    site: AuthoredStatementCallSite::Statement {
+                        statements: statements,
+                        offset,
+                    },
+                    source_span: call.target.source_span(),
+                    compiler_partition: partition,
+                    target: resolved_or_late(call.target_symbol, LateBinding::CheckedCall),
+                });
+            }
+            Statement::Transition(transition) => {
+                collect_authored_transition_call_candidate(
+                    program,
+                    statements,
+                    offset,
+                    false,
+                    &transition.target,
+                    partition,
+                    candidates,
+                );
+                if let Some(continuation) = &transition.continuation {
+                    collect_authored_transition_call_candidate(
+                        program,
+                        statements,
+                        offset,
+                        true,
+                        continuation,
+                        partition,
+                        candidates,
+                    );
+                }
+            }
+            Statement::Assembly(handle) => {
+                let declarations = &program.tables.declarations;
+                let graph = declarations.assembly_graphs.get(*handle);
+                for block in declarations.assembly_blocks.span_or_empty(graph.blocks) {
+                    collect_authored_statement_call_candidates(
+                        program,
+                        block.instructions,
+                        partition,
+                        candidates,
+                    );
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
 fn finalize_authored_statement_call_selections(
     program: &mut SymbolResolvedTrees,
 ) -> Result<(), Diagnostic> {
     use language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure as Exposure;
-    use symbol_resolved_trees::statement::Statement;
-
     let mut candidates = Vec::new();
     for machine in program.machines.iter() {
         for state_handle in program.machine_state_handles(machine.states) {
             let state = program.machine_state(*state_handle);
-            for (offset, statement) in program
-                .state_statements(state.statements)
-                .iter()
-                .enumerate()
-            {
-                match statement {
-                    Statement::Call(call)
-                        if call.operational_acknowledgement.origin
-                            == language_semantics::CallOperationalAcknowledgementOrigin::Source
-                            && call.authored_call_selection.is_none()
-                            && nonempty(call.target.source_span()) =>
-                    {
-                        candidates.push(AuthoredStatementCallCandidate {
-                            site: AuthoredStatementCallSite::Statement {
-                                statements: state.statements,
-                                offset,
-                            },
-                            source_span: call.target.source_span(),
-                            compiler_partition: machine.compiler_selection_partition,
-                            target: resolved_or_late(call.target_symbol, LateBinding::CheckedCall),
-                        });
-                    }
-                    Statement::Transition(transition) => {
-                        collect_authored_transition_call_candidate(
-                            program,
-                            state.statements,
-                            offset,
-                            false,
-                            &transition.target,
-                            machine.compiler_selection_partition,
-                            &mut candidates,
-                        );
-                        if let Some(continuation) = &transition.continuation {
-                            collect_authored_transition_call_candidate(
-                                program,
-                                state.statements,
-                                offset,
-                                true,
-                                continuation,
-                                machine.compiler_selection_partition,
-                                &mut candidates,
-                            );
-                        }
-                    }
-                    _ => {}
-                }
-            }
+            collect_authored_statement_call_candidates(
+                program,
+                state.statements,
+                machine.compiler_selection_partition,
+                &mut candidates,
+            );
         }
     }
 

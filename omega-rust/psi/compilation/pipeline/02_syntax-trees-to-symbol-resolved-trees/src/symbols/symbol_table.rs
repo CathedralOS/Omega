@@ -466,6 +466,29 @@ pub(super) fn append_body_symbols(
                 .state_statements
                 .span_mut_or_empty(state.statements);
             append_local_symbols(&mut program.symbols, state.symbol, statements);
+            let graphs: Vec<_> = statements
+                .iter()
+                .filter_map(|statement| {
+                    if let symbol_resolved_trees::statement::Statement::Assembly(handle) = statement
+                    {
+                        Some(*handle)
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+            for handle in graphs {
+                let graph = declarations.assembly_graphs.get(handle);
+                for block in declarations.assembly_blocks.span_or_empty(graph.blocks) {
+                    append_local_symbols(
+                        &mut program.symbols,
+                        state.symbol,
+                        declarations
+                            .state_statements
+                            .span_mut_or_empty(block.instructions),
+                    );
+                }
+            }
         }
     }
     // All synthetic headers now exist, including forward state references.

@@ -129,6 +129,7 @@ pub(super) fn known_byte_lengths_before(
         .enumerate()
     {
         match statement {
+            StatementNode::Assembly(_) => {}
             StatementNode::Assignment(assignment) => {
                 if expression_contains_value_call(program, assignment.value) {
                     known.clear();

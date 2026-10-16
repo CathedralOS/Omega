@@ -49,7 +49,7 @@ pub(crate) fn scan_statement_reads(
                     .filter(|expression| expression.is_valid()),
             );
         }
-        StatementNode::AssemblyFact(_) => {}
+        StatementNode::Assembly(_) | StatementNode::AssemblyFact(_) => {}
         StatementNode::Assignment(assignment) => reads.push(assignment.value),
         StatementNode::Expression(expression) => reads.push(*expression),
         StatementNode::LocalData(local) => {

@@ -1,0 +1,19 @@
+// Expected exit: 0. A label exit contract observes the successful argument
+// call on the enclosing Omega state edge, including its checked guarantee.
+data Main { ready: bool; }
+machine establish(main: &mut Main) -> u64 ensures main.ready; {
+    main.ready = true;
+    17
+}
+machine Main::main(main: &mut Main) crashes Trap {
+    main.ready = false;
+    asm {
+    entry ensures main.ready:
+        jmp done(establish(main))
+    }
+    state done(value: u64) {
+        transition value == 17 { true -> good() _ -> bad() }
+    }
+    state good() {}
+    state bad() { crash Trap; }
+}

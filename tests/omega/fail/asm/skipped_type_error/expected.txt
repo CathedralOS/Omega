@@ -1,0 +1,1 @@
+assignment stores a boolean into a `u64` place

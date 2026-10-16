@@ -17,28 +17,28 @@ pub(crate) fn filter_expired_borrow_loans(
     source: arena::HandleSpan<FlowConstraintRef>,
     borrow: &BorrowFacts,
     statement_index: usize,
+    execution_order: &typed_trees::statement::StatementExecutionOrder,
     reason: FlowBorrowWeakeningReason,
 ) -> arena::HandleSpan<FlowConstraintRef> {
     reference_spans::filter_constraint_refs(constraint_refs, source, |constraint_ref| {
         match constraint_ref.kind {
             FlowConstraintKind::BorrowLoan { loan } => {
                 let loan_fact = borrow.loans.get(loan);
-                let keep = loan_fact.last_use_statement_index >= statement_index;
+                let current = execution_order
+                    .position(statement_index)
+                    .expect("loan expiry names an admitted execution point or state exit");
+                let keep = execution_order
+                    .position(loan_fact.last_use_statement_index)
+                    .is_none_or(|last_use| last_use >= current);
                 if !keep {
-                    // The weakening boundary is a recorded coordinate — one
-                    // statement past the loan's recorded last use — never the
-                    // position this traversal happened to filter at. In the
-                    // ordinary per-statement walk the two coincide (the filter
-                    // fires at `last_use + 1`, and the state-exit pass reaches
-                    // only loans whose boundary is the statement count), but
-                    // stamping the recorded boundary keeps the emitted fact a
-                    // function of the loan row alone, so a replayed derivation
-                    // — `receiver_aliases` re-derives exactly
-                    // `last_use_statement_index + 1` — reaches the same
-                    // evidence under any filtering cadence.
+                    // Record the exact successor source point, which may be
+                    // earlier in the source file after an assembly edge.
+                    // Independent replay uses the same admitted control order.
                     borrow_weakenings.append(FlowBorrowWeakeningFact {
                         source: FlowInvalidationSource::Statement {
-                            statement_index: loan_fact.last_use_statement_index + 1,
+                            statement_index: execution_order
+                                .successor(loan_fact.last_use_statement_index)
+                                .expect("an expired loan has a following execution boundary"),
                         },
                         loan,
                         reason,

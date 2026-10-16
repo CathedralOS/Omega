@@ -31,6 +31,9 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn collect(
     let Some(borrowing) = super::unique_borrow_state(facts, machine, state.symbol)? else {
         return Some(Vec::new());
     };
+    let order = program
+        .statement_table
+        .admitted_execution_order(state.statement_nodes);
     let mut output = Vec::new();
     for operation in operations {
         let (owner, formation) =
@@ -65,7 +68,10 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn collect(
             {
                 if !facts.borrow.loans.is_valid(*supplier)
                     || !facts.borrow.state_owns_loan(borrowing, *supplier)
-                    || facts.borrow.loans.get(*supplier).statement_index >= loan.statement_index
+                    || !order.precedes(
+                        facts.borrow.loans.get(*supplier).statement_index,
+                        loan.statement_index,
+                    )
                 {
                     return None;
                 }
@@ -128,7 +134,7 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn collect(
                     facts.borrow.loans.iter().filter(|(handle, candidate)| {
                         facts.borrow.state_owns_loan(borrowing, *handle)
                             && candidate.storage_owner == facts::PlaceRoot::Symbol(source_owner)
-                            && candidate.statement_index < loan.statement_index
+                            && order.precedes(candidate.statement_index, loan.statement_index)
                             && source_formation
                                 .is_none_or(|formation| candidate.statement_index == formation)
                     })
@@ -144,7 +150,10 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn collect(
                 }
                 // Replacements establish a new occurrence at the same slot.
                 // Every alternative at that latest formation is retained.
-                let Some(formation) = supplying.iter().map(|(_, statement)| *statement).max()
+                let Some(formation) = supplying
+                    .iter()
+                    .map(|(_, statement)| *statement)
+                    .max_by_key(|statement| order.position(*statement))
                 else {
                     // Source borrow admission already owns this carrier. With
                     // no supplying local loan there is no local parent to

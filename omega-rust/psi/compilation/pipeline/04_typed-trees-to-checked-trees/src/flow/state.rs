@@ -209,6 +209,9 @@ pub(super) fn build_state_flow_fact<'plans>(
     let state_case_accesses_start = build.control.case_accesses.len();
     let state_exits_start = build.control.exits.len();
     let state_outgoing_start = build.control.outgoing.len();
+    let execution_order = program
+        .statement_table
+        .admitted_execution_order(state.statement_nodes);
     let state_calls = {
         append_state_statement_flow_facts(
             program,
@@ -222,6 +225,7 @@ pub(super) fn build_state_flow_fact<'plans>(
             &mut active_contexts,
             &mut active_constraints,
             borrow_state,
+            &execution_order,
         )
     };
     active_constraints = filter_expired_borrow_loans(
@@ -233,6 +237,7 @@ pub(super) fn build_state_flow_fact<'plans>(
             .statement_table
             .statements(state.statement_nodes)
             .len(),
+        &execution_order,
         FlowBorrowWeakeningReason::StateExit,
     );
     append_state_exit_facts(

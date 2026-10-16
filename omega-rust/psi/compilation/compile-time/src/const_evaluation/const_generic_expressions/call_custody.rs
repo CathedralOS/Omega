@@ -863,6 +863,7 @@ impl<'program> Collector<'program> {
             for statement in body {
                 let mut expressions = Vec::new();
                 match statement {
+                    StatementNode::Assembly(_) => {}
                     StatementNode::RootBinding(binding) => {
                         expressions.push(binding.receiver);
                         if binding.implementation_operand.is_valid() {

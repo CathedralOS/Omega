@@ -33,6 +33,9 @@ pub enum StaticArgumentSnapshot {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum StatementSnapshot {
+    Assembly {
+        blocks: Vec<AssemblyBlockSnapshot>,
+    },
     RootBinding {
         receiver: ExpressionSnapshot,
         slot: Vec<String>,
@@ -83,6 +86,16 @@ pub enum StatementSnapshot {
         #[serde(skip_serializing_if = "Option::is_none")]
         crash_cause: Option<&'static str>,
     },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct AssemblyBlockSnapshot {
+    pub label: String,
+    pub requires: Vec<ExpressionSnapshot>,
+    pub ensures: Vec<ExpressionSnapshot>,
+    pub instructions: Vec<StatementSnapshot>,
+    pub jump: Option<String>,
+    pub enclosing_transition: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -225,6 +238,48 @@ pub(crate) fn statement_snapshot(
     statement: &Statement,
 ) -> StatementSnapshot {
     match statement {
+        Statement::Assembly(handle) => {
+            let declarations = &program.tables.declarations;
+            let graph = declarations.assembly_graphs.get(*handle);
+            StatementSnapshot::Assembly {
+                blocks: declarations
+                    .assembly_blocks
+                    .span_or_empty(graph.blocks)
+                    .iter()
+                    .map(|block| AssemblyBlockSnapshot {
+                        label: block.label.to_string(),
+                        requires: declarations
+                            .assembly_expressions
+                            .span_or_empty(block.requires)
+                            .iter()
+                            .map(|expression| statement_expression_snapshot(program, *expression))
+                            .collect(),
+                        ensures: declarations
+                            .assembly_expressions
+                            .span_or_empty(block.ensures)
+                            .iter()
+                            .map(|expression| statement_expression_snapshot(program, *expression))
+                            .collect(),
+                        instructions: declarations
+                            .state_statements
+                            .span_or_empty(block.instructions)
+                            .iter()
+                            .map(|statement| statement_snapshot(program, statement))
+                            .collect(),
+                        jump: match block.exit {
+                            crate::statement::AssemblyExit::Jump(target) => {
+                                Some(declarations.assembly_blocks.get(target).label.to_string())
+                            }
+                            _ => None,
+                        },
+                        enclosing_transition: matches!(
+                            block.exit,
+                            crate::statement::AssemblyExit::EnclosingTransition
+                        ),
+                    })
+                    .collect(),
+            }
+        }
         Statement::RootBinding(binding) => StatementSnapshot::RootBinding {
             receiver: statement_expression_snapshot(program, binding.receiver),
             slot: to_strings(binding.slot.iter()),

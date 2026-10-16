@@ -117,6 +117,12 @@ pass/arrays/record_array_literal checked 18455ms @6c49683ce714
 pass/arrays/runtime_computed_float_element_store_exit built 33700ms exit:70 @6c49683ce714
 pass/arrays/runtime_index_recast checked 20708ms @6c49683ce714
 pass/arrays/subject_field_where_index checked 17635ms @6c49683ce714
+pass/asm/checked_label_borrow_last_use_exit built 6789ms exit:0 @9f1c8cc89b93+wt
+pass/asm/checked_label_call_result_exit built 6778ms exit:0 @9f1c8cc89b93+wt
+pass/asm/checked_label_edges_exit built 7125ms exit:0 @9f1c8cc89b93+wt
+pass/asm/checked_label_reverse_local_exit built 7131ms exit:0 @9f1c8cc89b93+wt
+pass/asm/checked_label_specialization_exit built 7498ms exit:0 @9f1c8cc89b93+wt
+pass/asm/checked_label_transition_exit built 7324ms exit:0 @9f1c8cc89b93+wt
 pass/atomics/atomic_global_order_operations checked 3600ms @6c49683ce714
 pass/atomics/atomic_order_surface checked 18279ms @6c49683ce714
 pass/atomics/runtime_atomic_after_quoted_write_exit built 33485ms exit:70 @326ed531359e+wt
@@ -1888,29 +1894,29 @@ pass/host/runtime_gui_window_lifecycle_exit built 11364ms @6050c1c112ee+wt
 pass/host/runtime_stored_scalar_reference_foreign_export_exit built 17682ms exit:0 stdout:match @6c49683ce714
 pass/host/runtime_windows_gui_argument_failures_exit built 5898ms @6050c1c112ee+wt
 pass/host/std_clock_sleep_exit built 15533ms exit:70 @6c49683ce714
-pass/inline_asm/asm_aarch64_system_registers_compile built 6959ms @4f0f34f3cbb6+wt
-pass/inline_asm/asm_block_jmp_state built 6957ms @4f0f34f3cbb6+wt
-pass/inline_asm/asm_exact_clobbers checked 7510ms @4f0f34f3cbb6+wt
-pass/inline_asm/asm_machine_control_wrapper_reach checked 7500ms @4f0f34f3cbb6+wt
-pass/inline_asm/asm_memory_transfer checked 7066ms @4f0f34f3cbb6+wt
-pass/inline_asm/asm_memory_transfer_compile built 7049ms @4f0f34f3cbb6+wt
-pass/inline_asm/asm_msr_multi checked 6582ms @4f0f34f3cbb6+wt
-pass/inline_asm/asm_port_contract checked 6570ms @4f0f34f3cbb6+wt
-pass/inline_asm/asm_port_immediate checked 6529ms @4f0f34f3cbb6+wt
-pass/inline_asm/asm_port_out_final_validation built 6497ms @4f0f34f3cbb6+wt
-pass/inline_asm/asm_reach_inherit checked 6262ms @4f0f34f3cbb6+wt
-pass/inline_asm/asm_reach_wrapper checked 6249ms @4f0f34f3cbb6+wt
-pass/inline_asm/asm_runtime_port_msr_final_validation built 6356ms @4f0f34f3cbb6+wt
-pass/inline_asm/asm_runtime_register_scalar_variants_compile built 6361ms @4f0f34f3cbb6+wt
-pass/inline_asm/asm_selected_port_write_compositions_compile built 7258ms @4f0f34f3cbb6+wt
-pass/inline_asm/asm_state_jmp checked 7288ms @4f0f34f3cbb6+wt
-pass/inline_asm/asm_sysreg_rw checked 7091ms @4f0f34f3cbb6+wt
-pass/inline_asm/asm_sysregs checked 7084ms @4f0f34f3cbb6+wt
-pass/inline_asm/asm_system_register_scalar_variants_compile built 7027ms @4f0f34f3cbb6+wt
-pass/inline_asm/asm_typed_places checked 6923ms @4f0f34f3cbb6+wt
-pass/inline_asm/asm_where_contract checked 7641ms @4f0f34f3cbb6+wt
-pass/inline_asm/asm_where_exact_clobbers_compile checked 7588ms @4f0f34f3cbb6+wt
-pass/inline_asm/port_write_terminal_sequences checked 30615ms terminal-inspections:match @4f0f34f3cbb6+wt
+pass/inline_asm/asm_aarch64_system_registers_compile built 10327ms @9f1c8cc89b93+wt
+pass/inline_asm/asm_block_jmp_state built 12031ms @9f1c8cc89b93+wt
+pass/inline_asm/asm_exact_clobbers checked 12703ms @9f1c8cc89b93+wt
+pass/inline_asm/asm_machine_control_wrapper_reach checked 12380ms @9f1c8cc89b93+wt
+pass/inline_asm/asm_memory_transfer checked 9841ms @9f1c8cc89b93+wt
+pass/inline_asm/asm_memory_transfer_compile built 9579ms @9f1c8cc89b93+wt
+pass/inline_asm/asm_msr_multi checked 9037ms @9f1c8cc89b93+wt
+pass/inline_asm/asm_port_contract checked 9036ms @9f1c8cc89b93+wt
+pass/inline_asm/asm_port_immediate checked 9201ms @9f1c8cc89b93+wt
+pass/inline_asm/asm_port_out_final_validation built 9000ms @9f1c8cc89b93+wt
+pass/inline_asm/asm_reach_inherit checked 9618ms @9f1c8cc89b93+wt
+pass/inline_asm/asm_reach_wrapper checked 10869ms @9f1c8cc89b93+wt
+pass/inline_asm/asm_runtime_port_msr_final_validation built 9985ms @9f1c8cc89b93+wt
+pass/inline_asm/asm_runtime_register_scalar_variants_compile built 9896ms @9f1c8cc89b93+wt
+pass/inline_asm/asm_selected_port_write_compositions_compile built 9793ms @9f1c8cc89b93+wt
+pass/inline_asm/asm_state_jmp checked 10219ms @9f1c8cc89b93+wt
+pass/inline_asm/asm_sysreg_rw checked 12945ms @9f1c8cc89b93+wt
+pass/inline_asm/asm_sysregs checked 11317ms @9f1c8cc89b93+wt
+pass/inline_asm/asm_system_register_scalar_variants_compile built 9967ms @9f1c8cc89b93+wt
+pass/inline_asm/asm_typed_places checked 9756ms @9f1c8cc89b93+wt
+pass/inline_asm/asm_where_contract checked 9813ms @9f1c8cc89b93+wt
+pass/inline_asm/asm_where_exact_clobbers_compile checked 9648ms @9f1c8cc89b93+wt
+pass/inline_asm/port_write_terminal_sequences checked 36458ms terminal-inspections:match @9f1c8cc89b93+wt
 pass/layouts/access_plan_inaccessible_seed checked 4203ms @6c49683ce714
 pass/layouts/alternating_member_padding_layout_compile checked 3675ms @6c49683ce714
 pass/layouts/array_align_queries_compile checked 3614ms @6c49683ce714

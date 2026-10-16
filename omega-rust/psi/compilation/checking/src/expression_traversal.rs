@@ -358,6 +358,7 @@ pub fn collect_statement_expression_trees(
     handles: &mut Vec<ExpressionHandle>,
 ) {
     match statement {
+        typed_trees::statement::StatementNode::Assembly(_) => {}
         typed_trees::statement::StatementNode::RootBinding(binding) => {
             if binding.implementation_operand.is_valid() {
                 collect_expression_tree(program, binding.implementation_operand, handles);

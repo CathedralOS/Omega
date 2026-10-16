@@ -29,6 +29,7 @@ pub(crate) enum AuthoredSelectionStatementStore {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Statement {
+    Assembly(Handle<AssemblyControlFlow>),
     RootBinding(RootBinding),
     AssemblyFact(AssemblyFact),
     Assignment(Assignment),
@@ -37,6 +38,32 @@ pub enum Statement {
     Expression(crate::expression::ExpressionHandle),
     LocalData(LocalData),
     Transition(Transition),
+}
+
+/// One source assembly scope, retained until typed elaboration can close its
+/// captured value frontier. Local edges bind block handles, never names.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct AssemblyControlFlow {
+    pub blocks: HandleSpan<AssemblyBlock>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct AssemblyBlock {
+    pub label: DiagnosticName,
+    pub requires: HandleSpan<crate::expression::ExpressionHandle>,
+    pub ensures: HandleSpan<crate::expression::ExpressionHandle>,
+    pub instructions: HandleSpan<Statement>,
+    /// Normalized together with the enclosing state's ordinary statements.
+    pub statement_nodes: HandleSpan<StatementNode>,
+    pub exit: AssemblyExit,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub enum AssemblyExit {
+    #[default]
+    Fallthrough,
+    Jump(Handle<AssemblyBlock>),
+    EnclosingTransition,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -421,6 +448,7 @@ impl StatementTable {
         copy_expression_handles: bool,
     ) -> StatementHandle {
         match statement {
+            Statement::Assembly(handle) => self.insert(StatementNode::Assembly(*handle)),
             Statement::RootBinding(binding) => {
                 let receiver = expression_handle_from_tree(
                     source_expressions,
@@ -709,6 +737,7 @@ impl Default for StatementTable {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum StatementNode {
+    Assembly(Handle<AssemblyControlFlow>),
     RootBinding(RootBinding),
     AssemblyFact(TableAssemblyFact),
     Assignment(TableAssignment),

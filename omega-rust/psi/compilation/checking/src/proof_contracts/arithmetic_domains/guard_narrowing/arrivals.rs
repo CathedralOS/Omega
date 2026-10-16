@@ -1324,7 +1324,7 @@ impl ArrivalWalk<'_, '_> {
                     self.expression(source, binding.receiver, environment);
                     self.expression(source, binding.implementation_operand, environment);
                 }
-                StatementNode::AssemblyFact(_) => {}
+                StatementNode::Assembly(_) | StatementNode::AssemblyFact(_) => {}
             }
         }
         true

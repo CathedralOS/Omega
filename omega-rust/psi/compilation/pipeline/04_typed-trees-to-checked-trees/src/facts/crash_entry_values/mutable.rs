@@ -282,6 +282,7 @@ fn statement_may_overwrite(
     read_path: &[PlaceSegment],
 ) -> bool {
     match statement {
+        StatementNode::Assembly(_) => false,
         StatementNode::Assignment(assignment) => {
             place_interferes(
                 program,

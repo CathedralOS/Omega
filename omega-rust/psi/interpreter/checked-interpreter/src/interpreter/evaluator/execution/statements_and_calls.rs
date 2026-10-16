@@ -14,6 +14,7 @@ impl<'program> Evaluator<'program> {
     ) -> EvalResult<()> {
         self.tick()?;
         match statement {
+            StatementNode::Assembly(_) => Ok(()),
             // Assembly facts are compile-time assertions and have no runtime
             // evaluation in either interpreter or native execution.
             StatementNode::AssemblyFact(_) => Ok(()),

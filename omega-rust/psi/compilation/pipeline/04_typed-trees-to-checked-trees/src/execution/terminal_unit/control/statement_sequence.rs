@@ -90,7 +90,9 @@ fn statement_phase(statement: &StatementNode) -> &'static str {
         StatementNode::Call(_) => "statement sequence: call",
         StatementNode::Expression(_) => "statement sequence: expression",
         StatementNode::RootBinding(_) => "statement sequence: root binding",
-        StatementNode::AssemblyFact(_) => "statement sequence: assembly fact",
+        StatementNode::Assembly(_) | StatementNode::AssemblyFact(_) => {
+            "statement sequence: assembly fact"
+        }
         StatementNode::Transition(_) => "statement sequence: transition",
     }
 }
@@ -211,16 +213,28 @@ pub(in crate::execution::terminal_unit) fn build(
                             state.symbol, ordinal, *expression,
                         ).is_some())))
     };
-    let walk_end = statements
+    let execution_order = program
+        .statement_table
+        .admitted_execution_order(state.statement_nodes);
+    let end_position = execution_order.position(statement_end)?;
+    let construction_position = execution_order.position(construction_statement_count)?;
+    let ordered = &execution_order.indices()[..end_position];
+    let walk_position = ordered
         .iter()
         .enumerate()
-        .take(statement_end)
-        .skip(construction_statement_count)
-        .find(|(index, statement)| !sequenced(*index, statement))
-        .map_or(statement_end, |(index, _)| index);
-    let rest = &statements[walk_end.min(statement_end)..statement_end];
-    let completion_owns_rest = walk_end >= terminator_start
-        || (walk_end + 1 == statements.len() && matches!(rest, [StatementNode::Expression(_)]))
+        .skip(construction_position)
+        .find(|(_, index)| !sequenced(**index, &statements[**index]))
+        .map_or(end_position, |(position, _)| position);
+    let walk_end = ordered.get(walk_position).copied().unwrap_or(statement_end);
+    let rest: Vec<_> = ordered[walk_position..]
+        .iter()
+        .map(|index| &statements[*index])
+        .collect();
+    let completion_owns_rest = execution_order
+        .position(terminator_start)
+        .is_some_and(|position| walk_position >= position)
+        || (walk_position + 1 == execution_order.indices().len()
+            && matches!(rest.as_slice(), [StatementNode::Expression(_)]))
         || rest
             .iter()
             .skip_while(|statement| is_arm_destructure_marker(statement))
@@ -323,12 +337,11 @@ pub(in crate::execution::terminal_unit) fn build(
     // A composed state ends its sequence where its terminator begins: a
     // transition into a fused sibling is a successor edge the state graph
     // plans, not a terminal call, so the caller bounds the walk.
-    for (index, statement) in statements
+    for index in ordered[construction_position..walk_position]
         .iter()
-        .enumerate()
-        .take(walk_end)
-        .skip(construction_statement_count)
+        .copied()
     {
+        let statement = &statements[index];
         let statement_index = u32::try_from(index).ok()?;
         trace.phase(statement_phase(statement));
         trace.statement(Some(statement_index));
@@ -343,6 +356,14 @@ pub(in crate::execution::terminal_unit) fn build(
             &structural_results,
             &mut operations,
         )?;
+        // Control points and proved assertions carry no runtime value or
+        // effect. They preserve the current operation/claim construction.
+        if matches!(
+            statement,
+            StatementNode::Assembly(_) | StatementNode::AssemblyFact(_)
+        ) {
+            continue;
+        }
         // A fact-only citation emits no runtime call or work; its flow row
         // is retired (`execution::citation_erasure`), so it plans nothing.
         if validation::is_fact_only_citation(program, statement) {

@@ -94,6 +94,7 @@ pub(crate) fn validate_struct_literal_fields(
                 .indexed_statements(state.statement_nodes)
             {
                 match statement {
+                    StatementNode::Assembly(_) => {}
                     StatementNode::RootBinding(binding) => {
                         for expression in [binding.receiver, binding.implementation_operand] {
                             if expression.is_valid() {

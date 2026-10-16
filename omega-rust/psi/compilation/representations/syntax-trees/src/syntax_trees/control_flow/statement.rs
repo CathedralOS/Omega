@@ -1,3 +1,5 @@
+use super::assembly::AssemblyTable;
+pub use super::assembly::{AssemblyBlock, AssemblyControlFlow, AssemblyExit};
 use crate::identifier::Identifier;
 use arena::{Handle, HandleSpan, PagedArenaSet as Arena};
 use source::SourceSpan;
@@ -21,6 +23,7 @@ pub type TransitionTargetHandle = Handle<TransitionTargetNode>;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StatementTable {
+    assembly: AssemblyTable,
     statements: Arena<StatementNode>,
     expression_handles: Arena<crate::expression::ExpressionHandle>,
     identifier_path_members: Arena<Identifier>,
@@ -35,6 +38,7 @@ impl StatementTable {
 
     pub fn new_with_generation(generation: u32) -> Self {
         Self {
+            assembly: AssemblyTable::new(generation),
             statements: Arena::with_generation(generation),
             expression_handles: Arena::with_generation(generation),
             identifier_path_members: Arena::with_generation(generation),
@@ -44,6 +48,7 @@ impl StatementTable {
     }
 
     pub(crate) fn adopt(&mut self, other: Self) {
+        self.assembly.adopt(other.assembly);
         self.statements.adopt(other.statements);
         self.expression_handles.adopt(other.expression_handles);
         self.identifier_path_members
@@ -54,6 +59,7 @@ impl StatementTable {
     }
 
     pub(crate) fn begin_page(&mut self, generation: u32) {
+        self.assembly.begin_page(generation);
         self.statements.begin_page(generation);
         self.expression_handles.begin_page(generation);
         self.identifier_path_members.begin_page(generation);
@@ -63,6 +69,50 @@ impl StatementTable {
 
     pub fn insert(&mut self, statement: StatementNode) -> StatementHandle {
         self.statements.append(statement)
+    }
+
+    pub fn insert_assembly(&mut self, graph: AssemblyControlFlow) -> Handle<AssemblyControlFlow> {
+        self.assembly.insert_graph(graph)
+    }
+
+    pub fn assembly(&self, handle: Handle<AssemblyControlFlow>) -> &AssemblyControlFlow {
+        self.assembly.graph(handle)
+    }
+
+    pub fn insert_assembly_blocks(
+        &mut self,
+        blocks: impl IntoIterator<Item = AssemblyBlock>,
+    ) -> HandleSpan<AssemblyBlock> {
+        self.assembly.insert_blocks(blocks)
+    }
+
+    pub fn assembly_blocks(&self, span: HandleSpan<AssemblyBlock>) -> &[AssemblyBlock] {
+        self.assembly.blocks(span)
+    }
+
+    pub fn insert_assembly_instructions(
+        &mut self,
+        instructions: impl IntoIterator<Item = StatementHandle>,
+    ) -> HandleSpan<StatementHandle> {
+        self.assembly.insert_instructions(instructions)
+    }
+
+    pub fn assembly_instructions(&self, span: HandleSpan<StatementHandle>) -> &[StatementHandle] {
+        self.assembly.instructions(span)
+    }
+
+    pub fn insert_assembly_expressions(
+        &mut self,
+        expressions: impl IntoIterator<Item = crate::expression::ExpressionHandle>,
+    ) -> HandleSpan<crate::expression::ExpressionHandle> {
+        self.assembly.insert_expressions(expressions)
+    }
+
+    pub fn assembly_expressions(
+        &self,
+        span: HandleSpan<crate::expression::ExpressionHandle>,
+    ) -> &[crate::expression::ExpressionHandle] {
+        self.assembly.expressions(span)
     }
 
     pub fn append_expression_handle(
@@ -147,6 +197,7 @@ impl Default for StatementTable {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum StatementNode {
+    Assembly(Handle<AssemblyControlFlow>),
     RootBinding(RootBinding),
     AssemblyFact(TableAssemblyFact),
     Assignment(TableAssignment),

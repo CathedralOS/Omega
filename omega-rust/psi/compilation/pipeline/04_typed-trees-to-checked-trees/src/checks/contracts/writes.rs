@@ -395,7 +395,7 @@ fn statement_root_expressions(
             .into_iter()
             .filter(|expression| expression.is_valid())
             .collect(),
-        StatementNode::AssemblyFact(_) => Vec::new(),
+        StatementNode::Assembly(_) | StatementNode::AssemblyFact(_) => Vec::new(),
         StatementNode::Assignment(assignment) => vec![assignment.target, assignment.value],
         StatementNode::Call(call) => program
             .statement_table

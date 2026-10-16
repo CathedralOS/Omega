@@ -183,10 +183,12 @@ helper that passes does not close an item.
   [assembly](wiki/spec/language/assembly.md#blocks-and-assertions): explicit
   labels are basic blocks, each label may carry ordinary `requires`/`ensures`,
   and every forward edge and backedge is proved against exact modeled register,
-  flag, memory, place, authority and ownership state. The current parser
-  desugars a flat block into independent ordinary statements and rejects hidden
-  labels/loops; replace that bounded shape rather than adding a second opaque
-  asm parser or verifier.
+  flag, memory, place, authority and ownership state. Finite acyclic local
+  label paths retain one lexical storage frame and prove place/value contracts
+  through shared flow and Terminal/native execution. Register/flag versions,
+  conditional and cyclic edges with ordinary loop obligations, and checked
+  hardware-effect retirement of the exact linear obligation remain unfinished.
+  Extend that control model rather than adding an opaque asm parser or verifier.
 
   Own the source grammar and catalogs in
   `01_tokens-to-syntax-trees/src/bodies/statements/inline_assembly.rs` and

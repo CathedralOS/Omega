@@ -1,0 +1,20 @@
+// Expected exit: 0. Call-result temporaries follow assembly edges, including
+// an unreachable call and a mutable referent shared with the enclosing state.
+data Main { output: u64; }
+machine identity(value: u64) -> u64 { value }
+machine forbidden() -> u64 crashes Trap { crash Trap; }
+machine Main::main(main: &mut Main) crashes Trap {
+    let mut local: u64 = 0;
+    asm {
+    entry:
+        jmp selected;
+    skipped:
+        mov local, forbidden();
+    selected:
+        mov local, identity(17);
+        mov main.output, local
+    }
+    transition main.output == 17 { true -> good() _ -> bad() }
+    state good() {}
+    state bad() { crash Trap; }
+}

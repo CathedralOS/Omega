@@ -4,15 +4,16 @@ use diagnostics::Diagnostic;
 use typed_trees::statement::{AssemblyFactKind, StatementNode};
 use validation::{CanonicalPlace, canonical_place_from_expression_in_state};
 
-use super::prover::semantic_contexts_prove_boolean_expression;
+use super::prover::{
+    live_contexts_prove_boolean_expression, semantic_contexts_prove_boolean_expression,
+};
 use crate::flow::canonical_place_segments_may_overlap;
 use crate::labels::machine_name;
 
-/// Discharge each first-class `asm where requires`/`ensures` assertion at its
-/// exact statement point. The parser places requires nodes before the lowered
-/// instructions and ensures nodes after them, so the ordinary invalidation-
-/// adjusted flow contexts supply the block entry and exit environments. These
-/// assertions consume facts only; they never add a fact to the context.
+/// Discharge each assembly assertion against ordinary invalidation-adjusted
+/// flow contexts. Entry assertions precede instruction evaluation. Exit
+/// assertions follow the instructions, including argument evaluation on an
+/// enclosing machine edge. Assertions consume facts; they never add premises.
 pub(super) fn check_assembly_fact_contracts(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
@@ -42,15 +43,10 @@ fn check_state_assembly_facts(
         let Some(fact) = statement.as_assembly_fact() else {
             continue;
         };
-        let entry_constraints = facts
-            .flow
-            .state_statement(state_flow, statement_index)
-            .map(|statement| statement.entry_constraints)
-            .unwrap_or(state_flow.entry_constraints);
-        let entry_contexts = facts
-            .flow
-            .semantic_constraint_contexts(entry_constraints)
-            .collect::<Vec<_>>();
+        let Some(statement_flow) = facts.flow.state_statement(state_flow, statement_index) else {
+            // A label without an incoming executable path owes no edge proof.
+            continue;
+        };
         let invalidated_inside_block = fact.kind == AssemblyFactKind::Ensures
             && asm_block_writes_fact_place(
                 program,
@@ -59,13 +55,46 @@ fn check_state_assembly_facts(
                 statement_index,
                 fact.expression,
             );
-        if !invalidated_inside_block
-            && semantic_contexts_prove_boolean_expression(
-                program,
-                &facts.semantic,
-                &entry_contexts,
-                fact.expression,
-            )
+        // A machine jump evaluates its arguments before taking the edge.
+        // Its label exit observes the resulting outgoing frontier, rather
+        // than the assertion node's earlier position in the lexical window.
+        let transfer = (fact.kind == AssemblyFactKind::Ensures)
+            .then(|| enclosing_transfer_for_fact(program, statements, statement_index))
+            .flatten();
+        let observations: Vec<_> = if let Some(transfer) = transfer {
+            facts
+                .flow
+                .control
+                .outgoing
+                .span_or_empty(state_flow.outgoing)
+                .iter()
+                .filter(|edge| edge.statement_index == transfer)
+                .map(|edge| (transfer, edge.constraints))
+                .collect()
+        } else {
+            vec![(statement_index, statement_flow.entry_constraints)]
+        };
+        if !observations.is_empty()
+            && observations.iter().all(|(observation, constraints)| {
+                let contexts = facts
+                    .flow
+                    .semantic_constraint_contexts(*constraints)
+                    .collect::<Vec<_>>();
+                live_contexts_prove_boolean_expression(
+                    program,
+                    facts,
+                    state,
+                    *observation,
+                    &contexts,
+                    fact.expression,
+                ) || (!invalidated_inside_block
+                    && semantic_contexts_prove_boolean_expression(
+                        program,
+                        &facts.semantic,
+                        &contexts,
+                        fact.expression,
+                    ))
+            })
         {
             continue;
         }
@@ -81,6 +110,37 @@ fn check_state_assembly_facts(
             program.expression_table.display_name(fact.expression),
         )));
     }
+}
+
+/// The enclosing machine transfer is retained as the label's final ordinary
+/// instruction. Local assembly jumps have no argument evaluation of their own.
+fn enclosing_transfer_for_fact(
+    program: &dyn ::validation::CheckingInput,
+    statements: &[StatementNode],
+    fact: usize,
+) -> Option<usize> {
+    use typed_trees::statement::{AssemblyControlPoint, AssemblyExit};
+    let (entry, graph) =
+        statements[..fact]
+            .iter()
+            .enumerate()
+            .rev()
+            .find_map(|(index, statement)| {
+                let StatementNode::Assembly(AssemblyControlPoint::Entry(graph)) = statement else {
+                    return None;
+                };
+                Some((index, program.statement_table.assembly(*graph)))
+            })?;
+    let offset = fact.checked_sub(entry + 1)?;
+    let block = program
+        .statement_table
+        .assembly_blocks(graph.blocks)
+        .iter()
+        .find(|block| {
+            (block.start as usize..block.start as usize + block.count as usize).contains(&offset)
+        })?;
+    matches!(block.exit, AssemblyExit::EnclosingTransition)
+        .then_some(entry + block.start as usize + block.count as usize)
 }
 
 /// The general flow engine invalidates domain-derived facts across assignments,
@@ -107,6 +167,7 @@ fn asm_block_writes_fact_place(
     let mut instruction_start = instruction_end;
     while instruction_start > 0 {
         match &statements[instruction_start - 1] {
+            StatementNode::Assembly(_) => break,
             StatementNode::AssemblyFact(fact) if fact.kind == AssemblyFactKind::Requires => break,
             StatementNode::AssemblyFact(_) => return false,
             _ => instruction_start -= 1,

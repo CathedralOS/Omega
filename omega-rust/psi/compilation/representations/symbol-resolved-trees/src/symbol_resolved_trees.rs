@@ -199,6 +199,9 @@ pub struct SymbolResolvedDeclarationStorage {
     pub state_parameters: Arena<signature::StateParameter>,
     pub statement_path_members: Arena<crate::name::DiagnosticName>,
     pub state_statements: Arena<statement::Statement>,
+    pub assembly_graphs: Arena<statement::AssemblyControlFlow>,
+    pub assembly_blocks: Arena<statement::AssemblyBlock>,
+    pub assembly_expressions: Arena<expression::ExpressionHandle>,
     pub child_type_references: Arena<types::TypeReference>,
     pub wire_members: Arena<wire::WireMember>,
 }

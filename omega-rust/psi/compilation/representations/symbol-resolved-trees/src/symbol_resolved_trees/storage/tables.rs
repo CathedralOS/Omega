@@ -34,6 +34,7 @@ impl SymbolResolvedTreeTables {
             symbol_resolved_trees,
             &crate::SymbolResolvedRoots::default(),
             &[],
+            0,
         );
         tables
     }
@@ -59,6 +60,7 @@ impl SymbolResolvedTreeTables {
             symbol_resolved_trees,
             &predecessor.roots,
             completed_machines,
+            predecessor.tables.declarations.assembly_blocks.len(),
         );
         tables
     }
@@ -71,6 +73,7 @@ impl SymbolResolvedTreeTables {
         symbol_resolved_trees: &mut SymbolResolvedTrees,
         frontier: &crate::SymbolResolvedRoots,
         completed_machines: &[symbols::SymbolHandle],
+        assembly_frontier: usize,
     ) {
         let tables = self;
         let SymbolResolvedTrees {
@@ -93,9 +96,37 @@ impl SymbolResolvedTreeTables {
             state_parameters,
             statement_path_members,
             state_statements,
+            assembly_blocks,
             child_type_references,
             ..
         } = &mut source_tables.declarations;
+
+        // Assembly scopes use the same statement normalization as machine
+        // states. Only appended blocks are new during deferred completion;
+        // retained predecessor views keep their exact node coordinates.
+        let blocks: Vec<_> = assembly_blocks
+            .iter()
+            .skip(assembly_frontier)
+            .map(|(handle, block)| (handle, block.instructions))
+            .collect();
+        for (handle, instructions) in blocks {
+            let mut nodes = HandleSpan::empty();
+            for statement in state_statements.span_or_empty(instructions) {
+                let node = tables.bodies.statements.insert_tree(
+                    statement,
+                    source_expressions,
+                    &mut tables.bodies.expressions,
+                    &mut tables.types.references,
+                    child_type_references,
+                    type_constraints,
+                    source_expressions,
+                    statement_path_members,
+                    false,
+                );
+                nodes.push_contiguous(node);
+            }
+            assembly_blocks.get_mut(handle).statement_nodes = nodes;
+        }
 
         for data_definition in roots
             .data_definitions

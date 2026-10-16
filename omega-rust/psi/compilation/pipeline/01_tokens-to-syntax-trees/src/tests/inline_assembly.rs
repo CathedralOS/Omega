@@ -3,6 +3,33 @@ use source_files_to_tokens::Lexer;
 use syntax_trees::expression::ExpressionNode;
 use syntax_trees::statement::StatementNode;
 
+// Inspect the instruction payload while retaining the new lexical graph
+// boundary. These legacy catalog cases each have one unlabelled block.
+pub(super) fn instruction_statements(
+    parsed: &syntax_trees::SyntaxTrees,
+    statements: &[syntax_trees::statement::StatementHandle],
+) -> Vec<syntax_trees::statement::StatementHandle> {
+    let mut instructions = Vec::new();
+    for handle in statements {
+        match parsed.statements.statement(*handle) {
+            StatementNode::Assembly(graph) => {
+                let blocks = parsed
+                    .statements
+                    .assembly_blocks(parsed.statements.assembly(*graph).blocks);
+                assert_eq!(blocks.len(), 1, "one implicit catalog block");
+                assert!(blocks[0].requires.is_empty() && blocks[0].ensures.is_empty());
+                instructions.extend_from_slice(
+                    parsed
+                        .statements
+                        .assembly_instructions(blocks[0].instructions),
+                );
+            }
+            _ => instructions.push(*handle),
+        }
+    }
+    instructions
+}
+
 #[test]
 fn parses_x86_memory_fences_as_zero_operand_intrinsics() {
     let source = r#"
@@ -16,9 +43,12 @@ fn parses_x86_memory_fences_as_zero_operand_intrinsics() {
     let parsed = super::parse_source(source, "parse should succeed");
     let machine = super::root_machine(&parsed, "machine root item");
     let entry = parsed.items.state_handles(machine.states)[0];
-    let statements = parsed
-        .items
-        .statements(parsed.items.state(entry).statements);
+    let statements = instruction_statements(
+        &parsed,
+        parsed
+            .items
+            .statements(parsed.items.state(entry).statements),
+    );
 
     assert_eq!(statements.len(), 3);
     for (statement, target) in statements
@@ -47,9 +77,12 @@ fn parses_x86_interrupt_control_as_zero_operand_intrinsics() {
     let parsed = super::parse_source(source, "parse should succeed");
     let machine = super::root_machine(&parsed, "machine root item");
     let entry = parsed.items.state_handles(machine.states)[0];
-    let statements = parsed
-        .items
-        .statements(parsed.items.state(entry).statements);
+    let statements = instruction_statements(
+        &parsed,
+        parsed
+            .items
+            .statements(parsed.items.state(entry).statements),
+    );
 
     assert_eq!(statements.len(), 2);
     for (statement, target) in statements.iter().zip(["asm#cli", "asm#sti"]) {
@@ -80,7 +113,7 @@ fn parses_x86_flags_as_explicit_value_operations() {
     let state = parsed
         .items
         .state(parsed.items.state_handles(machine.states)[0]);
-    let statements = parsed.items.statements(state.statements);
+    let statements = instruction_statements(&parsed, parsed.items.statements(state.statements));
     assert_eq!(statements.len(), 2);
 
     let StatementNode::Assignment(snapshot) = parsed.statements.statement(statements[0]) else {
@@ -117,7 +150,7 @@ fn parses_x86_msr_as_structured_value_operations() {
     let state = parsed
         .items
         .state(parsed.items.state_handles(machine.states)[0]);
-    let statements = parsed.items.statements(state.statements);
+    let statements = instruction_statements(&parsed, parsed.items.statements(state.statements));
     assert_eq!(statements.len(), 2);
 
     let StatementNode::Assignment(read) = parsed.statements.statement(statements[0]) else {
@@ -159,7 +192,7 @@ fn parses_x86_control_registers_as_structured_value_operations() {
     let state = parsed
         .items
         .state(parsed.items.state_handles(machine.states)[0]);
-    let statements = parsed.items.statements(state.statements);
+    let statements = instruction_statements(&parsed, parsed.items.statements(state.statements));
     assert_eq!(statements.len(), 7);
 
     for (statement_index, target) in [
@@ -223,10 +256,11 @@ fn parses_multi_instruction_asm_in_states_and_trait_defaults() {
         .map(|handle| parsed.items.state_signature(*handle))
         .expect("default trait signature");
     assert_eq!(
-        parsed
-            .items
-            .statements(default_signature.default_body)
-            .len(),
+        instruction_statements(
+            &parsed,
+            parsed.items.statements(default_signature.default_body)
+        )
+        .len(),
         2,
         "trait default should retain both asm instructions"
     );
@@ -238,10 +272,13 @@ fn parses_multi_instruction_asm_in_states_and_trait_defaults() {
         .copied()
         .expect("explicit state");
     assert_eq!(
-        parsed
-            .items
-            .statements(parsed.items.state(explicit).statements)
-            .len(),
+        instruction_statements(
+            &parsed,
+            parsed
+                .items
+                .statements(parsed.items.state(explicit).statements)
+        )
+        .len(),
         2,
         "explicit state should retain both asm instructions"
     );
@@ -350,10 +387,12 @@ fn parses_register_move_as_an_ordinary_checked_assignment() {
     let parsed = super::parse_source(source, "register moves should parse");
     let machine = super::root_machine(&parsed, "machine root item");
     let entry = parsed.items.state_handles(machine.states)[0];
-    let statements = parsed
-        .items
-        .statements(parsed.items.state(entry).statements)
-        .to_vec();
+    let statements = instruction_statements(
+        &parsed,
+        parsed
+            .items
+            .statements(parsed.items.state(entry).statements),
+    );
 
     assert_eq!(statements.len(), 3, "let + two desugared moves");
     let StatementNode::Assignment(first) = parsed.statements.statement(statements[1]) else {
@@ -395,10 +434,12 @@ fn parses_memory_transfers_as_place_assignments() {
     let parsed = super::parse_source(source, "memory transfers should parse");
     let machine = super::root_machine(&parsed, "machine root item");
     let entry = parsed.items.state_handles(machine.states)[0];
-    let statements = parsed
-        .items
-        .statements(parsed.items.state(entry).statements)
-        .to_vec();
+    let statements = instruction_statements(
+        &parsed,
+        parsed
+            .items
+            .statements(parsed.items.state(entry).statements),
+    );
 
     assert_eq!(statements.len(), 2, "two desugared transfers");
     // `str value, place` writes the value INTO the place: the place is the
@@ -507,21 +548,32 @@ fn parses_asm_where_facts_at_entry_and_exit() {
         .items
         .state(parsed.items.state_handles(machine.states)[0]);
     let statements = parsed.items.statements(state.statements);
-    assert_eq!(statements.len(), 3);
-    assert!(matches!(
-        parsed.statements.statement(statements[0]),
-        StatementNode::AssemblyFact(fact)
-            if fact.kind == syntax_trees::statement::AssemblyFactKind::Requires
-    ));
-    assert!(matches!(
-        parsed.statements.statement(statements[1]),
-        StatementNode::Call(call) if call.target.as_str() == "asm#port_out"
-    ));
-    assert!(matches!(
-        parsed.statements.statement(statements[2]),
-        StatementNode::AssemblyFact(fact)
-            if fact.kind == syntax_trees::statement::AssemblyFactKind::Ensures
-    ));
+    assert_eq!(statements.len(), 1);
+    let StatementNode::Assembly(graph) = parsed.statements.statement(statements[0]) else {
+        panic!("one structured assembly scope");
+    };
+    let blocks = parsed
+        .statements
+        .assembly_blocks(parsed.statements.assembly(*graph).blocks);
+    assert_eq!(blocks.len(), 1);
+    let block = &blocks[0];
+    assert_eq!(block.requires.count(), 1);
+    assert_eq!(block.ensures.count(), 1);
+    for expression in parsed
+        .statements
+        .assembly_expressions(block.requires)
+        .iter()
+        .chain(parsed.statements.assembly_expressions(block.ensures))
+    {
+        assert!(matches!(
+            parsed.expressions.expression(*expression),
+            ExpressionNode::Member(_)
+        ));
+    }
+    let instructions = parsed.statements.assembly_instructions(block.instructions);
+    assert_eq!(instructions.len(), 1);
+    assert!(matches!(parsed.statements.statement(instructions[0]),
+        StatementNode::Call(call) if call.target.as_str() == "asm#port_out"));
 }
 
 #[test]

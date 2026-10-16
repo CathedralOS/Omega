@@ -40,7 +40,9 @@ pub(in crate::flow) fn statement_write(
     let mut candidate_targets: Vec<CanonicalPlace> = Vec::new();
     let mut target_is_exact = true;
     let (target_place, source_expression, source_place) = match statement {
-        StatementNode::RootBinding(_) | StatementNode::AssemblyFact(_) => return None,
+        StatementNode::RootBinding(_)
+        | StatementNode::Assembly(_)
+        | StatementNode::AssemblyFact(_) => return None,
         StatementNode::LocalData(local_data) => (
             semantic.append_symbol_place(local_data.symbol),
             local_data.initial_value,

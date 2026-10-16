@@ -91,7 +91,10 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn releases
     let Some((owner, formation, _)) = receiver(operation) else {
         return Some(Vec::new());
     };
-    if formation >= retirement.statement_index {
+    if !retirement
+        .order
+        .precedes(formation as usize, retirement.statement_index as usize)
+    {
         return Some(Vec::new());
     }
     let (_, local) = retirement
@@ -132,12 +135,17 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn releases
             !retirement.disposed(loan)
                 && retirement.children_retired(loan)
                 && validation::reference_result_custody::release_statement(
+                    retirement.program,
                     retirement.facts,
                     retirement.machine,
                     retirement.state.symbol,
                     loan,
                 )
-                .is_some_and(|boundary| boundary <= retirement.statement_index)
+                .is_some_and(|boundary| {
+                    retirement
+                        .order
+                        .at_or_before(boundary as usize, retirement.statement_index as usize)
+                })
         }) {
             continue;
         }

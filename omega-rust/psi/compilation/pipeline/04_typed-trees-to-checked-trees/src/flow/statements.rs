@@ -36,18 +36,25 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
     active_contexts: &mut arena::HandleSpan<FlowSemanticContextRef>,
     active_constraints: &mut arena::HandleSpan<FlowConstraintRef>,
     borrow_state: &StateBorrowFact,
+    execution_order: &typed_trees::statement::StatementExecutionOrder,
 ) -> arena::HandleSpan<FlowCallFact> {
     let mut state_calls = arena::HandleSpan::empty();
     build.state_statements_start = build.control.statements.len();
     let borrow_calls = borrow.calls.span_or_empty(borrow_state.calls);
     let borrow_loans = borrow.loans.span_or_empty(borrow_state.loans);
-    let mut call_index = 0usize;
-    let mut loan_index = 0usize;
+    let source_count = state.statement_nodes.len();
+    let call_ranges = statement_record_ranges(
+        source_count,
+        borrow_calls.iter().map(|call| call.statement_index),
+    );
+    let loan_ranges = statement_record_ranges(
+        source_count,
+        borrow_loans.iter().map(|loan| loan.statement_index),
+    );
 
-    for (statement_index, statement) in program
-        .statement_table
-        .indexed_statements(state.statement_nodes)
-    {
+    for statement_index in execution_order.indices().iter().copied() {
+        let statement = &program.statement_table.statements(state.statement_nodes)[statement_index];
+        let statement_calls = &borrow_calls[call_ranges[statement_index].clone()];
         let operand_capture_start = build.control.operands.len();
         append_proof_output_ensures(
             proof,
@@ -65,6 +72,7 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
             *active_constraints,
             borrow,
             statement_index,
+            execution_order,
             FlowBorrowWeakeningReason::LastUseExpired,
         );
         let statement_fact = build.control.statements.append(FlowStatementFact {
@@ -119,13 +127,6 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
         let mut fallthrough_contexts = *active_contexts;
         let mut fallthrough_constraints = *active_constraints;
         if let Some(transition) = statement.as_transition() {
-            let start = call_index;
-            while borrow_calls
-                .get(call_index)
-                .is_some_and(|call| call.statement_index == statement_index)
-            {
-                call_index += 1;
-            }
             let writes = super::exits::append_transition_flow_facts(
                 program,
                 borrow,
@@ -137,7 +138,7 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
                 state,
                 statement_index,
                 transition,
-                &borrow_calls[start..call_index],
+                statement_calls,
                 &mut state_calls,
                 active_contexts,
                 active_constraints,
@@ -149,13 +150,6 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
             fallthrough_constraints = *active_constraints;
         }
         if !matches!(statement, StatementNode::Transition(_)) {
-            let start = call_index;
-            while borrow_calls
-                .get(call_index)
-                .is_some_and(|call| call.statement_index == statement_index)
-            {
-                call_index += 1;
-            }
             let evaluated = super::expression::append_statement_calls(
                 program,
                 borrow,
@@ -167,7 +161,7 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
                 state,
                 statement_index,
                 statement,
-                &borrow_calls[start..call_index],
+                statement_calls,
                 &mut state_calls,
                 active_contexts,
                 active_constraints,
@@ -201,19 +195,9 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
             build.call_frames,
         );
 
-        while let Some(loan) = borrow_loans.get(loan_index) {
-            if loan.statement_index != statement_index {
-                break;
-            }
-            loan_index += 1;
-            let loan_handle = Handle::from_parts(
-                borrow_state
-                    .loans
-                    .start()
-                    .arena_index()
-                    .saturating_add((loan_index - 1) as u32),
-                borrow_state.loans.start().generation(),
-            );
+        for loan_index in loan_ranges[statement_index].clone() {
+            let loan = &borrow_loans[loan_index];
+            let loan_handle = borrow_state.loans.handle_at(loan_index as u32);
 
             let formation_value = {
                 let mut captures = build
@@ -653,4 +637,29 @@ fn unknown_alias_footprints(
         }
     }
     footprints
+}
+
+/// Records stay in their producer's execution order. Their stable source
+/// coordinates select contiguous per-statement cohorts without sorting or
+/// changing the arena identities retained by loans and calls.
+fn statement_record_ranges(
+    source_count: usize,
+    statements: impl Iterator<Item = usize>,
+) -> Vec<std::ops::Range<usize>> {
+    let mut ranges = vec![0..0; source_count + 1];
+    for (ordinal, statement) in statements.enumerate() {
+        let range = ranges
+            .get_mut(statement)
+            .expect("borrow record names its source frame or exit");
+        if range.is_empty() {
+            *range = ordinal..ordinal + 1;
+        } else {
+            assert_eq!(
+                range.end, ordinal,
+                "one statement owns one contiguous borrow cohort"
+            );
+            range.end += 1;
+        }
+    }
+    ranges
 }

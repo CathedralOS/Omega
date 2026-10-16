@@ -116,6 +116,7 @@ pub(super) fn statement_steps_at_evaluation(
         route: Vec::new(),
     };
     match statement {
+        StatementNode::Assembly(_) => {}
         StatementNode::LocalData(local) => order.expression(local.initial_value, false),
         StatementNode::Expression(expression) => order.expression(*expression, false),
         StatementNode::Assignment(assignment) => {

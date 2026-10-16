@@ -175,6 +175,27 @@ pub(in crate::preparation::generic_data) fn collect_statement_expression_handles
 ) {
     use syntax_trees::statement::{TransitionGuardNode, TransitionTargetNode};
     match syntax.tables.statements.statement(statement) {
+        StatementNode::Assembly(handle) => {
+            let graph = syntax.tables.statements.assembly(*handle);
+            for block in syntax.tables.statements.assembly_blocks(graph.blocks) {
+                for expression in syntax
+                    .tables
+                    .statements
+                    .assembly_expressions(block.requires)
+                    .iter()
+                    .chain(syntax.tables.statements.assembly_expressions(block.ensures))
+                {
+                    collect_expression_handles(syntax, *expression, handles);
+                }
+                for instruction in syntax
+                    .tables
+                    .statements
+                    .assembly_instructions(block.instructions)
+                {
+                    collect_statement_expression_handles(syntax, *instruction, handles);
+                }
+            }
+        }
         StatementNode::RootBinding(binding) => {
             collect_expression_handles(syntax, binding.receiver, handles);
             if binding.implementation_operand.is_valid() {

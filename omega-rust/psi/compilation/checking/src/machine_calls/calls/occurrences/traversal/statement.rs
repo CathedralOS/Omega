@@ -20,7 +20,7 @@ pub(crate) fn find_call_site_in_statement<'program>(
             }
             None
         }
-        StatementNode::AssemblyFact(_) => None,
+        StatementNode::Assembly(_) | StatementNode::AssemblyFact(_) => None,
         StatementNode::Assignment(assignment) => {
             // The authored target operand precedes the value. A call-valued
             // index (e.g. `self.cells[pick()]`) takes the earlier call ordinal

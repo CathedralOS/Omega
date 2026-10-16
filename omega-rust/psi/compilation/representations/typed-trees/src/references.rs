@@ -1485,6 +1485,7 @@ fn visit_statement(
         visit_expression(program, retained, expression);
     }
     match statement {
+        StatementNode::Assembly(_) => {} // Its instruction window is visited in source order.
         StatementNode::Call(call) => {
             if let Some(occurrence) = call.authored_call_selection {
                 visit_authored_selection(program, retained, occurrence);

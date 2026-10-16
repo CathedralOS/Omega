@@ -366,6 +366,7 @@ fn value_borrow_loans(
     loan_trackers: &[StateLoanTracker],
 ) -> Vec<StatementBorrowLoan> {
     match statement {
+        StatementNode::Assembly(_) => Vec::new(),
         StatementNode::Assignment(assignment) => assignment_borrow_loans(
             program,
             state,

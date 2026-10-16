@@ -335,7 +335,7 @@ pub(super) fn project_component(
                         continue;
                     }
                     match statement {
-                        StatementNode::AssemblyFact(_) => continue,
+                        StatementNode::Assembly(_) | StatementNode::AssemblyFact(_) => continue,
                         StatementNode::RootBinding(binding)
                             if [binding.receiver, binding.implementation_operand]
                                 .into_iter()

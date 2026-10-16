@@ -59,7 +59,9 @@ pub(super) fn final_holds_in_statement(
         | StatementNode::Expression(_)
         | StatementNode::Call(_)
         | StatementNode::Transition(_) => None,
-        StatementNode::RootBinding(_) | StatementNode::AssemblyFact(_) => return Vec::new(),
+        StatementNode::RootBinding(_)
+        | StatementNode::Assembly(_)
+        | StatementNode::AssemblyFact(_) => return Vec::new(),
     };
     facts
         .flow

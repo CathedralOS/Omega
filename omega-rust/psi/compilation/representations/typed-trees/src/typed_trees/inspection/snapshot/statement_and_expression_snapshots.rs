@@ -33,6 +33,13 @@ pub enum StaticArgumentSnapshot {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum StatementSnapshot {
+    Assembly {
+        statement_count: u32,
+        blocks: Vec<AssemblyBlockSnapshot>,
+    },
+    AssemblyLabel {
+        label: String,
+    },
     RootBinding {
         receiver: ExpressionSnapshot,
         slot: Vec<String>,
@@ -81,6 +88,15 @@ pub enum StatementSnapshot {
         #[serde(skip_serializing_if = "Option::is_none")]
         crash_cause: Option<&'static str>,
     },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct AssemblyBlockSnapshot {
+    pub label: String,
+    pub start: u32,
+    pub count: u32,
+    pub jump: Option<usize>,
+    pub enclosing_transition: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -236,6 +252,41 @@ pub(crate) fn statement_snapshot(
     statement: &StatementNode,
 ) -> StatementSnapshot {
     match statement {
+        StatementNode::Assembly(crate::statement::AssemblyControlPoint::Label(handle)) => {
+            StatementSnapshot::AssemblyLabel {
+                label: program
+                    .statement_table
+                    .assembly_block(*handle)
+                    .label
+                    .to_string(),
+            }
+        }
+        StatementNode::Assembly(crate::statement::AssemblyControlPoint::Entry(handle)) => {
+            let graph = program.statement_table.assembly(*handle);
+            StatementSnapshot::Assembly {
+                statement_count: graph.statement_count,
+                blocks: program
+                    .statement_table
+                    .assembly_blocks(graph.blocks)
+                    .iter()
+                    .map(|block| AssemblyBlockSnapshot {
+                        label: block.label.to_string(),
+                        start: block.start,
+                        count: block.count,
+                        jump: match block.exit {
+                            crate::statement::AssemblyExit::Jump(target) => {
+                                graph.blocks.handles().position(|handle| handle == target)
+                            }
+                            _ => None,
+                        },
+                        enclosing_transition: matches!(
+                            block.exit,
+                            crate::statement::AssemblyExit::EnclosingTransition
+                        ),
+                    })
+                    .collect(),
+            }
+        }
         StatementNode::RootBinding(binding) => StatementSnapshot::RootBinding {
             receiver: expression_snapshot(program, binding.receiver),
             slot: to_strings(binding.slot.iter()),

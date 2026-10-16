@@ -937,6 +937,7 @@ fn collect_expected_expression_calls(
                         push_expected_call(program, *value, state.return_type, &mut expected);
                     }
                     StatementNode::RootBinding(_)
+                    | StatementNode::Assembly(_)
                     | StatementNode::AssemblyFact(_)
                     | StatementNode::Expression(_)
                     | StatementNode::LocalData(_) => {}
