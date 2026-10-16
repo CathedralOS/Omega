@@ -843,6 +843,7 @@ crashes Trap
         let value: Value = Checker::value_at(checker, statement.value);
         let replayable: bool = Checker::alias_replayable(checker, syntax, resolution, typing, statement.value, place, epoch);
         Checker::initialize_place(checker, typing, place, value);
+        Checker::capture_footprint(checker, syntax, resolution, typing, place, type_handle, statement.value, value);
         Checker::replace_live_length(checker, syntax, typing, type_handle, statement.value, place);
         Checker::record_alias(checker, syntax, typing, place, statement.value, value, replayable);
         let bound: Value = Checker::reference_value(checker, typing, place);
@@ -872,7 +873,7 @@ crashes Trap
         // The target's tree values live only while its tree is the frame;
         // the value's evaluation replaces that frame, so a destination
         // without a place (an element) resolves its storage origin now.
-        let origin: u64 in Trapping = Checker::storage_origin(checker, syntax, typing, statement.target);
+        let origin: u64 in Trapping = Checker::store_origin(checker, syntax, resolution, typing, statement.target);
         Checker::evaluate_tree(checker, syntax, resolution, typing, statement.value, checking);
         let value: Value = Checker::value_at(checker, statement.value);
         let destination: u64 in Trapping = Typing::expression_type(typing, statement.target);

@@ -41,6 +41,7 @@ crashes Trap
     requires index < 256
     {
         checker.reference_origins[index] = 0;
+        checker.reference_footprints[index] = false;
         transition { _ -> next(checker, index + 1) }
     }
 
@@ -110,6 +111,7 @@ crashes Trap
     requires index < 256
     {
         checker.reference_origins[index] = origin as u64;
+        checker.reference_footprints[index] = false;
     }
 
     state owned(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, value: Value) {
@@ -129,24 +131,25 @@ crashes Trap
     let type_handle: u64 in Trapping = Typing::expression_type(typing, statement.target);
     let row: TypeRow = TypeTable::row(&typing.types, type_handle);
     transition expression.kind == ExpressionKind::Name && row.kind == TypeKind::Reference && row.access == ReferenceAccess::Shared {
-        true -> binding(checker, resolution, typing, statement, value, type_handle)
+        true -> binding(checker, syntax, resolution, typing, statement, value, type_handle)
         _ -> other()
     }
 
-    state binding(checker: &mut Checker, resolution: &NameResolution, typing: &Typing, statement: Statement, value: Value, type_handle: u64 in Trapping) -> bool {
+    state binding(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, statement: Statement, value: Value, type_handle: u64 in Trapping) -> bool {
         let binding: ValueBinding = NameResolution::value_binding(resolution, statement.target);
         transition binding {
-            ValueBinding::Local { statement as declaration } -> local(checker, typing, declaration, value, type_handle)
+            ValueBinding::Local { statement as declaration } -> local(checker, syntax, resolution, typing, statement, declaration, value, type_handle)
             _ -> unknown(checker, statement)
         }
     }
 
-    state local(checker: &mut Checker, typing: &Typing, declaration: u64 in Trapping, value: Value, type_handle: u64 in Trapping) -> bool {
+    state local(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, statement: Statement, declaration: u64 in Trapping, value: Value, type_handle: u64 in Trapping) -> bool {
         let place: u64 in Trapping = Checker::place(checker, typing, PlaceKind::Local, declaration, 0, type_handle);
         // Replaying a condition through this binding would now read the
         // replacement referent. Existing captured references keep theirs.
         Checker::forget_aliases(checker, place);
         Checker::initialize_place(checker, typing, place, value);
+        Checker::capture_footprint(checker, syntax, resolution, typing, place, type_handle, statement.value, value);
         true
     }
 
@@ -157,6 +160,169 @@ crashes Trap
 
     state other() -> bool {
         false
+    }
+}
+
+// A reference local initialized from storage no place tracks (an element of
+// a collection, a field of one) captures the storage containing it as a
+// footprint: a write through the local forgets that storage's contents
+// (flow.omg), as a direct store to the element would, and a read through
+// it is unknown. `type_handle` is the local's declared type.
+pub machine Checker::capture_footprint(
+    checker: &mut Checker,
+    syntax: &SyntaxTrees,
+    resolution: &NameResolution,
+    typing: &Typing,
+    place: u64 in Trapping,
+    type_handle: u64 in Trapping,
+    initializer: u64 in Trapping,
+    value: Value
+)
+crashes Trap
+{
+    let row: TypeRow = TypeTable::row(&typing.types, type_handle);
+    transition row.kind == TypeKind::Reference && value.place == 0 && place > 0 && place <= 256 {
+        true -> located(checker, syntax, resolution, typing, place, initializer)
+        _ -> done()
+    }
+
+    state located(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, place: u64 in Trapping, initializer: u64 in Trapping) {
+        let footprint: u64 in Trapping = Checker::written_origin(checker, syntax, resolution, typing, initializer);
+        transition footprint > 0 {
+            true -> captured(checker, place - 1, footprint)
+            _ -> done()
+        }
+    }
+
+    state captured(checker: &mut Checker, index: u64 in Trapping, footprint: u64 in Trapping)
+    requires index < 256
+    {
+        checker.reference_origins[index] = footprint as u64;
+        checker.reference_footprints[index] = true;
+    }
+
+    state done() {}
+}
+
+// The footprint a reference local captured (one-based place), zero when
+// it captured an exact origin or nothing.
+pub machine Checker::local_footprint(checker: &Checker, place: u64 in Trapping) -> u64 in Trapping
+crashes Trap
+{
+    transition place > 0 && place <= 256 {
+        true -> read(checker, place - 1)
+        _ -> none()
+    }
+
+    state read(checker: &Checker, index: u64 in Trapping) -> u64 in Trapping
+    requires index < 256
+    {
+        transition checker.reference_footprints[index] {
+            true -> found(checker.reference_origins[index] as u64 in Trapping)
+            _ -> none()
+        }
+    }
+
+    state found(origin: u64 in Trapping) -> u64 in Trapping {
+        origin
+    }
+
+    state none() -> u64 in Trapping {
+        0
+    }
+}
+
+// The storage a write at `handle` lands in: `Checker::storage_origin`,
+// and, through a name, the footprint its reference local captured. A
+// lent exclusive argument keeps the origin without footprints, since the
+// callee writes through the reference, not within the footprint.
+pub machine Checker::written_origin(checker: &Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping) -> u64 in Trapping
+crashes Trap
+{
+    transition { _ -> node(checker, syntax, resolution, typing, handle, 0) }
+
+    state node(checker: &Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, depth: u64 in Trapping) -> u64 in Trapping {
+        let value: Value = Checker::value_at(checker, handle);
+        transition value.place > 0 {
+            true -> found(value.place)
+            _ -> unplaced(checker, syntax, resolution, typing, handle, depth)
+        }
+    }
+
+    state unplaced(checker: &Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, depth: u64 in Trapping) -> u64 in Trapping {
+        let expression: Expression = SyntaxTrees::expression(syntax, handle);
+        let type_handle: u64 in Trapping = Typing::expression_type(typing, handle);
+        let row: TypeRow = TypeTable::row(&typing.types, type_handle);
+        let borrow: bool = expression.kind == ExpressionKind::Unary
+            && (expression.operator == OperatorKind::Borrow || expression.operator == OperatorKind::BorrowMutable
+                || expression.operator == OperatorKind::BorrowWrite);
+        let projection: bool = row.kind != TypeKind::Reference
+            && (expression.kind == ExpressionKind::Index || expression.kind == ExpressionKind::Field);
+        transition depth < 256 && (borrow || projection) {
+            true -> node(checker, syntax, resolution, typing, expression.left, depth + 1)
+            _ -> named(checker, resolution, handle, expression)
+        }
+    }
+
+    state named(checker: &Checker, resolution: &NameResolution, handle: u64 in Trapping, expression: Expression) -> u64 in Trapping {
+        transition expression.kind == ExpressionKind::Name {
+            true -> bound(checker, resolution, handle)
+            _ -> unknown()
+        }
+    }
+
+    state bound(checker: &Checker, resolution: &NameResolution, handle: u64 in Trapping) -> u64 in Trapping {
+        let binding: ValueBinding = NameResolution::value_binding(resolution, handle);
+        transition binding {
+            ValueBinding::Local { statement } -> local(checker, statement)
+            _ -> unknown()
+        }
+    }
+
+    state local(checker: &Checker, statement: u64 in Trapping) -> u64 in Trapping {
+        let place: u64 in Trapping = Checker::find_place(checker, PlaceKind::Local, statement, 0);
+        let footprint: u64 in Trapping = Checker::local_footprint(checker, place);
+        footprint
+    }
+
+    state found(place: u64 in Trapping) -> u64 in Trapping {
+        place
+    }
+
+    state unknown() -> u64 in Trapping {
+        0
+    }
+}
+
+// The storage a store at `target` writes within when the target has no
+// place of its own: a field or element slot lies within its base's
+// storage, whatever the slot's type, and anything else is where its write
+// lands (`Checker::written_origin`).
+pub machine Checker::store_origin(checker: &Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, target: u64 in Trapping) -> u64 in Trapping
+crashes Trap
+{
+    let value: Value = Checker::value_at(checker, target);
+    let expression: Expression = SyntaxTrees::expression(syntax, target);
+    let slot: bool = expression.kind == ExpressionKind::Field || expression.kind == ExpressionKind::Index;
+    transition value.place > 0 {
+        true -> placed(value.place)
+        _ -> unplaced(checker, syntax, resolution, typing, target, expression, slot)
+    }
+
+    state unplaced(checker: &Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, target: u64 in Trapping, expression: Expression, slot: bool) -> u64 in Trapping {
+        transition slot {
+            true -> within(checker, syntax, resolution, typing, expression.left)
+            _ -> within(checker, syntax, resolution, typing, target)
+        }
+    }
+
+    state within(checker: &Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping) -> u64 in Trapping {
+        let origin: u64 in Trapping = Checker::written_origin(checker, syntax, resolution, typing, handle);
+        origin
+    }
+
+    state placed(place: u64 in Trapping) -> u64 in Trapping {
+        place
     }
 }
 
@@ -202,11 +368,14 @@ crashes Trap
         }
     }
 
+    // A footprint locates the reference's writes, not its referent: a
+    // read through it is unknown.
     state captured(checker: &Checker, typing: &Typing, index: u64 in Trapping, type_handle: u64 in Trapping) -> Value
     requires index < 256
     {
         let origin: u64 in Trapping = checker.reference_origins[index] as u64 in Trapping;
-        transition origin > 0 {
+        let footprint: bool = checker.reference_footprints[index];
+        transition origin > 0 && !footprint {
             true -> viewed(checker, typing, origin, type_handle)
             _ -> unknown()
         }

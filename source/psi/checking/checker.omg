@@ -47,6 +47,10 @@ pub data Checker {
     place_count: u64;
     // Captured local-reference storage origins; zero means unknown.
     reference_origins: [u64; 256];
+    // Whether a captured origin is only the storage containing an
+    // untracked element (references.omg): the reference writes within it
+    // and reads nothing of it.
+    reference_footprints: [bool; 256];
     // Each place's default domain (domains.omg), and the place whose fields a
     // `where` fact's field names stand for while it is installed.
     domains: [DomainMark; 256];

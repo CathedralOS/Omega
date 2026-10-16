@@ -1674,6 +1674,39 @@ def main() -> None:
         b"machine three(x: u64) requires x == 3 {}\n"
         b"machine f() {\n    let local: u64 = 0;\n    let view: &mut u64 = &mut local;\n    view = 3;\n    three(local);\n}",
     )
+    # A store into a field or element slot of an untracked element writes
+    # within its collection, whatever the slot's type; a reference local
+    # initialized from such an element captures the collection as a
+    # footprint, so a write through it forgets the collection's contents and
+    # keeps its length.
+    accepted(
+        program,
+        "a-reference-slot-of-an-untracked-element-writes-within-its-collection",
+        b"data Cell { value: u32; }\ndata Held { target: &Cell; }\n"
+        b"machine two(n: u64) requires n == 2 {}\n"
+        b"machine replace(slots: &mut [Held], first: &Cell) requires slots.len == 2 {\n    slots[0].target = first;\n    two(slots.len);\n}",
+    )
+    footprint = (
+        b"data Cell { value: u32; }\n"
+        b"machine two(n: u64) requires n == 2 {}\nmachine seven(n: u32) requires n == 7 {}\n"
+        b"machine f(cells: &mut [Cell]) requires cells.len == 2 && cells[1].value == 7 {\n"
+        b"    let first: &mut Cell = &mut cells[0];\n    first = Cell { value: 13 };\n    two(cells.len);\n    CHECK\n}"
+    )
+    accepted(program, "a-reference-to-an-untracked-element-writes-within-its-collection", footprint.replace(b"    CHECK\n", b""))
+    rejected(
+        program,
+        "a-write-through-an-element-reference-forgets-the-collection's-contents",
+        footprint.replace(b"CHECK", b"seven(cells[1].value);"),
+        "RequirementUnproven",
+        b"seven(cells[1].value)",
+    )
+    accepted(
+        program,
+        "a-reference-to-a-field-of-an-untracked-element-writes-within-its-collection",
+        b"data Cell { value: u32; }\n"
+        b"machine f(cells: &mut [Cell]) requires cells.len == 2 {\n"
+        b"    let second: &mut Cell = &mut cells[1];\n    let nested: &mut u32 = &mut second.value;\n    nested = 17;\n}",
+    )
     # A declared measure ranks its subject by its body, or lexicographically
     # by the subject's named fields (wiki/spec/language/termination.md#ranking).
     measured = (
