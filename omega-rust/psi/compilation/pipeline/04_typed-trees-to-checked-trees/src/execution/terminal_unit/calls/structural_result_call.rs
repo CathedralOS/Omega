@@ -168,6 +168,14 @@ pub(super) fn build(
             .is_some_and(|entry| entry.symbol == target_state.symbol)
         && machine_binders(program, target_machine).is_empty()
     {
+        // An owned affine result without retained loans owes an independent
+        // return-discard. A borrowed-parts result is a carrier descriptor
+        // whose retirement the loan schedule owns, so an empty span here —
+        // including the anonymous operand case `result_loans` reports as an
+        // empty roster — marks scheduled custody, not owned storage.
+        let discard_mint = result.multiplicity == Multiplicity::Affine
+            && !reference_result
+            && reference_loans.is_empty();
         return with_structural_custody(
             program,
             facts,
@@ -184,7 +192,7 @@ pub(super) fn build(
                 scalar_arguments,
                 structural_arguments,
                 result.clone(),
-                result.multiplicity == Multiplicity::Affine && reference_loans.is_empty(),
+                discard_mint,
             ),
         );
     }
