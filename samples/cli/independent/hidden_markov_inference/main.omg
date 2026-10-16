@@ -5,7 +5,42 @@ use omega::language::core::float_operations;
 use domain::inference;
 use domain::viterbi;
 use io::trace;
-data Main { model: Model; result: Inference; paths: Paths; line: [u8; 64]; }
+data Main { model: Model; result: Inference; paths: Paths; line: [u8; 64]; path_bytes: [u8; 32]; }
+// Both lanes hold the observation count. Lane 0 is the printed path; lane 1
+// keeps an equal-length spare so the match publishes that shared runtime length.
+data DigitWindow<'storage> { digits: &'storage mut [u8]; }
+machine path_lane<'storage>(bytes: &'storage mut [u8; 32], count: u64, lane: u64) -> &'storage mut [u8]
+requires count >= 1 requires count <= 16 requires lane <= 1
+ensures result.len == count {
+    match lane {
+        0 -> &mut bytes[0..count]
+        _ -> &mut bytes[16..16 + count]
+    }
+}
+machine fill_path(window: &mut [u8], path: u64, count: u64)
+requires count >= 1 requires count <= 16 requires window.len == count {
+    transition { _ -> divisor(window, path, count, 1, 1) }
+    state divisor(window: &mut [u8], path: u64, count: u64, index: u64, scale: u64)
+    requires count >= 1 requires count <= 16 requires window.len == count
+    requires index >= 1 requires index <= 16 requires scale >= 1 requires scale <= 32768 {
+        transition index < count && index < 16 {
+            true -> grow(window, path, count, index, scale)
+            false -> write(window, path, scale, 0)
+        }
+    }
+    state grow(window: &mut [u8], path: u64, count: u64, index: u64, scale: u64)
+    requires count >= 1 requires count <= 16 requires window.len == count
+    requires index >= 1 requires index < 16 requires scale >= 1 requires scale <= 32768 {
+        transition scale <= 16384 { true -> divisor(window, path, count, index + 1, scale * 2) false -> write(window, path, scale, 0) }
+    }
+    state write(window: &mut [u8], path: u64, scale: u64, index: u64)
+    requires window.len >= 1 requires window.len <= 16 requires scale >= 1 requires scale <= 32768 requires index < window.len {
+        let digit: u64 = (path / scale) % 2;
+        window[index] = (48 + digit) as u8;
+        transition scale >= 2 && index + 1 < window.len { true -> write(window, path, scale / 2, index + 1) false -> filled() }
+    }
+    state filled() { }
+}
 machine Main::main(main: &mut Main) reaches Console {
     transition { _ -> probability(main, 0) }
     state probability(main: &mut Main, field: u64) requires field < 10 {
@@ -117,20 +152,23 @@ machine Main::main(main: &mut Main) reaches Console {
     }
     state path_start(main: &mut Main) {
         Console::write("PATH ");
-        transition main.model.count >= 1 && main.model.count <= 16 { true -> path_divisor(main, 1, 1) false -> invalid(main) }
+        let count: u64 = main.model.count;
+        transition count >= 1 && count <= 16 { true -> path_window(main, count) false -> invalid(main) }
     }
-    state path_divisor(main: &mut Main, index: u64, divisor: u64)
-    requires index >= 1 requires index <= 16 requires divisor >= 1 requires divisor <= 32768 {
-        transition index < main.model.count && index < 16 { true -> grow_divisor(main, index, divisor) false -> path(main, divisor) }
+    state path_window(main: &mut Main, count: u64) requires count >= 1 requires count <= 16 {
+        let lane: &mut [u8] = path_lane(&mut main.path_bytes, count, 0);
+        let held: DigitWindow = DigitWindow { digits: lane };
+        fill_path(held.digits, main.result.path, count);
+        transition { _ -> path_emit(main, count, 0) }
     }
-    state grow_divisor(main: &mut Main, index: u64, divisor: u64)
-    requires index >= 1 requires index < 16 requires divisor >= 1 requires divisor <= 32768 {
-        transition divisor <= 16384 { true -> path_divisor(main, index + 1, divisor * 2) false -> invalid(main) }
+    state path_emit(main: &mut Main, count: u64, index: u64)
+    requires count >= 1 requires count <= 16 requires index <= count {
+        transition index < count { true -> path_byte(main, count, index) false -> success(main) }
     }
-    state path(main: &mut Main, divisor: u64) requires divisor >= 1 requires divisor <= 32768 {
-        let digit: u64 = (main.result.path / divisor) % 2;
-        Console::write_byte((48 + digit) as i32);
-        transition divisor >= 2 { true -> path(main, divisor / 2) false -> success(main) }
+    state path_byte(main: &mut Main, count: u64, index: u64)
+    requires count >= 1 requires count <= 16 requires index < count {
+        Console::write_byte(main.path_bytes[index] as i32);
+        transition { _ -> path_emit(main, count, index + 1) }
     }
     state success(main: &mut Main) { Console::write_line(""); Console::exit_process(0); }
     state invalid(main: &mut Main) { Console::write_line("INVALID"); Console::exit_process(64); }

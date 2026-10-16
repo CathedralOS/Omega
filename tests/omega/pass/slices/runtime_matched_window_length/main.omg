@@ -1,0 +1,56 @@
+// Both windows have the caller's runtime length. The match publishes that
+// length, and the caller uses it through a local, a record field, a parameter,
+// and the call. A state-body spelling of the same windows writes the other lane.
+// Expected native exit: 0
+data Held<'row> { values: &'row mut [u8]; }
+
+machine lane<'row>(bytes: &'row mut [u8; 8], count: u64, which: u64) -> &'row mut [u8]
+requires count >= 1 requires count <= 4 requires which <= 1
+ensures result.len == count {
+    match which {
+        0 -> &mut bytes[0..count]
+        _ -> &mut bytes[4..4 + count]
+    }
+}
+
+machine lane_state<'row>(bytes: &'row mut [u8; 8], count: u64, which: u64) -> &'row mut [u8]
+requires count >= 1 requires count <= 4 requires which <= 1
+ensures result.len == count {
+    transition which == 0 { true -> front(bytes, count) false -> back(bytes, count) }
+    state front(bytes: &'row mut [u8; 8], count: u64) -> &'row mut [u8]
+    requires count >= 1 requires count <= 4 {
+        &mut bytes[0..count]
+    }
+    state back(bytes: &'row mut [u8; 8], count: u64) -> &'row mut [u8]
+    requires count >= 1 requires count <= 4 {
+        &mut bytes[4..4 + count]
+    }
+}
+
+machine write_count(window: &mut [u8], count: u64)
+requires window.len == count requires count >= 1 requires count <= 4 {
+    transition { _ -> place(window, count, 0) }
+    state place(window: &mut [u8], count: u64, index: u64)
+    requires window.len == count requires count >= 1 requires count <= 4 requires index < count {
+        window[index] = ((index + 1) as u8);
+        transition index + 1 < count { true -> place(window, count, index + 1) false -> placed() }
+    }
+    state placed() {}
+}
+
+machine main() crashes Trap {
+    let mut bytes: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 0];
+    let count: u64 = 3;
+    let view: &mut [u8] = lane(&mut bytes, count, 0);
+    let held: Held = Held { values: view };
+    write_count(held.values, count);
+    let spare: &mut [u8] = lane_state(&mut bytes, count, 1);
+    write_count(spare, count);
+    transition bytes[0] == 1 && bytes[2] == 3 && bytes[3] == 0
+        && bytes[4] == 1 && bytes[6] == 3 && bytes[7] == 0 {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

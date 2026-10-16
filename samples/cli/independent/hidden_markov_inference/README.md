@@ -14,7 +14,8 @@ pair must sum exactly to 1000000. This protocol deliberately refuses arbitrary
 precision decimals, signs, whitespace, CRLF, partial lines and trailing data.
 A 64-byte line buffer bounds every read.
 
-Output begins `OK trillionths`. `LOG value` and each `POSTindex p0 p1` use signed
+The printed path is filled through a match of two runtime-length windows, kept in
+a record field, and written by a call. Output begins `OK trillionths`. `LOG value` and each `POSTindex p0 p1` use signed
 integer trillionths (truncate toward zero); `PATH bits` gives the hidden states.
 All output is numeric and independently checked to absolute error at most 1e-9.
 An impossible observation prints `IMPOSSIBLE` and exits 65, with no fabricated

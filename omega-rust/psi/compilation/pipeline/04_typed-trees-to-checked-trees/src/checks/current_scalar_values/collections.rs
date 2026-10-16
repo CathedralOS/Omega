@@ -288,12 +288,15 @@ impl CurrentScalarValues<'_> {
     }
 
     /// Every arm contributes its own length. One shared observation is the
-    /// result. Arms that are not identical still agree when each folds to the
-    /// same integer, so `row[0..2]` and `row[2..4]` both publish length 2.
-    /// A value arm may use the subject: `match which { 0 -> row[0..which + 2] }`
-    /// is length 2 because that arm's subject is 0. The failed-pattern path
-    /// does not receive that value. An arm without a length, or two arms with
-    /// different lengths, publishes nothing.
+    /// result. Identical observations agree immediately. Arms that are not
+    /// identical still agree when each folds to the same integer, so
+    /// `row[0..2]` and `row[2..4]` both publish length 2. A value arm may use
+    /// the subject: `match which { 0 -> row[0..which + 2] }` is length 2
+    /// because that arm's subject is 0. The failed-pattern path does not
+    /// receive that value. Arms whose lengths are proved equal publish the
+    /// first arm's length, so `bytes[0..count]` and `bytes[16..16 + count]`
+    /// both publish that length when `count` is one value. An arm without a
+    /// length, or two arms with different lengths, publishes nothing.
     fn matched_length(
         &self,
         dispatch: &TableMatchExpression,
@@ -320,15 +323,30 @@ impl CurrentScalarValues<'_> {
         if lengths.iter().skip(1).all(|length| length == &lengths[0]) {
             return Some(lengths[0].clone());
         }
-        let mut folded = Vec::new();
-        for length in &lengths {
-            folded.push(self.exact_length(length)?);
-        }
-        let first = &folded[0];
-        folded
+        let folded: Option<Vec<_>> = lengths
             .iter()
-            .all(|length| length == first)
-            .then(|| ScopedArithmeticValue::Integer(first.clone()))
+            .map(|length| self.exact_length(length))
+            .collect();
+        if let Some(folded) = folded {
+            let first = &folded[0];
+            return folded
+                .iter()
+                .all(|length| length == first)
+                .then(|| ScopedArithmeticValue::Integer(first.clone()));
+        }
+        lengths
+            .iter()
+            .skip(1)
+            .all(|length| {
+                self.proves_values_relation(
+                    self.program,
+                    self.machine,
+                    BinaryOperator::Equal,
+                    length,
+                    &lengths[0],
+                )
+            })
+            .then(|| lengths[0].clone())
     }
 
     fn pattern_integer(&self, pattern: ExpressionHandle) -> Option<ScopedArithmeticValue> {
@@ -458,6 +476,13 @@ impl CurrentScalarValues<'_> {
             || matches!(
                 (self.exact_length(left), self.exact_length(right)),
                 (Some(left), Some(right)) if left == right
+            )
+            || self.proves_values_relation(
+                self.program,
+                self.machine,
+                BinaryOperator::Equal,
+                left,
+                right,
             )
     }
 

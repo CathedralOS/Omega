@@ -1,0 +1,11 @@
+// A shorter arm does not publish the longer arm's runtime length.
+machine half(bytes: &mut [u8; 32], count: u64, which: u64) -> &mut [u8]
+requires count >= 2 requires count <= 16
+ensures result.len == count {
+    match which {
+        0 -> &mut bytes[0..count]
+        _ -> &mut bytes[0..count - 1]
+    }
+}
+
+machine main() {}

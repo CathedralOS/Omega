@@ -4779,7 +4779,7 @@ fail/slices/matched_open_window_end rejected 317ms expected @a4e565996e72+wt
 	exact arithmetic in machine `open_end` state `entry` terminal expression may overflow `i64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i64 in Wrapping`/`Saturating`/`Trapping`).
 fail/slices/matched_window_lengths_disagree rejected 981ms expected @0e7ef4cb2ac8+wt
 	cannot prove ensures contract for exit from half at statement 0: result.len == 2
-fail/slices/mutable_matched_window_lengths_disagree rejected 975ms expected @efe2909d9732
+fail/slices/mutable_matched_window_lengths_disagree rejected 1076ms expected @2cbb09f59147+wt
 	cannot prove ensures contract for exit from half at statement 0: result.len == 2
 fail/slices/mutable_subslice_state_out_of_bounds rejected 1504ms expected @a9ae30e1c334+wt
 	cannot prove subslice range end bound `1..3` is within unknown slice length
@@ -4856,6 +4856,8 @@ fail/slices/returned_range_extent_contract_retires_replaced_descriptor rejected 
 	cannot prove ensures contract for exit from middle at statement 4: result.len == end - start
 fail/slices/returned_shared_slice_mutable_call rejected 841ms expected @a9ae30e1c334+wt
 	argument `items` for state `entry` is declared `&mut` (`&mut [i32]`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
+fail/slices/runtime_matched_window_lengths_disagree rejected 1079ms expected @2cbb09f59147+wt
+	cannot prove ensures contract for exit from half at statement 0: result.len == count
 fail/slices/same_carrier_cast_reassigned_index rejected 819ms expected @2ab552549670+wt
 	cannot prove index `position` is within unknown slice length of `items` in read::entry
 fail/slices/same_carrier_cast_wrong_collection_index rejected 755ms expected @2ab552549670+wt
@@ -8294,7 +8296,7 @@ pass/slices/mutable_byte_field_range_scalar_initializer_exit checked 11831ms che
 pass/slices/mutable_field_range_call_state_exit checked 10873ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/slices/mutable_field_range_local_initializer_exit checked 12115ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/slices/mutable_field_range_scalar_initializer_exit checked 12303ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/slices/mutable_matched_window_length checked 5855ms check-target:macos_arm64 @efe2909d9732
+pass/slices/mutable_matched_window_length checked 6293ms check-target:macos_arm64 @2cbb09f59147+wt
 pass/slices/narrowed_view_return checked 9928ms @5041ef1af684+wt
 pass/slices/narrowed_view_window checked 8924ms @5041ef1af684+wt
 pass/slices/negated_mutable_array_call_exit checked 12275ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -8344,6 +8346,7 @@ pass/slices/runtime_inline_mutable_view_call_write_exit checked 12289ms check-ta
 pass/slices/runtime_join_meet_bound_exit checked 12040ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/slices/runtime_literal_view_return_exit checked 12250ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/slices/runtime_machine_entry_view_requires_index_exit checked 13911ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/slices/runtime_matched_window_length checked 6429ms check-target:macos_arm64 @2cbb09f59147+wt
 pass/slices/runtime_mutable_byte_view_loop_write_exit checked 12016ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/slices/runtime_mutable_record_slice_result_reborrow_exit checked 11710ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/slices/runtime_mutable_slice_element_write_exit checked 12207ms check-target:macos_arm64 @a9ae30e1c334+wt
