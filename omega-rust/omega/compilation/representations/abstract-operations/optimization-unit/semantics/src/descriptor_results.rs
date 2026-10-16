@@ -614,7 +614,21 @@ fn adapt(
                             .get_or_insert_with(|| Projection::new(&[]))
                             .forget_address();
                     }
-                    if let Some(source) = location(source.place, path, None) {
+                    let alternatives =
+                        terminal_semantics::descriptor_lifetimes::fixed_runtime_index_alternatives(
+                            types,
+                            source.place,
+                            *graph.place_types.get(&source.place)?,
+                            path,
+                        );
+                    if let Some(alternatives) = alternatives {
+                        // Every fixed element stays a storage origin. A
+                        // projection would turn that address into backing
+                        // contents and lose the pointer the callee loads.
+                        for alternative in alternatives {
+                            step.derivations.push((alternative, destination.clone()));
+                        }
+                    } else if let Some(source) = location(source.place, path, None) {
                         step.derivations.push((source.clone(), destination.clone()));
                         if slot_kind == kernel::DescriptorSlotKind::References
                             && matches!(operation, O::EstablishReference { .. })

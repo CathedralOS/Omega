@@ -10,6 +10,7 @@ use std::collections::{BTreeMap, BTreeSet};
 mod locations;
 pub use locations::{
     canonical_descriptor_location, descriptor_location, descriptor_location_type, descriptor_path,
+    fixed_runtime_index_alternatives,
 };
 
 pub type DescriptorPosition = (BlockId, u32);

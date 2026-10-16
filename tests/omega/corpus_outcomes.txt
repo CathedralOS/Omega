@@ -8765,6 +8765,7 @@ run/arithmetic/float_structural_initializer_selection checked 24258ms check-targ
 run/arithmetic/pinned_dividend_across_console_calls checked 11062ms check-target:macos_arm64 @a9ae30e1c334+wt
 run/borrows/conditional_disjoint_field_loans_exit checked 6088ms check-target:macos_arm64 @589aedee8ebc+wt
 run/borrows/direct_runtime_index_write checked 11448ms check-target:macos_arm64 @a9ae30e1c334+wt
+run/borrows/dynamic_ancestor_static_byte_child_exit checked 9163ms check-target:macos_arm64 @0e7ef4cb2ac8+wt
 run/borrows/incoming_carrier_transport checked 5826ms check-target:macos_arm64 @5930657b943b
 run/borrows/indexed_loan_element_write checked 11734ms check-target:macos_arm64 @a9ae30e1c334+wt
 run/borrows/local_mut_borrow checked 11276ms check-target:macos_arm64 @a9ae30e1c334+wt

@@ -3266,6 +3266,7 @@ run/arithmetic/float_structural_initializer_selection built 32751ms exit:0 @6c49
 run/arithmetic/pinned_dividend_across_console_calls built 8016ms exit:0 stdout:match @6c49683ce714
 run/borrows/conditional_disjoint_field_loans_exit built 6591ms exit:0 stdout:match stderr:match @326ed531359e+wt
 run/borrows/direct_runtime_index_write built 14936ms exit:9 @6c49683ce714
+run/borrows/dynamic_ancestor_static_byte_child_exit built 9150ms exit:42 @0e7ef4cb2ac8+wt
 run/borrows/incoming_carrier_transport built 17590ms exit:0 @6c49683ce714
 run/borrows/indexed_loan_element_write built 14921ms exit:0 @6c49683ce714
 run/borrows/local_mut_borrow built 14893ms exit:9 @6c49683ce714

@@ -5,6 +5,44 @@ pub data Record [copy] {
     year: u64;
 }
 
+// A runtime record loan owns a descriptor; its static byte child forms none.
+// The scalar grandchild must keep both the cell backing and the ancestor
+// descriptor, whether the cell was chosen by a runtime index or by a fixed one.
+// The observed byte moves through a local, a field, a parameter, and a call result.
+pub data ScoreCell { bytes: [u8; 4]; }
+
+pub machine read_score_byte(rows: &[ScoreCell; 2], index: u64, dynamic: bool) -> u64 in Wrapping {
+    transition index < 2 {
+        true -> choose_score_cell(rows, index, dynamic)
+        _ -> (0)
+    }
+    state choose_score_cell(rows: &[ScoreCell; 2], index: u64, dynamic: bool) -> u64 in Wrapping {
+        transition dynamic {
+            true -> score_cell(&rows[index])
+            _ -> score_cell(&rows[1])
+        }
+    }
+    state score_cell(value: &ScoreCell) -> u64 in Wrapping {
+        transition { _ -> score_bytes(&value.bytes, 1) }
+    }
+    state score_bytes(value: &[u8; 4], index: u64) -> u64 in Wrapping {
+        transition index < 4 {
+            true -> score_scalar(&value[index])
+            _ -> (0)
+        }
+    }
+    state score_scalar(value: &u8) -> u64 in Wrapping { value as u64 in Wrapping }
+}
+
+pub machine score_byte_witness() -> u64 in Wrapping {
+    let mut rows: [ScoreCell; 2];
+    rows[0].bytes[1] = 20;
+    rows[1].bytes[1] = 22;
+    let first: u64 in Wrapping = read_score_byte(&rows, 0, true);
+    let second: u64 in Wrapping = read_score_byte(&rows, 0, false);
+    (first + second)
+}
+
 pub data Linkage {
     left: [Record; 3];
     right: [Record; 3];
@@ -232,7 +270,15 @@ pub machine Linkage::solve(linkage: &mut Linkage) {
         transition { _ -> assignments(linkage) }
     }
     state audit_start(linkage: &mut Linkage) {
+        let observed: u64 in Wrapping = score_byte_witness();
         linkage.row = 0;
+        transition observed == 42 {
+            true -> audit(linkage)
+            false -> witness_miss(linkage)
+        }
+    }
+    state witness_miss(linkage: &mut Linkage) {
+        linkage.best = linkage.best % 1000 + 1000;
         transition { _ -> audit(linkage) }
     }
     state audit(linkage: &mut Linkage) {

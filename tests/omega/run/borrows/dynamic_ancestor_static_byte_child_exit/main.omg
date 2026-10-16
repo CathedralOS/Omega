@@ -1,8 +1,12 @@
+// Expected exit: 42
+// A runtime index and a fixed index both loan one record from a local array.
+// The record's byte field is ordinary storage. Reading one byte through that
+// field, a parameter, and the call result must observe the bytes written into
+// the local: 20 on the dynamic arm and 22 on the fixed arm.
 use omega_language_std::console;
-// main returns 42. A runtime record loan owns a descriptor; its static byte
-// child forms none. A runtime scalar grandchild must retain both backing and
-// ancestor descriptor, including the alternative fixed-index predecessor.
+
 data Cell { bytes: [u8; 4]; }
+
 machine select(rows: &[Cell; 2], index: u64, dynamic: bool) -> u64 in Wrapping {
     transition index < 2 {
         true -> choose(rows, index, dynamic)
@@ -25,6 +29,7 @@ machine select(rows: &[Cell; 2], index: u64, dynamic: bool) -> u64 in Wrapping {
     }
     state scalar(value: &u8) -> u64 in Wrapping { value as u64 in Wrapping }
 }
+
 machine calculate() -> u64 in Wrapping {
     let mut rows: [Cell; 2];
     rows[0].bytes[1] = 20;
@@ -35,6 +40,7 @@ machine calculate() -> u64 in Wrapping {
 }
 
 data Main { }
+
 machine Main::main(main: &mut Main) reaches Console {
     let result: u64 in Wrapping = calculate();
     transition result == 42 {

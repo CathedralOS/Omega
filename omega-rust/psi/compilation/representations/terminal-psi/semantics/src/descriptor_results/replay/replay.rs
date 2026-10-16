@@ -144,6 +144,22 @@ impl<'a> Replay<'a> {
         if origins.is_empty() {
             return None;
         }
+        // The whole carrier's recorded storage is already the pointee set.
+        // A reference temporary stores the elements it may address, not a
+        // second referent under itself, so an empty query must not demand a
+        // Referent step that the caller did not write.
+        if location.path.is_empty() {
+            let mut locations = Vec::new();
+            for origin in origins {
+                let Origin::Storage(backing) = origin else {
+                    return None;
+                };
+                if !locations.contains(backing) {
+                    locations.push(backing.clone());
+                }
+            }
+            return (!locations.is_empty()).then_some(locations);
+        }
         let mut locations = Vec::with_capacity(origins.len());
         for origin in origins {
             let Origin::Storage(backing) = origin else {
@@ -185,9 +201,28 @@ impl<'a> Replay<'a> {
         state: &State,
         location: &DescriptorLocation,
     ) -> Value {
-        let location = self.canonical_storage(machine, state, location)?;
+        // Distinct element origins are not one address. Keep the queried path
+        // and let the family below return every storage alternative.
+        let location = self
+            .canonical_storage(machine, state, location)
+            .unwrap_or(location.clone());
+        let root = DescriptorLocation::whole(location.root);
+        // The pointer temporary's origin is the pointee carrier. An unfilled
+        // child slot on the temporary is not an invalidated owned subtree.
+        let external_pointee =
+            state
+                .slots
+                .get(&root)
+                .and_then(Option::as_ref)
+                .is_some_and(|origins| {
+                    origins.iter().any(|origin| {
+                    matches!(origin, Origin::Storage(backing) if backing.root != root.root)
+                })
+                });
         if let Some(value) = state.slots.get(&location) {
-            return value.clone();
+            if value.is_some() || location.path.is_empty() || !external_pointee {
+                return value.clone();
+            }
         }
         if self.slot_kind == DescriptorSlotKind::PlacedOrigins {
             // The most specific current descriptor/placed borrow supplies its
@@ -213,17 +248,20 @@ impl<'a> Replay<'a> {
         }
         // An opaque referent is unavailable, not an owned subtree whose
         // address can be reconstructed from the enclosing storage root.
-        if state.slots.iter().any(|(prefix, value)| {
-            value.is_none()
-                && prefix.root == location.root
-                && !prefix.path.is_empty()
-                && location.path.starts_with(&prefix.path)
-        }) {
+        // External pointee origins are that subtree; a vacant child of the
+        // pointer temporary does not retire them.
+        if !external_pointee
+            && state.slots.iter().any(|(prefix, value)| {
+                value.is_none()
+                    && prefix.root == location.root
+                    && !prefix.path.is_empty()
+                    && location.path.starts_with(&prefix.path)
+            })
+        {
             return None;
         }
         // Only a genuine storage root supplies an unmaterialized owned subtree.
         // Unknown carrier slots are explicitly present in the state as None.
-        let root = DescriptorLocation::whole(location.root);
         let path = descriptor_path(
             self.types,
             *machine.place_types.get(&location.root)?,
@@ -238,6 +276,24 @@ impl<'a> Replay<'a> {
             .map(|origin| match origin {
                 Origin::Storage(backing) if backing == &root => {
                     Some(Origin::Storage(location.clone()))
+                }
+                // A reference place whose origin is another carrier names that
+                // pointee. Crossing `Referent` yields the pointee itself;
+                // a field or index continues from there. It does not invent a
+                // second referent under the pointer temporary.
+                Origin::Storage(backing) if backing.root != location.root => {
+                    let suffix = match location.path.first() {
+                        Some(DescriptorPathSegment::Referent) => &location.path[1..],
+                        _ => location.path.as_slice(),
+                    };
+                    let mut target = backing.clone();
+                    target.path.extend_from_slice(suffix);
+                    descriptor_path(
+                        self.types,
+                        *machine.place_types.get(&target.root)?,
+                        &target.path,
+                    )?;
+                    Some(Origin::Storage(target))
                 }
                 Origin::Backing(DescriptorCallOrigin::Argument {
                     source,

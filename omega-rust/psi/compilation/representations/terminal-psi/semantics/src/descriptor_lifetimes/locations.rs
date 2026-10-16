@@ -111,6 +111,76 @@ pub fn descriptor_location(
     case_fields.is_none().then_some(result)
 }
 
+/// A runtime index does not mint one descriptor slot. Over a fixed array, or a
+/// reference whose referent is one, every in-range element is a possible
+/// storage origin. The caller still proves the index; this only names the
+/// backing the pointer may address. A further runtime index, or an array
+/// longer than the replay's visit budget, stays unknown rather than a prefix.
+pub fn fixed_runtime_index_alternatives(
+    types: &[StructuralTypeDeclaration],
+    root: PlaceId,
+    root_type: StructuralTypeId,
+    path: &[StructuralPathSegment],
+) -> Option<Vec<DescriptorLocation>> {
+    let index_at = path
+        .iter()
+        .position(|segment| matches!(segment, StructuralPathSegment::RuntimeIndex { .. }))?;
+    let suffix = &path[index_at + 1..];
+    if suffix
+        .iter()
+        .any(|segment| matches!(segment, StructuralPathSegment::RuntimeIndex { .. }))
+    {
+        return None;
+    }
+    let prefix = &path[..index_at];
+    let prefix_location = descriptor_location(types, root, root_type, prefix, None)?;
+    let prefix_type = descriptor_location_type(types, root_type, &prefix_location.path)?;
+    let length = indexed_carrier_length(types, prefix_type)?;
+    if length == 0 || length > 4096 {
+        return None;
+    }
+    let mut alternatives = Vec::with_capacity(usize::try_from(length).ok()?);
+    for index in 0..length {
+        let mut structural = prefix.to_vec();
+        if !matches!(
+            declaration(types, prefix_type)?.shape,
+            StructuralTypeShape::FixedArray { .. }
+                | StructuralTypeShape::ByteSequence(
+                    ByteSequenceCarrier::BoundedView { .. }
+                        | ByteSequenceCarrier::BoundedOwned { .. }
+                )
+        ) {
+            structural.push(StructuralPathSegment::Referent);
+        }
+        structural.push(StructuralPathSegment::FixedIndex(index));
+        structural.extend_from_slice(suffix);
+        alternatives.push(descriptor_location(
+            types,
+            root,
+            root_type,
+            &structural,
+            None,
+        )?);
+    }
+    Some(alternatives)
+}
+
+fn indexed_carrier_length(
+    types: &[StructuralTypeDeclaration],
+    structural_type: StructuralTypeId,
+) -> Option<u64> {
+    let shape = &declaration(types, structural_type)?.shape;
+    match shape {
+        StructuralTypeShape::FixedArray { length, .. } => Some(*length),
+        StructuralTypeShape::ByteSequence(
+            ByteSequenceCarrier::BoundedView { capacity, .. }
+            | ByteSequenceCarrier::BoundedOwned { capacity },
+        ) => Some(*capacity),
+        StructuralTypeShape::Reference { referent, .. } => indexed_carrier_length(types, *referent),
+        _ => None,
+    }
+}
+
 /// Recover a spelling only after resolving each declaration-local identity.
 pub fn descriptor_location_type(
     types: &[StructuralTypeDeclaration],
