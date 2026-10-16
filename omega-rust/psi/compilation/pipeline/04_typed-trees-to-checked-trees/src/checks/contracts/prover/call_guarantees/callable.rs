@@ -1,6 +1,6 @@
-//! A contract's declaration scope is either executable or a requirement.
-//! Both retain their own parameter and result identities; a bodyless signature
-//! never acquires a manufactured machine or an executable body.
+//! Contract arithmetic retains its declaration's parameter identities: a
+//! machine, a bodyless requirement, or a transparent proposition. Neither a
+//! requirement nor a proposition acquires a manufactured executable body.
 
 use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionHandle;
@@ -17,6 +17,9 @@ pub(in crate::checks) enum Callable<'program> {
     },
     Requirement {
         signature: &'program StateSignature,
+    },
+    Proposition {
+        declaration: &'program typed_trees::proposition::PropositionDefinition,
     },
 }
 
@@ -37,6 +40,7 @@ impl<'program> Callable<'program> {
         let result_type = match selected {
             Self::Machine { state, .. } => state.return_type,
             Self::Requirement { signature } => signature.return_type,
+            Self::Proposition { .. } => TypeReferenceHandle::invalid(),
         };
         // An omitted result is ordinary Unit and still has call requirements.
         // It cannot authorize reserved result use; that reader checks its type.
@@ -52,6 +56,7 @@ impl<'program> Callable<'program> {
         match self {
             Self::Machine { machine, .. } => machine.symbol,
             Self::Requirement { signature } => signature.symbol,
+            Self::Proposition { declaration } => declaration.symbol,
         }
     }
 
@@ -59,6 +64,7 @@ impl<'program> Callable<'program> {
         match self {
             Self::Machine { state, .. } => state.symbol,
             Self::Requirement { signature } => signature.symbol,
+            Self::Proposition { declaration } => declaration.symbol,
         }
     }
 
@@ -69,6 +75,7 @@ impl<'program> Callable<'program> {
         match self {
             Self::Machine { state, .. } => program.state_parameters(state),
             Self::Requirement { signature } => program.state_signature_parameters(signature),
+            Self::Proposition { declaration } => program.proposition_parameters(declaration),
         }
     }
 
@@ -76,6 +83,7 @@ impl<'program> Callable<'program> {
         match self {
             Self::Machine { state, .. } => state.return_type,
             Self::Requirement { signature } => signature.return_type,
+            Self::Proposition { .. } => TypeReferenceHandle::invalid(),
         }
     }
 
@@ -99,6 +107,7 @@ impl<'program> Callable<'program> {
                 program.state_contracts(state),
             ),
             Self::Requirement { signature } => (program.state_signature_contracts(signature), &[]),
+            Self::Proposition { .. } => (&[], &[]),
         };
         first.iter().chain(second)
     }
@@ -114,6 +123,14 @@ impl<'program> Callable<'program> {
         match self {
             Self::Machine { machine, state } => {
                 validation::expression_result_type_reference(program, machine, state, expression)
+            }
+            Self::Proposition { declaration } => {
+                validation::parameter_expression_result_type_reference(
+                    program,
+                    declaration.symbol,
+                    program.proposition_parameters(declaration),
+                    expression,
+                )
             }
             Self::Requirement { signature } => {
                 validation::parameter_expression_result_type_reference(
@@ -138,6 +155,14 @@ impl<'program> Callable<'program> {
                 Some(state),
                 expression,
             ),
+            Self::Proposition { declaration } => {
+                validation::has_builtin_parameter_bound_expression_meaning(
+                    program,
+                    declaration.symbol,
+                    program.proposition_parameters(declaration),
+                    expression,
+                )
+            }
             Self::Requirement { signature } => {
                 validation::has_builtin_parameter_bound_expression_meaning(
                     program,
@@ -161,7 +186,7 @@ impl<'program> Callable<'program> {
                 Some(state),
                 expression,
             ),
-            Self::Requirement { .. } => {
+            Self::Requirement { .. } | Self::Proposition { .. } => {
                 if matches!(program.expression_table.expression(expression),
                     typed_trees::expression::ExpressionNode::Binary(binary)
                         if matches!(binary.operator, typed_trees::expression::BinaryOperator::And

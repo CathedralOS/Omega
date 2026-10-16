@@ -326,6 +326,50 @@ fail/asm/cyclic_label rejected 146ms expected @6d0b8da07bdd+wt
 	cyclic assembly label control in `Main::main` state `main` requires checked loop invariants; this control domain is not yet implemented
 fail/asm/duplicate_label rejected 0ms expected @6d0b8da07bdd+wt
 	tests/omega/fail/asm/duplicate_label/main.omg:15:5: assembly label `entry` is declared more than once
+fail/asm/instruction_disposition_conditional_call rejected 7024ms expected @eac8a2f4b8cc+wt
+	linear value `token` reaches scope exit without being consumed or transferred
+fail/asm/instruction_disposition_foreign_owner rejected 4567ms expected @eac8a2f4b8cc+wt
+	linear value `token` reaches scope exit without being consumed or transferred
+fail/asm/instruction_disposition_helper_bypass rejected 4039ms expected @eac8a2f4b8cc+wt
+	cannot prove ensures contract for exit from maybe_write at statement 0: proposition:fact:model_specific_written(2059,0)
+	linear value `token` reaches scope exit without being consumed or transferred
+fail/asm/instruction_disposition_no_effect rejected 4024ms expected @eac8a2f4b8cc+wt
+	cannot prove ensures contract for exit from finish at statement 5: proposition:fact:model_specific_written(2059,0)
+	linear value `token` reaches scope exit without being consumed or transferred
+fail/asm/instruction_disposition_no_owned_requirement rejected 4471ms expected @eac8a2f4b8cc+wt
+	linear value `token` reaches scope exit without being consumed or transferred
+fail/asm/instruction_disposition_preserved_premise rejected 5337ms expected @eac8a2f4b8cc+wt
+	linear value `token` reaches scope exit without being consumed or transferred
+fail/asm/instruction_disposition_reused rejected 4786ms expected @eac8a2f4b8cc+wt
+	linear value `other` reaches scope exit without being consumed or transferred
+fail/asm/instruction_disposition_saved_subject_reused rejected 4788ms expected @eac8a2f4b8cc+wt
+	linear value `other` reaches scope exit without being consumed or transferred
+fail/asm/instruction_disposition_wrong_resource rejected 4525ms expected @eac8a2f4b8cc+wt
+	linear value `token` reaches scope exit without being consumed or transferred
+fail/asm/instruction_effect_assertion_stale_operand rejected 4329ms expected @eac8a2f4b8cc+wt
+	cannot prove asm `ensures` fact at block exit in observe state `entry` (statement 9): proposition:fact:port_written(cell.port,byte)
+fail/asm/instruction_effect_helper_return_mutation rejected 4294ms expected @eac8a2f4b8cc+wt
+	cannot prove asm `ensures` fact at block exit in observe state `entry` (statement 5): proposition:fact:port_written(cell.port,byte)
+fail/asm/instruction_effect_helper_stale_operand rejected 4244ms expected @eac8a2f4b8cc+wt
+	cannot prove asm `ensures` fact at block exit in observe state `entry` (statement 5): proposition:fact:port_written(cell.port,32)
+fail/asm/instruction_effect_later_operand_mutation rejected 4064ms expected @eac8a2f4b8cc+wt
+	cannot prove asm `ensures` fact at block exit in observe state `entry` (statement 4): proposition:fact:port_written(subject.port,32)
+fail/asm/instruction_effect_missing_write rejected 4097ms expected @eac8a2f4b8cc+wt
+	cannot prove asm `ensures` fact at block exit in observe state `entry` (statement 3): proposition:fact:port_written(port,byte)
+fail/asm/instruction_effect_reverse_mutation rejected 4167ms expected @eac8a2f4b8cc+wt
+	cannot prove asm `ensures` fact at block exit in observe state `entry` (statement 4): proposition:fact:port_written(subject.port,byte)
+fail/asm/instruction_effect_skipped_write rejected 3964ms expected @eac8a2f4b8cc+wt
+	cannot prove asm `ensures` fact at block exit in observe state `entry` (statement 6): proposition:fact:port_written(port,byte)
+fail/asm/instruction_effect_stale_operand rejected 3659ms expected @eac8a2f4b8cc+wt
+	cannot prove asm `ensures` fact at block exit in observe state `entry` (statement 9): proposition:fact:port_written(subject.port,subject.byte)
+fail/asm/instruction_effect_unperformed_machine_ensure rejected 3647ms expected @eac8a2f4b8cc+wt
+	cannot prove ensures contract for exit from observe at statement 0: proposition:fact:port_written(port,byte)
+fail/asm/instruction_effect_user_model rejected 3771ms expected @eac8a2f4b8cc+wt
+	cannot prove asm `ensures` fact at block exit in observe state `entry` (statement 3): proposition:fact:port_written(port,byte)
+fail/asm/instruction_effect_wrong_byte rejected 3880ms expected @eac8a2f4b8cc+wt
+	cannot prove asm `ensures` fact at block exit in observe state `entry` (statement 3): proposition:fact:port_written(port,77)
+fail/asm/instruction_effect_wrong_port rejected 3564ms expected @eac8a2f4b8cc+wt
+	cannot prove asm `ensures` fact at block exit in observe state `entry` (statement 3): proposition:fact:port_written(33,byte)
 fail/asm/proposition_missing_premise rejected 1167ms expected @6d0b8da07bdd+wt
 	cannot prove asm `requires` fact at block entry in observe state `entry` (statement 2): proposition:fact:ready(value)
 fail/asm/proposition_prior_write_invalidates_requires rejected 1147ms expected @6d0b8da07bdd+wt
@@ -5603,6 +5647,8 @@ pass/asm/checked_label_edges_exit checked 8127ms check-target:linux_x86_64 @6d0b
 pass/asm/checked_label_reverse_local_exit checked 8130ms check-target:linux_x86_64 @6d0b8da07bdd+wt
 pass/asm/checked_label_specialization_exit checked 7802ms check-target:linux_x86_64 @6d0b8da07bdd+wt
 pass/asm/checked_label_transition_exit checked 7653ms check-target:linux_x86_64 @6d0b8da07bdd+wt
+pass/asm/instruction_disposition_native checked 10811ms check-target:linux_x86_64 @eac8a2f4b8cc+wt
+pass/asm/port_write_effect_contract checked 8833ms @eac8a2f4b8cc+wt
 pass/asm/proposition_label_contracts_exit checked 7299ms check-target:linux_x86_64 @6d0b8da07bdd+wt
 pass/asm/state_fact_transfers_exit checked 5758ms check-target:linux_x86_64 @cc43b6679d2a+wt
 pass/atomics/atomic_global_order_operations checked 1566ms @a9ae30e1c334+wt
@@ -6698,7 +6744,7 @@ pass/core/content_conservation_contract_exit checked 23008ms check-target:macos_
 pass/core/content_retained_custody_round_trip checked 11400ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/core/extent_core_surface checked 1673ms @a9ae30e1c334+wt
 pass/core/extent_root_provider_adapter checked 11044ms check-target:macos_arm64 @83314997c2b2
-pass/core/interrupt_obligations_surface checked 1707ms @a9ae30e1c334+wt
+pass/core/interrupt_obligations_surface checked 2415ms @eac8a2f4b8cc+wt
 pass/core/numeric_cross_signed_conversion_surface checked 11733ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/core/numeric_signed_narrowing_policies checked 15095ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/core/numeric_signed_to_unsigned_policies checked 15266ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -7555,8 +7601,7 @@ pass/machines/write_state_forward checked 9672ms @5041ef1af684+wt
 pass/math/extent_no_wrap_requires_denotation checked 1688ms @a9ae30e1c334+wt
 pass/memory/address_translation_canary checked 2016ms @a9ae30e1c334+wt
 pass/memory/bump_allocator_canary checked 11661ms check-target:linux_x86_64 @83314997c2b2
-pass/memory/interrupt_table_canary rejected 1719ms @a9ae30e1c334+wt
-	selected whole provider maps `<selected target>::TimerProviderRoot::satisfies::TimerRoot` and `<selected target>::FatalExceptionProviderRoot::satisfies::FatalExceptionRoot` supply the same exact receiver application; inherited rows cannot be mixed across choosing owners
+pass/memory/interrupt_table_canary checked 13186ms @eac8a2f4b8cc+wt
 pass/memory/runtime_large_entry_record_field_exit checked 12386ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/memory/runtime_large_frame_console_byte_homes_exit checked 11752ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/memory/runtime_large_local_record_exit checked 11731ms check-target:macos_arm64 @a9ae30e1c334+wt

@@ -325,3 +325,33 @@ pub struct FlowClaimJoinReceipt {
     pub claim_identity: language_semantics::PermissionClaimIdentity,
     pub alternatives: HandleSpan<FlowClaimJoinAlternative>,
 }
+
+/// A checked instruction event settles this exact owned argument. The normal
+/// permission event retains claim identity and provenance; this receipt binds
+/// its authority and source proposition to the event that actually occurred.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct FlowInstructionDispositionFact {
+    pub machine: SymbolHandle,
+    pub state: SymbolHandle,
+    pub source: language_semantics::PermissionEventSource,
+    pub evaluation: FlowPermissionEvaluation,
+    pub requirement: SymbolHandle,
+    pub fact: arena::Handle<typed_trees::domain::ProofFact>,
+    pub argument: typed_trees::expression::ExpressionHandle,
+    pub event: facts::FactHandle,
+    pub evidence: arena::Handle<FlowInstructionEffectReceiptFact>,
+    pub root: facts::PlaceRoot,
+    pub segments: HandleSpan<facts::PlaceSegment>,
+}
+
+/// Fresh instruction evidence retained through an exact helper invocation.
+/// Children cover normal callee exits; leaves name actual catalog events.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct FlowInstructionEffectReceiptFact {
+    pub event: facts::FactHandle,
+    /// A helper's exact instantiated postcondition; zero for catalog leaves.
+    /// Exact authored normal-return clause, joined through the event call's ensures rows.
+    pub contract: arena::Handle<crate::ContractProofFact>,
+    pub observation: facts::ProgramPoint,
+    pub children: HandleSpan<FlowInstructionEffectReceiptFact>,
+}

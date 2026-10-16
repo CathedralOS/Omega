@@ -54,7 +54,9 @@ reaches MachineControl
 requires
     guard in InterruptMaskGuard::Active;
 
-pub boundary requirement InterruptAcknowledgement::complete(acknowledgement: InterruptAcknowledgement)
-reaches PortIo
-requires
-    acknowledgement in InterruptAcknowledgement::Pending;
+pub boundary trait InterruptAcknowledgementCompletion {
+    machine complete(acknowledgement: InterruptAcknowledgement)
+    reaches <= MachineControl + PortIo
+    requires
+        acknowledgement in InterruptAcknowledgement::Pending;
+}

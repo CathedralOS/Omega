@@ -80,6 +80,17 @@ pub(crate) fn apply_recorded_statement_events(
             diagnostics.push(diagnostic);
             return;
         }
+        if matches!(
+            event.source,
+            PermissionEventSource::InstructionDisposition { .. }
+        ) && !super::super::instruction_dispositions::valid_receipt(
+            program, facts, machine, state, event,
+        ) {
+            diagnostics.push(Diagnostic::error(
+                "instruction disposition has no matching checked effect receipt",
+            ));
+            continue;
+        }
         let event_path = segments.span_or_empty(event.segments);
         let Some(place) = current
             .iter_mut()
@@ -89,38 +100,7 @@ pub(crate) fn apply_recorded_statement_events(
         };
         match event.kind {
             PermissionEventKind::Transfer | PermissionEventKind::Consume => {
-                if !place.ever_established {
-                    diagnostics.push(Diagnostic::error(format!(
-                        "linear value `{}` has not been established (implicit zero-fill creates no linear obligation); it cannot be moved here",
-                        place.name
-                    )));
-                } else if !place.live {
-                    let ownership = if place.multiplicity == Multiplicity::Affine {
-                        "affine"
-                    } else {
-                        "linear"
-                    };
-                    diagnostics.push(Diagnostic::error(format!(
-                        "{ownership} value `{}` was already transferred or consumed; it cannot be moved here",
-                        place.name
-                    )));
-                } else if place
-                    .claim_identity
-                    .unwrap_or(PermissionClaimIdentity::Unknown)
-                    != event.claim_identity
-                    || place.provenance.unwrap_or(PermissionProvenance::Unknown) != event.provenance
-                {
-                    // Reconciliation rewrites an entire occurrence, including
-                    // its establishment. A transfer must still name the exact
-                    // claim currently held at this place; matching a forged
-                    // outcome receipt cannot substitute another live source.
-                    diagnostics.push(Diagnostic::error(format!(
-                        "permission transfer for `{}` does not match its established claim identity and provenance",
-                        place.name
-                    )));
-                } else {
-                    place.live = false;
-                }
+                apply_recorded_consumption(event, place, diagnostics);
             }
             PermissionEventKind::Establish | PermissionEventKind::Restore => {
                 if event.kind == PermissionEventKind::Establish
@@ -163,13 +143,92 @@ pub(crate) fn apply_recorded_statement_events(
     places.clone_from_slice(&current);
 }
 
+fn apply_recorded_consumption(
+    event: &FlowPermissionEventFact,
+    place: &mut LinearPlace,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if !place.ever_established {
+        diagnostics.push(Diagnostic::error(format!(
+                        "linear value `{}` has not been established (implicit zero-fill creates no linear obligation); it cannot be moved here",
+                        place.name
+                    )));
+    } else if !place.live {
+        let ownership = if place.multiplicity == Multiplicity::Affine {
+            "affine"
+        } else {
+            "linear"
+        };
+        diagnostics.push(Diagnostic::error(format!(
+            "{ownership} value `{}` was already transferred or consumed; it cannot be moved here",
+            place.name
+        )));
+    } else if place
+        .claim_identity
+        .unwrap_or(PermissionClaimIdentity::Unknown)
+        != event.claim_identity
+        || place.provenance.unwrap_or(PermissionProvenance::Unknown) != event.provenance
+    {
+        // Reconciliation rewrites an entire occurrence, including
+        // its establishment. A transfer must still name the exact
+        // claim currently held at this place; matching a forged
+        // outcome receipt cannot substitute another live source.
+        diagnostics.push(Diagnostic::error(format!(
+                        "permission transfer for `{}` does not match its established claim identity and provenance",
+                        place.name
+                    )));
+    } else {
+        place.live = false;
+    }
+}
+
+pub(crate) fn apply_recorded_exit_dispositions(
+    program: &dyn validation::CheckingInput,
+    facts: &CheckFacts,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    coordinate: checked_trees::FlowClaimJoinExit,
+    events: &[&FlowPermissionEventFact],
+    places: &mut [LinearPlace],
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let source = PermissionEventSource::InstructionExitDisposition {
+        statement_index: coordinate.statement_index,
+    };
+    let evaluation = super::affine_cleanup::exit_evaluation(program, state, coordinate);
+    for event in events
+        .iter()
+        .copied()
+        .filter(|event| event.source == source && event.evaluation == evaluation)
+    {
+        if !super::super::instruction_dispositions::valid_receipt(
+            program, facts, machine, state, event,
+        ) {
+            diagnostics.push(Diagnostic::error(
+                "instruction exit disposition has no matching checked effect receipt",
+            ));
+            continue;
+        }
+        let path = facts.flow.ownership.segments.span_or_empty(event.segments);
+        if let Some(place) = places
+            .iter_mut()
+            .find(|place| place.root == event.root && place.path == path)
+        {
+            apply_recorded_consumption(event, place, diagnostics);
+        }
+    }
+}
+
 pub(crate) fn permission_event_statement_index(source: PermissionEventSource) -> Option<usize> {
     match source {
         PermissionEventSource::Statement { statement_index }
+        | PermissionEventSource::InstructionDisposition { statement_index }
         | PermissionEventSource::Call {
             statement_index, ..
         } => Some(statement_index),
-        PermissionEventSource::StateEntry | PermissionEventSource::StateExit => None,
+        PermissionEventSource::StateEntry
+        | PermissionEventSource::StateExit
+        | PermissionEventSource::InstructionExitDisposition { .. } => None,
     }
 }
 

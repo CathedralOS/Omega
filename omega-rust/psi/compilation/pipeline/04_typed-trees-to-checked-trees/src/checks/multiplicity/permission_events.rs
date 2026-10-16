@@ -55,6 +55,8 @@ pub(crate) fn prepare_permission_events(
     facts: &mut CheckFacts,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut cleanup_dispositions = ContextualCleanupFacts::default();
+    facts.flow.ownership.instruction_dispositions = arena::Arena::default();
+    facts.flow.ownership.instruction_effect_receipts = arena::Arena::default();
     facts.flow.ownership.storage_transfers = arena::Arena::default();
     facts.flow.ownership.selected_cleanup_permissions = arena::Arena::default();
     let mut permission_events = Vec::new();
@@ -239,9 +241,11 @@ pub(crate) fn prepare_permission_events(
                 remaining,
                 owned_selection::SelectionOccurrences::default(),
                 super::selected_cleanup::SelectedCleanup::default(),
+                super::instruction_dispositions::InstructionDispositions::default(),
             ),
             |step, custody| {
-                let (places, remaining, selections, selected_cleanup) = custody;
+                let (places, remaining, selections, selected_cleanup, instruction_dispositions) =
+                    custody;
                 super::permission_schedule::select_cases(program, state, step, places);
                 match step {
                     super::permission_schedule::PermissionStep::Evaluate {
@@ -358,6 +362,16 @@ pub(crate) fn prepare_permission_events(
                                 return;
                             }
                         };
+                        instruction_dispositions.statement(
+                            program,
+                            facts,
+                            machine,
+                            state,
+                            statement_index,
+                            evaluation,
+                            places,
+                            &mut permission_events,
+                        );
                         if let Err(diagnostic) = selected_cleanup.observe(
                             program,
                             &selected,
@@ -408,6 +422,15 @@ pub(crate) fn prepare_permission_events(
                         crash: false,
                     } => {
                         let event_start = permission_events.len();
+                        instruction_dispositions.exit(
+                            program,
+                            facts,
+                            machine,
+                            state,
+                            coordinate,
+                            places,
+                            &mut permission_events,
+                        );
                         append_owned_cleanup_permission_events(
                             program,
                             &facts.operators,

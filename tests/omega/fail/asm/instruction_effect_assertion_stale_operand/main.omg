@@ -1,0 +1,10 @@
+use omega::language::core::assembly;
+use omega::language::core::assembly_model;
+data PortCell { port: u16; }
+machine observe(cell: &mut PortCell, byte: u8) reaches PortIo {
+    cell.port = 32;
+    asm where ensures port_written(cell.port, byte) { out cell.port, byte }
+    cell.port = 33;
+    asm where ensures port_written(cell.port, byte) { nop }
+}
+machine main() {}

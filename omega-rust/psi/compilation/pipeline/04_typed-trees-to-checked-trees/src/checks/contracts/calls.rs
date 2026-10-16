@@ -119,7 +119,12 @@ pub(super) fn check_call_requires(
                 _ => {
                     semantic_contexts_prove_contract_fact(
                         program,
-                        &facts.semantic,
+                        facts,
+                        facts::ProgramPoint::Statement {
+                            machine_symbol: state_flow.machine_symbol,
+                            state_symbol: state_flow.state_symbol,
+                            statement_index: call_flow.statement_index,
+                        },
                         requirement_contexts,
                         fact,
                     ) || transparent_requirement_proves(program, facts, state_flow, call_flow, fact)

@@ -776,12 +776,16 @@ fn append_call_semantic_contract_refs(
         if origin == FactOrigin::CallEnsures {
             case_observations::append_result(program, facts, call, contract, point, evidence);
         }
-        // A Boolean postcondition's outer expression is not its storage
+        // A proposition or Boolean postcondition is not its own storage
         // dependency. Retain each exact instantiated operand in the same
         // context so the shared mutation filter retires the whole promise
         // when any referenced value changes.
         if origin == FactOrigin::CallEnsures
-            && matches!(payload, FactPayload::ContractBooleanExpression { .. })
+            && matches!(
+                payload,
+                FactPayload::ContractBooleanExpression { .. }
+                    | FactPayload::ContractPropositionApplication { .. }
+            )
         {
             for occurrence in crate::facts::contract_occurrences::fact_referenced_occurrences(
                 program,

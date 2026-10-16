@@ -1,0 +1,30 @@
+// Native compilation only: this kernel instruction must never run on the
+// hosted test executor. The package owns Token's linear completion protocol.
+use omega::language::core::assembly;
+use omega::language::core::assembly_model;
+data Token [linear] { identity: u64; }
+boundary trait Finish {
+    machine finish(token: Token, enabled: bool) reaches MachineControl
+    requires model_specific_written(2059, 0);
+}
+Finisher satisfies Finish { Finish::finish = finish; }
+proposition finished(token: Token) = model_specific_written(2059, 0);
+machine emit() -> u32 reaches MachineControl
+ensures model_specific_written(2059, 0);
+{
+    let index: u32 = 2059;
+    let value: u64 = 0;
+    asm { wrmsr index, value }
+    0
+}
+machine finish(token: Token, enabled: bool)
+satisfies Finish::finish
+reaches MachineControl
+requires model_specific_written(2059, 0);
+ensures finished(token);
+{
+    let observed: u32 = match enabled { true -> emit(), false -> 0 };
+    let mut marker: u32 = observed;
+    asm where ensures finished(token) { mov marker, marker }
+}
+machine main() {}

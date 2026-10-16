@@ -194,6 +194,16 @@ pub(crate) fn validate_linear_permission_events(
                         ) {
                             diagnostics.push(diagnostic);
                         }
+                        applied_events::apply_recorded_exit_dispositions(
+                            program,
+                            facts,
+                            machine,
+                            state,
+                            coordinate,
+                            &events,
+                            places,
+                            &mut diagnostics,
+                        );
                         affine_cleanup::apply_recorded_cleanup_events(
                             program,
                             state,

@@ -61,6 +61,8 @@ impl FlowBorrowLifetimeFacts {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct FlowOwnershipFacts {
+    pub instruction_effect_receipts: Arena<super::FlowInstructionEffectReceiptFact>,
+    pub instruction_dispositions: Arena<super::FlowInstructionDispositionFact>,
     pub segments: Arena<facts::PlaceSegment>,
     pub storage_transfers: Arena<super::FlowStorageTransferFact>,
     pub permissions: Arena<FlowPermissionEventFact>,
@@ -87,6 +89,8 @@ impl FlowOwnershipFacts {
         claim_outcome_maps: Arena<FlowClaimOutcomeMapFact>,
     ) -> Self {
         Self {
+            instruction_effect_receipts: Arena::default(),
+            instruction_dispositions: Arena::default(),
             segments,
             permissions,
             storage_transfers: Arena::default(),

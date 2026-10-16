@@ -125,6 +125,8 @@ pass/asm/checked_label_edges_exit built 8080ms exit:0 @6d0b8da07bdd+wt
 pass/asm/checked_label_reverse_local_exit built 8096ms exit:0 @6d0b8da07bdd+wt
 pass/asm/checked_label_specialization_exit built 7782ms exit:0 @6d0b8da07bdd+wt
 pass/asm/checked_label_transition_exit built 7643ms exit:0 @6d0b8da07bdd+wt
+pass/asm/instruction_disposition_native built 10031ms @eac8a2f4b8cc+wt
+pass/asm/port_write_effect_contract checked 10652ms @eac8a2f4b8cc+wt
 pass/asm/proposition_label_contracts_exit built 7293ms exit:0 @6d0b8da07bdd+wt
 pass/atomics/atomic_global_order_operations checked 3600ms @6c49683ce714
 pass/atomics/atomic_order_surface checked 18279ms @6c49683ce714
@@ -1203,7 +1205,7 @@ pass/core/content_conservation_contract_exit built 15096ms exit:70 @6c49683ce714
 pass/core/content_retained_custody_round_trip built 17634ms @6c49683ce714
 pass/core/extent_core_surface checked 3362ms @6c49683ce714
 pass/core/extent_root_provider_adapter built 17766ms exit:0 @6c49683ce714
-pass/core/interrupt_obligations_surface checked 3392ms @6c49683ce714
+pass/core/interrupt_obligations_surface checked 2472ms @eac8a2f4b8cc+wt
 pass/core/numeric_cross_signed_conversion_surface built 16315ms exit:70 @6c49683ce714
 pass/core/numeric_signed_narrowing_policies built 20795ms exit:0 @6c49683ce714
 pass/core/numeric_signed_to_unsigned_policies built 20881ms exit:0 @6c49683ce714
@@ -2054,8 +2056,7 @@ pass/machines/write_state_forward checked 17226ms @6c49683ce714
 pass/math/extent_no_wrap_requires_denotation checked 3476ms @6c49683ce714
 pass/memory/address_translation_canary checked 3725ms @6c49683ce714
 pass/memory/bump_allocator_canary built 23893ms @6c49683ce714
-pass/memory/interrupt_table_canary rejected 3435ms regressed-from:checked @fa48d7bba308+wt
-	selected overload `named-callable(path(InterruptAcknowledgement::complete),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(nominal\\\\\\(toolchain-owner\\\\\\,path\\\\\\(InterruptAcknowledgement\\\\\\)\\\\\\)\\)\\)\\)),result-dispatch())` has no compiler-known intrinsic realization
+pass/memory/interrupt_table_canary checked 14089ms @eac8a2f4b8cc+wt
 pass/memory/runtime_large_entry_record_field_exit built 14674ms exit:70 @6c49683ce714
 pass/memory/runtime_large_frame_console_byte_homes_exit built 15568ms exit:70 stdout:match @6c49683ce714
 pass/memory/runtime_large_local_record_exit built 15341ms exit:70 @6c49683ce714

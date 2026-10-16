@@ -438,6 +438,14 @@ fn crash_frontier_claim_sort_key(
             key[9] = u64::from(target_symbol.generation());
         }
         PermissionEventSource::StateExit => key[5] = 3,
+        PermissionEventSource::InstructionExitDisposition { statement_index } => {
+            key[5] = 5;
+            key[6] = u64::try_from(statement_index).unwrap_or(u64::MAX);
+        }
+        PermissionEventSource::InstructionDisposition { statement_index } => {
+            key[5] = 4;
+            key[6] = u64::try_from(statement_index).unwrap_or(u64::MAX);
+        }
     }
     key[10] = u64::from(ordinal);
     key

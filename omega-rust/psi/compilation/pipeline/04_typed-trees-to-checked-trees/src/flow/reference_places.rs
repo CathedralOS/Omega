@@ -25,16 +25,26 @@ pub(crate) fn reference_route_source(
     statement_index: usize,
     symbol: symbols::SymbolHandle,
 ) -> Option<typed_trees::expression::ExpressionHandle> {
-    let (_, declaration) = program
-        .state_local_declaration(state, symbol)
-        .filter(|&(ordinal, _)| ordinal < statement_index)?;
+    let order = program
+        .statement_table
+        .admitted_execution_order(state.statement_nodes);
+    let end = order
+        .position(statement_index)
+        .or_else(|| (statement_index == statements.len()).then_some(order.indices().len()))?;
+    let (ordinal, declaration) = program.state_local_declaration(state, symbol)?;
+    if !order
+        .position(ordinal)
+        .is_some_and(|position| position < end)
+    {
+        return None;
+    }
     if !crate::checks::type_reference_is_reference(program, declaration.type_reference) {
         return None;
     }
-    statements
+    order.indices()[..end]
         .iter()
-        .take(statement_index)
         .rev()
+        .filter_map(|index| statements.get(*index))
         .find_map(|statement| match statement {
             StatementNode::LocalData(local) if local.symbol == symbol => Some(local.initial_value),
             StatementNode::Assignment(assignment) => {
@@ -62,14 +72,19 @@ pub(crate) fn local_reference_storage_before_statement(
     let root = place.root.as_symbol()?;
     let state = program.state_by_symbol(state.state_symbol)?;
     let statements = program.statement_table.statements(state.statement_nodes);
-    let mut declarations =
-        statements
-            .get(..index)?
-            .iter()
-            .filter_map(|statement| match statement {
-                StatementNode::LocalData(local) if local.symbol == root => Some(local),
-                _ => None,
-            });
+    let order = program
+        .statement_table
+        .admitted_execution_order(state.statement_nodes);
+    let end = order
+        .position(index)
+        .or_else(|| (index == statements.len()).then_some(order.indices().len()))?;
+    let mut declarations = order.indices()[..end]
+        .iter()
+        .filter_map(|index| statements.get(*index))
+        .filter_map(|statement| match statement {
+            StatementNode::LocalData(local) if local.symbol == root => Some(local),
+            _ => None,
+        });
     let Some(local) = declarations.next() else {
         return Some(place);
     };

@@ -53,9 +53,10 @@ pub(crate) use operand_values::{
 };
 mod operator_calls;
 pub(crate) use operand_contexts::{
-    captured_call_operands, entry_origin_is_stable, operand_bindings_agree,
-    operand_binds_live_view, operand_binds_stable_copy, operand_contexts,
-    operand_entry_origin_is_stable, operand_observations_agree,
+    call_return_before_statement_agrees, captured_call_operands, entry_origin_is_stable,
+    operand_binding_before_statement_agrees, operand_bindings_agree, operand_binds_live_view,
+    operand_binds_stable_copy, operand_contexts, operand_entry_origin_is_stable,
+    operand_observation_before_statement_agrees, operand_observations_agree,
 };
 mod state;
 mod statements;
@@ -203,3 +204,5 @@ pub(crate) use reach::attach_reach_summaries;
 use state::build_state_flow_fact;
 use statements::append_state_statement_flow_facts;
 use transfers::propagate_statement_transfers;
+
+pub(crate) use value_origins::value_origin_matches_call_return;

@@ -99,8 +99,17 @@ pub(super) fn live_contexts_prove_scalar_postcondition<'program>(
     matches!(
         fact.payload,
         facts::FactPayload::ContractBooleanExpression { .. }
-    ) && (semantic_contexts_prove_contract_fact(program, &facts.semantic, entry_contexts, fact)
-        || super::current_values::proves_exit(program, facts, exit_flow, fact, call_frames)
+    ) && (semantic_contexts_prove_contract_fact(
+        program,
+        facts,
+        facts::ProgramPoint::Statement {
+            machine_symbol: exit_flow.machine_symbol,
+            state_symbol: exit_flow.state_symbol,
+            statement_index: exit_flow.statement_index,
+        },
+        entry_contexts,
+        fact,
+    ) || super::current_values::proves_exit(program, facts, exit_flow, fact, call_frames)
         || scalars::proves(program, facts, exit_flow, entry_contexts, fact, call_frames))
 }
 
@@ -180,7 +189,12 @@ pub(super) fn check_exit_ensures(
             } else {
                 semantic_contexts_prove_contract_fact(
                     program,
-                    &facts.semantic,
+                    facts,
+                    facts::ProgramPoint::Statement {
+                        machine_symbol: exit_flow.machine_symbol,
+                        state_symbol: exit_flow.state_symbol,
+                        statement_index: exit_flow.statement_index,
+                    },
                     &entry_contexts,
                     fact,
                 )

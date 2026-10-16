@@ -41,6 +41,15 @@ pub enum PermissionEventSource {
         call_ordinal: usize,
         target_symbol: symbols::SymbolHandle,
     },
+    /// A checked instruction-model proof disposes an exact owned claim.
+    /// This is separate from an authored move and from selected Drop cleanup.
+    InstructionDisposition {
+        statement_index: usize,
+    },
+    /// The same proved disposal on one normal outgoing occurrence.
+    InstructionExitDisposition {
+        statement_index: usize,
+    },
     StateExit,
 }
 

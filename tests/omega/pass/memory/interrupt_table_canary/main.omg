@@ -2,14 +2,10 @@
 // as an ordinary source layout. `cathedral/interrupt_table.omg` carries
 // the package's authored shapes -- the semantic gate record, the table
 // record, and the build-time layout policies that place them on the
-// x86-64 wire encoding. The compiler-side witness lives in
-// `compiler/tests/layout_plans/interrupt_descriptor_tables.rs`: it
-// compiles this program, derives the generic post-handoff writer from
-// the validated table layout, materializes each member's sealed entry
-// into the split `entry` offsets, and runs the package's semantic
-// validator over the produced slots before the established table value
-// is minted. This root only needs to retain the authored types so the
-// checked program carries them.
+// x86-64 wire encoding. The corpus checks the authored layouts, entry
+// policies, selected providers, and acknowledgement completion body. This
+// declaration-only root retains the authored types; it neither installs an
+// interrupt table nor executes privileged instructions on the corpus host.
 
 use cathedral::interrupt_roots;
 use cathedral::interrupt_table;

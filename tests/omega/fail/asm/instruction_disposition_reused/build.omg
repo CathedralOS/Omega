@@ -1,0 +1,5 @@
+machine build(builder: &mut Build) {
+    Build::package(builder, "instruction_disposition_reused");
+    builder.freestanding = true;
+    Build::select_provider<Finish, Finisher>(builder);
+}

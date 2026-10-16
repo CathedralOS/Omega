@@ -1,0 +1,9 @@
+use omega::language::core::assembly;
+use omega::language::core::assembly_model;
+data Subject { port: u16; }
+machine change(subject: &mut Subject) -> u8 { subject.port = 33; 32 }
+machine observe(subject: &mut Subject) reaches PortIo {
+    subject.port = 32;
+    asm where ensures port_written(subject.port, 32) { out subject.port, change(subject) }
+}
+machine main() {}

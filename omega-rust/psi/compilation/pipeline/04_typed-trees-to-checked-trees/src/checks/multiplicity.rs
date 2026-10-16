@@ -20,6 +20,7 @@ mod owned_cleanup;
 mod owned_selection;
 pub(super) use owned_selection::reachable_arms;
 pub(super) use projected_affine::transfers_owned_storage;
+mod instruction_dispositions;
 mod permission_events;
 mod permission_schedule;
 mod selected_cleanup;

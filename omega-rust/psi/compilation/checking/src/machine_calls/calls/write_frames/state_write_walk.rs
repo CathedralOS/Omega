@@ -466,21 +466,25 @@ fn walk_state_write_prefix_inner(
     }
 
     let statements = program.statement_table.statements(state.statement_nodes);
-    for (statement_index, statement) in statements.iter().enumerate() {
+    let order = program
+        .statement_table
+        .admitted_execution_order(state.statement_nodes);
+    if let Some(collection) = collect.as_deref_mut() {
+        collection.prefixes.resize_with(statements.len(), || None);
+    }
+    for (position, &statement_index) in order.indices().iter().enumerate() {
+        let statement = &statements[statement_index];
         if let Some(collection) = collect.as_deref_mut() {
-            collection
-                .prefixes
-                .push(
-                    (collection.requested)(statement_index).then(|| CollectedStatementPrefix {
-                        isolated_locals: isolated_local_roots.clone(),
-                        aliases: local_alias_origins.clone(),
-                        divergent: divergent_alias_origins.clone(),
-                        stored: stored.clone(),
-                    }),
-                );
+            collection.prefixes[statement_index] =
+                (collection.requested)(statement_index).then(|| CollectedStatementPrefix {
+                    isolated_locals: isolated_local_roots.clone(),
+                    aliases: local_alias_origins.clone(),
+                    divergent: divergent_alias_origins.clone(),
+                    stored: stored.clone(),
+                });
         }
         if matches!(query, Some(StateWriteQuery::StatementPrefixes { .. }))
-            && statement_index + 1 == statements.len()
+            && position + 1 == order.indices().len()
         {
             // The last incoming boundary is already captured. Its statement's
             // effects cannot change any requested prefix; following its calls

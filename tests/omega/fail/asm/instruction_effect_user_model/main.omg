@@ -1,0 +1,7 @@
+use omega::language::core::assembly;
+// A package's same-spelled proposition owns no instruction-model meaning.
+pub proposition port_written(port: u16, byte: u8);
+machine observe(port: u16, byte: u8) reaches PortIo {
+    asm where ensures port_written(port, byte) { out port, byte }
+}
+machine main() {}

@@ -2,9 +2,9 @@
 use super::place_paths::{push_unique_origin, single_place_origin};
 use super::{
     ExpressionHandle, ExpressionNode, FrameInference, FramePathPrecision, FramePlaceOrigin,
-    FrameSourcePlace, Machine, MachineSymbols, State, StatementNode, StoredLocalOrigins,
-    SymbolHandle, TopLevelSymbols, TypeReferenceHandle, TypeReferenceNode, caller_aliases,
-    frame_place_path, local_aliases, reference_origins, stored_origins,
+    FrameSourcePlace, Machine, MachineSymbols, State, StateParameter, StatementNode,
+    StoredLocalOrigins, SymbolHandle, TopLevelSymbols, TypeReferenceHandle, TypeReferenceNode,
+    caller_aliases, frame_place_path, local_aliases, reference_origins, stored_origins,
     type_is_caller_isolated_local, type_may_carry_write, type_reference_is_reference,
 };
 use crate::machine_calls::calls::write_frames::alias_origins::stable_alias_initializer_origins;
@@ -169,6 +169,36 @@ pub fn assignment_stored_value_type(
     }
 }
 
+/// An exclusive parameter supplies a fixed incoming address, not an owned
+/// descriptor home. Shared parameters and stored field/local references keep
+/// their separate descriptor replacement rules.
+pub(super) fn expression_is_fixed_incoming_reference(
+    program: &dyn crate::CheckingInput,
+    state: &State,
+    expression: ExpressionHandle,
+) -> bool {
+    crate::canonical_place_from_expression_in_state(
+        program,
+        state.symbol,
+        state.statement_nodes.count() as usize,
+        expression,
+    )
+    .and_then(|place| parameter_at_place(program, state, &place))
+    .and_then(|parameter| crate::reference_shell(program, parameter.type_reference))
+    .is_some_and(|shell| shell.access.is_exclusive())
+}
+
+fn parameter_at_place<'program>(
+    program: &'program dyn crate::CheckingInput,
+    state: &'program State,
+    place: &crate::CanonicalPlace,
+) -> Option<&'program StateParameter> {
+    if !place.segments.is_empty() {
+        return None;
+    }
+    program.state_parameter_by_symbol(state, place.root.as_symbol()?)
+}
+
 pub(super) fn reference_value_replaces_binding(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
@@ -191,16 +221,10 @@ pub(super) fn reference_value_replaces_binding(
         target,
     )
     .is_some_and(|place| {
-        place.segments.is_empty()
-            && place.root.as_symbol().is_some_and(|symbol| {
-                program
-                    .state_parameter_by_symbol(state, symbol)
-                    .is_some_and(|parameter| {
-                        crate::reference_shell(program, parameter.type_reference).is_none_or(
-                            |shell| shell.access != language_semantics::ReferenceAccess::Shared,
-                        )
-                    })
-            })
+        parameter_at_place(program, state, &place).is_some_and(|parameter| {
+            crate::reference_shell(program, parameter.type_reference)
+                .is_none_or(|shell| shell.access != language_semantics::ReferenceAccess::Shared)
+        })
     }) {
         return false;
     }
@@ -278,9 +302,17 @@ pub(super) fn local_origins(
         caller_aliases::CallerWriteSite::Statement(before),
     )?;
     let statements = program.statement_table.statements(state.statement_nodes);
+    let order = program
+        .statement_table
+        .admitted_execution_order(state.statement_nodes);
+    let position = order.position(index)?;
     let (_, local) = program
         .state_local_declaration(state, local_symbol)
-        .filter(|&(ordinal, _)| ordinal < index)?;
+        .filter(|&(ordinal, _)| {
+            order
+                .position(ordinal)
+                .is_some_and(|declaration| declaration < position)
+        })?;
     if !type_reference_is_reference(program, local.type_reference)
         || program.symbols.get(local_symbol).parent != state.symbol
         || program.symbols.get(local_symbol).kind != symbols::SymbolKind::Local
@@ -319,11 +351,15 @@ pub(super) fn local_origins(
             validate_source_projection(program, machine, state, index, &source, &prefix.stored)?;
             // A reference local left in the result has not been canonically resolved.
             // It is not evidence that the similarly named slot kept its old referent.
-            if statements[..index].iter().any(|statement| {
-                matches!(statement,
+            if order.indices()[..position]
+                .iter()
+                .map(|index| &statements[*index])
+                .any(|statement| {
+                    matches!(statement,
         StatementNode::LocalData(local) if local.symbol == source.root
             && type_reference_is_reference(program, local.type_reference))
-            }) {
+                })
+            {
                 return None;
             }
             if source.root == machine.symbol {

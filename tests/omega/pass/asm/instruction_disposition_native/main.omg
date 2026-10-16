@@ -1,0 +1,169 @@
+// Native compilation only: this kernel instruction must never run on the
+// hosted test executor. The package owns Token's linear completion protocol.
+use omega::language::core::assembly;
+use omega::language::core::assembly_model;
+data Token [linear] { identity: u64; }
+boundary trait Finish {
+    machine finish(token: Token) reaches MachineControl;
+}
+Finisher satisfies Finish { Finish::finish = finish; }
+proposition finished(token: Token) = model_specific_written(2059, 0);
+machine finish(token: Token)
+satisfies Finish::finish
+reaches MachineControl
+ensures finished(token);
+{
+    let index: u32 = 2059;
+    let value: u64 = 0;
+    asm where ensures finished(token) { wrmsr index, value }
+}
+machine main() reaches MachineControl {
+    let token: Token = Token { identity: 7 };
+    Finisher::finish(token);
+    let other: Token = Token { identity: 8 };
+    finish_at_exit(other);
+    let third: Token = Token { identity: 9 };
+    finish_via_helper(third);
+    let fourth: Token = Token { identity: 10 };
+    finish_in_state(fourth);
+    let fifth: Token = Token { identity: 11 };
+    let sixth: Token = Token { identity: 12 };
+    finish_pair(fifth, sixth);
+    let seventh: Token = Token { identity: 13 };
+    let eighth: Token = Token { identity: 14 };
+    finish_pair_one_helper(seventh, eighth);
+    finish_envelope(Envelope { token: Token { identity: 15 } });
+    finish_by_choice(Token { identity: 16 }, true);
+    finish_by_choice(Token { identity: 17 }, false);
+    finish_via_result(Token { identity: 18 });
+    finish_via_match(Token { identity: 19 });
+}
+
+machine finish_at_exit(token: Token)
+satisfies Finish::finish
+reaches MachineControl
+ensures finished(token);
+{
+    let index: u32 = 2059;
+    let value: u64 = 0;
+    asm { wrmsr index, value }
+}
+
+machine write_eoi() reaches MachineControl
+ensures model_specific_written(2059, 0);
+{
+    let index: u32 = 2059;
+    let value: u64 = 0;
+    asm { wrmsr index, value }
+}
+machine finish_via_helper(token: Token)
+satisfies Finish::finish
+reaches MachineControl
+ensures finished(token);
+{
+    write_eoi();
+}
+machine finish_in_state(token: Token)
+satisfies Finish::finish
+reaches MachineControl
+{
+    transition true { true -> work(token) }
+    state work(token: Token) {
+        write_eoi();
+        let mut marker: u32 = 0;
+        asm where ensures finished(token) { mov marker, marker }
+    }
+}
+
+boundary trait PairFinish {
+    machine finish(first: Token, second: Token) reaches MachineControl;
+}
+PairFinisher satisfies PairFinish { PairFinish::finish = finish_pair; }
+machine finish_pair(first: Token, second: Token)
+satisfies PairFinish::finish
+reaches MachineControl
+{
+    let mut marker: u32 = 0;
+    write_eoi();
+    asm where ensures finished(first) { mov marker, marker }
+    write_eoi();
+    asm where ensures finished(second) { mov marker, marker }
+}
+
+machine write_two_eoi() reaches MachineControl
+ensures model_specific_written(2059, 0);
+{
+    write_eoi();
+    write_eoi();
+}
+machine finish_pair_one_helper(first: Token, second: Token)
+satisfies PairFinish::finish
+reaches MachineControl
+{
+    let mut marker: u32 = 0;
+    write_two_eoi();
+    asm where ensures finished(first) { mov marker, marker }
+    asm where ensures finished(second) { mov marker, marker }
+}
+data Envelope { token: Token; }
+boundary trait FinishEnvelope {
+    machine finish(envelope: Envelope) reaches MachineControl;
+}
+EnvelopeFinisher satisfies FinishEnvelope { FinishEnvelope::finish = finish_envelope; }
+machine finish_envelope(envelope: Envelope)
+satisfies FinishEnvelope::finish
+reaches MachineControl
+{
+    write_eoi();
+    let mut marker: u32 = 0;
+    asm where ensures finished(envelope.token) { mov marker, marker }
+}
+
+machine write_eoi_by_choice(enabled: bool) reaches MachineControl
+ensures model_specific_written(2059, 0);
+{
+    transition enabled { true -> left() false -> right() }
+    state left() { write_eoi(); }
+    state right() { write_eoi(); }
+}
+boundary trait FinishByChoice {
+    machine finish(token: Token, enabled: bool) reaches MachineControl;
+}
+ChoiceFinisher satisfies FinishByChoice { FinishByChoice::finish = finish_by_choice; }
+machine finish_by_choice(token: Token, enabled: bool)
+satisfies FinishByChoice::finish
+reaches MachineControl
+ensures finished(token);
+{ write_eoi_by_choice(enabled); }
+
+machine forward(token: Token) -> Token {
+    let moved: Token = token;
+    moved
+}
+machine finish_via_result(token: Token)
+satisfies Finish::finish
+reaches MachineControl
+ensures finished(token);
+{
+    let forwarded: Token = forward(token);
+    write_eoi();
+    let mut marker: u32 = 0;
+    asm where ensures finished(forwarded) { mov marker, marker }
+}
+
+machine write_eoi_bool() -> bool reaches MachineControl
+ensures model_specific_written(2059, 0);
+ensures result == true;
+{
+    write_eoi();
+    true
+}
+machine finish_via_match(token: Token)
+satisfies Finish::finish
+reaches MachineControl
+ensures finished(token);
+{
+    let selected: u32 = match write_eoi_bool() { true -> 0, false -> 1 };
+    let mut marker: u32 = selected;
+    asm where ensures finished(token) { mov marker, marker }
+}

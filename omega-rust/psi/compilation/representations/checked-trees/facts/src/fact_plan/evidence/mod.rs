@@ -174,6 +174,18 @@ pub enum ProofObligationKind {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FactPayload {
+    /// One completed catalog operation. `Fact::point` names its exact flow
+    /// invocation; operands keep their independently captured completion facts.
+    /// This historical event is not a current-storage qualification or disposal.
+    InstructionEffect {
+        operation: language_core::inline_assembly::AsmRegisterOperation,
+    },
+    /// Normal execution of this exact invocation, independently of any
+    /// proposition its postconditions may preserve from the entry context.
+    CallCompletion {
+        target: SymbolHandle,
+    },
+
     /// A true relational predicate whose formal observations have exact live
     /// place bindings. Its grouped dependencies retire the entire assertion.
     BooleanPredicate {
@@ -443,7 +455,9 @@ impl QualificationPayloadIdentity {
                 Some(Self::CarryPermission { permission })
             }
             FactPayload::CarryOrigin { .. } => Some(Self::CarryOrigin),
-            FactPayload::DomainMembership { .. }
+            FactPayload::InstructionEffect { .. }
+            | FactPayload::CallCompletion { .. }
+            | FactPayload::DomainMembership { .. }
             | FactPayload::ContractDomainMembership { .. }
             | FactPayload::BooleanPredicate { .. }
             | FactPayload::AssignedCase { .. }

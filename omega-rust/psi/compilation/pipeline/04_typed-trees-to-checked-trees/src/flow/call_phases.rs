@@ -15,7 +15,9 @@ use checked_trees::{
 use facts::{FactPlan, ProgramPoint};
 
 mod copied_guarantees;
+mod instruction_effects;
 mod invalidation;
+pub(super) use instruction_effects::append as append_instruction_effect;
 mod referents;
 
 pub(super) use copied_guarantees::ArgumentSources;

@@ -24,6 +24,7 @@
 // own selected provider plan.
 
 use omega::language::core::interrupt;
+use omega::language::core::assembly_model;
 use omega_language_std::calling;
 
 // The acknowledgement's physical carrier: five aligned u64 cells hold the
@@ -163,9 +164,9 @@ pub FatalExceptionProviderRoot satisfies FatalExceptionRoot {
 }
 
 machine FatalExceptionProvider::enter(acknowledgement: InterruptAcknowledgement in Pending)
-    reaches PortIo
+    reaches MachineControl
 {
-    InterruptAcknowledgement::complete(acknowledgement);
+    AcknowledgementCompletion::complete(acknowledgement);
 }
 
 // The timer root's calling policy: the same validated envelope as
@@ -276,9 +277,9 @@ pub TimerProviderRoot satisfies TimerRoot {
 }
 
 machine TimerProvider::enter(acknowledgement: InterruptAcknowledgement in Pending)
-    reaches PortIo
+    reaches MachineControl
 {
-    InterruptAcknowledgement::complete(acknowledgement);
+    AcknowledgementCompletion::complete(acknowledgement);
 }
 
 // The mask-guard provider the entry's `InterruptMaskGuard in Active`
@@ -305,18 +306,25 @@ machine InterruptMaskProvider::save_and_mask() -> InterruptMaskGuard in Active
     satisfies InterruptMaskControl::save_and_mask
     via ForeignBinding::CompilerIntrinsic;
 
-// Transitional acknowledgement-completion provider. The settled model moves
-// `complete` into a one-member boundary trait and implements it with a checked
-// assembly CFG. Label contracts and instruction semantics must prove the LAPIC
-// end-of-interrupt effect and terminal disposition of the exact Pending linear
-// acknowledgement on every normal path. `TOP-LEVEL-BOUNDARY-REQUIREMENTS` owns
-// the source/compiler migration; `CHECKED-ASM-LABEL-CONTRACTS` owns the checked
-// target body. Until both land, this obsolete CompilerIntrinsic spelling keeps
-// the current diagnostic pinned; it is not the destination or permission to
-// add a compiler-owned LAPIC intrinsic.
-pub data AcknowledgementCompletion {
+// The selected x2APIC controller completes an interrupt with its EOI MSR.
+// The package owns that protocol and proves the actual register event; Core
+// retains only the Pending token and consuming completion requirement.
+proposition acknowledgement_completed(acknowledgement: InterruptAcknowledgement)
+    = model_specific_written(2059, 0);
+
+AcknowledgementCompletion satisfies InterruptAcknowledgementCompletion {
+    InterruptAcknowledgementCompletion::complete = complete_acknowledgement;
 }
 
-machine AcknowledgementCompletion::complete(acknowledgement: InterruptAcknowledgement)
-    satisfies InterruptAcknowledgement::complete
-    via ForeignBinding::CompilerIntrinsic;
+machine complete_acknowledgement(acknowledgement: InterruptAcknowledgement)
+satisfies InterruptAcknowledgementCompletion::complete
+reaches MachineControl
+requires acknowledgement in InterruptAcknowledgement::Pending;
+ensures acknowledgement_completed(acknowledgement);
+{
+    let index: u32 = 2059;
+    let value: u64 = 0;
+    asm where ensures acknowledgement_completed(acknowledgement) {
+        wrmsr index, value
+    }
+}

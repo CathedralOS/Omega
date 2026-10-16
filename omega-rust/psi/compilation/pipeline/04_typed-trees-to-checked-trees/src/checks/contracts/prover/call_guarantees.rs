@@ -365,20 +365,9 @@ fn capture_preserved(
     borrow: &checked_trees::BorrowFacts,
     caller: &Machine,
     supplied: &Invocation<'_>,
-    frame: facts::NormalizedWriteFrame,
     guarantee: ExpressionHandle,
     frames: &validation::CallFrameResolver<'_>,
 ) -> bool {
-    let Some(mut writes) = crate::flow::frame_storage_writes(
-        program,
-        caller.symbol,
-        supplied.caller_state,
-        supplied.statement,
-        &frame,
-        Some(frames),
-    ) else {
-        return false;
-    };
     let Some(state) = borrow.states.iter().map(|(_, state)| state).find(|state| {
         state.machine_symbol == caller.symbol && state.state_symbol == supplied.caller_state
     }) else {
@@ -392,10 +381,10 @@ fn capture_preserved(
     }) else {
         return false;
     };
-    // Ordinary body frames do not yet summarize every selected operator.
-    // Reuse the independent signature/authority ceiling instead of trusting
-    // an omitted dispatch or introducing another transitive body scanner.
-    let Some(ceiling) = crate::flow::signature_ceiling_places(
+    // Every caller-visible write needs exclusive authority named by the
+    // signature. This complete ceiling owns capture preservation, including
+    // callees whose instruction bodies have no precise write summary.
+    let Some(writes) = crate::flow::signature_ceiling_places(
         program,
         caller.symbol,
         supplied.caller_state,
@@ -405,7 +394,6 @@ fn capture_preserved(
     ) else {
         return false;
     };
-    writes.extend(ceiling);
     let mut occurrences = Vec::new();
     crate::facts::contract_occurrences::append_expression_occurrences(
         program,
@@ -456,6 +444,130 @@ fn capture_preserved(
                     && crate::values::exclusive_reference(program, parameter.type_reference)
             })
     })
+}
+
+/// Bind one declaration-scoped scalar guarantee through its authentic call
+/// actuals. By-value inputs retain operand completion; an exclusive-reference
+/// projection describes normal-return storage under the existing frame law.
+/// The observer supplies value versions, never a replay of the callee body.
+pub(in crate::checks) fn guarantee_scalar<'facts>(
+    program: &dyn validation::CheckingInput,
+    facts: &'facts checked_trees::CheckFacts,
+    caller: &FlowStateFact,
+    call: &FlowCallFact,
+    expression: ExpressionHandle,
+    projection: &[facts::PlaceSegment],
+    primitive: typed_trees::types::PrimitiveType,
+    frames: &validation::CallFrameResolver<'_>,
+    observe: &mut impl FnMut(
+        &'facts checked_trees::FlowOperandFact,
+        &[facts::PlaceSegment],
+        typed_trees::types::PrimitiveType,
+        bool,
+    ) -> Option<validation::ScopedArithmeticValue>,
+) -> Option<validation::ScopedArithmeticValue> {
+    let supplied = invocation(program, caller, call.statement_index, call.call_ordinal)?;
+    let bind = |occurrence,
+                extra: &[facts::PlaceSegment],
+                primitive,
+                observe: &mut dyn FnMut(
+        &'facts checked_trees::FlowOperandFact,
+        &[facts::PlaceSegment],
+        typed_trees::types::PrimitiveType,
+        bool,
+    ) -> Option<validation::ScopedArithmeticValue>| {
+        let (actual, mut path, post_state) =
+            if let Some(result) = validation::reserved_result_place(program, occurrence) {
+                if result.machine_symbol != supplied.callable.owner_symbol() {
+                    return None;
+                }
+                let CallSite::Expression { expression, .. } = supplied.site else {
+                    return None;
+                };
+                (expression, result.segments, false)
+            } else {
+                let formal = formal_place(program, &supplied, occurrence)?;
+                let post_state = supplied
+                    .callable
+                    .parameters(program)
+                    .iter()
+                    .any(|parameter| {
+                        formal.root == PlaceRoot::Symbol(parameter.symbol)
+                            && crate::values::exclusive_reference(program, parameter.type_reference)
+                    });
+                let (actual, path) = actual_projection(program, &supplied, occurrence)?;
+                (actual, path, post_state)
+            };
+        path.extend_from_slice(extra);
+        if post_state {
+            let machine = program.machine_by_symbol(caller.machine_symbol)?;
+            if matches!(supplied.site, CallSite::TransitionNamed { .. }) {
+                return None;
+            }
+            let stable = stable_predicate_inputs(program, &supplied, occurrence);
+            let preserved = capture_preserved(
+                program,
+                &facts.borrow,
+                machine,
+                &supplied,
+                occurrence,
+                frames,
+            );
+            if !stable || !preserved {
+                return None;
+            }
+        }
+        let mut operands = facts
+            .flow
+            .control
+            .operands
+            .iter()
+            .map(|(_, operand)| operand)
+            .filter(|operand| {
+                operand.state_symbol == caller.state_symbol
+                    && operand.statement_index == call.statement_index
+                    && operand.expression == actual
+            });
+        let operand = operands.next()?;
+        let mut place = validation::canonical_place_from_expression_in_state(
+            program,
+            caller.state_symbol,
+            call.statement_index,
+            actual,
+        )
+        .unwrap_or(CanonicalPlace {
+            root: PlaceRoot::Expression(actual),
+            segments: Vec::new(),
+        });
+        place.segments.extend_from_slice(&path);
+        if !operands.all(|other| {
+            if post_state {
+                crate::flow::operand_bindings_agree(program, &facts.flow, operand, other, &place)
+            } else {
+                crate::flow::operand_observations_agree(
+                    program,
+                    &facts.flow,
+                    operand,
+                    other,
+                    &place,
+                )
+            }
+        }) {
+            return None;
+        }
+        observe(operand, &path, primitive, post_state)
+    };
+    if projection.is_empty() {
+        arithmetic::scalar_term(
+            program,
+            facts,
+            &supplied.callable,
+            expression,
+            |occurrence, primitive| bind(occurrence, &[], primitive, observe),
+        )
+    } else {
+        bind(expression, projection, primitive, observe)
+    }
 }
 
 fn invocation<'program>(

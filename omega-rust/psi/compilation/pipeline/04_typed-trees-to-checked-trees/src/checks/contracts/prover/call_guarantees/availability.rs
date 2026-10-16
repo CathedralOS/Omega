@@ -179,16 +179,9 @@ pub(in crate::checks) fn available<'program>(
         let Some(supplied) = invocation(program, caller, statement_index, call_ordinal) else {
             continue;
         };
-        // The write frame the supply site contributes: a call inside an
-        // expression frames from its expression, a statement-position call
-        // frames from its own call node, and a transition is not a call.
-        let frame = match supplied.site {
-            CallSite::Expression { expression, .. } => {
-                frames.expression_write_frame(caller_machine, expression)
-            }
-            CallSite::Statement(call) => frames.may_write_frame(caller_machine, call),
-            CallSite::TransitionNamed { .. } => continue,
-        };
+        if matches!(supplied.site, CallSite::TransitionNamed { .. }) {
+            continue;
+        }
         if !owns_guarantee(program, &supplied, source, expression)
             || !stable_predicate_inputs(program, &supplied, expression)
             || !capture_preserved(
@@ -196,7 +189,6 @@ pub(in crate::checks) fn available<'program>(
                 &facts.borrow,
                 caller_machine,
                 &supplied,
-                frame,
                 expression,
                 frames,
             )

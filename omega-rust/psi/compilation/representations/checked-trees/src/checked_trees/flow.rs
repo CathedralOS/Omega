@@ -105,10 +105,11 @@ pub use operand::{FlowCaseAccessFact, FlowOperandChild, FlowOperandFact, FlowOpe
 pub use ownership::{
     FlowBorrowClaimFact, FlowClaimJoinAlternative, FlowClaimJoinAlternativeSource,
     FlowClaimJoinExit, FlowClaimJoinExitKind, FlowClaimJoinReceipt, FlowClaimOutcomeEntryFact,
-    FlowClaimOutcomeMapFact, FlowClaimOutcomeSource, FlowLoanCompletionFact,
-    FlowOwnedSelectionClaim, FlowOwnedSelectionReceipt, FlowOwnedSelectionSource,
-    FlowOwnedSelectionTransfer, FlowPermissionEvaluation, FlowPermissionEventFact,
-    FlowStorageTransferFact, FlowStorageTransferSource,
+    FlowClaimOutcomeMapFact, FlowClaimOutcomeSource, FlowInstructionDispositionFact,
+    FlowInstructionEffectReceiptFact, FlowLoanCompletionFact, FlowOwnedSelectionClaim,
+    FlowOwnedSelectionReceipt, FlowOwnedSelectionSource, FlowOwnedSelectionTransfer,
+    FlowPermissionEvaluation, FlowPermissionEventFact, FlowStorageTransferFact,
+    FlowStorageTransferSource,
 };
 pub use roots::{
     FlowBorrowLifetimeFacts, FlowBoundaryFacts, FlowContextFacts, FlowControlFacts, FlowFacts,

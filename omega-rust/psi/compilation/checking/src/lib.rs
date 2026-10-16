@@ -524,3 +524,7 @@ pub(crate) fn classify_type_references<R: Clone, F>(
 pub use value_custody::atomic_fences::{
     AtomicFenceContract, exact_toolchain_atomic_fence_contract,
 };
+
+pub use proof_contracts::instruction_effects::{
+    InstructionEffectContract, instruction_effect_contract, instruction_effect_model,
+};

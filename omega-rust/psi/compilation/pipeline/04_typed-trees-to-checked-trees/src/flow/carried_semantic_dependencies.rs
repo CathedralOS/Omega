@@ -194,10 +194,12 @@ pub(super) fn event_statement_index(
     match source {
         PermissionEventSource::StateEntry => 0,
         PermissionEventSource::Statement { statement_index }
+        | PermissionEventSource::InstructionDisposition { statement_index }
         | PermissionEventSource::Call {
             statement_index, ..
         } => statement_index,
-        PermissionEventSource::StateExit => {
+        PermissionEventSource::StateExit
+        | PermissionEventSource::InstructionExitDisposition { .. } => {
             program.state_by_symbol(state_symbol).map_or(0, |state| {
                 program
                     .statement_table

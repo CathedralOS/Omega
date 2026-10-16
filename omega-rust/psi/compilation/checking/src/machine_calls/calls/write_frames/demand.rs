@@ -392,6 +392,20 @@ impl<'program> CallFrameResolver<'program> {
         )
     }
 
+    /// Whether this expression denotes a parameter's immutable incoming
+    /// borrow address. This grants no read or write to its referent.
+    pub fn expression_is_fixed_incoming_reference(
+        &self,
+        state: &State,
+        expression: ExpressionHandle,
+    ) -> bool {
+        super::reference_subjects::expression_is_fixed_incoming_reference(
+            self.program,
+            state,
+            expression,
+        )
+    }
+
     /// Resolve a bare local reference to exact live storage at this prefix.
     /// This query includes shared references, without granting them writes.
     /// Unknown origins, untracked reference slots, and coarse selectors reject.

@@ -1,0 +1,6 @@
+// Canonical observations of checked instruction events. These propositions
+// describe completed hardware effects; they grant neither authority nor an
+// ownership disposition. The instruction catalog and captured flow operands
+// establish them, independently of any package's selected implementation.
+pub proposition port_written(port: u16, byte: u8);
+pub proposition model_specific_written(index: u32, value: u64);

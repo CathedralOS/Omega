@@ -105,9 +105,25 @@ pub(crate) fn validate_proposition_entailment(
                             )
                     },
                 );
+                // Instruction observations require the captured CFG event and
+                // operand frontiers. The ordinary checked-flow exit obligation
+                // remains mandatory; this logical-source pass cannot discharge
+                // or reject that distinct evidence class before flow exists.
+                let instruction_flow_obligation =
+                    structural_proposition_goals
+                        .iter()
+                        .any(|(label, application)| {
+                            label == &goal
+                                && super::instruction_effects::instruction_effect_contract(
+                                    program,
+                                    application,
+                                )
+                                .is_some()
+                        });
                 if !known.contains(&goal)
                     && !produced_evidence.contains(&goal)
                     && !structurally_entailed
+                    && !instruction_flow_obligation
                 {
                     diagnostics.push(Diagnostic::error(format!(
                         "checked machine `{}` cannot establish proposition ensure `{goal}` in state `{}`; require it, cite a checked/accepted proof that ensures it, or supply its declared evidence",

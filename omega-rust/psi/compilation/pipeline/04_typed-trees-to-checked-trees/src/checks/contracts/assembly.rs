@@ -350,6 +350,14 @@ fn assembly_fact_is_proven(
                             &formula.identity_label(),
                         )
                     }))
+                || super::prover::instruction_effect_proven(
+                    program,
+                    facts,
+                    state.symbol,
+                    statement,
+                    contexts,
+                    application,
+                )
                 || super::prover::live_contexts_prove_proposition_application(
                     program,
                     facts,

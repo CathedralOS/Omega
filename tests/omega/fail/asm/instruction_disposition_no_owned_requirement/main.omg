@@ -1,0 +1,23 @@
+// Native compilation only: this kernel instruction must never run on the
+// hosted test executor. The package owns Token's linear completion protocol.
+use omega::language::core::assembly;
+use omega::language::core::assembly_model;
+data Token [linear] { identity: u64; }
+trait Finish {
+    machine finish(token: Token) reaches MachineControl;
+}
+Finisher satisfies Finish { Finish::finish = finish; }
+proposition finished(token: Token) = model_specific_written(2059, 0);
+machine finish(token: Token)
+satisfies Finish::finish
+reaches MachineControl
+ensures finished(token);
+{
+    let index: u32 = 2059;
+    let value: u64 = 0;
+    asm where ensures finished(token) { wrmsr index, value }
+}
+machine main() reaches MachineControl {
+    let token: Token = Token { identity: 7 };
+    Finisher::finish(token);
+}

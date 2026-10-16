@@ -581,7 +581,12 @@ pub(in crate::checks::contracts) fn check_exclusive_referent_field_domains(
             } else {
                 super::super::super::prover::semantic_contexts_prove_contract_fact(
                     program,
-                    &facts.semantic,
+                    facts,
+                    facts::ProgramPoint::Statement {
+                        machine_symbol: exit.machine_symbol,
+                        state_symbol: exit.state_symbol,
+                        statement_index: exit.statement_index,
+                    },
                     &entry_contexts,
                     requirement,
                 )

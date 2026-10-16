@@ -1,0 +1,28 @@
+use omega::language::core::assembly;
+use omega::language::core::assembly_model;
+data Token [linear] { identity: u64; }
+boundary trait Finish {
+    machine finish(token: Token, other: Token) reaches MachineControl;
+}
+Finisher satisfies Finish { Finish::finish = finish; }
+proposition finished(token: Token) = model_specific_written(2059, 0);
+machine emit_once() -> bool reaches MachineControl
+ensures model_specific_written(2059, 0);
+ensures result == true;
+{
+    let index: u32 = 2059;
+    let value: u64 = 0;
+    asm { wrmsr index, value }
+    true
+}
+machine finish(token: Token, other: Token)
+satisfies Finish::finish
+reaches MachineControl
+ensures finished(token);
+{
+    let selected: u32 = match emit_once() { true -> 0, false -> 1 };
+    let mut marker: u32 = selected;
+    asm where ensures finished(token) { mov marker, marker }
+    asm where ensures finished(other) { mov marker, marker }
+}
+machine main() {}

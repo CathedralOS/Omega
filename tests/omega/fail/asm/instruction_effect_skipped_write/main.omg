@@ -1,0 +1,10 @@
+use omega::language::core::assembly;
+use omega::language::core::assembly_model;
+machine observe(port: u16, byte: u8) reaches PortIo {
+    asm {
+    entry: jmp done;
+    skipped: out port, byte;
+    done ensures port_written(port, byte): nop
+    }
+}
+machine main() {}

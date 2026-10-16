@@ -1191,8 +1191,10 @@ fn installed_view_claims(
             });
         let release = releases.next()?;
         let after_installation = match release.source {
-            PermissionEventSource::StateExit => true,
+            PermissionEventSource::StateExit
+            | PermissionEventSource::InstructionExitDisposition { .. } => true,
             PermissionEventSource::Statement { statement_index }
+            | PermissionEventSource::InstructionDisposition { statement_index }
             | PermissionEventSource::Call {
                 statement_index, ..
             } => statement_index >= result.statement_index as usize,

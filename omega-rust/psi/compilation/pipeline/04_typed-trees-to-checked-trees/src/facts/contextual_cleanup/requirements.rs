@@ -651,6 +651,8 @@ pub(crate) fn occurrence_contexts(
     disposition: &checked_trees::ContextualCleanupDisposition,
 ) -> Option<Vec<(usize, Vec<FactContextHandle>)>> {
     let points = match disposition.source {
+        PermissionEventSource::InstructionDisposition { .. }
+        | PermissionEventSource::InstructionExitDisposition { .. } => return None,
         PermissionEventSource::StateEntry => vec![(
             0,
             facts

@@ -243,14 +243,17 @@ pub(super) fn call_entry_contexts_prove_boolean_contract_expression(
 
 pub(super) fn semantic_contexts_prove_contract_fact(
     program: &dyn ::validation::CheckingInput,
-    semantic: &facts::FactPlan,
+    facts: &checked_trees::CheckFacts,
+    point: facts::ProgramPoint,
     entry_contexts: &[facts::FactContextHandle],
     fact: &facts::Fact,
 ) -> bool {
+    let semantic = &facts.semantic;
     if !contract_membership_place_is_accessible(program, semantic, entry_contexts, fact) {
         return false;
     }
     match fact.payload {
+        FactPayload::InstructionEffect { .. } | FactPayload::CallCompletion { .. } => false,
         facts::domain_membership_symbol_and_instance_pattern!(domain_symbol, semantic_domain) => {
             let Some(place) = fact.place.as_place() else {
                 return false;
@@ -335,6 +338,7 @@ pub(super) fn semantic_contexts_prove_contract_fact(
                 return false;
             };
             contexts_prove_proposition_label(semantic, program, entry_contexts, &required_label)
+                || instruction_effects::proves_contract(program, facts, point, entry_contexts, fact)
         }
         FactPayload::CarryOrigin { .. } => {
             let Some(place) = fact.place.as_place() else {
@@ -495,3 +499,10 @@ pub(crate) fn contexts_prove_proposition_label(
 
 mod propositions;
 pub(super) use propositions::live_contexts_prove_proposition_application;
+
+mod instruction_effects;
+pub(super) use instruction_effects::proves as instruction_effect_proven;
+
+pub(in crate::checks) use instruction_effects::evidence as instruction_effect_evidence;
+
+pub(in crate::checks) use instruction_effects::InstructionEffectEvidence;

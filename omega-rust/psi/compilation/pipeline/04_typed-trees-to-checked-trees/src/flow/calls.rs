@@ -138,6 +138,15 @@ pub(super) fn build_call_flow_fact<'plans>(
         domains,
         writes.map(|writes| writes.contributions.as_slice()),
     );
+    super::call_phases::append_instruction_effect(
+        program,
+        semantic,
+        build,
+        machine,
+        state,
+        borrow_call,
+        &mut exit,
+    );
     let boundary_edges = append_call_boundary_edges(program, build, borrow_call);
     *active_contexts = retained_flow_contexts(&build.contexts.semantic_context_refs, exit.contexts);
     *active_constraints =

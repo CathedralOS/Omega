@@ -1,0 +1,18 @@
+use omega::language::core::assembly;
+use omega::language::core::assembly_model;
+use omega::language::core::interrupt;
+boundary trait ForeignCompletion {
+    machine finish(token: InterruptAcknowledgement) reaches MachineControl;
+}
+ForeignFinisher satisfies ForeignCompletion { ForeignCompletion::finish = finish; }
+proposition finished(token: InterruptAcknowledgement) = model_specific_written(2059, 0);
+machine finish(token: InterruptAcknowledgement)
+satisfies ForeignCompletion::finish
+reaches MachineControl
+ensures finished(token);
+{
+    let index: u32 = 2059;
+    let value: u64 = 0;
+    asm where ensures finished(token) { wrmsr index, value }
+}
+machine main() {}

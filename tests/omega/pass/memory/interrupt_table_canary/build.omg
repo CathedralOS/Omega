@@ -10,9 +10,12 @@
 
 machine build(builder: &mut Build) {
     Build::application(builder, "interrupt_table_canary");
+    // Bare-metal interrupt providers use privileged catalog operations.
+    // This canary is built and inspected, never executed on the host.
+    builder.freestanding = true;
     Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
     Build::select_provider<
-        InterruptAcknowledgement::complete,
+        InterruptAcknowledgementCompletion,
         AcknowledgementCompletion
     >(builder);
     Build::select_provider<

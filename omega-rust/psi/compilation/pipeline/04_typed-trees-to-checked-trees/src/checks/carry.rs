@@ -212,6 +212,9 @@ fn permission_event_order_before_call(
         PermissionEventSource::StateEntry => Some((0, 0, event_index)),
         PermissionEventSource::Statement {
             statement_index: event_statement,
+        }
+        | PermissionEventSource::InstructionDisposition {
+            statement_index: event_statement,
         } if event_statement <= statement_index => {
             Some((event_statement.saturating_add(1), usize::MAX, event_index))
         }
@@ -225,8 +228,10 @@ fn permission_event_order_before_call(
             Some((event_statement.saturating_add(1), event_call, event_index))
         }
         PermissionEventSource::Statement { .. }
+        | PermissionEventSource::InstructionDisposition { .. }
         | PermissionEventSource::Call { .. }
-        | PermissionEventSource::StateExit => None,
+        | PermissionEventSource::StateExit
+        | PermissionEventSource::InstructionExitDisposition { .. } => None,
     }
 }
 

@@ -300,6 +300,16 @@ fn live_claim_identity(
             hash.string_terminated(&typed.symbols.display_path(target_symbol, "::"));
         }
         language_semantics::PermissionEventSource::StateExit => hash.byte(4),
+        language_semantics::PermissionEventSource::InstructionExitDisposition {
+            statement_index,
+        } => {
+            hash.byte(6);
+            hash.usize(statement_index);
+        }
+        language_semantics::PermissionEventSource::InstructionDisposition { statement_index } => {
+            hash.byte(5);
+            hash.usize(statement_index);
+        }
     }
     hash.u64(u64::from(ordinal));
     semantic_vocabulary::ClaimId::new(hash.finish_or(1)).ok_or_else(|| {

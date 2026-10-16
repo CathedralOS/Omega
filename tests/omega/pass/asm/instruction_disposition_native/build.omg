@@ -1,0 +1,9 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "instruction_disposition_native");
+    builder.freestanding = true;
+    Build::select_provider<FinishByChoice, ChoiceFinisher>(builder);
+    Build::select_provider<FinishEnvelope, EnvelopeFinisher>(builder);
+    Build::select_provider<PairFinish, PairFinisher>(builder);
+    Build::select_provider<Finish, Finisher>(builder);
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+}

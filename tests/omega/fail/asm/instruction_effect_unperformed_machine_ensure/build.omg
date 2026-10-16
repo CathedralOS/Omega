@@ -1,0 +1,4 @@
+machine build(builder: &mut Build) {
+    Build::package(builder, "unperformed_machine_ensure");
+    builder.privileged_services.port_io = true;
+}

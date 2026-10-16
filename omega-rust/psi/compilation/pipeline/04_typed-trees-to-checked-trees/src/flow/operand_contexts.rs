@@ -329,63 +329,39 @@ fn operand_sources_agree(
         return false;
     }
     if first.statement_index != second.statement_index {
-        let (earlier, later) = if first.statement_index < second.statement_index {
+        let Some(state) = program.state_by_symbol(first.state_symbol) else {
+            return false;
+        };
+        let order = program
+            .statement_table
+            .admitted_execution_order(state.statement_nodes);
+        let (Some(first_position), Some(second_position)) = (
+            order.position(first.statement_index),
+            order.position(second.statement_index),
+        ) else {
+            return false;
+        };
+        let (earlier, later) = if first_position < second_position {
             (first, second)
         } else {
             (second, first)
         };
-        let Some((_, state)) = flow
-            .control
-            .states
-            .iter()
-            .find(|(_, state)| state.state_symbol == earlier.state_symbol)
-        else {
-            return false;
-        };
-        let Some(statements) = flow.control.statements.span(state.statements) else {
-            return false;
-        };
-        let Some(statement) = statements
-            .iter()
-            .find(|statement| statement.statement_index == earlier.statement_index)
-        else {
-            return false;
-        };
-        let (completed_writes, completed_unknown_write) = observation.statement_writes(statement);
-        return !completed_unknown_write
-            && prefixes_agree(
-                program,
-                &flow.control,
-                earlier.entry_origin_writes,
-                completed_writes,
-                place,
-                write_changes,
-            )
-            && statements
-                .iter()
-                .filter(|statement| {
-                    statement.statement_index > earlier.statement_index
-                        && statement.statement_index < later.statement_index
-                })
-                .all(|statement| {
-                    let (writes, unknown) = observation.statement_writes(statement);
-                    entry_origin_is_stable_when(
-                        program,
-                        &flow.control,
-                        writes,
-                        unknown,
-                        place,
-                        write_changes,
-                    )
-                })
-            && entry_origin_is_stable_when(
-                program,
-                &flow.control,
-                later.entry_origin_writes,
-                later.entry_origin_unknown_write,
-                place,
-                write_changes,
-            );
+        return observation_reaches_statement(
+            program,
+            flow,
+            earlier,
+            later.state_symbol,
+            later.statement_index,
+            place,
+            observation,
+        ) && entry_origin_is_stable_when(
+            program,
+            &flow.control,
+            later.entry_origin_writes,
+            later.entry_origin_unknown_write,
+            place,
+            write_changes,
+        );
     }
     prefixes_agree(
         program,
@@ -395,6 +371,203 @@ fn operand_sources_agree(
         place,
         write_changes,
     )
+}
+
+/// A completed operand and a later statement read the same exact contents.
+/// The admitted control order owns chronology; skipped assembly blocks do not
+/// contribute writes, and the operand retains its own earlier sibling prefix.
+pub(crate) fn operand_observation_before_statement_agrees(
+    program: &dyn validation::CheckingInput,
+    flow: &FlowFacts,
+    operand: &FlowOperandFact,
+    state: symbols::SymbolHandle,
+    statement: usize,
+    place: &validation::CanonicalPlace,
+) -> bool {
+    observation_reaches_statement(
+        program,
+        flow,
+        operand,
+        state,
+        statement,
+        place,
+        super::value_origins::ValueObservation::Contents,
+    )
+}
+/// Descriptor identity is independent of writes through its retained loan.
+pub(crate) fn operand_binding_before_statement_agrees(
+    program: &dyn validation::CheckingInput,
+    flow: &FlowFacts,
+    operand: &FlowOperandFact,
+    state: symbols::SymbolHandle,
+    statement: usize,
+    place: &validation::CanonicalPlace,
+) -> bool {
+    observation_reaches_statement(
+        program,
+        flow,
+        operand,
+        state,
+        statement,
+        place,
+        super::value_origins::ValueObservation::Binding,
+    )
+}
+/// A normal return supplies a historical storage observation. Expression
+/// returns use the retained completed operand; a statement call ends its
+/// statement, so only later admitted statements can change that value.
+pub(crate) fn call_return_before_statement_agrees(
+    program: &dyn validation::CheckingInput,
+    flow: &FlowFacts,
+    caller: &checked_trees::FlowStateFact,
+    call: &checked_trees::FlowCallFact,
+    statement: usize,
+    place: &validation::CanonicalPlace,
+) -> bool {
+    let Some(site) = validation::find_call_site(
+        program,
+        caller.machine_symbol,
+        caller.state_symbol,
+        call.statement_index,
+        call.call_ordinal,
+    ) else {
+        return false;
+    };
+    match site {
+        validation::CallSite::Expression { expression, .. } => {
+            let operands = flow
+                .control
+                .operands
+                .iter()
+                .map(|(_, operand)| operand)
+                .filter(|operand| {
+                    operand.state_symbol == caller.state_symbol
+                        && operand.statement_index == call.statement_index
+                        && operand.expression == expression
+                })
+                .collect::<Vec<_>>();
+            !operands.is_empty()
+                && operands.iter().all(|operand| {
+                    operand_observation_before_statement_agrees(
+                        program,
+                        flow,
+                        operand,
+                        caller.state_symbol,
+                        statement,
+                        place,
+                    )
+                })
+        }
+        validation::CallSite::Statement(_) => {
+            let Some(state) = program.state_by_symbol(caller.state_symbol) else {
+                return false;
+            };
+            let order = program
+                .statement_table
+                .admitted_execution_order(state.statement_nodes);
+            let (Some(start), Some(end)) = (
+                order.position(call.statement_index),
+                order.position(statement),
+            ) else {
+                return false;
+            };
+            start < end
+                && order.indices()[start + 1..end].iter().all(|index| {
+                    flow.state_statement(caller, *index).is_some_and(|row| {
+                        entry_origin_is_stable(
+                            program,
+                            &flow.control,
+                            row.completed_content_writes,
+                            row.completed_content_unknown_write,
+                            place,
+                        )
+                    })
+                })
+        }
+        validation::CallSite::TransitionNamed { .. } => false,
+    }
+}
+
+fn observation_reaches_statement(
+    program: &dyn validation::CheckingInput,
+    flow: &FlowFacts,
+    operand: &FlowOperandFact,
+    state_symbol: symbols::SymbolHandle,
+    statement: usize,
+    place: &validation::CanonicalPlace,
+    observation: super::value_origins::ValueObservation,
+) -> bool {
+    if operand.state_symbol != state_symbol || operand.entry_origin_unknown_write {
+        return false;
+    }
+    let Some(state) = program.state_by_symbol(state_symbol) else {
+        return false;
+    };
+    let Some(control) = flow
+        .control
+        .states
+        .iter()
+        .map(|(_, row)| row)
+        .find(|row| row.state_symbol == state_symbol)
+    else {
+        return false;
+    };
+    let order = program
+        .statement_table
+        .admitted_execution_order(state.statement_nodes);
+    let (Some(start), Some(end)) = (
+        order.position(operand.statement_index),
+        order.position(statement).or_else(|| {
+            (statement
+                == program
+                    .statement_table
+                    .statements(state.statement_nodes)
+                    .len())
+            .then_some(order.indices().len())
+        }),
+    ) else {
+        return false;
+    };
+    if start > end {
+        return false;
+    }
+    let relation: SourceWriteRelation = match observation {
+        super::value_origins::ValueObservation::Contents => contents_overlap,
+        super::value_origins::ValueObservation::Binding => binding_overwrite,
+    };
+    if start == end {
+        return entry_origin_is_stable_when(
+            program,
+            &flow.control,
+            operand.entry_origin_writes,
+            operand.entry_origin_unknown_write,
+            place,
+            relation,
+        );
+    }
+    let Some(producer) = flow.state_statement(control, operand.statement_index) else {
+        return false;
+    };
+    let (completed, unknown) = observation.statement_writes(producer);
+    if unknown
+        || completed.count() < operand.entry_origin_writes.count()
+        || !prefixes_agree(
+            program,
+            &flow.control,
+            operand.entry_origin_writes,
+            completed,
+            place,
+            relation,
+        )
+    {
+        return false;
+    }
+    order.indices()[start + 1..end].iter().all(|index| {
+        flow.state_statement(control, *index).is_some_and(|row| {
+            let (writes, unknown) = observation.statement_writes(row);
+            entry_origin_is_stable_when(program, &flow.control, writes, unknown, place, relation)
+        })
+    })
 }
 
 fn prefixes_agree(

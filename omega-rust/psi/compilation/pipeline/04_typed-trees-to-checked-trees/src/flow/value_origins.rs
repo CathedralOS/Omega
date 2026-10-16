@@ -183,12 +183,67 @@ where
     )
 }
 
+/// Follow completed stores only as far as an authenticated normal-return
+/// observation. Copies retain the value at their capture frontier even when
+/// an earlier unknown callee write prevents tracing back to machine entry.
+pub(crate) fn value_origin_matches_call_return(
+    program: &dyn validation::CheckingInput,
+    flow: &FlowFacts,
+    machine: &Machine,
+    state: &FlowStateFact,
+    statement: usize,
+    place: CanonicalPlace,
+    call: &FlowCallFact,
+    returned: &CanonicalPlace,
+    frames: &validation::CallFrameResolver<'_>,
+) -> bool {
+    let Some(place) = flow::local_reference_storage_before_statement(
+        program, frames, machine, state, statement, place,
+    ) else {
+        return false;
+    };
+    let mut matched = false;
+    let _ = trace_value_origin_observing(
+        program,
+        machine,
+        state,
+        statement,
+        place,
+        frames,
+        ValueObservation::Contents,
+        Some(flow),
+        |_, _, _, _| None,
+        |_, _, _| None,
+        |frontier, place| {
+            let returned = flow::local_reference_storage_before_statement(
+                program,
+                frames,
+                machine,
+                state,
+                frontier,
+                returned.clone(),
+            );
+            if returned.as_ref() == Some(place)
+                && flow::call_return_before_statement_agrees(
+                    program, flow, state, call, frontier, place,
+                )
+            {
+                matched = true;
+                Some(place.clone())
+            } else {
+                None
+            }
+        },
+    );
+    matched
+}
+
 pub(crate) fn trace_value_origin_before_statement<Resolve, Rebase>(
     program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     state: &FlowStateFact,
     statement_index: usize,
-    mut place: CanonicalPlace,
+    place: CanonicalPlace,
     frames: &validation::CallFrameResolver<'_>,
     observation: ValueObservation,
     flow: Option<&FlowFacts>,
@@ -200,20 +255,73 @@ where
         Fn(&FlowStateFact, usize, &TableCallExpression, &[PlaceSegment]) -> Option<CanonicalPlace>,
     Rebase: Fn(&FlowStateFact, usize, &CanonicalPlace) -> Option<CanonicalPlace>,
 {
+    trace_value_origin_observing(
+        program,
+        machine,
+        state,
+        statement_index,
+        place,
+        frames,
+        observation,
+        flow,
+        resolve,
+        rebase,
+        |_, _| None,
+    )
+}
+
+fn trace_value_origin_observing<Resolve, Rebase, Observe>(
+    program: &dyn ::validation::CheckingInput,
+    machine: &Machine,
+    state: &FlowStateFact,
+    statement_index: usize,
+    mut place: CanonicalPlace,
+    frames: &validation::CallFrameResolver<'_>,
+    observation: ValueObservation,
+    flow: Option<&FlowFacts>,
+    resolve: Resolve,
+    rebase: Rebase,
+    mut observe: Observe,
+) -> Option<CanonicalPlace>
+where
+    Resolve:
+        Fn(&FlowStateFact, usize, &TableCallExpression, &[PlaceSegment]) -> Option<CanonicalPlace>,
+    Rebase: Fn(&FlowStateFact, usize, &CanonicalPlace) -> Option<CanonicalPlace>,
+    Observe: FnMut(usize, &CanonicalPlace) -> Option<CanonicalPlace>,
+{
+    if let Some(origin) = observe(statement_index, &place) {
+        return Some(origin);
+    }
     let typed_state = program.state_by_symbol(state.state_symbol)?;
     let statements = program
         .statement_table
         .statements(typed_state.statement_nodes);
-    for (index, statement) in statements.get(..statement_index)?.iter().enumerate().rev() {
+    let order = program
+        .statement_table
+        .admitted_execution_order(typed_state.statement_nodes);
+    let end = order
+        .position(statement_index)
+        .or_else(|| (statement_index == statements.len()).then_some(order.indices().len()))?;
+    for position in (0..end).rev() {
+        let index = order.indices()[position];
+        let statement = statements.get(index)?;
+        let successor = order
+            .indices()
+            .get(position + 1)
+            .copied()
+            .unwrap_or(statements.len());
+        if let Some(origin) = observe(successor, &place) {
+            return Some(origin);
+        }
         let mut frontier = OriginFrontier::CompletedStatement;
         // The demanded place may still name storage through a reference leaf
         // an ordinary arm cannot resolve — `boxed.view.scheduler` where `view`
         // is a `&` slot inside an owned local. Rebase it to the referent the
         // leaf holds at this frontier before the statement replays; a leaf
         // slot the frontier already passed was either resolved by this rebase
-        // or refused by the overlap checks, so `index + 1` is the exact
-        // prefix the leaf's contents came from.
-        if let Some(rebased) = rebase(state, index + 1, &place) {
+        // or refused by the overlap checks. The admitted successor names the
+        // exact prefix even when assembly jumps reverse lexical order.
+        if let Some(rebased) = rebase(state, successor, &place) {
             place = rebased;
         }
         match statement {
@@ -336,6 +444,12 @@ where
             flow,
             frontier,
         )?;
+    }
+    if let Some(origin) = observe(
+        order.indices().first().copied().unwrap_or(statements.len()),
+        &place,
+    ) {
+        return Some(origin);
     }
     Some(place)
 }

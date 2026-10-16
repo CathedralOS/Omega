@@ -1,0 +1,6 @@
+// Compile this hardware contract with its exact port-I/O authority. No root
+// entry is bound, so this fixture never executes privileged instructions.
+machine build(builder: &mut Build) {
+    Build::package(builder, "instruction_effect_wrong_byte");
+    builder.privileged_services.port_io = true;
+}
