@@ -224,6 +224,7 @@ pass/borrows/runtime_carrier_reference_reselection_exit built 12586ms exit:70 @9
 pass/borrows/runtime_carrier_reference_store_exit built 11522ms exit:70 @91bbf3e29aa9
 pass/borrows/runtime_case_payload_partial_transfer_exit built 12275ms exit:0 @91bbf3e29aa9
 pass/borrows/runtime_case_return_parameter_order_exit built 11749ms exit:0 @91bbf3e29aa9
+pass/borrows/runtime_case_selected_slice_reference_exit built 5241ms exit:0 @cc35a4f0d368+wt
 pass/borrows/runtime_computed_shared_view_reborrow_exit built 12111ms exit:0 @91bbf3e29aa9
 pass/borrows/runtime_constructed_reference_array_restoration_exit built 11479ms exit:70 @91bbf3e29aa9
 pass/borrows/runtime_copied_byte_distinct_epochs_exit built 12440ms exit:0 @91bbf3e29aa9

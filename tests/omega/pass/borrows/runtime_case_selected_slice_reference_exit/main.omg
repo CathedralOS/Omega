@@ -1,0 +1,48 @@
+// Case selection returns a child of an established mutable slice.
+// Expected exit: 0.
+data Selection [copy] { case First; case Second; case Last; }
+data Cell { value: u64; }
+data Storage { cells: [Cell; 3]; alternate: [Cell; 3]; }
+
+machine Storage::select(storage: &mut Storage, selection: Selection) -> &mut Cell {
+    let cells: &mut [Cell] = &mut storage.cells[..];
+    transition selection {
+        Selection::First -> &mut cells[0]
+        Selection::Second -> &mut cells[1]
+        _ -> &mut cells[2]
+    }
+}
+
+machine Storage::select_rebound(storage: &mut Storage, selection: Selection) -> &mut Cell {
+    let mut cells: &mut [Cell] = &mut storage.cells[..];
+    cells = &mut storage.alternate[..];
+    transition selection {
+        Selection::First -> &mut cells[0]
+        Selection::Second -> &mut cells[1]
+        _ -> &mut cells[2]
+    }
+}
+
+machine main() crashes Trap {
+    let mut storage: Storage = Storage { cells: [
+        Cell { value: 3 }, Cell { value: 5 }, Cell { value: 7 }
+    ], alternate: [
+        Cell { value: 11 }, Cell { value: 13 }, Cell { value: 17 }
+    ] };
+    let selected: &mut Cell = Storage::select(&mut storage, Selection::Second);
+    selected.value = 19;
+    let first: &mut Cell = Storage::select(&mut storage, Selection::First);
+    first.value = 23;
+    let last: &mut Cell = Storage::select(&mut storage, Selection::Last);
+    last.value = 29;
+    let rebound: &mut Cell = Storage::select_rebound(&mut storage, Selection::Second);
+    rebound.value = 31;
+    transition storage.cells[0].value == 23 && storage.cells[1].value == 19
+        && storage.cells[2].value == 29 && storage.alternate[0].value == 11
+        && storage.alternate[1].value == 31 && storage.alternate[2].value == 17 {
+        true -> done()
+        false -> wrong()
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}

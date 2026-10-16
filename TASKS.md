@@ -1781,9 +1781,9 @@ defines the complete product bar.
   content/output oracles. Wrong UTF-8/ASCII writes still reject, and variable
   growth without proved capacity or allocation remains refused.
 
-  The unchanged Dungeon Crawler runs natively on macOS ARM64 through the
-  public EOF and `help`/`exit` routes, printing the authored opening room and
-  goodbye before exit 0. Qualified byte snapshots retain live contents and
+  The unchanged Dungeon Crawler runs natively on macOS ARM64 and Windows x86_64
+  through the public EOF and `help`/`exit` routes, printing the authored opening
+  room and goodbye before exit 0. Qualified byte snapshots retain live contents and
   lengths through state arrivals and field replacement. Reassigned view locals
   carry the current descriptor through calls, states and returns in native and
   Terminal execution; an earlier child retains its captured selector and backing

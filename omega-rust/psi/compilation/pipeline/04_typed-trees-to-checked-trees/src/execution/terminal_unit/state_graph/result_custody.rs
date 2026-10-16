@@ -366,13 +366,13 @@ pub(super) fn account(
             };
             let observed_source = match source.source {
                 CheckedUnitStructuralArgumentSourcePlan::StructuralLocalBorrow {
-                    symbol,
-                    root_type_identity,
-                } if root_type_identity == result.type_identity => {
-                    CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol }
-                }
+                    symbol, ..
+                } => CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol },
                 _ => source.source.clone(),
             };
+            // A local borrow names referent storage; its root type need not
+            // equal the reference carrier's type. The occurrence query below
+            // authenticates the exact producer occupying that local instead.
             // A captured child names the view's current carrier, not the
             // declaration's backing expression. Resolve that home at the
             // observation so a later rebind cannot redirect an earlier child.

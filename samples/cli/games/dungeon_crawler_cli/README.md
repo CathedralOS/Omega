@@ -16,9 +16,9 @@ What it is trying to prove:
 ## Runtime acceptance
 
 The closed-stdin and help/exit routes have verified native execution on macOS
-ARM64. [build.omg](build.omg) declares four hosted entry bindings; the other
-hosts still need their own execution evidence. Checking and a zero exit status
-alone do not establish correct native output; see
+ARM64 and Windows x86_64. [build.omg](build.omg) declares four hosted entry
+bindings; the other hosts still need their own execution evidence. Checking and
+a zero exit status alone do not establish correct native output; see
 [native realization](../../../../omega-rust/omega/compilation/driver/README.md#native-realization)
 and the [compiler completion plan](../../../../wiki/drafts/reference/rust_compiler_completion.md).
 
@@ -44,6 +44,15 @@ the authored command. Compilation plus execution took 28.44 seconds for EOF
 and 23.14 seconds for help/exit; normal offline package refresh completed first.
 These measurements establish those two routes on this host, not every gameplay
 path or another host, and are not a controlled comparison with older compilers.
+
+Verified on 2026-10-16 on Windows x86_64 with the optimized Rust reference
+compiler (`CARGO_PROFILE_DEV_OPT_LEVEL=1`). Closed stdin printed the authored
+opening room and goodbye before exit 0 in 15.80 seconds. Scripted
+`help\nexit\n\n` input repeated the command help and exited 0 in 20.91 seconds.
+These times include compilation and execution; the preceding package refresh
+took 38.67 seconds. Both routes used the public `omega run` command with native
+EOF or a byte pipe as stdin. Other gameplay paths and hosts remain unverified
+by this run.
 
 The existing sample gate reads the standalone `Expected exit` and
 `Expected output contains` lines in [main.omg](main.omg). Its closed-stdin
