@@ -150,7 +150,15 @@ impl<'program> CurrentScalarValues<'program> {
         if statement_index > statements.len() {
             return None;
         }
-        for (ordinal, statement) in statements[..statement_index].iter().enumerate() {
+        // Labels can skip or reorder lexical windows. Replay the already
+        // admitted path, retaining source ordinals for captured observations;
+        // a textual prefix could establish facts from unexecuted stores.
+        let order = program
+            .statement_table
+            .admitted_execution_order(state.statement_nodes);
+        let position = order.position(statement_index)?;
+        for &ordinal in &order.indices()[..position] {
+            let statement = &statements[ordinal];
             if validation::is_arm_pattern_marker(statement) {
                 continue;
             }
@@ -251,7 +259,11 @@ impl<'program> CurrentScalarValues<'program> {
                 StatementNode::Expression(_) => {
                     values.invalidate_operand_effects(program, machine, statement, frames)
                 }
-                _ => return None,
+                // Control metadata has no store; instruction statements above
+                // retain their ordinary effects. Assertions are obligations,
+                // never premises introduced by this value transfer.
+                StatementNode::Assembly(_) | StatementNode::AssemblyFact(_) => {}
+                StatementNode::RootBinding(_) => return None,
             }
         }
         if target.is_valid() {

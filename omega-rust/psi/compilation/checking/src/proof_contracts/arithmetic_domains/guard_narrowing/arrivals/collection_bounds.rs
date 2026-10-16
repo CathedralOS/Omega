@@ -64,10 +64,15 @@ impl<'program> CollectionBoundsObservations<'program> {
             state,
             statements,
         };
-        let Some((last_statement, _)) = prepared.statements.last() else {
+        if prepared.statements.is_empty() {
+            return prepared;
+        }
+        let Ok(Some(order)) = program
+            .statement_table
+            .finite_execution_order(state.statement_nodes)
+        else {
             return prepared;
         };
-        let last_statement = *last_statement;
         let frames = crate::CallFrameResolver::new(program);
         let mut environment = incoming_guard_environment(program, machine, state, frames.as_ref());
         let mut walk = ArrivalWalk {
@@ -78,14 +83,16 @@ impl<'program> CollectionBoundsObservations<'program> {
             observations: Vec::new(),
             infer_call_bodies: true,
         };
-        let mut requested = prepared.statements.iter_mut().peekable();
-        for (statement_index, statement) in program
-            .statement_table
-            .indexed_statements(state.statement_nodes)
-            .take(last_statement + 1)
-        {
-            let mut observations =
-                requested.next_if(|(requested_index, _)| *requested_index == statement_index);
+        let statements = program.statement_table.statements(state.statement_nodes);
+        for statement_index in order {
+            let statement = &statements[statement_index];
+            // Requests keep source order for lookup. Execution can visit a
+            // lower source ordinal after a higher one, or omit it entirely.
+            let mut observations = prepared
+                .statements
+                .binary_search_by_key(&statement_index, |(ordinal, _)| *ordinal)
+                .ok()
+                .map(|position| &mut prepared.statements[position]);
             if let Some((_, observations)) = observations.as_mut() {
                 // The existing walker still joins every branch evaluation of
                 // each handle within this exact statement.

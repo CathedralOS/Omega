@@ -1,0 +1,5 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "state_fact_transfers_exit");
+    Build::bind(builder, windows_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+}

@@ -1,0 +1,16 @@
+machine probe(values: &[u64; 10]) -> u64 {
+    let mut position: u64 = 99;
+    asm {
+    entry:
+        jmp done;
+    skipped:
+        mov position, 7;
+    done:
+        nop
+    }
+    values[position]
+}
+machine main() {
+    let values: [u64; 10];
+    let observed: u64 = probe(&values);
+}

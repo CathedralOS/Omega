@@ -340,6 +340,14 @@ fail/asm/requires_after_prior_block_write rejected 1244ms expected @6d0b8da07bdd
 	cannot prove asm `requires` fact at block entry in Subject::change state `change` (statement 5): subject.ready
 fail/asm/skipped_type_error rejected 325ms expected @6d0b8da07bdd+wt
 	machine `Main::main` state `main` assignment stores a boolean into a `u64` place, which holds a numeric value
+fail/asm/state_fact_skipped_index rejected 916ms expected @cc43b6679d2a+wt
+	cannot prove index `position` is within length 10
+fail/asm/state_fact_skipped_index_arrival rejected 879ms expected @cc43b6679d2a+wt
+	cannot prove index `position` is within length 10
+fail/asm/state_fact_skipped_store rejected 896ms expected @cc43b6679d2a+wt
+	cannot prove requires contract for call small from probe: value < 10 (needs fact `value < 10` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/asm/state_fact_written rejected 1018ms expected @cc43b6679d2a+wt
+	cannot prove requires contract for call small from probe: value < 10 (needs fact `value < 10` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/asm/transition_argument_invalidates_exit_fact rejected 1268ms expected @6d0b8da07bdd+wt
 	cannot prove asm `ensures` fact at block exit in Main::main state `main` (statement 4): main.ready
 fail/asm/undefined_label rejected 0ms expected @6d0b8da07bdd+wt
@@ -5523,6 +5531,7 @@ pass/asm/checked_label_reverse_local_exit checked 8130ms check-target:linux_x86_
 pass/asm/checked_label_specialization_exit checked 7802ms check-target:linux_x86_64 @6d0b8da07bdd+wt
 pass/asm/checked_label_transition_exit checked 7653ms check-target:linux_x86_64 @6d0b8da07bdd+wt
 pass/asm/proposition_label_contracts_exit checked 7299ms check-target:linux_x86_64 @6d0b8da07bdd+wt
+pass/asm/state_fact_transfers_exit checked 5758ms check-target:linux_x86_64 @cc43b6679d2a+wt
 pass/atomics/atomic_global_order_operations checked 1566ms @a9ae30e1c334+wt
 pass/atomics/atomic_order_surface checked 9337ms @5041ef1af684+wt
 pass/atomics/runtime_atomic_after_quoted_write_exit checked 10962ms check-target:macos_arm64 @a9ae30e1c334+wt

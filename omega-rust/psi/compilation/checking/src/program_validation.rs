@@ -515,11 +515,30 @@ fn validate(
                     })
                     .unwrap_or_default()
             };
-            for (statement_index, (statement_handle, statement)) in program
+            // Value facts follow control edges, not source order. Still check
+            // every authored statement: unreachable instructions are validated
+            // separately with no predecessor facts and cannot affect the live
+            // path's observations. Before control admission an unknown graph
+            // likewise supplies no sequential value evidence.
+            let statements = program.statement_table.statements(state.statement_nodes);
+            let mut order = program
                 .statement_table
-                .iter_statements(state.statement_nodes)
-                .enumerate()
-            {
+                .finite_execution_order(state.statement_nodes)
+                .ok()
+                .flatten()
+                .unwrap_or_default();
+            let executed_count = order.len();
+            let mut executed = vec![false; statements.len()];
+            for &statement_index in &order {
+                executed[statement_index] = true;
+            }
+            order.extend((0..statements.len()).filter(|index| !executed[*index]));
+            for (position, statement_index) in order.into_iter().enumerate() {
+                if position >= executed_count {
+                    value_environment.clear();
+                }
+                let statement_handle = state.statement_nodes.handle_at(statement_index as u32);
+                let statement = &statements[statement_index];
                 let statement_diagnostic_mark = diagnostics.len();
                 let writable_roots = WritableRoots {
                     program,

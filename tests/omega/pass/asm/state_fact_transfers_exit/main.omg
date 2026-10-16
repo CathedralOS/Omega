@@ -1,0 +1,51 @@
+// Expected exit: 0. Instruction metadata does not discard incoming bounds.
+machine carry(rest: u64 in Trapping) -> u64 {
+    transition rest < 10000 {
+        true -> digit(rest, 48)
+        _ -> outside()
+    }
+    state digit(rest: u64 in Trapping, character: u64 in Trapping) -> u64
+    requires 48 <= character && character <= 57
+    {
+        let mut byte: u8 = character as u8;
+        asm { mov byte, byte }
+        transition { _ -> next(rest, 0) }
+    }
+    state next(rest: u64 in Trapping, count: u64 in Trapping) -> u64
+    requires count <= 9 && embed(rest) + embed(count) * 1000 <= 9999
+    { rest as u64 }
+    state outside() -> u64 { 0 }
+}
+
+machine reordered() -> u64 {
+    let mut value: u64 = 99;
+    asm {
+    entry:
+        jmp write;
+    finish:
+        mov value, value;
+        jmp tail;
+    skipped:
+        mov value, 99;
+    write:
+        mov value, 7;
+        jmp finish;
+    tail:
+        mov value, value
+    }
+    transition { _ -> small(value) }
+    state small(value: u64) -> u64
+    requires value < 10
+    { value }
+}
+
+machine main() crashes Trap {
+    let carried: u64 = carry(9999);
+    let changed: u64 = reordered();
+    transition carried == 9999 && changed == 7 {
+        true -> good()
+        _ -> bad()
+    }
+    state good() {}
+    state bad() { crash Trap; }
+}

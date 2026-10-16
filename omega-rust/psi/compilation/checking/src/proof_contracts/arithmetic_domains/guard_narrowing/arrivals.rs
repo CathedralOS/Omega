@@ -248,11 +248,7 @@ pub(crate) fn occurrence_value_environments(
             .collect(),
         infer_call_bodies: true,
     };
-    walk.statements(
-        state,
-        program.statement_table.statements(state.statement_nodes),
-        &mut environment,
-    );
+    walk.state(state, &mut environment);
     OccurrenceValueEnvironments {
         observations: walk.observations,
     }
@@ -267,12 +263,16 @@ fn expression_observation(
 ) -> Option<ExpressionObservation> {
     let (machine, state) = program.machine_state(machine_symbol, state_symbol)?;
     let statements = program.statement_table.statements(state.statement_nodes);
+    let order = program
+        .statement_table
+        .finite_execution_order(state.statement_nodes)
+        .ok()??;
     let (prefix, observed_statements) = match statement_index {
-        Some(index) => (
-            statements.get(..index)?,
-            std::slice::from_ref(statements.get(index)?),
-        ),
-        None => (&statements[..0], statements),
+        Some(index) => {
+            let position = order.iter().position(|source| *source == index)?;
+            (&order[..position], &order[position..position + 1])
+        }
+        None => (&order[..0], order.as_slice()),
     };
     let frames = CallFrameResolver::new(program);
     let mut environment = incoming_guard_environment(program, machine, state, frames.as_ref());
@@ -284,7 +284,11 @@ fn expression_observation(
         observations: Vec::new(),
         infer_call_bodies: true,
     };
-    if !walk.statements(state, prefix, &mut environment) {
+    if !walk.statements(
+        state,
+        prefix.iter().map(|index| &statements[*index]),
+        &mut environment,
+    ) {
         return None;
     }
     walk.observations.push(ExpressionObservation {
@@ -294,7 +298,11 @@ fn expression_observation(
         interval: None,
         environment: None,
     });
-    walk.statements(state, observed_statements, &mut environment);
+    walk.statements(
+        state,
+        observed_statements.iter().map(|index| &statements[*index]),
+        &mut environment,
+    );
     walk.observations.pop()
 }
 
@@ -663,11 +671,7 @@ pub(super) fn incoming_environments(
             };
             let mut environment = environment.clone();
             state_seeds.apply(program, machine, state, &mut environment);
-            walk.statements(
-                state,
-                program.statement_table.statements(state.statement_nodes),
-                &mut environment,
-            );
+            walk.state(state, &mut environment);
             arrivals[index] = walk.arrivals;
         }
         let mut joined: Vec<Option<ValueEnvironment>> = vec![None; states.len()];
@@ -728,20 +732,25 @@ pub(crate) fn inferred_normal_return_interval(
     let mut combined_recipe: Option<checked_trees::IntegerRangeRecipe> = None;
     for state in program.machine_states(machine) {
         let statements = program.statement_table.statements(state.statement_nodes);
+        let order = program
+            .statement_table
+            .finite_execution_order(state.statement_nodes)
+            .ok()??;
+        let last = order.last().map(|index| &statements[*index]);
         if program.primitive_type_reference(state.return_type) != target_primitive {
             return None;
         }
         if !matches!(
-            statements.last(),
+            last,
             Some(StatementNode::Expression(_) | StatementNode::Transition(_))
         ) {
             return None;
         }
         let mut returns = Vec::new();
-        if let Some(StatementNode::Expression(expression)) = statements.last() {
+        if let Some(StatementNode::Expression(expression)) = last {
             returns.push(*expression);
         }
-        for statement in statements {
+        for statement in order.iter().map(|index| &statements[*index]) {
             let Some(transition) = statement.as_transition() else {
                 continue;
             };
@@ -794,7 +803,7 @@ pub(crate) fn inferred_normal_return_interval(
                 }],
                 infer_call_bodies: false,
             };
-            walk.statements(state, statements, &mut environment);
+            walk.state(state, &mut environment);
             let observed = walk.observations.pop()?;
             let interval = observed.interval?;
             combined_recipe = if combined.is_none() {
@@ -1066,10 +1075,31 @@ impl ArrivalWalk<'_, '_> {
         }
     }
 
-    fn statements(
+    /// Source ordinals identify observations; only the admitted execution path
+    /// supplies values. A skipped assembly store must never seed a bound.
+    fn state(&mut self, source: &State, environment: &mut ValueEnvironment) -> bool {
+        let Ok(Some(order)) = self
+            .program
+            .statement_table
+            .finite_execution_order(source.statement_nodes)
+        else {
+            return false;
+        };
+        let statements = self
+            .program
+            .statement_table
+            .statements(source.statement_nodes);
+        self.statements(
+            source,
+            order.iter().map(|index| &statements[*index]),
+            environment,
+        )
+    }
+
+    fn statements<'statement>(
         &mut self,
         source: &State,
-        statements: &[StatementNode],
+        statements: impl IntoIterator<Item = &'statement StatementNode>,
         environment: &mut ValueEnvironment,
     ) -> bool {
         for statement in statements {

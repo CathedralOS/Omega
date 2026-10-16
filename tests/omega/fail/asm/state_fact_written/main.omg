@@ -1,0 +1,9 @@
+machine probe() {
+    let mut value: u64 = 7;
+    asm { mov value, 99 }
+    transition { _ -> small(value) }
+    state small(value: u64)
+    requires value < 10
+    {}
+}
+machine main() { probe(); }
