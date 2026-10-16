@@ -1,6 +1,6 @@
 ---
 name: local-swarm
-description: Coordinate a requested local swarm using one isolated worktree per agent, persistent outcome ownership, focused checks and verified landing. Use for local concurrent agents or resuming a local wave; not cloud sessions or a single advance.
+description: Coordinate a requested local swarm using one isolated worktree per agent, persistent outcome ownership, focused checks and verified landing. Use for local concurrent agents or resuming a local wave. Use cursor-swarm for Cursor cloud sessions on separate VMs, and advance for a single sample.
 ---
 
 # Local outcome coordination

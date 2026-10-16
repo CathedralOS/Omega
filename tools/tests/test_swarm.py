@@ -108,7 +108,7 @@ class OutcomeOwnershipTests(unittest.TestCase):
         self.assertIn('## Law of completion', agents)
         self.assertIn('uncompilable sample through every necessary compiler', agents)
         for name in ('advance', 'devin-swarm', 'local-swarm', 'codex-swarm',
-                     'dot-swarm'):
+                     'dot-swarm', 'cursor-swarm'):
             with self.subTest(skill=name):
                 skill = repository / '.agents' / 'skills' / name / 'SKILL.md'
                 self.assertIn('AGENTS.md#law-of-completion',

@@ -1,6 +1,6 @@
 ---
 name: codex-swarm
-description: Coordinate compiler advancement through reusable Codex cloud sessions, one independent executor per worker. Use for a Codex swarm or a pool of Codex sessions. Use dot-swarm for explicitly requested native agents sharing one executor, and devin-swarm for Devin sessions.
+description: Coordinate compiler advancement through reusable Codex cloud sessions, one independent executor per worker. Use for a Codex swarm or a pool of Codex sessions. Use dot-swarm for explicitly requested native agents sharing one executor, devin-swarm for Devin sessions, and cursor-swarm for Cursor cloud subagents.
 ---
 
 # Codex session swarm

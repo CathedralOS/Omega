@@ -1,6 +1,6 @@
 ---
 name: dot-swarm
-description: Coordinate an Omega cloud swarm with dot's native collaboration agents, using devin-swarm's small-pool chain workflow, isolated worktrees, immediate result drains, and verified outcomes. Use for a dot swarm, a native-agent cloud wave, or continuing such a wave. Use devin-swarm for Devin sessions and local-swarm for other local launchers.
+description: Coordinate an Omega cloud swarm with dot's native collaboration agents, using devin-swarm's small-pool chain workflow, isolated worktrees, immediate result drains, and verified outcomes. Use for a dot swarm, a native-agent cloud wave, or continuing such a wave. Use devin-swarm for Devin sessions, local-swarm for other local launchers, and cursor-swarm for Cursor cloud subagents on separate VMs.
 ---
 
 # dot swarm

@@ -248,7 +248,7 @@ The rules that touch every edit:
 - Read the matching skill before starting: `.agents/skills/` — `advance` for
   the sample loop, `rust-systems-programmer` for Rust implementation and review,
   `architecture-cleanup`, `task-board-cleanup`, `local-swarm`, `devin-swarm`,
-  `codex-swarm`.
+  `codex-swarm`, `cursor-swarm`.
 
 Deliberate configuration — do not "fix" it: `clippy.toml` thresholds are
 raised and dev/test profiles use `debug = 0`. Tests use `opt-level = 1`;
@@ -335,6 +335,10 @@ completed launch preflight.
   launch fields; a prompt alone cannot change a model. Before launching or
   resuming cloud work, follow the [cloud launch preflight](.agents/skills/dot-swarm/references/cloud-launch.md).
   A single advance remains one assignment; it does not authorize a swarm.
+- A requested Cursor cloud wave follows
+  [cursor-swarm](.agents/skills/cursor-swarm/SKILL.md). Each worker is a
+  Cursor Task subagent with its own VM and branch, started from fetched
+  remote main. Select its model through the exposed Task fields.
 - Parallel sessions take distinct samples, chosen by root cause, not by
   file. Shared implementation paths are fine; each session works in its
   own worktree and reconciles at rebase. Reuse another session's repair when
