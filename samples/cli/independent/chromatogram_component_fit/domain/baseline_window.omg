@@ -38,9 +38,8 @@ requires window.len >= 2 {
 // that field onward. The peak record is the call result of the same hold.
 pub machine baseline_ready() -> bool {
     let mut trace: [f64; 4] = [1.0, 2.0, 3.0, 4.0];
-    let view: &mut [f64] = window(&mut trace, 0);
-    let leading: Held = hold(view);
-    write_baseline(leading.values);
+    write_baseline(hold(window(&mut trace, 0)).values);
+    let leading: Held = hold(window(&mut trace, 0));
     let span: u64 = leading.values.len;
     transition span == 2 {
         true -> peak(&mut trace)

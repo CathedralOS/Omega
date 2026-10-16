@@ -31,9 +31,9 @@ requires window.len >= 2 {
 
 machine main() crashes Trap {
     let mut trace: [f64; 4] = [9.0, 9.0, 9.0, 9.0];
+    write_pair(hold(window(&mut trace, 0)).values);
     let view: &mut [f64] = window(&mut trace, 0);
     let leading: Held = hold(view);
-    write_pair(leading.values);
     let span: u64 = leading.values.len;
     transition span == 2 {
         true -> tail(&mut trace)

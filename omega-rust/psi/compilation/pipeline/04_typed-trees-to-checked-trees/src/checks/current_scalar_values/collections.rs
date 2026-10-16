@@ -235,6 +235,7 @@ impl CurrentScalarValues<'_> {
             ExpressionNode::Match(dispatch) => self.matched_length(dispatch, depth),
             ExpressionNode::Member(member) => self
                 .saved_field_length(member, depth)
+                .or_else(|| self.ensured_call_field_length(member))
                 .or_else(|| {
                     super::field_collection_length(
                         self.program,
@@ -588,6 +589,69 @@ impl CurrentScalarValues<'_> {
             }
             _ => captured,
         })
+    }
+
+    /// `helper(..).field.len` reads an ensures `result.field.len == N`.
+    /// The contract is the callee's, so the caller does not need a local to
+    /// restate the length. A non-constant postcondition stays unknown.
+    fn ensured_call_field_length(
+        &self,
+        member: &typed_trees::expression::TableMemberExpression,
+    ) -> Option<ScopedArithmeticValue> {
+        let call = self.program.expression_table.call_node(member.receiver)?;
+        let (machine, _) = validation::find_state(self.program, call.target_symbol)
+            .or_else(|| validation::find_machine_head(self.program, call.target_symbol))?;
+        let field_name = member.member.as_str();
+        for contract in self.program.machine_contracts(machine) {
+            if contract.kind != typed_trees::signature::SignatureContractKind::Ensures {
+                continue;
+            }
+            for fact in self.program.proof_facts.span_or_empty(contract.facts) {
+                let Some(expression) = fact.as_expression() else {
+                    continue;
+                };
+                if let Some(value) = self.ensured_field_length(*expression, field_name) {
+                    return Some(value);
+                }
+            }
+        }
+        None
+    }
+
+    fn ensured_field_length(
+        &self,
+        expression: ExpressionHandle,
+        field_name: &str,
+    ) -> Option<ScopedArithmeticValue> {
+        let comparison = self.program.expression_table.binary_node(expression)?;
+        if comparison.operator != BinaryOperator::Equal {
+            return None;
+        }
+        let (length_expression, expected) =
+            if self.field_length_name(comparison.left) == Some(field_name) {
+                (comparison.left, comparison.right)
+            } else if self.field_length_name(comparison.right) == Some(field_name) {
+                (comparison.right, comparison.left)
+            } else {
+                return None;
+            };
+        let _ = length_expression;
+        let literal = self.program.expression_table.integer_node(expected)?;
+        Some(ScopedArithmeticValue::Integer(
+            numerics::bignum::BigInt::from_i64(literal.value_i64()?),
+        ))
+    }
+
+    fn field_length_name(&self, expression: ExpressionHandle) -> Option<&str> {
+        let length = self.program.expression_table.member_node(expression)?;
+        if !matches!(length.member.as_str(), "len" | "length") {
+            return None;
+        }
+        let field = self.program.expression_table.member_node(length.receiver)?;
+        self.program
+            .expression_table
+            .names_reserved_result(field.receiver)
+            .then_some(field.member.as_str())
     }
 
     /// The length captured when this field was filled by a record literal.

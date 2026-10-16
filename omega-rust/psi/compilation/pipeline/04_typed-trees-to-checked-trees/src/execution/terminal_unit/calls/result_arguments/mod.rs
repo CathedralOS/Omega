@@ -535,6 +535,26 @@ fn argument_contract(
             (referent_expression, referee)
         }
         CheckedStructuralAccess::MutableBorrow | CheckedStructuralAccess::WriteOnlyBorrow => {
+            // `helper(..).window` is already the reference leaf. It is not a
+            // fresh `&mut` of a named place; the produced record lends that
+            // field at the captured path. The statement is the consumer, so
+            // the loan is not a local initialized by this call.
+            if projected
+                && program
+                    .expression_table
+                    .borrow_expression(expression)
+                    .is_none()
+                && matches!(place.root, facts::PlaceRoot::Expression(_))
+            {
+                return Some(CheckedUnitStructuralArgumentPlan {
+                    source: CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                        binding_ordinal: result.binding_ordinal,
+                    },
+                    path,
+                    type_identity: target_identity.to_owned(),
+                    access,
+                });
+            }
             // Whole locals and projected subtrees retain their owner. Both
             // must rejoin the authored borrow and its captured access.
             let expected_access = match access {
