@@ -290,21 +290,7 @@ pub(in crate::checks::contracts) fn check_result_field_domains(
                             })
                     })
             };
-            root_satisfied || crate::flow::literal_value_projections(
-                program, returned, entry.return_type, &path, false,
-            ).is_some_and(|projections| !projections.is_empty() && projections.iter().all(|projection| {
-                match projection.source {
-                    crate::flow::LiteralValueSource::OmittedZero { type_reference } =>
-                        projection.remaining.is_empty()
-                        && program.domain_definition(domain_symbol).is_some_and(|domain| domain.semantic_roles == Default::default())
-                        && validation::field_domains::domain_admits_zero_byte_carrier(program, domain_symbol, type_reference),
-                    crate::flow::LiteralValueSource::Expression(_) => {
-                        let mut selected = projection.destination.clone();
-                        selected.extend_from_slice(&projection.remaining);
-                        captured_satisfies(&selected)
-                    }
-                }
-            }))
+            root_satisfied || captured_satisfies(&path)
         };
         if !satisfied {
             let (root, mut segments) = base

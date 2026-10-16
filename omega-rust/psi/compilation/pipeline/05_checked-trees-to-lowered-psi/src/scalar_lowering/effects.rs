@@ -158,6 +158,7 @@ pub(crate) fn emit(
                 )?;
             }
             LoweredScalarEffect::EstablishZeroedStructural {
+                memberships,
                 projected_qualifications,
                 place,
                 structural_type,
@@ -186,6 +187,22 @@ pub(crate) fn emit(
                     }),
                     OperationKind::EstablishZeroedStructural {},
                 );
+                let domains = memberships
+                    .iter()
+                    .map(|domain| {
+                        crate::terminal_identities::lookup_domain_id_for_carrier(
+                            calls.domain_ids,
+                            *domain,
+                            *structural_type,
+                        )
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                crate::emission::formation_memberships::publish(
+                    operations,
+                    *place,
+                    *structural_type,
+                    domains,
+                )?;
                 crate::emission::claim_bindings::record_prepared_introductions(
                     operations,
                     *place,

@@ -176,7 +176,28 @@ impl Execution<'_, '_, '_> {
                     maximum: numerics::bignum::BigInt::from_i64(maximum?),
                 })
             });
-        if domains.is_empty() && predicates.is_empty() && integer_bounds.is_none() {
+        let zero_fields = if matches!(
+            self.program.expression_table.expression(expression),
+            ExpressionNode::StructLiteral(_)
+        ) {
+            validation::field_domains::declared_owned_field_domain_identities(self.program, reference)
+                .into_iter()
+                .filter(|(path, domain, _)| {
+                    crate::flow::literal_value_projections(self.program, expression, reference, path, false)
+                        .is_some_and(|projections| !projections.is_empty() && projections.iter().all(|projection| {
+                            matches!(projection.source, crate::flow::LiteralValueSource::OmittedZero { type_reference, .. }
+                                if validation::field_domains::domain_admits_zero_byte_carrier(self.program, *domain, type_reference))
+                        }))
+                })
+                .collect::<Vec<_>>()
+        } else {
+            Vec::new()
+        };
+        if domains.is_empty()
+            && predicates.is_empty()
+            && integer_bounds.is_none()
+            && zero_fields.is_empty()
+        {
             return;
         }
         let place = self.semantic.append_expression_place(expression);
@@ -197,6 +218,33 @@ impl Execution<'_, '_, '_> {
                     self.state.symbol,
                 ),
                 payload: FactPayload::AssignedIntegerBounds { bounds },
+            });
+            self.semantic.append_ref(&mut refs, fact);
+        }
+        // Zero formation establishes only predicates true of this exact
+        // inline image. Publish on the completed constructor so calls, stores
+        // and returns consume ordinary occurrence evidence. Declaration-only
+        // membership and a return-specific zero proof would bypass this owner.
+        for (path, domain_symbol, semantic_domain) in zero_fields {
+            let field = crate::semantic::places::append_place(
+                self.semantic,
+                facts::PlaceRoot::Expression(expression),
+                &path,
+            );
+            let fact = self.semantic.append_fact(Fact {
+                place: FactPlace::Place(field),
+                point,
+                origin: FactOrigin::StatementTransfer,
+                evidence: QualificationEvidence::from_origin(
+                    language_semantics::QualificationEvidenceOrigin::CheckedValidation,
+                    self.state.symbol,
+                ),
+                payload: FactPayload::DomainMembership {
+                    value: expression,
+                    domain: HandleSpan::empty(),
+                    domain_symbol,
+                    semantic_domain,
+                },
             });
             self.semantic.append_ref(&mut refs, fact);
         }

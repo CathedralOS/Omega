@@ -144,13 +144,30 @@ pub(crate) fn captured_operand_values<'capture>(
 ) -> Option<Vec<CapturedValue<'capture>>> {
     let control = &flow.control;
     let mut values = Vec::new();
-    for projection in super::literal_expression_projections(
-        program,
-        operand.expression,
-        type_reference,
-        path,
-        false,
-    )? {
+    for projection in
+        super::literal_value_projections(program, operand.expression, type_reference, path, false)?
+    {
+        // An omitted field belongs to its evaluated constructor's result.
+        // Keep that actual completion and project its inline storage; never
+        // invent an expression operand for a field the source did not write.
+        let projection = match projection.source {
+            super::LiteralValueSource::Expression(expression) => {
+                super::LiteralExpressionProjection {
+                    expression,
+                    remaining: projection.remaining,
+                    destination: projection.destination,
+                }
+            }
+            super::LiteralValueSource::OmittedZero {
+                constructor,
+                constructor_path_length,
+                ..
+            } => super::LiteralExpressionProjection {
+                expression: constructor,
+                remaining: projection.destination[constructor_path_length..].to_vec(),
+                destination: projection.destination[..constructor_path_length].to_vec(),
+            },
+        };
         let (captured, selected_type) = captured_operand_at_path(
             program,
             control,
@@ -204,8 +221,11 @@ fn reaching_store_values<'capture>(
     )?;
     // An owned linear record need not be copyable for a stable scalar field
     // read to retain its reaching store. Judge the observed projection, not
-    // the containing owner's unrelated custody or mutable fields.
-    if operand.state_symbol != state.state_symbol
+    // the containing owner's unrelated custody or mutable fields. A live view
+    // still observes invocation storage; tracing its old store would freeze
+    // referent predicates across later operand writes.
+    if super::operand_contexts::operand_binds_live_view(program, value.type_reference)
+        || operand.state_symbol != state.state_symbol
         || !super::operand_contexts::operand_binds_stable_copy(program, observed_type)
     {
         return None;
@@ -250,7 +270,13 @@ fn reaching_store_values<'capture>(
             {
                 let stored = flow.control.operands.get(statement.stored_value);
                 let stored_type = stored.type_reference;
-                if !stored_type.is_valid()
+                // Zero formation has no evaluated RHS. Its establishment
+                // facts belong to the observed storage, not an invalid source
+                // expression pretending to be a completed producer.
+                if !program
+                    .expression_table
+                    .expression_is_valid(stored.expression)
+                    || !stored_type.is_valid()
                     || !super::operand_contexts::operand_binds_stable_copy(program, stored_type)
                 {
                     return None;

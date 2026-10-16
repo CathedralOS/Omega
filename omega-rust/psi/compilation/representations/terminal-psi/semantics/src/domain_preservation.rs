@@ -283,16 +283,11 @@ pub fn store_preserves_qualifications<'a>(
     projected: &[StructuralPathQualification],
     write: &[StructuralPathSegment],
 ) -> bool {
-    if (!whole.is_empty() || !projected.is_empty())
-        && write.iter().any(|step| {
-            matches!(
-                step,
-                StructuralPathSegment::Referent | StructuralPathSegment::RepresentationView { .. }
-            )
-        })
-    {
-        return false;
-    }
+    // Compare complete paths before entering a qualification's carrier.
+    // Two sibling fields behind the same retained reference remain disjoint;
+    // the reference prefix is not itself a write to either field. Crossings
+    // left inside a domain-relative suffix still fail in domain_write_is_disjoint,
+    // and representation views remain conservative in the overlap judgment.
     let preserved = |id, path: &[StructuralPathSegment]| {
         let mut matching = domains.clone().filter(|domain| domain.id == id);
         matching.next().is_some_and(|domain| {

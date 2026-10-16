@@ -106,11 +106,17 @@ fn append_zero_initialized_field_domain_facts(
         // SOUNDNESS GATE (per field, one-level or nested): surface the
         // entry-invariant only when the field's ZERO/ZII value provably satisfies
         // the domain -- a read-with-no-prior-write discharges against it, sound
-        // only if the empty/default is in-domain. A domain the empty value
-        // violates (e.g. `non_empty`) is withheld; its reads must follow a write.
-        for domain_symbol in field_domain_symbols(program, field.type_reference)
+        // only if this exact carrier's zero image is in-domain. Preserve the
+        // full instance: a fixed-array capacity is part of its domain application,
+        // and a family symbol alone cannot satisfy an indexed call obligation.
+        // Domains the zero image violates stay gated until an establishing write.
+        for (domain_symbol, semantic_domain) in
+            validation::field_domains::predicate_domain_constraint_identities(
+                program,
+                field.type_reference,
+            )
             .into_iter()
-            .filter(|symbol| {
+            .filter(|(symbol, _)| {
                 validation::field_domains::domain_admits_zero_byte_carrier(
                     program,
                     *symbol,
@@ -135,7 +141,7 @@ fn append_zero_initialized_field_domain_facts(
                     value: typed_trees::expression::ExpressionHandle::invalid(),
                     domain: arena::HandleSpan::empty(),
                     domain_symbol,
-                    semantic_domain: language_semantics::SemanticDomainId::NULL,
+                    semantic_domain,
                 },
             });
             facts.append_ref(refs, fact);

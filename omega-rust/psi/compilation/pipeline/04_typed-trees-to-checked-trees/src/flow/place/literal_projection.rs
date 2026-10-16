@@ -47,7 +47,13 @@ mod zero_values;
 #[derive(Clone, Copy)]
 pub(crate) enum LiteralValueSource {
     Expression(ExpressionHandle),
-    OmittedZero { type_reference: TypeReferenceHandle },
+    OmittedZero {
+        type_reference: TypeReferenceHandle,
+        /// The evaluated constructor owns this inline zero value. It is not
+        /// a separately authored operand and supplies no borrowed address.
+        constructor: ExpressionHandle,
+        constructor_path_length: usize,
+    },
 }
 
 #[derive(Clone)]
@@ -344,6 +350,7 @@ fn literal_projections(
                                 field.type_reference,
                                 remaining,
                             )?;
+                            let constructor_path_length = destination.len();
                             let mut destination = destination.clone();
                             if let Some(variant) =
                                 facts::payload_variant_for_field(program, field.symbol)
@@ -355,7 +362,11 @@ fn literal_projections(
                             });
                             destination.extend_from_slice(remaining);
                             places.push(LiteralValueProjection {
-                                source: LiteralValueSource::OmittedZero { type_reference },
+                                source: LiteralValueSource::OmittedZero {
+                                    type_reference,
+                                    constructor: expression,
+                                    constructor_path_length,
+                                },
                                 remaining: Vec::new(),
                                 destination,
                             });

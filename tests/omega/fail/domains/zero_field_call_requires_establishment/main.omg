@@ -1,0 +1,6 @@
+// Zeroing owned storage does not establish a predicate that rejects zero bytes.
+domain [u8; 4]::NoNul(bytes) requires no_nul(bytes);
+data Label [copy] { storage: [u8; 4] in NoNul; }
+data Envelope [copy] { label: Label; }
+machine observe(value: &Envelope) {}
+machine main() { let value: Envelope; observe(&value); }

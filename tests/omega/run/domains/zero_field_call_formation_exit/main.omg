@@ -1,0 +1,27 @@
+// Expected exit: 0
+// One zero image keeps exact field membership across calls, storage and returns.
+domain [u8; 4]::Ascii(bytes) requires ascii_only(bytes);
+data Label [copy] { storage: [u8; 4] in Ascii; }
+data Envelope [copy] { label: Label; }
+machine shared(value: &Envelope) -> u8 { value.label.storage[3] }
+machine owned(value: Envelope) -> u8 { value.label.storage[3] }
+machine mutable(value: &mut Envelope) { value.label.storage[3] = 65u8; }
+machine make() -> Envelope { Envelope { label: Label {} } }
+machine main() crashes Trap {
+    let mut defaulted: Envelope;
+    let mut constructed: Envelope = Envelope {};
+    let returned: Envelope = make();
+    let copied: Envelope = constructed;
+    let direct: u8 = owned(Envelope { label: Label {} });
+    let observed: u8 = shared(&defaulted);
+    mutable(&mut defaulted);
+    mutable(&mut constructed);
+    transition direct == 0 && observed == 0 && shared(&returned) == 0
+        && owned(copied) == 0 && shared(&defaulted) == 65
+        && shared(&constructed) == 65 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

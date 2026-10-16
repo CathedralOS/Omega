@@ -145,6 +145,7 @@ enum Step {
         prefix: Vec<QualifiedScalarType>,
     },
     Zeroed {
+        memberships: Vec<language_semantics::SemanticDomainId>,
         projected_qualifications: Vec<checked_trees::CheckedStructuralPathQualification>,
         place: PlaceId,
         structural_type: StructuralTypeId,
@@ -865,6 +866,7 @@ impl Preparation<'_> {
             );
             let place = self.reserved.place(value)?;
             self.steps.push(Step::Zeroed {
+                memberships: self.checked_memberships(value)?,
                 projected_qualifications: match &node.kind {
                     CheckedStructuralValueKind::ZeroedStructural {
                         projected_qualifications,
@@ -1573,6 +1575,7 @@ impl PreparedValue {
                     vec![LoweredScalarEffect::EstablishAggregate(construction)],
                 )),
                 Step::Zeroed {
+                    memberships,
                     projected_qualifications,
                     place,
                     structural_type,
@@ -1585,6 +1588,7 @@ impl PreparedValue {
                     prefix.clone(),
                     &prefix,
                     vec![LoweredScalarEffect::EstablishZeroedStructural {
+                        memberships,
                         projected_qualifications,
                         place,
                         structural_type,
@@ -1737,22 +1741,10 @@ fn publish_construction_memberships(
             )
         })
         .collect::<Result<Vec<_>, _>>()?;
-    let result = operations
-        .operations
-        .iter_mut()
-        .find_map(|operation| match &mut operation.result {
-            terminal_psi::OperationResult::Structural(result)
-                if result.place == construction.place =>
-            {
-                Some(result)
-            }
-            _ => None,
-        })
-        .ok_or(LoweringError::Unsupported(
-            "fresh construction has no producer",
-        ))?;
-    result.qualifications.extend(domains);
-    result.qualifications.sort();
-    result.qualifications.dedup();
-    Ok(())
+    crate::emission::formation_memberships::publish(
+        operations,
+        construction.place,
+        construction.structural_type,
+        domains,
+    )
 }

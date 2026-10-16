@@ -195,21 +195,12 @@ impl Emission<'_, '_, '_> {
         continuation: Option<&super::ValueContinuation>,
     ) -> Result<PlaceId, LoweringError> {
         let domains = self.checked_membership_domains(decisions)?;
-        let result = self
-            .operations
-            .operations
-            .iter_mut()
-            .filter_map(|operation| match &mut operation.result {
-                terminal_psi::OperationResult::Structural(result) => Some(result),
-                _ => None,
-            })
-            .find(|result| result.place == place)
-            .ok_or(LoweringError::Unsupported(
-                "fresh construction has no producer",
-            ))?;
-        result.qualifications.extend(domains);
-        result.qualifications.sort();
-        result.qualifications.dedup();
+        crate::emission::formation_memberships::publish(
+            self.operations,
+            place,
+            self.structural_type,
+            domains,
+        )?;
         self.completed(identities, place, continuation)
     }
 

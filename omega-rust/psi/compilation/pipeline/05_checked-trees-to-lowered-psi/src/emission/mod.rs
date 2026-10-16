@@ -35,6 +35,7 @@ pub(crate) mod claim_bindings;
 pub(crate) mod continuation_identities;
 pub(crate) mod continuation_specialization;
 pub(crate) mod control_flow;
+pub(crate) mod formation_memberships;
 pub(crate) mod indexed_write;
 pub(crate) mod loan_completions;
 pub(crate) mod operation_emission;
