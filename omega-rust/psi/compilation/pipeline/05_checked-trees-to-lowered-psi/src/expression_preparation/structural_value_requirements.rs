@@ -42,13 +42,14 @@ pub(crate) fn collect_operation_requirements(
 
 /// Catalog the memberships a structural value tree establishes when a
 /// computed operand constructs it rather than an operation of the body
-/// (`observe(Envelope { line: main.line, .. })` as a scalar call argument).
+/// (`observe(Envelope { line: main.line, .. })` as a scalar call argument),
+/// and retain whether its construction needs an immutable literal carrier.
 pub(crate) fn collect_value_requirements(
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
     value: checked_trees::CheckedStructuralValueHandle,
     domains: &mut Vec<SemanticDomainId>,
-) -> Result<(), LoweringError> {
+) -> Result<bool, LoweringError> {
     let reference = checked
         .facts
         .values
@@ -59,7 +60,7 @@ pub(crate) fn collect_value_requirements(
         .find(|root| root.machine == machine && root.root == value)
         .map(|root| root.type_reference)
         .unwrap_or_default();
-    collect_domains(checked, value, reference, domains).map(|_| ())
+    collect_domains(checked, value, reference, domains)
 }
 
 fn collect_domains(

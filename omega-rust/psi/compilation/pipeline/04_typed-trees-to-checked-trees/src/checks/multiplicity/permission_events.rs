@@ -55,6 +55,7 @@ pub(crate) fn prepare_permission_events(
     facts: &mut CheckFacts,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut cleanup_dispositions = ContextualCleanupFacts::default();
+    facts.flow.ownership.storage_transfers = arena::Arena::default();
     facts.flow.ownership.selected_cleanup_permissions = arena::Arena::default();
     let mut permission_events = Vec::new();
     let mut conditional_carrier_transfers = Vec::new();
@@ -73,9 +74,9 @@ pub(crate) fn prepare_permission_events(
         .control
         .states
         .iter()
-        .map(|(_, state)| state.clone())
+        .map(|(handle, state)| (handle, state.clone()))
         .collect::<Vec<_>>();
-    for state_flow in state_flows {
+    for (state_handle, state_flow) in state_flows {
         let Some(machine) = program.machine_by_symbol(state_flow.machine_symbol) else {
             continue;
         };
@@ -435,6 +436,14 @@ pub(crate) fn prepare_permission_events(
                 }
             },
         );
+        // Publish the source storage occurrences, not expanded claim events.
+        // Loan exclusion needs even a claim-free or inactive carrier's move.
+        facts
+            .flow
+            .control
+            .states
+            .get_mut(state_handle)
+            .storage_transfers = facts.flow.ownership.storage_transfers.insert_many(moves);
     }
 
     append_borrow_permission_events(

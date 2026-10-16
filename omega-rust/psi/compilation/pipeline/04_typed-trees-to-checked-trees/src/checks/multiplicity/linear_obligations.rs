@@ -152,28 +152,23 @@ pub(super) fn prepare_storage_deaths(
     let mut deaths = Vec::new();
     for machine in program.machines() {
         for state in program.machine_states(machine) {
-            let mut segments = arena::Arena::default();
-            let moves = crate::flow::discover_state_move_events(
-                program,
-                &facts.borrow,
-                &facts.operators,
-                machine,
-                state,
-                &mut segments,
-            );
+            let Some(flow) = facts.flow.control.state(machine.symbol, state.symbol) else {
+                diagnostics.push(Diagnostic::error(format!(
+                    "state `{}` has no checked flow for storage-transfer validation",
+                    crate::labels::symbol_name(program, state.symbol),
+                )));
+                continue;
+            };
+            let segments = &facts.flow.ownership.segments;
+            let moves = facts
+                .flow
+                .ownership
+                .storage_transfers
+                .span_or_empty(flow.storage_transfers);
             // Restoration debt cannot enter a state. A replacement can still
             // kill a live old referent when this body contains no extraction.
             let statements = program.statement_table.statements(state.statement_nodes);
-            let state_calls = facts
-                .flow
-                .control
-                .states
-                .iter()
-                .find_map(|(_, flow)| {
-                    (flow.machine_symbol == machine.symbol && flow.state_symbol == state.symbol)
-                        .then(|| facts.flow.control.calls.span_or_empty(flow.calls))
-                })
-                .unwrap_or_default();
+            let state_calls = facts.flow.control.calls.span_or_empty(flow.calls);
             borrowed_windows::check_call_occurrences(
                 program,
                 machine,
@@ -182,17 +177,20 @@ pub(super) fn prepare_storage_deaths(
                 &facts.flow.control,
                 &mut diagnostics,
             );
-            // A state body is a linear fall-through: each `transition` arm is
-            // a guarded exit edge, and a missed arm continues to the next
-            // statement. Every taken edge and the implicit return must see a
-            // discharged window; the fall-through path may still repair it.
+            // Follow admitted assembly edges with stable source coordinates.
+            // Each transition is a guarded exit; its missed edge continues in
+            // execution order. Every taken edge and implicit return must see
+            // discharged windows; a continuing path may still repair them.
             let captures = crate::checks::StorageSelectorFacts {
                 flow: &facts.flow,
                 semantic: &facts.semantic,
             };
             let mut windows = borrowed_windows::BorrowedStorageWindows::new(captures);
             let mut consumed = ConsumedOwners::default();
-            for (statement_index, statement) in statements.iter().enumerate() {
+            for (statement_index, statement) in program
+                .statement_table
+                .admitted_execution_statements(state.statement_nodes)
+            {
                 let is_transition = matches!(statement, StatementNode::Transition(_));
                 consumed.begin_statement();
                 // Match arms join on one edge set: a move evaluated inside an
@@ -241,7 +239,7 @@ pub(super) fn prepare_storage_deaths(
                     state,
                     statement_index,
                     statement,
-                    &moves,
+                    moves,
                     &facts.operators,
                 ) {
                     let (event_index, conditional, ordered) = match step.step {

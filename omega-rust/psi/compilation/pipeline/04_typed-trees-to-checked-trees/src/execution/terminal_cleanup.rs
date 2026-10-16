@@ -87,15 +87,13 @@ fn build_state_plan(
         &result_locals,
     )?;
 
-    let mut segments = facts.flow.ownership.segments.clone();
-    let moves = crate::flow::discover_state_move_events(
-        program,
-        &facts.borrow,
-        &facts.operators,
-        machine,
-        state,
-        &mut segments,
-    );
+    let flow = facts.flow.control.state(machine.symbol, state.symbol)?;
+    let segments = &facts.flow.ownership.segments;
+    let moves = facts
+        .flow
+        .ownership
+        .storage_transfers
+        .span_or_empty(flow.storage_transfers);
     let mut edges = Vec::new();
     for (statement_index, statement) in statements.iter().enumerate() {
         let Some(transition) = statement.as_transition() else {

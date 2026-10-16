@@ -35,15 +35,12 @@ pub(super) fn check_statement_borrows<'p>(
     // Use the same occurrence inventory as ownership replay: an extraction
     // invalidates borrowed storage even when it is a local initializer rather
     // than an assignment. Production destinations are not source accesses.
-    let mut move_segments = arena::Arena::default();
-    let moves = crate::flow::discover_state_move_events(
-        program,
-        &facts.borrow,
-        &facts.operators,
-        machine,
-        state,
-        &mut move_segments,
-    );
+    let move_segments = &facts.flow.ownership.segments;
+    let moves = facts
+        .flow
+        .ownership
+        .storage_transfers
+        .span_or_empty(state_flow.storage_transfers);
     for statement in facts
         .flow
         .control
@@ -170,7 +167,7 @@ pub(super) fn check_statement_borrows<'p>(
             state,
             statement.statement_index,
             statement_node,
-            &moves,
+            moves,
             &facts.operators,
         );
         let final_holds = super::reads::final_holds_in_statement(
@@ -182,9 +179,9 @@ pub(super) fn check_statement_borrows<'p>(
             &occurrences,
         );
         let mut staged_operands = super::reads::StagedOperands::default();
-        for (position, occurrence) in occurrences.into_iter().enumerate() {
+        for (position, occurrence) in occurrences.iter().enumerate() {
             use crate::checks::ownership_occurrences::{StatementStep, routes_compatible};
-            match occurrence.step {
+            match &occurrence.step {
                 StatementStep::Observe { place, expression } => {
                     let active: Vec<_> = facts
                         .flow
@@ -208,8 +205,8 @@ pub(super) fn check_statement_borrows<'p>(
                             state: state_flow,
                             borrow_state,
                             statement,
-                            place: &place,
-                            expression,
+                            place,
+                            expression: *expression,
                             active_loans: &active,
                         },
                         &mut staged_operands,
@@ -222,7 +219,7 @@ pub(super) fn check_statement_borrows<'p>(
                     for (handle, _) in facts.borrow.loans.iter().filter(|(handle, loan)| {
                         facts.borrow.state_owns_loan(borrow_state, *handle)
                             && loan.statement_index == statement.statement_index
-                            && loan.formation_expression == expression
+                            && loan.formation_expression == *expression
                     }) {
                         if !formed.iter().any(|(previous, route)| {
                             *previous == handle && route == &occurrence.route
@@ -236,7 +233,20 @@ pub(super) fn check_statement_borrows<'p>(
                     ordered: true,
                     ..
                 } => {
-                    let event = &moves[event];
+                    let event = &moves[*event];
+                    super::calls::check_staged_operand_move(
+                        program,
+                        facts,
+                        state_flow,
+                        borrow_state,
+                        statement,
+                        event,
+                        &occurrences[..position],
+                        &occurrence.route,
+                        stated_premises,
+                        diagnostics,
+                        bound_lookup,
+                    );
                     // Call transfers use their own checked occurrence and
                     // argument authority; production targets have no operand.
                     if !event.expression.is_valid()

@@ -1,37 +1,9 @@
 use validation::CanonicalPlace;
 
-use arena::HandleSpan;
-use symbols::SymbolHandle;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum FlowOwnershipEventSource {
-    Statement {
-        statement_index: usize,
-    },
-    Call {
-        statement_index: usize,
-        call_ordinal: usize,
-        target_symbol: SymbolHandle,
-    },
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct DiscoveredMoveEvent {
-    pub(crate) source: FlowOwnershipEventSource,
-    pub(crate) evaluation: checked_trees::FlowPermissionEvaluation,
-    /// Exact evaluated operand that detaches this value. Statement receivers
-    /// and production destinations have no expression; their source names the
-    /// statement/call instead. Equal places at different occurrences are not
-    /// interchangeable reads or moves.
-    pub(crate) expression: typed_trees::expression::ExpressionHandle,
-    /// The selected operand value, distinct from the place's loan carrier.
-    /// An owned consumption of a reference's exact referent transfers that
-    /// value; forwarding a reference transfers only its descriptor.
-    pub(crate) value_type: typed_trees::types::TypeReferenceHandle,
-    pub(crate) source_arm: arena::Handle<typed_trees::expression::TableMatchArm>,
-    pub(crate) root: facts::PlaceRoot,
-    pub(crate) segments: HandleSpan<facts::PlaceSegment>,
-}
+pub(crate) use checked_trees::{
+    FlowStorageTransferFact as DiscoveredMoveEvent,
+    FlowStorageTransferSource as FlowOwnershipEventSource,
+};
 
 pub(crate) struct DirectMoveEventSink<'segments> {
     segments: &'segments mut arena::Arena<facts::PlaceSegment>,

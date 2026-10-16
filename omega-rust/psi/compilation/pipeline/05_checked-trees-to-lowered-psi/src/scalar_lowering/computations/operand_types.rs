@@ -23,6 +23,17 @@ pub(crate) fn type_requirements(
         checked, machine,
     )? {
         crate::unit::attached_unit::catalog::collect_value_roots(checked, value, &mut types)?;
+        // A computed aggregate owns its children's formation dependencies just
+        // as a named local does. Retain the walk's literal-carrier requirement
+        // before emitters borrow this catalog; the receiving call's signature
+        // cannot describe intermediate inputs of nested producers.
+        literal_view |=
+            crate::expression_preparation::structural_value_requirements::collect_value_requirements(
+                checked,
+                machine,
+                value,
+                &mut Vec::new(),
+            )?;
     }
     let plans = &checked.facts.values.scalar_computations;
     for handle in super::machine_computation_handles(checked, machine)? {

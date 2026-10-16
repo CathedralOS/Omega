@@ -25,56 +25,13 @@ pub(super) fn check_storage_move<'program>(
     diagnostics: &mut Vec<Diagnostic>,
     bound_lookup: &mut Option<validation::ImmutableBoundLookup<'program>>,
 ) {
-    if !crate::checks::multiplicity::transfers_owned_storage(
-        program,
-        state.state_symbol,
-        statement.statement_index,
-        event,
-        path,
-    ) {
-        return;
-    }
-    let Some(root) = event.root.as_symbol() else {
-        // A completed rvalue has no preexisting source storage to detach.
-        return;
-    };
-    let endpoint_is_reference = validation::canonical_place_type_reference(
-        program,
-        state.state_symbol,
-        statement.statement_index,
-        &CanonicalPlace {
-            root: event.root,
-            segments: path.to_vec(),
-        },
-    )
-    .is_some_and(|reference| crate::checks::type_reference_is_reference(program, reference));
-    let resolved = if path.is_empty() && !endpoint_is_reference {
-        // Moving a whole owned carrier retains its own storage identity here.
-        // Loans stored inside it do not turn that transfer into a move of
-        // their referents. Consuming a reference's whole referent instead
-        // follows the same captured route as a projected extraction.
-        Some(ResolvedAlias {
-            place: checked_trees::CapturedPlace {
-                incoming_reference: Default::default(),
-                root: facts::PlaceRoot::Symbol(root),
-                segments: Vec::new(),
-            },
-            lineage: Vec::new(),
-        })
-    } else {
-        // This resolver rejoins reference-typed local roots and retained
-        // call-returned root aliases. A stored-reference crossing inside an
-        // owned aggregate path is not yet rebased to its backing here; this
-        // exclusion does not certify that extraction's source authority.
-        // Do not infer such authority from matching storage candidates or a
-        // fallback authored path. Independent Terminal custody still checks it.
-        super::access_sources::resolve(program, facts, state, statement, event.expression)
-    };
-    let Some(resolved) = resolved else {
-        diagnostics.push(Diagnostic::error(
-            "owned transfer requires an exact storage source and available loan authority",
-        ));
-        return;
+    let resolved = match owned_storage_source(program, facts, state, statement, event, path) {
+        Ok(Some(resolved)) => resolved,
+        Ok(None) => return,
+        Err(diagnostic) => {
+            diagnostics.push(diagnostic);
+            return;
+        }
     };
     let place = CanonicalPlace {
         root: resolved.place.root,
@@ -109,4 +66,67 @@ pub(super) fn check_storage_move<'program>(
                 .unwrap_or_else(|| format!("borrowed at statement {}", loan.statement_index)),
         )));
     }
+}
+
+/// Resolve the storage being detached without following loans merely stored
+/// inside a whole owned carrier. Both live-local and staged-call loan checks
+/// consume this source; reference forwarding never becomes a referent move.
+pub(super) fn owned_storage_source(
+    program: &dyn ::validation::CheckingInput,
+    facts: &CheckFacts,
+    state: &FlowStateFact,
+    statement: &FlowStatementFact,
+    event: &DiscoveredMoveEvent,
+    path: &[facts::PlaceSegment],
+) -> Result<Option<ResolvedAlias>, Diagnostic> {
+    if !crate::checks::multiplicity::transfers_owned_storage(
+        program,
+        state.state_symbol,
+        statement.statement_index,
+        event,
+        path,
+    ) {
+        return Ok(None);
+    }
+    let Some(root) = event.root.as_symbol() else {
+        // A completed rvalue has no preexisting source storage to detach.
+        return Ok(None);
+    };
+    let endpoint_is_reference = validation::canonical_place_type_reference(
+        program,
+        state.state_symbol,
+        statement.statement_index,
+        &CanonicalPlace {
+            root: event.root,
+            segments: path.to_vec(),
+        },
+    )
+    .is_some_and(|reference| crate::checks::type_reference_is_reference(program, reference));
+    let resolved = if path.is_empty() && !endpoint_is_reference {
+        // Moving a whole owned carrier retains its own storage identity here.
+        // Loans stored inside it do not turn that transfer into a move of
+        // their referents. Consuming a reference's whole referent instead
+        // follows the same captured route as a projected extraction.
+        Some(ResolvedAlias {
+            place: checked_trees::CapturedPlace {
+                incoming_reference: Default::default(),
+                root: facts::PlaceRoot::Symbol(root),
+                segments: Vec::new(),
+            },
+            lineage: Vec::new(),
+        })
+    } else {
+        // This resolver rejoins reference-typed local roots and retained
+        // call-returned root aliases. A stored-reference crossing inside an
+        // owned aggregate path is not yet rebased to its backing here; this
+        // exclusion does not certify that extraction's source authority.
+        // Do not infer such authority from matching storage candidates or a
+        // fallback authored path. Independent Terminal custody still checks it.
+        super::access_sources::resolve(program, facts, state, statement, event.expression)
+    };
+    resolved.map(Some).ok_or_else(|| {
+        Diagnostic::error(
+            "owned transfer requires an exact storage source and available loan authority",
+        )
+    })
 }

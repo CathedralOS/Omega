@@ -9,6 +9,135 @@ use super::super::overlap::canonical_place_loan_compatibility;
 use super::super::place_access;
 use super::super::simultaneous::{Hold, simultaneous_hold_conflict};
 
+/// Compare one retained storage move with earlier operands still held by a
+/// containing invocation. Exact expression occurrences, not affine-looking
+/// actual types, distinguish a move from implicit shared lending. The source
+/// schedule supplies branch compatibility; the call roster supplies loan
+/// completion, including a nested call whose result retains no borrow.
+pub(in crate::checks::borrows) fn check_staged_operand_move<'program>(
+    program: &'program dyn ::validation::CheckingInput,
+    facts: &CheckFacts,
+    state: &FlowStateFact,
+    borrow_state: &checked_trees::StateBorrowFact,
+    statement: &checked_trees::FlowStatementFact,
+    event: &crate::flow::DiscoveredMoveEvent,
+    preceding: &[crate::checks::ownership_occurrences::StatementOccurrence],
+    route: &[crate::checks::ownership_occurrences::EvaluationBranch],
+    premises: &[StatedOrderingPremise],
+    diagnostics: &mut Vec<Diagnostic>,
+    bound_lookup: &mut Option<validation::ImmutableBoundLookup<'program>>,
+) {
+    use crate::checks::ownership_occurrences::{StatementStep, routes_compatible};
+    let path = facts.flow.ownership.segments.span_or_empty(event.segments);
+    if !event.expression.is_valid()
+        || !crate::checks::multiplicity::transfers_owned_storage(
+            program,
+            state.state_symbol,
+            statement.statement_index,
+            event,
+            path,
+        )
+    {
+        return;
+    }
+    let mut moved_source = None;
+    for call in facts
+        .borrow
+        .calls
+        .span_or_empty(borrow_state.calls)
+        .iter()
+        .filter(|call| call.statement_index == statement.statement_index)
+    {
+        let accesses = facts.borrow.argument_accesses.span_or_empty(call.accesses);
+        for (move_index, _) in accesses
+            .iter()
+            .enumerate()
+            .filter(|(_, access)| access.expression == event.expression)
+        {
+            for access in &accesses[..move_index] {
+                if access.end_before_access.is_some_and(|end| end <= move_index)
+                    // Earlier owned operands have already detached their
+                    // values; they are not loans held over the caller's old
+                    // storage. Repeated use is judged by move accounting.
+                    || preceding.iter().any(|occurrence| {
+                        let StatementStep::Move { event, ordered: true, .. } = occurrence.step else {
+                            return false;
+                        };
+                        let previous = &facts.flow.ownership.storage_transfers
+                            .span_or_empty(state.storage_transfers)[event];
+                        previous.expression == access.expression
+                            && routes_compatible(&occurrence.route, route)
+                            && crate::checks::multiplicity::transfers_owned_storage(
+                                program, state.state_symbol, statement.statement_index, previous,
+                                facts.flow.ownership.segments.span_or_empty(previous.segments),
+                            )
+                    })
+                    || !preceding.iter().any(|occurrence| {
+                        matches!(occurrence.step, StatementStep::Observe { expression, .. }
+                            if expression == access.expression)
+                            && routes_compatible(&occurrence.route, route)
+                    })
+                {
+                    continue;
+                }
+                // Resolve once, only when a prior staged loan needs comparison.
+                // Calls with no such loan keep their ordinary source checks.
+                let moved = match &moved_source {
+                    Some(place) => place,
+                    None => match super::super::moves::owned_storage_source(
+                        program, facts, state, statement, event, path,
+                    ) {
+                        Ok(Some(source)) => moved_source.insert(source.place),
+                        Ok(None) => return,
+                        Err(diagnostic) => {
+                            diagnostics.push(diagnostic);
+                            return;
+                        }
+                    },
+                };
+                let backings = place_access::place_backings(
+                    program,
+                    facts,
+                    state,
+                    statement.statement_index,
+                    statement.entry_constraints,
+                    facts
+                        .flow
+                        .borrow_loan_constraints(statement.entry_constraints),
+                    CapturedPlace {
+                        incoming_reference: Default::default(),
+                        root: access.root,
+                        segments: facts.borrow.access_segments(access).to_vec(),
+                    },
+                );
+                let Some(backings) = backings else {
+                    // The call's ordinary loan check reports missing backing.
+                    continue;
+                };
+                if backings.iter().all(|backing| {
+                    super::super::overlap::captured_place_compatibility(
+                        program,
+                        &backing.place,
+                        &access.kind,
+                        moved,
+                        &checked_trees::BorrowAccessKind::Mutable,
+                        premises,
+                        bound_lookup,
+                    )
+                    .non_interfering
+                }) {
+                    continue;
+                }
+                diagnostics.push(Diagnostic::error(format!(
+                    "state `{}` receives owned `{}` while an earlier argument in the same call still borrows it",
+                    crate::labels::call_target_label(program, call.target_symbol),
+                    validation::CanonicalPlace { root: event.root, segments: path.to_vec() }.label(program),
+                )));
+            }
+        }
+    }
+}
+
 pub(super) fn check_call_access_conflicts<'p>(
     program: &'p dyn ::validation::CheckingInput,
     facts: &CheckFacts,
@@ -51,13 +180,9 @@ pub(super) fn check_call_access_conflicts<'p>(
         .map(|loan| (loan, facts.borrow.loans.get(loan)))
         .collect();
 
-    for transferred in crate::flow::owned_call_operand_places(
-        program,
-        &facts.operators,
-        state_flow.machine_symbol,
-        state_flow.state_symbol,
-        borrow_call,
-    ) {
+    for transferred in
+        crate::flow::owned_call_operand_places(program, facts, state_flow, borrow_call)
+    {
         for (loan_handle, loan) in &active_loans {
             if canonical_place_loan_compatibility(
                 program,

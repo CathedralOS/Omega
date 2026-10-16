@@ -255,6 +255,7 @@ pub(super) fn build_state_flow_fact<'plans>(
     build.control.states.append(FlowStateFact {
         machine_symbol: machine.symbol,
         state_symbol: state.symbol,
+        storage_transfers: arena::HandleSpan::empty(),
         writable_roots: borrow_state.writable_roots,
         mutable_parameter_count: borrow_state.mutable_parameter_count,
         entry_semantic_contexts: state_contexts,

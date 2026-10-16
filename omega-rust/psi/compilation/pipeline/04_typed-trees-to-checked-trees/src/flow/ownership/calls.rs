@@ -12,7 +12,6 @@ use crate::flow::ownership::type_requires_ownership;
 
 use checked_trees::BorrowCallFact;
 use checked_trees::expression::ExpressionHandle;
-use symbols::SymbolHandle;
 
 pub(in crate::flow) fn append_call_ownership_events(
     program: &dyn ::validation::CheckingInput,
@@ -157,39 +156,38 @@ fn affine_call_result_type(
         && !crate::checks::type_carries_linear_obligation(program, result))
     .then_some(result)
 }
-
-/// Canonical caller places transferred into owned by-value call operands.
-/// Borrow checking uses this exact parameter alignment so moving a provider
-/// validity claim cannot bypass an outstanding view merely because the target
-/// is bodyless.
+/// Canonical caller storage moved by this call's retained operand occurrences.
+/// Discovery ran once before claim expansion. Call-local loan checks consume
+/// that roster rather than reclassifying the source or rebuilding move events.
 pub(crate) fn owned_call_operand_places(
     program: &dyn ::validation::CheckingInput,
-    operators: &checked_trees::CheckedOperatorFacts,
-    caller_machine_symbol: SymbolHandle,
-    caller_state_symbol: SymbolHandle,
+    facts: &checked_trees::CheckFacts,
+    state: &checked_trees::FlowStateFact,
     borrow_call: &BorrowCallFact,
 ) -> Vec<CanonicalPlace> {
-    let Some(machine) = program.machine_by_symbol(caller_machine_symbol) else {
-        return Vec::new();
-    };
-    let Some(state) = program.state_in_machine(machine, caller_state_symbol) else {
-        return Vec::new();
-    };
-    // Constructor values have no caller storage root. Reuse the same typed
-    // ownership discovery as move checking so nested literals contribute
-    // their moved operands rather than an unknown constructor place.
-    let mut segments = arena::Arena::default();
-    let mut sink = DirectMoveEventSink::new(&mut segments, operators, machine, state);
-    append_call_ownership_events(program, &mut sink, machine, state, borrow_call);
-    sink.finish()
-        .into_iter()
+    facts
+        .flow
+        .ownership
+        .storage_transfers
+        .span_or_empty(state.storage_transfers)
+        .iter()
+        .filter(|event| {
+            event.source
+                == FlowOwnershipEventSource::Call {
+                    statement_index: borrow_call.statement_index,
+                    call_ordinal: borrow_call.call_ordinal,
+                    target_symbol: borrow_call.target_symbol,
+                }
+        })
         .map(|event| CanonicalPlace {
             root: event.root,
-            segments: segments.span_or_empty(event.segments).to_vec(),
+            segments: facts
+                .flow
+                .ownership
+                .segments
+                .span_or_empty(event.segments)
+                .to_vec(),
         })
-        // Keep the move event for permission accounting, but a projection
-        // contained in a fresh owned result does not move caller storage.
-        // Nested call operands have their own parameter-aligned move checks.
         .filter(|place| !super::result_storage::is_private_result_place(program, place))
         .collect()
 }

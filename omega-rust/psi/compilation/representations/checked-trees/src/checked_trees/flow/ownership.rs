@@ -3,6 +3,43 @@ use symbols::SymbolHandle;
 
 mod computation_custody;
 
+/// Source occurrence of a storage movement, before permission claims expand it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FlowStorageTransferSource {
+    Statement {
+        statement_index: usize,
+    },
+    Call {
+        statement_index: usize,
+        call_ordinal: usize,
+        target_symbol: SymbolHandle,
+    },
+}
+
+impl Default for FlowStorageTransferSource {
+    fn default() -> Self {
+        Self::Statement { statement_index: 0 }
+    }
+}
+
+/// One formal-directed movement candidate in the source evaluation schedule.
+/// Permission production and borrow checking consume the same occurrence.
+/// Claim expansion can split a carrier into several debts or omit an inactive
+/// payload; neither changes the storage whose movement excludes a live loan.
+/// Selected-arm candidates retain their route and are never unconditional
+/// permission events. Reference-carrier transfers retain their selected type
+/// so consumers do not mistake them for movement of the referent.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct FlowStorageTransferFact {
+    pub source: FlowStorageTransferSource,
+    pub evaluation: FlowPermissionEvaluation,
+    pub expression: typed_trees::expression::ExpressionHandle,
+    pub value_type: typed_trees::types::TypeReferenceHandle,
+    pub source_arm: arena::Handle<typed_trees::expression::TableMatchArm>,
+    pub root: facts::PlaceRoot,
+    pub segments: HandleSpan<facts::PlaceSegment>,
+}
+
 /// The claim minted for one exact loan activation. Equal backing paths can
 /// occur more than once in a statement; they cannot recover this association.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -37,8 +74,9 @@ pub enum FlowPermissionEvaluation {
 }
 
 /// The permission/resource algebra established by the multiplicity checker.
-/// This records the semantic role of an event and is the sole ownership-event
-/// source for later checked-IR consumers.
+/// This is the authoritative claim ledger for later checked-IR consumers.
+/// Storage-transfer candidates are retained separately: claim expansion and
+/// inactive-payload filtering cannot describe every movement of borrowed storage.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
 pub struct FlowPermissionEventFact {
     pub machine_symbol: SymbolHandle,

@@ -230,9 +230,9 @@ pub(super) fn append_statement_ownership_events(
     }
 }
 
-/// Run the ownership discovery rules directly into the semantic permission
-/// producer. The discovered vocabulary is private to checked lowering; only
-/// normalized permission events are published.
+/// Discover storage-transfer candidates once in admitted execution order.
+/// Permission production retains this roster before expanding claims, so loan
+/// checks and cleanup share exact source occurrences even for claim-free values.
 pub(crate) fn discover_state_move_events(
     program: &dyn ::validation::CheckingInput,
     borrow: &BorrowFacts,
@@ -249,7 +249,7 @@ pub(crate) fn discover_state_move_events(
 
     for (statement_index, statement) in program
         .statement_table
-        .indexed_statements(state.statement_nodes)
+        .admitted_execution_statements(state.statement_nodes)
     {
         sink.evaluation = checked_trees::FlowPermissionEvaluation::Statement;
         append_statement_ownership_events(

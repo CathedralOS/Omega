@@ -108,6 +108,7 @@ pub use ownership::{
     FlowClaimOutcomeMapFact, FlowClaimOutcomeSource, FlowLoanCompletionFact,
     FlowOwnedSelectionClaim, FlowOwnedSelectionReceipt, FlowOwnedSelectionSource,
     FlowOwnedSelectionTransfer, FlowPermissionEvaluation, FlowPermissionEventFact,
+    FlowStorageTransferFact, FlowStorageTransferSource,
 };
 pub use roots::{
     FlowBorrowLifetimeFacts, FlowBoundaryFacts, FlowContextFacts, FlowControlFacts, FlowFacts,

@@ -1,0 +1,44 @@
+// A byte literal passed to an owned formal of a nested producer is a fresh
+// owned temporary: it is materialized at its operand position, moved into
+// the producer, and the producer's result moves into the enclosing call.
+// The same operand appears in a local initializer, a statement call, a
+// transition argument, a constructor field, a case payload, a doubly
+// nested producer, a transition condition and a later state.
+domain [u8; 5]::Utf8(bytes) requires valid_utf8(bytes);
+data Label { text: [u8; 5] in Utf8; }
+data Holder { label: Label; }
+data Reply { case Empty; case Message(content: [u8; 5] in Utf8); }
+
+machine label(text: [u8; 5] in Utf8) -> Label { Label { text: text } }
+machine relabel(label: Label) -> Label { label }
+machine reply(content: [u8; 5] in Utf8) -> Reply { Reply::Message { content: content } }
+machine labelled(label: Label) -> bool { label.text == "Owned" }
+machine held(holder: Holder) -> bool { holder.label.text == "Owned" }
+machine replied(reply: Reply) -> bool {
+    transition reply {
+        Reply::Message { content } -> (content == "Owned")
+        Reply::Empty -> (false)
+    }
+}
+machine verify(correct: bool) crashes Trap {
+    transition correct { true -> done() false -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}
+machine sink(label: Label) crashes Trap { verify(label.text == "Owned"); }
+
+machine main() crashes Trap {
+    let local: bool = labelled(label("Owned"));
+    sink(label("Owned"));
+    let field: bool = held(Holder { label: label("Owned") });
+    let payload: bool = replied(reply("Owned"));
+    let nested: bool = labelled(relabel(label("Owned")));
+    transition local && field && payload && nested && replied(reply("Owned")) {
+        true -> later(label("Owned"))
+        false -> bad()
+    }
+    state later(label: Label) {
+        verify(labelled(label) && labelled(relabel(label("Owned"))));
+    }
+    state bad() { crash Trap; }
+}

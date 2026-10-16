@@ -23,6 +23,7 @@ pub(super) use receiver::{
 
 use self::conflicts::check_call_access_conflicts;
 use crate::checks::ranges::incoming_guards::IncomingGuardIndex;
+pub(super) use conflicts::check_staged_operand_move;
 
 pub(super) fn check_compatibility<'p>(
     program: &'p dyn ::validation::CheckingInput,

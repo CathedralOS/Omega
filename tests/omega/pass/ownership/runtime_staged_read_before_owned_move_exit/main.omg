@@ -1,0 +1,54 @@
+// Completed reads do not retain a loan; shared actuals do not move their
+// affine referents. Disjoint fields and owned carriers containing shared
+// references keep their separate storage identities.
+data Ticket { value: i32; }
+data Pair { first: Ticket; second: Ticket; }
+data View { value: &i32; }
+
+machine read(ticket: &Ticket) -> i32 { ticket.value }
+machine observe(ticket: &Ticket) -> bool { ticket.value == 7 }
+machine take(ticket: Ticket) -> bool { ticket.value == 7 }
+machine agree(left: &Ticket, right: &Ticket) -> bool { left.value == right.value }
+machine copied_then_owned(value: i32, ticket: Ticket) -> bool { value == ticket.value }
+machine siblings(first: &Ticket, second: Ticket) -> bool { first.value == 3 && second.value == 4 }
+machine carrier(backing: &i32, view: View) -> bool { backing == view.value }
+machine owned_code(ticket: Ticket) -> u64 { 17 }
+machine reordered_calls(first: Ticket, second: Ticket) -> u64 {
+    let mut output: u64 = 0;
+    asm {
+    entry:
+        jmp later;
+    earlier:
+        mov output, owned_code(first);
+        jmp tail;
+    later:
+        mov output, owned_code(second);
+        jmp earlier;
+    tail:
+        mov output, output
+    }
+    output
+}
+machine verify(valid: bool) crashes Trap {
+    transition valid { true -> done() false -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}
+machine selected(choice: bool, ticket: Ticket) crashes Trap {
+    verify(match choice { true -> observe(&ticket) false -> take(ticket) });
+}
+machine main() crashes Trap {
+    let first: Ticket = Ticket { value: 7 };
+    verify(agree(first, first));
+    verify(copied_then_owned(read(&first), first));
+    let second: Ticket = Ticket { value: 9 };
+    verify(copied_then_owned(second.value, second));
+    let pair: Pair = Pair { first: Ticket { value: 3 }, second: Ticket { value: 4 } };
+    verify(siblings(&pair.first, pair.second));
+    let backing: i32 = 11;
+    let view: View = View { value: &backing };
+    verify(carrier(&backing, view));
+    selected(true, Ticket { value: 7 });
+    selected(false, Ticket { value: 7 });
+    verify(reordered_calls(Ticket { value: 3 }, Ticket { value: 4 }) == 17);
+}

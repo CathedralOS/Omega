@@ -1,0 +1,112 @@
+// Expected exit: 0.
+//
+// Computed owned operands: every owned argument below is a call result
+// passed straight into its consumer, `f(make(...))`, with no named local.
+// The evaluation schedule makes each nested call an ordinary owned
+// temporary that the enclosing call moves into its callee.
+//
+//   * `Ticket` is affine plain data; `take` consumes it by value.
+//   * `Note` has a nominal cleanup hook and a stored `log` loan. `absorb`'s
+//     body writes 1; the hook turns 1 into 2 (anything else into 9) when
+//     `absorb`'s parameter leaves scope. The caller reading 2 right after
+//     the call shows the hook ran exactly once, inside the callee, after
+//     its body.
+//   * `Receipt` is linear; `settle` consumes it with `drop`.
+//   * `Shape` is a sum; `measure` matches the case `box` built.
+//   * `take(unwrap(wrap(make(..))))` nests three owned producers.
+//   * `pair(&base, make(..))` lends `base` before it moves the temporary.
+//   * `label("Owned")` builds its result from a byte literal before the
+//     result moves into `labelled`.
+//   * `later` receives `make(..)` through a state transition and passes
+//     another call result in that later state.
+//
+// A wrong result crashes with `Trap`; no standard-library dependency.
+
+use omega::language::core::drop;
+
+data Ticket { value: i32 in Wrapping; }
+data Wrap { inner: Ticket; }
+
+data Note { log: &mut i32; value: i32 in Wrapping; }
+machine Note::drop(note: &mut Note) { advance(note.log); }
+
+machine enter(log: &mut i32) { log = 1; }
+machine advance(log: &mut i32) {
+    transition log == 1 {
+        true -> second(log)
+        false -> wrong(log)
+    }
+    state second(log: &mut i32) { log = 2; }
+    state wrong(log: &mut i32) { log = 9; }
+}
+
+data Receipt [linear] { code: i32 in Wrapping; }
+machine Receipt::drop(receipt: &mut Receipt) {}
+
+data Shape {
+    case Dot;
+    case Box(width: i32 in Wrapping);
+}
+
+machine make(value: i32 in Wrapping) -> Ticket { Ticket { value: value } }
+machine wrap(ticket: Ticket) -> Wrap { Wrap { inner: ticket } }
+machine unwrap(wrap: Wrap) -> Ticket { wrap.inner }
+machine take(ticket: Ticket) -> i32 in Wrapping { ticket.value }
+machine pair(left: &Ticket, right: Ticket) -> i32 in Wrapping { left.value + right.value }
+
+machine note(log: &mut i32, value: i32 in Wrapping) -> Note {
+    Note { log: log, value: value }
+}
+machine absorb(note: Note) -> i32 in Wrapping {
+    enter(note.log);
+    note.value
+}
+
+machine issue(code: i32 in Wrapping) -> Receipt { Receipt { code: code } }
+machine settle(receipt: Receipt) -> i32 in Wrapping {
+    let code: i32 in Wrapping = receipt.code;
+    drop(receipt);
+    code
+}
+
+domain [u8; 5]::Utf8(bytes) requires valid_utf8(bytes);
+data Label { text: [u8; 5] in Utf8; }
+machine label(text: [u8; 5] in Utf8) -> Label { Label { text: text } }
+machine labelled(label: Label) -> bool { label.text == "Owned" }
+
+machine box(width: i32 in Wrapping) -> Shape { Shape::Box { width: width } }
+machine measure(shape: Shape) -> i32 in Wrapping {
+    transition shape {
+        Shape::Box { width } -> (width)
+        _ -> 0
+    }
+}
+
+machine main() crashes Trap {
+    let affine: i32 in Wrapping = take(make(3));
+    let mut log: i32 = 0;
+    let hooked: i32 in Wrapping = absorb(note(&mut log, 5));
+    let observed: i32 = log;
+    let linear: i32 in Wrapping = settle(issue(7));
+    let sum: i32 in Wrapping = measure(box(11));
+    let nested: i32 in Wrapping = take(unwrap(wrap(make(13))));
+    let base: Ticket = make(17);
+    let mixed: i32 in Wrapping = pair(&base, make(19));
+    let named: bool = labelled(label("Owned"));
+    let total: i32 in Wrapping = affine + hooked + linear + sum + nested + mixed;
+    transition total == 75 && observed == 2 && named {
+        true -> later(make(23))
+        false -> bad()
+    }
+
+    state later(ticket: Ticket) {
+        let carried: i32 in Wrapping = take(ticket) + take(make(24));
+        transition carried == 47 {
+            true -> done()
+            false -> bad()
+        }
+    }
+
+    state done() {}
+    state bad() { crash Trap; }
+}

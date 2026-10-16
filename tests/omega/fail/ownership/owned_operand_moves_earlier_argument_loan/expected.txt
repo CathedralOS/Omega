@@ -1,0 +1,7 @@
+receives owned `first` while an earlier argument in the same call still borrows it
+receives owned `second` while an earlier argument in the same call still borrows it
+receives owned `third` while an earlier argument in the same call still borrows it
+receives owned `implicit` while an earlier argument in the same call still borrows it
+receives owned `local` while an earlier argument in the same call still borrows it
+receives owned `alias.first` while an earlier argument in the same call still borrows it
+receives owned `reordered` while an earlier argument in the same call still borrows it

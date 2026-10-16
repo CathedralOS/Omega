@@ -251,6 +251,7 @@ pub struct FlowExitParameterOrigin {
 pub struct FlowStateFact {
     pub machine_symbol: SymbolHandle,
     pub state_symbol: SymbolHandle,
+    pub storage_transfers: HandleSpan<super::FlowStorageTransferFact>,
     pub writable_roots: HandleSpan<BorrowWritableRootFact>,
     pub mutable_parameter_count: usize,
     pub entry_semantic_contexts: HandleSpan<FlowSemanticContextRef>,

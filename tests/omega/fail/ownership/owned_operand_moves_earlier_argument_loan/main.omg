@@ -1,0 +1,45 @@
+// An earlier shared argument lends `base` for the whole invocation; a later
+// argument cannot move `base` into the callee, directly, through a nested
+// producer's owned temporary, or through a constructor field.
+data Ticket { value: i32; }
+data Wrap { inner: Ticket; }
+data Pair { first: Ticket; second: Ticket; }
+machine wrap(ticket: Ticket) -> Wrap { Wrap { inner: ticket } }
+machine direct(ticket: &Ticket, other: Ticket) -> bool { other.value == ticket.value }
+machine compare(ticket: &Ticket, wrap: Wrap) -> bool { wrap.inner.value == ticket.value }
+machine consume_code(ticket: Ticket) -> u64 { 17 }
+machine conflict_code(ticket: &Ticket, other: Ticket) -> u64 { 17 }
+// Calls execute in reverse source order; the later executed call must retain
+// its movement even though another call has a larger source ordinal.
+machine reordered_calls(reordered: Ticket, other: Ticket) {
+    let mut output: u64 = 0;
+    asm {
+    entry:
+        jmp later;
+    earlier:
+        mov output, conflict_code(&reordered, reordered);
+        jmp tail;
+    later:
+        mov output, consume_code(other);
+        jmp earlier;
+    tail:
+        mov output, output
+    }
+}
+machine main() {
+    let first: Ticket = Ticket { value: 7 };
+    let same: bool = direct(&first, first);
+    let second: Ticket = Ticket { value: 7 };
+    let nested: bool = compare(&second, wrap(second));
+    let third: Ticket = Ticket { value: 7 };
+    let built: bool = compare(&third, Wrap { inner: third });
+    let implicit: Ticket = Ticket { value: 7 };
+    let lent: bool = direct(implicit, implicit);
+    let local: Ticket = Ticket { value: 7 };
+    let borrowed: &Ticket = &local;
+    let retained: bool = compare(borrowed, Wrap { inner: local });
+    let mut pair: Pair = Pair { first: Ticket { value: 7 }, second: Ticket { value: 8 } };
+    let alias: &mut Pair = &mut pair;
+    let extracted: bool = compare(&alias.first, Wrap { inner: alias.first });
+    alias.first = Ticket { value: 9 };
+}

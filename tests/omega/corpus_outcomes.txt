@@ -3683,6 +3683,15 @@ fail/ownership/match_selected_parameter_use_after_maybe_move rejected 1476ms exp
 	owned value may have been transferred by an earlier match; it cannot be used here
 fail/ownership/nested_borrowed_operand_later_read rejected 1177ms expected @a9ae30e1c334+wt
 	cannot use `holder.token.value` while `holder.token` is absent from borrowed storage: the value moved out at statement 0 must be restored first
+fail/ownership/owned_operand_moves_earlier_argument_loan rejected 647ms expected @cc35a4f0d368+wt
+	state `compare` receives an owned value while local borrow `borrowed` is still active (borrowed at statement 9; its last use is at statement 10)
+	state `conflict_code` receives owned `reordered` while an earlier argument in the same call still borrows it
+	state `direct` receives owned `first` while an earlier argument in the same call still borrows it
+	state `compare` receives owned `second` while an earlier argument in the same call still borrows it
+	state `compare` receives owned `third` while an earlier argument in the same call still borrows it
+	state `direct` receives owned `implicit` while an earlier argument in the same call still borrows it
+	state `compare` receives owned `local` while an earlier argument in the same call still borrows it
+	state `compare` receives owned `alias.first` while an earlier argument in the same call still borrows it
 fail/ownership/owned_parameter_strict_child_restoration rejected 1128ms expected @a9ae30e1c334+wt
 	cannot store into `holder.value` in machine `invalid` state `entry` (statement 1) after `holder` was transferred or consumed at statement 0: assign a whole value to `holder` to re-establish it
 fail/ownership/owned_replacement_second_move_rejected rejected 1246ms expected @a9ae30e1c334+wt
@@ -5852,6 +5861,7 @@ pass/calls/runtime_linear_guarded_owner_disposition_exit checked 11179ms check-t
 pass/calls/runtime_linear_guarded_unit_owner_disposition_exit checked 11229ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_linear_state_owner_disposition_exit checked 11178ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_linear_terminal_owner_disposition_exit checked 11375ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/calls/runtime_literal_owned_operand_producers_exit checked 4211ms check-target:macos_arm64 @cc35a4f0d368+wt
 pass/calls/runtime_local_case_terminal_payload_result_exit checked 11018ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_local_scalar_array_element_loan_exit checked 11214ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_loop_rotation_exit checked 11172ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -7492,6 +7502,7 @@ pass/ownership/runtime_selected_constructed_argument_exit checked 4178ms check-t
 pass/ownership/runtime_selected_linear_temporary_exit checked 4250ms check-target:macos_arm64 @dd6871ed0476
 pass/ownership/runtime_selected_reference_local_exit checked 11154ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/ownership/runtime_selective_constructed_owner_custody_exit checked 3460ms check-target:macos_arm64 @1a353f2e117b+wt
+pass/ownership/runtime_staged_read_before_owned_move_exit checked 4277ms check-target:macos_arm64 @cc35a4f0d368+wt
 pass/ownership/runtime_stored_byte_view_return_exit checked 2808ms check-target:macos_arm64 @096f2ecfd243+wt
 pass/ownership/runtime_unknown_affine_case_discard_exit checked 10704ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/ownership/runtime_view_parameter_element_window_exit checked 11550ms check-target:macos_arm64 @a9ae30e1c334+wt
