@@ -250,6 +250,75 @@ fn seed_const_binder_floor(
     }
 }
 
+/// A strict comparison against a const binder is the symbolic extent
+/// obligation: `index < Count` and `index <= Count - k` (k >= 1) prove
+/// `index` is below every `[T; Count]` in this machine. The binder is
+/// immutable, so the row survives until the index label is written.
+fn seed_strictly_below_const_binder(
+    program: &dyn ::validation::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    facts: &mut RangeFacts<'_>,
+    lower: ExpressionHandle,
+    upper: ExpressionHandle,
+    strict: bool,
+) {
+    let Some(binder) = const_binder_strict_upper(program, machine, state, facts, upper, strict)
+    else {
+        return;
+    };
+    facts.prove_below_const_binder(program.expression_table.display_name(lower), binder);
+}
+
+/// The const binder a comparison's upper side strictly bounds, if any.
+/// A bare binder needs a strict comparison. `binder - k` is strict for any
+/// k >= 0 under `<`, and for k >= 1 under `<=`, matching the len offset rule.
+fn const_binder_strict_upper(
+    program: &dyn ::validation::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    facts: &RangeFacts<'_>,
+    upper: ExpressionHandle,
+    strict: bool,
+) -> Option<symbols::SymbolHandle> {
+    if strict && let Some(binder) = bare_const_binder(program, machine, upper) {
+        return Some(binder);
+    }
+    // A wrapping subtraction is not `binder - k`. Only the builtin bound
+    // meaning can turn that spelling into a strict upper bound.
+    if !validation::has_builtin_bound_expression_meaning(program, machine, Some(state), upper) {
+        return None;
+    }
+    let binary = program.expression_table.binary_node(upper)?;
+    if binary.operator != BinaryOperator::Subtract {
+        return None;
+    }
+    let offset = expression_integer_value(program, facts, binary.right)?;
+    if offset < if strict { 0 } else { 1 } {
+        return None;
+    }
+    bare_const_binder(program, machine, binary.left)
+}
+
+fn bare_const_binder(
+    program: &dyn ::validation::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+    expression: ExpressionHandle,
+) -> Option<symbols::SymbolHandle> {
+    let path = program.expression_table.name_path_node(expression)?;
+    if path.head_symbol != path.symbol
+        || program
+            .expression_table
+            .name_path_members(path.members)
+            .len()
+            != 1
+        || !super::types::is_const_binder(program, machine, path.symbol)
+    {
+        return None;
+    }
+    Some(path.symbol)
+}
+
 fn seed_binary_guard_facts(
     program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
@@ -267,6 +336,15 @@ fn seed_binary_guard_facts(
             seed_length_greater_than_fact(program, facts, binary.right, binary.left);
             seed_less_than_len_fact(program, machine, state, facts, binary.left, binary.right);
             seed_index_less_than_integer_fact(program, facts, binary.left, binary.right);
+            seed_strictly_below_const_binder(
+                program,
+                machine,
+                state,
+                facts,
+                binary.left,
+                binary.right,
+                true,
+            );
             seed_at_most_fact(program, facts, binary.left, binary.right, true);
             // `K < right` (left a constant) floors `right` at `K + 1`.
             seed_non_negative_fact(program, facts, binary.right, binary.left, false);
@@ -276,6 +354,15 @@ fn seed_binary_guard_facts(
             // `left > right` is `right < left` — the mirrored strict
             // ordering, including a len or `len - k` upper bound.
             seed_less_than_len_fact(program, machine, state, facts, binary.right, binary.left);
+            seed_strictly_below_const_binder(
+                program,
+                machine,
+                state,
+                facts,
+                binary.right,
+                binary.left,
+                true,
+            );
             seed_at_most_fact(program, facts, binary.right, binary.left, true);
             // `left > K` (right a constant) floors `left` at `K + 1`.
             seed_non_negative_fact(program, facts, binary.left, binary.right, false);
@@ -299,6 +386,15 @@ fn seed_binary_guard_facts(
                 binary.right,
             );
             seed_index_at_most_integer_fact(program, facts, binary.left, binary.right);
+            seed_strictly_below_const_binder(
+                program,
+                machine,
+                state,
+                facts,
+                binary.left,
+                binary.right,
+                false,
+            );
             seed_at_most_fact(program, facts, binary.left, binary.right, false);
             // `K <= right` (left a constant) floors `right` at `K`.
             seed_non_negative_fact(program, facts, binary.right, binary.left, true);
@@ -322,6 +418,15 @@ fn seed_binary_guard_facts(
                 binary.left,
             );
             // `left >= right` is `right <= left` — the mirrored ordering.
+            seed_strictly_below_const_binder(
+                program,
+                machine,
+                state,
+                facts,
+                binary.right,
+                binary.left,
+                false,
+            );
             seed_at_most_fact(program, facts, binary.right, binary.left, false);
             // `left >= K` (right a constant) floors `left` at `K`.
             seed_non_negative_fact(program, facts, binary.left, binary.right, true);

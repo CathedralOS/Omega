@@ -71,6 +71,14 @@ impl RangeFacts<'_> {
         {
             self.prove_index_upper_bound(alias.to_owned(), upper_bound);
         }
+        for (_, binder) in self
+            .below_const_binders
+            .clone()
+            .into_iter()
+            .filter(|(index, _)| index == original)
+        {
+            self.prove_below_const_binder(alias.to_owned(), binder);
+        }
         for (collection, _) in self
             .proven_indexes
             .clone()

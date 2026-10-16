@@ -28,6 +28,47 @@ impl RangeFacts<'_> {
             .find_map(|(known, floor)| (*known == symbol).then_some(*floor))
     }
 
+    /// `index` is strictly less than this const binder. The binder's symbol,
+    /// not its spelling, is the identity: a same-named local is not an extent.
+    pub(in crate::checks::ranges) fn prove_below_const_binder(
+        &mut self,
+        index: String,
+        binder: symbols::SymbolHandle,
+    ) {
+        if !binder.is_valid()
+            || self
+                .below_const_binders
+                .iter()
+                .any(|(known_index, known_binder)| known_index == &index && *known_binder == binder)
+        {
+            return;
+        }
+        self.below_const_binders.push((index, binder));
+    }
+
+    pub(in crate::checks::ranges) fn below_const_binder(
+        &self,
+        index: &str,
+        binder: symbols::SymbolHandle,
+    ) -> bool {
+        binder.is_valid()
+            && self
+                .below_const_binders
+                .iter()
+                .any(|(known_index, known_binder)| known_index == index && *known_binder == binder)
+    }
+
+    pub(in crate::checks::ranges) fn const_binders_strictly_above(
+        &self,
+        index: &str,
+    ) -> Vec<symbols::SymbolHandle> {
+        self.below_const_binders
+            .iter()
+            .filter(|(known_index, _)| known_index == index)
+            .map(|(_, binder)| *binder)
+            .collect()
+    }
+
     pub(in crate::checks::ranges) fn prove_index(&mut self, collection: String, index: String) {
         if !self
             .proven_indexes

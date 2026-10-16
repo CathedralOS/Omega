@@ -91,6 +91,11 @@ struct ParameterFacts {
     /// exit proof. A signed parameter owes this half to the index check;
     /// one unproven edge poisons the lane.
     non_negative: MergedFact<()>,
+    /// Const binders this argument is strictly below on every incoming edge.
+    /// `index < Count` in the source becomes the destination parameter's
+    /// proof against `[T; Count]`. An edge that does not carry a binder
+    /// drops it.
+    below_const_binders: MergedBinders,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -180,6 +185,27 @@ impl<T: Copy + Eq> MergedFact<T> {
             Self::Known(value) => Some(value),
             Self::Unseen | Self::Conflicting => None,
         }
+    }
+}
+
+/// Binders present on every incoming edge. `None` is unseen; the first edge
+/// installs its set and later edges keep the intersection.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+struct MergedBinders {
+    symbols: Option<Vec<SymbolHandle>>,
+}
+
+impl MergedBinders {
+    fn merge(&mut self, incoming: &[SymbolHandle]) {
+        let Some(existing) = &mut self.symbols else {
+            self.symbols = Some(incoming.to_vec());
+            return;
+        };
+        existing.retain(|symbol| incoming.contains(symbol));
+    }
+
+    fn get(&self) -> &[SymbolHandle] {
+        self.symbols.as_deref().unwrap_or(&[])
     }
 }
 
@@ -315,6 +341,9 @@ fn merge_contribution(collected: &mut Vec<StateArgumentFacts>, incoming: &StateA
         if incoming.non_negative != MergedFact::Unseen {
             existing.non_negative.merge(incoming.non_negative.get());
         }
+        existing
+            .below_const_binders
+            .merge(incoming.below_const_binders.get());
     }
     if let Some(incoming) = &incoming.index_proofs.proofs {
         if let Some(existing) = &mut existing.index_proofs.proofs {
@@ -394,6 +423,9 @@ pub(super) fn seed_state_argument_facts(
         }
         if parameter.non_negative.get().is_some() {
             facts.prove_non_negative(parameter.name.clone());
+        }
+        for binder in parameter.below_const_binders.get() {
+            facts.prove_below_const_binder(parameter.name.clone(), *binder);
         }
         if let Some(minimum) = parameter.minimum_length.get() {
             facts.prove_minimum_length(parameter.name.clone(), minimum);

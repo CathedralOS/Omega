@@ -1,0 +1,42 @@
+// A runtime index guarded by the array's const extent is in range. The use
+// is in the next state, so the guard has to travel with the index parameter.
+// Field, mirrored parameter and boolean-alias spellings share that proof.
+// The following index stays the parameter; a local alias is the read.
+// Width 4 sums to 6; width 3 sums to 4.
+data Row<const Count: u64> { values: [i64 in Wrapping; Count]; }
+
+machine field_sum<const Count: u64>(row: &Row<Count>) -> i64 in Wrapping {
+    transition { _ -> walk(row, 0, 0) }
+    state walk(row: &Row<Count>, index: u64, total: i64 in Wrapping) -> i64 in Wrapping {
+        transition index < Count { true -> step(row, index, total) _ -> (total) }
+    }
+    state step(row: &Row<Count>, index: u64, total: i64 in Wrapping) -> i64 in Wrapping {
+        transition { _ -> walk(row, index + 1, total + row.values[index]) }
+    }
+}
+
+machine mirrored_sum<const Count: u64>(values: &[i64 in Wrapping; Count]) -> i64 in Wrapping {
+    transition { _ -> walk(values, 0, 0) }
+    state walk(values: &[i64 in Wrapping; Count], index: u64, total: i64 in Wrapping) -> i64 in Wrapping {
+        let inside: bool = Count > index;
+        transition inside { true -> step(values, index, total) _ -> (total) }
+    }
+    state step(values: &[i64 in Wrapping; Count], index: u64, total: i64 in Wrapping) -> i64 in Wrapping {
+        let cursor: u64 = index;
+        transition { _ -> walk(values, index + 1, total + values[cursor]) }
+    }
+}
+
+machine main() crashes Trap {
+    let mut row: Row<4>;
+    row.values[0] = 1;
+    row.values[1] = 2;
+    row.values[2] = 2;
+    row.values[3] = 1;
+    let local: [i64 in Wrapping; 3] = [1, 2, 1];
+    let field: i64 in Wrapping = field_sum<4>(&row);
+    let mirrored: i64 in Wrapping = mirrored_sum<3>(&local);
+    transition field == 6 && mirrored == 4 { true -> done() _ -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}

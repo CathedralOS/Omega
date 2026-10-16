@@ -51,6 +51,7 @@ pub(super) fn collect_state_argument_facts_for_call(
                     integer: MergedFact::Unseen,
                     upper_bound: super::MergedBound::Unseen,
                     non_negative: MergedFact::Unseen,
+                    below_const_binders: super::MergedBinders::default(),
                 })
                 .collect(),
             index_proofs: Default::default(),
@@ -225,6 +226,8 @@ pub(super) fn collect_state_argument_facts_for_call(
             || ensured.and_then(|(low, _)| low).is_some_and(|low| low >= 0))
         .then_some(());
         parameter.non_negative.merge(non_negative);
+        let below = facts.const_binders_strictly_above(&argument_label);
+        parameter.below_const_binders.merge(&below);
     }
 
     let mut index_proofs = Vec::new();

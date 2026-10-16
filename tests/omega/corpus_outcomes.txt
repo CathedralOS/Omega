@@ -2923,6 +2923,11 @@ fail/generics/const_extent_guard_weak_floor rejected 623ms expected @d80baff24c7
 	cannot prove index `0` is within const extent `Count` of `moments` in first::entry
 fail/generics/const_extent_guard_wrong_arm rejected 1061ms expected @d80baff24c7e+wt
 	cannot prove index `0` is within const extent `Count` of `moments` in first::entry
+fail/generics/const_extent_inclusive_bound rejected 982ms expected @cc35a4f0d368+wt
+	cannot prove index `index` is within const extent `Count` of `row.values` in read::take
+	cannot prove index `index` is within length 2 in read$specialized$f8459f0a1522a338$0::take
+fail/generics/const_extent_index_without_guard rejected 967ms expected @cc35a4f0d368+wt
+	cannot prove index `4` is within length 2
 fail/generics/const_generic_runtime_argument rejected 900ms expected @a9ae30e1c334+wt
 	a value call to generic machine `prefix_count` cannot derive a complete type/const/machine/conformance specialization tuple from its argument and result types; add a concrete destination annotation or provide concrete argument type evidence
 fail/generics/contextual_static_machine_ambiguous_carried_result rejected 3511ms expected @4730b1ac8a84
@@ -6996,6 +7001,7 @@ pass/generics/runtime_const_data_multiple_instances_exit checked 13876ms check-t
 pass/generics/runtime_const_data_symbolic_expression_exit checked 12716ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/generics/runtime_const_data_where_fact_exit checked 12969ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/generics/runtime_const_extent_guard_floors_exit checked 11328ms check-target:macos_arm64 @d80baff24c7e+wt
+pass/generics/runtime_const_extent_index_walk_exit checked 5974ms check-target:macos_arm64 @cc35a4f0d368+wt
 pass/generics/runtime_const_extent_origin_exit checked 9428ms check-target:macos_arm64 @abbaf3aaa059+wt
 pass/generics/runtime_constructor_equation_binder_carriers_exit checked 6577ms check-target:macos_arm64 @0ee813e8e9c7+wt
 pass/generics/runtime_container_setter_matrix_exit checked 12918ms check-target:macos_arm64 @a9ae30e1c334+wt

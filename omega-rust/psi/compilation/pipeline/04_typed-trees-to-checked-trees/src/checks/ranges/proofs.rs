@@ -193,6 +193,11 @@ fn symbolic_extent_index_is_proven(
         program, machine, state, collection, extent, facts,
     );
     facts.index_is_proven(&collection_label, &index_label)
+        // `index < N` (and `index <= N - k` for k >= 1) names this extent
+        // binder directly. The row is seeded from the guard and carried into
+        // the next state with the index parameter; a concrete floor is not
+        // required, because the comparison is already the obligation.
+        || facts.below_const_binder(&index_label, extent.0)
         // `index` folds to `k` and `k < floor(N)` (`const N: u64[1..=18446744073709551615]` proves
         // `items[0]`); an unranged unsigned binder floors at 0 and proves none.
         || expression_integer_value(program, facts, index)

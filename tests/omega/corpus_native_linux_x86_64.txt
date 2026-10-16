@@ -1792,6 +1792,7 @@ pass/generics/runtime_const_data_multiple_instances_exit built 15237ms exit:70 @
 pass/generics/runtime_const_data_symbolic_expression_exit built 15168ms exit:70 @6c49683ce714
 pass/generics/runtime_const_data_where_fact_exit built 15528ms exit:70 @6c49683ce714
 pass/generics/runtime_const_extent_guard_floors_exit built 29860ms exit:0 @6c49683ce714
+pass/generics/runtime_const_extent_index_walk_exit built 5906ms exit:0 @cc35a4f0d368+wt
 pass/generics/runtime_constructor_equation_binder_carriers_exit built 6060ms exit:0 @4c4c955947d3
 pass/generics/runtime_container_setter_matrix_exit built 15535ms exit:1 @6c49683ce714
 pass/generics/runtime_copied_indexed_case_subject_exit built 15609ms exit:70 @6c49683ce714

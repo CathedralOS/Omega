@@ -1,0 +1,1 @@
+cannot prove index `index` is within const extent `Count`

@@ -298,6 +298,8 @@ impl RangeFacts<'_> {
             .retain(|(collection, index)| !covers(collection) && !overlaps(index));
         self.proven_index_upper_bounds
             .retain(|(index, _)| !overlaps(index));
+        self.below_const_binders
+            .retain(|(index, _)| !overlaps(index));
         self.proven_non_negatives.retain(|index| !overlaps(index));
         self.proven_orderings
             .retain(|(left, right, _)| !overlaps(left) && !overlaps(right));

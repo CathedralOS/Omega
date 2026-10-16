@@ -1,0 +1,10 @@
+data Row<const Count: u64> { values: [i64 in Wrapping; Count]; }
+machine read(row: &Row<2>) -> i64 in Wrapping {
+    row.values[4]
+}
+machine main() crashes Trap {
+    let row: Row<2>;
+    let ignored: i64 in Wrapping = read(&row);
+    transition ignored == 0 { true -> done() _ -> done() }
+    state done() {}
+}

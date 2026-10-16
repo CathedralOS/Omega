@@ -52,6 +52,11 @@ pub(super) struct RangeFacts<'field> {
     /// Symbol identity prevents same-spelled locals or unrelated binders from
     /// refining an array extent; immutable binders require no write retirement.
     const_binder_floors: Vec<(SymbolHandle, i64)>,
+    /// An index label strictly below a const binder (`index < Count`, or
+    /// `index <= Count - k` for k >= 1). The binder is the symbolic extent
+    /// of `[T; Count]`, so the pair is the index obligation itself. Binders
+    /// are immutable; only a write of the index label retires the row.
+    below_const_binders: Vec<(String, SymbolHandle)>,
     /// Selected closed integer comparisons retain their exact source operands
     /// and asserted/refuted ordering. They contain no mutable observation.
     closed_integer_arrivals: Vec<(
@@ -119,6 +124,7 @@ impl<'field> RangeFacts<'field> {
             proven_indexes: Vec::new(),
             proven_index_upper_bounds: Vec::new(),
             const_binder_floors: Vec::new(),
+            below_const_binders: Vec::new(),
             closed_integer_arrivals: Vec::new(),
             proven_non_negatives: Vec::new(),
             proven_orderings: Vec::new(),
