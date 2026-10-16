@@ -54,9 +54,10 @@ pub(crate) fn type_requirements(
                         types.push(subject.type_identity);
                         types.extend(subject.borrowed_root_type_identity());
                         // The actual's type names the selected child, while
-                        // reservation allocates the complete producer. Keep
-                        // both in the catalog even when no signature or local
-                        // names the temporary owner's storage type.
+                        // reservation allocates the complete producer under
+                        // its stored identity (a `[T]` view keeps its access
+                        // ceiling). Keep both in the catalog even when no
+                        // signature or local names the owner's storage type.
                         if matches!(
                             subject.source,
                             checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { .. }
@@ -64,7 +65,7 @@ pub(crate) fn type_requirements(
                             let owner = crate::expression_preparation::computation_graph::produced_value_root(
                                 checked, *source_call, subject,
                             )?;
-                            types.push(validation::structural_type_identity(
+                            types.push(validation::stored_structural_type_identity(
                                 &checked.typed,
                                 owner.type_reference,
                                 &[],

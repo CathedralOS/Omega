@@ -1,0 +1,28 @@
+use omega_language_std::console;
+
+data Main {
+    bytes: [u8; 6];
+}
+
+machine inspect(words: &[u16]) -> i32 {
+    transition words.len == 2 {
+        true -> read(words)
+        _ -> 71
+    }
+
+    state read(words: &[u16]) -> i32 {
+        transition words[0] == 0x0201 && words[1] == 0x0403 {
+            true -> 70
+            _ -> 72
+        }
+    }
+}
+
+machine Main::main(main: &mut Main) reaches Console {
+    main.bytes[2] = 1;
+    main.bytes[3] = 2;
+    main.bytes[4] = 3;
+    main.bytes[5] = 4;
+    let words: &mut [u16] = &mut main.bytes[2] as &mut [u16];
+    Console::exit_process(inspect(words));
+}

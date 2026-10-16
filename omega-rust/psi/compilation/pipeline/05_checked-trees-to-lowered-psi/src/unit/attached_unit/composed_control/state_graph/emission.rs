@@ -521,12 +521,50 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
             },
         });
     }
+    // A lender's stored view keeps its declared access ceiling, while a member
+    // parameter names the canonical view of the same pointer and count. The
+    // chain carries that one descriptor, so it presents the member when the
+    // geometry is unchanged and the ceiling supplies the member's access.
+    let presents = |stored: typed_trees::type_identity::TypeIdentityId,
+                    member: &checked_trees::CheckedUnitStructuralParameterPlan| {
+        if stored == member.type_identity {
+            return true;
+        }
+        let (Ok(stored), Ok(formal)) = (
+            lookup_type_id(&catalogs.type_ids, &stored),
+            lookup_type_id(&catalogs.type_ids, &member.type_identity),
+        ) else {
+            return false;
+        };
+        let requested = crate::expression_preparation::bindings::structural_paths::terminal_access(
+            member.access,
+        );
+        terminal_semantics::borrowed_referent_presentation(
+            catalogs.structural_types.iter(),
+            stored,
+            formal,
+        ) == Some(terminal_semantics::BorrowedReferentPresentation::Unchanged)
+            && terminal_psi::find_structural_type(catalogs.structural_types.as_ref(), stored)
+                .is_some_and(|declaration| match declaration.shape {
+                    terminal_psi::StructuralTypeShape::ElementView { access, .. }
+                    | terminal_psi::StructuralTypeShape::ByteSequence(
+                        terminal_psi::ByteSequenceCarrier::BorrowedView { access }
+                        | terminal_psi::ByteSequenceCarrier::BoundedView { access, .. },
+                    ) => access.is_none_or(|access| {
+                        crate::expression_preparation::bindings::structural_paths::structural_access_can_supply(
+                            access, requested,
+                        )
+                    }),
+                    _ => false,
+                })
+    };
     let loan_chains = loan_chains::LoanChains::plan(
         plan,
         &admitted.live,
         &admitted.entry_aliases,
         entry_reentered,
         &state_views,
+        &presents,
     )?;
     let mut occurrences = super::super::ComposedOccurrences::default();
     occurrences.state_blocks = plan

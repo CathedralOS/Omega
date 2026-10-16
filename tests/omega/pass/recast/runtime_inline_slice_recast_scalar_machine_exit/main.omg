@@ -1,0 +1,47 @@
+use omega_language_std::console;
+
+data Main
+where offset <= 2,
+{
+    bytes: [u8; 6];
+    offset: u32;
+}
+
+machine inspect(words: &[u16]) -> i32 {
+    transition words.len == 2 {
+        true -> read(words)
+        _ -> 71
+    }
+
+    state read(words: &[u16]) -> i32 {
+        transition words[0] == 0x0201 && words[1] == 0x0403 {
+            true -> 70
+            _ -> 72
+        }
+    }
+}
+
+machine write(words: &mut [u16]) -> i32 {
+    transition words.len == 2 {
+        true -> store(words)
+        _ -> 73
+    }
+
+    state store(words: &mut [u16]) -> i32 {
+        words[0] = 0x0201;
+        words[1] = 0x0403;
+        70
+    }
+}
+
+// A scalar machine forms both views inside its own computations: the
+// descriptors are produced operands of this body, not of the Unit entry.
+machine round_trip(main: &mut Main) -> i32 {
+    let written: i32 = write(&mut main.bytes[main.offset * 2] as &mut [u16]);
+    inspect(&main.bytes[2] as &[u16]) + written - 70
+}
+
+machine Main::main(main: &mut Main) reaches Console {
+    main.offset = 1;
+    Console::exit_process(round_trip(main));
+}

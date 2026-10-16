@@ -159,6 +159,10 @@ impl LoanChains {
         aliased: &[BTreeMap<u32, u32>],
         entry_reentered: bool,
         state_views: &[Vec<StructuralParameterDeclaration>],
+        presents: &dyn Fn(
+            typed_trees::type_identity::TypeIdentityId,
+            &checked_trees::CheckedUnitStructuralParameterPlan,
+        ) -> bool,
     ) -> Result<Self, LoweringError> {
         let mut chains = Self::default();
         // A state whose parameters are block parameters; a plain entry's are
@@ -405,7 +409,7 @@ impl LoanChains {
                         }
                     };
                     let result = local_result(lender, binding, completed)?;
-                    if result.type_identity != parameter.type_identity {
+                    if !presents(result.type_identity, parameter) {
                         return Err(LoweringError::Unsupported(
                             "Unit graph state loan chain changes its referent type",
                         ));

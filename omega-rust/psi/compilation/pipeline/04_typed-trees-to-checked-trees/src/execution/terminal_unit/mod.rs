@@ -811,6 +811,45 @@ pub(crate) fn build_checked_unit_effect_plans(
         .flatten()
         .collect::<Vec<_>>();
     retained_type_identities.extend(operand_identities.iter().copied());
+    // A produced call operand occupies its own home before the call lends or
+    // moves it, and lowering reserves that home by its stored identity: a
+    // `[T]` view keeps its access ceiling there, beside the canonical view
+    // the formal presents.
+    let computations = &facts.values.scalar_computations;
+    let produced_types = computations
+        .nodes
+        .iter()
+        .filter_map(|(_, node)| match &node.kind {
+            checked_trees::CheckedScalarComputationKind::Call {
+                structural_arguments,
+                ..
+            } => computations
+                .structural_arguments
+                .span(*structural_arguments),
+            _ => None,
+        })
+        .flatten()
+        .filter_map(|argument| match argument.as_place()?.source {
+            CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression } => {
+                Some(expression)
+            }
+            _ => None,
+        })
+        .flat_map(|expression| {
+            facts
+                .values
+                .structural_values
+                .roots
+                .iter()
+                .filter(move |(_, root)| root.expression == expression)
+                .map(|(_, root)| root.type_reference)
+        })
+        .collect::<Vec<_>>();
+    for type_reference in produced_types {
+        if let Some(identity) = shapes.add_stored_type(type_reference, &[], &[]) {
+            retained_type_identities.insert(identity);
+        }
+    }
     let stored_operand_identities = candidates
         .iter()
         .flat_map(|plan| {

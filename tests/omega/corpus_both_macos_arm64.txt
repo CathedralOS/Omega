@@ -672,6 +672,8 @@ pass/recast/runtime_float_range_representation_recast_exit built 3039ms exit:70 
 pass/recast/runtime_guarded_offset_recast_exit built 8282ms exit:70 interpreter-exit:70 interpreter:agrees @3fa817733300+wt
 pass/recast/runtime_inline_shared_slice_record_read_exit built 2907ms exit:70 interpreter-exit:70 interpreter:agrees @3b624377ec31
 pass/recast/runtime_inline_slice_recast_call_exit built 4559ms exit:70 interpreter-exit:70 interpreter:agrees @4b5eb415f13+wt
+pass/recast/runtime_inline_slice_recast_scalar_machine_exit built 6370ms exit:70 interpreter-exit:70 interpreter:agrees @1a6587978d53
+pass/recast/runtime_inline_slice_recast_shared_parameter_exit built 6294ms exit:70 interpreter-exit:70 interpreter:agrees @1a6587978d53
 pass/recast/runtime_inline_slice_view_mutable_write_exit built 2272ms exit:70 interpreter-exit:70 interpreter:agrees @3b624377ec31
 pass/recast/runtime_interior_slice_congruent_offset_exit built 1133ms exit:70 interpreter-exit:70 interpreter:agrees @57fc72937714+wt
 pass/recast/runtime_interior_slice_view_mutable_write_exit built 1567ms exit:70 interpreter-exit:70 interpreter:agrees @c851c47b7cd1
@@ -681,6 +683,7 @@ pass/recast/runtime_restricted_field_call_arguments_exit built 12061ms exit:0 in
 pass/recast/runtime_scalar_parameter_shared_views_exit built 1784ms exit:70 interpreter-exit:70 interpreter:agrees @7e0a52664189
 pass/recast/runtime_shared_domain_weakening_recast_exit built 8105ms exit:70 interpreter-exit:70 interpreter:agrees @3fa817733300+wt
 pass/recast/runtime_shared_parameter_view_calls_exit built 793ms exit:0 interpreter-exit:0 interpreter:agrees @cd7399e98041+wt
+pass/recast/runtime_stored_mutable_slice_shared_state_exit built 6211ms exit:70 interpreter-exit:70 interpreter:agrees @1a6587978d53
 pass/relevance/erased_formal_before_borrowed_argument_exit built 4468ms exit:70 interpreter-exit:70 interpreter:agrees @6271f1f6d819
 pass/slices/generic_projected_array_write built 2949ms exit:0 interpreter-exit:0 interpreter:agrees @ef9160ae9c0b+wt
 pass/slices/runtime_affine_view_edge_cleanup_exit built 3276ms exit:0 interpreter-exit:0 interpreter:agrees @096f2ecfd243+wt
