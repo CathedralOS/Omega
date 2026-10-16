@@ -461,6 +461,7 @@ pass/calls/requires_operand_flip_discharge built 3161ms exit:70 @527c7c316c6f+wt
 pass/calls/result_overload_terminal_arm_exit built 7867ms exit:0 @098b7c4bf0f0+wt
 pass/calls/resultless_native_callback_compile built 3475ms @9ae10c8a9412+wt
 pass/calls/retained_receiver_argument_order_exit built 915ms exit:70 @bd26d3a01ac1+wt
+pass/calls/runtime_affine_record_call_results_reused_exit built 5642ms exit:0 @46f0869e8a22
 pass/calls/runtime_alias_write_through_guarded_transition_exit built 568ms exit:70 @76bba5577e21+wt
 pass/calls/runtime_anonymous_result_local_namespace_exit built 1518ms exit:70 @b5a9b4a9eef4+wt
 pass/calls/runtime_assignment_call_post_mutation_value_exit built 824ms exit:70
@@ -496,6 +497,7 @@ pass/calls/runtime_constructor_child_pure_calls_exit built 1592ms exit:0 @84e17b
 pass/calls/runtime_constructor_computed_field_exit built 530ms exit:1
 pass/calls/runtime_constructor_projected_membership_snapshot_exit built 9365ms exit:0 @faebfb62fb37
 pass/calls/runtime_copied_argument_live_mutable_ensures_exit built 1988ms exit:0 @cfbb6c8709b4+wt
+pass/calls/runtime_copied_record_call_results_reused_exit built 5571ms exit:0 @46f0869e8a22
 pass/calls/runtime_cross_machine_substate_name_exit built 771ms exit:70
 pass/calls/runtime_cyclic_state_reference_result_exit built 4599ms exit:0 @9beb2be72f2d+wt
 pass/calls/runtime_dispatch_binary_call_argument_exit built 551ms exit:70 @f711d1b640be
@@ -556,6 +558,7 @@ pass/calls/runtime_owned_mutable_state_parameter_exit built 1849ms exit:70 @cba4
 pass/calls/runtime_owned_parameter_primitive_borrow_exit built 1164ms exit:0 @67eeeb9797e0+wt
 pass/calls/runtime_owned_record_replacement_call_exit built 1797ms exit:0 @0234777c1cd7+wt
 pass/calls/runtime_param_receiver_second_instance_exit built 1803ms exit:70 @fb2178def922
+pass/calls/runtime_qualified_record_call_results_reused_exit built 3663ms exit:0 @46f0869e8a22
 pass/calls/runtime_qualified_tail_recursion_exit built 983ms exit:70
 pass/calls/runtime_qualified_terminal_result_exit built 4526ms exit:0 @9beb2be72f2d+wt
 pass/calls/runtime_reference_returned_slice_element_write_exit built 3268ms exit:181 @693920652f41

@@ -36,6 +36,9 @@ pass/borrows/structural_operand_view_catalog_exit built 3342ms exit:0 interprete
 pass/build/runtime_opaque_by_value_selected_exit built 18387ms exit:72 interpreter-exit:72 interpreter:agrees @35f5679f7d28
 pass/build/sibling_module_service_exclusion_exit built 6935ms exit:0 interpreter-exit:0 interpreter:agrees @eca66ed24a79+wt
 pass/calls/nested_call_footprints_follow_occurrences built 3186ms exit:0 interpreter-exit:0 interpreter:agrees @94a66e05d152+wt
+pass/calls/runtime_affine_record_call_results_reused_exit built 6655ms exit:0 interpreter-exit:0 interpreter:agrees @46f0869e8a22
+pass/calls/runtime_copied_record_call_results_reused_exit built 6722ms exit:0 interpreter-exit:0 interpreter:agrees @46f0869e8a22
+pass/calls/runtime_qualified_record_call_results_reused_exit built 3416ms exit:0 interpreter-exit:0 interpreter:agrees @46f0869e8a22
 pass/calls/runtime_terminal_call_state_machine_call_operand_exit built 4841ms exit:70 interpreter-exit:70 interpreter:agrees @e9d32814a23f+wt
 pass/cases/runtime_refuted_generic_case_dispatch_exit built 7462ms exit:70 interpreter-exit:70 interpreter:agrees @c083b963e5ba
 pass/collections/runtime_state_indexed_scalar_field_store_exit built 5374ms exit:0 interpreter-exit:0 interpreter:agrees @fd59b9d3fe3a

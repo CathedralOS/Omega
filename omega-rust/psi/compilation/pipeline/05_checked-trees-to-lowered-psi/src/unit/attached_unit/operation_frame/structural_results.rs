@@ -36,6 +36,33 @@ pub(in crate::unit::attached_unit) enum StructuralResults<'f> {
     },
 }
 
+/// Project binding ordinals onto physical homes. A later receiving binding
+/// can reuse an earlier producer's home, but only the receiving row may own
+/// return disposal. Preserve its position for reverse establishment cleanup;
+/// never merge conflicting provenance or two independent disposal owners.
+pub(in crate::unit::attached_unit) fn dense_result_homes(
+    bindings: &[(Option<StructuralPlaceDeclaration>, bool)],
+) -> Result<Vec<(StructuralPlaceDeclaration, bool)>, LoweringError> {
+    let mut homes: Vec<(StructuralPlaceDeclaration, bool)> = Vec::new();
+    for (declaration, discard) in bindings.iter().rev() {
+        let Some(declaration) = declaration else {
+            continue;
+        };
+        if let Some((existing, _)) = homes.iter().find(|(home, _)| home.id == declaration.id) {
+            if existing.kind != declaration.kind {
+                return unsupported("structural bindings change their shared home declaration");
+            }
+            if *discard {
+                return unsupported("earlier structural binding retains shared home disposal");
+            }
+        } else {
+            homes.push((*declaration, *discard));
+        }
+    }
+    homes.reverse();
+    Ok(homes)
+}
+
 pub(super) fn validate_completed_arrival(
     declaration: &StructuralPlaceDeclaration,
     evaluation: &Evaluation,
@@ -258,6 +285,65 @@ impl StructuralResults<'_> {
                 unsupported(refusal)
             }
             _ => Ok(()),
+        }
+    }
+
+    /// Publish a source value's binding independently of physical declaration.
+    /// A call and its receiving value have separate ordinals even when the
+    /// receiving contract needs no new home. The graph already records that
+    /// binding; the dense namespace still needs its row. Reusing the exact
+    /// declaration here creates neither another producer nor another cleanup.
+    pub(super) fn publish_value_binding(
+        &mut self,
+        result: &checked_trees::CheckedUnitStructuralResultBindingPlan,
+        fresh: Option<StructuralPlaceDeclaration>,
+        discard_on_return: bool,
+        operations: &OperationBuffer,
+    ) -> Result<(), LoweringError> {
+        self.require_next(result, "structural value result binding is not dense")?;
+        if let Some(declaration) = fresh {
+            self.push(declaration, discard_on_return);
+            return Ok(());
+        }
+        let mut bindings = operations
+            .structural_values
+            .iter()
+            .filter(|(ordinal, _)| *ordinal == result.binding_ordinal);
+        let (_, binding) = bindings.next().ok_or(LoweringError::Unsupported(
+            "completed structural value has no registered binding",
+        ))?;
+        if bindings.next().is_some() {
+            return unsupported("completed structural value repeats its binding");
+        }
+        if matches!(binding, StructuralBinding::ProjectedAlias { .. }) {
+            return self.push_projected_alias();
+        }
+        let produced = binding.operation_result()?;
+        match self {
+            Self::Dense(roster) => {
+                let mut declarations = roster.iter().filter_map(|(declaration, _)| {
+                    declaration.filter(|declaration| declaration.id == produced.place)
+                });
+                let declaration = declarations.next().ok_or(LoweringError::Unsupported(
+                    "completed structural value has no published home",
+                ))?;
+                if declarations.any(|other| other.kind != declaration.kind) {
+                    return unsupported("completed structural value changes its home declaration");
+                }
+                roster.push((Some(declaration), discard_on_return));
+                Ok(())
+            }
+            Self::StateGraph { places, .. } => {
+                if places
+                    .iter()
+                    .filter(|declaration| declaration.id == produced.place)
+                    .count()
+                    != 1
+                {
+                    return unsupported("completed structural value has no unique published home");
+                }
+                Ok(())
+            }
         }
     }
 

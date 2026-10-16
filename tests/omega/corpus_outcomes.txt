@@ -6073,6 +6073,7 @@ pass/calls/requires_operand_flip_discharge checked 11165ms check-target:macos_ar
 pass/calls/result_overload_terminal_arm_exit checked 7518ms check-target:macos_arm64 @098b7c4bf0f0+wt
 pass/calls/resultless_native_callback_compile checked 8098ms check-target:linux_x86_64 @a9ae30e1c334+wt
 pass/calls/retained_receiver_argument_order_exit checked 10971ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/calls/runtime_affine_record_call_results_reused_exit checked 3480ms check-target:macos_arm64 @46f0869e8a22
 pass/calls/runtime_alias_write_through_guarded_transition_exit checked 11203ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_anonymous_result_local_namespace_exit checked 11166ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_assignment_call_post_mutation_value_exit checked 11104ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -6112,6 +6113,7 @@ pass/calls/runtime_constructor_child_pure_calls_exit checked 10366ms check-targe
 pass/calls/runtime_constructor_computed_field_exit checked 11153ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_constructor_projected_membership_snapshot_exit checked 12120ms check-target:macos_arm64 @faebfb62fb37
 pass/calls/runtime_copied_argument_live_mutable_ensures_exit checked 10282ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/calls/runtime_copied_record_call_results_reused_exit checked 3480ms check-target:macos_arm64 @46f0869e8a22
 pass/calls/runtime_cross_machine_substate_name_exit checked 11069ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_cyclic_state_reference_result_exit checked 11399ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_dispatch_binary_call_argument_exit checked 11173ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -6180,6 +6182,7 @@ pass/calls/runtime_owned_record_replacement_call_exit checked 10329ms check-targ
 pass/calls/runtime_owned_state_scalar_field_store_exit checked 13372ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_param_receiver_second_instance_exit checked 11063ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_qualified_owned_result_argument_exit checked 10790ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/calls/runtime_qualified_record_call_results_reused_exit checked 4625ms check-target:macos_arm64 @46f0869e8a22
 pass/calls/runtime_qualified_tail_recursion_exit checked 9836ms check-target:macos_arm64 @5acf32321f42+wt
 pass/calls/runtime_qualified_terminal_result_exit checked 10804ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_recursive_unit_borrowed_continuation_exit checked 10033ms check-target:macos_arm64 @7c1edd43e7e4+wt

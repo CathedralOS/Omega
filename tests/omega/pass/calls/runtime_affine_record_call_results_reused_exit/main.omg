@@ -1,0 +1,17 @@
+data Number { negative: bool; magnitude: u64; }
+machine minimum() -> Number { Number { negative: false, magnitude: 0 } }
+machine maximum() -> Number { Number { negative: false, magnitude: 255 } }
+machine at_most(left: &Number, right: &Number) -> bool { left.magnitude <= right.magnitude }
+machine fits(value: Number) -> bool {
+    let least: Number = minimum();
+    let greatest: Number = maximum();
+    let above: bool = at_most(&least, &value);
+    let below: bool = at_most(&value, &greatest);
+    above && below
+}
+machine main() crashes Trap {
+    let accepted: bool = fits(Number { negative: false, magnitude: 17 });
+    transition accepted { true -> done() false -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}

@@ -874,30 +874,12 @@ impl OperationFrame<'_, '_> {
             result_claims,
             direct_establishments,
         )?;
-        results.require_next(result, "structural value result binding is not dense")?;
-        // A call-rooted value's place was catalogued by the call emitter
-        // itself as its own call result; there is no fresh declaration to
-        // republish. A projected owned alias declares no place either, but it
-        // still occupies its ordinal slot so later ordinals stay dense.
-        match declaration {
-            Some(declaration) => results.push(declaration, *discard_result_on_return),
-            None if matches!(
-                operations
-                    .structural_values
-                    .iter()
-                    .find(|(ordinal, _)| *ordinal == result.binding_ordinal)
-                    .map(|(_, binding)| binding),
-                Some(
-                    crate::emission::operation_emission::buffer::StructuralBinding::ProjectedAlias {
-                        ..
-                    }
-                )
-            ) =>
-            {
-                results.push_projected_alias()?;
-            }
-            None => {}
-        }
+        results.publish_value_binding(
+            result,
+            declaration,
+            *discard_result_on_return,
+            operations,
+        )?;
         Ok(())
     }
 

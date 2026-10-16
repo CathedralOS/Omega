@@ -91,7 +91,7 @@ mod byte_operands;
 mod calls;
 mod dynamic_calls;
 mod structural_results;
-pub(super) use structural_results::StructuralResults;
+pub(super) use structural_results::{StructuralResults, dense_result_homes};
 mod loan_completions;
 mod locals;
 mod register_access;

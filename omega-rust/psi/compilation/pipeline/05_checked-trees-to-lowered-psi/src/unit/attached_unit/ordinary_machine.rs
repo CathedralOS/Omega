@@ -472,6 +472,8 @@ pub(super) fn emit(
         mut scalar_calls,
         ..
     } = emission;
+    let structural_result_homes =
+        super::operation_frame::dense_result_homes(&structural_result_places)?;
     // Open borrowed holes can affect surviving owners. External completion
     // grants no crossing-safety admission, so keep that missing case fail-closed
     // instead of inventing restoration or cleanup on an abandoned path.
@@ -731,10 +733,9 @@ pub(super) fn emit(
             &evaluation,
             &operations,
         )?;
-        let mut selection_roster = structural_result_places
+        let mut selection_roster = structural_result_homes
             .iter()
             .rev()
-            .filter_map(|(place, discard)| Some((place.as_ref()?, discard)))
             .map(|(place, discard)| {
                 let retired = moved_subtrees
                     .get(&evaluation.current_structural_place(place.id))
@@ -1032,9 +1033,9 @@ pub(super) fn emit(
         .chain(private_places.iter().copied())
         .chain(subslice_places.iter().copied())
         .chain(
-            structural_result_places
+            structural_result_homes
                 .iter()
-                .filter_map(|(place, _)| place.as_ref())
+                .map(|(place, _)| place)
                 .filter(|place| {
                     !matches!(place.kind, StructuralPlaceKind::ByteSequenceLiteral { .. })
                 })
