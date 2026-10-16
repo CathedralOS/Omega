@@ -67,6 +67,10 @@ integer matrices; `simulation/particle_sim` only integrates a scalar motion;
 laminate, integrates through thickness, solves coupled constitutive loads or
 recovers ply stress. This is a new workflow rather than renamed constants.
 
+Valid runs exit 0. Empty input, unknown bytes, CRLF and overlong records exit 2.
+The native sample gate feeds root `input.txt` (mode 0, the equal 0/90 stack);
+a direct run with empty stdin is the invalid-input rejection.
+
 From repository root, with a current-main `omega` binary and matching
 `OMEGA_LIBRARY_ROOT=.../source/library`:
 
