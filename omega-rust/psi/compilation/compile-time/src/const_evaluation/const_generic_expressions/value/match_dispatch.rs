@@ -197,11 +197,7 @@ pub(super) fn validate_join(
         }
     }
     if !diagnostics.is_empty() {
-        return Err(diagnostics
-            .into_iter()
-            .map(|diagnostic| diagnostic.message)
-            .collect::<Vec<_>>()
-            .join("; "));
+        return Err(diagnostics::join_messages(&diagnostics));
     }
     Ok(MatchPlan {
         expression,

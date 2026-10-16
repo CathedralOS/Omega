@@ -14,6 +14,16 @@ pub fn format_diagnostics(diagnostics: &[Diagnostic]) -> String {
     output
 }
 
+/// Joins diagnostic messages with semicolons for a refusal that wraps them in
+/// one line of its own context. Severity and location stay on the records.
+pub fn join_messages(diagnostics: &[Diagnostic]) -> String {
+    diagnostics
+        .iter()
+        .map(|diagnostic| diagnostic.message.as_str())
+        .collect::<Vec<_>>()
+        .join("; ")
+}
+
 /// Renders diagnostic names with comma-space separators.
 /// Names are consumed once per item, in iterator order; an empty iterator renders empty text.
 pub fn comma_join_display<'item, I, T>(

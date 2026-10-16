@@ -19,7 +19,9 @@ pub use diagnostic::{
     CoverageForm, Diagnostic, DiagnosticSeverity, ExceededProvision, ResolvedSourceLocation,
 };
 pub use phase_snapshot::PhaseSnapshot;
-pub use reporter::{bracketed_display_names, comma_join_display, format_diagnostics};
+pub use reporter::{
+    bracketed_display_names, comma_join_display, format_diagnostics, join_messages,
+};
 
 /// `Display` that delegates to `Debug`: the standard shape for
 /// compiler-internal error enums whose rendered message is their variant data.

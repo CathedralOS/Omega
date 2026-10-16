@@ -155,10 +155,22 @@ pub(super) fn argument_independent_closure_discharges(
     let preparation_request = typed_trees_to_typed_trees::PreparationRequest::preliminary();
     let checking = typed_trees_to_checked_trees::CheckingRequest::new();
     let (probe, preparation) =
-        typed_trees_to_typed_trees::prepare_typed_trees(probe, &preparation_request)
-            .map_err(|error| format!("demanded premise closure preparation failed: {error:?}"))?;
-    typed_trees_to_checked_trees::lower_typed_trees(probe, preparation, &checking)
-        .map_err(|error| format!("demanded premise closure checking failed: {error:?}"))?;
+        typed_trees_to_typed_trees::prepare_typed_trees(probe, &preparation_request).map_err(
+            |error| {
+                format!(
+                    "demanded premise closure preparation failed: {}",
+                    diagnostics::join_messages(&error)
+                )
+            },
+        )?;
+    typed_trees_to_checked_trees::lower_typed_trees(probe, preparation, &checking).map_err(
+        |error| {
+            format!(
+                "demanded premise closure checking failed: {}",
+                diagnostics::join_messages(&error)
+            )
+        },
+    )?;
     Ok(true)
 }
 
@@ -271,7 +283,10 @@ pub(crate) fn snapshot_arguments_discharge(
             typed_trees_to_checked_trees::lower_typed_trees(probe, preparation, checking)
         })
         .map_err(|diagnostics| {
-            format!("constant invocation of `{callee}` failed checking: {diagnostics:?}")
+            format!(
+                "constant invocation of `{callee}` failed checking: {}",
+                diagnostics::join_messages(&diagnostics)
+            )
         })?;
     let causes = typed_trees_to_checked_trees::infer_checked_machine_crash_causes(
         &checked.typed,

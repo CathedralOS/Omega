@@ -3306,8 +3306,8 @@ fail/layouts/layout_contract_selected_equality rejected 537ms expected @e63c4b1e
 	cannot prove requires contract for call required$specialized$c027caf142dac46a$0 from program: size_of() == 16 (needs fact `size_of() == 16` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/layouts/placed_policy_requires_exact_attached_owner rejected 24ms expected @0855a204a2df+wt
 	`Placed<RegPlacement, first::Registers>` must select one exact `RegPlacement::plan` machine
-fail/layouts/placement_policy_unproved_callee_premise rejected 28ms expected @86441935879a64d7f3af4c34d1475129884c2970
-	placed view `Placed<CheckedPolicy,Register>`: machine `CheckedPolicy::plan` is not build-time admissible: machine `CheckedPolicy::limit` has an authored `requires` premise along `CheckedPolicy::plan -> CheckedPolicy::limit`; pre-check semantic evaluation has no checked invocation proof for that premise; build-time evaluation requires empty service reach, no possible suspension or blocking, ordinary checked termination, no unadmitted linear runtime carrier, and admitted declaration-selection authority across the complete call closure
+fail/layouts/placement_policy_unproved_callee_premise rejected 34ms expected @171dad7fbf01+wt
+	placed view `Placed<CheckedPolicy,Register>`: demanded premise closure checking failed: machine `CheckedPolicy::plan` state `plan` value call to `CheckedPolicy::limit` violates required fact `value <= 7`: the instantiated fact is structurally false (`8 <= 7`)
 fail/layouts/plan_laid_dynamic_plan rejected 1752ms expected @a9ae30e1c334+wt
 	plan-laid value type `Streamy<Pairish>`: error: policy `Streamy::plan` produced a dynamic plan: a dynamic plan cannot be a value type -- values need offsets, bytes need mints
 fail/layouts/plan_laid_policy_without_plan_machine rejected 69ms expected @a9ae30e1c334+wt
@@ -3330,10 +3330,10 @@ fail/layouts/runtime_restricted_shared_unbounded rejected 1523ms expected @a9ae3
 	cannot prove index `position` is within length 4 in inspect::entry
 fail/layouts/runtime_value_is_not_layout_constant rejected 533ms expected @e63c4b1e202d+wt
 	cannot prove requires contract for call required from forward: value >= size_of() (needs fact `value >= size_of()` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
-fail/layouts/schema_field_exceeds_declared_size rejected 1594ms expected @ec089e4c2b1b
-	plan-laid value type `Contiguous<Payload>`: error: supplied policy arguments failed value establishment: [Diagnostic { severity: Error, message: "data `SchemaField` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)", exceeded_provision: None, source_span: None, resolved_location: None }]
-fail/layouts/schema_identity_payload_predicate rejected 35ms expected @ec089e4c2b1b
-	plan-laid value type `Contiguous<Payload>`: error: supplied policy arguments failed value establishment: [Diagnostic { severity: Error, message: "data `Identity` case `Some` literal violates the case constraint: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)", exceeded_provision: None, source_span: None, resolved_location: None }]
+fail/layouts/schema_field_exceeds_declared_size rejected 106ms expected @171dad7fbf01+wt
+	plan-laid value type `Contiguous<Payload>`: error: supplied policy arguments failed value establishment: data `SchemaField` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/layouts/schema_identity_payload_predicate rejected 69ms expected @171dad7fbf01+wt
+	plan-laid value type `Contiguous<Payload>`: error: supplied policy arguments failed value establishment: data `Identity` case `Some` literal violates the case constraint: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/layouts/size_of_uninstantiated_plan_laid rejected 151ms expected @a9ae30e1c334+wt
 	`CompactBits` is a layout policy application, but its schema instance has no runtime layout: the type was never instantiated in a value position (CompactBits::plan produced no layout plan for it)
 fail/layouts/target_layout_call_checks_all_widths rejected 5323ms expected @a9ae30e1c334+wt

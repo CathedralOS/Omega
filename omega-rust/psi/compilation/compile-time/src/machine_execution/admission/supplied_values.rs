@@ -124,7 +124,10 @@ pub(crate) fn require_established_arguments(
             .ok_or("supplied-value construction lost its state")?;
         validation::validate_value_construction(&checking, machine, state, expression).map_err(
             |diagnostics| {
-                format!("supplied policy arguments failed value establishment: {diagnostics:?}")
+                format!(
+                    "supplied policy arguments failed value establishment: {}",
+                    diagnostics::join_messages(&diagnostics)
+                )
             },
         )?;
     }

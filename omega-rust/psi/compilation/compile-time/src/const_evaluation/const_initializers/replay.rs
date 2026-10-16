@@ -477,7 +477,10 @@ fn validate_anonymous_float(
         })
         .transpose()
         .map_err(|diagnostics| {
-            format!("floating initializer call preparation failed: {diagnostics:?}")
+            format!(
+                "floating initializer call preparation failed: {}",
+                diagnostics::join_messages(&diagnostics)
+            )
         })?;
     let probe = checked
         .as_ref()
