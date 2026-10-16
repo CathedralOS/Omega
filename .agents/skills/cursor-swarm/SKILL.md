@@ -221,9 +221,14 @@ commit. A sample that passed on the first try is unfinished: resume the
 same agent and tell it to keep modifying the program until a run fails, or
 write another useful sample whose first run fails. Do not merge the worker branch into
 the coordinator branch. Resume the same agent id for the next step of the
-same unfinished outcome. A new Task call is a new VM; use it when the
-returned id is gone and the outcome still has an owner. Choose another
-sample only after this one has landed or the user stops the wave.
+same unfinished outcome. Resume that same agent for the next red run while
+its pod is up. The pod already has the compiler in its target directory. A
+new Task call starts a new VM and pays about eight minutes of `mbx build`.
+Keep the session on one more failing `omega run`, then one repair. When the
+next probe passes, the session stops. Do not replace a live pod with a fresh
+one for the next sample. A new Task call is a new VM; use it when the
+returned id is gone. Choose another sample only after this one has landed or
+the user stops the wave.
 
 Release a claim only for a slot whose owner has stopped and whose outcome has
 landed or been abandoned. Keep dirty unpublished work. Remove only a clean
