@@ -470,7 +470,7 @@ mod outgoing_slot_tests {
                 },
             ),
         ] {
-            let mut legacy = vec![tag, 0];
+            let mut legacy = vec![tag, 0, 0];
             crate::codec_bytes::push_encoded(&mut legacy, 43_u64.to_le_bytes());
             crate::codec_bytes::push_encoded(&mut legacy, 7_u32.to_le_bytes());
             crate::codec_bytes::push_encoded(&mut legacy, 8_u32.to_le_bytes());

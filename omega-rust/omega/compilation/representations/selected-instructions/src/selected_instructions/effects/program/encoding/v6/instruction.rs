@@ -970,7 +970,7 @@ mod local_slot_tests {
             Err(PreAllocationMachineEffectDecodeError::InvalidField)
         );
         let mut unknown_tag = encoded;
-        unknown_tag[0] = 6;
+        unknown_tag[0] = u8::MAX;
         assert_eq!(
             decode_local_storage_slot(&mut Cursor::new(&unknown_tag)),
             Err(PreAllocationMachineEffectDecodeError::InvalidField)
@@ -1079,7 +1079,7 @@ mod float_result_policy_tests {
             let mut cursor = Cursor::new(&encoded);
             assert_eq!(decode_alternative(&mut cursor).unwrap(), alternative);
             assert_eq!(cursor.remaining(), 0);
-            for payload in 6..=u8::MAX {
+            for payload in (2..=5).chain(8..=u8::MAX) {
                 encoded[1] = payload;
                 assert!(decode_alternative(&mut Cursor::new(&encoded)).is_err());
                 assert!(decode_kind(&mut Cursor::new(&[231, payload]), true, true, true).is_err());

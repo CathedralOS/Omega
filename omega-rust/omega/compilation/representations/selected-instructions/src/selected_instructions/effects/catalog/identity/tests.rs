@@ -48,8 +48,8 @@ fn keys() -> SelectedConstraintKeys {
     SelectedConstraintKeys {
         port_write: Some(instruction(803)),
         atomic_fence: Some(instruction(800)),
-        placed_read: None,
-        placed_write: None,
+        placed_read: Some(instruction(806)),
+        placed_write: Some(instruction(807)),
         atomic_load: Some(instruction(54)),
         atomic_store: Some(instruction(55)),
         atomic_update: Some(instruction(56)),
@@ -1050,7 +1050,8 @@ fn alternative_family_tag_is_pinned_for_every_family() {
         // Parametric forms take dense blocks pinned by their own tests.
         if matches!(
             family,
-            MachineAlternativeFamily::TrappingInteger(_)
+            MachineAlternativeFamily::PlacedScalarAccess(_)
+                | MachineAlternativeFamily::TrappingInteger(_)
                 | MachineAlternativeFamily::AtomicAccess(_)
                 | MachineAlternativeFamily::NearestIeeeFloatArithmetic(_)
                 | MachineAlternativeFamily::FloatResultPolicy(_)
@@ -1591,13 +1592,13 @@ fn float_forms_share_one_tag_and_pin_their_payload_ordinals() {
         .max()
         .unwrap();
     assert!(IeeeFloatArithmeticForm::FAMILY_TAG > atomic);
-    // Only the two closed IEEE families write a payload; their tags differ.
+    // Placed scalar and the two closed IEEE families retain their payloads.
     for semantic in MachineSemanticKind::ALL {
         let float = matches!(semantic, MachineSemanticKind::NearestIeeeFloatArithmetic(_));
         let policy = matches!(semantic, MachineSemanticKind::FloatResultPolicy(_));
         assert_eq!(
             super::semantic_kind_payload(semantic).is_some(),
-            float || policy
+            float || policy || matches!(semantic, MachineSemanticKind::PlacedScalarAccess(_))
         );
         assert_eq!(semantic_kind_tag(semantic) == 230, float, "{semantic:?}");
     }
