@@ -9,6 +9,35 @@ use isa_x86_64::{
 use target::{Architecture, NativeTarget, ObjectFormat};
 
 #[test]
+fn selected_keys_match_machine_effect_catalog_on_every_supported_target() {
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::macos_x64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::uefi_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        let environment = baseline_target_register_environment(target).unwrap();
+        let catalog = match target.architecture {
+            Architecture::X86_64 => {
+                isa_x86_64::x86_64_machine_effect_catalog(target, environment.constraints())
+                    .unwrap()
+            }
+            Architecture::Aarch64 => {
+                isa_aarch64::aarch64_machine_effect_catalog(target, environment.constraints())
+                    .unwrap()
+            }
+        };
+        assert_eq!(
+            environment.selected_keys(),
+            catalog.selected_keys,
+            "selected constraint declarations disagree on {target:?}"
+        );
+    }
+}
+
+#[test]
 fn every_supported_native_target_builds_a_matching_closed_environment() {
     for target in [
         NativeTarget::linux_x64(),

@@ -308,10 +308,12 @@ pub(super) fn selected_constraint_keys(target: NativeTarget) -> Option<SelectedC
             port_write: Some(isa_x86_64::X86_64_PORT_WRITE),
             system_register_read: None,
             system_register_write: None,
-            port_register_read: None,
-            port_register_write: None,
-            model_specific_read: None,
-            model_specific_write: None,
+            // These ISA declarations do not grant execution authority. Omitting
+            // them here disagrees with the effect catalog even for ordinary calls.
+            port_register_read: Some(isa_x86_64::X86_64_PORT_REGISTER_READ),
+            port_register_write: Some(isa_x86_64::X86_64_PORT_REGISTER_WRITE),
+            model_specific_read: Some(isa_x86_64::X86_64_MODEL_SPECIFIC_READ),
+            model_specific_write: Some(isa_x86_64::X86_64_MODEL_SPECIFIC_WRITE),
             atomic_fence: Some(isa_x86_64::X86_64_ATOMIC_FENCE),
             placed_read: Some(isa_x86_64::X86_64_PLACED_READ),
             placed_write: Some(isa_x86_64::X86_64_PLACED_WRITE),

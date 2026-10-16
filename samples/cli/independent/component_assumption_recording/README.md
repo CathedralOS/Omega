@@ -12,6 +12,14 @@ with `omega update --resume --project samples/cli/independent/component_assumpti
 Run `omega run --both samples/cli/independent/component_assumption_recording/main.omg`.
 Native and Terminal must both report exit 70 with no application output.
 
+On Windows x86-64, use `windows_x86_64` for the update target, then run the
+same `omega run --both` command without `--target` (an explicit run target is
+compile-only). This path previously stopped at
+`PostAllocationMachine(MachineEffects(Analysis(CatalogSelectedKeysMismatch)))`:
+the Windows allocator omitted four port/model-specific register declarations
+already present in the ISA effect catalog. With those catalogs consistent,
+native and Terminal both exit 70; the authored source and admission stay unchanged.
+
 The checked digest is `0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef`.
 `validation/observe.rs` independently reads the exact row from complete source
 checking, checking its bytes, count, selected Build and authored span. This
