@@ -1,1 +1,1 @@
-annotate `seed` with an explicit `-> Type`
+call `seed` selects no declaration

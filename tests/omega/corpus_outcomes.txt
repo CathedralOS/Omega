@@ -1031,8 +1031,8 @@ fail/borrows/whole_referent_store_through_shared_loan rejected 854ms expected @a
 	machine `settle` state `entry` assignment cannot write `verdict` because it is not mutable in this state (if `verdict` is undeclared -- a typo -- no such field or local exists)
 fail/borrows/whole_referent_store_type_mismatch rejected 970ms expected @a9ae30e1c334+wt
 	machine `settle` state `entry` assignment expects the `Verdict` data type but got `Outcome` in the `place` position; these are incompatible data types (a place is accepted structurally, but its declared type must match)
-fail/boundary/bare_field_value_rejected rejected 1596ms expected @a9ae30e1c334+wt
-	field `console` on data `Main` names bare boundary trait `Console` in value position; the intrinsic `Binding<R>` carrier is the only service value spelling
+fail/boundary/bare_field_value_rejected rejected 300ms expected @39847127e2cd+wt
+	data `Main` field `console` uses boundary trait `Console` as a value type; use `Binding<Console>` or a borrow of that carrier
 fail/build/artifact_only_rollback_overlay_refused rejected 35259ms expected published:none @a9ae30e1c334+wt
 	artifact-only builds execute no product optimization stages to roll back
 fail/build/artifact_only_unsealed_output_refused rejected 5741ms expected published:none @a9ae30e1c334+wt
@@ -1616,8 +1616,8 @@ fail/comptime/recipe_endpoint_membership_refused_at_closure rejected 4255ms expe
 	call argument for parameter `value` of `take_bounded` (declared maximum): requires 9 <= `limit`, but the selected target realization closes `limit` to 7
 fail/comptime/recipe_extent_index_refused_at_closure rejected 9011ms expected @4ffd613e37f1
 	index `8` of `main.slots`: requires 8 < `slot_count`, but the selected target realization closes `slot_count` to 8
-fail/comptime/recursive_accumulator_requires_coupling rejected 1554ms expected @a9ae30e1c334+wt
-	cannot prove requires contract for call triangle from triangle: acc + n <= 5050 (needs fact `acc <= 5050` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/comptime/recursive_accumulator_requires_coupling rejected 949ms expected @39847127e2cd+wt
+	cannot prove requires contract for call triangle from triangle: acc + n <= 5050 (needs fact `acc <= 5050` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/concurrency/suspend_explicit_parameter_field_rejected rejected 1564ms expected @a9ae30e1c334+wt
 	call to `park` may suspend while `message` remains live, but its effective policy is `carry(suspension: forbidden, cpu: same, thread: same, address: stable)`; consume the value before the call or use a suspension-safe carrier
 fail/concurrency/suspend_later_operand_rejected rejected 1319ms expected @a9ae30e1c334+wt
@@ -3431,8 +3431,8 @@ fail/modules/nontransitive_file_constant_import rejected 850ms expected @a9ae30e
 	machine `result` state `entry` uses `SEED`, which is not a declared local, parameter, field, or type in this state (check the spelling)
 fail/modules/nontransitive_file_imports rejected 914ms expected @a9ae30e1c334+wt
 	data `Holder` field `value` references unknown data type `A`
-fail/modules/nontransitive_file_machine_import rejected 59ms expected @a9ae30e1c334+wt
-	a value-machine call in a guard comparison needs the callee's return type declared: annotate `seed` with an explicit `-> Type`, or bind the call to a typed `let` first and guard the local
+fail/modules/nontransitive_file_machine_import rejected 989ms expected @39847127e2cd+wt
+	call `seed` selects no declaration: `seed` is not a declared machine, data, or proof definition
 fail/modules/private_generic_dependency rejected 5425ms expected @a9ae30e1c334+wt
 	package `private_generic_dependency` (0101010101010101010101010101010101010101010101010101010101010101) selects private machine `values::Window::range$specialized$accfc01a22f6af21$0`
 fail/modules/runtime_fixed_array_index rejected 18ms expected @a9ae30e1c334+wt
