@@ -109,7 +109,9 @@ pub(super) fn validate(policy: &PackagePolicyCallingPlan) -> Result<(), &'static
     }
     for (index, layout) in callbacks.layouts.iter().enumerate() {
         super::validate_application_lifetimes(policy, &layout.terminal_slot)?;
-        validate_nominal(&layout.root_layout.policy)?;
+        if let Some(policy) = &layout.root_layout.policy {
+            validate_nominal(policy)?;
+        }
         validate_nominal(&layout.terminal_slot.declaration)?;
         validate_nominal(&layout.terminal_slot.trait_identity)?;
         let native = policy
@@ -134,24 +136,32 @@ pub(super) fn validate(policy: &PackagePolicyCallingPlan) -> Result<(), &'static
         {
             return Err("calling callback layout differs from its target-closed shape");
         }
-        let (base, terminal_owner) = if let Some(field) = &layout.inline_field {
+        let mut base = 0u64;
+        let mut terminal_owner = &layout.root_layout;
+        for field in &layout.inline_fields {
             validate_nominal(&field.field)?;
-            validate_nominal(&field.child_layout.policy)?;
+            if let Some(policy) = &field.child_layout.policy {
+                validate_nominal(policy)?;
+            }
             if field.extent != field.child_layout.byte_size
                 || field.alignment != field.child_layout.alignment
                 || !contained(
                     field.offset,
                     field.extent,
                     field.alignment,
-                    layout.root_layout.byte_size,
+                    terminal_owner.byte_size,
                 )
             {
                 return Err("calling inline callback field has inconsistent geometry");
             }
-            (field.offset, &field.child_layout)
-        } else {
-            (0, &layout.root_layout)
-        };
+            base = base
+                .checked_add(field.offset)
+                .ok_or("calling inline callback path overflows")?;
+            terminal_owner = &field.child_layout;
+        }
+        if terminal_owner.policy.is_none() {
+            return Err("calling terminal callback slot has no selected layout policy");
+        }
         if !contained(
             layout.terminal_offset,
             layout.terminal_byte_size,

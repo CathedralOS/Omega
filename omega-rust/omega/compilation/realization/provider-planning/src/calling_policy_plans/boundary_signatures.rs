@@ -267,11 +267,7 @@ pub struct BoundaryNativeParameter {
     pub(crate) layout_data_symbol: symbols::SymbolHandle,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum BoundaryNativeParameterShape {
-    Semantic(u16),
-    TargetFunctionPointer { byte_size: u16, alignment: u16 },
-}
+pub use calling_conventions::BoundaryNativeParameterShape;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BoundaryDirectCallbackParameter {

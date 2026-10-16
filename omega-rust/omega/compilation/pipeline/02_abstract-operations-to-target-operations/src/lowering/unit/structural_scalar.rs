@@ -48,46 +48,10 @@ pub(in crate::lowering) fn lower_field_store(
         place: destination.place(),
         reason,
     };
-    let preserves = |root,
-                     whole: &[semantic_vocabulary::StructuralDomainId],
-                     projected: &[terminal_psi::StructuralPathQualification]| {
-        terminal_semantics::projected_field_declaration(
-            structural_types.values().copied(),
-            root,
-            path,
-            *field,
-        )
-        .is_some_and(|selected| {
-            let mut written = path.clone();
-            written.push(terminal_psi::StructuralPathSegment::Field(
-                selected.identity.clone(),
-            ));
-            terminal_semantics::structural_memberships_disjoint_from_write(
-                whole, projected, &written,
-            )
-        })
-    };
-    let (whole, projected) = match destination {
-        abstract_operations::StructuralScalarStoreDestination::Parameter(parameter)
-        | abstract_operations::StructuralScalarStoreDestination::OwnedBlockParameter {
-            parameter,
-            ..
-        } => (
-            parameter.qualifications.as_slice(),
-            parameter.projected_qualifications.as_slice(),
-        ),
-        abstract_operations::StructuralScalarStoreDestination::OwnedResult { result, .. } => (
-            result.qualifications.as_slice(),
-            result.projected_qualifications.as_slice(),
-        ),
-    };
-    // Resolve the field through its typed crossing, but preserve memberships
-    // in the original carrier's coordinates, including every Referent step.
-    if !preserves(destination.structural_type(), whole, projected) {
-        return Err(unsupported(
-            "scalar field write overlaps a standing carrier membership",
-        ));
-    }
+    // Current-IR admission preserves the original root's exact predicates and
+    // Content projections. This realization retains that full declaration and
+    // checks its physical home; it does not replace that judgment with a blanket
+    // ban on qualified storage.
     let (destination, path, destination_storage) = match destination {
         abstract_operations::StructuralScalarStoreDestination::Parameter(destination) => {
             if function.arrival_parameter(destination.place) != Some(destination)
@@ -129,10 +93,7 @@ pub(in crate::lowering) fn lower_field_store(
                 let block = function
                     .block_entries
                     .iter()
-                    .find(|block| {
-                        block.structural_parameters.contains(destination)
-                            && destination.access == StructuralAccess::MutableBorrow
-                    })
+                    .find(|block| block.structural_parameters.contains(destination))
                     .ok_or(unsupported(
                         "scalar field parameter has no matching block declaration",
                     ))?;
@@ -167,7 +128,7 @@ pub(in crate::lowering) fn lower_field_store(
                     },
                 )
             } else {
-                let home = structural_homes
+                structural_homes
                     .get(&result.place)
                     .filter(|home| home.operation_result() == Some((*producer, result)))
                     .ok_or(unsupported(

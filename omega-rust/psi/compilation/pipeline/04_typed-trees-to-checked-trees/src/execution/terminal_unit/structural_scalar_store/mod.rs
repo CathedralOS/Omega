@@ -33,7 +33,7 @@
 //! independently checked assignments. Replaying the enclosing state's frame
 //! here rejected a valid store merely because a later foreign call was opaque.
 //! What remains refused is a custody or proof condition, not an arrangement:
-//! linear or qualified roots, unsupported permission crossings, and fields
+//! unsupported parameter custody, permission crossings, and fields
 //! whose declared domain the stored value carries no evidence for.
 use super::{
     CheckFacts, CheckedScalarExpressionRole, CheckedStructuralAccess,

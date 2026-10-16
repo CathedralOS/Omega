@@ -87,7 +87,6 @@ pub(crate) fn realize_native_artifact(
         input,
         providers.installation.take(),
         &providers.settlements,
-        &providers.native_callbacks,
         boundary_application_coverage.as_ref(),
         receiver_settlement.as_ref(),
         &artifact,

@@ -56,7 +56,6 @@ fn lower_validated_abstract_to_target_operations(
     target: NativeTarget,
     settlements: &[AdmittedBoundarySettlement<'_>],
     installation: Option<AdmittedProviderInstallation>,
-    native_callbacks: &[crate::AdmittedNativeCallbackArgument],
 ) -> Result<ValidatedOptimizedTargetOperations, LoweringError> {
     // Translation is implemented; selected target-operation rewrites are not.
     let phase = OptimizationExecutionPhase::TargetOperations;
@@ -73,7 +72,6 @@ fn lower_validated_abstract_to_target_operations(
             target,
             settlements,
             installation: installed,
-            native_callbacks,
         },
     )?;
     // Semantic replay can establish that a candidate implements a boundary, but
@@ -97,13 +95,22 @@ fn lower_validated_abstract_to_target_operations(
 // Compatibility entrances delegate to the same authority-aware transform.
 /// The admitted settlements an optimized target lowering consumes beyond the
 /// validated plan and its target.
+/// Callback authority belongs to the original verified input, never this
+/// independently constructed request. A cohort from another artifact, entry,
+/// provider selection or target cannot be substituted through this entrance.
+///
+/// ```compile_fail
+/// fn inject(request: &mut abstract_operations_to_target_operations::OptimizedTargetLoweringRequest<'_>,
+///     foreign: &terminal_psi_to_abstract_operations::VerifiedPsiOptimizationInput) {
+///     request.native_callbacks = foreign.admitted_native_callbacks();
+/// }
+/// ```
 pub struct OptimizedTargetLoweringRequest<'a> {
     pub target: NativeTarget,
     pub settlements: &'a [AdmittedBoundarySettlement<'a>],
     /// The exact installation retained beside the target operations it
     /// authorized.
     pub installation: Option<AdmittedProviderInstallation>,
-    pub native_callbacks: &'a [crate::AdmittedNativeCallbackArgument],
 }
 
 impl OptimizedTargetLoweringRequest<'_> {
@@ -113,7 +120,6 @@ impl OptimizedTargetLoweringRequest<'_> {
             target,
             settlements: &[],
             installation: None,
-            native_callbacks: &[],
         }
     }
 }
@@ -129,13 +135,6 @@ pub fn lower_optimized_to_target_operations(
         target,
         settlements,
         installation,
-        native_callbacks,
     } = request;
-    lower_validated_abstract_to_target_operations(
-        optimized,
-        target,
-        settlements,
-        installation,
-        native_callbacks,
-    )
+    lower_validated_abstract_to_target_operations(optimized, target, settlements, installation)
 }

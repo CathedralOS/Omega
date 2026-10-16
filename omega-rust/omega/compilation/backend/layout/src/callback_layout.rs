@@ -1,121 +1,127 @@
-//! Retained native callback field layouts and their target-geometry checks.
-//!
-//! Layout construction copies the exact named root/child/slot relationship;
-//! validation replays its nominal path, containment and pointer geometry.
-//! Source-formal association remains with the caller. These are local layout
-//! records, not a portable wire format or conformance authorization.
-
+//! Exact target-closed inline paths to compiler-private callback slots.
+//! Natural and policy-laid records share this path owner. Each hop retains its
+//! named declaration and native geometry; references never become inline hops.
+//! The terminal slot retains the selected policy/conformance. Layout describes
+//! storage only; registrar selection, access and lifetime remain separate.
 mod geometry;
 #[cfg(test)]
 mod tests;
 
-use crate::{
-    TargetClosedPlanLaidDataLayoutIdentity, TargetClosedPrivateCallbackDemand,
-    TargetClosedTwoHopPrivateCallbackPath,
-};
+use crate::{TargetClosedDataLayoutIdentity, TargetClosedPrivateCallbackDemand};
+use arena::{Arena, HandleSpan};
 use calling_conventions::{
-    NativePlace, callback_layout_field_slot_id, callback_layout_slot_id, callback_requirement_id,
+    NativeParameterId, NativePlace, callback_layout_field_slot_id, callback_layout_slot_id,
+    callback_requirement_id,
 };
 use std::sync::Arc;
 use symbols::SymbolHandle;
 use target::NativeTarget;
 
-/// Retains a direct or inline-child callback layout for later validation.
-/// Construction establishes named ownership; `validate` checks the native
-/// destination and selected target before the caller uses the layout.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PrivateCallbackLayout {
-    root_layout: TargetClosedPlanLaidDataLayoutIdentity,
-    inline_field: Option<PrivateCallbackInlineField>,
+    root_layout: TargetClosedDataLayoutIdentity,
+    fields: Arena<PrivateCallbackInlineField>,
+    path: HandleSpan<PrivateCallbackInlineField>,
     terminal_slot: TargetClosedPrivateCallbackDemand,
     composed_offset: usize,
 }
 
-/// Named inline field connecting a root layout to the terminal slot's owner.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PrivateCallbackInlineField {
-    symbol: SymbolHandle,
-    identity: Arc<str>,
-    offset: usize,
-    extent: usize,
-    alignment: usize,
-    child_layout: TargetClosedPlanLaidDataLayoutIdentity,
+    pub(crate) symbol: SymbolHandle,
+    pub(crate) field_layout: crate::FieldLayout,
+    pub(crate) identity: Arc<str>,
+    pub(crate) offset: usize,
+    pub(crate) extent: usize,
+    pub(crate) alignment: usize,
+    pub(crate) child_layout: TargetClosedDataLayoutIdentity,
+}
+
+// Arena's zero-handle row is never part of a validated path. Its empty named
+// identity deliberately cannot satisfy geometry validation.
+impl Default for PrivateCallbackInlineField {
+    fn default() -> Self {
+        Self {
+            symbol: SymbolHandle::default(),
+            field_layout: crate::FieldLayout::default(),
+            identity: Arc::from(""),
+            offset: 0,
+            extent: 0,
+            alignment: 1,
+            child_layout: TargetClosedDataLayoutIdentity {
+                data_symbol: SymbolHandle::default(),
+                data_identity: Arc::from(""),
+                layout_subject_identity: None,
+                layout: calling_conventions::LayoutPlanId::new(1).expect("nonzero arena dummy"),
+                physical: crate::TypeLayout::default(),
+            },
+        }
+    }
 }
 
 impl PrivateCallbackLayout {
-    pub const fn root_layout(&self) -> &TargetClosedPlanLaidDataLayoutIdentity {
+    pub const fn root_layout(&self) -> &TargetClosedDataLayoutIdentity {
         &self.root_layout
     }
-
-    pub const fn inline_field(&self) -> Option<&PrivateCallbackInlineField> {
-        self.inline_field.as_ref()
+    pub fn inline_fields(&self) -> Result<&[PrivateCallbackInlineField], String> {
+        self.fields
+            .span(self.path)
+            .ok_or_else(|| "callback inline path has stale field storage".to_owned())
     }
-
-    /// Includes the complete typed slot conformance application. Its compact
-    /// report suffix is never parsed to recover semantic declaration identity.
     pub const fn terminal_slot(&self) -> &TargetClosedPrivateCallbackDemand {
         &self.terminal_slot
     }
-
     pub const fn composed_offset(&self) -> usize {
         self.composed_offset
     }
 
-    /// Retains the demand's unique named root, rejecting missing or ambiguous
-    /// roots. The root's nominal layout ID can differ from the terminal's
-    /// legacy layout ID.
-    pub fn direct(
-        layouts: &[TargetClosedPlanLaidDataLayoutIdentity],
-        demand: &TargetClosedPrivateCallbackDemand,
+    pub(crate) fn from_fields(
+        root_layout: TargetClosedDataLayoutIdentity,
+        inline_fields: &[PrivateCallbackInlineField],
+        terminal_slot: TargetClosedPrivateCallbackDemand,
     ) -> Result<Self, String> {
-        let mut roots = layouts.iter().filter(|root| {
-            root.data_symbol == demand.data_symbol
-                && root.layout_subject_identity == demand.layout_subject_identity
-        });
-        let root = roots
-            .next()
-            .ok_or_else(|| "private callback demand has no exact named root layout".to_owned())?;
-        if roots.next().is_some() {
-            return Err(
-                "private callback demand has an ambiguous or foreign root layout".to_owned(),
-            );
+        let mut fields = Arena::with_capacity(inline_fields.len());
+        let mut path = HandleSpan::empty();
+        let mut composed_offset = terminal_slot.offset;
+        for field in inline_fields {
+            composed_offset = composed_offset
+                .checked_add(field.offset)
+                .ok_or_else(|| "callback inline path offset overflowed".to_owned())?;
+            fields.append_to_span(&mut path, field.clone());
         }
         Ok(Self {
-            root_layout: root.clone(),
-            inline_field: None,
-            terminal_slot: demand.clone(),
-            composed_offset: demand.offset,
+            root_layout,
+            fields,
+            path,
+            terminal_slot,
+            composed_offset,
         })
     }
 
-    /// Retains one root-to-child path, rejecting a terminal owned by a different
-    /// named child. Target geometry is checked by `validate`.
-    pub fn two_hop(path: &TargetClosedTwoHopPrivateCallbackPath) -> Result<Self, String> {
-        if path.child_layout.data_symbol != path.terminal_demand.data_symbol
-            || path.child_layout.layout_subject_identity
-                != path.terminal_demand.layout_subject_identity
-        {
-            return Err(
-                "private callback path does not join its named root and child layouts".to_owned(),
-            );
+    pub fn native_demand(
+        &self,
+        parameter: NativeParameterId,
+    ) -> Result<calling_conventions::NativeCallbackDemand, String> {
+        let mut parent = &self.root_layout;
+        let mut field_path = Vec::new();
+        for field in self.inline_fields()? {
+            field_path.push(callback_layout_field_slot_id(
+                parent.layout,
+                &field.identity,
+            ));
+            parent = &field.child_layout;
         }
-        Ok(Self {
-            root_layout: path.root_layout.clone(),
-            inline_field: Some(PrivateCallbackInlineField {
-                symbol: path.field_symbol,
-                identity: path.field_identity.clone(),
-                offset: path.field_relative_offset,
-                extent: path.field_extent,
-                alignment: path.field_alignment,
-                child_layout: path.child_layout.clone(),
-            }),
-            terminal_slot: path.terminal_demand.clone(),
-            composed_offset: path.composed_offset,
+        field_path.push(self.terminal_slot.slot);
+        Ok(calling_conventions::NativeCallbackDemand {
+            destination: NativePlace::Field {
+                parameter,
+                layout: self.root_layout.layout,
+                field_path,
+            },
+            requirement: self.terminal_slot.requirement,
         })
     }
 
-    /// Replays nominal field identity and target geometry, not the source proof
-    /// that admitted the conformance or the signature's parameter association.
     pub fn validate(&self, destination: &NativePlace, target: NativeTarget) -> Result<(), String> {
         let NativePlace::Field { parameter, .. } = destination else {
             return Err("callback layout catalog contains a non-field destination".to_owned());
@@ -132,19 +138,7 @@ impl PrivateCallbackLayout {
         {
             return Err("callback layout catalog lost its named slot application".to_owned());
         }
-        let expected = if let Some(field) = &self.inline_field {
-            NativePlace::Field {
-                parameter: *parameter,
-                layout: self.root_layout.layout,
-                field_path: vec![
-                    callback_layout_field_slot_id(self.root_layout.layout, &field.identity),
-                    terminal.slot,
-                ],
-            }
-        } else {
-            terminal.native_demand(*parameter).destination
-        };
-        if *destination != expected {
+        if self.native_demand(*parameter)?.destination != *destination {
             return Err("callback layout catalog changed its exact ordered field path".to_owned());
         }
         geometry::validate(self, target)
@@ -155,24 +149,19 @@ impl PrivateCallbackInlineField {
     pub const fn symbol(&self) -> SymbolHandle {
         self.symbol
     }
-
     pub fn identity(&self) -> &str {
         &self.identity
     }
-
     pub const fn offset(&self) -> usize {
         self.offset
     }
-
     pub const fn extent(&self) -> usize {
         self.extent
     }
-
     pub const fn alignment(&self) -> usize {
         self.alignment
     }
-
-    pub const fn child_layout(&self) -> &TargetClosedPlanLaidDataLayoutIdentity {
+    pub const fn child_layout(&self) -> &TargetClosedDataLayoutIdentity {
         &self.child_layout
     }
 }

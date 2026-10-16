@@ -7,7 +7,7 @@
 use super::super::{
     CheckFacts, CheckedStructuralAccess, CheckedStructuralScalarParameterPlan,
     CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment, DataMember,
-    DataShapeKind, ExpressionNode, Multiplicity, StatementNode, SymbolHandle, TypeReferenceNode,
+    DataShapeKind, ExpressionNode, StatementNode, SymbolHandle, TypeReferenceNode,
 };
 use crate::execution::terminal_unit::control::LocalConstructionTrace;
 use crate::execution::terminal_unit::control::statement_sequence::bounded_byte_values;
@@ -400,40 +400,12 @@ impl<'a> Destination<'a> {
         let StoreRoots {
             structural, scalar, ..
         } = roots;
-        // Root membership is a receiving restriction, not write authority.
-        // Ordinary primitive stores retain and discharge each exact byte law;
-        // other qualified roots still require their independent theory owner.
-        // Classify the resolved storage, including the array behind a loan;
-        // the reference shell does not select a different receiving carrier.
-        let carrier = program
-            .type_reference_table
-            .unconstrained_type_reference(self.root_type);
-        let qualified_byte_array = matches!(
-            program.type_reference_table.type_reference(carrier),
-            TypeReferenceNode::FixedArray { element_type, .. }
-                if program.primitive_type_reference(*element_type) == Some(super::PrimitiveType::U8)
-        ) && validation::field_domains::domain_constraint_symbols(
-            program,
-            parameter.type_reference,
-        )
-        .into_iter()
-        .all(|symbol| {
-            program.domain_definition(symbol).is_some_and(|domain| {
-                domain.classification.is_none()
-                    && domain.semantic_roles.is_empty()
-                    && typed_trees::byte_predicates::domain_byte_predicate(program, symbol)
-                        .is_some()
-            })
-        });
-        if plan.multiplicity == Multiplicity::Linear
-            || !matches!(
-                plan.access,
-                CheckedStructuralAccess::Owned
-                    | CheckedStructuralAccess::MutableBorrow
-                    | CheckedStructuralAccess::WriteOnlyBorrow
-            )
-            || (!plan.qualifications.is_empty() && !qualified_byte_array)
-        {
+        if !matches!(
+            plan.access,
+            CheckedStructuralAccess::Owned
+                | CheckedStructuralAccess::MutableBorrow
+                | CheckedStructuralAccess::WriteOnlyBorrow
+        ) {
             return None;
         }
         trace.phase("structural field store: parameter access");

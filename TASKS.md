@@ -4311,7 +4311,7 @@ and `mapped` need matching-host measurements, including the full-i32 status.
   indirect aggregate result from C with exact values, register/stack placement
   and formal order on each matching host. Terminal Psi stays target-neutral.
   **RESTORE-DYNAMIC-DESCRIPTOR-AND-TABLE-CUSTODY** owns implementation selector
-  semantics; **CALLBACK-PRIVATE-MATERIALIZATION** owns private callbacks.
+  semantics; private callbacks retain their authored entry ABI and fragment custody.
 
 - **OPAQUE-BY-VALUE-BOUNDARY-ABI.** Selected opaque arguments, results and
   nested fields are not exchanged at runtime under
@@ -4482,128 +4482,6 @@ and `mapped` need matching-host measurements, including the full-i32 status.
   `fail/slices/overlapping_mut_subslice_windows_rejected` as controls.
   **CANARY-CORPUS** borrow-obligation failures route here.
 
-- **CALLBACK-PRIVATE-MATERIALIZATION.** Complete private callback entry ABI and
-  matching-host invocation under
-  [private callbacks](wiki/spec/build/private_callbacks.md).
-  Use ordinary body lowering and ABI transport, not callback body recognizers.
-  Preserve the artifact-local function/import/data closure and publication
-  custody while completing structural inbound transport.
-  Owners: `callback_settlement`,
-  `omega-rust/omega/compilation/native-production/src/realization/callback_thunks.rs`,
-  `omega-rust/omega/compilation/backend/images/image-emission/src/private_object_composition.rs`,
-  and selected-call ABI transport.
-
-  Preserve the runnable macOS Arm64 `pass/calls/private_callback_call_closure`
-  regression: after package review,
-  `omega run tests/omega/pass/calls/private_callback_call_closure/main.omg`
-  must print `A\n` once and exit 0 through two genuine `pthread_once` calls,
-  an ordinary helper, callback-only `getpid`, a runtime implementation selector,
-  and an addressed byte literal.
-  Keep body-declaration, registrar and caller-scoped entry identities exact;
-  do not flatten child machine or boundary identities into the application.
-  The scalar control
-  `pass/capabilities/callback_direct_install_compile` uses a nonexistent import
-  and is not execution acceptance.
-
-  Entry admission joins the body's separate scalar and structural lanes to the
-  selected inbound telescope's nominal origins before comparing the ordinary
-  graph's complete ABI. Preserve `pass/calls/callback_borrowed_record_entry`:
-  after package review, `omega run` must sort two complete records through real
-  macOS Arm64 `qsort`, retain their associated stamps and exit 0.
-  Keep `pass/calls/callback_mixed_formal_entry`: real macOS Arm64 `qsort_r`
-  supplies a scalar context between two authored record-reference formals;
-  both sort directions and associated stamps must survive their separate lanes.
-  Preserve `pass/calls/callback_borrowed_scalar_entry` and
-  `pass/calls/callback_scalar_loan_permutation`: genuine macOS Arm64 `qsort`
-  and `qsort_r` must pass thin pointers through activation-local scalar-loan
-  descriptors to ordinary helpers and exit 0; the latter permutes native
-  X1/X0/X2 into ordinary X0/X1/X2 and observes both sort directions.
-  The physical entry retains its own symbol, body-call relocation, request and
-  frame demand; codecs derive from the exact retained Terminal referents.
-  Word-sized scalar/reference transport has register/stack and float encoding
-  coverage on AArch64 and x86-64, not matching-host execution on every target.
-  Direct owned records use declared byte-offset pieces for both inbound values
-  and results, rather than word-only moves. Preserve
-  `pass/calls/callback_owned_float_record` and
-  `pass/calls/callback_owned_float_record_packing`: real system `libffi` invokes
-  two-double and packed two-float records through ordinary helpers, returns
-  both transformed members and retains the unchanged input at exit 0.
-  Shared observation of already-shared reference-bearing carrier storage stays
-  valid in the independent audit; moves, writes and disposal remain conflicting.
-  Preserve `pass/calls/callback_owned_indirect_record` and
-  `pass/calls/callback_owned_indirect_float_record`: real libffi must transport
-  three owned integer words and four doubles through ordinary helpers, retain
-  the unchanged input and return every permuted member at exit 0. Owned ABI
-  pointers use complete activation-local copies, not inferred loans; the
-  caller's hidden result pointer stays separate from the body's result area.
-  Entry bridges preserve internal writes excluded by the inbound clobber promise,
-  including complete 128-bit vector state; identical value placement alone cannot
-  alias an ordinary body with a weaker promise. The integer-record and resultless
-  call-closure regressions carry stricter X9/V16 promises. SysV/Microsoft adapters
-  have byte-encoding coverage, not matching-host invocation acceptance.
-  The Windows `pass/calls/callback_private_materialization` witness now uses
-  genuine `gdi32.dll!LineDDA`, a resultless callback and an ordinary helper
-  that mutates caller-owned context. Its native-only stack argument and the
-  neighboring borrowed pointer reach PE production and independent audits;
-  stack materializations retain their own outgoing frame demand and exact
-  fixup geometry. Matching-host `omega run` must still demonstrate exit 0
-  and the final observed point; macOS cross-realization is not that acceptance.
-  Preserve `pass/calls/callback_owned_overaligned_record`: genuine macOS Arm64
-  libffi must return the complete 32-aligned record through an ordinary helper
-  and retain unchanged input at exit 0. `pass/calls/owned_mixed_overaligned_call`
-  keeps independent 32/64-aligned caller copies and a 64-aligned result distinct.
-  Fixed ABI frames reserve alignment padding and round absolute home addresses;
-  offsets alone do not establish alignment. Demonstrate matching-host x86-64
-  execution of the owned-home route, preserving
-  `pass/calls/owned_overaligned_local_call`: independent 32/64-aligned inputs,
-  a separate 64-aligned result and unchanged caller values must exit 0.
-  Register, contiguous-stack and indirect owned arrivals share private value
-  storage; borrowed references retain their original referents. Preserve the
-  fixed stack pointer, padded home bounds and declared address-mask clobbers
-  through spilling. Complete stack-based caller-area result protocols;
-  these remain fenced. Linux/Windows artifact production is not invocation.
-  Preserve `pass/calls/callback_future_registration_cycle`:
-  genuine macOS Arm64 `pthread_key_create` registers a destructor whose body
-  can register itself; native `_exit` must exit 0 without invoking it.
-  Same-stack composition follows the registrar's declared synchronous reach,
-  not its complete callback-address closure. This establishes neither future
-  invocation permission nor registration capacity or lifetime.
-  Preserve resultless transport with `calls/resultless_native_callback_compile`
-  (a genuine Linux `pthread_once` import) and the runnable
-  `calls/resultless_scalar_parameters`. Neither substitutes for Windows
-  invocation or the remaining inbound bridges.
-
-  Acceptance: `pass/calls/callback_private_materialization` uses a genuine
-  Windows x64 host registration provider and executes a callback with a general
-  body and inbound signature, including a resultless procedure. Do not name
-  nonexistent DLL exports merely to satisfy compile-only selection.
-  Missing, duplicate, overlapping and incompatible materializations reject;
-  private slots remain inaccessible and package-local vocabulary duplicates
-  reject. Registration outcome and lifetime belong to
-  **REGISTERED-CALLBACK-LIFETIME**.
-
-- **REGISTERED-CALLBACK-LIFETIME.** An authored registrar lifecycle does not
-  execute under [registration and lifetime](wiki/spec/build/private_callbacks.md#registration-and-lifetime)
-  and [opaque retention](wiki/spec/build/component_publication.md#opaque-retention-and-quarantine).
-  Carry the success/rejection sum through checked result planning, Terminal
-  case-conditional qualifications/claims and installed-provider
-  interpretation: `omega-rust/psi/interpreter/terminal-interpreter/src/calls.rs`
-  rejects projected result qualifications and affine results carrying
-  claims/qualifications. A valid roster must come from authored evidence, not
-  removal of the gate (reuse interpreter `live_claims`). Join success through
-  the authored registrar/runtime to live-registration capacity, the external
-  root and exact code/component leases; the compiler emits callback and
-  installation evidence but owns no registration ledger.
-  Rejection creates no root and keeps capacity; unregister and quiescence
-  precede lease release and return the same capacity occurrence; capacity
-  counts live registrations, not thunks.
-
-  Acceptance: an authored provider/customer rejects, retries, replaces with
-  returned capacity and unregisters; dropped, repeated, stale or
-  cross-occurrence registrations, spent-capacity reuse and wrong qualification
-  rosters reject. **CALLBACK-PRIVATE-MATERIALIZATION** supplies the native
-  entry; **FFIVAL** owns Windows foreign invocation (unavailable elsewhere).
-
 - **FOREIGN-RETAINED-ARGUMENT-BACKING.** Authored retention is not connected to
   native argument backing under
   [outbound custody](wiki/spec/build/foreign_storage.md#outbound-custody).
@@ -4623,7 +4501,7 @@ and `mapped` need matching-host measurements, including the full-i32 status.
   natively; completion redeems moved backing and live shared loans exclude
   conflicting writes. Call-scoped, mutable lifetime-borrowed or ambiguous
   retention and unknown/stale/out-of-range/excess-rights backing reject.
-  Registration leases belong to **REGISTERED-CALLBACK-LIFETIME**.
+  Registration leases follow the [authored lifecycle](wiki/spec/build/private_callbacks.md#registration-and-lifetime).
 
 - **TERMINAL-SLICE-VIEW-VOCABULARY.** (split-of:SLICE-VIEW-LOCAL-ENTRY-ESTABLISHMENT)
   Consuming non-byte `&[T]` calls and state transfers are incomplete under
@@ -6068,26 +5946,6 @@ wait for Cathedral's instruction coverage. The interpreter is
   owns platform invocation; **PSI-COMPONENT-REPLACEMENT** the interpreted
   customer.
 
-- **FFIVAL.** Run the Windows user32 customer at
-  `tests/omega/pending/host/user32_window_procedure_registration` through its
-  authored build and the [private-callback protocol](wiki/spec/build/private_callbacks.md).
-  - `omega --check tests/omega/pending/host/user32_window_procedure_registration/main.omg`
-    rejects the by-reference outcome: both `Registered` paths lack
-    `Registration::Live`, and the success/rejection payloads stay unestablished
-    linear values. Carry the registrar's outcome and capacity through ordinary
-    qualification and custody rules.
-  - Supply the package-owned user32 adapter, exact ABI/layout and per-window
-    context protocol. The fixture's retry branch neither forces rejection nor
-    re-registers the returned capacity; complete those steps.
-  - **REGISTERED-CALLBACK-LIFETIME** owns the lifecycle;
-    **CALLBACK-PRIVATE-MATERIALIZATION** owns native callback realization.
-  Acceptance on Windows: registration, synchronous `WM_NCCREATE`, dispatched
-  callback entry, deterministic rejection/retry, teardown and re-registration
-  with the returned capacity; quiescence precedes code-lease release. No raw
-  callable address, implicit closure or Win32 compiler escape. Move the fixture
-  out of `pending` into a run tier the corpus gate executes; other hosts report
-  the runtime leg unavailable.
-
 - **WIRE-RUNTIME-AND-INSTALLATION.** Execute an authored program through a
   receiving-provider installation and matching-host invocation under
   [executable installation](wiki/spec/build/executable_installation.md).
@@ -6306,8 +6164,8 @@ report a missing runtime leg explicitly.
     custody. `exact_demanded_import_plans` in stage 00's
     `source_evaluated_bindings.rs` omits requirements with no matching import
     row; a fixture must follow demand through planning and settlement, plus a
-    supplied-custody positive. **CALLBACK-PRIVATE-MATERIALIZATION** owns
-    callback calling/fragment custody.
+    supplied-custody positive. Preserve exact callback calling/fragment
+    custody at native admission.
   - **Foreign-domain mutable recasts:** **MODULE-NAMESPACE-RESOLUTION** keeps a
     qualification when declaration and mutable view name the same foreign
     package domain, and rejects exchange between different packages'

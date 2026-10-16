@@ -26,7 +26,6 @@ pub(crate) fn emit_realization_object(
     input: VerifiedNativeArtifactInput,
     provider_installation: Option<AdmittedProviderInstallation>,
     settlements: &[AdmittedBoundarySettlement<'_>],
-    native_callbacks: &[terminal_psi_to_abstract_operations::AdmittedNativeCallbackArgument],
     boundary_application_coverage: Option<&TerminalBoundaryApplicationCoverage>,
     hosted_receiver: Option<
         &terminal_psi_to_abstract_operations::ValidatedNativeProgramEntrySettlement,
@@ -34,6 +33,10 @@ pub(crate) fn emit_realization_object(
     terminal: &terminal_codec::CanonicalTerminalArtifact,
     request: &NativeRealizationRequest<'_>,
 ) -> Result<EmittedRealizationObject, Vec<Diagnostic>> {
+    let native_callbacks = input
+        .optimization_input()
+        .admitted_native_callbacks()
+        .to_vec();
     let selections = request.optimization_selections.selections();
     let abstract_stage = abstract_operations_to_abstract_operations::optimize_abstract_operations(
         input.into_optimization_input(),
@@ -52,7 +55,6 @@ pub(crate) fn emit_realization_object(
             target: request.admission.providers.target(),
             settlements,
             installation: provider_installation,
-            native_callbacks,
         },
     )
     .map_err(|error| realization_error("target lowering", error))?;
@@ -64,7 +66,7 @@ pub(crate) fn emit_realization_object(
     // Emit the root first so optimization-pruned callback uses do not demand
     // unused bodies. Each surviving symbolic reference retains its admitted
     // occurrence; the body worklist follows the same rule in its own namespace.
-    let private_functions = lower_callback_thunks(request, native_callbacks, projection.object())?;
+    let private_functions = lower_callback_thunks(request, &native_callbacks, projection.object())?;
     let object = publish_fragment_object(
         projection,
         FragmentObjectPublicationRequest {

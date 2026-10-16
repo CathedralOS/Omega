@@ -52,7 +52,7 @@ pub(crate) struct PackagePolicyCallbackLayout {
     pub(crate) formal_ordinal: u32,
     pub(crate) native_ordinal: u32,
     pub(crate) root_layout: PackagePolicyCallbackLayoutApplication,
-    pub(crate) inline_field: Option<PackagePolicyCallbackInlineField>,
+    pub(crate) inline_fields: Vec<PackagePolicyCallbackInlineField>,
     pub(crate) terminal_slot: PackagePolicyClosedConformanceApplication,
     pub(crate) terminal_offset: u64,
     pub(crate) terminal_byte_size: u64,
@@ -65,7 +65,7 @@ pub(crate) struct PackagePolicyCallbackLayout {
 /// generated concrete data name are implementation details, not this identity.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct PackagePolicyCallbackLayoutApplication {
-    pub(crate) policy: PackageReviewNominalIdentity,
+    pub(crate) policy: Option<PackageReviewNominalIdentity>,
     pub(crate) schema: PackageReviewTypeIdentity,
     pub(crate) byte_size: u64,
     pub(crate) alignment: u64,

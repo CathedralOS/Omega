@@ -65,8 +65,8 @@ pub(super) fn encode(
             encoder.field("root_layout", |encoder| {
                 layout_application(encoder, &layout.root_layout)
             })?;
-            encoder.field("inline_field", |encoder| {
-                encoder.option(layout.inline_field.as_ref(), |encoder, field| {
+            encoder.field("inline_fields", |encoder| {
+                encoder.sequence(&layout.inline_fields, |encoder, field| {
                     encoder.field("field", |encoder| encode_nominal(encoder, &field.field))?;
                     encoder.field("offset", |encoder| {
                         encoder.u64(field.offset);
@@ -139,7 +139,9 @@ fn layout_application(
     encoder: &mut Encoder,
     layout: &PackagePolicyCallbackLayoutApplication,
 ) -> Result<(), PackageReviewEncodingError> {
-    encoder.field("policy", |encoder| encode_nominal(encoder, &layout.policy))?;
+    encoder.field("policy", |encoder| {
+        encoder.option(layout.policy.as_ref(), encode_nominal)
+    })?;
     encoder.field("schema", |encoder| type_identity(encoder, &layout.schema))?;
     encoder.field("byte_size", |encoder| {
         encoder.u64(layout.byte_size);

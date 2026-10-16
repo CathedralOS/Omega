@@ -32,6 +32,5 @@ pub(crate) use layout_plan::{
     RepeatedFieldLayout, StoredIntegerLayout, TypeLayoutDescriptor, VariantLayout,
 };
 pub use layout_plan::{
-    LayoutPlan, TargetClosedPlanLaidDataLayoutIdentity, TargetClosedPrivateCallbackDemand,
-    TargetClosedTwoHopPrivateCallbackPath, TypeLayout,
+    LayoutPlan, TargetClosedDataLayoutIdentity, TargetClosedPrivateCallbackDemand, TypeLayout,
 };

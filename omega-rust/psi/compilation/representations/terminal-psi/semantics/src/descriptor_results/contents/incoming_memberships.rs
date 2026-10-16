@@ -32,7 +32,7 @@ pub(super) fn select(
         projected_qualifications,
     };
     let Some(DescriptorContentsStep::AnyElement { element }) = steps.get(count) else {
-        super::close_byte_predicate_memberships(types, domains, &mut contract);
+        super::close_predicate_memberships(types, domains, &mut contract);
         return Some(contract);
     };
     let suffix = &steps[count + 1..];

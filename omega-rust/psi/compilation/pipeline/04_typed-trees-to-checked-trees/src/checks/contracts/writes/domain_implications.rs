@@ -10,9 +10,8 @@ use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 
 /// Routed theories require the exact live instance at the initializer's actual
-/// place. Read the last completed operand-call context when calls occur in the
-/// statement, otherwise its entry context; never read the destination binding's
-/// post-statement facts or equate places by their display names.
+/// place. Read the completed operand snapshot, never the destination binding's
+/// post-statement facts or places equated by their display names.
 pub(super) fn value_proves_qualification(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
@@ -37,20 +36,36 @@ pub(super) fn value_proves_qualification(
     ) else {
         return false;
     };
-    let contexts = statement_semantic_contexts(facts, state, statement_index);
+    let contexts = value_semantic_contexts(facts, state, statement_index, value);
     super::super::exits::exact_scalar_membership(
         program, facts, &contexts, &subject, domain, identity,
     )
 }
 
-/// The semantic contexts whose membership evidence applies at one statement:
-/// the exit contexts of the call that owns it, or the statement's own entry
-/// contexts when no call does.
-pub(super) fn statement_semantic_contexts(
+/// Use the value's retained evaluation epoch, including constructed children
+/// before later sibling effects. Statements without a stored operand retain
+/// the existing completed-call or entry context.
+fn value_semantic_contexts(
     facts: &CheckFacts,
     state: &FlowStateFact,
     statement_index: usize,
+    value: ExpressionHandle,
 ) -> Vec<facts::FactContextHandle> {
+    if let Some(statement) = facts.flow.state_statement(state, statement_index) {
+        match completed_operand(facts, statement.stored_value, value) {
+            Ok(Some(operand)) => {
+                return facts
+                    .flow
+                    .semantic_constraint_contexts(operand.constraints)
+                    .collect();
+            }
+            // A shared syntax handle cannot choose between distinct captured
+            // evaluations. An entry or last-call fallback cannot resolve that
+            // ambiguity either, so it supplies no membership premise.
+            Err(()) => return Vec::new(),
+            Ok(None) => {}
+        }
+    }
     let contexts = facts
         .flow
         .control
@@ -75,6 +90,48 @@ pub(super) fn statement_semantic_contexts(
         .iter()
         .map(|reference| reference.context)
         .collect::<Vec<_>>()
+}
+
+/// Construction children are already evaluated observations, not syntax replay.
+fn completed_operand(
+    facts: &CheckFacts,
+    handle: arena::Handle<checked_trees::FlowOperandFact>,
+    expression: ExpressionHandle,
+) -> Result<Option<&checked_trees::FlowOperandFact>, ()> {
+    if !facts.flow.control.operands.is_valid(handle) {
+        return Ok(None);
+    }
+    fn select(
+        facts: &CheckFacts,
+        handle: arena::Handle<checked_trees::FlowOperandFact>,
+        expression: ExpressionHandle,
+        selected: &mut arena::Handle<checked_trees::FlowOperandFact>,
+    ) -> Result<(), ()> {
+        if !facts.flow.control.operands.is_valid(handle) {
+            return Err(());
+        }
+        let operand = facts.flow.control.operands.get(handle);
+        if operand.expression == expression {
+            if selected.is_valid() && *selected != handle {
+                return Err(());
+            }
+            *selected = handle;
+        }
+        for child in facts
+            .flow
+            .control
+            .operand_children
+            .span_or_empty(operand.children)
+        {
+            select(facts, child.value, expression, selected)?;
+        }
+        Ok(())
+    }
+    let mut selected = arena::Handle::invalid();
+    select(facts, handle, expression, &mut selected)?;
+    Ok(selected
+        .is_valid()
+        .then(|| facts.flow.control.operands.get(selected)))
 }
 
 /// An extracted payload needs its current tag before any qualification rule
@@ -102,7 +159,7 @@ pub(super) fn value_case_path_is_selected(
     {
         return true;
     }
-    let contexts = statement_semantic_contexts(facts, state, statement_index);
+    let contexts = value_semantic_contexts(facts, state, statement_index, value);
     crate::flow::place_cases_are_selected(
         program,
         &facts.semantic,

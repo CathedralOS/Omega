@@ -19,6 +19,7 @@ pub(crate) struct ComposedCatalogs<'a> {
     pub(crate) structural_types: Cow<'a, [StructuralTypeDeclaration]>,
     pub(crate) type_ids: Cow<'a, [(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)]>,
     pub(crate) domain_ids: Cow<'a, [StructuralDomainBinding]>,
+    pub(crate) domain_declarations: &'a [terminal_psi::StructuralDomainDeclaration],
     /// The boundaries a provider attachment names, by checked source.
     pub(crate) lowered_boundaries: Vec<LoweredComposedBoundary>,
     pub(in crate::unit::attached_unit) boundary_parameters: Cow<'a, [BoundaryParameters]>,

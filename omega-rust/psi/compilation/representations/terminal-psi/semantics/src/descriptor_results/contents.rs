@@ -266,7 +266,7 @@ pub fn payload_memberships(
             }
         };
         let carrier = selected.carrier;
-        close_byte_predicate_memberships(types, domains, &mut selected);
+        close_predicate_memberships(types, domains, &mut selected);
         if let Some(common) = &mut common {
             if common.carrier != carrier {
                 return None;
@@ -288,7 +288,7 @@ pub fn payload_memberships(
 /// content witness. Close each candidate before intersection: distinct incoming
 /// theories may imply the same predicate-only membership. Unknown payloads still
 /// decline above, and type, access, availability and custody remain independent.
-fn close_byte_predicate_memberships(
+fn close_predicate_memberships(
     types: &[StructuralTypeDeclaration],
     domains: &[terminal_psi::StructuralDomainDeclaration],
     contract: &mut PayloadMembershipContract,
@@ -299,8 +299,23 @@ fn close_byte_predicate_memberships(
         carrier: StructuralTypeId,
         qualifications: &[semantic_vocabulary::StructuralDomainId],
     ) -> Vec<semantic_vocabulary::StructuralDomainId> {
+        // A closed empty theory classifies every value of this exact carrier.
+        // Routed and Content memberships remain occurrence-bound even when
+        // their logical predicate is Truth.
+        let mut implied = domains
+            .iter()
+            .filter(|domain| {
+                domain.carrier == carrier
+                    && domain.establishment_routes.is_empty()
+                    && domain.content_projection.is_none()
+                    && domain.predicate.as_ref().is_some_and(|predicate| {
+                        predicate.proposition == semantic_vocabulary::Proposition::Truth
+                    })
+            })
+            .map(|domain| domain.id)
+            .collect::<Vec<_>>();
         if !crate::byte_predicate_carrier(types.iter(), carrier) {
-            return Vec::new();
+            return implied;
         }
         let mut supplied = terminal_psi::ByteSequencePredicateSet::EMPTY;
         for domain in qualifications {
@@ -312,14 +327,18 @@ fn close_byte_predicate_memberships(
                 }
             }
         }
-        domains
-            .iter()
-            .filter(|domain| {
-                crate::byte_qualification_predicates_in(domains.iter(), carrier, &[domain.id])
-                    .is_some_and(|required| supplied.implies(required))
-            })
-            .map(|domain| domain.id)
-            .collect()
+        implied.extend(
+            domains
+                .iter()
+                .filter(|domain| {
+                    crate::byte_qualification_predicates_in(domains.iter(), carrier, &[domain.id])
+                        .is_some_and(|required| supplied.implies(required))
+                })
+                .map(|domain| domain.id),
+        );
+        implied.sort();
+        implied.dedup();
+        implied
     }
     contract.qualifications.extend(implied(
         types,

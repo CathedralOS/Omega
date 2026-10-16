@@ -104,8 +104,7 @@ pub(crate) fn validate_structural_root_operations(
     // Both scalar store forms reconstruct the same root authority; local
     // results retain their exact producing operation instead of an ABI slot.
     let exact_scalar_store_destination =
-        |destination: &abstract_operations::StructuralScalarStoreDestination,
-         written: &[terminal_psi::StructuralPathSegment]| match destination {
+        |destination: &abstract_operations::StructuralScalarStoreDestination| match destination {
             abstract_operations::StructuralScalarStoreDestination::Parameter(parameter) => {
                 exact_store_destination(parameter)
                     && matches!(
@@ -114,15 +113,6 @@ pub(crate) fn validate_structural_root_operations(
                             | terminal_psi::StructuralAccess::MutableBorrow
                             | terminal_psi::StructuralAccess::WriteOnlyBorrow
                     )
-                    && terminal_semantics::primitive_store_restriction(
-                        structural_types.values().copied(),
-                        structural_domains.values().copied(),
-                        parameter.structural_type,
-                        &parameter.qualifications,
-                        &parameter.projected_qualifications,
-                        written,
-                    )
-                    .is_some()
             }
             abstract_operations::StructuralScalarStoreDestination::OwnedResult {
                 producer,
@@ -133,15 +123,6 @@ pub(crate) fn validate_structural_root_operations(
                         producer: *producer,
                         structural_type: result.structural_type,
                     })
-                    && terminal_semantics::primitive_store_restriction(
-                        structural_types.values().copied(),
-                        structural_domains.values().copied(),
-                        result.structural_type,
-                        &result.qualifications,
-                        &result.projected_qualifications,
-                        written,
-                    )
-                    .is_some()
                     && function.block_nodes().any(|node| {
                         node.operation
                             .structural_result()
@@ -165,15 +146,6 @@ pub(crate) fn validate_structural_root_operations(
                     })
                     && *block != function.entry
                     && parameter.access == terminal_psi::StructuralAccess::Owned
-                    && terminal_semantics::primitive_store_restriction(
-                        structural_types.values().copied(),
-                        structural_domains.values().copied(),
-                        parameter.structural_type,
-                        &parameter.qualifications,
-                        &parameter.projected_qualifications,
-                        written,
-                    )
-                    .is_some()
                     && function.block(*block).is_some_and(|candidate| {
                         candidate
                             .structural_parameters
@@ -399,7 +371,16 @@ pub(crate) fn validate_structural_root_operations(
                     // Entry parameters, owned results and state arrivals all
                     // use the same exact primitive endpoint. The receiving
                     // restriction and custody frontier remain independent.
-                    let valid = exact_scalar_store_destination(destination, path)
+                    let valid = exact_scalar_store_destination(destination)
+                        && terminal_semantics::primitive_store_restriction(
+                            structural_types.values().copied(),
+                            structural_domains.values().copied(),
+                            destination.structural_type(),
+                            destination.qualifications(),
+                            destination.projected_qualifications(),
+                            path,
+                        )
+                        .is_some()
                         && (destination.multiplicity()
                             == terminal_psi::StructuralMultiplicity::Unrestricted
                             || (!path.is_empty()
@@ -462,18 +443,30 @@ pub(crate) fn validate_structural_root_operations(
                     // supplies its incoming permission, never an entry ABI slot.
                     // Availability above and exclusive-transfer replay below
                     // independently establish dominance and live custody.
-                    let mut written = path.clone();
-                    if let Some(declaration) = field_declaration {
-                        written.push(terminal_psi::StructuralPathSegment::Field(
-                            declaration.identity,
-                        ));
-                    }
-                    let exact_destination = exact_scalar_store_destination(destination, &written);
+                    let preserved = terminal_semantics::scalar_field_store_preserves_qualifications(
+                        structural_types.values().copied(),
+                        structural_domains.values().copied(),
+                        &unit.identities,
+                        destination.structural_type(),
+                        destination.qualifications(),
+                        destination.projected_qualifications(),
+                        path,
+                        *field,
+                    );
+                    let conserved = terminal_semantics::scalar_field_store_preserves_content(
+                        structural_types.values().copied(),
+                        structural_domains.values().copied(),
+                        &unit.identities,
+                        destination.structural_type(),
+                        destination.place(),
+                        function.content_entry_claims.iter(),
+                        path,
+                        *field,
+                    );
+                    let exact_destination = exact_scalar_store_destination(destination);
                     let valid = exact_destination
-                        && function
-                            .content_entry_claims
-                            .iter()
-                            .all(|claim| claim.input.root != destination.place())
+                        && preserved
+                        && conserved
                         && field_declaration.is_some_and(|declaration| {
                             declaration.field_type.scalar_type() == Some(value.scalar_type)
                                 && terminal_semantics::scalar_field_requires_evidence(
@@ -601,6 +594,37 @@ pub(crate) fn validate_structural_root_operations(
                     source,
                     storage,
                 } => {
+                    let ancestors_preserved =
+                        crate::unit_validation::operation_contracts::structural_source_contract(
+                            function,
+                            source.place,
+                        )
+                        .is_some_and(|contract| {
+                            let path = terminal_semantics::reference_source_storage_path(
+                                structural_types.values().copied(),
+                                contract.structural_type,
+                                &source.path,
+                            );
+                            contract.reference_ancestor_qualifications_preserved(
+                                structural_types.values().copied(),
+                                structural_domains.values().copied(),
+                                &unit.identities,
+                                path,
+                                source.access,
+                            ) && (source.access == terminal_psi::StructuralAccess::SharedBorrow
+                                || terminal_semantics::store_preserves_content(
+                                    structural_types.values().copied(),
+                                    structural_domains.values().copied(),
+                                    &unit.identities,
+                                    contract.structural_type,
+                                    source.place,
+                                    function
+                                        .content_entry_claims
+                                        .iter()
+                                        .filter(|claim| claim.input.segments.len() < path.len()),
+                                    path,
+                                ))
+                        });
                     let field_compatible = storage.is_none()
                         && crate::unit_validation::operation_contracts::structural_source_contract(
                             function,
@@ -644,6 +668,7 @@ pub(crate) fn validate_structural_root_operations(
                         }
                     });
                     let valid = expected.is_some()
+                        && ancestors_preserved
                         && crate::unit_validation::references::reference_source_accessible(function, structural_types, source)
                         && result.multiplicity == terminal_psi::StructuralMultiplicity::Affine
                         && result.qualifications.is_empty()
@@ -659,6 +684,8 @@ pub(crate) fn validate_structural_root_operations(
                             );
                             let Ok(captured) = contract.reference_memberships(
                                 structural_types.values().copied(),
+                                structural_domains.values().copied(),
+                                &unit.identities,
                                 path,
                                 source.access,
                             ) else {

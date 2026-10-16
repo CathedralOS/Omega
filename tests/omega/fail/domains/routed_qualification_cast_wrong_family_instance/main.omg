@@ -1,0 +1,8 @@
+data Ticket [copy] { number: u64; }
+domain<const Axis: u64> Ticket::Issued<Axis> established by issue_seven, issue_nine;
+machine issue_seven() -> Ticket in Issued<7> { Ticket { number: 7 } }
+machine issue_nine() -> Ticket in Issued<9> { Ticket { number: 9 } }
+machine forge(ticket: Ticket in Issued<7>) -> Ticket in Issued<9> {
+ ticket as Ticket in Issued<9>
+}
+machine main() { }

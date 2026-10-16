@@ -492,9 +492,13 @@ pub(super) fn lower(
             effects::lower(operation, machine, structural_types, value_types)
         }
         OperationKind::StructuralScalarFieldStore { .. }
-        | OperationKind::ScalarStructuralField { .. } => {
-            structural_scalar_fields::lower(operation, machine, structural_types, value_types)
-        }
+        | OperationKind::ScalarStructuralField { .. } => structural_scalar_fields::lower(
+            operation,
+            machine,
+            structural_types,
+            module,
+            value_types,
+        ),
         terminal_psi::move_or_store_structural_field_pattern!() => {
             borrowed_windows::lower(operation, machine, structural_types)
         }

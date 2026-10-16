@@ -88,31 +88,17 @@ impl BoundaryCallingPlanRealization {
     /// Publish the completed ABI application without retaining evaluator state.
     /// The validated plan is retained at production and callback closure, not
     /// reconstructed by a downstream native stage.
-    pub fn native_application(&self) -> calling_conventions::BoundaryCallingApplication {
-        let signature = &self.materialized_signature;
-        calling_conventions::BoundaryCallingApplication {
-            requirement_identity: signature.owner_requirement_identity().to_owned(),
-            target: signature.native_target(),
-            report_fingerprint: self.report_fingerprint,
-            commitment: self.commitment.as_bytes(),
-            plan: self.validated_boundary_entry_plan.clone(),
-            signature: calling_conventions::BoundarySignatureGeometry {
-                shapes: signature.shapes().to_vec(),
-                fields: signature.fields().to_vec(),
-                parameters: signature.parameters().to_vec(),
-                result: signature.result(),
-            },
-            opaque_applications: signature
-                .opaque_representation_uses()
-                .iter()
-                .map(|use_| calling_conventions::BoundaryOpaqueApplication {
-                    shape_root: use_.shape_root(),
-                    application_report_fingerprint: use_.application_report_fingerprint(),
-                    selected_application_commitment: use_.selected_application_commitment(),
-                })
-                .collect(),
-            callback_context_closed: self.callback_context_closed,
-        }
+    pub fn native_application(
+        &self,
+    ) -> Result<calling_conventions::BoundaryCallingApplication, String> {
+        let mut application = source_free_application(
+            &self.materialized_signature,
+            &self.validated_boundary_entry_plan,
+        )?;
+        application.report_fingerprint = self.report_fingerprint;
+        application.commitment = self.commitment.as_bytes();
+        application.callback_context_closed = self.callback_context_closed;
+        Ok(application)
     }
 
     pub(crate) fn replayed_validated_plan(
@@ -203,7 +189,8 @@ impl BoundaryCallingPlanRealization {
                 })?;
         }
         let (report_fingerprint, commitment) =
-            boundary_plan_application_identity(&self.materialized_signature, &validated);
+            boundary_plan_application_identity(&self.materialized_signature, &validated)
+                .map_err(calling_conventions::PlanDiagnostic)?;
         Ok((
             validated,
             report_fingerprint,
@@ -291,6 +278,8 @@ pub(crate) fn validate_callback_requirement_report_collision(
 /// backend lowering so a missing, duplicated, or changed placement recipe
 /// cannot silently fall back to a convention oracle.
 pub fn validate_nominal_callback_placement_bindings(
+    typed: &TypedTrees,
+    selected_providers: &effects::SelectedProviderPlanFacts,
     facts: &checked_trees::CheckFacts,
     realizations: &[BoundaryCallingPlanRealization],
 ) -> Result<Vec<SelectedCallbackPlacement>, Vec<Diagnostic>> {
@@ -305,7 +294,26 @@ pub fn validate_nominal_callback_placement_bindings(
                     && realization.boundary_arguments.is_empty()
             })
             .collect::<Vec<_>>();
+        let foreign_registration = match registration_is_foreign(
+            typed,
+            selected_providers,
+            nominal_use.registration_operation,
+        ) {
+            Ok(boundary) => boundary,
+            Err(reason) => {
+                diagnostics.push(Diagnostic::error(reason));
+                continue;
+            }
+        };
         let Some(resource_receipt) = nominal_use.callback_entry else {
+            if foreign_registration
+                && typed
+                    .trait_definition_by_symbol(nominal_use.satisfaction_trait)
+                    .is_some_and(|definition| definition.is_boundary)
+            {
+                diagnostics.push(Diagnostic::error("foreign callback registration requires an explicit selected callback calling plan"));
+                continue;
+            }
             if !matching.is_empty() {
                 diagnostics.push(Diagnostic::error(format!(
                     "nominal callback use for `{}` has a target calling plan without a checked callback entry",
@@ -407,6 +415,12 @@ pub fn validate_nominal_callback_placement_bindings(
             )));
             continue;
         }
+        // Forwarding has no registrar occurrence or private native root.
+        // Its exact selection/refinement/resource receipts remain in Psi;
+        // only the eventual selected external leaf publishes a placement.
+        if !foreign_registration {
+            continue;
+        }
         let private_materialization = match bound_private_callback_materialization(
             nominal_use,
             realizations,
@@ -466,6 +480,54 @@ pub fn validate_nominal_callback_placement_bindings(
         Ok(bound)
     } else {
         Err(diagnostics)
+    }
+}
+
+fn registration_is_foreign(
+    typed: &TypedTrees,
+    selected: &effects::SelectedProviderPlanFacts,
+    operation: symbols::SymbolHandle,
+) -> Result<bool, String> {
+    let identity = if let Some((owner, signature)) = typed.trait_machine_signature(operation) {
+        if !owner.is_boundary {
+            return Ok(false);
+        }
+        typed.trait_requirement_callable_identity_text(owner, signature)
+    } else if let Some(machine) = typed.machine_by_own_or_state_symbol(operation) {
+        if machine.supplies_checked_body() {
+            return Ok(false);
+        }
+        typed
+            .machine_callable_identity_text(machine)
+            .ok_or_else(|| {
+                "nominal machine registration lost its complete callable identity".to_owned()
+            })?
+    } else {
+        return Err(format!(
+            "nominal machine use lost its exact registration declaration: {} ({operation:?})",
+            typed.symbols.display_path(operation, "::"),
+        ));
+    };
+    let (plan, row) = selected
+        .selected_requirement_row(&identity)
+        .ok_or_else(|| {
+            "nominal callback registration has no exact selected provider row".to_owned()
+        })?;
+    match &row.binding {
+        effects::provider_plan::ProviderBinding::CheckedAdapter { .. } => {
+            let context =
+                crate::ProviderPlanningContext::new(typed, source::DependencyScope::Product);
+            let adapter = crate::exact_checked_adapter(context, plan, row).map_err(|diagnostic| format!("callback forwarding provider is not its exact checked adapter: {diagnostic:?}"))?;
+            if !adapter.supplies_checked_body() {
+                return Err(
+                    "callback forwarding provider does not supply a checked body".to_owned(),
+                );
+            }
+            Ok(false)
+        }
+        // Imports, syscalls, intrinsics and opaque table dispatch are actual
+        // external leaves. None may borrow a checked-adapter exemption.
+        _ => Ok(true),
     }
 }
 
@@ -702,6 +764,7 @@ fn bound_private_callback_materialization(
         registrar_calling_plan_report_fingerprint: validated.contract_report_fingerprint(),
         registrar_application_report_fingerprint: application_report_fingerprint,
         registrar_application_commitment: application_commitment,
+        registrar_application: registrar.native_application()?,
         direct_registrar_parameter_application,
         root_parameter_application,
         field_byte_offset,
@@ -797,74 +860,48 @@ pub fn close_outbound_callback_materializations(
             )?;
         let mut demand_requirement_catalog = Vec::new();
         for parameter in &signature.native_parameters {
-            for demand in layout_plan
-                .private_callback_demands
+            for layout in layout_plan
+                .private_callback_layouts
                 .iter()
-                .filter(|demand| demand.data_symbol == parameter.layout_data_symbol)
+                .filter(|layout| layout.root_layout().data_symbol == parameter.layout_data_symbol)
             {
+                let terminal = layout.terminal_slot();
                 validate_callback_requirement_report_collision(
                     &binder_requirement_catalog,
-                    demand.requirement,
-                    &demand.callback_requirement_identity,
+                    terminal.requirement,
+                    &terminal.callback_requirement_identity,
                 )
                 .and_then(|()| {
                     validate_callback_requirement_report_collision(
                         &demand_requirement_catalog,
-                        demand.requirement,
-                        &demand.callback_requirement_identity,
+                        terminal.requirement,
+                        &terminal.callback_requirement_identity,
                     )
                 })
                 .map_err(|reason| {
                     vec![Diagnostic::error(reason).with_source_span(realization.relationship_span)]
                 })?;
                 demand_requirement_catalog.push((
-                    demand.requirement,
-                    demand.callback_requirement_identity.to_string(),
+                    terminal.requirement,
+                    terminal.callback_requirement_identity.to_string(),
                 ));
-                let entry = BoundaryCallbackLayoutEntry::direct(
-                    parameter,
-                    &layout_plan.plan_laid_layout_identities,
-                    demand,
-                )
-                .map_err(|reason| {
-                    vec![Diagnostic::error(reason).with_source_span(realization.relationship_span)]
-                })?;
-                demands.push((demand.native_demand(parameter.identity), Some(entry)));
-            }
-            for path in layout_plan
-                .two_hop_private_callback_paths
-                .iter()
-                .filter(|path| path.root_layout.data_symbol == parameter.layout_data_symbol)
-            {
-                validate_callback_requirement_report_collision(
-                    &binder_requirement_catalog,
-                    path.terminal_demand.requirement,
-                    &path.terminal_demand.callback_requirement_identity,
-                )
-                .and_then(|()| {
-                    validate_callback_requirement_report_collision(
-                        &demand_requirement_catalog,
-                        path.terminal_demand.requirement,
-                        &path.terminal_demand.callback_requirement_identity,
-                    )
-                })
-                .map_err(|reason| {
-                    vec![Diagnostic::error(reason).with_source_span(realization.relationship_span)]
-                })?;
-                demand_requirement_catalog.push((
-                    path.terminal_demand.requirement,
-                    path.terminal_demand
-                        .callback_requirement_identity
-                        .to_string(),
-                ));
-                let entry =
-                    BoundaryCallbackLayoutEntry::two_hop(parameter, path).map_err(|reason| {
+                let entry = BoundaryCallbackLayoutEntry::from_layout(parameter, layout).map_err(
+                    |reason| {
                         vec![
                             Diagnostic::error(reason)
                                 .with_source_span(realization.relationship_span),
                         ]
-                    })?;
-                demands.push((path.native_demand(parameter.identity), Some(entry)));
+                    },
+                )?;
+                demands.push((
+                    layout.native_demand(parameter.identity).map_err(|reason| {
+                        vec![
+                            Diagnostic::error(reason)
+                                .with_source_span(realization.relationship_span),
+                        ]
+                    })?,
+                    Some(entry),
+                ));
             }
         }
         if demands.is_empty() && realization.callback_binders.is_empty() {
@@ -942,7 +979,8 @@ pub fn close_outbound_callback_materializations(
             ]
         })?;
         let (new_fingerprint, new_commitment) =
-            boundary_plan_application_identity(&signature, &validated);
+            boundary_plan_application_identity(&signature, &validated)
+                .map_err(|reason| vec![Diagnostic::error(reason)])?;
         realization.report_fingerprint = new_fingerprint;
         realization.commitment =
             effects::provider_plan::BoundaryCallingPlanCommitment::from_digest(new_commitment);
@@ -1055,4 +1093,52 @@ pub(crate) fn callback_materialization_context(
             .collect(),
         demands: signature.callback_demands.clone(),
     }
+}
+
+/// Canonical source-free projection shared by initial policy evaluation and
+/// callback closure. Admission recomputes this payload against an independently
+/// selected method commitment; this constructor grants no receiving authority.
+pub(super) fn source_free_application(
+    signature: &MaterializedBoundarySignature,
+    validated: &ValidatedBoundaryEntryPlan,
+) -> Result<calling_conventions::BoundaryCallingApplication, String> {
+    let mut native_parameters = arena::Arena::with_capacity(signature.native_parameters.len());
+    let mut native_parameter_rows = arena::HandleSpan::empty();
+    for parameter in &signature.native_parameters {
+        native_parameters.append_to_span(
+            &mut native_parameter_rows,
+            calling_conventions::BoundaryNativeParameterGeometry {
+                identity: parameter.identity,
+                native_ordinal: parameter.native_ordinal,
+                origin: parameter.origin,
+                shape: parameter.shape,
+            },
+        );
+    }
+    let mut callback_layouts = arena::Arena::with_capacity(signature.callback_layout_catalog.len());
+    let mut callback_layout_rows = arena::HandleSpan::empty();
+    for entry in &signature.callback_layout_catalog {
+        callback_layouts.append_to_span(&mut callback_layout_rows, entry.source_free()?);
+    }
+    Ok(calling_conventions::BoundaryCallingApplication {
+        requirement_identity: signature.owner_requirement_identity().to_owned(),
+        target: signature.native_target(), report_fingerprint: 0, commitment: [0;32],
+        plan: validated.clone(),
+        signature: calling_conventions::BoundarySignatureGeometry {
+            shapes: signature.shapes().to_vec(), fields: signature.fields().to_vec(),
+            parameters: signature.parameters().to_vec(), result: signature.result(),
+            native_parameters, native_parameter_rows, callback_layouts, callback_layout_rows,
+        },
+        opaque_applications: signature.opaque_representation_uses().iter().map(|use_| {
+            calling_conventions::BoundaryOpaqueApplication {
+                shape_root: use_.shape_root(), application_report_fingerprint: use_.application_report_fingerprint(),
+                selected_application_commitment: use_.selected_application_commitment(),
+                conformance_application_commitment: use_.conformance_application_commitment,
+                representation_schema_version: use_.representation_schema_version,
+                checked_semantic_copy: matches!(use_.copy_disposition,
+                    representation_planning::OpaqueRepresentationCopyDisposition::CheckedSemanticCopy),
+            }
+        }).collect(),
+        callback_context_closed: false,
+    })
 }

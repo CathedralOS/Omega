@@ -20,6 +20,8 @@ pub struct ContentEntryClaim {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ContentIdentityReshuffle {
+    /// The same claim may have rows for mutually exclusive result cases.
+    /// All such rows retain one input and the same complete projection set.
     pub claim: ClaimId,
     pub input: ContentStructuralPlace,
     pub output: ContentStructuralPlace,

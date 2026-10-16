@@ -337,6 +337,8 @@ impl CheckedByteSequenceCarrier {
 /// One normalized structural qualification required by a retained parameter.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedUnitStructuralDomainPlan {
+    /// Complete closed declaration predicates over formal subject zero; None is opaque.
+    pub predicate: Option<crate::CheckedBooleanExpression>,
     pub byte_predicate: Option<language_semantics::byte_predicates::ByteSequencePredicate>,
     pub domain: SemanticDomainId,
     /// The domain's canonical name spelling; the `domain` id is the identity.

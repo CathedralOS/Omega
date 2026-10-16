@@ -41,11 +41,6 @@ pub fn bind_checked_providers(
             &settlement.selected_provider_plan_facts,
         )?;
     }
-    let callback_placements =
-        provider_planning::calling_policy_plans::validate_nominal_callback_placement_bindings(
-            &program.facts,
-            settlement.boundary_calling_plan_realizations,
-        )?;
     let binding = provider_planning::bind_selected_provider_plan_facts(
         &program,
         &program.facts,
@@ -55,6 +50,13 @@ pub fn bind_checked_providers(
         settlement.authored_root_grants,
     )?;
     let (selected_provider_plan_facts, selected_provider_grants) = binding.into_parts();
+    let callback_placements =
+        provider_planning::calling_policy_plans::validate_nominal_callback_placement_bindings(
+            &program.typed,
+            &selected_provider_plan_facts,
+            &program.facts,
+            settlement.boundary_calling_plan_realizations,
+        )?;
     Ok(CheckedProviderProgram {
         program,
         selected_provider_plan_facts,

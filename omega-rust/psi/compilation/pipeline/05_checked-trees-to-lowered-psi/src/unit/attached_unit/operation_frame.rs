@@ -165,6 +165,7 @@ pub(super) struct Callees<'f> {
     pub(super) signatures: &'f [MachineSignature],
     pub(super) boundaries: &'f [BoundaryParameters],
     pub(super) domain_ids: &'f [crate::terminal_identities::StructuralDomainBinding],
+    pub(super) domain_declarations: &'f [terminal_psi::StructuralDomainDeclaration],
     /// The closure's Unit bodies: a scalar call may name one that completes
     /// with a scalar instead of a prepared scalar callee.
     pub(super) closure: &'f [symbols::SymbolHandle],

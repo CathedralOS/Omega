@@ -959,6 +959,7 @@ pub(super) fn lower_unit_structural_domains(
     closure: &[symbols::SymbolHandle],
     boundaries: &[(&CheckedBoundaryMachinePlan, BoundaryIdentity)],
     type_ids: &[(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)],
+    structural_types: &[StructuralTypeDeclaration],
 ) -> Result<
     (
         Vec<StructuralDomainDeclaration>,
@@ -1210,7 +1211,54 @@ pub(super) fn lower_unit_structural_domains(
             )?;
             let establishment_routes =
                 lower_establishment_routes(identities, checked, &plan.establishment_routes)?;
+            let predicate = plan.predicate.as_ref().and_then(|predicate| {
+                // A distinct declared domain-local namespace, not ambient machine storage.
+                let subject = semantic_vocabulary::PlaceId::new(1)?;
+                let formal = terminal_psi::StructuralParameterDeclaration {
+                    place: subject,
+                    position: 0,
+                    structural_type: lookup_type_id(type_ids, &plan.carrier_type_identity).ok()?,
+                    multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+                    access: terminal_psi::StructuralAccess::SharedBorrow,
+                    qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
+                };
+                let mut propositions =
+                    crate::proofs::crash_routes::lower_structural_crash_predicates(
+                        identities,
+                        std::slice::from_ref(predicate),
+                        &[],
+                        std::slice::from_ref(&formal),
+                        structural_types,
+                        &[],
+                    )
+                    .ok()?;
+                let proposition = match predicate {
+                    checked_trees::CheckedBooleanExpression::Constant(true) => {
+                        semantic_vocabulary::Proposition::Truth
+                    }
+                    checked_trees::CheckedBooleanExpression::Constant(false) => {
+                        semantic_vocabulary::Proposition::Falsehood
+                    }
+                    _ => propositions.last()?.proposition().clone(),
+                };
+                propositions.pop()?;
+                if !propositions.is_empty() {
+                    return None;
+                }
+                let predicate = terminal_psi::StructuralDomainPredicate {
+                    subject,
+                    proposition,
+                };
+                terminal_semantics::domain_predicate_is_closed(
+                    structural_types.iter(),
+                    formal.structural_type,
+                    &predicate,
+                )
+                .then_some(predicate)
+            });
             Ok(StructuralDomainDeclaration {
+                predicate,
                 byte_predicate: plan.byte_predicate,
                 establishment_routes,
                 id: lookup_domain_id_for_carrier(

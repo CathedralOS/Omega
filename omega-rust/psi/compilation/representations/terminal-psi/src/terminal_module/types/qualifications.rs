@@ -7,6 +7,9 @@ use semantic_vocabulary::{
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct StructuralDomainDeclaration {
+    /// Complete closed predicate definition with its own declared formal subject.
+    /// None is opaque; a retained Truth is an explicitly empty predicate theory.
+    pub predicate: Option<StructuralDomainPredicate>,
     pub id: StructuralDomainId,
     /// Stable source-free semantic-domain identity, distinct from this
     /// module-local dense declaration ID.
@@ -29,6 +32,14 @@ pub struct StructuralDomainDeclaration {
     /// are retained here without granting consumer call, conformance, or
     /// private-type access.
     pub establishment_routes: Vec<StructuralEstablishmentRoute>,
+}
+
+/// A domain-local namespace. The explicit subject is bound to the declaration's
+/// carrier, never a machine's ambient place or SSA namespace.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct StructuralDomainPredicate {
+    pub subject: semantic_vocabulary::PlaceId,
+    pub proposition: semantic_vocabulary::Proposition,
 }
 
 impl StructuralDomainDeclaration {

@@ -961,12 +961,13 @@ pub fn declared_carrier_references(
         // Restricting this frontier to shared views loses the source region of
         // an exclusive element returned through a requirement signature.
         if let Some(shell) = crate::reference_shell(program, reference)
-            && matches!(
+            && (matches!(
                 program
                     .type_reference_table
-                    .type_reference(crate::peel_declared_constraints(program, shell.referee),),
+                    .type_reference(crate::peel_declared_constraints(program, shell.referee)),
                 TypeReferenceNode::Slice { .. }
-            )
+            ) || crate::byte_sequence_carrier(program, reference, &[])
+                .is_some_and(|carrier| carrier.is_borrowed()))
         {
             output.push(DeclaredCarrierReference {
                 path: path.clone(),
@@ -1022,7 +1023,8 @@ pub fn declared_carrier_references(
         {
             return visit(program, *base_type, path, output, scopes, scope);
         }
-        let (data, scope) = scopes.definition(program, reference, scope)?;
+        let selected = scopes.definition(program, reference, scope);
+        let (data, scope) = selected?;
         if data.supply_mode != language_semantics::DataSupplyMode::CheckedShape {
             return None;
         }
@@ -1189,7 +1191,7 @@ pub fn local_record_loans(
         .statements(state.statement_nodes)
         .get(statement_index as usize)?
         .as_local_data()?;
-    local_place_loans(
+    let result = local_place_loans(
         program,
         facts,
         machine,
@@ -1197,7 +1199,8 @@ pub fn local_record_loans(
         local.symbol,
         statement_index,
         &[],
-    )
+    );
+    result
 }
 
 /// Join a local storage occurrence formed by a constructor, call or store.

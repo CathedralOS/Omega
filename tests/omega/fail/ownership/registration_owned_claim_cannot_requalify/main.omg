@@ -1,0 +1,17 @@
+use omega::language::core::content;
+use omega::language::core::drop;
+data Slot { }
+data Capacity [linear] { }
+domain Capacity::Held established by acquire;
+machine Held::content(capacity: &Capacity) -> CountedQuantity<Slot>
+satisfies Content<Capacity, CountedQuantity<Slot>>::project {
+ CountedQuantity { magnitude: Nat::Succ { prev: Nat::Zero } }
+}
+machine Capacity::drop(capacity: &mut Capacity) { }
+machine acquire() -> Capacity in Capacity::Held { Capacity { } }
+machine main() {
+ let capacity: Capacity in Capacity::Held = acquire();
+ let erased: Capacity = capacity as Capacity;
+ let forged: Capacity in Capacity::Held = erased as Capacity in Capacity::Held;
+ drop(forged);
+}

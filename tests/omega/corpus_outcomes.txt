@@ -2444,6 +2444,23 @@ fail/domains/routed_domain_as_rejected rejected 902ms expected @a9ae30e1c334+wt
 	`as ... in Issued` cannot establish a non-vacuous domain; every predicate must be proved and routed provenance must come from an exact requirement authorized by the domain
 fail/domains/routed_domain_bare_argument rejected 1275ms expected @2012446ad74a+wt
 	cannot prove requires contract for call spend from relay: x in u64::Issued in state `entry`
+fail/domains/routed_qualification_cast_after_erasure rejected 1304ms expected @e74967d11875
+	`as ... in Ticket::Held` cannot establish a non-vacuous domain; every predicate must be proved and routed provenance must come from an exact requirement authorized by the domain
+fail/domains/routed_qualification_cast_constant rejected 91ms expected @e74967d11875
+	constant initializer: constant cast requires an ordinary exact integer coercion
+fail/domains/routed_qualification_cast_wrong_family_instance rejected 1317ms expected @e74967d11875
+	`as ... in Issued` cannot establish a non-vacuous domain; every predicate must be proved and routed provenance must come from an exact requirement authorized by the domain
+fail/domains/routed_qualification_cast_wrong_occurrence rejected 1341ms expected @e74967d11875
+	`as ... in Ticket::Held` cannot establish a non-vacuous domain; every predicate must be proved and routed provenance must come from an exact requirement authorized by the domain
+fail/domains/routed_qualification_invalidated_field rejected 1345ms expected @e74967d11875
+	`as ... in Capacity::Held` cannot establish a non-vacuous domain; every predicate must be proved and routed provenance must come from an exact requirement authorized by the domain
+fail/domains/routed_qualification_predicate_cannot_authorize rejected 1300ms expected @e74967d11875
+	`as ... in Ticket::Issued` cannot establish a non-vacuous domain; every predicate must be proved and routed provenance must come from an exact requirement authorized by the domain
+fail/domains/routed_qualification_reference_recast rejected 12ms expected @e74967d11875
+	tests/omega/fail/domains/routed_qualification_reference_recast/main.omg:5:20: a recast re-views a place's bytes and takes no arithmetic domain; domains retag VALUE casts (`x as u8 in Wrapping`)
+fail/domains/routed_record_capture_after_sibling_mutation rejected 1254ms expected @e74967d11875
+	cannot prove default-domain field requirement for return from capture at statement 1: Pair.ticket requires Ticket::Issued
+	construction of `Pair` field `ticket` is not proven in domain `Ticket::Issued`; a field declared `in Ticket::Issued` requires every construction value to be established in that domain (construct with a literal its byte-predicate fact accepts, or a value already proven in the domain)
 fail/domains/scalar_alias_zero_requires_all_predicates rejected 5313ms expected @a9ae30e1c334+wt
 	entry machine `Main::main` requests a provisioned `Main` context, but its all-zero image is not a valid value; use a free entry and construct the state explicitly
 	entry machine `Main::main` requests a provisioned `Main` context, but its all-zero image is not a valid value; use a free entry and construct the state explicitly
@@ -2462,16 +2479,16 @@ fail/domains/structural_constructor_predicate_unsatisfied rejected 1182ms expect
 	construction value is not proven in domain `Payload::Ready`
 fail/domains/structural_predicate_cast_false rejected 1417ms expected @2012446ad74a+wt
 	`as ... in Quantity::Additive` cannot prove every domain predicate from the checked operand value; constrain that value with a guarantee or guard
-fail/domains/structural_predicate_cast_routed rejected 235ms expected @2012446ad74a+wt
-	`as ... in Issued` cannot establish a non-vacuous domain; every predicate must be proved and routed provenance must come from an exact requirement authorized by the domain
+fail/domains/structural_predicate_cast_routed rejected 1403ms expected @e74967d11875
+	`as ... in Token::Issued` cannot establish a non-vacuous domain; every predicate must be proved and routed provenance must come from an exact requirement authorized by the domain
 fail/domains/structural_predicate_cast_unproved rejected 1389ms expected @2012446ad74a+wt
 	`as ... in Quantity::Additive` cannot prove every domain predicate from the checked operand value; constrain that value with a guarantee or guard
 fail/domains/structural_qualification_cast_other_domain rejected 226ms expected @0bb0340f378d+wt
 	implicit domain strengthening in argument `counter` for state `entry` assumes `Counter::Ready`; a qualification with no predicate or establishment route may be introduced only by an explicit `as` to the intended target
 fail/domains/structural_qualification_transition_other_domain rejected 282ms expected @2012446ad74a+wt
 	implicit domain strengthening in argument `c` for state `later` assumes `Ready`; a qualification with no predicate or establishment route may be introduced only by an explicit `as` to the intended target
-fail/domains/structural_qualification_transition_routed rejected 185ms expected @2012446ad74a+wt
-	`as ... in Issued` cannot establish a non-vacuous domain; every predicate must be proved and routed provenance must come from an exact requirement authorized by the domain
+fail/domains/structural_qualification_transition_routed rejected 1282ms expected @e74967d11875
+	`as ... in Token::Issued` cannot establish a non-vacuous domain; every predicate must be proved and routed provenance must come from an exact requirement authorized by the domain
 fail/domains/terminal_result_domain_incompatible_carrier rejected 523ms expected @8d3a0acb500a+wt
 	machine `missing` state `entry` local `__hoist_34` delivers a `f64` value to a `i32` local; a landed float retains its format, so changing format requires an explicit conversion
 	store in machine `missing` state `entry` local `__hoist_34` implicitly converts `f64` to `i32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as i32`)
@@ -3819,12 +3836,23 @@ fail/ownership/linear_transparent_record_member_scope_loss rejected 1582ms expec
 	linear value `pair.right` reaches scope exit without being consumed or transferred
 fail/ownership/linear_zero_storage_not_established rejected 1656ms expected @a9ae30e1c334+wt
 	linear value `receipt` has not been established (implicit zero-fill creates no linear obligation); it cannot be moved here
+fail/ownership/live_registration_cannot_drop rejected 1517ms expected @e74967d11875
+	cannot prove automatic cleanup requires at selected edge from drop$specialized$d22dd2ae803745f5$1 state entry after statement 0: value does not establish Registration::drop clause `registration.module == 0 && registration.atom == 0`
+	cannot prove contextual cleanup prerequisite for call drop$specialized$d22dd2ae803745f5$1 from main: live.module does not establish Registration::drop clause `registration.module == 0 && registration.atom == 0`
+fail/ownership/live_registration_cannot_release rejected 461ms expected @e74967d11875
+	implicit domain weakening in argument `capacity` for state `entry` drops `Live`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
 fail/ownership/local_subslice_window_wrong_repair rejected 1219ms expected @a9ae30e1c334+wt
 	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `misplaced`, state `entry` (statement 1): `tokens[1..3][0]` must hold a value again before this state's exits consume the borrow
 fail/ownership/match_selected_parameter_use_after_maybe_move rejected 1476ms expected @7fe95c3b37b3+wt
 	owned value may have been transferred by an earlier match; it cannot be used here
 fail/ownership/nested_borrowed_operand_later_read rejected 1177ms expected @a9ae30e1c334+wt
 	cannot use `holder.token.value` while `holder.token` is absent from borrowed storage: the value moved out at statement 0 must be restored first
+fail/ownership/owned_content_projection_after_call_result rejected 13568ms expected @e74967d11875
+	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "Main::main", reason: "captured scalar store overlaps logical qualification evidence", gap: None })
+fail/ownership/owned_content_projection_in_nested_field rejected 13463ms expected @e74967d11875
+	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "Main::main", reason: "captured scalar store overlaps logical qualification evidence", gap: None })
+fail/ownership/owned_content_projection_in_parameter rejected 11822ms expected @e74967d11875
+	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "retire_owned", reason: "captured scalar store overlaps logical qualification evidence", gap: None })
 fail/ownership/owned_operand_moves_earlier_argument_loan rejected 647ms expected @cc35a4f0d368+wt
 	state `compare` receives an owned value while local borrow `borrowed` is still active (borrowed at statement 9; its last use is at statement 10)
 	state `conflict_code` receives owned `reordered` while an earlier argument in the same call still borrows it
@@ -3836,6 +3864,8 @@ fail/ownership/owned_operand_moves_earlier_argument_loan rejected 647ms expected
 	state `compare` receives owned `alias.first` while an earlier argument in the same call still borrows it
 fail/ownership/owned_parameter_strict_child_restoration rejected 1128ms expected @a9ae30e1c334+wt
 	cannot store into `holder.value` in machine `invalid` state `entry` (statement 1) after `holder` was transferred or consumed at statement 0: assign a whole value to `holder` to re-establish it
+fail/ownership/owned_qualification_invalidated_field rejected 1310ms expected @e74967d11875
+	`as ... in Capacity::Held` cannot establish a non-vacuous domain; every predicate must be proved and routed provenance must come from an exact requirement authorized by the domain
 fail/ownership/owned_replacement_second_move_rejected rejected 1246ms expected @a9ae30e1c334+wt
 	cannot use `item` in machine `Main::main` state `main` (statement 4) after `item` was transferred or consumed at statement 3: it holds no value; read what is needed before the transfer or assign a whole value to `item` first
 fail/ownership/owned_state_immutable_field_store rejected 857ms expected @a9ae30e1c334+wt
@@ -3860,6 +3890,18 @@ fail/ownership/reconstructed_case_write_keeps_linear_debt rejected 1633ms expect
 	linear value `returned.slot::Held.token` reaches scope exit without being consumed or transferred
 fail/ownership/reconstructed_unknown_case_keeps_linear_debt rejected 1557ms expected @a9ae30e1c334+wt
 	linear value `returned.slot::Held.token` reaches scope exit without being consumed or transferred
+fail/ownership/registration_capacity_cannot_release_twice rejected 537ms expected @e74967d11875
+	cannot use `capacity` in machine `main` state `entry` (statement 2) after `capacity` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `capacity` first
+fail/ownership/registration_claim_cannot_duplicate_cases rejected 1294ms expected @e74967d11875
+	cannot establish call-result qualification `Capacity::Held`: the exact invocation, authorized route or consumed qualified claims, and result correspondence are not proved
+	cannot establish call-result qualification `Capacity::Held`: the exact invocation, authorized route or consumed qualified claims, and result correspondence are not proved
+	callable `Duplicate::duplicate` has a structural content result without an exact conservation equation covering its owned qualified output paths from consumed inputs of the same qualification; result annotations and equal content algebras do not establish partitioned authority
+fail/ownership/registration_claim_cannot_reconstruct rejected 1501ms expected @e74967d11875
+	cannot prove automatic cleanup requires at selected edge from replace state entry after statement 0: capacity does not establish Registration::drop clause `registration.module == 0 && registration.atom == 0`
+	cannot prove default-domain field requirement for return from replace at statement 0: Registration requires Registration::Held
+	construction value is not proven in domain `Registration::Held`
+fail/ownership/registration_owned_claim_cannot_requalify rejected 1281ms expected @e74967d11875
+	`as ... in Capacity::Held` cannot establish a non-vacuous domain; every predicate must be proved and routed provenance must come from an exact requirement authorized by the domain
 fail/ownership/runtime_singleton_selector_moved_element rejected 2270ms expected @8a2c1f68d503
 	cannot use `tokens[index]` in machine `main` state `entry` (statement 3) after `tokens[0]` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `tokens[0]` first
 fail/ownership/runtime_unknown_selector_partial_cleanup rejected 2596ms expected @8a2c1f68d503
@@ -5923,6 +5965,7 @@ pass/calls/callback_owned_float_record_packing checked 13010ms check-target:maco
 pass/calls/callback_owned_indirect_float_record checked 13563ms check-target:macos_arm64 @f523463c7783+wt
 pass/calls/callback_owned_indirect_record checked 6407ms check-target:macos_arm64 @f523463c7783+wt
 pass/calls/callback_owned_overaligned_record checked 7007ms check-target:macos_arm64 @f523463c7783+wt
+pass/calls/callback_private_deep_forwarded_record checked 21442ms check-target:windows_x86_64 @e74967d11875
 pass/calls/callback_private_materialization checked 11896ms check-target:windows_x86_64 @6c75d91f0312
 pass/calls/callback_scalar_loan_permutation checked 6143ms check-target:macos_arm64 @f523463c7783+wt
 pass/calls/caller_result_binding_mutable_loan_exit checked 12520ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -6789,6 +6832,8 @@ pass/domains/record_literal_view_member_store_exit checked 11555ms check-target:
 pass/domains/record_predicate_domain_member_exit checked 11607ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/domains/refinement_chain_predicates checked 1707ms @a9ae30e1c334+wt
 pass/domains/refinement_chain_routed_provenance checked 1643ms @a9ae30e1c334+wt
+pass/domains/retained_routed_qualification_cast checked 1530ms @e74967d11875
+pass/domains/routed_record_capture_before_sibling_mutation checked 1503ms @e74967d11875
 pass/domains/runtime_case_constructor_child_memberships_exit checked 11262ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/domains/runtime_computed_qualification_exit checked 11223ms check-target:macos_arm64 @9c4d1c444502
 pass/domains/runtime_constructor_ensured_membership_exit checked 9039ms check-target:macos_arm64 @dd191203ff08+wt
@@ -6834,6 +6879,7 @@ pass/drops/drop_requires_hook checked 9747ms @5041ef1af684+wt
 pass/drops/erased_record_initializer_exit checked 13281ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/drops/lifetime_owner_drop_hook checked 1710ms @a9ae30e1c334+wt
 pass/drops/ordered_teardown_body checked 1787ms @a9ae30e1c334+wt
+pass/drops/owned_qualified_contextual_cleanup_exit checked 13947ms check-target:macos_arm64 @e74967d11875
 pass/drops/projected_case_subject_root_cleanup_exit checked 12228ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/drops/reference_rebinding_preserves_pointee_exit checked 2294ms check-target:macos_arm64 @c1d3bd9711c2+wt
 pass/drops/runtime_abandoned_record_construction_prefix_exit checked 12772ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -7333,6 +7379,7 @@ pass/host/runtime_gui_window_lifecycle_exit checked 11396ms check-target:windows
 pass/host/runtime_stored_scalar_reference_foreign_export_exit checked 3861ms check-target:macos_arm64 @61ba1df9375e+wt
 pass/host/runtime_windows_gui_argument_failures_exit checked 5913ms check-target:windows_x86_64 @6050c1c112ee+wt
 pass/host/std_clock_sleep_exit checked 12935ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/host/user32_window_procedure_registration checked 21540ms check-target:windows_x86_64 @e74967d11875
 pass/inline_asm/asm_aarch64_system_registers_compile checked 6667ms check-target:macos_arm64 @9f1c8cc89b93+wt
 pass/inline_asm/asm_block_jmp_state checked 6621ms check-target:macos_arm64 @9f1c8cc89b93+wt
 pass/inline_asm/asm_exact_clobbers checked 6470ms @9f1c8cc89b93+wt
@@ -7668,6 +7715,7 @@ pass/ownership/param_member_write_compile checked 1690ms @a9ae30e1c334+wt
 pass/ownership/partial_carrier_refill_exit checked 5502ms check-target:macos_arm64 @e47dcb1ff6d8+wt
 pass/ownership/partial_field_move_compile checked 1630ms @a9ae30e1c334+wt
 pass/ownership/read_owner_before_consumption_and_after_reassignment checked 1816ms @a9ae30e1c334+wt
+pass/ownership/registration_capacity_case_round_trip checked 12264ms check-target:macos_arm64 @e74967d11875
 pass/ownership/runtime_borrowed_captured_selector_exit checked 10886ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/ownership/runtime_borrowed_carried_loan_roundtrip_exit checked 11584ms check-target:macos_arm64 @55ccf9be57c4
 pass/ownership/runtime_borrowed_carried_loan_transform_exit checked 11152ms check-target:macos_arm64 @55ccf9be57c4

@@ -1,0 +1,10 @@
+data Capacity [copy] { owner: u64; active: u64; }
+domain Capacity::Held(value) requires value.owner != 0 established by acquire;
+machine acquire(owner: u64) -> Capacity in Capacity::Held
+requires owner != 0 { Capacity { owner: owner, active: 0 } }
+machine corrupt(capacity: Capacity in Capacity::Held) -> Capacity in Capacity::Held {
+ let mut retained: Capacity in Capacity::Held = capacity;
+ retained.owner = 0;
+ retained as Capacity in Capacity::Held
+}
+machine main() { }

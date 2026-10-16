@@ -10,12 +10,12 @@ struct RequestedCallbackOperation<'terminal> {
     match_count: usize,
 }
 
-pub(super) struct CallbackTerminalOperations<'terminal> {
+pub(crate) struct CallbackTerminalOperations<'terminal> {
     requested: Vec<RequestedCallbackOperation<'terminal>>,
 }
 
 impl<'terminal> CallbackTerminalOperations<'terminal> {
-    pub(super) fn new(
+    pub(crate) fn new(
         operation_ids: impl Iterator<Item = OperationId>,
         operations: impl Iterator<Item = &'terminal Operation>,
     ) -> Self {
@@ -42,7 +42,7 @@ impl<'terminal> CallbackTerminalOperations<'terminal> {
         Self { requested }
     }
 
-    pub(super) fn find(&self, operation: OperationId) -> Result<&'terminal Operation, usize> {
+    pub(crate) fn find(&self, operation: OperationId) -> Result<&'terminal Operation, usize> {
         let position = self
             .requested
             .binary_search_by_key(&operation, |entry| entry.identity)

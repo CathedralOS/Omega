@@ -200,6 +200,7 @@ pub(super) fn call_entry_contexts_prove_boolean_contract_expression(
 
     let field_proof = field_actuals::proves(
         program,
+        operators,
         semantic,
         entry_contexts,
         state_flow.state_symbol,

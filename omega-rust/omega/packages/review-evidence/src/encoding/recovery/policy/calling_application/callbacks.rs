@@ -36,7 +36,7 @@ pub(in crate::encoding::recovery) fn decode(
                 formal_ordinal: reader.u32()?,
                 native_ordinal: reader.u32()?,
                 root_layout: layout_application(reader)?,
-                inline_field: reader.option(|reader| {
+                inline_fields: reader.sequence(1, |reader| {
                     Ok(PackagePolicyCallbackInlineField {
                         field: nominal(reader)?,
                         offset: reader.u64()?,
@@ -73,7 +73,7 @@ pub(in crate::encoding::recovery) fn layout_application(
     reader: &mut Reader<'_>,
 ) -> Result<PackagePolicyCallbackLayoutApplication, Error> {
     Ok(PackagePolicyCallbackLayoutApplication {
-        policy: nominal(reader)?,
+        policy: reader.option(nominal)?,
         schema: type_identity(reader)?,
         byte_size: reader.u64()?,
         alignment: reader.u64()?,

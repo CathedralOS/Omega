@@ -91,15 +91,22 @@ pub(in crate::checks::contracts) fn value_satisfies_domain_predicates_in_context
     capture: Option<&checked_trees::FlowOperandFact>,
     frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> bool {
-    if active.contains(&domain_symbol)
-        || !typed_trees::domain::has_symbol_only_proof(program, domain_symbol)
-    {
+    if active.contains(&domain_symbol) {
         return false;
     }
     let Some(domain) = program.domain_definition(domain_symbol) else {
         return false;
     };
     if domain.alias.is_some() {
+        return false;
+    }
+    // An empty conjunction owes no predicate substitution, including indexed
+    // marker theories. The caller separately proves exact membership or the
+    // authorized establishment route; this truth cannot mint that authority.
+    if program.proof_facts(domain).is_empty() {
+        return true;
+    }
+    if !typed_trees::domain::has_symbol_only_proof(program, domain_symbol) {
         return false;
     }
     let capture = capture.filter(|capture| {

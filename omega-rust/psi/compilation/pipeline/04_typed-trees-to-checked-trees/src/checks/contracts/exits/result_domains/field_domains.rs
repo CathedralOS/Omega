@@ -145,11 +145,11 @@ pub(in crate::checks::contracts) fn check_result_field_domains(
         {
             continue;
         }
-        let proves = |subject: &CanonicalPlace| {
+        let proves_in = |contexts: &[facts::FactContextHandle], subject: &CanonicalPlace| {
             if exact_scalar_membership(
                 program,
                 facts,
-                &entry_contexts,
+                contexts,
                 subject,
                 domain_symbol,
                 semantic_domain,
@@ -160,7 +160,7 @@ pub(in crate::checks::contracts) fn check_result_field_domains(
                 super::super::super::prover::prove_domain_at_place(
                     program,
                     &facts.semantic,
-                    &entry_contexts,
+                    contexts,
                     subject,
                     domain_symbol,
                 )
@@ -168,6 +168,7 @@ pub(in crate::checks::contracts) fn check_result_field_domains(
                 false
             }
         };
+        let proves = |subject: &CanonicalPlace| proves_in(&entry_contexts, subject);
         // The same two shapes as call actuals (checks/contracts/nominal_inputs):
         // a returned constructor projects each requirement onto the exact field
         // or element expression it was built from; anything else proves at the
@@ -181,12 +182,13 @@ pub(in crate::checks::contracts) fn check_result_field_domains(
         // value judgment, which is what grants a literal its domain.
         let established_root = path.is_empty()
             && returned_storage.is_none()
-            && program.domain_definition(domain_symbol).is_some_and(|domain| {
+            && program.domain_definition(domain_symbol).is_some_and(|_| {
                 // Only this returned root may acquire provenance from the
                 // authorized machine. Its children still owe their own live
                 // memberships; authorization never proves a predicate or an
                 // indexed application from its declaration alone.
-                domain.semantic_id == semantic_domain
+                validation::field_domains::domain_constraint_identities(program,entry.return_type)
+                    .contains(&(domain_symbol,semantic_domain))
                     && crate::facts::qualification_evidence::machine_has_checked_domain_establishment(
                         program, machine, domain_symbol,
                     )
@@ -237,72 +239,72 @@ pub(in crate::checks::contracts) fn check_result_field_domains(
                 })
             }
         } else {
-            root_satisfied
-                || crate::flow::literal_value_projections(
-                    program,
-                    returned,
-                    entry.return_type,
-                    &path,
-                    false,
-                )
-                .is_some_and(|projections| {
-                    !projections.is_empty()
-                        && projections.iter().all(|projection| {
-                            let expression = match projection.source {
-                                crate::flow::LiteralValueSource::Expression(expression) => {
-                                    expression
-                                }
-                                crate::flow::LiteralValueSource::OmittedZero { type_reference } => {
-                                    return projection.remaining.is_empty()
-                                    && program.domain_definition(domain_symbol).is_some_and(
-                                        |domain| domain.semantic_roles == Default::default(),
-                                    )
-                                    && validation::field_domains::domain_admits_zero_byte_carrier(
-                                        program,
-                                        domain_symbol,
-                                        type_reference,
-                                    );
-                                }
-                            };
-                            canonical_place_from_expression_in_state(
-                                program,
-                                exit.state_symbol,
-                                exit.statement_index,
-                                expression,
-                            )
-                            .is_some_and(|mut subject| {
-                                if !crate::flow::place_cases_are_selected(
-                                    program,
-                                    &facts.semantic,
-                                    &entry_contexts,
-                                    exit.machine_symbol,
-                                    exit.state_symbol,
-                                    exit.statement_index,
-                                    &subject,
-                                ) {
-                                    return false;
-                                }
-                                subject.extend_segments(&projection.remaining);
-                                proves(&subject)
-                            })
-                        })
-                })
-                || base.as_ref().is_some_and(|base| {
-                    if !crate::flow::place_cases_are_selected(
+            // Consume the exact completed return tree. A child copied before a
+            // later sibling mutation keeps its own facts; syntax/current storage
+            // cannot replace that evaluated occurrence's evidence.
+            let captured_satisfies = |selected: &[facts::PlaceSegment]| {
+                facts.flow.control.operands.is_valid(exit.returned_value)
+                    && crate::flow::captured_operand_values(
                         program,
+                        &facts.flow,
                         &facts.semantic,
-                        &entry_contexts,
-                        exit.machine_symbol,
-                        exit.state_symbol,
-                        exit.statement_index,
-                        base,
-                    ) {
-                        return false;
+                        state_flow,
+                        facts.flow.control.operands.get(exit.returned_value),
+                        entry.return_type,
+                        selected,
+                    )
+                    .is_some_and(|values| {
+                        !values.is_empty()
+                            && values.iter().all(|captured| {
+                                let contexts = crate::flow::operand_contexts(
+                                    program,
+                                    &facts.flow,
+                                    &facts.semantic,
+                                    captured.operand,
+                                    captured.type_reference,
+                                    exit.entry_constraints,
+                                );
+                                crate::flow::captured_value_places(program, &facts.flow, captured)
+                                    .is_some_and(|places| {
+                                        !places.is_empty()
+                                            && places.iter().all(|place| {
+                                                crate::flow::place_cases_are_selected(
+                                                    program,
+                                                    &facts.semantic,
+                                                    &contexts,
+                                                    exit.machine_symbol,
+                                                    exit.state_symbol,
+                                                    exit.statement_index,
+                                                    &place.storage,
+                                                ) && (crate::flow::place_case_path_is_inactive(
+                                                    program,
+                                                    &facts.semantic,
+                                                    &contexts,
+                                                    exit.machine_symbol,
+                                                    exit.state_symbol,
+                                                    exit.statement_index,
+                                                    &place.projected,
+                                                ) || proves_in(&contexts, &place.projected))
+                                            })
+                                    })
+                            })
+                    })
+            };
+            root_satisfied || crate::flow::literal_value_projections(
+                program, returned, entry.return_type, &path, false,
+            ).is_some_and(|projections| !projections.is_empty() && projections.iter().all(|projection| {
+                match projection.source {
+                    crate::flow::LiteralValueSource::OmittedZero { type_reference } =>
+                        projection.remaining.is_empty()
+                        && program.domain_definition(domain_symbol).is_some_and(|domain| domain.semantic_roles == Default::default())
+                        && validation::field_domains::domain_admits_zero_byte_carrier(program, domain_symbol, type_reference),
+                    crate::flow::LiteralValueSource::Expression(_) => {
+                        let mut selected = projection.destination.clone();
+                        selected.extend_from_slice(&projection.remaining);
+                        captured_satisfies(&selected)
                     }
-                    let mut subject = base.clone();
-                    subject.extend_segments(&path);
-                    proves(&subject)
-                })
+                }
+            }))
         };
         if !satisfied {
             let (root, mut segments) = base

@@ -50,6 +50,25 @@ impl StructuralScalarStoreDestination {
     store_destination_field!(structural_type, structural_type -> StructuralTypeId);
     store_destination_field!(multiplicity, multiplicity -> StructuralMultiplicity);
 
+    pub fn qualifications(&self) -> &[semantic_vocabulary::StructuralDomainId] {
+        match self {
+            Self::Parameter(value)
+            | Self::OwnedBlockParameter {
+                parameter: value, ..
+            } => &value.qualifications,
+            Self::OwnedResult { result, .. } => &result.qualifications,
+        }
+    }
+    pub fn projected_qualifications(&self) -> &[terminal_psi::StructuralPathQualification] {
+        match self {
+            Self::Parameter(value)
+            | Self::OwnedBlockParameter {
+                parameter: value, ..
+            } => &value.projected_qualifications,
+            Self::OwnedResult { result, .. } => &result.projected_qualifications,
+        }
+    }
+
     /// The borrowed parameter whose loan authorizes the write. Owned homes,
     /// including an owned block parameter, carry their own authority.
     pub fn parameter(&self) -> Option<&StructuralParameterDeclaration> {

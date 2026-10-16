@@ -1009,8 +1009,12 @@ pub fn validate_selected_program_entry_calling_plan(
         .with_physical_contract(physical_contract.clone())
         .map_err(|diagnostic| vec![Diagnostic::error(diagnostic.to_string())])?;
     Ok(Some(SelectedProgramEntryCallingPlans {
-        semantic_calling_application: semantic_realization.native_application(),
-        physical_calling_application: physical_realization.native_application(),
+        semantic_calling_application: semantic_realization
+            .native_application()
+            .map_err(|reason| vec![Diagnostic::error(reason)])?,
+        physical_calling_application: physical_realization
+            .native_application()
+            .map_err(|reason| vec![Diagnostic::error(reason)])?,
         storage_entry,
     }))
 }

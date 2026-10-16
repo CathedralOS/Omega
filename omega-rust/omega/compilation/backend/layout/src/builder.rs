@@ -18,11 +18,11 @@ mod type_reference_layouts;
 use crate::builder::generic_bindings::GenericLayoutBinding;
 use crate::builder::generic_bindings::binding_for_type;
 use crate::builder::generic_bindings::fixed_array_length;
-use crate::builder::private_callback_closure::close_two_hop_private_callback_paths;
+use crate::builder::private_callback_closure::close_private_callback_layouts;
 use crate::sizing::fat_descriptor_layout;
 use crate::{
     BitFieldLayout, DataLayout, FieldLayout, LayoutPlan, RepeatedFieldLayout, StoredIntegerLayout,
-    TargetClosedPlanLaidDataLayoutIdentity, TargetClosedPrivateCallbackDemand, TypeLayout,
+    TargetClosedDataLayoutIdentity, TargetClosedPrivateCallbackDemand, TypeLayout,
     TypeLayoutDescriptor, VariantLayout,
 };
 use arena::{Arena, Handle};
@@ -144,7 +144,7 @@ struct LayoutBuilder<'program> {
     stored_integers: Vec<StoredIntegerLayout>,
     repeated_fields: Vec<RepeatedFieldLayout>,
     private_callback_demands: Vec<TargetClosedPrivateCallbackDemand>,
-    plan_laid_layout_identities: Vec<TargetClosedPlanLaidDataLayoutIdentity>,
+    data_layout_identities: Vec<TargetClosedDataLayoutIdentity>,
     opaque_representation_selections: &'program [OpaqueRepresentationSelection],
     opaque_representation_demand: OpaqueRepresentationDemand,
     /// One recorded MONOMORPHIZED instance per generic data definition: the
@@ -249,7 +249,7 @@ impl<'program> LayoutBuilder<'program> {
             stored_integers: Vec::new(),
             repeated_fields: Vec::new(),
             private_callback_demands: Vec::new(),
-            plan_laid_layout_identities: Vec::new(),
+            data_layout_identities: Vec::new(),
             opaque_representation_selections,
             opaque_representation_demand,
             generic_instance_signatures: Vec::new(),
@@ -261,12 +261,13 @@ impl<'program> LayoutBuilder<'program> {
     }
 
     fn finish(self) -> Result<LayoutPlan, Diagnostic> {
-        let two_hop_private_callback_paths = close_two_hop_private_callback_paths(
+        let (data_layout_identities, private_callback_layouts) = close_private_callback_layouts(
             self.program,
             &self.data_layouts,
             &self.fields,
-            &self.plan_laid_layout_identities,
+            &self.data_layout_identities,
             &self.private_callback_demands,
+            self.target,
         )?;
         Ok(LayoutPlan {
             data_layouts: self.data_layouts,
@@ -276,8 +277,8 @@ impl<'program> LayoutBuilder<'program> {
             repeated_fields: self.repeated_fields,
             variants: self.variants,
             private_callback_demands: self.private_callback_demands,
-            plan_laid_layout_identities: self.plan_laid_layout_identities,
-            two_hop_private_callback_paths,
+            data_layout_identities: data_layout_identities,
+            private_callback_layouts,
         })
     }
 

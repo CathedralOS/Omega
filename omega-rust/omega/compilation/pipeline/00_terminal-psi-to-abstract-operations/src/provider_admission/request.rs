@@ -81,7 +81,7 @@ pub struct ProviderAdmissionRequest<'request, 'execution> {
     pub external_binding_rows: &'request [calling_conventions::ExternalBindingRow],
     pub settlements: &'request [NativeProviderSettlement<'execution>],
     pub compiler_builtins: &'request [NativeCompilerBuiltinSettlement<'request>],
-    pub native_callbacks: &'request [crate::AdmittedNativeCallbackArgument],
+    pub native_callbacks: &'request [crate::NativeCallbackArgumentProposal],
     pub terminal_authority_policy: &'request TerminalAuthorityPolicy,
     pub terminal_authority_permission_policy: &'request Option<TerminalAuthorityPermissionPolicy>,
     /// Build-admitted AVX+FMA3 provider for this exact profile, if any.

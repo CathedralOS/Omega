@@ -188,26 +188,36 @@ impl SelectedRequirement {
         if self.call_guarantee_proven {
             return true;
         }
-        let mut retained =
-            boolean_predicates::retained(program, &facts.semantic, &self.current.contexts);
+        let mut retained = boolean_predicates::retained(
+            program,
+            &facts.operators,
+            &facts.semantic,
+            &self.current.contexts,
+        );
         retained.extend(self.current.guarantees.iter().cloned());
         boolean_predicates::proves(&retained, &self.predicate, |place| {
             self.current
                 .value_at_place(program, facts, place)
                 .or_else(|| {
-                    boolean_value_at_place(program, &facts.semantic, &self.current.contexts, place)
-                        .map(facts::ScalarValue::Boolean)
-                        .or_else(|| {
-                            crate::values::scalar_value_at_place(
-                                program,
-                                &facts.semantic,
-                                self.current
-                                    .contexts
-                                    .iter()
-                                    .map(|context| facts.semantic.contexts.get(*context)),
-                                place,
-                            )
-                        })
+                    boolean_value_at_place(
+                        program,
+                        &facts.operators,
+                        &facts.semantic,
+                        &self.current.contexts,
+                        place,
+                    )
+                    .map(facts::ScalarValue::Boolean)
+                    .or_else(|| {
+                        crate::values::scalar_value_at_place(
+                            program,
+                            &facts.semantic,
+                            self.current
+                                .contexts
+                                .iter()
+                                .map(|context| facts.semantic.contexts.get(*context)),
+                            place,
+                        )
+                    })
                 })
         })
     }

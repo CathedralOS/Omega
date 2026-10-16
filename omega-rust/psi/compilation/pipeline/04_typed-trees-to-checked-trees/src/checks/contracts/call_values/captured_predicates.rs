@@ -85,8 +85,12 @@ pub(super) fn transport(
             .flow
             .semantic_constraint_contexts(capture.epoch.constraints)
             .collect::<Vec<_>>();
-        let mut predicates =
-            crate::facts::boolean_predicates::retained(program, &facts.semantic, &contexts);
+        let mut predicates = crate::facts::boolean_predicates::retained(
+            program,
+            &facts.operators,
+            &facts.semantic,
+            &contexts,
+        );
         if let Some(frames) = frames {
             predicates.extend(super::super::prover::call_guarantees::current_predicates(
                 program,

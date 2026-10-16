@@ -39,33 +39,9 @@ pub(super) fn parameter<'a>(
     (parameter.place == place && parameter.position == position).then_some(parameter)
 }
 
-/// A state's owned structural parameter: the value arrives whole on its block
-/// edge and lives in the block's own value storage, exactly as the root a
-/// structural field read observes. Only a projected read below it is a
-/// primitive leaf; the whole owned record never is. The owning block is the
-/// home's establishment identity, which a field store retains.
-pub(super) fn owned_state_parameter(
-    machine: &TerminalMachine,
-    place: PlaceId,
-) -> Option<(
-    semantic_vocabulary::BlockId,
-    &terminal_psi::StructuralParameterDeclaration,
-)> {
-    let (block, parameter) = owned_state_storage_parameter(machine, place)?;
-    (matches!(
-        parameter.multiplicity,
-        terminal_psi::nonlinear_multiplicity_pair_pattern!()
-    ) && parameter.qualifications.is_empty()
-        && parameter.projected_qualifications.is_empty()
-        && super::structural_scalar_fields::has_unqualified_storage(machine, place)
-        && super::structural_scalar_fields::has_empty_structural_custody(machine, place))
-    .then_some((block, parameter))
-}
-
 /// Resolve an exact owned block home for scalar-field mutation. Live linear
 /// claims are preserved by a field store; they do not prohibit exclusive
-/// mutation. Whole-carrier primitive/window operations retain the stricter
-/// claim-free classifier above. Membership/content restoration remains separate.
+/// mutation. Membership and Content restoration remain separate.
 pub(super) fn owned_state_storage_parameter(
     machine: &TerminalMachine,
     place: PlaceId,

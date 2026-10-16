@@ -27,6 +27,93 @@ use checked_trees::{FlowConstraintKind, FlowConstraintRef, FlowSemanticContextRe
 use facts::{Fact, FactOrigin, FactPayload, FactPlace, ProgramPoint, QualificationEvidence};
 
 impl Execution<'_, '_, '_> {
+    fn cast_predicate_observations(
+        &self,
+        expression: ExpressionHandle,
+        target: typed_trees::types::TypeReferenceHandle,
+        contexts: HandleSpan<FlowSemanticContextRef>,
+    ) -> Vec<(symbols::SymbolHandle, language_semantics::SemanticDomainId)> {
+        let ExpressionNode::Cast(cast) = self.program.expression_table.expression(expression)
+        else {
+            return Vec::new();
+        };
+        if cast.form.is_recast() {
+            return Vec::new();
+        }
+        let Some(source_type) = validation::expression_result_type_reference(
+            self.program,
+            self.machine,
+            self.state,
+            cast.value,
+        ) else {
+            return Vec::new();
+        };
+        if !validation::declared_carriers_match(self.program, source_type, target) {
+            return Vec::new();
+        }
+        let Some(source) = validation::canonical_place_from_expression_in_state(
+            self.program,
+            self.state.symbol,
+            self.statement_index,
+            cast.value,
+        ) else {
+            return Vec::new();
+        };
+        let handles = crate::flow::active_context_handles(self.context, contexts);
+        if !crate::flow::place_cases_are_selected(
+            self.program,
+            self.semantic,
+            &handles,
+            self.machine.symbol,
+            self.state.symbol,
+            self.statement_index,
+            &source,
+        ) {
+            return Vec::new();
+        }
+        crate::flow::active_context_facts(self.context, self.semantic, contexts)
+            .into_iter()
+            .filter_map(|fact| {
+                let (_, _, symbol, identity) = fact.payload.domain_membership()?;
+                let domain = self.program.domain_definition(symbol)?;
+                if !domain.predicate_body.is_present()
+                    || domain.alias.is_some()
+                    || validation::field_domains::domain_requires_provenance(self.program, symbol)
+                {
+                    return None;
+                }
+                // A value cast snapshots owned contents, never predicates on
+                // a borrowed view or a referent hidden inside an owned value.
+                // Reuse the invalidation owner's exact dependency paths.
+                let dependency = self.domains.dependency_fact(symbol)?;
+                if dependency.dependencies.is_empty()
+                    || !self.domains.dependency_paths(dependency).all(|path| {
+                        (0..=path.len()).all(|length| {
+                            validation::project_type_reference_from_segments(
+                                self.program,
+                                source_type,
+                                &path[..length],
+                            )
+                            .is_some_and(|reference| {
+                                !crate::flow::operand_binds_live_view(self.program, reference)
+                            })
+                        })
+                    })
+                {
+                    return None;
+                }
+                let place = fact.place.as_place()?;
+                let place = crate::flow::canonical_place_from_semantic_place(
+                    self.program,
+                    self.semantic,
+                    self.semantic.places.get(place),
+                )?;
+                crate::flow::canonical_places_agree(self.program, &source, &place)
+                    .then_some((symbol, identity))
+            })
+            .collect()
+    }
+
     pub(super) fn append_result_facts(
         &mut self,
         expression: ExpressionHandle,
@@ -50,16 +137,25 @@ impl Execution<'_, '_, '_> {
         ) else {
             return;
         };
-        // Source validation has discharged qualification predicates before
-        // flow construction. The completed result owns every declared atom,
+        // Source and flow qualification judgments discharge these producer
+        // obligations; a cast's own judgment reads its operand, never the
+        // provisional result fact. The completed result owns every declared atom,
         // not just predicate-free tags. Omitting predicate domains here made
         // a checked cast lose its membership at an inline call or return.
         // This does not establish a new domain on a bare operand or storage.
         // A structural carrier is no different: a checked record
         // qualification describes its completed value exactly as a scalar
         // one does.
-        let domains =
+        let mut domains =
             validation::field_domains::domain_constraint_identities(self.program, reference);
+        // Semantic erasure cannot change a predicate's truth on an unchanged
+        // carrier. Keep only predicate-only observations from the evaluated
+        // operand; erased semantic tags and routed authority never follow.
+        for observed in self.cast_predicate_observations(expression, reference, *contexts) {
+            if !domains.contains(&observed) {
+                domains.push(observed);
+            }
+        }
         let mut predicates = Vec::new();
         crate::values::float_predicates::declared_type_predicates(
             self.program,

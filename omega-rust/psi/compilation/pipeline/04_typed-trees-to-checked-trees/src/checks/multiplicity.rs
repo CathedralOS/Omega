@@ -10,6 +10,7 @@
 
 mod borrowed_windows;
 mod claim_outcomes;
+pub(crate) use claim_outcomes::claim_paths_are_case_alternatives;
 mod cleanup_dispositions;
 mod construction_frontier;
 mod consumed_owners;

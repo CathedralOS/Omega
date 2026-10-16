@@ -157,6 +157,7 @@ fn source_checked_obligation_facts(
 pub struct VerifiedPsiOptimizationInput {
     pub(crate) plan: AbstractOperationPlan,
     pub(crate) context: VerifiedPsiOptimizationContext,
+    pub(crate) admitted_native_callbacks: Vec<crate::AdmittedNativeCallbackArgument>,
     pub(crate) target_machine_selections:
         Option<terminal_installation::AdmittedTargetMachineSelections>,
     pub(crate) target_layout_selections: Option<terminal_installation::AdmittedTargetLayouts>,
@@ -168,6 +169,19 @@ pub struct VerifiedPsiOptimizationInput {
 }
 
 impl VerifiedPsiOptimizationInput {
+    /// Immutable callback cohort admitted with this exact input. Proposals
+    /// cannot be attached here or supplied independently to target lowering.
+    ///
+    /// ```compile_fail
+    /// fn replace(input: &mut terminal_psi_to_abstract_operations::VerifiedPsiOptimizationInput,
+    ///     forged: Vec<terminal_psi_to_abstract_operations::NativeCallbackArgumentProposal>) {
+    ///     input.admitted_native_callbacks = forged;
+    /// }
+    /// ```
+    pub fn admitted_native_callbacks(&self) -> &[crate::AdmittedNativeCallbackArgument] {
+        &self.admitted_native_callbacks
+    }
+
     pub const fn plan(&self) -> &AbstractOperationPlan {
         &self.plan
     }

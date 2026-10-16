@@ -65,6 +65,7 @@ pub(crate) fn emit(
     structural_types: &[StructuralTypeDeclaration],
     type_ids: &[(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)],
     domain_ids: &[crate::terminal_identities::StructuralDomainBinding],
+    domain_declarations: &[terminal_psi::StructuralDomainDeclaration],
     next_place: &mut u64,
     temporary_places: &mut Vec<StructuralPlaceDeclaration>,
     operand_emitter: &mut StructuralOperandEmitter<'_>,
@@ -230,6 +231,8 @@ pub(crate) fn emit(
         structural_types,
         type_ids,
         domain_ids,
+        domain_declarations,
+        binding_type_reference: result.local.declared_type,
         type_reference: structural_values(checked)
             .root_for_expression(
                 state,
@@ -513,8 +516,22 @@ pub(crate) fn emit(
         // Existing storage needs an arrival owned by this binding; fresh
         // producers already published one. Use the same allocation frontier
         // as constructor capture, independent of the source expression shape.
-        if source.place.get() < first_new_place {
-            emission.materialize_place(identities, source, *value)?
+        let binding = emission.value_binding_parameter(identities, &source, source.place, 0)?;
+        let (source_whole, source_projected) =
+            emission
+                .completed_memberships(source.place)
+                .ok_or(LoweringError::Unsupported(
+                    "binding source has no exact membership declaration",
+                ))?;
+        let (source_whole, source_projected) = terminal_psi::StructuralPathQualification::select(
+            source_whole,
+            source_projected,
+            &source.path,
+        );
+        let distinct_contract = binding.qualifications != source_whole
+            || binding.projected_qualifications != source_projected;
+        if source.place.get() < first_new_place || distinct_contract {
+            emission.materialize_place(identities, source, *value, first_new_place)?
         } else {
             source.place
         }
@@ -569,7 +586,7 @@ pub(crate) fn emit(
     Ok(declaration)
 }
 
-/// The structural-value plans recorded for the checked unit./// Allocate a fresh dense id for each carried value declaration.
+/// Allocate a fresh dense id for each carried value declaration.
 fn fresh_value_declarations(
     next_value: &mut u64,
     values: &[ValueDeclaration],
@@ -895,7 +912,9 @@ pub(super) struct Emission<'a, 'b, 'calls> {
     pub(super) structural_types: &'a [StructuralTypeDeclaration],
     pub(super) type_ids: &'a [(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)],
     pub(super) domain_ids: &'a [crate::terminal_identities::StructuralDomainBinding],
+    pub(super) domain_declarations: &'a [terminal_psi::StructuralDomainDeclaration],
     type_reference: checked_trees::types::TypeReferenceHandle,
+    binding_type_reference: checked_trees::types::TypeReferenceHandle,
     pub(super) next_place: &'b mut u64,
     pub(super) temporary_places: &'b mut Vec<StructuralPlaceDeclaration>,
     pub(super) calls: &'b mut CallEmissionContext<'calls>,
@@ -2038,6 +2057,7 @@ impl Emission<'_, '_, '_> {
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         source: StructuralArgument,
         value: CheckedStructuralValueHandle,
+        first_new_place: u64,
     ) -> Result<PlaceId, LoweringError> {
         // A whole-value ascription preserves its operand's storage. Capture
         // that input's consuming occurrence, before the completed ascription
@@ -2054,21 +2074,9 @@ impl Emission<'_, '_, '_> {
             consumed_value = *source;
         }
         let node = structural_values(self.checked).nodes.get(consumed_value);
-        let source_claims = super::super::claims::lower_owned_operand_claims(
-            identities,
-            self.checked,
-            self.machine,
-            self.state,
-            self.statement,
-            node.expression,
-            None,
-            Some(language_semantics::PermissionEventSource::Statement {
-                statement_index: self.statement as usize,
-            }),
-            self.calls.claims.bindings(),
-            self.structural_type,
-            self.structural_types,
-        )?;
+        let source_claims = self
+            .capture_operand(identities, source.clone(), node.expression, first_new_place)?
+            .claims;
         let block = block_id(allocate_dense(self.next_block)?);
         let place = place_id(allocate_dense(self.next_place)?);
         if self.multiplicity == StructuralMultiplicity::Affine {
@@ -2112,13 +2120,8 @@ impl Emission<'_, '_, '_> {
         }
         let position = u32::try_from(structural_parameters.len())
             .map_err(|_| LoweringError::Unsupported("owned move parameter count exceeds u32"))?;
-        structural_parameters.push(self.transported_parameter(
-            &source,
-            place,
-            position,
-            self.structural_type,
-            self.multiplicity,
-        )?);
+        structural_parameters
+            .push(self.value_binding_parameter(identities, &source, place, position)?);
         let parameters = fresh_value_declarations(self.next_value, self.values)?;
         self.temporary_places.push(StructuralPlaceDeclaration {
             id: place,

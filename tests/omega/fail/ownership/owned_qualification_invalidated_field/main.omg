@@ -1,0 +1,15 @@
+use omega::language::core::content;
+data Slot { }
+data Capacity [linear] { stamp: u64; }
+domain Capacity::Held(capacity) requires capacity.stamp != 0 established by acquire;
+machine acquire() -> Capacity in Capacity::Held { Capacity { stamp: 17 } }
+machine Held::content(capacity: &Capacity) -> CountedQuantity<Slot>
+satisfies Content<Capacity, CountedQuantity<Slot>>::project {
+ CountedQuantity { magnitude: Nat::Succ { prev: Nat::Zero } }
+}
+machine invalidate(capacity: Capacity in Capacity::Held) -> Capacity in Capacity::Held {
+ let mut changed: Capacity in Capacity::Held = capacity;
+ changed.stamp = 0;
+ changed as Capacity in Capacity::Held
+}
+machine main() { }

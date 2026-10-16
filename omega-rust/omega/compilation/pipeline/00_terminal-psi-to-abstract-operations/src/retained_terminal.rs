@@ -40,7 +40,7 @@ pub struct TerminalNativeOccurrences {
     pub callbacks: Vec<TerminalCallbackOccurrenceProposal>,
     /// None retains an unmaterialized target callback, not an empty roster.
     /// Such a Terminal product remains usable, but cannot enter native lowering.
-    pub callback_arguments: Option<Vec<crate::AdmittedNativeCallbackArgument>>,
+    pub callback_arguments: Option<Vec<crate::NativeCallbackArgumentProposal>>,
     pub ieee_float_comparisons: Vec<TerminalIeeeFloatComparisonOccurrenceProposal>,
     pub integer_comparisons: Vec<TerminalIntegerComparisonOccurrenceProposal>,
 }

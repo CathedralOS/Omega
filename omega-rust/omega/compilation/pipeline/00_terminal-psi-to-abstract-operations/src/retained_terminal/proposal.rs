@@ -216,6 +216,8 @@ fn project_terminal_native_body(
         &request.callback_placements,
         artifact.view(),
         &request.callback_thunks,
+        &selected,
+        &checked_adapters,
     )?;
     // Close source placements while their producer still owns them. Re-entry
     // borrows these native rows; it never retains the checked-source records.
@@ -276,6 +278,8 @@ fn project_callback_occurrences(
     callback_placements: &[backend_plan::NativeCallbackPlacement],
     caller: terminal_codec::TerminalArtifactView<'_>,
     thunks: &[crate::TerminalCallbackThunkArtifact],
+    selected: &effects::SelectedProviderPlanFacts,
+    checked_adapters: &[crate::SelectedProviderAdapter],
 ) -> Result<Vec<crate::TerminalCallbackOccurrenceProposal>, Vec<Diagnostic>> {
     let module = caller.module();
     if callback_placements.len() != thunks.len() {
@@ -291,6 +295,13 @@ fn project_callback_occurrences(
         .map(|placement| placement.application_index)
         .collect::<Vec<_>>();
     application_indices.sort_unstable();
+    let operations = crate::callback_settlement::CallbackTerminalOperations::new(
+        module
+            .callback_applications
+            .iter()
+            .map(|application| application.registrar),
+        module.operations(),
+    );
     for application in &module.callback_applications {
         let first = application_indices.partition_point(|application_index| {
             *application_index < application.application_index
@@ -298,6 +309,70 @@ fn project_callback_occurrences(
         let last = application_indices.partition_point(|application_index| {
             *application_index <= application.application_index
         });
+        let operation = operations.find(application.registrar).map_err(|_| {
+            vec![Diagnostic::error(
+                "callback application has no unique canonical registrar operation",
+            )]
+        })?;
+        let terminal_psi::OperationKind::BoundaryCall { boundary, .. } = operation.kind else {
+            return Err(vec![Diagnostic::error(
+                "callback application registrar is not a boundary operation",
+            )]);
+        };
+        let declaration = module.boundary_machine(boundary).ok_or_else(|| {
+            vec![Diagnostic::error(
+                "callback registrar has no exact boundary declaration",
+            )]
+        })?;
+        let requirement = module
+            .identities
+            .text(declaration.identity)
+            .ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "callback registrar has no exact boundary identity",
+                )]
+            })?;
+        let (plan, row) = selected
+            .selected_requirement_row(requirement)
+            .ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "callback registrar has no exact selected provider row",
+                )]
+            })?;
+        if let effects::provider_plan::ProviderBinding::CheckedAdapter {
+            machine_identity, ..
+        } = &row.binding
+        {
+            let machine = selected
+                .specialized_requirement_row(requirement)
+                .map_or_else(
+                    || plan.identity_text(*machine_identity),
+                    |specialization| {
+                        selected
+                            .identities()
+                            .text(specialization.machine_identity)
+                            .unwrap_or_default()
+                    },
+                );
+            if machine.is_empty() {
+                return Err(vec![Diagnostic::error(
+                    "ordinary callback forwarding has no exact selected machine identity",
+                )]);
+            }
+            let mut adapters = checked_adapters.iter().filter(|adapter| {
+                adapter.requirement_identity == requirement
+                    && adapter.selected_requirement_identity
+                        == plan.identities.text(row.requirement_identity)
+                    && adapter.provider_plan_digest == plan.identity_digest()
+                    && adapter.machine_identity == machine
+            });
+            if adapters.next().is_none() || adapters.next().is_some() || last != first {
+                return Err(vec![Diagnostic::error(
+                    "ordinary callback forwarding lacks its exact selected checked body or retains a native registrar placement",
+                )]);
+            }
+            continue;
+        }
         if last - first != 1 {
             return Err(vec![Diagnostic::error(
                 "Terminal callback application has no unique checked placement",

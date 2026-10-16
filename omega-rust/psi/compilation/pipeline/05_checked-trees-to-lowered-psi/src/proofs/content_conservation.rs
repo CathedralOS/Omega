@@ -564,7 +564,7 @@ pub fn lower_content_identity_reshuffles(
 
         if let Some(group) = groups
             .iter_mut()
-            .find(|group| group.source_claim == fact.claim_identity)
+            .find(|group| group.source_claim == fact.claim_identity && group.output == output)
         {
             if group.input != input || group.output != output {
                 return Err(LoweringError::ContentIdentityClaimMapsMultiplePlaces);
@@ -593,15 +593,20 @@ pub fn lower_content_identity_reshuffles(
             &right.projections,
         ))
     });
-    let mut inputs = BTreeSet::<&ContentStructuralPlace>::new();
-    for group in &groups {
-        if !inputs.insert(&group.input) {
-            return Err(LoweringError::DuplicateContentIdentityInput);
-        }
-        if inputs.iter().any(|previous| {
-            **previous != group.input && content_places_overlap(previous, &group.input)
-        }) {
-            return Err(LoweringError::OverlappingContentIdentityInput);
+    for (position, group) in groups.iter().enumerate() {
+        for previous in &groups[..position] {
+            if previous.source_claim == group.source_claim {
+                if previous.input != group.input
+                    || previous.projections != group.projections
+                    || !previous.output.is_case_alternative(&group.output)
+                {
+                    return Err(LoweringError::ContentIdentityClaimMapsMultiplePlaces);
+                }
+            } else if previous.input == group.input {
+                return Err(LoweringError::DuplicateContentIdentityInput);
+            } else if content_places_overlap(&previous.input, &group.input) {
+                return Err(LoweringError::OverlappingContentIdentityInput);
+            }
         }
     }
     let mut outputs = BTreeSet::<&ContentStructuralPlace>::new();
@@ -619,16 +624,20 @@ pub fn lower_content_identity_reshuffles(
     let mut source_claims = Vec::new();
     let reshuffles = groups
         .into_iter()
-        .enumerate()
-        .map(|(index, group)| {
-            let claim = ClaimId::new(
-                u64::try_from(index)
-                    .expect("an in-memory fact count fits u64")
-                    .checked_add(1)
-                    .expect("an in-memory fact count cannot exhaust u64"),
-            )
-            .expect("dense claim identities begin at one");
-            source_claims.push((group.source_claim, claim));
+        .map(|group| {
+            let claim = source_claims
+                .iter()
+                .find_map(|(source, claim)| (*source == group.source_claim).then_some(*claim))
+                .unwrap_or_else(|| {
+                    let claim = ClaimId::new(
+                        u64::try_from(source_claims.len())
+                            .expect("an in-memory fact count fits u64")
+                            + 1,
+                    )
+                    .expect("dense claim identities begin at one");
+                    source_claims.push((group.source_claim, claim));
+                    claim
+                });
             ContentIdentityReshuffle {
                 claim,
                 input: group.input,
@@ -637,14 +646,19 @@ pub fn lower_content_identity_reshuffles(
             }
         })
         .collect::<Vec<_>>();
-    let entry_claims = reshuffles
-        .iter()
-        .map(|reshuffle| ContentEntryClaim {
-            claim: reshuffle.claim,
-            input: reshuffle.input.clone(),
-            projections: reshuffle.projections.clone(),
-        })
-        .collect();
+    let mut entry_claims = Vec::new();
+    for reshuffle in &reshuffles {
+        if !entry_claims
+            .iter()
+            .any(|entry: &ContentEntryClaim| entry.claim == reshuffle.claim)
+        {
+            entry_claims.push(ContentEntryClaim {
+                claim: reshuffle.claim,
+                input: reshuffle.input.clone(),
+                projections: reshuffle.projections.clone(),
+            });
+        }
+    }
     Ok(LoweredContentIdentityReshuffles {
         structural_places: structural_places
             .into_iter()

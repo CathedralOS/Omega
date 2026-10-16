@@ -9,6 +9,7 @@ name = "calling_conventions"
 path = "src/lib.rs"
 
 [dependencies]
+arena = { path = "../../../../psi/foundation/arena" }
 optimization-core = { path = "../../../foundation/optimization-core" }
 semantic-vocabulary = { path = "../../../../psi/foundation/semantic-vocabulary" }
 target = { path = "../target" }

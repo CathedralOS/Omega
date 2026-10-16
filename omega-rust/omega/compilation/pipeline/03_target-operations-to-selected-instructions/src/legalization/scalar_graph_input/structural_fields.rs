@@ -9,6 +9,8 @@ pub(in crate::legalization) fn scalar_store_destination(
     path: &[terminal_psi::StructuralPathSegment],
     field: semantic_vocabulary::StructuralFieldId,
     types: &[terminal_psi::StructuralTypeDeclaration],
+    domains: &[terminal_psi::StructuralDomainDeclaration],
+    identities: &terminal_psi::TerminalIdentityTable,
     custody: &super::reference_custody::Custody,
 ) -> Option<(
     abstract_operations::StructuralScalarStoreDestination,
@@ -17,6 +19,8 @@ pub(in crate::legalization) fn scalar_store_destination(
     if !field_write_preserves_memberships(
         function,
         types,
+        domains,
+        identities,
         destination.place(),
         destination.structural_type(),
         path,
@@ -44,6 +48,8 @@ pub(in crate::legalization) fn scalar_store_destination(
 fn field_write_preserves_memberships(
     function: &PsiOptimizationFunction,
     types: &[terminal_psi::StructuralTypeDeclaration],
+    domains: &[terminal_psi::StructuralDomainDeclaration],
+    identities: &terminal_psi::TerminalIdentityTable,
     destination: semantic_vocabulary::PlaceId,
     root: semantic_vocabulary::StructuralTypeId,
     path: &[terminal_psi::StructuralPathSegment],
@@ -59,6 +65,9 @@ fn field_write_preserves_memberships(
                 function,
                 destination,
                 &written,
+                types,
+                domains,
+                identities,
             )
         },
     )
@@ -67,6 +76,8 @@ fn field_write_preserves_memberships(
 fn reference_field_write_preserves_memberships(
     function: &PsiOptimizationFunction,
     types: &[terminal_psi::StructuralTypeDeclaration],
+    domains: &[terminal_psi::StructuralDomainDeclaration],
+    identities: &terminal_psi::TerminalIdentityTable,
     destination: semantic_vocabulary::PlaceId,
     path: &[terminal_psi::StructuralPathSegment],
     field: semantic_vocabulary::StructuralFieldId,
@@ -80,7 +91,16 @@ fn reference_field_write_preserves_memberships(
                 .map(|(_, result)| result.structural_type)
         });
     root.is_some_and(|root| {
-        field_write_preserves_memberships(function, types, destination, root, path, field)
+        field_write_preserves_memberships(
+            function,
+            types,
+            domains,
+            identities,
+            destination,
+            root,
+            path,
+            field,
+        )
     })
 }
 
@@ -88,6 +108,8 @@ pub(in crate::legalization) fn replacement(
     function: &PsiOptimizationFunction,
     operation: &AbstractOperation,
     types: &[terminal_psi::StructuralTypeDeclaration],
+    domains: &[terminal_psi::StructuralDomainDeclaration],
+    identities: &terminal_psi::TerminalIdentityTable,
     custody: &super::reference_custody::Custody,
 ) -> Option<terminal_psi::StructuralArgument> {
     if let AbstractOperation::ByteSequenceStore {
@@ -174,7 +196,15 @@ pub(in crate::legalization) fn replacement(
         _ => return None,
     };
     if path.contains(&terminal_psi::StructuralPathSegment::Referent)
-        && !reference_field_write_preserves_memberships(function, types, *destination, path, *field)
+        && !reference_field_write_preserves_memberships(
+            function,
+            types,
+            domains,
+            identities,
+            *destination,
+            path,
+            *field,
+        )
     {
         return None;
     }
@@ -296,6 +326,8 @@ pub(in crate::legalization) fn view_replacement(
     function: &PsiOptimizationFunction,
     operation: &AbstractOperation,
     types: &[terminal_psi::StructuralTypeDeclaration],
+    domains: &[terminal_psi::StructuralDomainDeclaration],
+    identities: &terminal_psi::TerminalIdentityTable,
     custody: &super::reference_custody::Custody,
 ) -> Option<terminal_psi::StructuralArgument> {
     let AbstractOperation::StructuralByteViewFieldStore {
@@ -310,12 +342,23 @@ pub(in crate::legalization) fn view_replacement(
     };
     if path.contains(&terminal_psi::StructuralPathSegment::Referent) {
         let preserves = if let Some(field) = field {
-            reference_field_write_preserves_memberships(function, types, *destination, path, *field)
+            reference_field_write_preserves_memberships(
+                function,
+                types,
+                domains,
+                identities,
+                *destination,
+                path,
+                *field,
+            )
         } else {
             optimization_unit_semantics::structural_write_preserves_memberships(
                 function,
                 *destination,
                 path,
+                types,
+                domains,
+                identities,
             )
         };
         if !preserves {

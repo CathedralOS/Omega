@@ -1,5 +1,5 @@
 use super::PrivateCallbackLayout;
-use crate::TargetClosedPlanLaidDataLayoutIdentity;
+use crate::TargetClosedDataLayoutIdentity;
 use target::NativeTarget;
 
 pub(super) fn validate(entry: &PrivateCallbackLayout, target: NativeTarget) -> Result<(), String> {
@@ -14,35 +14,43 @@ pub(super) fn validate(entry: &PrivateCallbackLayout, target: NativeTarget) -> R
             "callback layout catalog changed its root or target pointer geometry".to_owned(),
         );
     }
-    let child = if let Some(field) = &entry.inline_field {
+    let mut parent = root;
+    let mut offset = 0usize;
+    let mut seen = vec![root.data_symbol];
+    for field in entry.inline_fields()? {
         let child = &field.child_layout;
-        if !field.symbol.is_valid()
+        if seen.contains(&child.data_symbol)
+            || !field.symbol.is_valid()
             || field.identity.is_empty()
             || !valid_layout(child)
+            || field.field_layout.symbol != field.symbol
+            || field.field_layout.type_descriptor.inline_data_symbol() != Some(child.data_symbol)
+            || field.field_layout.offset != field.offset
+            || field.field_layout.layout != child.physical
             || field.extent != child.physical.size
             || field.alignment != child.physical.alignment
-            || !contained(root, field.offset, field.extent, field.alignment)
-            || field.offset.checked_add(terminal.offset) != Some(entry.composed_offset)
+            || !contained(parent, field.offset, field.extent, field.alignment)
         {
             return Err(
                 "callback layout catalog changed its named inline field geometry".to_owned(),
             );
         }
-        child
-    } else {
-        if entry.composed_offset != terminal.offset {
-            return Err("callback layout catalog changed its direct slot offset".to_owned());
-        }
-        root
-    };
-    if child.data_symbol != terminal.data_symbol
-        || child.layout_subject_identity != terminal.layout_subject_identity
+        offset = offset
+            .checked_add(field.offset)
+            .ok_or_else(|| "callback inline path offset overflowed".to_owned())?;
+        seen.push(child.data_symbol);
+        parent = child;
+    }
+    if parent.data_symbol != terminal.data_symbol
+        || parent.layout_subject_identity.as_deref()
+            != Some(terminal.layout_subject_identity.as_ref())
         || !contained(
-            child,
+            parent,
             terminal.offset,
             terminal.byte_size,
             terminal.alignment,
         )
+        || offset.checked_add(terminal.offset) != Some(entry.composed_offset)
         || !contained(
             root,
             entry.composed_offset,
@@ -56,16 +64,17 @@ pub(super) fn validate(entry: &PrivateCallbackLayout, target: NativeTarget) -> R
     }
     Ok(())
 }
-
-fn valid_layout(layout: &TargetClosedPlanLaidDataLayoutIdentity) -> bool {
+fn valid_layout(layout: &TargetClosedDataLayoutIdentity) -> bool {
     layout.data_symbol.is_valid()
         && !layout.data_identity.is_empty()
-        && !layout.layout_subject_identity.is_empty()
+        && layout
+            .layout_subject_identity
+            .as_ref()
+            .is_none_or(|identity| !identity.is_empty())
         && layout.physical.alignment.is_power_of_two()
 }
-
 fn contained(
-    layout: &TargetClosedPlanLaidDataLayoutIdentity,
+    layout: &TargetClosedDataLayoutIdentity,
     offset: usize,
     extent: usize,
     alignment: usize,

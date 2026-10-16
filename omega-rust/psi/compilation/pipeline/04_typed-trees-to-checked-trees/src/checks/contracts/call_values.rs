@@ -589,18 +589,24 @@ fn scalar_at(
     contexts: &[FactContextHandle],
     place: &CanonicalPlace,
 ) -> Option<facts::ScalarValue> {
-    super::prover::boolean_value_at_place(program, &facts.semantic, contexts, place)
-        .map(facts::ScalarValue::Boolean)
-        .or_else(|| {
-            crate::values::scalar_value_at_place(
-                program,
-                &facts.semantic,
-                contexts
-                    .iter()
-                    .map(|handle| facts.semantic.contexts.get(*handle)),
-                place,
-            )
-        })
+    super::prover::boolean_value_at_place(
+        program,
+        &facts.operators,
+        &facts.semantic,
+        contexts,
+        place,
+    )
+    .map(facts::ScalarValue::Boolean)
+    .or_else(|| {
+        crate::values::scalar_value_at_place(
+            program,
+            &facts.semantic,
+            contexts
+                .iter()
+                .map(|handle| facts.semantic.contexts.get(*handle)),
+            place,
+        )
+    })
 }
 
 fn observed_literal(
@@ -754,8 +760,12 @@ pub(crate) fn proves_bound_predicate<'program>(
         return false;
     }
     let selected_contexts = selected_contexts.unwrap_or_else(|| contexts.to_vec());
-    let mut retained =
-        crate::facts::boolean_predicates::retained(program, &facts.semantic, &selected_contexts);
+    let mut retained = crate::facts::boolean_predicates::retained(
+        program,
+        &facts.operators,
+        &facts.semantic,
+        &selected_contexts,
+    );
     // Common observation contexts retain guards on current storage. Per-value
     // producer contexts are joined below, with all dependencies epoch-checked;
     // a later write cannot donate a new value to an earlier capture.

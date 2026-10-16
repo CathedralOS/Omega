@@ -1,0 +1,8 @@
+data Ticket [copy] { number: u64; }
+domain Ticket::Held established by issue;
+machine issue() -> Ticket in Ticket::Held { Ticket { number: 17 } }
+machine main() {
+ let issued: Ticket in Ticket::Held = issue();
+ let other: Ticket = Ticket { number: 17 };
+ let forged: Ticket in Ticket::Held = other as Ticket in Ticket::Held;
+}

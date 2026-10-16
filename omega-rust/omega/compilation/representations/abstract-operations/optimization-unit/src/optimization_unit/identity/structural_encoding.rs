@@ -537,6 +537,10 @@ pub(super) fn encode_structural_domain(
     bytes.id(declaration.semantic_domain);
     bytes.u32(declaration.identity.0);
     bytes.id(declaration.carrier);
+    encode_optional(bytes, declaration.predicate.as_ref(), |bytes, predicate| {
+        bytes.id(predicate.subject);
+        encode_proposition(bytes, &predicate.proposition);
+    });
     bytes.u8(declaration
         .byte_predicate
         .map_or(0, |predicate| predicate.mask_bit()));

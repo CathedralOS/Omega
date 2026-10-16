@@ -1,0 +1,4 @@
+domain u64::Issued established by issue;
+machine issue() -> u64 in u64::Issued { 7 }
+const forged: u64 in u64::Issued = 7 as u64 in u64::Issued;
+machine main() { }

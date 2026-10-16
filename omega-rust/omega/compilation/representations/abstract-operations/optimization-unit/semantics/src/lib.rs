@@ -95,9 +95,31 @@ pub fn structural_write_preserves_memberships(
     function: &optimization_unit::PsiOptimizationFunction,
     place: semantic_vocabulary::PlaceId,
     path: &[terminal_psi::StructuralPathSegment],
+    types: &[terminal_psi::StructuralTypeDeclaration],
+    domains: &[terminal_psi::StructuralDomainDeclaration],
+    identities: &terminal_psi::TerminalIdentityTable,
 ) -> bool {
-    unit_validation::operation_contracts::structural_source_contract(function, place)
-        .is_some_and(|source| source.memberships_disjoint_from_write(path))
+    unit_validation::operation_contracts::structural_source_contract(function, place).is_some_and(
+        |source| {
+            let (whole, projected) = source.selected_qualifications(&[]);
+            terminal_semantics::store_preserves_qualifications(
+                types.iter(),
+                domains.iter(),
+                identities,
+                &whole,
+                &projected,
+                path,
+            ) && terminal_semantics::store_preserves_content(
+                types.iter(),
+                domains.iter(),
+                identities,
+                source.structural_type,
+                place,
+                function.content_entry_claims.iter(),
+                path,
+            )
+        },
+    )
 }
 
 /// Declaration-side owned or exclusive storage for whole-referent restoration.

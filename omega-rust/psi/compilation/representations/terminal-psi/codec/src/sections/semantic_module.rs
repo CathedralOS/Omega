@@ -87,7 +87,7 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // Element writes retain full descriptor operands; stored element descriptors
 // retain their declaration-side backing access ceiling.
 // Fixed-array memberships and stored descriptors share the combined schema.
-pub(crate) const FORMAT_MARKER: u16 = 161;
+pub(crate) const FORMAT_MARKER: u16 = 162;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 

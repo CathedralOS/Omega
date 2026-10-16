@@ -1,0 +1,58 @@
+// Expected exit: 70. One owned capacity crosses alternative result cases.
+use omega::language::core::content;
+use omega::language::core::drop;
+use omega_language_std::console;
+data Slot { }
+data Capacity [linear] { serial: u64; }
+domain Capacity::Held;
+machine Held::content(capacity: &Capacity) -> CountedQuantity<Slot>
+satisfies Content<Capacity, CountedQuantity<Slot>>::project {
+ CountedQuantity { magnitude: Nat::Succ { prev: Nat::Zero } }
+}
+machine Capacity::drop(capacity: &mut Capacity) { }
+data Outcome {
+ case Accepted(capacity: Capacity in Capacity::Held);
+ case Rejected(capacity: Capacity in Capacity::Held);
+}
+boundary trait Registrar {
+ machine exchange(capacity: Capacity in Capacity::Held, accept: bool) -> Outcome;
+}
+data Provider { }
+machine Provider::exchange(capacity: Capacity in Capacity::Held, accept: bool) -> Outcome
+satisfies Registrar::exchange {
+ transition accept {
+  true -> (Outcome::Accepted { capacity: capacity })
+  _ -> (Outcome::Rejected { capacity: capacity })
+ }
+}
+data Main { }
+machine Main::main(main: &mut Main) reaches Registrar + Console invokes Registrar; invokes Console; {
+ let capacity: Capacity in Capacity::Held = Capacity { serial: 17 };
+ let first: Outcome = Registrar::exchange(capacity, false);
+ transition first {
+  Outcome::Rejected { capacity } -> retry(capacity)
+  Outcome::Accepted { capacity } -> wrong(capacity)
+ }
+ state retry(capacity: Capacity in Capacity::Held) {
+  let second: Outcome = Registrar::exchange(capacity, true);
+  transition second {
+   Outcome::Accepted { capacity } -> replace(capacity)
+   Outcome::Rejected { capacity } -> wrong(capacity)
+  }
+ }
+ state replace(capacity: Capacity in Capacity::Held) {
+  let third: Outcome = Registrar::exchange(capacity, true);
+  transition third {
+   Outcome::Accepted { capacity } -> finish(capacity)
+   Outcome::Rejected { capacity } -> wrong(capacity)
+  }
+ }
+ state finish(capacity: Capacity in Capacity::Held) {
+  let serial: u64 = capacity.serial;
+  drop(capacity);
+  transition serial == 17 { true -> good() _ -> bad() }
+ }
+ state wrong(capacity: Capacity in Capacity::Held) { drop(capacity); Console::exit_process(71); }
+ state good() { Console::exit_process(70); }
+ state bad() { Console::exit_process(72); }
+}

@@ -309,6 +309,31 @@ pub(super) fn validate_establish_reference(
     // Inline owner predicates belong to the field, not the root's nominal
     // membership roster. Carrier compatibility cannot replace their handback
     // obligation, including when the result advertises no qualifications.
+    let ancestors_preserved = *access == terminal_psi::StructuralAccess::SharedBorrow
+        || structural_fields::declared_memberships(machine, source.place).is_some_and(
+            |(whole, projected)| {
+                terminal_semantics::reference_preserves_ancestor_qualifications(
+                    module.structural_types.iter(),
+                    module.structural_domains.iter(),
+                    &module.identities,
+                    whole,
+                    projected,
+                    source_path,
+                    *access,
+                ) && terminal_semantics::store_preserves_content(
+                    module.structural_types.iter(),
+                    module.structural_domains.iter(),
+                    &module.identities,
+                    source_type,
+                    source.place,
+                    machine
+                        .content_entry_claims
+                        .iter()
+                        .filter(|claim| claim.input.segments.len() < source_path.len()),
+                    source_path,
+                )
+            },
+        );
     let memberships_match = if inline_owner {
         field_compatible
     } else {
@@ -332,7 +357,8 @@ pub(super) fn validate_establish_reference(
             },
         )
     };
-    if result.multiplicity != StructuralMultiplicity::Affine
+    if !ancestors_preserved
+        || result.multiplicity != StructuralMultiplicity::Affine
         || !result.qualifications.is_empty()
         || ((inline_owner
             || !result.projected_qualifications.is_empty()
@@ -395,20 +421,17 @@ fn field_store_carrier<'path>(
     ),
     CodecError,
 > {
-    let preserves = |root,
-                     whole: &[semantic_vocabulary::StructuralDomainId],
-                     projected: &[terminal_psi::StructuralPathQualification]| {
-        let Some(member) = terminal_semantics::projected_field_declaration(
+    let preserves = |root, whole: &[_], projected: &[_]| {
+        terminal_semantics::scalar_field_store_preserves_qualifications(
             module.structural_types.iter(),
+            module.structural_domains.iter(),
+            &module.identities,
             root,
+            whole,
+            projected,
             path,
             field,
-        ) else {
-            return false;
-        };
-        let mut written = path.to_vec();
-        written.push(terminal_psi::StructuralPathSegment::Field(member.identity));
-        terminal_semantics::structural_memberships_disjoint_from_write(whole, projected, &written)
+        )
     };
     let reference = reference_store_carrier(module, machine, destination, path, field);
     let destination_type = if let Some((referent, _)) = reference {
@@ -424,7 +447,7 @@ fn field_store_carrier<'path>(
             &parameter.qualifications,
             &parameter.projected_qualifications,
         ) {
-            return malformed("structural field store has invalid destination custody");
+            return malformed("structural field store cannot preserve destination custody");
         }
         parameter.structural_type
     } else {
@@ -448,13 +471,20 @@ fn field_store_carrier<'path>(
         // original producer does not make the containing storage immutable.
         result.structural_type
     };
+    if !terminal_semantics::scalar_field_store_preserves_content(
+        module.structural_types.iter(),
+        module.structural_domains.iter(),
+        &module.identities,
+        destination_type,
+        destination,
+        machine.content_entry_claims.iter(),
+        path,
+        field,
+    ) {
+        return malformed("structural scalar field store changes conserved content");
+    }
     let carrier_path = reference.map_or(path, |(_, suffix)| suffix);
-    if !terminal_psi::is_structural_scalar_store_path(carrier_path)
-        || machine
-            .content_entry_claims
-            .iter()
-            .any(|claim| claim.input.root == destination)
-    {
+    if !terminal_psi::is_structural_scalar_store_path(carrier_path) {
         return malformed("structural field store has invalid destination custody");
     }
     // The leaf resolver validates this complete path. A final Case is the

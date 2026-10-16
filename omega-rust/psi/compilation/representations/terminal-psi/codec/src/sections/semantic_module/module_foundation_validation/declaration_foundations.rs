@@ -15,6 +15,17 @@ use terminal_psi::{BoundaryMachineDeclaration, ProviderCandidateConformance, Ter
 /// Every structural domain names a known carrier type.
 pub(super) fn validate_domains(module: &TerminalModule) -> Result<(), CodecError> {
     for domain in &module.structural_domains {
+        if domain.predicate.as_ref().is_some_and(|predicate| {
+            !terminal_semantics::domain_predicate_is_closed(
+                module.structural_types.iter(),
+                domain.carrier,
+                predicate,
+            )
+        }) {
+            return malformed(
+                "structural domain predicate escapes its declared subject or carrier",
+            );
+        }
         if !has_structural_type(module, domain.carrier) {
             return malformed("structural domain references an unknown carrier type");
         }

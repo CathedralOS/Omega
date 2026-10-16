@@ -1,0 +1,8 @@
+data Ticket [copy] { number: u64; }
+domain Ticket::Issued(ticket) requires ticket.number != 0 established by issue;
+machine issue() -> Ticket in Ticket::Issued { Ticket { number: 17 } }
+machine forge() -> Ticket in Ticket::Issued {
+ let ticket: Ticket = Ticket { number: 17 };
+ ticket as Ticket in Ticket::Issued
+}
+machine main() { }

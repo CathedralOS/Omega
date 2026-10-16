@@ -1,216 +1,302 @@
-//! Closing private callback demands and their two-hop paths.
-
+//! Target-closed private callback slots and complete inline record paths.
 use crate::builder::semantic_ranges::{plan_laid_semantic_ranges, ranges_overlap};
 use crate::{
-    DataLayout, DataShape, FieldLayout, TargetClosedPlanLaidDataLayoutIdentity,
-    TargetClosedPrivateCallbackDemand, TargetClosedTwoHopPrivateCallbackPath, TypeLayoutDescriptor,
+    DataLayout, DataShape, FieldLayout, PrivateCallbackInlineField, PrivateCallbackLayout,
+    TargetClosedDataLayoutIdentity, TargetClosedPrivateCallbackDemand,
 };
 use arena::Arena;
-use calling_conventions::{
-    callback_layout_field_slot_id, callback_layout_slot_id, callback_requirement_id,
-};
+use calling_conventions::{callback_layout_slot_id, callback_requirement_id};
 use diagnostics::Diagnostic;
 use target::NativeTarget;
 use typed_trees::TypedTrees;
 
-pub(crate) fn close_two_hop_private_callback_paths(
+pub(crate) fn close_private_callback_layouts(
     program: &TypedTrees,
-    data_layouts: &Arena<DataLayout>,
+    data: &Arena<DataLayout>,
     fields: &Arena<FieldLayout>,
-    layout_identities: &[TargetClosedPlanLaidDataLayoutIdentity],
-    private_demands: &[TargetClosedPrivateCallbackDemand],
-) -> Result<Vec<TargetClosedTwoHopPrivateCallbackPath>, Diagnostic> {
-    let mut paths = Vec::new();
-    for (root_layout_index, root_identity) in layout_identities.iter().enumerate() {
-        let matching_roots = data_layouts
+    selected: &[TargetClosedDataLayoutIdentity],
+    demands: &[TargetClosedPrivateCallbackDemand],
+    target: NativeTarget,
+) -> Result<
+    (
+        Vec<TargetClosedDataLayoutIdentity>,
+        Vec<PrivateCallbackLayout>,
+    ),
+    Diagnostic,
+> {
+    if demands.is_empty() {
+        return Ok((selected.to_vec(), Vec::new()));
+    }
+    let mut identities = selected.to_vec();
+    for (_, root) in data.iter() {
+        if identities
             .iter()
-            .filter(|(_, layout)| layout.symbol == root_identity.data_symbol)
-            .collect::<Vec<_>>();
-        let [(_, root)] = matching_roots.as_slice() else {
-            return Err(Diagnostic::error(format!(
-                "target-closed plan-laid root resolves to {} exact data layouts",
-                matching_roots.len()
-            )));
-        };
-        if root.layout != root_identity.physical {
-            return Err(Diagnostic::error(
-                "target-closed plan-laid root changed its physical layout",
-            ));
+            .any(|identity| identity.data_symbol == root.symbol)
+            || !reaches_slot(root.symbol, data, fields, demands, &mut Vec::new())
+        {
+            continue;
         }
+        let canonical = program
+            .normalized_hermetic_symbol_identity(root.symbol)
+            .or_else(|reason| {
+                program
+                    .data_definitions()
+                    .iter()
+                    .find(|definition| definition.symbol == root.symbol)
+                    .and_then(|definition| definition.generic_instance)
+                    .map(|reference| {
+                        format!(
+                            "closed-data-instance::{}",
+                            program.package_qualified_type_identity_text(reference)
+                        )
+                    })
+                    .ok_or(reason)
+            })
+            .map_err(|reason| {
+                Diagnostic::error(format!(
+                    "callback record has no exact data identity: {reason}"
+                ))
+            })?;
         let DataShape::Record {
             fields: root_fields,
         } = root.shape
         else {
             continue;
         };
-        let root_field_layouts = fields.span(root_fields).ok_or_else(|| {
-            Diagnostic::error("target-closed plan-laid root retained an invalid field span")
-        })?;
-        for (field_ordinal, field_layout) in root_field_layouts.iter().enumerate() {
-            let TypeLayoutDescriptor::Named {
-                symbol: child_symbol,
-                ..
-            } = field_layout.type_descriptor
-            else {
-                continue;
-            };
-            if root_field_layouts
-                .iter()
-                .filter(|candidate| candidate.symbol == field_layout.symbol)
-                .count()
-                != 1
-            {
-                return Err(Diagnostic::error(
-                    "target-closed callback path field symbol is not unique in its root record",
-                ));
-            }
-            if field_layout.type_symbol.is_valid() && field_layout.type_symbol != child_symbol {
-                return Err(Diagnostic::error(format!(
-                    "target-closed callback path field changed its exact named child symbol from {:?} to {:?}",
-                    field_layout.type_symbol, child_symbol
-                )));
-            }
-            let matching_children = layout_identities
-                .iter()
-                .enumerate()
-                .filter(|(_, identity)| identity.data_symbol == child_symbol)
-                .collect::<Vec<_>>();
-            let [(child_layout_index, child_identity)] = matching_children.as_slice() else {
-                continue;
-            };
-            if root_identity.data_symbol == child_identity.data_symbol {
-                return Err(Diagnostic::error(
-                    "target-closed callback path cannot recursively contain its root layout",
-                ));
-            }
-            let matching_child_data = data_layouts
-                .iter()
-                .filter(|(_, layout)| layout.symbol == child_symbol)
-                .collect::<Vec<_>>();
-            let [(_, child_data)] = matching_child_data.as_slice() else {
-                return Err(Diagnostic::error(format!(
-                    "target-closed callback path child resolves to {} exact data layouts",
-                    matching_child_data.len()
-                )));
-            };
-            if !matches!(child_data.shape, DataShape::Record { .. })
-                || child_data.layout != child_identity.physical
-                || field_layout.layout != child_identity.physical
-                || field_layout.layout.alignment == 0
-                || !field_layout
-                    .offset
-                    .is_multiple_of(field_layout.layout.alignment)
-                || field_layout
-                    .offset
-                    .checked_add(field_layout.layout.size)
-                    .is_none_or(|end| end > root_identity.physical.size)
-            {
-                return Err(Diagnostic::error(
-                    "target-closed callback path changed its exact inline child geometry",
-                ));
-            }
-            let field_identity = program
-                .normalized_hermetic_symbol_identity(field_layout.symbol)
+        let root_fields = fields
+            .span(root_fields)
+            .ok_or_else(|| Diagnostic::error("callback root field span is stale"))?;
+        let mut geometry = Vec::new();
+        for quantity in [
+            root.layout.size,
+            root.layout.alignment,
+            target.pointer_size,
+            target.pointer_alignment,
+        ] {
+            geometry.extend_from_slice(&(quantity as u64).to_le_bytes());
+        }
+        for field in root_fields {
+            let identity = program
+                .normalized_hermetic_symbol_identity(field.symbol)
                 .map_err(|reason| {
                     Diagnostic::error(format!(
-                        "target-closed callback path cannot rederive its exact field identity: {reason}"
+                        "callback field has no exact declaration identity: {reason}"
                     ))
                 })?;
-            let field_slot = callback_layout_field_slot_id(root_identity.layout, &field_identity);
-            let field_index = root_fields
-                .start()
-                .arena_index()
-                .checked_add(u32::try_from(field_ordinal).map_err(|_| {
-                    Diagnostic::error("target-closed callback path field ordinal overflowed")
-                })?)
-                .ok_or_else(|| {
-                    Diagnostic::error("target-closed callback path field handle overflowed")
-                })?;
-            let field = arena::Handle::from_parts(field_index, root_fields.start().generation());
-            for (terminal_demand_index, terminal_demand) in private_demands
-                .iter()
-                .enumerate()
-                .filter(|(_, demand)| demand.data_symbol == child_symbol)
-            {
-                if terminal_demand.alignment == 0
-                    || !terminal_demand
-                        .offset
-                        .is_multiple_of(terminal_demand.alignment)
-                    || terminal_demand
-                        .offset
-                        .checked_add(terminal_demand.byte_size)
-                        .is_none_or(|end| end > child_identity.physical.size)
-                {
-                    return Err(Diagnostic::error(
-                        "target-closed callback path changed its terminal child geometry",
-                    ));
-                }
-                let composed_offset = field_layout
-                    .offset
-                    .checked_add(terminal_demand.offset)
-                    .ok_or_else(|| {
-                        Diagnostic::error("target-closed callback path composed offset overflowed")
-                    })?;
-                if !composed_offset.is_multiple_of(terminal_demand.alignment)
-                    || composed_offset
-                        .checked_add(terminal_demand.byte_size)
-                        .is_none_or(|end| end > root_identity.physical.size)
-                {
-                    return Err(Diagnostic::error(
-                        "target-closed callback path composed range is outside or misaligned for its root layout",
-                    ));
-                }
-                paths.push(TargetClosedTwoHopPrivateCallbackPath {
-                    root_layout_index,
-                    root_layout: root_identity.clone(),
-                    field_symbol: field_layout.symbol,
-                    field,
-                    field_layout: field_layout.clone(),
-                    field_identity: field_identity.clone().into(),
-                    field_slot,
-                    field_relative_offset: field_layout.offset,
-                    field_extent: field_layout.layout.size,
-                    field_alignment: field_layout.layout.alignment,
-                    child_layout_index: *child_layout_index,
-                    child_layout: (*child_identity).clone(),
-                    terminal_demand_index,
-                    terminal_demand: terminal_demand.clone(),
-                    composed_offset,
-                });
+            geometry.extend_from_slice(&(identity.len() as u64).to_le_bytes());
+            geometry.extend_from_slice(identity.as_bytes());
+            for quantity in [field.offset, field.layout.size, field.layout.alignment] {
+                geometry.extend_from_slice(&(quantity as u64).to_le_bytes());
             }
         }
+        let layout = calling_conventions::LayoutPlanId::new(
+            calling_conventions::callback_nominal_report_fingerprint(
+                b"omega.callback-natural-data-layout.v1",
+                &[canonical.as_bytes(), &geometry],
+            ),
+        )
+        .expect("callback report identity is nonzero");
+        let identity = TargetClosedDataLayoutIdentity {
+            data_symbol: root.symbol,
+            data_identity: canonical.into(),
+            layout_subject_identity: None,
+            layout,
+            physical: root.layout,
+        };
+        if identities
+            .iter()
+            .any(|prior| prior.layout == identity.layout)
+        {
+            return Err(Diagnostic::error(
+                "callback natural layout identity collides with another root",
+            ));
+        }
+        identities.push(identity);
     }
-    paths.sort_unstable_by_key(|path| {
+    let mut layouts = Vec::new();
+    for root in &identities {
+        if reaches_slot(root.data_symbol, data, fields, demands, &mut Vec::new()) {
+            close_path(
+                program,
+                data,
+                fields,
+                &identities,
+                demands,
+                root,
+                root,
+                &mut Vec::new(),
+                &mut Vec::new(),
+                &mut layouts,
+            )?;
+        }
+    }
+    layouts.sort_by_key(|layout| {
         (
-            path.root_layout.layout,
-            path.field_slot,
-            path.terminal_demand.slot,
+            layout.root_layout().layout,
+            layout
+                .native_demand(
+                    calling_conventions::NativeParameterId::new(1)
+                        .expect("nonzero report parameter"),
+                )
+                .expect("newly built path is valid")
+                .destination,
         )
     });
-    for (index, path) in paths.iter().enumerate() {
-        if paths[..index].iter().any(|prior| {
-            prior.root_layout.layout == path.root_layout.layout
-                && prior.field_slot == path.field_slot
-                && (prior.field != path.field
-                    || prior.field_symbol != path.field_symbol
-                    || prior.field_layout != path.field_layout
-                    || prior.child_layout != path.child_layout)
-        }) {
+    for pair in layouts.windows(2) {
+        let parameter =
+            calling_conventions::NativeParameterId::new(1).expect("nonzero report parameter");
+        if pair[0].native_demand(parameter) == pair[1].native_demand(parameter) {
             return Err(Diagnostic::error(
-                "target-closed callback path field slot collides across distinct root-to-child edges",
+                "callback layout catalog repeats one exact inline path",
             ));
         }
     }
-    if paths.windows(2).any(|pair| {
-        pair[0].root_layout.layout == pair[1].root_layout.layout
-            && pair[0].field_slot == pair[1].field_slot
-            && pair[0].terminal_demand.slot == pair[1].terminal_demand.slot
-    }) {
+    Ok((identities, layouts))
+}
+fn reaches_slot(
+    symbol: symbols::SymbolHandle,
+    data: &Arena<DataLayout>,
+    fields: &Arena<FieldLayout>,
+    demands: &[TargetClosedPrivateCallbackDemand],
+    seen: &mut Vec<symbols::SymbolHandle>,
+) -> bool {
+    if demands.iter().any(|demand| demand.data_symbol == symbol) {
+        return true;
+    }
+    if seen.contains(&symbol) {
+        return false;
+    }
+    seen.push(symbol);
+    let found = data
+        .iter()
+        .find(|(_, layout)| layout.symbol == symbol)
+        .is_some_and(|(_, layout)| {
+            let DataShape::Record { fields: children } = layout.shape else {
+                return false;
+            };
+            fields.span(children).is_some_and(|children| {
+                children
+                    .iter()
+                    .filter_map(|field| field.type_descriptor.inline_data_symbol())
+                    .any(|child| reaches_slot(child, data, fields, demands, seen))
+            })
+        });
+    seen.pop();
+    found
+}
+#[allow(clippy::too_many_arguments)]
+fn close_path(
+    program: &TypedTrees,
+    data: &Arena<DataLayout>,
+    fields: &Arena<FieldLayout>,
+    identities: &[TargetClosedDataLayoutIdentity],
+    demands: &[TargetClosedPrivateCallbackDemand],
+    root: &TargetClosedDataLayoutIdentity,
+    current: &TargetClosedDataLayoutIdentity,
+    path: &mut Vec<PrivateCallbackInlineField>,
+    seen: &mut Vec<symbols::SymbolHandle>,
+    output: &mut Vec<PrivateCallbackLayout>,
+) -> Result<(), Diagnostic> {
+    if seen.contains(&current.data_symbol) {
         return Err(Diagnostic::error(
-            "target-closed callback path catalog repeats one exact two-hop path",
+            "callback inline path recursively contains its own carrier",
         ));
     }
-    Ok(paths)
+    seen.push(current.data_symbol);
+    for terminal in demands
+        .iter()
+        .filter(|demand| demand.data_symbol == current.data_symbol)
+    {
+        if current.layout_subject_identity.as_deref()
+            != Some(terminal.layout_subject_identity.as_ref())
+        {
+            return Err(Diagnostic::error(
+                "callback terminal lost its exact selected layout policy",
+            ));
+        }
+        output.push(
+            PrivateCallbackLayout::from_fields(root.clone(), path, terminal.clone())
+                .map_err(Diagnostic::error)?,
+        );
+    }
+    let matching = data
+        .iter()
+        .filter(|(_, layout)| layout.symbol == current.data_symbol)
+        .collect::<Vec<_>>();
+    let [(_, layout)] = matching.as_slice() else {
+        return Err(Diagnostic::error(
+            "callback path has no unique typed data layout",
+        ));
+    };
+    if layout.layout != current.physical {
+        return Err(Diagnostic::error(
+            "callback path changed its complete carrier geometry",
+        ));
+    }
+    if let DataShape::Record { fields: children } = layout.shape {
+        for field in fields
+            .span(children)
+            .ok_or_else(|| Diagnostic::error("callback path field span is stale"))?
+        {
+            let Some(child_symbol) = field.type_descriptor.inline_data_symbol() else {
+                continue;
+            };
+            if !reaches_slot(child_symbol, data, fields, demands, &mut Vec::new()) {
+                continue;
+            }
+            let matching = identities
+                .iter()
+                .filter(|identity| identity.data_symbol == child_symbol)
+                .collect::<Vec<_>>();
+            let [child] = matching.as_slice() else {
+                return Err(Diagnostic::error(
+                    "callback inline field has no unique closed child layout",
+                ));
+            };
+            if field.layout != child.physical
+                || field.layout.alignment == 0
+                || !field.offset.is_multiple_of(field.layout.alignment)
+                || field
+                    .offset
+                    .checked_add(field.layout.size)
+                    .is_none_or(|end| end > current.physical.size)
+                || fields.span(children).is_none_or(|children| {
+                    children
+                        .iter()
+                        .filter(|candidate| candidate.symbol == field.symbol)
+                        .count()
+                        != 1
+                })
+                || (field.type_symbol.is_valid() && field.type_symbol != child.data_symbol)
+            {
+                return Err(Diagnostic::error(
+                    "callback path changed its exact inline field geometry",
+                ));
+            }
+            let identity = program
+                .normalized_hermetic_symbol_identity(field.symbol)
+                .map_err(|reason| {
+                    Diagnostic::error(format!(
+                        "callback path field identity cannot close: {reason}"
+                    ))
+                })?;
+            path.push(PrivateCallbackInlineField {
+                symbol: field.symbol,
+                field_layout: field.clone(),
+                identity: identity.into(),
+                offset: field.offset,
+                extent: field.layout.size,
+                alignment: field.layout.alignment,
+                child_layout: (*child).clone(),
+            });
+            close_path(
+                program, data, fields, identities, demands, root, child, path, seen, output,
+            )?;
+            path.pop();
+        }
+    }
+    seen.pop();
+    Ok(())
 }
 
 pub(crate) fn close_private_callback_demands(

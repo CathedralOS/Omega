@@ -1,0 +1,15 @@
+use omega::language::core::content;
+data Slot { }
+data Capacity [linear] { }
+domain Capacity::Held established by acquire;
+machine acquire() -> Capacity in Capacity::Held { Capacity { } }
+machine Held::content(capacity: &Capacity) -> CountedQuantity<Slot>
+satisfies Content<Capacity, CountedQuantity<Slot>>::project {
+ CountedQuantity { magnitude: Nat::Succ { prev: Nat::Zero } }
+}
+data Pair { left: Capacity in Capacity::Held; right: Capacity in Capacity::Held; }
+boundary trait Duplicate { machine duplicate(capacity: Capacity in Capacity::Held) -> Pair; }
+machine duplicate(capacity: Capacity in Capacity::Held) -> Pair reaches Duplicate {
+ Duplicate::duplicate(capacity)
+}
+machine main() { }

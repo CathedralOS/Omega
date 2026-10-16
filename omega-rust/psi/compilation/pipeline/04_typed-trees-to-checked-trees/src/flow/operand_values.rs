@@ -197,8 +197,16 @@ fn reaching_store_values<'capture>(
     value: &CapturedValue<'capture>,
 ) -> Option<Vec<CapturedValue<'capture>>> {
     let operand = value.operand;
+    let observed_type = validation::project_type_reference_from_segments(
+        program,
+        value.type_reference,
+        &value.projection.remaining,
+    )?;
+    // An owned linear record need not be copyable for a stable scalar field
+    // read to retain its reaching store. Judge the observed projection, not
+    // the containing owner's unrelated custody or mutable fields.
     if operand.state_symbol != state.state_symbol
-        || !super::operand_contexts::operand_binds_stable_copy(program, value.type_reference)
+        || !super::operand_contexts::operand_binds_stable_copy(program, observed_type)
     {
         return None;
     }

@@ -1250,8 +1250,8 @@ pass/calls/callback_owned_indirect_record rejected 1283ms @91bbf3e29aa9
 	a boundary call requires an explicit shared `&Binding<R>` authority argument
 pass/calls/callback_owned_overaligned_record rejected 1434ms @91bbf3e29aa9
 	a boundary call requires an explicit shared `&Binding<R>` authority argument
-pass/calls/callback_private_materialization rejected 829ms @6c49683ce714
-	a boundary call requires an explicit shared `&Binding<R>` authority argument
+pass/calls/callback_private_deep_forwarded_record built 21679ms exit:70 @e74967d11875
+pass/calls/callback_private_materialization built 11198ms exit:0 @e74967d11875
 pass/calls/callback_scalar_loan_permutation rejected 1300ms @91bbf3e29aa9
 	a boundary call requires an explicit shared `&Binding<R>` authority argument
 pass/calls/caller_result_binding_mutable_loan_exit built 12491ms exit:70 @91bbf3e29aa9
@@ -2358,6 +2358,7 @@ pass/host/runtime_gui_foreground_window_exit built 5629ms exit:70 @c6b298470bf5
 pass/host/runtime_gui_window_lifecycle_exit built 5163ms exit:70 @c6b298470bf5
 pass/host/runtime_windows_gui_argument_failures_exit built 5124ms exit:70 @c6b298470bf5
 pass/host/std_clock_sleep_exit built 5655ms exit:70 @6c49683ce714
+pass/host/user32_window_procedure_registration built 20755ms exit:70 @e74967d11875
 pass/inline_asm/asm_aarch64_system_registers_compile incomplete 11555ms @e3eb5bdd566b
 	`Main::main` has no executable body: this compiler does not lower a statement of it yet (call operation: target state); in state `Main::main::main`, statement 0
 pass/inline_asm/asm_block_jmp_state built 6662ms @6c49683ce714

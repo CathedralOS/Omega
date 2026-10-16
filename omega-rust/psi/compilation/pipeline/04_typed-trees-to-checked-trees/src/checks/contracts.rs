@@ -235,6 +235,9 @@ pub(super) fn check_flow_call_contracts(
     }
 
     if diagnostics.is_empty() {
+        writes::check_routed_cast_coverage(program, &value_qualifications, &mut diagnostics);
+    }
+    if diagnostics.is_empty() {
         Ok(ContractDecisions {
             constant_obligations,
             call_requires: decided,

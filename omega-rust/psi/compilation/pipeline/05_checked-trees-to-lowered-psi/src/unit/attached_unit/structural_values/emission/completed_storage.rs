@@ -40,6 +40,68 @@ impl Emission<'_, '_, '_> {
         })
     }
 
+    /// A value binding may explicitly forget predicate memberships while its
+    /// exact owned occurrence and claims cross the ordinary arrival edge.
+    /// The declaration cannot introduce a membership absent from that source.
+    pub(super) fn value_binding_parameter(
+        &self,
+        _identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        source: &StructuralArgument,
+        place: PlaceId,
+        position: u32,
+    ) -> Result<StructuralParameterDeclaration, LoweringError> {
+        let mut parameter = self.transported_parameter(
+            source,
+            place,
+            position,
+            self.structural_type,
+            self.multiplicity,
+        )?;
+        if !self.binding_type_reference.is_valid() {
+            return Ok(parameter);
+        }
+        let mut whole = validation::view_result_carrier_qualifications(
+            &self.checked.typed,
+            self.binding_type_reference,
+        )
+        .map_err(LoweringError::Unsupported)?
+        .into_iter()
+        .map(|domain| {
+            crate::terminal_identities::lookup_domain_id_for_carrier(
+                self.domain_ids,
+                domain,
+                self.structural_type,
+            )
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+        whole.sort();
+        whole.dedup();
+        // Nested/case memberships belong to the actual completed payload.
+        // The nominal target can mention inactive alternatives, which are not
+        // new observations established by this owned edge.
+        if whole
+            .iter()
+            .any(|domain| !parameter.qualifications.contains(domain))
+        {
+            return unsupported("owned binding cannot establish a receiving membership");
+        }
+        let content = |id| {
+            self.domain_declarations
+                .iter()
+                .find(|domain| domain.id == id)
+                .is_none_or(|domain| domain.content_projection.is_some())
+        };
+        if parameter
+            .qualifications
+            .iter()
+            .any(|domain| content(*domain) && !whole.contains(domain))
+        {
+            return unsupported("owned binding cannot forget a conserved Content projection");
+        }
+        parameter.qualifications = whole;
+        Ok(parameter)
+    }
+
     /// Producer and ingress homes retain their actual occurrence-relative
     /// memberships. A receiving annotation is never a source contract.
     pub(super) fn completed_memberships(

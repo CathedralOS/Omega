@@ -10,6 +10,7 @@ use facts::{FactOrigin, FactPayload, FactPlan, ProgramPoint, ScalarValue};
 
 pub(crate) fn boolean_value_at_place(
     program: &dyn ::validation::CheckingInput,
+    operators: &checked_trees::CheckedOperatorFacts,
     semantic: &FactPlan,
     contexts: &[facts::FactContextHandle],
     actual: &CanonicalPlace,
@@ -17,7 +18,8 @@ pub(crate) fn boolean_value_at_place(
     if let Some(value) = ordinary_boolean_value_at_place(program, semantic, contexts, actual) {
         return Some(value);
     }
-    let predicates = crate::facts::boolean_predicates::retained(program, semantic, contexts);
+    let predicates =
+        crate::facts::boolean_predicates::retained(program, operators, semantic, contexts);
     crate::facts::boolean_predicates::inferred_booleans(&predicates, |place| {
         ordinary_boolean_value_at_place(program, semantic, contexts, place)
             .map(ScalarValue::Boolean)

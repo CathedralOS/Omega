@@ -218,6 +218,7 @@ pub(crate) fn call_argument_substitution<'program>(
                             .or_else(|| {
                                 crate::checks::contracts::boolean_value_at_place(
                                     program,
+                                    operators,
                                     semantic,
                                     &entry_contexts,
                                     place,

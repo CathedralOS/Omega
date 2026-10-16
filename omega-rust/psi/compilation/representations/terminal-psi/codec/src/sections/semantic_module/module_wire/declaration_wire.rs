@@ -65,6 +65,11 @@ pub(super) fn encode_structural_domain(
     writer.id(declaration.semantic_domain);
     writer.u32(declaration.identity.0);
     writer.id(declaration.carrier);
+    writer.boolean(declaration.predicate.is_some());
+    if let Some(predicate) = &declaration.predicate {
+        writer.id(predicate.subject);
+        super::super::proposition_wire::encode_proposition(writer, &predicate.proposition, 0)?;
+    }
     writer.u8(declaration
         .byte_predicate
         .map_or(0, |predicate| predicate.mask_bit()));
@@ -115,6 +120,14 @@ pub(super) fn decode_structural_domain(
         semantic_domain: reader.id("DomainSemanticId")?,
         identity: TerminalIdentityIndex(reader.u32()?),
         carrier: reader.id("StructuralTypeId")?,
+        predicate: if reader.boolean()? {
+            Some(terminal_psi::StructuralDomainPredicate {
+                subject: reader.id("domain predicate subject")?,
+                proposition: super::super::proposition_wire::decode_proposition(reader, 0)?,
+            })
+        } else {
+            None
+        },
         byte_predicate: match reader.u8()? {
             0 => None,
             1 => Some(terminal_psi::ByteSequencePredicate::ValidUtf8),

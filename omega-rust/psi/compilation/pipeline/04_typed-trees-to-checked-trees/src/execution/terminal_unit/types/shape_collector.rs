@@ -156,6 +156,7 @@ impl<'program> ShapeCollector<'program> {
                 typed_trees::byte_predicates::domain_byte_predicate(self.program, definition.symbol)
             });
         let plan = CheckedUnitStructuralDomainPlan {
+            predicate: None,
             byte_predicate,
             domain,
             name: identity,

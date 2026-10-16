@@ -341,12 +341,10 @@ pub(in crate::execution::terminal_unit) fn value_calls(
                     result,
                     facts::PlaceRoot::Expression(call.authored_expression),
                 ));
-                // A whole call is the value's own producer. Its caller
-                // publishes that same result binding; aggregate children need
-                // separate slots because the enclosing value has its own home.
-                if value != root {
-                    *count = count.checked_add(1)?;
-                }
+                // Each call has its own anonymous producer ordinal. The value
+                // binding owns a separate result even for a whole call, so its
+                // receiving membership can differ without relabeling the ABI.
+                *count = count.checked_add(1)?;
             }
             checked_trees::CheckedStructuralValueKind::Record { fields, .. }
             | checked_trees::CheckedStructuralValueKind::StructuralCase { fields, .. } => {
@@ -426,45 +424,19 @@ pub(in crate::execution::terminal_unit) fn value_calls(
     Some(output)
 }
 
-/// Publish the semantic producer of a value. A call already establishes its
-/// result, so wrapping it in a second construction hides its argument schedule
-/// and invents a second storage identity. Actual aggregates keep their evaluator
-/// and its authored member/selection schedule. Every context uses this decision.
+/// Publish the evaluated value through its ordinary binding owner. The value
+/// evaluator invokes each retained call once and transports its completed
+/// custody into the receiving declaration. A fresh call result may still need
+/// a distinct arrival when that declaration forgets a predicate membership.
 pub(in crate::execution::terminal_unit) fn establish_value(
-    facts: &CheckFacts,
+    _facts: &CheckFacts,
     result: CheckedUnitStructuralResultBindingPlan,
     value: checked_trees::CheckedStructuralValueHandle,
     calls: Vec<checked_trees::CheckedStructuralValueCall>,
     operand_source: Option<checked_trees::CheckedArrayConstructionSource>,
     discard_result_on_return: bool,
-    operations: &mut Vec<CheckedUnitEffectOperationPlan>,
+    _operations: &mut Vec<CheckedUnitEffectOperationPlan>,
 ) -> Option<CheckedUnitEffectOperationPlan> {
-    if matches!(
-        facts.values.structural_values.nodes.get(value).kind,
-        checked_trees::CheckedStructuralValueKind::Call { .. }
-    ) {
-        let [call] = calls.as_slice() else {
-            return None;
-        };
-        if call.value != value || operand_source.is_some() {
-            return None;
-        }
-        let mut operation = call.operation().clone();
-        let (binding, discard) = operation.call_mut()?.structural_result_mut()?;
-        // Value planning binds the call before knowing which local it
-        // initializes; the caller's binding names that local.
-        let anonymous = CheckedUnitStructuralResultBindingPlan {
-            local: Default::default(),
-            ..result.clone()
-        };
-        if *binding != anonymous {
-            return None;
-        }
-        *binding = result;
-        *discard = discard_result_on_return;
-        operations.extend(call.operands().iter().cloned());
-        return Some(operation);
-    }
     Some(CheckedUnitEffectOperationPlan::EstablishLocal(
         checked_trees::CheckedUnitLocalBindingPlan::StructuralValue {
             result,

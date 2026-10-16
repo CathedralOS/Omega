@@ -867,6 +867,7 @@ pub(crate) fn build_checked_unit_effect_plans(
             }))
     }));
     shapes.retain_transitive(&retained_type_identities);
+    types::retain_domain_predicates(program, &facts.operators, &mut shapes.domains);
 
     let partial_affine_plans = CheckedPartialAffineUnitCleanupPlans {
         machines: partial_affine_machines,

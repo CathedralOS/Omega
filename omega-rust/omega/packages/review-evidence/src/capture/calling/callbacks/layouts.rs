@@ -8,7 +8,7 @@ use crate::record::{
     PackagePolicyCallbackLayoutApplication,
 };
 use diagnostics::Diagnostic;
-use layout::TargetClosedPlanLaidDataLayoutIdentity;
+use layout::TargetClosedDataLayoutIdentity;
 use provider_planning::calling_policy_plans::BoundaryCallbackLayoutEntry;
 use typed_trees::name::Identifier;
 use typed_trees::typed_trees::PlanLaidLayout;
@@ -20,10 +20,10 @@ pub(super) fn project(
     entry: &BoundaryCallbackLayoutEntry,
     lifetime_binders: &[Identifier],
 ) -> Result<PackagePolicyCallbackLayout, Vec<Diagnostic>> {
-    let root = plan(compilation, entry.root_layout())?;
-    let inline_field = entry
-        .inline_field()
-        .map(|field| {
+    let mut parent = entry.root_layout();
+    let mut inline_fields = Vec::new();
+    for field in entry.inline_fields().map_err(|reason| rejected(&reason))? {
+        let source_symbol = if let Some(root) = plan(compilation, parent)? {
             let indices = root
                 .field_symbols
                 .iter()
@@ -33,31 +33,35 @@ pub(super) fn project(
                 .collect::<Vec<_>>();
             let [index] = indices.as_slice() else {
                 return Err(rejected(
-                    "callback inline field is not uniquely owned by its root layout",
+                    "callback inline field is not uniquely owned by its parent layout",
                 ));
             };
-            let source_symbol =
-                root.schema_field_symbols
-                    .get(*index)
-                    .copied()
-                    .ok_or_else(|| {
-                        rejected("callback inline field lost its exact schema declaration")
-                    })?;
-            Ok(PackagePolicyCallbackInlineField {
-                field: nominal_identity(compilation, source_symbol)?,
-                offset: quantity(field.offset())?,
-                extent: quantity(field.extent())?,
-                alignment: quantity(field.alignment())?,
-                child_layout: application(compilation, field.child_layout(), lifetime_binders)?,
-            })
-        })
-        .transpose()?;
+            root.schema_field_symbols
+                .get(*index)
+                .copied()
+                .ok_or_else(|| {
+                    rejected("callback inline field lost its exact schema declaration")
+                })?
+        } else {
+            // The layout producer retained this exact natural record field;
+            // its nominal declaration remains the package-review identity.
+            field.symbol()
+        };
+        inline_fields.push(PackagePolicyCallbackInlineField {
+            field: nominal_identity(compilation, source_symbol)?,
+            offset: quantity(field.offset())?,
+            extent: quantity(field.extent())?,
+            alignment: quantity(field.alignment())?,
+            child_layout: application(compilation, field.child_layout(), lifetime_binders)?,
+        });
+        parent = field.child_layout();
+    }
     let terminal = entry.terminal_slot();
     Ok(PackagePolicyCallbackLayout {
         formal_ordinal: entry.formal_ordinal(),
         native_ordinal: entry.native_ordinal(),
         root_layout: application(compilation, entry.root_layout(), lifetime_binders)?,
-        inline_field,
+        inline_fields,
         terminal_slot: project_checked_conformance_policy(
             compilation,
             &terminal.slot_application,
@@ -72,8 +76,11 @@ pub(super) fn project(
 
 fn plan<'a>(
     compilation: &'a PackageReviewInput<'a>,
-    layout: &TargetClosedPlanLaidDataLayoutIdentity,
-) -> Result<&'a PlanLaidLayout, Vec<Diagnostic>> {
+    layout: &TargetClosedDataLayoutIdentity,
+) -> Result<Option<&'a PlanLaidLayout>, Vec<Diagnostic>> {
+    if layout.layout_subject_identity.is_none() {
+        return Ok(None);
+    }
     let matches = compilation
         .plan_laid_layouts
         .iter()
@@ -92,19 +99,21 @@ fn plan<'a>(
             "callback layout geometry differs from its checked application",
         ));
     }
-    Ok(plan)
+    Ok(Some(plan))
 }
 
 fn application(
     compilation: &PackageReviewInput<'_>,
-    layout: &TargetClosedPlanLaidDataLayoutIdentity,
+    layout: &TargetClosedDataLayoutIdentity,
     lifetime_binders: &[Identifier],
 ) -> Result<PackagePolicyCallbackLayoutApplication, Vec<Diagnostic>> {
     let plan = plan(compilation, layout)?;
     let schemas = compilation
         .data_definitions()
         .iter()
-        .filter(|definition| definition.symbol == plan.schema_symbol)
+        .filter(|definition| {
+            definition.symbol == plan.map_or(layout.data_symbol, |plan| plan.schema_symbol)
+        })
         .collect::<Vec<_>>();
     let [schema] = schemas.as_slice() else {
         return Err(rejected("callback layout has no exact schema declaration"));
@@ -121,7 +130,7 @@ fn application(
             }),
     };
     Ok(PackagePolicyCallbackLayoutApplication {
-        policy: nominal_identity(compilation, plan.policy_symbol)?,
+        policy: plan.map(|plan| nominal_identity(compilation, plan.policy_symbol)).transpose()?,
         schema: signature_type_identity(
             compilation,
             &projected,

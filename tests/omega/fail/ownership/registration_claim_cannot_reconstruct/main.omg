@@ -1,0 +1,18 @@
+use omega::language::core::drop;
+data Registration [linear] { module: u64; atom: u64; }
+domain Registration::Held(registration) requires registration.module != 0 established by acquire, acquire_live;
+domain Registration::Vacant(registration) requires registration.atom == 0;
+domain Registration::Live(registration) requires registration.atom != 0 established by acquire_live;
+domain Registration::Available = Held & Vacant;
+domain Registration::Installed = Held & Live;
+machine Registration::drop(registration: &mut Registration)
+requires registration.module == 0 && registration.atom == 0 { }
+machine acquire() -> Registration in Registration::Available { Registration { module: 1, atom: 0 } }
+machine acquire_live() -> Registration in Registration::Installed { Registration { module: 1, atom: 7 } }
+machine release(capacity: Registration in Registration::Available) {
+ let mut retired: Registration = capacity as Registration;
+ retired.module = 0;
+ drop(retired);
+}
+machine replace(capacity: Registration in Registration::Available) -> Registration in Registration::Available { Registration { module: capacity.module, atom: 0 } }
+machine main() { }

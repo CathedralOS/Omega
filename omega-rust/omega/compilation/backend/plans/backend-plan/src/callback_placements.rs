@@ -52,6 +52,7 @@ pub struct BoundCallbackPrivateMaterialization {
     /// nominal native telescope, callback rows, placements, and physical plan.
     pub registrar_application_report_fingerprint: u64,
     pub registrar_application_commitment: [u8; 32],
+    pub registrar_application: calling_conventions::BoundaryCallingApplication,
     /// Exact target-closed registrar telescope row selected by a direct
     /// parameter destination. Field destinations retain `None`: their root
     /// semantic parameter is not itself a compiler-private callback argument.

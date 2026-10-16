@@ -42,6 +42,13 @@ pub use placed_view_plans::{
     PlacedPlanError, contains_placed_carrier, contains_placed_carrier_in_catalog,
     validate_placed_view_catalog, validate_placed_view_plans,
 };
+mod domain_preservation;
+pub use domain_preservation::{
+    domain_predicate_is_closed, domain_write_is_disjoint,
+    reference_preserves_ancestor_qualifications, scalar_field_store_preserves_content,
+    scalar_field_store_preserves_qualifications, store_preserves_content,
+    store_preserves_qualifications,
+};
 mod primitive_place;
 mod proof_bearing_scalar;
 mod record_field;

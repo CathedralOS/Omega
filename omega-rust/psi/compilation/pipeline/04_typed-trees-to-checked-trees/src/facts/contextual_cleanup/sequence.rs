@@ -194,18 +194,24 @@ fn ordinary_value(
     contexts: &[FactContextHandle],
     place: &CanonicalPlace,
 ) -> Option<ScalarValue> {
-    crate::checks::contracts::boolean_value_at_place(program, &facts.semantic, contexts, place)
-        .map(ScalarValue::Boolean)
-        .or_else(|| {
-            crate::values::scalar_value_at_place(
-                program,
-                &facts.semantic,
-                contexts
-                    .iter()
-                    .map(|context| facts.semantic.contexts.get(*context)),
-                place,
-            )
-        })
+    crate::checks::contracts::boolean_value_at_place(
+        program,
+        &facts.operators,
+        &facts.semantic,
+        contexts,
+        place,
+    )
+    .map(ScalarValue::Boolean)
+    .or_else(|| {
+        crate::values::scalar_value_at_place(
+            program,
+            &facts.semantic,
+            contexts
+                .iter()
+                .map(|context| facts.semantic.contexts.get(*context)),
+            place,
+        )
+    })
 }
 
 pub(super) fn bound_clause(

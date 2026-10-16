@@ -128,6 +128,9 @@ impl VerifiedNativeArtifactInput {
             return Err(crate::NativeExecutionScopeError::TerminalIdentityMismatch);
         }
         let mut input = self.select_target_families(profile);
+        // Selection can change the executable scope. It grants no callback
+        // authority; only admission of the newly selected input can restore it.
+        input.optimization_input.admitted_native_callbacks.clear();
         let selections = terminal_installation::admit_target_machine_selections(
             artifact.view(),
             profile.target_name(),
@@ -269,6 +272,13 @@ impl VerifiedNativeArtifactInput {
         self.optimization_input.context()
     }
 
+    pub(crate) fn retain_admitted_native_callbacks(
+        &mut self,
+        callbacks: Vec<crate::AdmittedNativeCallbackArgument>,
+    ) {
+        self.optimization_input.admitted_native_callbacks = callbacks;
+    }
+
     pub const fn optimization_input(&self) -> &VerifiedPsiOptimizationInput {
         &self.optimization_input
     }
@@ -360,6 +370,7 @@ pub(super) fn lower_decoded_native_module(
         optimization_input: VerifiedPsiOptimizationInput {
             plan,
             context,
+            admitted_native_callbacks: Vec::new(),
             target_machine_selections: selections,
             target_layout_selections: None,
             target_family_realizations: Vec::new(),

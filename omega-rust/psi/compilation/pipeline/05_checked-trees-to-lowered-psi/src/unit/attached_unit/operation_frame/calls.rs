@@ -860,6 +860,7 @@ impl OperationFrame<'_, '_> {
             structural_types,
             type_ids,
             callees.domain_ids,
+            callees.domain_declarations,
             next_place,
             private_places,
             &mut emit_operand,

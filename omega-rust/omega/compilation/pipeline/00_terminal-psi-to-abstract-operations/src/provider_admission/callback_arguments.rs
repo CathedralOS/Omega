@@ -16,7 +16,7 @@ use diagnostics::Diagnostic;
 pub(crate) fn project_native_callback_arguments(
     placements: &[backend_plan::NativeCallbackPlacement],
     occurrences: &[backend_plan::TerminalCallbackOccurrenceProposal],
-) -> Result<Option<Vec<crate::AdmittedNativeCallbackArgument>>, Vec<Diagnostic>> {
+) -> Result<Option<Vec<crate::NativeCallbackArgumentProposal>>, Vec<Diagnostic>> {
     let mut admitted = Vec::with_capacity(occurrences.len());
     let mut admitted_placements = std::collections::BTreeSet::new();
     for occurrence in occurrences {
@@ -41,7 +41,7 @@ pub(crate) fn project_native_callback_arguments(
                 "callback occurrence parameter application drifted from its retained registrar materialization",
             ));
         }
-        admitted.push(crate::AdmittedNativeCallbackArgument {
+        admitted.push(crate::NativeCallbackArgumentProposal {
             registrar_invokes_callback: materialization.registrar_invokes_callback,
             terminal_operation: occurrence.terminal_operation(),
             placement_index: occurrence.placement_index(),
@@ -52,6 +52,8 @@ pub(crate) fn project_native_callback_arguments(
             registrar_boundary_entry_plan: materialization.registrar_boundary_entry_plan.clone(),
             registrar_context: materialization.context.clone(),
             registrar_application_commitment: materialization.registrar_application_commitment,
+            registrar_application: materialization.registrar_application.clone(),
+            binder: materialization.binder,
         });
     }
     Ok(Some(admitted))

@@ -234,7 +234,7 @@ pub(crate) fn lower_structural_field_place_steps<'a>(
 }
 
 /// Typed field projections and representation-byte projections require the
-/// same live write authority. A nonlinear owned entry or continuation
+/// same live write authority. An owned entry or continuation
 /// home supplies that authority directly, just as a completed local home does.
 /// Borrowed roots still need exclusive access. Geometry never changes access
 /// or discards root and projected qualification evidence.
@@ -256,12 +256,10 @@ fn validate_storage_access(
         terminal_psi::exclusive_borrow_pair_pattern!() => true,
         _ => false,
     };
-    if !access_matches
-        || !matches!(
-            parameter.multiplicity,
-            terminal_psi::nonlinear_multiplicity_pair_pattern!()
-        )
-    {
+    // Mutating a scalar does not consume or duplicate its containing resource.
+    // The caller and receiving validator separately preserve every root
+    // predicate and Content projection against the complete write footprint.
+    if !access_matches {
         return unsupported("structural scalar store lost exact exclusive custody");
     }
     Ok(())

@@ -1,13 +1,15 @@
-//! Complete-graph membership transport for copied payloads and owned arrivals.
+//! Complete-graph membership transport for copied payloads.
 //! Copying through a descriptor observes its captured backing at that operation,
 //! not the descriptor's own empty roster. Intersect every possible source and
-//! propagate through unchanged owned edges until dependencies stop growing.
+//! propagate completed copies until dependencies stop growing. Owned arrival
+//! declarations retain their intended receiving roster: a source can supply
+//! additional facts without strengthening an explicitly weakened value home.
 //! Receiving declarations supply no new rows. Independent Terminal validation
 //! replays each copy and every edge/store after this producer elaboration.
 use crate::lowering_error::LoweringError;
 mod construction_memberships;
 mod view_memberships;
-use terminal_psi::{OperationKind, OperationResult, StructuralAccess, TerminalModule};
+use terminal_psi::{OperationKind, OperationResult, TerminalModule};
 use terminal_semantics::descriptor_results::{self as descriptors, PayloadMembershipContract};
 
 pub(crate) fn retain(module: &mut TerminalModule) -> Result<(), LoweringError> {
@@ -16,7 +18,6 @@ pub(crate) fn retain(module: &mut TerminalModule) -> Result<(), LoweringError> {
     let mut analysis = descriptors::DescriptorAnalysis::new(&types, &graph);
     loop {
         let mut copies = Vec::new();
-        let mut arrivals = Vec::new();
         for (machine_index, machine) in module.machines.iter().enumerate() {
             for (block_index, block) in machine.blocks.iter().enumerate() {
                 for (ordinal, operation) in block.operations.iter().enumerate() {
@@ -81,84 +82,6 @@ pub(crate) fn retain(module: &mut TerminalModule) -> Result<(), LoweringError> {
                         copies.push((machine_index, block_index, ordinal, contract));
                     }
                 }
-                for (ordinal, parameter) in block.structural_parameters.iter().enumerate() {
-                    if block.id == machine.entry || parameter.access != StructuralAccess::Owned {
-                        continue;
-                    }
-                    let mut common: Option<PayloadMembershipContract> = None;
-                    let mut complete = true;
-                    let mut found = false;
-                    for predecessor in &machine.blocks {
-                        let edges = predecessor.terminator.successor_edges();
-                        let arguments = predecessor.terminator.successor_block_arguments();
-                        if edges.len() != arguments.len()
-                            && edges.iter().any(|(_, target)| *target == block.id)
-                        {
-                            complete = false;
-                            break;
-                        }
-                        for ((_, target), arguments) in edges.into_iter().zip(arguments) {
-                            if target != block.id {
-                                continue;
-                            }
-                            found = true;
-                            let contract = (|| {
-                                let argument = arguments.get(ordinal)?;
-                                if argument.access != StructuralAccess::Owned {
-                                    return None;
-                                }
-                                let root = descriptors::terminal_payload_contract(
-                                    machine,
-                                    argument.place,
-                                )?;
-                                let query = descriptors::descriptor_contents_query(
-                                    &types,
-                                    argument.place,
-                                    root.carrier,
-                                    &argument.path,
-                                    None,
-                                )?;
-                                let position = (
-                                    predecessor.id,
-                                    u32::try_from(predecessor.operations.len()).ok()?,
-                                );
-                                let targets =
-                                    analysis.payload_targets(machine.id, position, &query)?;
-                                descriptors::payload_memberships(
-                                    &types,
-                                    &module.structural_domains,
-                                    targets,
-                                    |place| descriptors::terminal_payload_contract(machine, place),
-                                )
-                            })();
-                            let Some(contract) = contract
-                                .filter(|contract| contract.carrier == parameter.structural_type)
-                            else {
-                                complete = false;
-                                break;
-                            };
-                            if let Some(common) = &mut common {
-                                common
-                                    .qualifications
-                                    .retain(|domain| contract.qualifications.contains(domain));
-                                common
-                                    .projected_qualifications
-                                    .retain(|row| contract.projected_qualifications.contains(row));
-                            } else {
-                                common = Some(contract);
-                            }
-                        }
-                        if !complete {
-                            break;
-                        }
-                    }
-                    if complete
-                        && found
-                        && let Some(contract) = common
-                    {
-                        arrivals.push((machine_index, block_index, ordinal, contract));
-                    }
-                }
             }
         }
         let mut changed = false;
@@ -171,15 +94,6 @@ pub(crate) fn retain(module: &mut TerminalModule) -> Result<(), LoweringError> {
             changed |= merge(&mut result.qualifications, contract.qualifications);
             changed |= merge(
                 &mut result.projected_qualifications,
-                contract.projected_qualifications,
-            );
-        }
-        for (machine, block, ordinal, contract) in arrivals {
-            let parameter =
-                &mut module.machines[machine].blocks[block].structural_parameters[ordinal];
-            changed |= merge(&mut parameter.qualifications, contract.qualifications);
-            changed |= merge(
-                &mut parameter.projected_qualifications,
                 contract.projected_qualifications,
             );
         }

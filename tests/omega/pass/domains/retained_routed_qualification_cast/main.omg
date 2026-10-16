@@ -1,0 +1,70 @@
+// Retaining routed atoms during explicit weakening does not mint authority.
+data Ticket [copy] { number: u64; }
+domain Ticket::Held established by issue;
+domain Ticket::Live established by activate;
+domain Ticket::Installed = Ticket::Held & Ticket::Live;
+machine issue() -> Ticket in Ticket::Held { Ticket { number: 17 } }
+machine activate(ticket: Ticket in Ticket::Held) -> Ticket in Ticket::Installed { ticket }
+data Holder { ticket: Ticket in Ticket::Installed; }
+machine retain(ticket: Ticket in Ticket::Installed) -> Ticket in Ticket::Held {
+ ticket as Ticket in Ticket::Held
+}
+machine variants(ticket: Ticket in Ticket::Installed) -> Ticket in Ticket::Held {
+ let local: Ticket in Ticket::Installed = ticket;
+ let first: Ticket in Ticket::Held = local as Ticket in Ticket::Held;
+ let holder: Holder = Holder { ticket: ticket };
+ let second: Ticket in Ticket::Held = holder.ticket as Ticket in Ticket::Held;
+ let third: Ticket in Ticket::Held = activate(issue()) as Ticket in Ticket::Held;
+ transition true { true -> carried(first, second, third, ticket) }
+ state carried(first: Ticket in Ticket::Held, second: Ticket in Ticket::Held,
+  third: Ticket in Ticket::Held, remaining: Ticket in Ticket::Installed) -> Ticket in Ticket::Held {
+  remaining as Ticket in Ticket::Held
+ }
+}
+domain u64::Issued established by issue_scalar;
+machine issue_scalar() -> u64 in u64::Issued { 7 }
+machine retain_scalar(value: u64 in u64::Issued) -> u64 in u64::Issued {
+ value as u64 in u64::Issued
+}
+machine main() { }
+
+// Updating the live-state field retires only the domain that depends on it.
+data Capacity [copy] { owner: u64; active: u64; }
+domain Capacity::Held(value) requires value.owner != 0 established by acquire_capacity;
+domain Capacity::Vacant(value) requires value.active == 0;
+domain Capacity::Available = Capacity::Held & Capacity::Vacant;
+machine acquire_capacity(owner: u64) -> Capacity in Capacity::Available
+requires owner != 0 { Capacity { owner: owner, active: 0 } }
+machine retain_disjoint_field(capacity: Capacity in Capacity::Available) -> Capacity in Capacity::Held {
+ let mut retained: Capacity in Capacity::Held = capacity;
+ retained.active = 1;
+ retained
+}
+
+machine require_vacant(capacity: &Capacity) -> bool requires capacity.active == 0 { true }
+machine erase_predicate(capacity: Capacity in Capacity::Available) -> bool {
+ let plain: Capacity = capacity as Capacity;
+ require_vacant(&plain)
+}
+
+data LinearCapacity [linear] { active: u64; }
+domain LinearCapacity::Live(value) requires value.active != 0 established by activate_linear;
+machine activate_linear(capacity: LinearCapacity, active: u64) -> LinearCapacity in LinearCapacity::Live
+requires active != 0 {
+ let mut installed: LinearCapacity = capacity;
+ installed.active = active;
+ installed
+}
+
+
+// Family indices are distinct normalized atoms, even under one declaration.
+data IndexedTicket [copy] { number: u64; }
+domain<const Axis: u64> IndexedTicket::Issued<Axis> established by issue_seven, issue_nine;
+machine issue_seven() -> IndexedTicket in Issued<7> { IndexedTicket { number: 7 } }
+machine issue_nine() -> IndexedTicket in Issued<9> { IndexedTicket { number: 9 } }
+machine retain_seven(ticket: IndexedTicket in Issued<7>) -> IndexedTicket in Issued<7> {
+ ticket as IndexedTicket in Issued<7>
+}
+machine retain_nine(ticket: IndexedTicket in Issued<9>) -> IndexedTicket in Issued<9> {
+ ticket as IndexedTicket in Issued<9>
+}

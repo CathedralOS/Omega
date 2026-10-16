@@ -1,0 +1,485 @@
+// Expected Windows exit: 70. Deep private callback field through a call result, local and parameter.
+use omega_language_std::console;
+use omega_language_std::calling;
+use omega::language::core::drop;
+use omega::language::core::content;
+use omega::language::core::layout;
+use omega::language::core::external_binding;
+
+// The adapter explicitly selects both inbound WNDPROC and outbound user32 ABI.
+// One scalar/reference telescope handles register and stack arguments. Private
+// materialization copies declared coordinates; it invents no slot or address.
+data User32Policy { }
+User32PolicyCalling satisfies CallingPolicy {
+ CallingPolicy::plan = User32Policy::plan;
+}
+machine User32Policy::plan(signature: BoundarySignature) -> BoundaryPlanResult
+satisfies CallingPolicy::plan {
+ let p0: u64 = signature.parameters[0];
+ let p1: u64 = signature.parameters[1];
+ let p2: u64 = signature.parameters[2];
+ let p3: u64 = signature.parameters[3];
+ let p4: u64 = signature.parameters[4];
+ let p5: u64 = signature.parameters[5];
+ let p6: u64 = signature.parameters[6];
+ let p7: u64 = signature.parameters[7];
+ let p8: u64 = signature.parameters[8];
+ let p9: u64 = signature.parameters[9];
+ let p10: u64 = signature.parameters[10];
+ let p11: u64 = signature.parameters[11];
+ let result: u64 = signature.result;
+ transition p0 < 256 && p1 < 256 && p2 < 256 && p3 < 256 && p4 < 256 && p5 < 256 && p6 < 256 && p7 < 256 && p8 < 256 && p9 < 256 && p10 < 256 && p11 < 256 && result < 256 && signature.parameter_count <= 12 && signature.parameter_count == signature.native_parameter_count && signature.callback_demand_count <= 1 && signature.callback_binder_count <= 1 {
+ true -> build(signature, p0, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, result)
+ _ -> reject()
+ }
+ state build(signature: BoundarySignature, p0: u64, p1: u64, p2: u64, p3: u64, p4: u64, p5: u64, p6: u64, p7: u64, p8: u64, p9: u64, p10: u64, p11: u64, result: u64) -> BoundaryPlanResult
+ requires p0 < 256 && p1 < 256 && p2 < 256 && p3 < 256 && p4 < 256 && p5 < 256 && p6 < 256 && p7 < 256 && p8 < 256 && p9 < 256 && p10 < 256 && p11 < 256 && result < 256 && signature.parameter_count <= 12 && signature.parameter_count == signature.native_parameter_count && signature.callback_demand_count <= 1 && signature.callback_binder_count <= 1; {
+ let mut output: BoundaryEntryPlan = User32Policy::initial(signature.parameter_count);
+ output.call.parameters[0] = User32Policy::word(signature.shapes[p0].byte_size, signature.shapes[p0].alignment, MachineRegister::X86Rcx);
+ output.call.parameters[1] = User32Policy::word(signature.shapes[p1].byte_size, signature.shapes[p1].alignment, MachineRegister::X86Rdx);
+ output.call.parameters[2] = User32Policy::word(signature.shapes[p2].byte_size, signature.shapes[p2].alignment, MachineRegister::X86R8);
+ output.call.parameters[3] = User32Policy::word(signature.shapes[p3].byte_size, signature.shapes[p3].alignment, MachineRegister::X86R9);
+ output.call.parameters[4] = User32Policy::stack_word(signature.shapes[p4].byte_size, signature.shapes[p4].alignment, 32);
+ output.call.parameters[5] = User32Policy::stack_word(signature.shapes[p5].byte_size, signature.shapes[p5].alignment, 40);
+ output.call.parameters[6] = User32Policy::stack_word(signature.shapes[p6].byte_size, signature.shapes[p6].alignment, 48);
+ output.call.parameters[7] = User32Policy::stack_word(signature.shapes[p7].byte_size, signature.shapes[p7].alignment, 56);
+ output.call.parameters[8] = User32Policy::stack_word(signature.shapes[p8].byte_size, signature.shapes[p8].alignment, 64);
+ output.call.parameters[9] = User32Policy::stack_word(signature.shapes[p9].byte_size, signature.shapes[p9].alignment, 72);
+ output.call.parameters[10] = User32Policy::stack_word(signature.shapes[p10].byte_size, signature.shapes[p10].alignment, 80);
+ output.call.parameters[11] = User32Policy::stack_word(signature.shapes[p11].byte_size, signature.shapes[p11].alignment, 88);
+ transition signature.has_result { true -> with_result(signature, output, result) _ -> callbacks(signature, output) }
+ }
+ state with_result(signature: BoundarySignature, output: BoundaryEntryPlan, result: u64) -> BoundaryPlanResult requires result < 256; {
+ let mut bound: BoundaryEntryPlan = output;
+ bound.call.has_result = true;
+ bound.call.result = User32Policy::word(signature.shapes[result].byte_size, signature.shapes[result].alignment, MachineRegister::X86Rax);
+ transition { _ -> callbacks(signature, bound) }
+ }
+ state callbacks(signature: BoundarySignature, output: BoundaryEntryPlan) -> BoundaryPlanResult {
+ transition signature.callback_demand_count == 1 && signature.callback_binder_count == 1 { true -> bind_callback(signature, output) _ -> accept(output) }
+ }
+ state bind_callback(signature: BoundarySignature, output: BoundaryEntryPlan) -> BoundaryPlanResult {
+ let mut bound: BoundaryEntryPlan = output;
+ bound.call.callback_materialization_count = 1;
+ bound.call.callback_materializations[0].binder = signature.callback_binders[0].binder;
+ bound.call.callback_materializations[0].destination = signature.callback_demands[0].destination;
+ transition { _ -> accept(bound) }
+ }
+ state accept(output: BoundaryEntryPlan) -> BoundaryPlanResult { BoundaryPlanResult::Accepted { plan: output } }
+ state reject() -> BoundaryPlanResult { BoundaryPlanResult::Rejected { reason: CallingPolicyRejection { reason: "invalid user32 telescope" } } }
+}
+machine User32Policy::stack_word(bytes: u64, alignment: u64, offset: u64) -> ValuePlacement {
+ let mut placement: ValuePlacement;
+ placement.shape = AbiValueShape { class: AbiValueClass::Integer, byte_size: bytes, alignment: alignment };
+ placement.location_count = 1;
+ placement.locations[0] = ValueLocation::Stack { stack_byte_offset: offset, value_byte_offset: 0, byte_size: bytes, alignment: 8 };
+ placement
+}
+machine User32Policy::word(bytes: u64, alignment: u64, register: MachineRegister) -> ValuePlacement {
+ let mut placement: ValuePlacement;
+ placement.shape = AbiValueShape { class: AbiValueClass::Integer, byte_size: bytes, alignment: alignment };
+ placement.location_count = 1;
+ placement.locations[0] = ValueLocation::Register { register: register, value_byte_offset: 0, byte_size: bytes };
+ placement
+}
+
+machine User32Policy::initial(count: u64) -> BoundaryEntryPlan requires count <= 32; {
+    let mut plan: BoundaryEntryPlan;
+    plan.call.parameter_count = count;
+    plan.call.convention = CallingConvention::MicrosoftX64;
+    plan.call.stack_alignment = 16;
+    plan.call.shadow_bytes = 32;
+    plan.call.entry_control = EntryControl::CallReturn;
+    plan.call.ordinary_clobbers.register_count = 13;
+    plan.call.ordinary_clobbers.registers[0] = MachineRegister::X86Rax;
+    plan.call.ordinary_clobbers.registers[1] = MachineRegister::X86Rcx;
+    plan.call.ordinary_clobbers.registers[2] = MachineRegister::X86Rdx;
+    plan.call.ordinary_clobbers.registers[3] = MachineRegister::X86R8;
+    plan.call.ordinary_clobbers.registers[4] = MachineRegister::X86R9;
+    plan.call.ordinary_clobbers.registers[5] = MachineRegister::X86R10;
+    plan.call.ordinary_clobbers.registers[6] = MachineRegister::X86R11;
+    plan.call.ordinary_clobbers.registers[7] = MachineRegister::X86Xmm { index: 0 };
+    plan.call.ordinary_clobbers.registers[8] = MachineRegister::X86Xmm { index: 1 };
+    plan.call.ordinary_clobbers.registers[9] = MachineRegister::X86Xmm { index: 2 };
+    plan.call.ordinary_clobbers.registers[10] = MachineRegister::X86Xmm { index: 3 };
+    plan.call.ordinary_clobbers.registers[11] = MachineRegister::X86Xmm { index: 4 };
+    plan.call.ordinary_clobbers.registers[12] = MachineRegister::X86Xmm { index: 5 };
+    plan.state.initial_regime = MachineRegime::X86Long64;
+    plan.state.permitted_transitive_use.general_registers = true;
+    plan.state.permitted_transitive_use.vector_registers = true;
+    plan.state.permitted_transitive_use.flags = true;
+    plan.state.stack = EntryStack::ProviderSelected;
+    plan.state.preemption = Preemption::NotApplicable;
+    plan
+}
+
+boundary trait WindowProcedure: Calling<User32PolicyCalling> {
+ machine call(window: u64, message: u32, wparam: u64, lparam: i64) -> i64 reaches ContextApi
+ invokes ContextApi;
+}
+data ClassLayout { }
+ProcedureSlot satisfies PrivateCallbackSlot<ClassLayout, WindowProcedure::call> { }
+machine ClassLayout::plan(schema: Schema) -> Plan {
+ let mut entries: [FieldEntry; 64];
+ entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::At { offset: 0 } };
+ entries[1] = FieldEntry { key: schema.fields[1].key, placement: FieldPlan::At { offset: 4 } };
+ entries[2] = FieldEntry { key: schema.fields[2].key, placement: FieldPlan::At { offset: 16 } };
+ entries[3] = FieldEntry { key: schema.fields[3].key, placement: FieldPlan::At { offset: 20 } };
+ entries[4] = FieldEntry { key: schema.fields[4].key, placement: FieldPlan::At { offset: 24 } };
+ entries[5] = FieldEntry { key: schema.fields[5].key, placement: FieldPlan::At { offset: 32 } };
+ entries[6] = FieldEntry { key: schema.fields[6].key, placement: FieldPlan::At { offset: 40 } };
+ entries[7] = FieldEntry { key: schema.fields[7].key, placement: FieldPlan::At { offset: 48 } };
+ entries[8] = FieldEntry { key: schema.fields[8].key, placement: FieldPlan::At { offset: 56 } };
+ let plan: Plan = Plan { entries: entries, entry_count: 9, size_fixed: 64, size_is_dynamic: false, align: 8 };
+ Plan::place_private<ProcedureSlot>(plan, 8)
+}
+data ClassHeader {
+ size: u32; style: u32; class_extra: i32; window_extra: i32;
+ instance: u64; icon: u64; cursor: u64; background: u64;
+ menu: u64;
+}
+data NativeClass { header: ClassLayout<ClassHeader>; name: &[u8; 13]; small_icon: u64;
+}
+data InnerClass { native: NativeClass; }
+data MiddleClass { inner: InnerClass; }
+data OuterClass { middle: MiddleClass; }
+boundary trait ClassApi: Calling<User32PolicyCalling> {
+ machine register<machine Selected>(specification: &OuterClass) -> u16
+ where machine Selected satisfies WindowProcedure::call;
+ machine unregister(atom: u64, instance: u64) -> i32;
+ machine create(extended_style: u32, atom: u64, title: &[u8; 13], style: u32,
+  x: i32, y: i32, width: i32, height: i32, parent: u64, menu: u64, instance: u64, parameter: u64) -> u64
+ invokes WindowProcedure;
+ machine dispatch(message: &[u64; 6]) -> i64 invokes WindowProcedure;
+ machine is_window(window: u64) -> i32;
+ machine destroy(window: u64) -> i32 invokes WindowProcedure;
+}
+boundary trait ContextApi {
+ machine set_context(window: u64, index: i32, context: i64) -> i64;
+ machine get_context(window: u64, index: i32) -> i64;
+}
+boundary trait ModuleApi {
+ machine acquire(flags: u32, name: u64, module: &mut u64) -> i32;
+ machine release(module: u64) -> i32;
+}
+data Imports { }
+windows_x86_64 machine register_binding() -> ForeignBinding<10, 16, 0> {
+ ForeignBinding::DllImport { import: DllImport::PeByName { library: "user32.dll", export: "RegisterClassExA" } }
+}
+windows_x86_64 machine Imports::register<machine Selected>(specification: &OuterClass) -> u16
+where machine Selected satisfies WindowProcedure::call;
+satisfies ClassApi::register
+via register_binding();
+windows_x86_64 machine unregister_binding() -> ForeignBinding<10, 16, 0> {
+ ForeignBinding::DllImport { import: DllImport::PeByName { library: "user32.dll", export: "UnregisterClassA" } }
+}
+windows_x86_64 machine Imports::unregister(atom: u64, instance: u64) -> i32
+satisfies ClassApi::unregister
+via unregister_binding();
+windows_x86_64 machine create_binding() -> ForeignBinding<10, 15, 0> {
+ ForeignBinding::DllImport { import: DllImport::PeByName { library: "user32.dll", export: "CreateWindowExA" } }
+}
+windows_x86_64 machine Imports::create(extended_style: u32, atom: u64, title: &[u8; 13], style: u32, x: i32, y: i32, width: i32, height: i32, parent: u64, menu: u64, instance: u64, parameter: u64) -> u64
+satisfies ClassApi::create
+via create_binding();
+windows_x86_64 machine dispatch_binding() -> ForeignBinding<10, 16, 0> {
+ ForeignBinding::DllImport { import: DllImport::PeByName { library: "user32.dll", export: "DispatchMessageA" } }
+}
+windows_x86_64 machine Imports::dispatch(message: &[u64; 6]) -> i64
+satisfies ClassApi::dispatch
+via dispatch_binding();
+windows_x86_64 machine is_window_binding() -> ForeignBinding<10, 8, 0> {
+ ForeignBinding::DllImport { import: DllImport::PeByName { library: "user32.dll", export: "IsWindow" } }
+}
+windows_x86_64 machine Imports::is_window(window: u64) -> i32 satisfies ClassApi::is_window via is_window_binding();
+windows_x86_64 machine destroy_binding() -> ForeignBinding<10, 13, 0> {
+ ForeignBinding::DllImport { import: DllImport::PeByName { library: "user32.dll", export: "DestroyWindow" } }
+}
+windows_x86_64 machine Imports::destroy(window: u64) -> i32
+satisfies ClassApi::destroy
+via destroy_binding();
+windows_x86_64 machine set_context_binding() -> ForeignBinding<10, 17, 0> {
+ ForeignBinding::DllImport { import: DllImport::PeByName { library: "user32.dll", export: "SetWindowLongPtrA" } }
+}
+windows_x86_64 machine Imports::set_context(window: u64, index: i32, context: i64) -> i64
+satisfies ContextApi::set_context
+via set_context_binding();
+windows_x86_64 machine get_context_binding() -> ForeignBinding<10, 17, 0> {
+ ForeignBinding::DllImport { import: DllImport::PeByName { library: "user32.dll", export: "GetWindowLongPtrA" } }
+}
+windows_x86_64 machine Imports::get_context(window: u64, index: i32) -> i64
+satisfies ContextApi::get_context
+via get_context_binding();
+
+windows_x86_64 machine acquire_binding() -> ForeignBinding<12, 18, 0> {
+ ForeignBinding::DllImport { import: DllImport::PeByName { library: "kernel32.dll", export: "GetModuleHandleExA" } }
+}
+windows_x86_64 machine Imports::acquire(flags: u32, name: u64, module: &mut u64) -> i32 satisfies ModuleApi::acquire via acquire_binding();
+windows_x86_64 machine release_binding() -> ForeignBinding<12, 11, 0> {
+ ForeignBinding::DllImport { import: DllImport::PeByName { library: "kernel32.dll", export: "FreeLibrary" } }
+}
+windows_x86_64 machine Imports::release(module: u64) -> i32 satisfies ModuleApi::release via release_binding();
+
+// One occurrence owns both the live-registration capacity and one loader pin.
+// Activation changes its state; it never reconstructs an equal authority value.
+data Registration [linear] { module: u64; atom: u64; occurrence: u64; released: bool; }
+domain Registration::Held(registration)
+requires registration.module != 0
+established by Registration::acquire;
+// The one owned unit is capacity for one live registration, retained while
+// vacant or installed. A callback thunk does not introduce another unit.
+data RegistrationSlot { }
+machine Held::content(registration: &Registration) -> CountedQuantity<RegistrationSlot>
+satisfies Content<Registration, CountedQuantity<RegistrationSlot>>::project {
+ CountedQuantity { magnitude: Nat::Succ { prev: Nat::Zero } }
+}
+
+domain Registration::Vacant(registration) requires registration.atom == 0;
+domain Registration::Live(registration)
+requires registration.atom != 0
+established by Registration::activate;
+domain Registration::Available = Held & Vacant;
+domain Registration::Installed = Held & Live;
+
+machine Registration::acquire(module: u64) -> Registration in Registration::Available
+requires module != 0 {
+ Registration { module: module, atom: 0, occurrence: 17, released: false }
+}
+machine Registration::activate(capacity: Registration in Registration::Available, atom: u64) -> Registration in Registration::Installed
+requires atom != 0 {
+ let mut registration: Registration in Registration::Held = capacity;
+ registration.atom = atom;
+ registration
+}
+machine Registration::vacate(registration: Registration in Registration::Installed) -> Registration in Registration::Available {
+ let mut capacity: Registration in Registration::Held = registration as Registration in Registration::Held;
+ capacity.atom = 0;
+ capacity
+}
+machine Registration::drop(registration: &mut Registration)
+requires registration.atom == 0 && registration.released { }
+
+data ReleaseOutcome {
+ case Released(occurrence: u64);
+ case Retained(capacity: Registration in Registration::Available);
+}
+machine Registration::release(capacity: Registration in Registration::Available) -> ReleaseOutcome
+reaches ModuleApi {
+ let released: i32 = ModuleApi::release(capacity.module);
+ transition released != 0 {
+  true -> done(capacity)
+  _ -> (ReleaseOutcome::Retained { capacity: capacity })
+ }
+ state done(capacity: Registration in Registration::Available) -> ReleaseOutcome {
+  let occurrence: u64 = capacity.occurrence;
+  let mut retired: Registration in Registration::Held = capacity;
+  // Keep the valid qualified carrier until cleanup consumes its owned claim.
+  // Only a successful native release establishes this local completion marker.
+  retired.released = true;
+  drop(retired);
+  ReleaseOutcome::Released { occurrence: occurrence }
+ }
+}
+data Removal {
+ case Removed(capacity: Registration in Registration::Available);
+ case Retained(registration: Registration in Registration::Installed);
+}
+data Outcome {
+ case Registered(registration: Registration in Registration::Installed);
+ case Rejected(capacity: Registration in Registration::Available);
+}
+boundary trait Registrar {
+ machine register<machine Selected>(name: &[u8; 13], capacity: Registration in Registration::Available, extra_window_bytes: i32) -> Outcome
+ where machine Selected satisfies WindowProcedure::call;
+ reaches ClassApi + ModuleApi
+ invokes ClassApi;
+ invokes ModuleApi;
+ machine unregister(registration: Registration in Registration::Installed) -> Removal reaches ClassApi + ModuleApi
+ invokes ClassApi;
+ invokes ModuleApi;
+}
+machine wrap_class(specification: NativeClass) -> OuterClass {
+ OuterClass { middle: MiddleClass { inner: InnerClass { native: specification } } }
+}
+machine register_class<machine Selected>(specification: &OuterClass) -> u16
+where machine Selected satisfies WindowProcedure::call;
+reaches ClassApi {
+ ClassApi::register<Selected>(specification)
+}
+data RegistrarProvider { }
+machine RegistrarProvider::register<machine Selected>(name: &[u8; 13], capacity: Registration in Registration::Available, extra_window_bytes: i32) -> Outcome
+where machine Selected satisfies WindowProcedure::call;
+satisfies Registrar::register
+reaches ClassApi + ModuleApi {
+ let instance: u64 = capacity.module;
+ let mut header: ClassLayout<ClassHeader>;
+ header.size = 80;
+ header.style = 0;
+ header.class_extra = 0;
+ header.window_extra = extra_window_bytes;
+ header.instance = instance;
+ header.icon = 0;
+ header.cursor = 0;
+ header.background = 0;
+ header.menu = 0;
+ let specification: NativeClass = NativeClass { header: header, name: name, small_icon: 0 };
+ let prepared: OuterClass = wrap_class(specification);
+ let atom: u16 = register_class<Selected>(&prepared);
+ transition atom != 0 {
+  true -> registered(capacity, atom as u64)
+  _ -> (Outcome::Rejected { capacity: capacity })
+ }
+ state registered(capacity: Registration in Registration::Available, atom: u64) -> Outcome
+ requires atom != 0 {
+  Outcome::Registered { registration: Registration::activate(capacity, atom) }
+ }
+}
+machine RegistrarProvider::unregister(registration: Registration in Registration::Installed) -> Removal
+satisfies Registrar::unregister
+reaches ClassApi {
+ let result: i32 = ClassApi::unregister(registration.atom, registration.module);
+ transition result != 0 {
+  true -> removed(registration)
+  _ -> (Removal::Retained { registration: registration })
+ }
+ state removed(registration: Registration in Registration::Installed) -> Removal {
+  Removal::Removed { capacity: Registration::vacate(registration) }
+ }
+}
+data Handler { }
+machine Handler::call(window: u64, message: u32, wparam: u64, lparam: i64) -> i64
+satisfies WindowProcedure::call
+reaches ContextApi {
+ transition message == 129u32 {
+  true -> nccreate(window)
+  _ -> other(window, message)
+ }
+ state nccreate(window: u64) -> i64 {
+  let previous: i64 = ContextApi::set_context(window, -21, 77);
+  let context: i64 = ContextApi::get_context(window, -21);
+  transition context == 77 { true -> 1 _ -> 0 }
+ }
+ state other(window: u64, message: u32) -> i64 {
+  transition message == 32769u32 {
+   true -> (ContextApi::get_context(window, -21))
+   _ -> 0
+  }
+ }
+}
+data Main { name: [u8; 13]; message: [u64; 6]; }
+machine Main::main(main: &mut Main)
+reaches Registrar + ModuleApi + ClassApi + ContextApi + WindowProcedure + Console
+invokes ClassApi;
+invokes Registrar;
+invokes ModuleApi;
+invokes ContextApi;
+invokes Console;
+{
+ main.name[0] = 79;
+ main.name[1] = 109;
+ main.name[2] = 101;
+ main.name[3] = 103;
+ main.name[4] = 97;
+ main.name[5] = 87;
+ main.name[6] = 105;
+ main.name[7] = 110;
+ main.name[8] = 100;
+ main.name[9] = 111;
+ main.name[10] = 119;
+ main.name[11] = 80;
+ main.name[12] = 0;
+ // A negative cbWndExtra forces an actual invalid-parameter rejection.
+ let mut module: u64 = 0;
+ let acquired: i32 = ModuleApi::acquire(0, 0, &mut module);
+ transition acquired != 0 && module != 0 {
+  true -> acquired(main, module)
+  _ -> acquire_failed()
+ }
+ state acquire_failed() { Console::exit_process(77); }
+ state acquired(main: &mut Main, module: u64)
+ requires module != 0 {
+ let capacity: Registration in Registration::Available = Registration::acquire(module);
+ let outcome: Outcome = Registrar::register<Handler::call>(&main.name, capacity, -1);
+ transition outcome {
+  Outcome::Registered { registration } -> unexpected_registration(main, registration)
+  Outcome::Rejected { capacity } -> retry(main, capacity)
+ }
+ }
+ state retry(main: &mut Main, capacity: Registration in Registration::Available) {
+  main.name[0] = 82;
+  let outcome: Outcome = Registrar::register<Handler::call>(&main.name, capacity, 0);
+  transition outcome {
+   Outcome::Registered { registration } -> create(main, registration, 1)
+   Outcome::Rejected { capacity } -> failed(main, capacity, 73)
+  }
+ }
+ state create(main: &mut Main, registration: Registration in Registration::Installed, repeats: u32) {
+  let window: u64 = ClassApi::create(0, registration.atom, &main.name, 0, 0, 0, 64, 64, 0, 0, registration.module, 0);
+  transition window != 0 {
+   true -> dispatch(main, registration, window, repeats)
+   _ -> release(main, registration, 71, 0)
+  }
+ }
+ state dispatch(main: &mut Main, registration: Registration in Registration::Installed, window: u64, repeats: u32) {
+  let synchronous: i64 = ContextApi::get_context(window, -21);
+  let old: i64 = ContextApi::set_context(window, -21, 88);
+  main.message[0] = window;
+  main.message[1] = 32769;
+  main.message[2] = 0;
+  main.message[3] = 0;
+  main.message[4] = 0;
+  main.message[5] = 0;
+  let answer: i64 = ClassApi::dispatch(&main.message);
+  let destroyed: i32 = ClassApi::destroy(window);
+  let remaining: i32 = ClassApi::is_window(window);
+  transition synchronous == 77 && old == 77 && answer == 88 && destroyed != 0 && remaining == 0 {
+   true -> release(main, registration, 70, repeats)
+   _ -> release(main, registration, 72, 0)
+  }
+ }
+ state release(main: &mut Main, registration: Registration in Registration::Installed, exit: i32, repeats: u32) {
+  let removal: Removal = Registrar::unregister(registration);
+  transition removal {
+   Removal::Removed { capacity } -> released(main, capacity, exit, repeats)
+   Removal::Retained { registration } -> retained(main, registration)
+  }
+ }
+ state released(main: &mut Main, capacity: Registration in Registration::Available, exit: i32, repeats: u32) {
+  transition repeats != 0 {
+   true -> replace(main, capacity)
+   _ -> failed(main, capacity, exit)
+  }
+ }
+ state replace(main: &mut Main, capacity: Registration in Registration::Available) {
+  main.name[11] = 81;
+  let outcome: Outcome = Registrar::register<Handler::call>(&main.name, capacity, 0);
+  transition outcome {
+   Outcome::Registered { registration } -> create(main, registration, 0)
+   Outcome::Rejected { capacity } -> failed(main, capacity, 74)
+  }
+ }
+ state retained(main: &mut Main, registration: Registration in Registration::Installed) {
+  Console::exit_process(75);
+  transition true { true -> retained(main, registration) }
+ }
+ state unexpected_registration(main: &mut Main, registration: Registration in Registration::Installed) {
+  transition true { true -> release(main, registration, 76, 0) }
+ }
+ state failed(main: &mut Main, capacity: Registration in Registration::Available, exit: i32) {
+  let release: ReleaseOutcome = Registration::release(capacity);
+  transition release {
+   ReleaseOutcome::Released { occurrence } -> verify_release(occurrence, exit)
+   ReleaseOutcome::Retained { capacity } -> release_failed(capacity)
+  }
+ }
+ state verify_release(occurrence: u64, exit: i32) {
+  transition occurrence == 17 { true -> exited(exit) _ -> exited(79) }
+ }
+ state release_failed(capacity: Registration in Registration::Available) {
+  Console::exit_process(78);
+  transition true { true -> release_failed(capacity) }
+ }
+ state exited(exit: i32) {
+  Console::exit_process(exit);
+ }
+}

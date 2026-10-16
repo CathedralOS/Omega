@@ -129,7 +129,7 @@ pub(super) fn check_call_result_qualifications(
             // Checked bodies owe routed field membership at every exit. The
             // multiplicity checker independently replays their returned claim
             // maps, including identity-forwarding wrappers without a theorem.
-            if validation::find_state(program, call.target_symbol)
+            if validation::find_machine_head(program, call.target_symbol)
                 .is_some_and(|(machine, _)| machine.body_is_present)
             {
                 return Some(());
@@ -277,11 +277,23 @@ pub(super) fn check_call_result_qualifications(
                 return Some(());
             }
 
+            // One input may return through mutually exclusive cases of one
+            // result sum. These are alternative destinations, not simultaneous
+            // supply. Independent record fields still require conservation.
             let outputs = declared
                 .iter()
                 .filter(|(_, _, identity)| *identity == semantic_domain)
-                .count();
-            if outputs != 1 {
+                .collect::<Vec<_>>();
+            if outputs.is_empty()
+                || outputs.iter().enumerate().any(|(position, output)| {
+                    outputs[..position].iter().any(|previous| {
+                        !crate::checks::multiplicity::claim_paths_are_case_alternatives(
+                            &previous.0,
+                            &output.0,
+                        )
+                    })
+                })
+            {
                 return None;
             }
             let mut inputs = Vec::new();

@@ -65,6 +65,7 @@ use lowered_psi::{
 pub(super) struct ClosureCatalog<'a> {
     pub(super) type_ids: &'a [(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)],
     pub(super) domain_ids: &'a [StructuralDomainBinding],
+    pub(super) domain_declarations: &'a [terminal_psi::StructuralDomainDeclaration],
     pub(super) service_ids: &'a [(ServiceReachId, ServiceId)],
     pub(super) boundary_parameters: &'a [super::operation_frame::BoundaryParameters],
     pub(super) machine_ids: &'a [(symbols::SymbolHandle, MachineId)],
@@ -98,6 +99,7 @@ pub(super) struct MachineEmission<'a> {
     structural_types: &'a mut Vec<StructuralTypeDeclaration>,
     type_ids: &'a [(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)],
     domain_ids: &'a [StructuralDomainBinding],
+    domain_declarations: &'a [terminal_psi::StructuralDomainDeclaration],
     service_ids: &'a [(ServiceReachId, ServiceId)],
     lowered_boundary_parameters: &'a [super::operation_frame::BoundaryParameters],
     machine_signatures: &'a [MachineSignature],
@@ -167,6 +169,7 @@ pub(super) fn emit(
     let ClosureCatalog {
         type_ids,
         domain_ids,
+        domain_declarations,
         service_ids,
         boundary_parameters: lowered_boundary_parameters,
         machine_ids,
@@ -399,6 +402,7 @@ pub(super) fn emit(
         structural_types,
         type_ids,
         domain_ids,
+        domain_declarations,
         service_ids,
         lowered_boundary_parameters,
         machine_signatures,
@@ -1778,6 +1782,7 @@ impl<'a> MachineEmission<'a> {
                 signatures: self.machine_signatures,
                 boundaries: self.lowered_boundary_parameters,
                 domain_ids: self.domain_ids,
+                domain_declarations: self.domain_declarations,
                 closure: self.closure,
             },
             caller: CallerCustody {

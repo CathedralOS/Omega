@@ -10,7 +10,7 @@
 //! field, a reference result, a constructed record or a byte-sequence write;
 //! `scalar_values` records the written scalar value and bounds;
 //! `declared_domains` records the destination's declared domains; and the new
-//! facts publish as one context per exact place.
+//! facts publish separately for each exact place and normalized domain atom.
 
 use validation::CanonicalPlace;
 
@@ -408,23 +408,34 @@ fn publish_statement_contexts(
     // coordinates: a view binding re-anchors every element's declared fields
     // below the view. Invalidation drops a whole context once any of its
     // facts overlaps a write, so facts over distinct places take separate
-    // contexts, as entry seeding already does. Discriminator observations
-    // have an independent lifetime from contents at the same place.
+    // contexts, as entry seeding already does. Domain atoms at the same place
+    // can depend on different fields, so they also have independent epochs.
+    // Discriminator observations outlive payload contents at the same place.
     let point = ProgramPoint::Statement {
         machine_symbol,
         state_symbol,
         statement_index,
     };
-    let mut groups: Vec<(FactPlace, bool, Vec<facts::FactRef>)> = Vec::new();
+    let mut groups: Vec<(
+        FactPlace,
+        bool,
+        Option<(SymbolHandle, language_semantics::SemanticDomainId)>,
+        Vec<facts::FactRef>,
+    )> = Vec::new();
     for reference in semantic.refs.span_or_empty(refs) {
         let fact = semantic.facts.get(reference.fact);
         let place = fact.place;
         let observes_tag = matches!(fact.payload, FactPayload::AssignedCase { .. });
-        if let Some((_, _, group)) =
+        let domain = fact
+            .payload
+            .domain_membership()
+            .map(|(_, _, symbol, identity)| (symbol, identity));
+        if let Some((_, _, _, group)) =
             groups
                 .iter_mut()
-                .find(|(candidate, candidate_observes_tag, _)| {
-                    *candidate_observes_tag == observes_tag
+                .find(|(candidate, candidate_observes_tag, candidate_domain, _)| {
+                    *candidate_domain == domain
+                        && *candidate_observes_tag == observes_tag
                         && match (*candidate, place) {
                             (FactPlace::Place(left), FactPlace::Place(right)) => {
                                 semantic.places_equal(left, right)
@@ -435,14 +446,14 @@ fn publish_statement_contexts(
         {
             group.push(*reference);
         } else {
-            groups.push((place, observes_tag, vec![*reference]));
+            groups.push((place, observes_tag, domain, vec![*reference]));
         }
     }
     let mut next_contexts =
         retained_flow_contexts(&build.contexts.semantic_context_refs, *active_contexts);
     let mut next_constraints =
         retained_constraint_refs(&build.contexts.constraint_refs, *active_constraints);
-    for (_, _, group) in groups {
+    for (_, _, _, group) in groups {
         let mut group_refs = HandleSpan::empty();
         for reference in group {
             semantic.refs.append_to_span(&mut group_refs, reference);

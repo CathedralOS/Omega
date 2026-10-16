@@ -86,6 +86,9 @@ fn native_callback_application_is_exact(
     admitted: &crate::AdmittedNativeCallbackArgument,
     target: NativeTarget,
 ) -> bool {
+    if admitted.registrar_application.target != target {
+        return false;
+    }
     let application = &admitted.application;
     let Ok(ordinal) = usize::try_from(application.native_ordinal) else {
         return false;

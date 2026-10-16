@@ -106,9 +106,10 @@ pub(super) fn check_domain_field_writes(
             // recording a construction membership; children and locals still
             // owe their existing evidence at their own completion epochs.
             let authorized_result = result_domains.contains(&(domain, semantic_domain))
-                && program.domain_definition(domain).is_some_and(|definition| {
-                    definition.semantic_id == semantic_domain
-                        && validation::field_domains::domain_requires_provenance(program, domain)
+                && program.domain_definition(domain).is_some_and(|_| {
+                    // The result contract above names the closed application;
+                    // a family declaration's template ID is not that instance.
+                    validation::field_domains::domain_requires_provenance(program, domain)
                         && crate::facts::qualification_evidence::machine_has_checked_domain_establishment(
                             program, machine, domain,
                         )
@@ -633,7 +634,7 @@ fn scan_construction_field_domains(
                 diagnostics,
                 frames,
             );
-            judge_structural_qualification_cast(
+            judge_value_qualification_cast(
                 program,
                 facts,
                 state_flow,
@@ -896,10 +897,11 @@ fn construction_field_domain_identities(
 /// predicates", domains.md, exact coercion). The operand's live contexts decide
 /// them exactly as they decide a qualified initializer: constructed fields,
 /// assigned values, guards and carried memberships. Scalar carriers keep the
-/// value-interval judgment in `validation`; vacuous and routed domains are
-/// judged there too, since neither depends on the operand's facts.
+/// value-interval judgment in `validation`. Routed qualifications, scalar or
+/// structural, instead retain the operand's exact live membership evidence;
+/// predicate proofs alone cannot introduce their provenance.
 #[allow(clippy::too_many_arguments)]
-fn judge_structural_qualification_cast(
+fn judge_value_qualification_cast(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     state_flow: &FlowStateFact,
@@ -915,12 +917,14 @@ fn judge_structural_qualification_cast(
     let Some(domain) = program.domain_definition(domain_symbol) else {
         return;
     };
+    let requires_provenance =
+        validation::field_domains::domain_requires_provenance(program, domain_symbol);
     if cast.semantic_domain.is_empty()
         || cast.form.is_recast()
-        || program
-            .primitive_type_reference(domain.target_type)
-            .is_some()
-        || validation::field_domains::domain_requires_provenance(program, domain_symbol)
+        || (!requires_provenance
+            && program
+                .primitive_type_reference(domain.target_type)
+                .is_some())
         || validation::field_domains::domain_is_vacuous(program, domain_symbol, &mut Vec::new())
     {
         return;
@@ -939,18 +943,20 @@ fn judge_structural_qualification_cast(
         domain_symbol,
         semantic_domain,
         contexts,
-    ) || value_satisfies_domain_predicates_in_contexts(
-        program,
-        facts,
-        state_flow,
-        statement_index,
-        cast.value,
-        domain_symbol,
-        contexts,
-        &mut Vec::new(),
-        None,
-        frames,
-    ) {
+    ) || (!requires_provenance
+        && value_satisfies_domain_predicates_in_contexts(
+            program,
+            facts,
+            state_flow,
+            statement_index,
+            cast.value,
+            domain_symbol,
+            contexts,
+            &mut Vec::new(),
+            None,
+            frames,
+        ))
+    {
         record_qualification(
             decisions,
             state_flow,
@@ -960,11 +966,57 @@ fn judge_structural_qualification_cast(
         );
         return;
     }
-    diagnostics.push(Diagnostic::error(format!(
-        "`as ... in {}` cannot prove every domain predicate from the checked operand value; \
-         constrain that value with a guarantee or guard",
-        symbol_name(program, domain_symbol),
-    )));
+    diagnostics.push(qualification_cast_refusal(
+        program,
+        domain_symbol,
+        requires_provenance,
+    ));
+}
+
+fn qualification_cast_refusal(
+    program: &dyn ::validation::CheckingInput,
+    domain: SymbolHandle,
+    requires_provenance: bool,
+) -> Diagnostic {
+    let reason = if requires_provenance {
+        "cannot establish a non-vacuous domain; every predicate must be proved and routed provenance must come from an exact requirement authorized by the domain"
+    } else {
+        "cannot prove every domain predicate from the checked operand value; constrain that value with a guarantee or guard"
+    };
+    Diagnostic::error(format!(
+        "`as ... in {}` {reason}",
+        symbol_name(program, domain)
+    ))
+}
+
+/// A routed cast outside an executable value flow has no checked operand
+/// provenance. Moving its judgment here must not admit unvisited constants or
+/// declaration expressions merely because their asserted target is routed.
+pub(super) fn check_routed_cast_coverage(
+    program: &dyn ::validation::CheckingInput,
+    decisions: &arena::Arena<checked_trees::CheckedValueQualification>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    for (expression, node) in program.expression_table.expression_entries() {
+        let ExpressionNode::Cast(cast) = node else {
+            continue;
+        };
+        if !cast.semantic_domain.is_empty()
+            && validation::field_domains::domain_requires_provenance(
+                program,
+                cast.semantic_domain_symbol,
+            )
+            && !decisions
+                .iter()
+                .any(|(_, decision)| decision.expression == expression)
+        {
+            diagnostics.push(qualification_cast_refusal(
+                program,
+                cast.semantic_domain_symbol,
+                true,
+            ));
+        }
+    }
 }
 
 fn record_qualification(

@@ -6,7 +6,7 @@ mod structural;
 
 pub use qualifications::{
     ResultQualificationEstablishment, StructuralContentProjection, StructuralDomainDeclaration,
-    StructuralEstablishmentRoute, StructuralPathQualification,
+    StructuralDomainPredicate, StructuralEstablishmentRoute, StructuralPathQualification,
 };
 pub use scalar_qualifications::{
     ScalarDomainDeclaration, ScalarDomainEstablishmentRoute, ScalarFloatRange, ScalarIntegerRange,

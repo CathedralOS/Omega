@@ -109,7 +109,6 @@ fn lower_callback_thunk(
                 target: request.admission.providers.target(),
                 settlements: &admitted.providers.settlements,
                 installation: admitted.providers.installation.take(),
-                native_callbacks: &admitted.providers.native_callbacks,
             },
         )
         .map_err(|error| realization_error("callback thunk target lowering", error))?;

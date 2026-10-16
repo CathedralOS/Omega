@@ -1,0 +1,44 @@
+// Invalid: writing a Content projection cannot preserve the owned capacity obligation.
+use omega::language::core::content;
+use omega::language::core::drop;
+use omega_language_std::console;
+
+data Slot { }
+data Capacity [linear] { stamp: u64; active: u64; units: u64; released: bool; }
+domain Capacity::Held(capacity) requires capacity.stamp != 0 established by acquire;
+domain Capacity::Vacant(capacity) requires capacity.active == 0;
+domain Capacity::Available = Capacity::Held & Capacity::Vacant;
+machine Held::content(capacity: &Capacity) -> CountedQuantity<Slot>
+satisfies Content<Capacity, CountedQuantity<Slot>>::project {
+ CountedQuantity { magnitude: embed(capacity.units) as Nat }
+}
+machine Capacity::drop(capacity: &mut Capacity)
+requires capacity.active == 0 && capacity.released { }
+machine acquire() -> Capacity in Capacity::Available {
+ Capacity { stamp: 17, active: 0, units: 1, released: false }
+}
+machine retire<T>(value: T) { }
+machine forward<T>(value: T) { retire(value); }
+machine retire_owned(mut capacity: Capacity in Capacity::Held)
+requires capacity.active == 0 {
+ capacity.units = 0;
+ capacity.released = true;
+ drop(capacity);
+}
+data Envelope { capacity: Capacity in Capacity::Available; }
+machine wrap(capacity: Capacity in Capacity::Available) -> Envelope { Envelope { capacity: capacity } }
+data Main { }
+machine Main::main(main: &mut Main) reaches Console {
+ let mut first: Capacity in Capacity::Held = acquire();
+ first.active = 0;
+ first.released = true;
+ drop(first);
+ let mut second: Capacity in Capacity::Held = acquire();
+ second.released = true;
+ forward(second);
+ retire_owned(acquire());
+ let mut envelope: Envelope = wrap(acquire());
+ envelope.capacity.released = true;
+ drop(envelope);
+ Console::exit_process(70);
+}

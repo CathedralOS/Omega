@@ -830,25 +830,7 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
                 "entry-claim content projections by identity and algebra",
             ));
         }
-        if !strictly_increasing(
-            machine
-                .content_identity_reshuffles
-                .iter()
-                .map(|reshuffle| reshuffle.claim),
-        ) {
-            return Err(CodecError::NonCanonicalOrder(
-                "content identity reshuffles by ClaimId",
-            ));
-        }
-        if machine
-            .content_identity_reshuffles
-            .iter()
-            .any(|reshuffle| !strictly_increasing(reshuffle.projections.iter()))
-        {
-            return Err(CodecError::NonCanonicalOrder(
-                "claim content projections by identity and algebra",
-            ));
-        }
+        validate_identity_reshuffles(&machine.content_identity_reshuffles)?;
         if !strictly_increasing(machine.content_partition_compositions.iter()) {
             return Err(CodecError::NonCanonicalOrder(
                 "content partition compositions",
@@ -1212,4 +1194,88 @@ fn strictly_increasing<T: Ord>(values: impl IntoIterator<Item = T>) -> bool {
         previous = Some(value);
     }
     true
+}
+
+/// Receiving canonicality keeps one input claim across exclusive destinations.
+fn validate_identity_reshuffles(
+    rows: &[terminal_psi::ContentIdentityReshuffle],
+) -> Result<(), CodecError> {
+    if !strictly_increasing(
+        rows.iter()
+            .map(|reshuffle| (reshuffle.claim, &reshuffle.output)),
+    ) || rows.iter().enumerate().any(|(position, row)| {
+        rows[..position].iter().any(|previous| {
+            previous.claim == row.claim
+                && (previous.input != row.input
+                    || previous.projections != row.projections
+                    || !previous.output.is_case_alternative(&row.output))
+        })
+    }) {
+        return Err(CodecError::NonCanonicalOrder(
+            "content identity reshuffles by claim and exclusive output case",
+        ));
+    }
+    if rows
+        .iter()
+        .any(|reshuffle| !strictly_increasing(reshuffle.projections.iter()))
+    {
+        return Err(CodecError::NonCanonicalOrder(
+            "claim content projections by identity and algebra",
+        ));
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod content_identity_tests {
+    use super::*;
+    use semantic_vocabulary::{
+        ClaimId, ContentPlaceSegment, ContentPlaceVersion, ContentStructuralPlace, PlaceId,
+    };
+    use terminal_psi::ContentIdentityReshuffle;
+
+    fn alternative_rows() -> Vec<ContentIdentityReshuffle> {
+        ["Accepted", "Rejected"]
+            .into_iter()
+            .map(|case| ContentIdentityReshuffle {
+                claim: ClaimId::new(1).unwrap(),
+                input: ContentStructuralPlace {
+                    root: PlaceId::new(1).unwrap(),
+                    version: ContentPlaceVersion::Entry,
+                    segments: vec![],
+                },
+                output: ContentStructuralPlace {
+                    root: PlaceId::new(2).unwrap(),
+                    version: ContentPlaceVersion::Current,
+                    segments: vec![
+                        ContentPlaceSegment::Case(case.into()),
+                        ContentPlaceSegment::Field("capacity".into()),
+                    ],
+                },
+                projections: vec![],
+            })
+            .collect()
+    }
+
+    #[test]
+    fn one_claim_can_return_through_exclusive_cases() {
+        assert_eq!(validate_identity_reshuffles(&alternative_rows()), Ok(()));
+    }
+
+    #[test]
+    fn coexisting_claim_destinations_and_substituted_inputs_refuse() {
+        let mut rows = alternative_rows();
+        rows[0].output.segments = vec![ContentPlaceSegment::Field("left".into())];
+        rows[1].output.segments = vec![ContentPlaceSegment::Field("right".into())];
+        assert!(validate_identity_reshuffles(&rows).is_err());
+        let mut rows = alternative_rows();
+        rows[1].input.root = PlaceId::new(3).unwrap();
+        assert!(validate_identity_reshuffles(&rows).is_err());
+        let mut rows = alternative_rows();
+        rows.swap(0, 1);
+        assert!(validate_identity_reshuffles(&rows).is_err());
+        let mut rows = alternative_rows();
+        rows[1] = rows[0].clone();
+        assert!(validate_identity_reshuffles(&rows).is_err());
+    }
 }

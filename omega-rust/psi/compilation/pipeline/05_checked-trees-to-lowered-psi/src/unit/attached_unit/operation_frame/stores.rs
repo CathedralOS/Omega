@@ -1067,7 +1067,10 @@ impl OperationFrame<'_, '_> {
             &store.destination.path,
         )? {
             let logical = self.receiving_place(captured.original_source, captured.original_path)?;
-            if !terminal_semantics::structural_memberships_disjoint_from_write(
+            if !terminal_semantics::store_preserves_qualifications(
+                self.structural_types.declarations().iter(),
+                self.callees.domain_declarations.iter(),
+                &identities.snapshot(),
                 &logical.qualifications,
                 &logical.projected_qualifications,
                 &logical.path,
@@ -1138,8 +1141,13 @@ impl OperationFrame<'_, '_> {
             ))?;
             let mut written = path.clone();
             written.push(terminal_psi::StructuralPathSegment::Field(field.identity));
-            if !terminal_semantics::structural_memberships_disjoint_from_write(
-                &whole, &projected, &written,
+            if !terminal_semantics::store_preserves_qualifications(
+                self.structural_types.declarations().iter(),
+                self.callees.domain_declarations.iter(),
+                &identities.snapshot(),
+                &whole,
+                &projected,
+                &written,
             ) {
                 return unsupported("scalar store overlaps qualification evidence");
             }
@@ -1275,9 +1283,6 @@ impl OperationFrame<'_, '_> {
         )
     }
 
-    /// Map an authored store root to the window argument's structural lane.
-    /// Composed source-reader declarations keep authored `position` values;
-    /// roster order, not that field, is the checked dense parameter namespace.
     fn window_destination(
         &self,
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,

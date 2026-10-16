@@ -164,12 +164,44 @@ impl StructuralSourceContract<'_> {
             })
     }
 
+    pub(crate) fn reference_ancestor_qualifications_preserved<'types>(
+        &self,
+        types: impl Iterator<Item = &'types terminal_psi::StructuralTypeDeclaration> + Clone,
+        domains: impl Iterator<Item = &'types terminal_psi::StructuralDomainDeclaration> + Clone,
+        identities: &terminal_psi::TerminalIdentityTable,
+        path: &[terminal_psi::StructuralPathSegment],
+        access: terminal_psi::StructuralAccess,
+    ) -> bool {
+        terminal_semantics::reference_preserves_ancestor_qualifications(
+            types,
+            domains,
+            identities,
+            self.qualifications,
+            self.projected_qualifications,
+            path,
+            access,
+        )
+    }
+
     pub(crate) fn reference_memberships<'types>(
         &self,
         types: impl Iterator<Item = &'types terminal_psi::StructuralTypeDeclaration> + Clone,
+        domains: impl Iterator<Item = &'types terminal_psi::StructuralDomainDeclaration> + Clone,
+        identities: &terminal_psi::TerminalIdentityTable,
         path: &[terminal_psi::StructuralPathSegment],
         access: terminal_psi::StructuralAccess,
     ) -> Result<Vec<terminal_psi::StructuralPathQualification>, &'static str> {
+        if !terminal_semantics::reference_preserves_ancestor_qualifications(
+            types.clone(),
+            domains,
+            identities,
+            self.qualifications,
+            self.projected_qualifications,
+            path,
+            access,
+        ) {
+            return Err("reference formation would hide an ancestor qualification obligation");
+        }
         terminal_semantics::reference_source_memberships(
             types,
             self.structural_type,

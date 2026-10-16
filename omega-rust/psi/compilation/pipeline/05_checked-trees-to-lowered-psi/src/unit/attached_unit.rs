@@ -306,6 +306,7 @@ pub(crate) fn lower_unit_closure(
         &closure,
         &boundaries,
         &type_ids,
+        &structural_types,
     )?;
     let (services, service_ids) = catalog::lower_unit_services(
         identities,
@@ -402,6 +403,7 @@ pub(crate) fn lower_unit_closure(
     let catalog = ordinary_machine::ClosureCatalog {
         type_ids: &type_ids,
         domain_ids: &domain_ids,
+        domain_declarations: &structural_domains,
         service_ids: &service_ids,
         boundary_parameters: &lowered_boundary_parameters,
         machine_ids: &machine_ids,
@@ -446,6 +448,7 @@ pub(crate) fn lower_unit_closure(
                         structural_types: &structural_types,
                         type_ids: &type_ids,
                         domain_ids: &domain_ids,
+                        domain_declarations: &structural_domains,
                         service_ids: &service_ids,
                         boundary_parameters: &lowered_boundary_parameters,
                         machine_ids: &machine_ids,

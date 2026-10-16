@@ -37,11 +37,6 @@ pub(crate) struct TargetLoweringRequest<'a> {
     pub settlements: &'a [AdmittedBoundarySettlement<'a>],
     /// Checked-provider installation evidence for the remaining boundaries.
     pub installation: Option<&'a dyn ProviderInstallationEvidence>,
-    /// Exact target-owned native callback argument admissions. The admitted
-    /// roster is retained on the returned plan itself in
-    /// `native_callback_arguments`, joined to each consuming row by its
-    /// Terminal operation.
-    pub native_callbacks: &'a [crate::AdmittedNativeCallbackArgument],
 }
 
 /// Lower one abstract plan to target operations.
@@ -54,7 +49,6 @@ pub(crate) fn lower_to_target_operations(
         target,
         settlements,
         installation,
-        native_callbacks,
     } = request;
     let bindings = provider_evidence::bind_provider_executions(plan, settlements)?;
     lower_to_target_operations_with_settlements_and_installation(
@@ -62,7 +56,9 @@ pub(crate) fn lower_to_target_operations(
         target,
         &bindings,
         installation,
-        native_callbacks,
+        verified_input
+            .map(|input| input.admitted_native_callbacks())
+            .unwrap_or_default(),
         verified_input,
     )
 }

@@ -679,24 +679,28 @@ impl TerminalExecution<'_> {
             return Err(malformed());
         }
         let machine = self.program.verified_machine(self.current_machine)?;
-        let preserves =
-            |root,
-             whole: &[semantic_vocabulary::StructuralDomainId],
-             projected: &[terminal_psi::StructuralPathQualification]| {
-                let Some(member) = terminal_semantics::projected_field_declaration(
-                    self.program.structural_types().values(),
-                    root,
-                    path,
-                    field,
-                ) else {
-                    return false;
-                };
-                let mut written = path.clone();
-                written.push(StructuralPathSegment::Field(member.identity));
-                terminal_semantics::structural_memberships_disjoint_from_write(
-                    whole, projected, &written,
-                )
-            };
+        let module = &self.program.catalogs;
+        let preserves = |root, whole: &[_], projected: &[_]| {
+            terminal_semantics::scalar_field_store_preserves_qualifications(
+                self.program.structural_types().values(),
+                module.structural_domains.iter(),
+                &module.identities,
+                root,
+                whole,
+                projected,
+                path,
+                field,
+            ) && terminal_semantics::scalar_field_store_preserves_content(
+                self.program.structural_types().values(),
+                module.structural_domains.iter(),
+                &module.identities,
+                root,
+                destination,
+                machine.content_entry_claims.iter(),
+                path,
+                field,
+            )
+        };
         let access = machine
             .structural_parameter(destination)
             .filter(|parameter| {

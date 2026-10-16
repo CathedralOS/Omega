@@ -32,6 +32,7 @@ pub(super) fn lower(
     operation: &Operation,
     machine: &TerminalMachine,
     structural_types: &[StructuralTypeDeclaration],
+    module: &terminal_psi::TerminalModule,
     value_types: &BTreeMap<semantic_vocabulary::ValueId, ScalarType>,
 ) -> Result<AbstractOperation, LoweringError> {
     match &operation.kind {
@@ -45,6 +46,7 @@ pub(super) fn lower(
             operation,
             machine,
             structural_types,
+            module,
             value_types,
             *destination,
             path,
@@ -106,7 +108,7 @@ pub(super) fn store_destination(
             Some(parameter.clone())
         })
         .map(StructuralScalarStoreDestination::Parameter)
-        .or_else(|| owned_store_destination(machine, destination))
+        .or_else(|| owned_storage_destination(machine, destination))
         // An owned arrival writes the home its block entry established, the
         // one every incoming edge moved its whole source into; Terminal
         // verification admits an owned block parameter as write authority.
@@ -127,6 +129,7 @@ fn lower_store(
     operation: &Operation,
     machine: &TerminalMachine,
     structural_types: &[StructuralTypeDeclaration],
+    module: &terminal_psi::TerminalModule,
     value_types: &BTreeMap<semantic_vocabulary::ValueId, ScalarType>,
     destination: PlaceId,
     path: &[StructuralPathSegment],
@@ -192,6 +195,32 @@ fn lower_store(
     } else {
         (destination.structural_type(), path)
     };
+    if !terminal_semantics::scalar_field_store_preserves_qualifications(
+        structural_types.iter(),
+        module.structural_domains.iter(),
+        &module.identities,
+        destination.structural_type(),
+        destination.qualifications(),
+        destination.projected_qualifications(),
+        path,
+        field,
+    ) {
+        return Err(invalid(
+            "field write overlaps a domain predicate or content definition",
+        ));
+    }
+    if !terminal_semantics::scalar_field_store_preserves_content(
+        structural_types.iter(),
+        module.structural_domains.iter(),
+        &module.identities,
+        destination.structural_type(),
+        destination.place(),
+        machine.content_entry_claims.iter(),
+        path,
+        field,
+    ) {
+        return Err(invalid("field write changes conserved entry content"));
+    }
     if operation.result != OperationResult::Unit
         || destination.parameter().is_some_and(|parameter| {
             !matches!(
@@ -199,10 +228,7 @@ fn lower_store(
                 StructuralAccess::Owned
                     | StructuralAccess::MutableBorrow
                     | StructuralAccess::WriteOnlyBorrow
-            ) || machine
-                .content_entry_claims
-                .iter()
-                .any(|claim| claim.input.root == parameter.place)
+            )
         })
         || !terminal_psi::is_structural_scalar_store_path(storage_path)
         || !path
@@ -223,21 +249,6 @@ fn lower_store(
         field,
     )
     .ok_or_else(|| invalid("selected path has no exact field declaration"))?;
-    let (whole, projected) = match &destination {
-        StructuralScalarStoreDestination::Parameter(parameter)
-        | StructuralScalarStoreDestination::OwnedBlockParameter { parameter, .. } => (
-            &parameter.qualifications,
-            &parameter.projected_qualifications,
-        ),
-        StructuralScalarStoreDestination::OwnedResult { result, .. } => {
-            (&result.qualifications, &result.projected_qualifications)
-        }
-    };
-    let mut written = path.to_vec();
-    written.push(StructuralPathSegment::Field(declaration.identity));
-    if !terminal_semantics::structural_memberships_disjoint_from_write(whole, projected, &written) {
-        return Err(invalid("scalar field write overlaps a standing membership"));
-    }
     if terminal_semantics::scalar_field_requires_evidence(&declaration.field_type)
         != range_obligation.is_some()
         || declaration.field_type.scalar_type() != Some(scalar_type)
@@ -254,21 +265,6 @@ fn lower_store(
         value: AbstractResult { value, scalar_type },
         range_obligation,
     })
-}
-
-/// Retain the exact owned producer instead of manufacturing a parameter row.
-pub(super) fn owned_store_destination(
-    machine: &TerminalMachine,
-    place: PlaceId,
-) -> Option<StructuralScalarStoreDestination> {
-    let destination = owned_storage_destination(machine, place)?;
-    let StructuralScalarStoreDestination::OwnedResult { result, .. } = &destination else {
-        return None;
-    };
-    // Ordinary scalar stores have no restoration membership operand. Window
-    // stores instead join the removed/replacing subtree's exact memberships.
-    (result.qualifications.is_empty() && result.projected_qualifications.is_empty())
-        .then_some(destination)
 }
 
 /// Resolve completed storage identity without deciding a mutation's evidence
@@ -433,26 +429,6 @@ pub(super) fn exact_parameter(
         return None;
     }
     Some(parameter.clone())
-}
-
-pub(super) fn has_empty_structural_custody(machine: &TerminalMachine, place: PlaceId) -> bool {
-    has_unqualified_storage(machine, place)
-        && machine
-            .entry_claims
-            .iter()
-            .all(|claim| claim.input != place)
-}
-
-/// Scalar mutation preserves resource claims. Qualifications and content
-/// evidence still require their own transport; resource custody does not
-/// make an otherwise exclusive storage home immutable.
-pub(super) fn has_unqualified_storage(machine: &TerminalMachine, place: PlaceId) -> bool {
-    machine.parameter(place).is_some_and(|parameter| {
-        parameter.qualifications.is_empty() && parameter.projected_qualifications.is_empty()
-    }) && machine
-        .content_entry_claims
-        .iter()
-        .all(|claim| claim.input.root != place)
 }
 
 fn resolve_structural_path(

@@ -30,7 +30,7 @@ pub struct PreparedRetainedNativeProviders<'input> {
     proposal: &'input TerminalNativeRealizationProposal,
     bindings: PreparedSourceEvaluatedBindings<'input>,
     program_demands: BTreeSet<String>,
-    callbacks: &'input [crate::AdmittedNativeCallbackArgument],
+    callbacks: &'input [crate::NativeCallbackArgumentProposal],
     pub callback_thunks: Vec<backend_plan::NativeCallbackThunkSettlement<'input>>,
     compiler_builtins: Vec<NativeCompilerBuiltinSettlement<'input>>,
 }

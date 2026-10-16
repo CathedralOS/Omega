@@ -306,6 +306,7 @@ impl ExitScalars<'_, '_> {
         }
         let mut predicates = crate::facts::boolean_predicates::retained(
             self.program,
+            &self.facts.operators,
             &self.facts.semantic,
             self.contexts,
         );
@@ -324,6 +325,7 @@ impl ExitScalars<'_, '_> {
         crate::facts::boolean_predicates::truth(&predicates, &required, |place| {
             super::super::prover::boolean_value_at_place(
                 self.program,
+                &self.facts.operators,
                 &self.facts.semantic,
                 self.contexts,
                 place,

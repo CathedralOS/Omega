@@ -359,6 +359,7 @@ pub(crate) fn seed(
 
 pub(crate) fn retained(
     program: &dyn ::validation::CheckingInput,
+    operators: &checked_trees::CheckedOperatorFacts,
     semantic: &FactPlan,
     contexts: &[FactContextHandle],
 ) -> Vec<BoundPredicate> {
@@ -368,6 +369,14 @@ pub(crate) fn retained(
             .context_view(semantic.contexts.get(*context))
             .facts()
         {
+            if let Some(predicate_rows) = domain_predicates(program, operators, semantic, fact) {
+                for row in predicate_rows {
+                    if !rows.contains(&row) {
+                        rows.push(row);
+                    }
+                }
+                continue;
+            }
             let FactPayload::BooleanPredicate { predicate } = fact.payload else {
                 continue;
             };
@@ -414,6 +423,85 @@ pub(crate) fn retained(
         }
     }
     rows
+}
+
+/// Live membership entails its declaration's predicates at the same exact
+/// subject. Reuse contract lowering and formal binding; no source initializer,
+/// receiving annotation or establishment route supplies an observation.
+fn domain_predicates(
+    program: &dyn ::validation::CheckingInput,
+    operators: &checked_trees::CheckedOperatorFacts,
+    semantic: &FactPlan,
+    fact: &facts::Fact,
+) -> Option<Vec<BoundPredicate>> {
+    let (_, _, symbol, identity) = fact.payload.domain_membership()?;
+    let domain = program.domain_definition(symbol)?;
+    if domain.semantic_id != identity
+        || !domain.type_parameters.is_empty()
+        || !domain.index_arguments.is_empty()
+        || domain.alias.is_some()
+    {
+        return None;
+    }
+    let place = fact.place.as_place()?;
+    let subject = crate::flow::canonical_place_from_semantic_place(
+        program,
+        semantic,
+        semantic.places.get(place),
+    )?;
+    let parameters = [typed_trees::signature::StateParameter {
+        symbol: domain.subject_symbol,
+        name: domain.subject_name.clone(),
+        type_reference: domain.target_type,
+        ..Default::default()
+    }];
+    program
+        .proof_facts(domain)
+        .iter()
+        .map(|fact| {
+            let expression = match fact {
+                typed_trees::domain::ProofFact::Expression(expression) => {
+                    crate::values::lower_callable_scalar_contract_predicate(
+                        program,
+                        operators,
+                        domain.symbol,
+                        &parameters,
+                        TypeReferenceHandle::invalid(),
+                        *expression,
+                        false,
+                        &mut 4096,
+                    )?
+                }
+                typed_trees::domain::ProofFact::Membership(membership) => {
+                    crate::values::scalar::result_contract::lower_callable_scalar_membership(
+                        program,
+                        operators,
+                        domain.symbol,
+                        &parameters,
+                        membership,
+                        &mut 4096,
+                    )?
+                }
+                typed_trees::domain::ProofFact::Proposition(_) => return None,
+            };
+            let mut predicate = bind_parameters(
+                program,
+                domain.symbol,
+                domain.symbol,
+                &parameters,
+                expression,
+            )?;
+            for binding in &mut predicate.bindings {
+                if binding.place.root != facts::PlaceRoot::Symbol(domain.subject_symbol) {
+                    return None;
+                }
+                let mut place = subject.clone();
+                place.extend_segments(&binding.place.segments);
+                binding.place = place;
+            }
+            Some(predicate)
+        })
+        .collect()
 }
 
 struct Values<'a, Resolve> {

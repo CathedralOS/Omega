@@ -11,6 +11,7 @@ use typed_trees::signature::StateParameter;
 /// place requirement returns Some(false) on mismatch and cannot use labels.
 pub(super) fn proves(
     program: &dyn ::validation::CheckingInput,
+    operators: &checked_trees::CheckedOperatorFacts,
     semantic: &FactPlan,
     contexts: &[facts::FactContextHandle],
     caller_state: SymbolHandle,
@@ -60,7 +61,10 @@ pub(super) fn proves(
         return Some(false);
     };
     actual.segments.append(&mut required.segments);
-    Some(super::boolean_value_at_place(program, semantic, contexts, &actual) == Some(true))
+    Some(
+        super::boolean_value_at_place(program, operators, semantic, contexts, &actual)
+            == Some(true),
+    )
 }
 
 fn has_explicit_formal_root(

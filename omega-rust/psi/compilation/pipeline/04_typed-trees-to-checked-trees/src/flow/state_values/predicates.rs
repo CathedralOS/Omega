@@ -67,7 +67,7 @@ pub(super) fn capture(
         candidate
     };
     let mut result = Vec::new();
-    for predicate in boolean_predicates::retained(program, semantic, &contexts) {
+    for predicate in boolean_predicates::retained(program, build.operators, semantic, &contexts) {
         // Forwarded observations keep their relational meaning. Only an input
         // that disappears may fold from the exact outgoing edge's live facts.
         let Some(mut predicate) = boolean_predicates::fold(&predicate, |place| {
@@ -78,18 +78,24 @@ pub(super) fn capture(
             if rebase(binding).is_some() {
                 return None;
             }
-            crate::checks::contracts::boolean_value_at_place(program, semantic, &contexts, place)
-                .map(ScalarValue::Boolean)
-                .or_else(|| {
-                    crate::values::scalar_value_at_place(
-                        program,
-                        semantic,
-                        contexts
-                            .iter()
-                            .map(|context| semantic.contexts.get(*context)),
-                        place,
-                    )
-                })
+            crate::checks::contracts::boolean_value_at_place(
+                program,
+                build.operators,
+                semantic,
+                &contexts,
+                place,
+            )
+            .map(ScalarValue::Boolean)
+            .or_else(|| {
+                crate::values::scalar_value_at_place(
+                    program,
+                    semantic,
+                    contexts
+                        .iter()
+                        .map(|context| semantic.contexts.get(*context)),
+                    place,
+                )
+            })
         }) else {
             continue;
         };

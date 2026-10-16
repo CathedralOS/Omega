@@ -489,6 +489,22 @@ fn validate_callback_relocation_targets(
                         "callback address relocation lost its compiler-private function symbol",
                     )
                 })?;
+                // Machine-code callback fixups are function-relative. Compose
+                // that function's exact object placement before the private
+                // namespace placement; neither base is a relocation addend.
+                let relocation_text_offset = |relative: usize| -> Result<usize, Diagnostic> {
+                    if relative
+                        .checked_add(4)
+                        .is_none_or(|end| end > function.byte_count)
+                    {
+                        return Err(Diagnostic::error(
+                            "callback relocation field escapes its registrar function",
+                        ));
+                    }
+                    namespace.text_offset(function.text_offset.checked_add(relative).ok_or_else(
+                        || Diagnostic::error("callback relocation function offset overflows"),
+                    )?)
+                };
                 let expected_origin = object_file::RelocationOrigin::SemanticOperation {
                     function_symbol_handle: namespace
                         .symbol(function.symbol)
@@ -518,6 +534,12 @@ fn validate_callback_relocation_targets(
                         ),
                     ],
                 };
+                let expected = expected
+                    .into_iter()
+                    .map(|(offset, kind)| {
+                        relocation_text_offset(offset).map(|offset| (offset, kind))
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
                 let private_target_relocations = relocations
                     .records()
                     .filter(|(_, relocation)| {
@@ -533,8 +555,7 @@ fn validate_callback_relocation_targets(
                             .filter(|relocation| {
                                 relocation.origin == expected_origin
                                     && relocation.section == object_file::SectionKind::Text
-                                    && Some(relocation.offset)
-                                        == offset.checked_add(namespace.text_offset)
+                                    && relocation.offset == *offset
                                     && relocation.byte_width == 4
                                     && relocation.addend == 0
                                     && relocation.kind == *kind
@@ -559,15 +580,15 @@ fn validate_callback_relocation_targets(
                         relocation_offset,
                     } => decode_x86_relative_target(
                         output,
-                        namespace.text_offset(relocation_offset)?,
+                        relocation_text_offset(relocation_offset)?,
                     )?,
                     machine_code::CallbackAddressEncoding::Aarch64PageAddress {
                         page_relocation_offset,
                         page_offset_relocation_offset,
                     } => decode_aarch64_page_target(
                         output,
-                        namespace.text_offset(page_relocation_offset)?,
-                        namespace.text_offset(page_offset_relocation_offset)?,
+                        relocation_text_offset(page_relocation_offset)?,
+                        relocation_text_offset(page_offset_relocation_offset)?,
                     )?,
                 };
                 if actual_target != expected_target {

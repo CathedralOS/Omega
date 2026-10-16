@@ -66,17 +66,18 @@ fn judge_qualification_cast(
     let declared = program.domain_definition(cast.semantic_domain_symbol);
     match declared {
         Some(domain) => {
+            // Routed membership depends on the operand's live provenance,
+            // including a retained atom during explicit weakening. The flow
+            // qualification judgment owns that evidence, never this target.
+            if crate::field_domains::domain_requires_provenance(program, domain.symbol) {
+                return;
+            }
             // A predicate proof is not an authorized origin. In particular,
             // computed bounds cannot mint a routed domain whose predicate
             // happens to hold. Existing route transport keeps its own owner.
-            if crate::field_domains::domain_requires_provenance(program, domain.symbol)
-                || (!domain.predicate_body.is_present()
-                    && domain.alias.is_none()
-                    && !crate::field_domains::domain_is_vacuous(
-                        program,
-                        domain.symbol,
-                        &mut Vec::new(),
-                    ))
+            if !domain.predicate_body.is_present()
+                && domain.alias.is_none()
+                && !crate::field_domains::domain_is_vacuous(program, domain.symbol, &mut Vec::new())
             {
                 diagnostics.push(Diagnostic::error(format!(
                     "`as ... in {name}` cannot establish a non-vacuous domain; every \

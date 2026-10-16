@@ -76,6 +76,15 @@ pub enum TypeLayoutDescriptor {
 }
 
 impl TypeLayoutDescriptor {
+    /// An inline named carrier; references and descriptor backings are not hops.
+    pub fn inline_data_symbol(&self) -> Option<SymbolHandle> {
+        match self {
+            Self::Named { symbol, .. } => Some(*symbol),
+            Self::Constrained { base_type, .. } => base_type.inline_data_symbol(),
+            _ => None,
+        }
+    }
+
     pub fn fixed_array(&self) -> Option<(&Self, usize)> {
         match self {
             Self::Constrained { base_type, .. } => base_type.fixed_array(),
@@ -266,51 +275,14 @@ pub struct TargetClosedPrivateCallbackDemand {
     pub alignment: usize,
 }
 
-/// Exact target-closed identity of one plan-laid data layout.
+/// Exact target-closed data layout, retaining any authored policy selection.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TargetClosedPlanLaidDataLayoutIdentity {
+pub struct TargetClosedDataLayoutIdentity {
     pub data_symbol: SymbolHandle,
     pub data_identity: Arc<str>,
-    pub layout_subject_identity: Arc<str>,
+    pub layout_subject_identity: Option<Arc<str>>,
     pub layout: calling_conventions::LayoutPlanId,
     pub physical: TypeLayout,
-}
-
-/// Exact two-hop proof from a plan-laid root through one inline named record
-/// field to a terminal private callback slot in a plan-laid child.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TargetClosedTwoHopPrivateCallbackPath {
-    pub root_layout_index: usize,
-    pub root_layout: TargetClosedPlanLaidDataLayoutIdentity,
-    pub field_symbol: SymbolHandle,
-    pub field: arena::Handle<FieldLayout>,
-    pub field_layout: FieldLayout,
-    pub field_identity: Arc<str>,
-    pub field_slot: calling_conventions::LayoutSlotId,
-    pub field_relative_offset: usize,
-    pub field_extent: usize,
-    pub field_alignment: usize,
-    pub child_layout_index: usize,
-    pub child_layout: TargetClosedPlanLaidDataLayoutIdentity,
-    pub terminal_demand_index: usize,
-    pub terminal_demand: TargetClosedPrivateCallbackDemand,
-    pub composed_offset: usize,
-}
-
-impl TargetClosedTwoHopPrivateCallbackPath {
-    pub fn native_demand(
-        &self,
-        parameter: calling_conventions::NativeParameterId,
-    ) -> calling_conventions::NativeCallbackDemand {
-        calling_conventions::NativeCallbackDemand {
-            destination: calling_conventions::NativePlace::Field {
-                parameter,
-                layout: self.root_layout.layout,
-                field_path: vec![self.field_slot, self.terminal_demand.slot],
-            },
-            requirement: self.terminal_demand.requirement,
-        }
-    }
 }
 
 impl TargetClosedPrivateCallbackDemand {
@@ -338,8 +310,8 @@ pub struct LayoutPlan {
     pub repeated_fields: Vec<RepeatedFieldLayout>,
     pub variants: Arena<VariantLayout>,
     pub private_callback_demands: Vec<TargetClosedPrivateCallbackDemand>,
-    pub plan_laid_layout_identities: Vec<TargetClosedPlanLaidDataLayoutIdentity>,
-    pub two_hop_private_callback_paths: Vec<TargetClosedTwoHopPrivateCallbackPath>,
+    pub data_layout_identities: Vec<TargetClosedDataLayoutIdentity>,
+    pub private_callback_layouts: Vec<crate::PrivateCallbackLayout>,
 }
 
 impl LayoutPlan {

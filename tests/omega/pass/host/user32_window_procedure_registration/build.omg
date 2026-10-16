@@ -1,0 +1,9 @@
+machine build(builder: &mut Build) {
+ Build::application(builder, "user32_window_procedure_registration");
+ Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
+ Build::select_provider<Registrar, RegistrarProvider>(builder);
+ Build::select_provider<ClassApi, Imports>(builder);
+ Build::select_provider<ContextApi, Imports>(builder);
+ Build::select_provider<ModuleApi, Imports>(builder);
+ Build::bind(builder, windows_x86_64::ProgramEntry, Main::main);
+}

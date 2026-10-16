@@ -6,7 +6,7 @@
 
 use legalized_operations::LegalizedScalarFunction;
 use semantic_vocabulary::{PlaceId, StructuralPlaceKind};
-use terminal_psi::{StructuralAccess, StructuralMultiplicity, StructuralParameterDeclaration};
+use terminal_psi::{StructuralAccess, StructuralParameterDeclaration};
 
 pub(super) fn store_destination(
     source: &LegalizedScalarFunction,
@@ -18,12 +18,7 @@ pub(super) fn store_destination(
     if !matches!(
         expected.access,
         StructuralAccess::Owned | terminal_psi::exclusive_borrow_pair_pattern!()
-    ) || expected.multiplicity == StructuralMultiplicity::Linear
-        || signature
-            .entry_claims
-            .iter()
-            .any(|claim| claim.input == expected.place)
-    {
+    ) {
         return false;
     }
     // The store's receiving and membership obligations were replayed against

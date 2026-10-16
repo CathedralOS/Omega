@@ -198,6 +198,7 @@ impl Execution<'_, '_, '_> {
                         }
                         _ => (crate::checks::contracts::boolean_value_at_place(
                             self.program,
+                            self.context.operators,
                             self.semantic,
                             &captured_contexts,
                             &place,

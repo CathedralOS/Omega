@@ -74,7 +74,8 @@ impl CheckedCompilation {
                     }
                 }).collect(),
                 calling_applications: providers.boundary_calling_plan_realizations.iter()
-                    .map(|realization| realization.native_application()).collect(),
+                    .map(|realization| realization.native_application().map_err(|reason| vec![Diagnostic::error(reason)]))
+                    .collect::<Result<Vec<_>, _>>()?,
             },
             native_target: execution.selected_native_target(),
             program_entry: execution.selected_program_entry.as_ref().map(|entry| {

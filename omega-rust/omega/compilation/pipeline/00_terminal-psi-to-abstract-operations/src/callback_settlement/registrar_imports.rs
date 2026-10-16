@@ -1,11 +1,9 @@
 //! Rejoin callback registrar occurrences to their target-closed import plans.
 
-mod operations;
-
+use super::CallbackTerminalOperations;
 use backend_plan::NativeCallbackPlacement;
 use calling_conventions::BoundaryCallingApplication;
 use calling_conventions::ExternalBindingRow;
-use operations::CallbackTerminalOperations;
 use semantic_vocabulary::OperationId;
 use terminal_psi::TerminalModule;
 

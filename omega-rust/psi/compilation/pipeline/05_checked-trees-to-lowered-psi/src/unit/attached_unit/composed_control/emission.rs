@@ -292,6 +292,7 @@ pub(super) fn emit_call_operations(
                 signatures: &catalogs.signatures,
                 boundaries: &catalogs.boundary_parameters,
                 domain_ids: &catalogs.domain_ids,
+                domain_declarations: catalogs.domain_declarations,
                 closure: catalogs.closure,
             },
             caller: CallerCustody {

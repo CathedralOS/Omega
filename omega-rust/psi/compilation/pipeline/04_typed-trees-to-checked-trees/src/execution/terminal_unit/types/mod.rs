@@ -15,6 +15,8 @@ use checked_trees::{
 };
 use typed_trees::type_identity::TypeIdentityRequest;
 
+mod domain_predicates;
+pub(super) use domain_predicates::retain_domain_predicates;
 mod scalar_fields;
 pub(crate) use scalar_fields::field_requires_place_observation;
 pub(super) use scalar_fields::{retain_scalar_field, supports_primitive_storage};

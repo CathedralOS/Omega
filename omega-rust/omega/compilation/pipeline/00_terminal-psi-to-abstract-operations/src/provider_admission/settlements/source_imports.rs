@@ -3,7 +3,7 @@
 
 use std::collections::BTreeMap;
 
-use crate::AdmittedNativeCallbackArgument;
+use crate::NativeCallbackArgumentProposal;
 use crate::provider_admission::AdmittedTerminalMechanism;
 use diagnostics::Diagnostic;
 use effects::provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanRow};
@@ -18,7 +18,7 @@ struct ImportCoverageRows<'input> {
     selected_external: Option<(&'input ProviderPlan, &'input ProviderPlanRow)>,
     external: Option<&'input calling_conventions::ExternalBindingRow>,
     external_count: usize,
-    callbacks: Vec<&'input AdmittedNativeCallbackArgument>,
+    callbacks: Vec<&'input NativeCallbackArgumentProposal>,
 }
 
 /// Derive the terminal mechanism of every demanded source-evaluated import and
@@ -34,7 +34,7 @@ pub(super) fn derive_source_evaluated_mechanisms(
     plan: &abstract_operations::AbstractOperationPlan,
     selected_plans: &effects::SelectedProviderPlanFacts,
     external_binding_rows: &[calling_conventions::ExternalBindingRow],
-    native_callbacks: &[crate::AdmittedNativeCallbackArgument],
+    native_callbacks: &[crate::NativeCallbackArgumentProposal],
 ) -> Result<
     (
         Vec<AdmittedTerminalMechanism>,
@@ -240,7 +240,7 @@ fn join_import_coverage_rows<'input>(
     plan: &'input abstract_operations::AbstractOperationPlan,
     selected_plans: &'input effects::SelectedProviderPlanFacts,
     external_binding_rows: &'input [calling_conventions::ExternalBindingRow],
-    native_callbacks: &'input [AdmittedNativeCallbackArgument],
+    native_callbacks: &'input [NativeCallbackArgumentProposal],
 ) -> Result<BTreeMap<&'input str, ImportCoverageRows<'input>>, Vec<Diagnostic>> {
     let boundary_identities = plan
         .boundary_machines
@@ -379,10 +379,77 @@ fn join_import_coverage_rows<'input>(
                 boundary,
             ))]
         })?;
-        if let Some(rows) = demanded.get_mut(requirement) {
-            rows.callbacks.push(callback);
-        }
+        let rows = demanded.get_mut(requirement).ok_or_else(|| {
+            vec![Diagnostic::error(
+                "native callback has no demanded selected registrar",
+            )]
+        })?;
+        authenticate_callback_application(requirement, rows, callback, selected_plans).map_err(
+            |reason| {
+                vec![Diagnostic::error(format!(
+                    "native callback admission: {reason}"
+                ))]
+            },
+        )?;
+        rows.callbacks.push(callback);
     }
 
     Ok(demanded)
+}
+
+/// The expected application comes from the independently selected/admitted
+/// provider schema. The caller has already joined this exact Terminal operation
+/// to its BoundaryCall and selected row; no producer-supplied expected digest
+/// participates in that join.
+fn authenticate_callback_application(
+    requirement: &str,
+    rows: &ImportCoverageRows<'_>,
+    callback: &NativeCallbackArgumentProposal,
+    selected: &effects::SelectedProviderPlanFacts,
+) -> Result<(), String> {
+    let (plan, row) = rows
+        .selected_external
+        .filter(|_| rows.selected_count == 1)
+        .ok_or("callback registrar has no unique selected external provider")?;
+    let mut methods = plan
+        .schema
+        .methods
+        .iter()
+        .filter(|method| method.name == row.method);
+    let method = methods
+        .next()
+        .ok_or("callback selected provider has no method contract")?;
+    if methods.next().is_some() {
+        return Err("callback selected provider method is ambiguous".to_owned());
+    }
+    let application = &callback.registrar_application;
+    if !selected.selected_row_matches_requirement(
+        requirement,
+        &application.requirement_identity,
+        plan.report_fingerprint(),
+    ) || method.calling_plan_report_fingerprint != Some(application.report_fingerprint)
+        || callback.registrar_application_commitment != application.commitment
+        || callback.registrar_boundary_entry_plan != *application.plan.plan()
+    {
+        return Err(
+            "callback application changed its exact selected registrar contract".to_owned(),
+        );
+    }
+    let expected = method
+        .calling_plan_commitment
+        .ok_or("callback selected method has no admitted calling application")?
+        .as_bytes();
+    let offset = application.authenticated_callback_offset(
+        expected,
+        callback.binder,
+        &callback.destination,
+        &callback.application,
+        &callback.registrar_context,
+    )?;
+    if offset != callback.field_byte_offset {
+        return Err(
+            "callback field offset differs from its authenticated catalog geometry".to_owned(),
+        );
+    }
+    Ok(())
 }

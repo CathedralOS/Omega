@@ -241,6 +241,7 @@ dependencies = [
 name = "calling-conventions"
 version = "0.1.0"
 dependencies = [
+ "arena",
  "optimization-core",
  "semantic-vocabulary",
  "target",

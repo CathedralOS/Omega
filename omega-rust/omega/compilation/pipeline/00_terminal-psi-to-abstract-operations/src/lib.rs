@@ -55,6 +55,7 @@ pub use native_admission::{
 pub(crate) use native_execution_scope::NativeExecutionScopeError;
 pub use provider_admission::{
     AdmittedBoundaryExecution, AdmittedBoundarySettlement, AdmittedNativeCallbackArgument,
+    NativeCallbackArgumentProposal,
 };
 pub use retained_terminal::{
     PreparedRetainedNativeProviders, RetainedNativeProviderInputs, RetainedTerminalArtifact,

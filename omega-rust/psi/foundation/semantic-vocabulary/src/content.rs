@@ -78,6 +78,26 @@ pub struct ContentStructuralPlace {
     pub segments: Vec<ContentPlaceSegment>,
 }
 
+impl ContentStructuralPlace {
+    /// Alternatives of one sum occurrence differ first at its case selector.
+    /// Distinct fields, roots, revisions and ancestor paths may coexist.
+    pub fn is_case_alternative(&self, other: &Self) -> bool {
+        self.root == other.root
+            && self.version == other.version
+            && self
+                .segments
+                .iter()
+                .zip(&other.segments)
+                .find(|(left, right)| left != right)
+                .is_some_and(|(left, right)| {
+                    matches!(
+                        (left, right),
+                        (ContentPlaceSegment::Case(_), ContentPlaceSegment::Case(_))
+                    )
+                })
+    }
+}
+
 /// Closed symbolic content term. `Separate` children are flat and strictly
 /// ordered in canonical terminal modules.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]

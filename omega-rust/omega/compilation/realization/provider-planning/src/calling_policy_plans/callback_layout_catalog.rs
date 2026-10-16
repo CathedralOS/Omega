@@ -9,8 +9,8 @@ pub(super) use validation::validate;
 use super::{BoundaryNativeParameter, BoundaryNativeParameterOrigin};
 use calling_conventions::NativePlace;
 use layout::{
-    PrivateCallbackInlineField, PrivateCallbackLayout, TargetClosedPlanLaidDataLayoutIdentity,
-    TargetClosedPrivateCallbackDemand, TargetClosedTwoHopPrivateCallbackPath,
+    PrivateCallbackInlineField, PrivateCallbackLayout, TargetClosedDataLayoutIdentity,
+    TargetClosedPrivateCallbackDemand,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -35,16 +35,14 @@ impl BoundaryCallbackLayoutEntry {
         &self.destination
     }
 
-    pub const fn root_layout(&self) -> &TargetClosedPlanLaidDataLayoutIdentity {
+    pub const fn root_layout(&self) -> &TargetClosedDataLayoutIdentity {
         self.layout.root_layout()
     }
 
-    pub const fn inline_field(&self) -> Option<&PrivateCallbackInlineField> {
-        self.layout.inline_field()
+    pub fn inline_fields(&self) -> Result<&[PrivateCallbackInlineField], String> {
+        self.layout.inline_fields()
     }
 
-    /// Includes the complete typed slot conformance application. Its compact
-    /// report suffix is never parsed to recover semantic declaration identity.
     pub const fn terminal_slot(&self) -> &TargetClosedPrivateCallbackDemand {
         self.layout.terminal_slot()
     }
@@ -53,41 +51,66 @@ impl BoundaryCallbackLayoutEntry {
         self.layout.composed_offset()
     }
 
-    pub(super) fn direct(
-        parameter: &BoundaryNativeParameter,
-        layouts: &[TargetClosedPlanLaidDataLayoutIdentity],
-        demand: &TargetClosedPrivateCallbackDemand,
-    ) -> Result<Self, String> {
-        let formal_ordinal = semantic_formal(parameter)?;
-        let layout = PrivateCallbackLayout::direct(layouts, demand)?;
-        if layout.root_layout().data_symbol != parameter.layout_data_symbol {
-            return Err(
-                "private callback demand has an ambiguous or foreign root layout".to_owned(),
-            );
+    pub(crate) fn source_free(
+        &self,
+    ) -> Result<calling_conventions::BoundaryCallbackLayout, String> {
+        fn data(
+            value: &TargetClosedDataLayoutIdentity,
+        ) -> calling_conventions::CallbackDataGeometry {
+            calling_conventions::CallbackDataGeometry {
+                identity: value.data_identity.to_string(),
+                policy: value.layout_subject_identity.as_deref().map(str::to_owned),
+                layout: value.layout,
+                size: value.physical.size as u64,
+                alignment: value.physical.alignment as u64,
+            }
         }
-        Ok(Self {
-            formal_ordinal,
-            native_ordinal: parameter.native_ordinal,
-            destination: demand.native_demand(parameter.identity).destination,
-            layout,
-        })
+        let fields = self
+            .inline_fields()?
+            .iter()
+            .map(|field| calling_conventions::CallbackInlineFieldGeometry {
+                identity: field.identity().to_owned(),
+                offset: field.offset() as u64,
+                child: data(field.child_layout()),
+            })
+            .collect::<Vec<_>>();
+        let terminal = self.terminal_slot();
+        Ok(calling_conventions::BoundaryCallbackLayout::new(
+            self.formal_ordinal,
+            self.native_ordinal,
+            self.destination.clone(),
+            data(self.root_layout()),
+            &fields,
+            calling_conventions::CallbackSlotGeometry {
+                identity: terminal.slot_identity.to_string(),
+                policy: terminal.layout_subject_identity.to_string(),
+                requirement_identity: terminal.callback_requirement_identity.to_string(),
+                layout: terminal.layout,
+                slot: terminal.slot,
+                requirement: terminal.requirement,
+                conformance_commitment: terminal.slot_application.commitment.as_bytes(),
+                offset: terminal.offset as u64,
+                size: terminal.byte_size as u64,
+                alignment: terminal.alignment as u64,
+            },
+        ))
     }
 
-    pub(super) fn two_hop(
+    pub(super) fn from_layout(
         parameter: &BoundaryNativeParameter,
-        path: &TargetClosedTwoHopPrivateCallbackPath,
+        layout: &PrivateCallbackLayout,
     ) -> Result<Self, String> {
         let formal_ordinal = semantic_formal(parameter)?;
-        if path.root_layout.data_symbol != parameter.layout_data_symbol {
+        if layout.root_layout().data_symbol != parameter.layout_data_symbol {
             return Err(
-                "private callback path does not join its named root and child layouts".to_owned(),
+                "private callback path does not join its exact parameter carrier".to_owned(),
             );
         }
         Ok(Self {
             formal_ordinal,
             native_ordinal: parameter.native_ordinal,
-            destination: path.native_demand(parameter.identity).destination,
-            layout: PrivateCallbackLayout::two_hop(path)?,
+            destination: layout.native_demand(parameter.identity)?.destination,
+            layout: layout.clone(),
         })
     }
 }

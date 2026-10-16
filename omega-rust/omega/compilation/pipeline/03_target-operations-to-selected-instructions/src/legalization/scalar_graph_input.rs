@@ -266,7 +266,13 @@ pub(super) fn match_input(
         {
             return Err(LegalizationError::custody());
         }
-        nodes::validate(block, optimized, &plan.structural_types)?;
+        nodes::validate(
+            block,
+            optimized,
+            &plan.structural_types,
+            &unit.structural_domains,
+            &unit.identities,
+        )?;
     }
     let entry = optimized
         .block(optimized.entry)

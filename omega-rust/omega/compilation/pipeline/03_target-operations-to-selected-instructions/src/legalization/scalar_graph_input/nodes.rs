@@ -344,6 +344,8 @@ pub(super) fn validate(
     block: &OptimizationBlock,
     optimized: &PsiOptimizationFunction,
     types: &[terminal_psi::StructuralTypeDeclaration],
+    domains: &[terminal_psi::StructuralDomainDeclaration],
+    identities: &terminal_psi::TerminalIdentityTable,
 ) -> Result<(), LegalizationError> {
     let (terminator, body) = block
         .nodes
@@ -643,17 +645,6 @@ pub(super) fn validate(
                                 | terminal_psi::StructuralAccess::MutableBorrow
                                 | terminal_psi::StructuralAccess::WriteOnlyBorrow
                         )
-                        && (parameter.access != terminal_psi::StructuralAccess::Owned
-                            || (parameter.multiplicity
-                                != terminal_psi::StructuralMultiplicity::Linear
-                                && optimized
-                                    .entry_claim_declarations
-                                    .iter()
-                                    .all(|claim| claim.input != parameter.place)
-                                && optimized
-                                    .content_entry_claims
-                                    .iter()
-                                    .all(|claim| claim.input.root != parameter.place)))
                 }
                 abstract_operations::StructuralScalarStoreDestination::OwnedResult {
                     producer,
@@ -676,9 +667,37 @@ pub(super) fn validate(
                     )
                 }
             };
+            let written = match &node.operation {
+                AbstractOperation::StructuralScalarFieldStore { path, field, .. } => {
+                    terminal_semantics::projected_field_declaration(
+                        types.iter(),
+                        destination.structural_type(),
+                        path,
+                        *field,
+                    )
+                    .map(|field| {
+                        let mut written = path.clone();
+                        written.push(terminal_psi::StructuralPathSegment::Field(field.identity));
+                        written
+                    })
+                }
+                AbstractOperation::WriteOnlyPrimitiveStore { path, .. } => Some(path.clone()),
+                _ => unreachable!("scalar store family was selected above"),
+            };
+            let preserved = written.is_some_and(|written| {
+                optimization_unit_semantics::structural_write_preserves_memberships(
+                    optimized,
+                    destination.place(),
+                    &written,
+                    types,
+                    domains,
+                    identities,
+                )
+            });
             if result.is_some()
                 || !node.definitions.is_empty()
                 || !declared
+                || !preserved
                 || value_type(optimized, value.value) != Some(value.scalar_type)
                 || scalar_shape(value.scalar_type).is_none()
             {

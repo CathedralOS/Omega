@@ -582,6 +582,8 @@ pub(super) fn validate_operation(
                     optimized,
                     abstracted,
                     &plan.structural_types,
+                    &unit.structural_domains,
+                    &unit.identities,
                     custody,
                 )
             && sources
@@ -673,6 +675,8 @@ pub(super) fn validate_operation(
                 optimized,
                 abstracted,
                 &plan.structural_types,
+                &unit.structural_domains,
+                &unit.identities,
                 custody,
             )
             .is_some()
@@ -701,6 +705,8 @@ pub(super) fn validate_operation(
                     optimized,
                     abstracted,
                     &plan.structural_types,
+                    &unit.structural_domains,
+                    &unit.identities,
                     custody,
                 ) => {}
         (
@@ -729,6 +735,8 @@ pub(super) fn validate_operation(
                     optimized,
                     abstracted,
                     &plan.structural_types,
+                    &unit.structural_domains,
+                    &unit.identities,
                     custody,
                 )
             && sources
@@ -1068,6 +1076,8 @@ pub(super) fn validate_operation(
                     expected_path,
                     *expected_field,
                     &unit.structural_types,
+                    &unit.structural_domains,
+                    &unit.identities,
                     custody,
                 )
                 .ok_or(LegalizationError::custody())?;
@@ -1094,13 +1104,12 @@ pub(super) fn validate_operation(
                         && matches!(
                             parameter.access,
                             terminal_psi::StructuralAccess::Owned
-                                | terminal_psi::StructuralAccess::MutableBorrow
+                                | terminal_psi::exclusive_borrow_pair_pattern!()
                         )
                         && optimized.blocks.iter().any(|entry| {
                             entry.id == *block && entry.structural_parameters.contains(parameter)
                         })
                         && optimized.arrival_parameter(*place) == Some(parameter)
-                        && parameter.multiplicity != terminal_psi::StructuralMultiplicity::Linear
                         && optimized
                             .entry_claim_declarations
                             .iter()

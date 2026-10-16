@@ -65,13 +65,14 @@ use ::diagnostics::Diagnostic;
 use installation_evidence::ProviderExecutionEvidence;
 pub use model::{
     AdmittedBoundaryExecution, AdmittedBoundarySettlement, AdmittedNativeCallbackArgument,
+    NativeCallbackArgumentProposal,
 };
 
 pub struct AdmittedNativeProviders<'execution> {
     pub settlements: Vec<AdmittedBoundarySettlement<'execution>>,
     /// Callback arguments for the same executable occurrence scope as the
     /// settlements and checked installation, never the full retained catalog.
-    pub native_callbacks: Vec<AdmittedNativeCallbackArgument>,
+    pub(crate) native_callbacks: Vec<AdmittedNativeCallbackArgument>,
     pub executions: Vec<&'execution dyn ProviderExecutionEvidence>,
     pub terminal_authority_policy_identity: effects::TerminalAuthorityPolicyIdentity,
     /// `Some` only when a receiving permission policy was explicitly supplied;
@@ -172,7 +173,12 @@ pub(crate) fn admit_native_providers<'request>(
         })?;
     Ok(AdmittedNativeProviders {
         settlements,
-        native_callbacks: request.native_callbacks.to_vec(),
+        native_callbacks: request
+            .native_callbacks
+            .iter()
+            .cloned()
+            .map(AdmittedNativeCallbackArgument::admit)
+            .collect(),
         executions,
         terminal_authority_policy_identity: effective_policy.identity(),
         terminal_authority_permission_policy_identity: request

@@ -1,0 +1,7 @@
+data Ticket [copy] { number: u64; }
+domain Ticket::Issued established by issue;
+machine issue() -> Ticket in Ticket::Issued { Ticket { number: 17 } }
+machine forge(ticket: &Ticket) -> &Ticket in Ticket::Issued {
+ ticket as &Ticket in Ticket::Issued
+}
+machine main() { }

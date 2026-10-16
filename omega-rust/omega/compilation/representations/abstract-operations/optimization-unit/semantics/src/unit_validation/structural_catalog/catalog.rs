@@ -261,6 +261,17 @@ pub(super) fn index_structural_domains<'unit>(
         ));
     }
     for declaration in unit.structural_domains.iter() {
+        if declaration.predicate.as_ref().is_some_and(|predicate| {
+            !terminal_semantics::domain_predicate_is_closed(
+                types.values().copied(),
+                declaration.carrier,
+                predicate,
+            )
+        }) {
+            return Err(
+                OptimizationUnitValidationError::InvalidStructuralDomainIdentity(declaration.id),
+            );
+        }
         if declaration.byte_predicate.is_some()
             && (declaration.content_projection.is_some()
                 || !declaration.establishment_routes.is_empty()

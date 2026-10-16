@@ -318,7 +318,8 @@ pub fn compute_boundary_calling_plans(
             ]
         })?;
         let (application_report_fingerprint, application_commitment) =
-            boundary_plan_application_identity(&signature, &validated);
+            boundary_plan_application_identity(&signature, &validated)
+                .map_err(|reason| vec![Diagnostic::error(reason)])?;
         evaluated.push(BoundaryCallingPlanRealization {
             boundary_trait,
             boundary_arguments,
@@ -829,118 +830,14 @@ pub(crate) fn validate_materialized_boundary_plan_result(
 pub(crate) fn boundary_plan_application_identity(
     signature: &MaterializedBoundarySignature,
     validated: &ValidatedBoundaryEntryPlan,
-) -> (u64, [u8; 32]) {
-    let mut strong =
-        crate::digest_encoder::DomainDigestEncoder::new(b"omega.boundary-plan-application.v4");
-    strong.string(&signature.owner_requirement_identity);
-    strong.byte(match signature.native_target.architecture {
-        target::Architecture::Aarch64 => 1,
-        target::Architecture::X86_64 => 2,
-    });
-    strong.byte(match signature.native_target.object_format {
-        target::ObjectFormat::Elf => 1,
-        target::ObjectFormat::MachO => 2,
-        target::ObjectFormat::Coff => 3,
-    });
-    strong.u64(signature.native_target.pointer_size as u64);
-    strong.u64(signature.native_target.pointer_alignment as u64);
-    strong.u64(signature.opaque_representations.len() as u64);
-    for representation in &signature.opaque_representations {
-        strong.raw(&representation.shape_root.to_le_bytes());
-        strong.raw(&representation.application_report_fingerprint.to_le_bytes());
-        strong.raw(&representation.conformance_application_commitment);
-        strong.raw(&representation.representation_schema_version.to_le_bytes());
-        strong.byte(match representation.origin {
-            representation_planning::OpaqueRepresentationApplicationOrigin::NamedConformance => 1,
-        });
-        strong.byte(match representation.lifecycle {
-            representation_planning::OpaqueRepresentationLifecycleDisposition::Inert => 1,
-        });
-        strong.byte(match representation.copy_disposition {
-            representation_planning::OpaqueRepresentationCopyDisposition::PlacementOnly => 1,
-            representation_planning::OpaqueRepresentationCopyDisposition::CheckedSemanticCopy => 2,
-        });
-        strong.raw(&representation.selected_application_commitment);
-    }
-    strong.u64(signature.shapes.len() as u64);
-    for shape in &signature.shapes {
-        match shape.class {
-            BoundaryValueClass::Integer => strong.byte(1),
-            BoundaryValueClass::Float => strong.byte(2),
-            BoundaryValueClass::Reference => strong.byte(3),
-            BoundaryValueClass::FixedArray { element, length } => {
-                strong.byte(4);
-                strong.raw(&element.to_le_bytes());
-                strong.raw(&length.to_le_bytes());
-            }
-            BoundaryValueClass::Record {
-                first_field,
-                field_count,
-            } => {
-                strong.byte(5);
-                strong.raw(&first_field.to_le_bytes());
-                strong.raw(&field_count.to_le_bytes());
-            }
-        }
-        strong.raw(&shape.byte_size.to_le_bytes());
-        strong.raw(&shape.alignment.to_le_bytes());
-    }
-    strong.u64(signature.fields.len() as u64);
-    for field in &signature.fields {
-        strong.raw(&field.shape.to_le_bytes());
-        strong.raw(&field.byte_offset.to_le_bytes());
-    }
-    strong.u64(signature.parameters.len() as u64);
-    for parameter in &signature.parameters {
-        strong.raw(&parameter.to_le_bytes());
-    }
-    match signature.result {
-        Some(result) => {
-            strong.byte(1);
-            strong.raw(&result.to_le_bytes());
-        }
-        None => strong.byte(0),
-    }
-    strong.u64(signature.native_parameters.len() as u64);
-    for parameter in &signature.native_parameters {
-        strong.raw(&parameter.identity.get().to_le_bytes());
-        strong.raw(&parameter.native_ordinal.to_le_bytes());
-        match parameter.origin {
-            BoundaryNativeParameterOrigin::SemanticFormal { formal_ordinal } => {
-                strong.byte(1);
-                strong.raw(&formal_ordinal.to_le_bytes());
-            }
-            BoundaryNativeParameterOrigin::PrivateCallback {
-                binder,
-                requirement,
-            } => {
-                strong.byte(2);
-                strong.raw(&binder.get().to_le_bytes());
-                strong.raw(&requirement.get().to_le_bytes());
-            }
-        }
-        match parameter.shape {
-            BoundaryNativeParameterShape::Semantic(root) => {
-                strong.byte(1);
-                strong.raw(&root.to_le_bytes());
-            }
-            BoundaryNativeParameterShape::TargetFunctionPointer {
-                byte_size,
-                alignment,
-            } => {
-                strong.byte(2);
-                strong.raw(&byte_size.to_le_bytes());
-                strong.raw(&alignment.to_le_bytes());
-            }
-        }
-    }
-    strong.raw(&validated.contract_commitment_digest());
-    let commitment: [u8; 32] = strong.finish().into();
+) -> Result<(u64, [u8; 32]), String> {
+    let application = super::callback_bindings::source_free_application(signature, validated)?;
+    let commitment = application.recomputed_commitment()?;
     let report = callback_nominal_report_fingerprint(
         b"omega.boundary-plan-application-report.v3",
         &[&commitment],
     );
-    (report, commitment)
+    Ok((report, commitment))
 }
 
 fn invalid_authored_plan(reason: String) -> String {

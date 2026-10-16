@@ -9,7 +9,7 @@ use crate::packing::{
 };
 use crate::{
     BitFieldFragment, BitFieldLayout, DataLayout, DataShape, RepeatedFieldLayout,
-    StoredIntegerLayout, TargetClosedPlanLaidDataLayoutIdentity, TypeLayout, VariantLayout,
+    StoredIntegerLayout, TargetClosedDataLayoutIdentity, TypeLayout, VariantLayout,
 };
 use calling_conventions::{callback_layout_plan_id, callback_plan_laid_layout_id};
 use diagnostics::Diagnostic;
@@ -259,7 +259,7 @@ impl<'program> LayoutBuilder<'program> {
             if let (Some(canonical_data_identity), Some(canonical_layout_subject)) =
                 (canonical_data_identity, canonical_layout_subject)
             {
-                let identity = TargetClosedPlanLaidDataLayoutIdentity {
+                let identity = TargetClosedDataLayoutIdentity {
                     data_symbol: definition.symbol,
                     layout: callback_plan_laid_layout_id(
                         native_layout_report_fingerprint,
@@ -269,10 +269,10 @@ impl<'program> LayoutBuilder<'program> {
                         self.target.pointer_alignment,
                     ),
                     data_identity: canonical_data_identity.into(),
-                    layout_subject_identity: canonical_layout_subject.into(),
+                    layout_subject_identity: Some(canonical_layout_subject.into()),
                     physical: layout,
                 };
-                if self.plan_laid_layout_identities.iter().any(|prior| {
+                if self.data_layout_identities.iter().any(|prior| {
                     prior.data_symbol == identity.data_symbol || prior.layout == identity.layout
                 }) {
                     return Err(Diagnostic::error(format!(
@@ -280,7 +280,7 @@ impl<'program> LayoutBuilder<'program> {
                         definition.name
                     )));
                 }
-                self.plan_laid_layout_identities.push(identity);
+                self.data_layout_identities.push(identity);
             }
 
             return Ok(DataLayout {
