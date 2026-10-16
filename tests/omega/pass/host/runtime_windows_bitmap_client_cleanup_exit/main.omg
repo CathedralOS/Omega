@@ -1,0 +1,73 @@
+// Exercise native frame metrics, drawing through a parameter/call result,
+// caller-owned message storage, and release-before-destroy with non-demo sizes.
+use omega_language_std::console;
+use omega_language_std::windows_gui_host;
+
+data Main {
+    window: u64;
+    device: u64;
+    rectangle: WindowsRectangle;
+    message: WindowsMessage;
+    pixels: [i32; 4];
+    info: [i32; 11];
+}
+machine acquire(window: u64) -> u64 reaches WindowsGuiHost {
+    WindowsGuiHost::get_dc(window)
+}
+machine draw(device: u64, pixels: &[i32; 4], info: &[i32; 11]) -> i32 reaches WindowsGuiHost {
+    WindowsGuiHost::stretch_dibits(device, 0, 0, 173, 147, 0, 0, 2, 2, &pixels[0], &info[0], 0, 13369376)
+}
+machine Main::main(main: &mut Main) reaches Console + WindowsGuiHost {
+    main.window = WindowsGuiHost::window_create_client("STATIC\0", "bitmap control\0", 282001408, 10, 10, 173, 147);
+    transition main.window != 0 { true -> inspect(main) _ -> bad(main) }
+    state inspect(main: &mut Main) {
+        main.message.words[0] = main.window;
+        // Poison MSG's padding without changing its UINT message coordinate.
+        main.message.words[1] = 4294967312;
+        main.message.words[2] = 65538;
+        let target: u64 = WindowsMessage::window(&main.message);
+        let kind: u64 = WindowsMessage::kind(&main.message);
+        let parameter: u64 = WindowsMessage::word_parameter(&main.message);
+        let measured: i32 = WindowsGuiHost::client_rectangle(main.window, &mut main.rectangle);
+        transition measured != 0 && main.rectangle.right == 173 && main.rectangle.bottom == 147
+            && target == main.window && kind == 16 && parameter == 65538 {
+            true -> render(main)
+            _ -> size_bad(main)
+        }
+    }
+    state render(main: &mut Main) {
+        main.info[0] = 40;
+        main.info[1] = 2;
+        main.info[2] = 0 - 2;
+        main.info[3] = 2097153;
+        main.pixels[0] = 16711680;
+        main.pixels[1] = 65280;
+        main.pixels[2] = 255;
+        main.pixels[3] = 16777215;
+        main.device = acquire(main.window);
+        let copied: i32 = draw(main.device, &main.pixels, &main.info);
+        let pumped: bool = WindowsGuiHost::pump_message(&mut main.message);
+        let released: i32 = WindowsGuiHost::release_dc(main.window, main.device);
+        transition main.device != 0 && copied == 2 && released == 1 {
+            true -> destroy(main)
+            _ -> drawing_bad(main)
+        }
+    }
+    state destroy(main: &mut Main) {
+        let destroyed: bool = WindowsGuiHost::window_destroy(main.window);
+        let alive: bool = WindowsGuiHost::is_window(main.window);
+        let empty: u64 = WindowsGuiHost::window_create_client("", "\0", 0, 0, 0, 20, 20);
+        let invalid: u64 = WindowsGuiHost::window_create_client("STATIC\0", "\0", 0, 0, 0, 0, 20);
+        transition destroyed && !alive && empty == 0 && invalid == 0 { true -> good(main) _ -> bad(main) }
+    }
+    state size_bad(main: &mut Main) {
+        let destroyed: bool = WindowsGuiHost::window_destroy(main.window);
+        Console::exit_process(72);
+    }
+    state drawing_bad(main: &mut Main) {
+        let destroyed: bool = WindowsGuiHost::window_destroy(main.window);
+        Console::exit_process(73);
+    }
+    state good(main: &mut Main) { Console::exit_process(70); }
+    state bad(main: &mut Main) { Console::exit_process(71); }
+}

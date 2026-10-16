@@ -2,6 +2,9 @@
 // NUL-terminated class/title and ordinary geometry; optional owner, menu,
 // instance and creation-data pointers are NULL for these standalone windows.
 // The source caller retains the native HWND and the aligned MSG allocation.
+// Client sizing uses the same native frame metrics as CreateWindowExA.
+// Drawing lends live bitmap storage synchronously; its caller releases the HDC
+// on the acquiring thread before destroying its window.
 use windows_gui_host;
 use omega::language::core::external_binding;
 
@@ -124,4 +127,61 @@ windows_x86_64 machine WindowsGuiNativeProvider::provider_defaults(defaults: &mu
     WindowsGuiNativeProvider::select_provider<WindowsGuiIo::peek_message, WindowsGuiImports>(defaults);
     WindowsGuiNativeProvider::select_provider<WindowsGuiIo::translate_message, WindowsGuiImports>(defaults);
     WindowsGuiNativeProvider::select_provider<WindowsGuiIo::dispatch_message, WindowsGuiImports>(defaults);
+    WindowsGuiNativeProvider::select_provider<WindowsGuiIo::adjust_rectangle, WindowsGuiImports>(defaults);
+}
+
+windows_x86_64 machine windows_gui_get_dc_binding() -> ForeignBinding<10, 5, 0> {
+    ForeignBinding::DllImport { import: DllImport::PeByName { library: "user32.dll", export: "GetDC" } }
+}
+windows_x86_64 machine WindowsGuiNativeProvider::get_dc(window: u64) -> u64
+satisfies WindowsGuiHost::get_dc
+via windows_gui_get_dc_binding();
+
+windows_x86_64 machine windows_gui_release_dc_binding() -> ForeignBinding<10, 9, 0> {
+    ForeignBinding::DllImport { import: DllImport::PeByName { library: "user32.dll", export: "ReleaseDC" } }
+}
+windows_x86_64 machine WindowsGuiNativeProvider::release_dc(window: u64, device: u64) -> i32
+satisfies WindowsGuiHost::release_dc
+via windows_gui_release_dc_binding();
+
+windows_x86_64 machine windows_gui_client_rectangle_binding() -> ForeignBinding<10, 13, 0> {
+    ForeignBinding::DllImport { import: DllImport::PeByName { library: "user32.dll", export: "GetClientRect" } }
+}
+windows_x86_64 machine WindowsGuiNativeProvider::client_rectangle(window: u64, rectangle: &mut WindowsRectangle) -> i32
+satisfies WindowsGuiHost::client_rectangle
+via windows_gui_client_rectangle_binding();
+
+windows_x86_64 machine windows_gui_stretch_dibits_binding() -> ForeignBinding<9, 13, 0> {
+    ForeignBinding::DllImport { import: DllImport::PeByName { library: "gdi32.dll", export: "StretchDIBits" } }
+}
+windows_x86_64 machine WindowsGuiNativeProvider::stretch_dibits(device: u64, destination_x: i32, destination_y: i32, destination_width: i32, destination_height: i32, source_x: i32, source_y: i32, source_width: i32, source_height: i32, pixels: &i32, info: &i32, usage: u32, raster_operation: u32) -> i32
+satisfies WindowsGuiHost::stretch_dibits
+via windows_gui_stretch_dibits_binding();
+
+boundary requirement WindowsGuiIo::adjust_rectangle(rectangle: &mut WindowsRectangle, style: u32, menu: i32, extended_style: u32) -> i32
+reaches WindowsGuiHost;
+windows_x86_64 machine windows_gui_adjust_rectangle_binding() -> ForeignBinding<10, 18, 0> {
+    ForeignBinding::DllImport { import: DllImport::PeByName { library: "user32.dll", export: "AdjustWindowRectEx" } }
+}
+windows_x86_64 machine WindowsGuiImports::adjust_rectangle(rectangle: &mut WindowsRectangle, style: u32, menu: i32, extended_style: u32) -> i32
+satisfies WindowsGuiIo::adjust_rectangle
+via windows_gui_adjust_rectangle_binding();
+
+windows_x86_64 machine WindowsGuiNativeProvider::window_create_client(class_name: &[u8], title: &[u8], style: u32, x: i32, y: i32, width: i32, height: i32) -> u64
+satisfies WindowsGuiHost::window_create_client
+reaches WindowsGuiHost {
+    let mut rectangle: WindowsRectangle = WindowsRectangle { left: 0, top: 0, right: width, bottom: height };
+    let adjusted: i32 = WindowsGuiIo::adjust_rectangle(&mut rectangle, style, 0, 0);
+    let outer_width: i64 = (rectangle.right as i64) - (rectangle.left as i64);
+    let outer_height: i64 = (rectangle.bottom as i64) - (rectangle.top as i64);
+    transition adjusted != 0 && width > 0 && height > 0
+        && outer_width > 0 && outer_width <= 2147483647
+        && outer_height > 0 && outer_height <= 2147483647 {
+        true -> create(class_name, title, style, x, y, outer_width, outer_height)
+        _ -> (0)
+    }
+    state create(class_name: &[u8], title: &[u8], style: u32, x: i32, y: i32, width: i64, height: i64) -> u64
+    requires width > 0 && width <= 2147483647 && height > 0 && height <= 2147483647 {
+        WindowsGuiNativeProvider::window_create(class_name, title, style, x, y, width as i32, height as i32)
+    }
 }

@@ -7484,6 +7484,7 @@ pass/host/runtime_foreign_zero_argument_import_exit checked 9606ms check-target:
 pass/host/runtime_gui_foreground_window_exit checked 11376ms check-target:windows_x86_64 @6050c1c112ee+wt
 pass/host/runtime_gui_window_lifecycle_exit checked 11396ms check-target:windows_x86_64 @6050c1c112ee+wt
 pass/host/runtime_stored_scalar_reference_foreign_export_exit checked 3861ms check-target:macos_arm64 @61ba1df9375e+wt
+pass/host/runtime_windows_bitmap_client_cleanup_exit checked 7932ms check-target:windows_x86_64 @0e7ef4cb2ac8+wt
 pass/host/runtime_windows_gui_argument_failures_exit checked 5913ms check-target:windows_x86_64 @6050c1c112ee+wt
 pass/host/std_clock_sleep_exit checked 12935ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/host/user32_window_procedure_registration checked 21540ms check-target:windows_x86_64 @e74967d11875

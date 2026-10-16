@@ -2722,7 +2722,7 @@ crash and native exit behavior.
     stale macOS timeout records. Late certificate search is gone; do not add
     a float-specific replay.
   - **Windows GUI providers.** Verify explicit Windows provider selection and
-    native execution for `samples/gui/{window_app,window_demo,windowed_calculator}`.
+    native execution for `samples/gui/{window_app,windowed_calculator}`.
     Their current named maps select macOS operations; historical stage-05
     store/borrow diagnostics are not the current frontier. macOS application
     acceptance is owned by **MACOS-APPLICATION-PUBLICATION**.

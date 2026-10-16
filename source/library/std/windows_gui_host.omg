@@ -7,6 +7,19 @@ use targets::windows_x86_64::windows_gui_impl;
 // Win64 MSG has 48 bytes with pointer alignment. The exact native layout stays
 // opaque to callers; PeekMessage fills it and Translate/Dispatch consume it.
 pub data WindowsMessage { words: [u64; 6]; }
+pub data WindowsRectangle { left: i32; top: i32; right: i32; bottom: i32; }
+
+// Win64 MSG stores HWND at byte 0, UINT message at byte 8 (followed by
+// padding), and WPARAM at byte 16. Inspect only after a successful pump.
+pub machine WindowsMessage::window(message: &WindowsMessage) -> u64 {
+    message.words[0]
+}
+pub machine WindowsMessage::kind(message: &WindowsMessage) -> u64 {
+    message.words[1] & 4294967295
+}
+pub machine WindowsMessage::word_parameter(message: &WindowsMessage) -> u64 {
+    message.words[2]
+}
 
 pub boundary trait WindowsGuiHost {
     machine window_create(class_name: &[u8], title: &[u8], style: u32,
@@ -17,4 +30,16 @@ pub boundary trait WindowsGuiHost {
     // Remove at most one message from this thread, translate and dispatch it.
     // A false result means the queue had no message; this operation never waits.
     machine pump_message(message: &mut WindowsMessage) -> bool reaches WindowsGuiHost;
+    // Add native frame metrics to the requested client size. Windows may
+    // enforce its own minimum window size during creation.
+    machine window_create_client(class_name: &[u8], title: &[u8], style: u32,
+        x: i32, y: i32, width: i32, height: i32) -> u64 reaches WindowsGuiHost;
+    machine get_dc(window: u64) -> u64 reaches WindowsGuiHost;
+    machine release_dc(window: u64, device: u64) -> i32 reaches WindowsGuiHost;
+    machine client_rectangle(window: u64, rectangle: &mut WindowsRectangle) -> i32 reaches WindowsGuiHost;
+    // The caller lends live BITMAPINFO and pixel storage for this synchronous call.
+    machine stretch_dibits(device: u64, destination_x: i32, destination_y: i32,
+        destination_width: i32, destination_height: i32, source_x: i32, source_y: i32,
+        source_width: i32, source_height: i32, pixels: &i32, info: &i32,
+        usage: u32, raster_operation: u32) -> i32 reaches WindowsGuiHost;
 }

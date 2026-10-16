@@ -1,29 +1,29 @@
 // Render 60 frames of a 64x64 diagonal color wash in a native 256x256
-// macOS window, paced at 25 ms with an event pump between frames.
+// window, paced at 25 ms with an event pump between frames.
 // Persistent handles are explicit application-owned state; provider selection
 // chooses stateless code. Per-frame images and the final window are released.
 // Expected exit: 0. No stdin is required.
 // Expected output contains: PASS: 60 frames blitted (exit 0)
 use omega_language_std::console;
 use omega_language_std::macos_gui;
-// These requirements expose the shared macos_gui operations' service rows.
-// Direct-invocation declarations are separate; they do not supply a reach ceiling.
-pub boundary trait Clock {
-    machine sleep(milliseconds: u32) reaches DarwinClock invokes DarwinClock;
-}
+use omega_language_std::clock;
+use omega_language_std::windows_gui_host;
+use providers;
+// Both targets select stateless implementations; the application owns every
+// native handle and the Windows message buffer throughout the render loop.
 pub boundary trait Gui {
-    machine window_create(class_name: [u8; 7], title: &u8, style: u32, x: i32, y: i32, width: i32, height: i32) -> Window
-        reaches AppKit + CoreGraphics + ObjectiveC
-        invokes ObjectiveC; invokes CoreGraphics; invokes AppKit;
-    machine window_destroy(window: Window) reaches CoreGraphics + ObjectiveC invokes ObjectiveC; invokes CoreGraphics;
-    machine get_dc(window_state: &Window, window: u64) -> u64;
-    machine msg_peek(window_state: &mut Window, message: [u64; 6]) -> u32 reaches ObjectiveC invokes ObjectiveC;
-    machine msg_translate(window_state: &Window, message: [u64; 6]) -> u32;
-    machine msg_dispatch(window_state: &Window, message: [u64; 6]) -> u64 reaches ObjectiveC invokes ObjectiveC;
-    machine is_window(window_state: &Window, window: u64) -> u32 reaches ObjectiveC invokes ObjectiveC;
+    machine window_create(class_name: [u8; 7], title: [u8; 11], style: u32, x: i32, y: i32, width: i32, height: i32) -> Window
+        reaches AppKit + CoreGraphics + ObjectiveC + WindowsGuiHost
+        invokes AppKit; invokes CoreGraphics; invokes ObjectiveC; invokes WindowsGuiHost;
+    machine window_destroy(window: Window, device: u64) -> bool
+        reaches CoreGraphics + ObjectiveC + WindowsGuiHost
+        invokes CoreGraphics; invokes ObjectiveC; invokes WindowsGuiHost;
+    machine get_dc(window_state: &Window, window: u64) -> u64 reaches WindowsGuiHost invokes WindowsGuiHost;
+    machine pump_message(window_state: &mut Window, message: &mut WindowsMessage, close_requested: &mut bool) -> u32 reaches ObjectiveC + WindowsGuiHost invokes ObjectiveC; invokes WindowsGuiHost;
+    machine is_window(window_state: &Window, window: u64) -> u32 reaches ObjectiveC + WindowsGuiHost invokes ObjectiveC; invokes WindowsGuiHost;
     machine blit(window_state: &Window, device: u64, dest_width: u32, dest_height: u32, source_width: u32, source_height: u32, pixels: [i32; 4096], info: [i32; 11]) -> u32
-        reaches CoreGraphics + ObjectiveC
-        invokes ObjectiveC; invokes CoreGraphics;
+        reaches CoreGraphics + ObjectiveC + WindowsGuiHost
+        invokes CoreGraphics; invokes ObjectiveC; invokes WindowsGuiHost;
 }
 // FULLY EXACT -- no overflow domain anywhere. The two loop counters carry
 // ranges and their increments are GUARD-PROVEN (the dominating-guard keystone:
@@ -32,17 +32,12 @@ pub boundary trait Gui {
 // whole expression is verifiably bounded and the intermediates stay plain
 // Exact i32).
 DemoGuiProvider satisfies Gui {
-    Gui::window_create = macos_window_create;
-    Gui::window_destroy = macos_window_destroy;
-    Gui::get_dc = macos_window_get_dc;
-    Gui::msg_peek = macos_window_msg_peek;
-    Gui::msg_translate = macos_window_msg_translate;
-    Gui::msg_dispatch = macos_window_msg_dispatch;
-    Gui::is_window = macos_window_is_window;
-    Gui::blit = macos_window_blit;
-}
-DemoClockProvider satisfies Clock {
-    Clock::sleep = macos_sleep;
+    Gui::window_create = demo_window_create;
+    Gui::window_destroy = demo_window_destroy;
+    Gui::get_dc = demo_get_dc;
+    Gui::pump_message = demo_pump_message;
+    Gui::is_window = demo_is_window;
+    Gui::blit = demo_blit;
 }
 
 data Main {
@@ -52,10 +47,9 @@ data Main {
     info: [i32; 11];
     hwnd: u64;
     hdc: u64;
-    message: [u64; 6];
+    message: WindowsMessage;
+    close_requested: bool;
     have: u32;
-    translated: u32;
-    dispatched: u64;
     alive: u32;
     pumped: i32 [0..=16];
     copied: u32;
@@ -64,7 +58,7 @@ data Main {
     c: i32;
     px: i32;
 }
-machine Main::main(main: &mut Main) reaches AppKit + Clock + Console + CoreGraphics + DarwinClock + Gui + ObjectiveC {
+machine Main::main(main: &mut Main) reaches AppKit + Clock + Console + CoreGraphics + Gui + ObjectiveC + WindowsGuiHost {
     // "#32770\0" -- the predefined dialog class. Unlike the STATIC control
     // class, this behaves like a draggable top-level app window in practice.
     main.cls[0] = 35;
@@ -92,11 +86,12 @@ machine Main::main(main: &mut Main) reaches AppKit + Clock + Console + CoreGraph
     main.info[2] = 0 - 64;
     main.info[3] = 2097153;
     // WS_VISIBLE | WS_OVERLAPPEDWINDOW (0x10CF0000): a real titled app window,
-    // not a naked popup. The outer size is padded (+16, +39)
-    // so the CLIENT area is ~256x256 without an AdjustWindowRect import.
+    // not a naked popup. Target adapters create exactly a 256x256 client area.
     // The created resource is owned by the state machine, independently of
     // its borrowed rendering context. Each transition transfers that owner.
-    let window: Window = Gui::window_create(main.cls, &main.title[0], 282001408, 200, 200, 272, 295);
+    main.close_requested = false;
+    main.hdc = 0;
+    let window: Window = Gui::window_create(main.cls, main.title, 282001408, 200, 200, 256, 256);
     main.hwnd = window.window;
     transition main.hwnd > 0 { true -> dc(main, window) _ -> bad(main, window) }
     state dc(main: &mut Main, window: Window) {
@@ -147,12 +142,10 @@ machine Main::main(main: &mut Main) reaches AppKit + Clock + Console + CoreGraph
         transition { _ -> pump_loop(main, window) }
     }
     state pump_loop(main: &mut Main, mut window: Window) {
-        main.have = Gui::msg_peek(&mut window, main.message);
+        main.have = Gui::pump_message(&mut window, &mut main.message, &mut main.close_requested);
         transition main.have > 0 { true -> pump_handle(main, window) _ -> liveness(main, window) }
     }
     state pump_handle(main: &mut Main, window: Window) {
-        main.translated = Gui::msg_translate(&window, main.message);
-        main.dispatched = Gui::msg_dispatch(&window, main.message);
         transition main.pumped < 16 { true -> pump_next(main, window) _ -> liveness(main, window) }
     }
     state pump_next(main: &mut Main, window: Window) {
@@ -162,7 +155,7 @@ machine Main::main(main: &mut Main) reaches AppKit + Clock + Console + CoreGraph
     // --- liveness: if the window is destroyed, stop blitting into it ---
     state liveness(main: &mut Main, window: Window) {
         main.alive = Gui::is_window(&window, main.hwnd);
-        transition main.alive > 0 { true -> next_frame(main, window) _ -> bad(main, window) }
+        transition main.alive > 0 && !main.close_requested { true -> next_frame(main, window) _ -> bad(main, window) }
     }
     state next_frame(main: &mut Main, window: Window) {
         // re-guard so the increment's edge carries the frame bound (the
@@ -178,11 +171,18 @@ machine Main::main(main: &mut Main) reaches AppKit + Clock + Console + CoreGraph
         transition main.frame == 60 { true -> complete(main, window) _ -> bad(main, window) }
     }
     state complete(main: &mut Main, window: Window) {
-        Gui::window_destroy(window);
+        let cleaned: bool = Gui::window_destroy(window, main.hdc);
+        transition cleaned { true -> passed(main) _ -> failed(main) }
+    }
+    state passed(main: &mut Main) {
         Console::write_line("PASS: 60 frames blitted (exit 0)");
         Console::exit_process(0);
     }
     state bad(main: &mut Main, window: Window) {
+        let cleaned: bool = Gui::window_destroy(window, main.hdc);
+        transition { _ -> failed(main) }
+    }
+    state failed(main: &mut Main) {
         Console::write_line("FAIL: creation, rendering, or window closure before 60 frames (exit 1)");
         Console::exit_process(1);
     }

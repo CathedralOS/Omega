@@ -2359,6 +2359,7 @@ pass/host/runtime_foreign_scalar_loan_writeback_exit built 5642ms exit:70 @6c496
 pass/host/runtime_foreign_zero_argument_import_exit built 10428ms exit:70 @c6b298470bf5
 pass/host/runtime_gui_foreground_window_exit built 5629ms exit:70 @c6b298470bf5
 pass/host/runtime_gui_window_lifecycle_exit built 5163ms exit:70 @c6b298470bf5
+pass/host/runtime_windows_bitmap_client_cleanup_exit built 8103ms exit:70 @0e7ef4cb2ac8+wt
 pass/host/runtime_windows_gui_argument_failures_exit built 5124ms exit:70 @c6b298470bf5
 pass/host/std_clock_sleep_exit built 5655ms exit:70 @6c49683ce714
 pass/host/user32_window_procedure_registration built 20755ms exit:70 @e74967d11875

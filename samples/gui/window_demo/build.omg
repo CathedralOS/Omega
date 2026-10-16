@@ -9,6 +9,5 @@ machine build(builder: &mut Build) {
     Build::bind(builder, windows_x86_64::ProgramEntry, Main::main);
     Build::bind(builder, macos_arm64::ProgramEntry, Main::main);
     Build::select_provider<Gui, DemoGuiProvider>(builder);
-    Build::select_provider<Clock, DemoClockProvider>(builder);
     builder.subsystem = Subsystem::Gui;
 }
