@@ -260,6 +260,10 @@ fail/arithmetic/transitive_bit_guard_missing_arrival rejected 830ms expected @a9
 fail/arithmetic/transitive_bit_guard_nonstrict_count rejected 821ms expected @a9ae30e1c334+wt
 	exact arithmetic in machine `bit` state `calculate` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	shift count in machine `bit` state `calculate` terminal expression is not provably below the operand width for `u64`: exact shifts prove `count < 64` (ch5 shift-count ruling -- proof-or-policy). Constrain the count's range (a ranged type, a `requires` clause, or a dominating guard), or pick a defined-count policy on the SHIFTED operand (`u64 in Wrapping` reduces the count modulo 64, equivalently `count & 63` for this carrier; `in Trapping` traps at runtime).
+fail/arithmetic/truncating_reconstruction_negative_dividend rejected 958ms expected @cc35a4f0d368+wt
+	cannot prove ensures contract for exit from shifted at statement 0: result <= value
+fail/arithmetic/truncating_reconstruction_too_tight rejected 909ms expected @cc35a4f0d368+wt
+	cannot prove ensures contract for exit from quantize at statement 1: result >= value - tolerance + 1
 fail/arithmetic/unconstrained_disjunction_exact_product rejected 283ms @fa9134cda58d+wt
 	exact arithmetic in machine `scale` state `entry` terminal expression may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
 fail/arithmetic/undeclared_bare_name_rejected rejected 2792ms expected @a9ae30e1c334+wt
@@ -5298,6 +5302,7 @@ pass/arithmetic/saturating_signed_divide_min_by_neg_one checked 10952ms check-ta
 pass/arithmetic/signed_index_bounds checked 10044ms @5041ef1af684+wt
 pass/arithmetic/suffix_landed_operand_position_exit checked 43012ms check-target:macos_arm64 @1f63ee648905+wt
 pass/arithmetic/total_contract_guarded_division checked 1550ms @a9ae30e1c334+wt
+pass/arithmetic/truncating_reconstruction_bound checked 5546ms @cc35a4f0d368+wt
 pass/arithmetic/typed_integer_remainder checked 1531ms @a9ae30e1c334+wt
 pass/arithmetic/unsigned_computed_index checked 10299ms @5041ef1af684+wt
 pass/arithmetic/wrapping_signed_divide_min_by_neg_one checked 11110ms check-target:macos_arm64 @a9ae30e1c334+wt

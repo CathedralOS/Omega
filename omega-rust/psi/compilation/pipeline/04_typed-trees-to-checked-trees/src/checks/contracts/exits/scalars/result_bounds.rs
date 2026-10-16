@@ -10,6 +10,7 @@ use typed_trees::{
 };
 
 mod guarded_returns;
+mod reconstruction;
 
 impl ExitScalars<'_, '_> {
     pub(super) fn proves_bounds(&self, expression: ExpressionHandle) -> bool {
@@ -140,6 +141,17 @@ impl ExitScalars<'_, '_> {
         let primitive = exact_integer_carrier(self.program, result_type)?;
         let state = self.state()?;
         let returned = exit_return_expression(self.program, self.exit);
+        // Independent intervals drop the shared dividend of `(n / d) * d`.
+        // The reconstruction window proves comparisons those intervals leave
+        // overlapping, including when a local names `d`.
+        if self.truncating_reconstruction_proves(
+            binary.operator,
+            result_expression,
+            argument,
+            result_on_left,
+        ) {
+            return Some(true);
+        }
         if !self.return_expression_is_stable(returned) {
             return None;
         }

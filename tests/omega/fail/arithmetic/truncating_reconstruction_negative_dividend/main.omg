@@ -1,0 +1,10 @@
+// A negative dividend does not obey the nonnegative remainder window.
+// value = -3 and divisor = 5 truncates to 0, and 0 is not <= value.
+machine shifted(value: i32) -> i32
+requires value >= -10 && value <= -1
+ensures result <= value
+{
+    (value / 5) * 5
+}
+
+machine main() {}

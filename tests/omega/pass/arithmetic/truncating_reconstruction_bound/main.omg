@@ -1,0 +1,55 @@
+// (dividend / divisor) * divisor, for a nonnegative dividend and a divisor of
+// at least one, lies in dividend - (divisor - 1) ..= dividend. The bound is
+// the same through a local, a swapped multiply, a constant divisor, a looser
+// residual, an exact divisor of one, and a call.
+
+machine grid(value: i32, tolerance: i32) -> i32
+requires value >= 0 && value <= 4095 && tolerance >= 0 && tolerance <= 7
+ensures result >= value - tolerance && result <= value + tolerance
+ensures result >= value - tolerance - 3 && result <= value + tolerance + 4
+{
+    let step: i32 = tolerance * 2 + 1;
+    let sum: i32 = value + tolerance;
+    (sum / step) * step
+}
+
+machine swapped(value: i32, tolerance: i32) -> i32
+requires value >= 0 && value <= 4095 && tolerance >= 0 && tolerance <= 7
+ensures result >= value - tolerance && result <= value + tolerance
+{
+    let step: i32 = tolerance * 2 + 1;
+    transition { _ -> (step * ((value + tolerance) / step)) }
+}
+
+machine nearest(value: i32) -> i32
+requires value >= 0 && value <= 20
+ensures result >= value - 2 && result <= value + 2
+{
+    ((value + 2) / 5) * 5
+}
+
+machine identity(value: i32) -> i32
+requires value >= 0 && value <= 40
+ensures result == value
+{
+    (value / 1) * 1
+}
+
+machine through_call(value: i32, tolerance: i32) -> i32
+requires value >= 0 && value <= 4095 && tolerance >= 0 && tolerance <= 7
+ensures result >= value - tolerance && result <= value + tolerance
+{
+    grid(value, tolerance)
+}
+
+data Reading where value >= 0 && value <= 20 {
+    value: i32;
+}
+
+machine from_field(reading: &Reading) -> i32
+ensures result >= reading.value - 2 && result <= reading.value + 2
+{
+    ((reading.value + 2) / 5) * 5
+}
+
+machine main() {}

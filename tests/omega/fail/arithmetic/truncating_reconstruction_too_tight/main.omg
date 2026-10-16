@@ -1,0 +1,11 @@
+// The remainder window is not one unit tighter. value = 2 and tolerance = 2
+// reconstruct to 0, and 0 is not >= value - tolerance + 1.
+machine quantize(value: i32, tolerance: i32) -> i32
+requires value >= 0 && value <= 4095 && tolerance >= 0 && tolerance <= 7
+ensures result >= value - tolerance + 1
+{
+    let step: i32 = tolerance * 2 + 1;
+    ((value + tolerance) / step) * step
+}
+
+machine main() {}
