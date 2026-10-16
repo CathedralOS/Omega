@@ -1,0 +1,33 @@
+// Index 2 is outside the length-2 complex window.
+use omega::language::core::float_operations;
+
+data Complex [copy] { real: f64; imaginary: f64; }
+data Held<'row> { cells: &'row mut [Complex]; }
+
+machine half<'row>(row: &'row mut [Complex; 4], which: i64) -> &'row mut [Complex]
+ensures result.len == 2
+{
+    match which {
+        0 -> &mut row[0..2]
+        _ -> &mut row[2..4]
+    }
+}
+
+machine main() {
+    let mut row: [Complex; 4] = [
+        Complex { real: 1.0, imaginary: 0.5 },
+        Complex { real: -1.0, imaginary: 0.25 },
+        Complex { real: 3.0, imaginary: -2.0 },
+        Complex { real: 4.0, imaginary: 8.0 }
+    ];
+    let view: &mut [Complex] = half(&mut row, 0);
+    let mut held: Held = Held { cells: view };
+    transition held.cells.len == 2 {
+        true -> observe(&mut held)
+        false -> done()
+    }
+    state observe(held: &mut Held) requires held.cells.len == 2 {
+        let _past: Complex = held.cells[2];
+    }
+    state done() {}
+}

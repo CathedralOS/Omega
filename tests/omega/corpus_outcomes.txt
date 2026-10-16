@@ -4875,6 +4875,8 @@ fail/slices/stored_bound_replaces_old_value rejected 1251ms expected @82646dcce4
 	cannot prove index `cursor.offset` is within length 64 in read::replace
 fail/slices/stored_element_view_sibling_bounds rejected 540ms expected @ef9160ae9c0b+wt
 	cannot prove index `position` is within unknown slice length of `output.right` in overwrite::entry
+fail/slices/stored_element_window_past_end rejected 2557ms expected @73e11f08dcbb+wt
+	cannot prove index `2` is within unknown slice length of `held.cells` in main::observe
 fail/slices/stored_shared_element_view_write rejected 164ms expected @ef9160ae9c0b+wt
 	machine `overwrite` state `store` assignment requires mutable source access through every reference crossed by its destination
 fail/slices/stored_shared_view_mutable_call rejected 151ms expected @ef9160ae9c0b+wt
@@ -8372,6 +8374,7 @@ pass/slices/state_record_array_shared_child_view_exit checked 11883ms check-targ
 pass/slices/static_data_computed_index_hoists checked 1997ms @a9ae30e1c334+wt
 pass/slices/stored_element_view_branching_value checked 2991ms check-target:macos_arm64 @ef9160ae9c0b+wt
 pass/slices/stored_element_view_runtime_destination checked 3006ms check-target:macos_arm64 @ef9160ae9c0b+wt
+pass/slices/stored_element_window_field_exit checked 5533ms check-target:macos_arm64 @73e11f08dcbb+wt
 pass/slices/subslice_folded_bound_facts_compile checked 1564ms @a9ae30e1c334+wt
 pass/slices/subslice_folded_facts checked 10191ms @5041ef1af684+wt
 pass/slices/subslice_literal_bounds_compile checked 1743ms @a9ae30e1c334+wt

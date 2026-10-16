@@ -1,0 +1,54 @@
+// A matched mutable window of copy records is stored in a record field.
+// After a length guard, a later state reads that field through a local, the
+// field, a parameter, and a call result.
+// Expected native exit: 0
+data Cell [copy] { real: i32; imaginary: i32; }
+data Held<'row> { cells: &'row mut [Cell]; }
+
+machine half<'row>(row: &'row mut [Cell; 4], which: i64) -> &'row mut [Cell]
+ensures result.len == 2
+{
+    match which {
+        0 -> &mut row[0..2]
+        _ -> &mut row[2..4]
+    }
+}
+
+machine real_of(cell: Cell) -> i32 { cell.real }
+
+machine first_real(window: &[Cell]) -> i32
+requires window.len >= 1 {
+    real_of(window[0])
+}
+
+machine main() crashes Trap {
+    let mut row: [Cell; 4] = [
+        Cell { real: 1, imaginary: 5 },
+        Cell { real: -1, imaginary: 2 },
+        Cell { real: 3, imaginary: -2 },
+        Cell { real: 4, imaginary: 8 }
+    ];
+    let view: &mut [Cell] = half(&mut row, 0);
+    let mut held: Held = Held { cells: view };
+    transition held.cells.len == 2 {
+        true -> observe(&mut held)
+        false -> bad()
+    }
+    state observe(held: &mut Held) requires held.cells.len == 2 {
+        let local: Cell = held.cells[0];
+        let through_field: i32 = held.cells[0].real;
+        let through_parameter: i32 = real_of(local);
+        let through_call: i32 = first_real(held.cells);
+        transition local.real == 1 && local.imaginary == 5
+            && through_field == 1
+            && through_parameter == 1
+            && through_call == 1
+            && held.cells[1].real == -1
+        {
+            true -> done()
+            false -> bad()
+        }
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

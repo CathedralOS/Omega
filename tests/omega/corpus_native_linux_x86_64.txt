@@ -2801,6 +2801,7 @@ pass/slices/state_record_array_shared_child_view_exit built 14928ms exit:70 @6c4
 pass/slices/static_data_computed_index_hoists checked 3381ms @6c49683ce714
 pass/slices/stored_element_view_branching_value built 7451ms exit:0 @8a2c1f68d503
 pass/slices/stored_element_view_runtime_destination built 7236ms exit:0 @8a2c1f68d503
+pass/slices/stored_element_window_field_exit built 5597ms exit:0 @73e11f08dcbb+wt
 pass/slices/subslice_folded_bound_facts_compile checked 3397ms @6c49683ce714
 pass/slices/subslice_folded_facts checked 17624ms @6c49683ce714
 pass/slices/subslice_literal_bounds_compile checked 3394ms @6c49683ce714

@@ -349,7 +349,7 @@ pub(super) fn address_join_window_argument(
         &mut shape_cache,
         &mut active,
     )?;
-    crate::lowering::unit::roster_arguments::fixed_array_view_argument(
+    if let Some(window) = crate::lowering::unit::roster_arguments::fixed_array_view_argument(
         argument,
         declaration,
         destination.shape,
@@ -357,12 +357,141 @@ pub(super) fn address_join_window_argument(
         callee,
         &root.declaration,
         root.backing_shape.byte_size,
-        root.source,
+        root.source.clone(),
         types,
         &mut shape_cache,
         &mut active,
-    )?
-    .ok_or(LoweringError::unsupported_control_flow(function.machine))
+    )? {
+        return Ok(window);
+    }
+    // A record field can already be the element-view or byte-view descriptor.
+    // The address join owns the record; the call lends that field at its
+    // offset. This is not a fixed-array window and not a new descriptor.
+    stored_descriptor_field(argument, declaration, destination, &root, function, types)
+}
+
+/// A stored descriptor may be lent at its own access, or read shared when
+/// the stored ceiling is mutable. Canonical whole descriptors omit the
+/// ceiling (`None`) and follow the argument access.
+fn view_access_lends(
+    stored: Option<StructuralAccess>,
+    presented: Option<StructuralAccess>,
+    argument: StructuralAccess,
+) -> bool {
+    let stored_allows = match stored {
+        None => true,
+        Some(StructuralAccess::MutableBorrow) => {
+            matches!(
+                argument,
+                StructuralAccess::MutableBorrow | StructuralAccess::SharedBorrow
+            )
+        }
+        Some(access) => access == argument,
+    };
+    let presented_allows = match presented {
+        None => true,
+        Some(access) => access == argument,
+    };
+    stored_allows && presented_allows
+}
+
+/// Lend a descriptor stored in a field of an address-joined record.
+///
+/// The field's structural type is the callee's view. Shared access may read
+/// a mutable descriptor; the loan does not retarget or resize it.
+fn stored_descriptor_field(
+    argument: &terminal_psi::StructuralArgument,
+    declaration: &terminal_psi::StructuralParameterDeclaration,
+    destination: &TargetStructuralParameter,
+    root: &crate::lowering::unit::argument_roots::StructuralArgumentRoot,
+    function: &AbstractFunction,
+    types: &StructuralTypeLookup<'_>,
+) -> Result<TargetStructuralArgument, LoweringError> {
+    let unsupported = || LoweringError::unsupported_control_flow(function.machine);
+    if argument.path.is_empty()
+        || !argument
+            .path
+            .iter()
+            .all(|segment| matches!(segment, StructuralPathSegment::Field(_)))
+        || argument.access != declaration.access
+        || declaration.multiplicity != StructuralMultiplicity::Unrestricted
+        || !declaration.qualifications.is_empty()
+        || !declaration.projected_qualifications.is_empty()
+    {
+        return Err(unsupported());
+    }
+    let mut shape_cache = BTreeMap::new();
+    let mut active = BTreeSet::new();
+    let (selected, shape, offset, runs) =
+        crate::lowering::structural_layout::runtime_storage_projection(
+            root.declaration.structural_type,
+            &argument.path,
+            types,
+            &mut shape_cache,
+            &mut active,
+        )?;
+    if !runs.is_empty() {
+        return Err(unsupported());
+    }
+    let field_type = selected.declaration(
+        root.declaration.structural_type,
+        types,
+        terminal_psi::StructuralFieldType::canonical_leaf_type,
+    )?;
+    let same_view = match (
+        types.get(&field_type).map(|row| &row.shape),
+        types
+            .get(&declaration.structural_type)
+            .map(|row| &row.shape),
+    ) {
+        (
+            Some(terminal_psi::StructuralTypeShape::ElementView {
+                element: stored,
+                access: stored_access,
+            }),
+            Some(terminal_psi::StructuralTypeShape::ElementView {
+                element: presented,
+                access: presented_access,
+            }),
+        ) => {
+            stored == presented
+                && view_access_lends(*stored_access, *presented_access, argument.access)
+        }
+        (
+            Some(terminal_psi::StructuralTypeShape::ByteSequence(
+                terminal_psi::ByteSequenceCarrier::BorrowedView {
+                    access: stored_access,
+                },
+            )),
+            Some(terminal_psi::StructuralTypeShape::ByteSequence(
+                terminal_psi::ByteSequenceCarrier::BorrowedView {
+                    access: presented_access,
+                },
+            )),
+        ) => view_access_lends(*stored_access, *presented_access, argument.access),
+        _ => false,
+    };
+    let end = u64::from(offset).checked_add(u64::from(shape.byte_size));
+    if !same_view
+        || destination.shape != ValueShape::borrowed_reference(shape.byte_size, shape.alignment)
+        || end.is_none_or(|end| end > u64::from(root.backing_shape.byte_size))
+    {
+        return Err(unsupported());
+    }
+    Ok(TargetStructuralArgument {
+        place: argument.place,
+        access: argument.access,
+        path: argument.path.clone(),
+        root_structural_type: root.declaration.structural_type,
+        structural_type: declaration.structural_type,
+        shape: destination.shape,
+        source_byte_offset: offset,
+        fixed_array_length: None,
+        element_stride: None,
+        indices: Vec::new(),
+        source: root.source.clone(),
+        destination: destination.placement.clone(),
+    })
 }
 
 /// Borrowed byte views keep their exact descriptor source through ordinary
