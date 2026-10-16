@@ -122,7 +122,7 @@ def commits_behind(revision):
     if not revision:
         return None
     completed = subprocess.run(["git", "rev-list", "--count", f"{revision}..HEAD"],
-                               cwd=ROOT, capture_output=True, text=True)
+                               cwd=ROOT, capture_output=True, **sample_native_gate.CHILD_TEXT)
     return int(completed.stdout.strip()) if completed.returncode == 0 else None
 
 
@@ -186,6 +186,9 @@ def discovery_candidates(samples, record, live_claims):
 
 
 def main():
+    # Rows print gate refusals verbatim, which may carry characters a
+    # redirected stream cannot encode; escapes keep them printable.
+    sample_native_gate.escape_unencodable_output()
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--record", help="a sample gate run record; default: the latest")

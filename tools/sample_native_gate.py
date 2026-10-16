@@ -151,6 +151,15 @@ def bound_targets(sample):
     return set(PROGRAM_ENTRY_BINDING.findall(text))
 
 
+# Every child the gate launches is decoded the same way: UTF-8 — the encoding
+# of the compiler's diagnostics and of the oracle files — with replacement for
+# bytes that are not valid UTF-8. `text=True` alone decodes through the host
+# code page (cp1252 on Windows) under strict errors, and one byte outside it —
+# witnessed 0x90 in compiler/mbx output on 2026-10-16 — killed the reader
+# thread inside subprocess.run, losing the child's streams and aborting the
+# gate mid-run.
+CHILD_TEXT = {"text": True, "encoding": "utf-8", "errors": "replace"}
+
 # Each worker thread measures one sample at a time, so the time of every
 # compiler call it makes is attributed to that sample's phases.
 _phases = threading.local()
@@ -169,10 +178,10 @@ def run(command, timeout, stdin=subprocess.DEVNULL, cwd=None):
         return subprocess.run(
             command,
             capture_output=True,
-            text=True,
             timeout=timeout,
             stdin=stdin,
             cwd=cwd,
+            **CHILD_TEXT,
         )
     except subprocess.TimeoutExpired:
         return None
@@ -529,7 +538,7 @@ def shared_runs_directory():
     written inside one was invisible to `tools/sample_queue.py` in all others."""
     completed = subprocess.run(
         ["git", "rev-parse", "--path-format=absolute", "--git-common-dir"],
-        cwd=os.path.dirname(os.path.abspath(__file__)), capture_output=True, text=True)
+        cwd=os.path.dirname(os.path.abspath(__file__)), capture_output=True, **CHILD_TEXT)
     if completed.returncode != 0 or not completed.stdout.strip():
         return os.path.join("build", "sample-gate-runs")
     return os.path.join(os.path.dirname(completed.stdout.strip()), "build", "sample-gate-runs")
@@ -562,7 +571,23 @@ def find_work(arguments, samples):
     return results
 
 
+def escape_unencodable_output():
+    """Let refusals quoting child output print on any redirected stream.
+
+    A refusal carries the child's own text; on a stream encoded to a code page
+    that lacks one of its characters — a cp1252 pipe on Windows — printing it
+    raises UnicodeEncodeError, the same gate death moved to the output side.
+    Backslash escapes keep the text readable on every stream. stderr already
+    defaults to them; reconfiguring both makes the policy explicit.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is not None:
+            reconfigure(errors="backslashreplace")
+
+
 def main():
+    escape_unencodable_output()
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--cli",
                         help="compiler to measure; by default the gate builds an "
@@ -725,7 +750,7 @@ def build_gate_cli():
     print(f"sample_native_gate: building the opt-level 1 CLI into {GATE_CLI_DIR} with {tool}",
           file=sys.stderr)
     completed = subprocess.run([tool, "build", "-p", "omega", "--bin", "omega"],
-                               cwd=ROOT, env=environment, capture_output=True, text=True)
+                               cwd=ROOT, env=environment, capture_output=True, **CHILD_TEXT)
     if completed.returncode != 0:
         print(completed.stderr[-4000:], file=sys.stderr)
         print("sample_native_gate: building the CLI failed; pass --cli to measure another build",
@@ -749,7 +774,7 @@ def cli_staleness(cli):
         return f"CLI {cli} does not exist"
 
     def git(*command):
-        completed = subprocess.run(["git", *command], cwd=ROOT, capture_output=True, text=True)
+        completed = subprocess.run(["git", *command], cwd=ROOT, capture_output=True, **CHILD_TEXT)
         return completed.stdout.strip() if completed.returncode == 0 else ""
 
     last = git("log", "-1", "--format=%h %ct", "--", *COMPILER_INPUTS).split()
@@ -787,7 +812,7 @@ def record_run(arguments, started, results, buckets, passed, scored, timing=None
     Jobs and the CLI binary say whether two runs' timings are comparable.
     """
     def git(*command):
-        completed = subprocess.run(["git", *command], capture_output=True, text=True)
+        completed = subprocess.run(["git", *command], capture_output=True, **CHILD_TEXT)
         return completed.stdout.strip() if completed.returncode == 0 else ""
 
     record = {

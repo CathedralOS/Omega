@@ -53,6 +53,88 @@ class WorkDiscoveryTests(unittest.TestCase):
         self.assertEqual(measure.call_count, 2)
 
 
+class ChildDecodingTests(unittest.TestCase):
+    """Arbitrary child bytes cannot kill the gate.
+
+    Witnessed 2026-10-16: `text=True` alone decoded child output through the
+    host code page (cp1252 on Windows) under strict errors, and byte 0x90 in
+    compiler/mbx output raised UnicodeDecodeError inside subprocess' reader
+    thread, losing the streams and aborting the gate mid `--find-work`. Every
+    child the gate launches now decodes as UTF-8 with replacement, and the
+    gate's own reporting cannot raise on the decoded text.
+    """
+
+    def child_output(self, writes):
+        script = "import sys\n" + "\n".join(writes)
+        return gate.run([sys.executable, "-c", script], timeout=30)
+
+    def test_bytes_invalid_in_utf8_and_the_code_page_are_replaced(self):
+        completed = self.child_output([
+            "sys.stdout.buffer.write(bytes([0x90, 0xFF, 0x61]))",
+            "sys.stderr.buffer.write(bytes([0x81, 0x62]))",
+        ])
+        self.assertIsNotNone(completed)
+        self.assertEqual(completed.returncode, 0)
+        self.assertEqual(completed.stdout, "\ufffd\ufffda")
+        self.assertEqual(completed.stderr, "\ufffdb")
+
+    def test_utf8_child_text_decodes_as_utf8_not_the_host_code_page(self):
+        # Forcing the locale to cp1252 makes the check meaningful on hosts
+        # whose default is already UTF-8; the policy must pin the encoding.
+        with patch("locale.getpreferredencoding", return_value="cp1252"):
+            completed = self.child_output([
+                "sys.stdout.buffer.write('∀'.encode('utf-8'))",
+            ])
+        self.assertEqual(completed.stdout, "∀")
+
+    def test_every_child_the_gate_launches_uses_the_decode_policy(self):
+        calls = []
+
+        def fake_run(command, **kwargs):
+            calls.append(kwargs)
+            return subprocess.CompletedProcess(command, 0, "3\n", "")
+
+        with tempfile.TemporaryDirectory() as directory, \
+                patch.object(gate.subprocess, "run", side_effect=fake_run), \
+                patch.object(gate.shutil, "which", return_value="mbx"), \
+                contextlib.redirect_stderr(io.StringIO()):
+            gate.run(["child"], 10)
+            gate.shared_runs_directory()
+            gate.build_gate_cli()
+            cli = Path(directory, "omega")
+            cli.write_text("", encoding="utf-8")
+            gate.cli_staleness(str(cli))
+            arguments = gate.argparse.Namespace(
+                history_dir=directory, target="windows_x86_64", cli="omega", filter="")
+            gate.record_run(arguments,
+                            gate.datetime.datetime.now(gate.datetime.timezone.utc),
+                            [], {}, 0, 0)
+            import sample_queue
+            sample_queue.commits_behind("abc123")
+        self.assertTrue(calls)
+        for kwargs in calls:
+            self.assertEqual(kwargs.get("encoding"), "utf-8", calls)
+            self.assertEqual(kwargs.get("errors"), "replace", calls)
+
+    def test_summary_printing_child_text_escapes_instead_of_raising(self):
+        # A refusal quoting non-ASCII child output must not raise
+        # UnicodeEncodeError on a redirected code-page stream.
+        output = io.TextIOWrapper(io.BytesIO(), encoding="cp1252", errors="strict")
+        refusal = {"sample": "samples/cli/app", "state": "no-native-build",
+                   "detail": "refused: ∀ \ufffd", "seconds": 0.0}
+        with tempfile.TemporaryDirectory() as directory:
+            arguments = ["sample_native_gate.py", "--cli", "omega", "--jobs", "1",
+                         "--history-dir", directory]
+            with patch.object(sys, "argv", arguments), \
+                    patch.object(sys, "stdout", output), \
+                    patch.object(gate, "discover", return_value=["samples/cli/app"]), \
+                    patch.object(gate, "cli_staleness", return_value=""), \
+                    patch.object(gate, "timed_measure", return_value=refusal):
+                self.assertEqual(gate.main(), 1)
+        output.flush()
+        self.assertIn(b"\\u2200", output.buffer.getvalue())
+
+
 class ReviewAcceptanceTests(unittest.TestCase):
     def test_only_pending_decisions_change(self):
         with tempfile.TemporaryDirectory() as directory:
