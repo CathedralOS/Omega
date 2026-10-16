@@ -1746,7 +1746,6 @@ impl Emission<'_, '_, '_> {
             CheckedStructuralValueKind::ZeroedScalarArray {
                 element,
                 element_count,
-                qualifications,
             } => {
                 // The planner's synthesized zero has no authored operand to
                 // replay — emit the verified literal leaf directly.
@@ -1778,24 +1777,12 @@ impl Emission<'_, '_, '_> {
                     id: zero,
                     scalar_type,
                 });
-                let mut qualifications = qualifications
-                    .into_iter()
-                    .map(|domain| {
-                        crate::terminal_identities::lookup_domain_id_for_carrier(
-                            self.domain_ids,
-                            domain,
-                            self.structural_type,
-                        )
-                    })
-                    .collect::<Result<Vec<_>, _>>()?;
-                qualifications.sort();
-                qualifications.dedup();
                 let (place, operation) = allocate_structural_result(
                     self.operations,
                     self.next_place,
                     self.structural_type,
                     self.multiplicity,
-                    qualifications,
+                    Vec::new(),
                     OperationKind::EstablishScalarArray {
                         elements: vec![
                             zero;
@@ -1812,7 +1799,12 @@ impl Emission<'_, '_, '_> {
                     operation,
                     self.structural_type,
                 ));
-                self.completed(identities, place, continuation)
+                self.complete_construction(
+                    identities,
+                    place,
+                    node.qualification_decisions,
+                    continuation,
+                )
             }
             CheckedStructuralValueKind::Scalar { value } => {
                 let initialized = self.scalar(

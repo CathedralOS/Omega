@@ -292,20 +292,6 @@ impl Builder<'_, '_> {
                 CheckedStructuralValueKind::ZeroedScalarArray {
                     element,
                     element_count,
-                    qualifications: validation::field_domains::domain_constraint_identities(
-                        self.program,
-                        declared,
-                    )
-                    .into_iter()
-                    .filter(|(domain, _)| {
-                        validation::field_domains::domain_admits_zero_byte_carrier(
-                            self.program,
-                            *domain,
-                            declared,
-                        )
-                    })
-                    .map(|(_, domain)| domain)
-                    .collect(),
                 },
             )?
         };

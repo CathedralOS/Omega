@@ -4,6 +4,8 @@
 //! claim nested producers; retained operand plans still own execution order.
 //! Exact call sites, not destination types or statement-family recognizers,
 //! supply argument ownership. Selected exits keep their own control authority.
+//! The operation prefix is selected in execution order; discovery retains
+//! source preorder within that membership, never scheduling a skipped call.
 
 use super::super::{CheckFacts, CheckedScalarExpressionRole, StatementNode, SymbolHandle};
 use super::collecting::{
@@ -19,13 +21,13 @@ use crate::execution::terminal_unit::control::LocalConstructionTrace;
 /// Sequence only the common body. Selected exit operands retain their own
 /// computation/value roots and must not consume the body's call roster.
 /// Trace the exact admission step and statement when occurrence custody fails.
-pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
+pub(in crate::execution::terminal_unit) fn outer_calls_in_prefix_traced<'a>(
     program: &dyn ::validation::CheckingInput,
     facts: &'a CheckFacts,
     machine: SymbolHandle,
     state: &typed_trees::state::State,
     calls: &'a [checked_trees::FlowCallFact],
-    statement_end: usize,
+    statement_end: std::ops::Bound<usize>,
     trace: &LocalConstructionTrace,
 ) -> Option<Vec<&'a checked_trees::FlowCallFact>> {
     trace.phase("outer calls: statement window");
@@ -64,13 +66,15 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
             .builtin_function_for_symbol(call.target_symbol)
             .is_some_and(|function| function.has_empty_write_frame())
     };
-    if statement_end > statements.len()
-        || calls.iter().any(|call| {
-            !scalar_intrinsic(call) && !omitted(call) && call.statement_index >= statement_end
-        })
-    {
-        return None;
-    }
+    let execution_order = program
+        .statement_table
+        .admitted_execution_order(state.statement_nodes);
+    let end_position = execution_order.prefix_end(statement_end)?;
+    let in_prefix = |source| {
+        execution_order
+            .position(source)
+            .is_some_and(|position| position < end_position)
+    };
     let mut consumed = Vec::new();
     let mut structural = Vec::<&checked_trees::FlowCallFact>::new();
     let mut outer = Vec::new();
@@ -81,9 +85,24 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
     for (statement_index, statement) in program
         .statement_table
         .indexed_statements(state.statement_nodes)
-        .take(statement_end)
     {
         if erased_statement(statement) {
+            continue;
+        }
+        // Binding ordinals belong to authored scalar facts, even when an
+        // assembly edge skips this declaration. Prefix membership selects
+        // operations without renumbering those existing identities.
+        let scalar_binding_ordinal = scalar_local_count;
+        if let Some(local) = statement.as_local_data()
+            && !local.is_mutable
+            && program
+                .primitive_type_reference(local.type_reference)
+                .is_some()
+            && !control_prefix.is_some_and(|prefix| statement_index >= prefix)
+        {
+            scalar_local_count = scalar_local_count.checked_add(1)?;
+        }
+        if !in_prefix(statement_index) {
             continue;
         }
         // A stored range is evaluated by its LocalBinding consumer. The
@@ -347,11 +366,9 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
             let role = if local.is_mutable {
                 CheckedScalarExpressionRole::StorageInitializer
             } else {
-                let role = CheckedScalarExpressionRole::LocalInitializer {
-                    binding_ordinal: scalar_local_count,
-                };
-                scalar_local_count = scalar_local_count.checked_add(1)?;
-                role
+                CheckedScalarExpressionRole::LocalInitializer {
+                    binding_ordinal: scalar_binding_ordinal,
+                }
             };
             if let Some(root) = facts.values.scalar_computations.root_at(
                 state.symbol,
@@ -424,7 +441,7 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
     // nested in a structural operand is owned before preorder reaches it.
     let mut occurrence_order = calls
         .iter()
-        .filter(|call| !scalar_intrinsic(call) && !omitted(call))
+        .filter(|call| in_prefix(call.statement_index) && !scalar_intrinsic(call) && !omitted(call))
         .collect::<Vec<_>>();
     occurrence_order.sort_by_key(|call| (call.statement_index, call.call_ordinal));
     if occurrence_order.windows(2).any(|pair| {
@@ -605,7 +622,7 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
     trace.statement(None);
     if let Some(unconsumed) = calls
         .iter()
-        .filter(|call| !scalar_intrinsic(call) && !omitted(call))
+        .filter(|call| in_prefix(call.statement_index) && !scalar_intrinsic(call) && !omitted(call))
         .find(|call| {
             !consumed
                 .iter()

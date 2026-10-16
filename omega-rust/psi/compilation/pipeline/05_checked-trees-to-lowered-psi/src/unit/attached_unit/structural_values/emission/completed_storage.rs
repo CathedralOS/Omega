@@ -83,7 +83,13 @@ impl Emission<'_, '_, '_> {
             .iter()
             .any(|domain| !parameter.qualifications.contains(domain))
         {
-            return unsupported("owned binding cannot establish a receiving membership");
+            return Err(LoweringError::at_statement(
+                self.checked,
+                self.machine,
+                self.state,
+                self.statement,
+                "owned binding cannot establish a receiving membership",
+            ));
         }
         let content = |id| {
             self.domain_declarations

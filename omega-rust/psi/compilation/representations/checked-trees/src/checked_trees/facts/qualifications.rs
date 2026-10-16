@@ -41,6 +41,10 @@ pub struct CheckedValueQualification {
     pub statement_index: u32,
     pub expression: ExpressionHandle,
     pub semantic_domain: SemanticDomainId,
+    /// Exact constructed value when the producer has no authored operand.
+    /// Omitted fields share their parent's diagnostic expression, but never
+    /// its membership judgment. Zero means an authored expression occurrence.
+    pub structural_value: crate::CheckedStructuralValueHandle,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -69,7 +73,8 @@ impl QualificationFacts {
         self.value_formations
             .iter()
             .filter_map(|(_, row)| {
-                (row.machine == machine
+                (!row.structural_value.is_valid()
+                    && row.machine == machine
                     && row.state == state
                     && row.statement_index == statement_index
                     && row.expression == expression)
@@ -99,25 +104,33 @@ impl QualificationFacts {
                     statement_index: use_.statement_index,
                     expression: use_.expression,
                     semantic_domain: use_.semantic_domain,
+                    structural_value: crate::CheckedStructuralValueHandle::invalid(),
                 }),
         );
-        let coordinate = |machine: SymbolHandle,
-                          state: SymbolHandle,
-                          statement_index: u32,
-                          expression: ExpressionHandle| {
-            (
-                (machine.arena_index(), machine.generation()),
-                (state.arena_index(), state.generation()),
-                statement_index,
-                (expression.arena_index(), expression.generation()),
-            )
-        };
+        let coordinate =
+            |machine: SymbolHandle,
+             state: SymbolHandle,
+             statement_index: u32,
+             expression: ExpressionHandle,
+             structural_value: crate::CheckedStructuralValueHandle| {
+                (
+                    (machine.arena_index(), machine.generation()),
+                    (state.arena_index(), state.generation()),
+                    statement_index,
+                    (expression.arena_index(), expression.generation()),
+                    (
+                        structural_value.arena_index(),
+                        structural_value.generation(),
+                    ),
+                )
+            };
         let site = |decision: &CheckedValueQualification| {
             coordinate(
                 decision.machine,
                 decision.state,
                 decision.statement_index,
                 decision.expression,
+                decision.structural_value,
             )
         };
         decisions.sort_by_key(|decision| (site(decision), decision.semantic_domain.0));
@@ -136,12 +149,25 @@ impl QualificationFacts {
             groups.push((key, span));
             start = end;
         }
-        values.nodes.for_each_mut(|_, value| {
+        values.nodes.for_each_mut(|handle, value| {
+            // Synthetic zero construction has its own checked occurrence.
+            // Its expression is diagnostic provenance only: consulting that
+            // expression would import an enclosing literal's memberships.
+            let structural_value = if matches!(
+                value.kind,
+                crate::CheckedStructuralValueKind::ZeroedStructural { .. }
+                    | crate::CheckedStructuralValueKind::ZeroedScalarArray { .. }
+            ) {
+                handle
+            } else {
+                crate::CheckedStructuralValueHandle::invalid()
+            };
             let key = coordinate(
                 value.machine,
                 value.state,
                 value.statement_index,
                 value.expression,
+                structural_value,
             );
             value.qualification_decisions = match groups.binary_search_by_key(&key, |(key, _)| *key)
             {

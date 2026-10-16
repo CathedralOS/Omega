@@ -1035,5 +1035,6 @@ fn record_qualification(
         statement_index,
         expression,
         semantic_domain,
+        structural_value: checked_trees::CheckedStructuralValueHandle::invalid(),
     });
 }

@@ -41,6 +41,14 @@ pub enum LoweringError {
         gap: Option<Diagnostic>,
     },
     Unsupported(&'static str),
+    /// A checked operation's failed join, retaining its exact source coordinate
+    /// even when the machine has a complete plan and no earlier plan gap.
+    InvalidUnitStatementPlan {
+        machine: String,
+        state: String,
+        statement_index: u32,
+        reason: &'static str,
+    },
     InvalidSealedAccessorDeclaration(Diagnostic),
     /// A second transfer or disposal overlaps storage already removed from
     /// this occurrence. Keep both paths so the failing ownership join is visible.
@@ -119,6 +127,21 @@ pub enum LoweringError {
 }
 
 impl LoweringError {
+    pub(crate) fn at_statement(
+        checked: &CheckedTrees,
+        machine: symbols::SymbolHandle,
+        state: symbols::SymbolHandle,
+        statement_index: u32,
+        reason: &'static str,
+    ) -> Self {
+        Self::InvalidUnitStatementPlan {
+            machine: checked.symbols.display_path(machine, "::"),
+            state: checked.symbols.display_path(state, "::"),
+            statement_index,
+            reason,
+        }
+    }
+
     /// The refusal for a body this compiler cannot lower yet, reported at the
     /// unsupported construct's source span rather than as this lowering error.
     pub fn plan_gap(&self) -> Option<&Diagnostic> {

@@ -210,15 +210,14 @@ pub enum CheckedStructuralValueKind {
         elements: Vec<CheckedScalarComputationHandle>,
     },
     /// An omitted record field's zero value: a `[scalar; N]` leaf
-    /// established all-zero — the only omitted-runtime-field carrier the
-    /// zero-defaulting rule admits today. `element` is the planner's
+    /// established all-zero. Membership decisions use the same exact-value
+    /// qualification span as other constructors. `element` is the planner's
     /// literal-zero computation in the declared element carrier; the single
     /// computation supplies every leaf, so `element_count` is the declared
     /// flattened leaf count of the enclosing array.
     ZeroedScalarArray {
         element: CheckedScalarComputationHandle,
         element_count: u64,
-        qualifications: Vec<language_semantics::SemanticDomainId>,
     },
     /// An omitted record field's zero value over a structural (non-scalar)
     /// member: `[Record; N]` elements or a nested record, all leaves zero.

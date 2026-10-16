@@ -1530,6 +1530,8 @@ fail/calls/numeric_scalar_call_boolean_guard rejected 1879ms expected @1f63ee648
 	machine `evaluate` state `entry` applies an operator to a numeric value and a boolean -- Omega does not coerce a boolean to a number -- compare booleans directly (`b == true`) or convert a number explicitly (`n != 0`)
 fail/calls/ordered_bound_requires_argument_rejected rejected 2758ms expected @a9ae30e1c334+wt
 	machine `Main::main` state `main` value call to `Main::pick` violates required fact `d > 5`: the instantiated fact is structurally false
+fail/calls/ordered_terminal_skipped_arm_type_rejected rejected 152ms expected @7c138f5545aa
+	argument `value` for state `entry` expects `u64`, got `bool`
 fail/calls/outcome_specific_witness_on_nonmatching_exit rejected 5994ms expected @d9bcab492255+wt
 	outcome-specific evidence `selected` is assigned on a nonmatching ordinary exit through pick::entry
 fail/calls/plain_let_reassign_rejected rejected 2932ms expected @a9ae30e1c334+wt
@@ -5645,12 +5647,12 @@ pass/arrays/runtime_completed_array_window_replacement_exit checked 6861ms check
 pass/arrays/runtime_computed_float_element_store_exit checked 12987ms check-target:macos_arm64 @589aedee8ebc+wt
 pass/arrays/runtime_index_recast checked 12378ms @5041ef1af684+wt
 pass/arrays/subject_field_where_index checked 9537ms @5041ef1af684+wt
-pass/asm/checked_label_borrow_last_use_exit checked 8156ms check-target:linux_x86_64 @6d0b8da07bdd+wt
-pass/asm/checked_label_call_result_exit checked 8098ms check-target:linux_x86_64 @6d0b8da07bdd+wt
-pass/asm/checked_label_edges_exit checked 8127ms check-target:linux_x86_64 @6d0b8da07bdd+wt
-pass/asm/checked_label_reverse_local_exit checked 8130ms check-target:linux_x86_64 @6d0b8da07bdd+wt
-pass/asm/checked_label_specialization_exit checked 7802ms check-target:linux_x86_64 @6d0b8da07bdd+wt
-pass/asm/checked_label_transition_exit checked 7653ms check-target:linux_x86_64 @6d0b8da07bdd+wt
+pass/asm/checked_label_borrow_last_use_exit checked 3422ms check-target:macos_arm64 @7c138f5545aa
+pass/asm/checked_label_call_result_exit checked 3419ms check-target:macos_arm64 @7c138f5545aa
+pass/asm/checked_label_edges_exit checked 3399ms check-target:macos_arm64 @7c138f5545aa
+pass/asm/checked_label_reverse_local_exit checked 3405ms check-target:macos_arm64 @7c138f5545aa
+pass/asm/checked_label_specialization_exit checked 3439ms check-target:macos_arm64 @7c138f5545aa
+pass/asm/checked_label_transition_exit checked 3380ms check-target:macos_arm64 @7c138f5545aa
 pass/asm/instruction_disposition_native checked 10811ms check-target:linux_x86_64 @eac8a2f4b8cc+wt
 pass/asm/port_write_effect_contract checked 8833ms @eac8a2f4b8cc+wt
 pass/asm/proposition_label_contracts_exit checked 7299ms check-target:linux_x86_64 @6d0b8da07bdd+wt
@@ -6641,6 +6643,8 @@ pass/control_flow/nested_parameter_receiver_call checked 1590ms @a9ae30e1c334+wt
 pass/control_flow/nested_structural_call_operand_exit checked 11946ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/control_flow/no_payload_case_variant_after_payload_dispatch_exit checked 11450ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/control_flow/nonreturning_callee_exit checked 10757ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/control_flow/ordered_terminal_call_after_labels_exit checked 3434ms check-target:macos_arm64 @7c138f5545aa
+pass/control_flow/ordered_terminal_call_exit checked 3414ms check-target:macos_arm64 @7c138f5545aa
 pass/control_flow/ordered_unconditional_arm_exit checked 11275ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/control_flow/owned_array_local_state_transfer_exit checked 11595ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/control_flow/owned_array_state_transfer_exit checked 11754ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -6949,6 +6953,7 @@ pass/domains/utf8_field_write_from_param checked 4757ms check-target:macos_arm64
 pass/domains/vacuous_domain_qualification checked 1751ms @a9ae30e1c334+wt
 pass/domains/view_field_literal_store_reads_exit checked 12827ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/domains/write_domain_store checked 9451ms @5041ef1af684+wt
+pass/domains/zero_value_membership_occurrences_exit checked 3381ms check-target:macos_arm64 @7c138f5545aa
 pass/drops/case_subject_root_cleanup checked 9558ms @5041ef1af684+wt
 pass/drops/cleanup_machine_drop_shape checked 2087ms @a9ae30e1c334+wt
 pass/drops/cleanup_owner_identity_application checked 1769ms @a9ae30e1c334+wt

@@ -1,0 +1,36 @@
+// Call discovery retains source identities, while the lexical assembly path
+// invokes mark(1) before mark(2). Completion includes the first terminal arm.
+data Counter { digits: u64 in Wrapping; }
+data Item { value: u64; }
+machine mark(counter: &mut Counter, digit: u64 in Wrapping) -> u64 {
+    counter.digits = counter.digits * 10 + digit;
+    counter.digits as u64
+}
+machine issue(value: u64) -> Item { Item { value: value } }
+machine forbidden_value() -> u64 crashes Trap { crash Trap; }
+machine forbidden_item() -> Item crashes Trap { crash Trap; }
+machine choose(counter: &mut Counter) -> Item crashes Trap {
+    let mut output: u64 = 0;
+    asm {
+    entry:
+        jmp first;
+    second:
+        mov output, mark(counter, 2);
+        jmp finish;
+    skipped:
+        mov output, forbidden_value();
+    first:
+        mov output, mark(counter, 1);
+        jmp second;
+    finish:
+        mov output, output
+    }
+    transition { _ -> issue(output) _ -> forbidden_item() }
+}
+machine main() crashes Trap {
+    let mut counter: Counter = Counter { digits: 0 };
+    let item: Item = choose(&mut counter);
+    transition item.value == 12 && counter.digits == 12 { true -> done() false -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}

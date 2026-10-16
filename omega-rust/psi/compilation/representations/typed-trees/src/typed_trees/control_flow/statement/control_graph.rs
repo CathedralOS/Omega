@@ -4,6 +4,7 @@
 
 use super::{AssemblyControlPoint, AssemblyExit, StatementNode, StatementTable};
 use arena::HandleSpan;
+use std::ops::Bound;
 
 /// Invocation-local control preparation. Checking publishes the corresponding
 /// flow evidence; this view neither proves an edge nor changes value custody.
@@ -37,6 +38,21 @@ impl StatementExecutionOrder {
             .copied()
             .and_then(|position| position.checked_sub(1))
     }
+    /// Resolve a prefix endpoint anchored to a retained source statement.
+    /// Including a statement ends after its execution position, not before
+    /// the next source ordinal: that ordinal may be skipped or execute earlier.
+    /// Unbounded names the complete admitted path; absent anchors still refuse.
+    pub fn prefix_end(&self, endpoint: Bound<usize>) -> Option<usize> {
+        match endpoint {
+            Bound::Unbounded => Some(self.indices.len()),
+            Bound::Excluded(source) => self.position(source),
+            Bound::Included(source) => self
+                .position(source)
+                .filter(|position| *position < self.indices.len())?
+                .checked_add(1),
+        }
+    }
+
     pub fn precedes(&self, left: usize, right: usize) -> bool {
         self.position(left)
             .zip(self.position(right))
@@ -261,5 +277,29 @@ impl StatementTable {
             exit: StatementControlExit::End,
         });
         Ok(StatementControlGraph { blocks })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::StatementExecutionOrder;
+    use std::ops::Bound::{Excluded, Included, Unbounded};
+
+    #[test]
+    fn execution_prefix_endpoints_keep_source_anchors() {
+        // Source 3 is skipped; sources 4 and 5 execute before sources 1 and 2.
+        let order = StatementExecutionOrder {
+            source_count: 6,
+            indices: vec![0, 4, 5, 1, 2],
+            positions: vec![1, 4, 5, 0, 2, 3],
+        };
+        assert_eq!(order.prefix_end(Excluded(2)), Some(4));
+        assert_eq!(order.prefix_end(Included(5)), Some(3));
+        assert_eq!(order.prefix_end(Included(2)), Some(5));
+        assert_eq!(order.prefix_end(Excluded(3)), None);
+        assert_eq!(order.prefix_end(Included(3)), None);
+        assert_eq!(order.prefix_end(Excluded(6)), Some(5));
+        assert_eq!(order.prefix_end(Included(6)), None);
+        assert_eq!(order.prefix_end(Unbounded), Some(5));
     }
 }

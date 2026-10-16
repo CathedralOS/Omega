@@ -60,9 +60,17 @@ impl StateGraphEmission<'_, '_> {
             && let CheckedComposedUnitControlTerminatorPlan::ReturnStructural { result } =
                 &state.terminator
         {
-            let statement_index = (state.statement_count as usize).checked_sub(1).ok_or(
-                LoweringError::Unsupported("structural return has no source statement"),
-            )?;
+            // Completion retains the selected source coordinate. The authored
+            // body may contain later, unselected arms, so its last statement
+            // does not identify this return's cleanup authority.
+            let statement_index = match &result.completion {
+                checked_trees::CheckedStructuralReturnCompletion::Value {
+                    statement_index, ..
+                } => *statement_index as usize,
+                checked_trees::CheckedStructuralReturnCompletion::Call { coordinate } => {
+                    coordinate.statement_index as usize
+                }
+            };
             let exit = super::super::cleanup::coordinate(
                 self.catalogs.cleanup_control,
                 state,

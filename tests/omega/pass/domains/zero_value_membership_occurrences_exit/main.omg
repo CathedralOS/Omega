@@ -1,0 +1,31 @@
+// Zero formation owns its memberships; omitted children sharing one literal
+// retain separate domains and cannot qualify their parent or sibling.
+data Counter [copy] { code: i32; }
+domain Counter::Ready;
+domain Counter::ReadyAlias = Ready;
+domain Counter::Other;
+data Marker [copy] { code: u64; }
+domain Marker::Clear;
+data Bundle [copy] {
+    first: Counter in Counter::ReadyAlias;
+    second: Counter in Counter::Other;
+    marker: Marker in Marker::Clear;
+}
+domain Bundle::Complete;
+machine ready(counter: &Counter in Counter::Ready) -> bool { counter.code == 0 }
+machine other(counter: &Counter in Counter::Other) -> bool { counter.code == 0 }
+machine clear(marker: &Marker in Marker::Clear) -> bool { marker.code == 0 }
+machine verify(correct: bool) crashes Trap {
+    transition correct { true -> done() _ -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}
+machine main() crashes Trap {
+    let atom: Counter in Counter::Ready;
+    let alias: Counter in Counter::ReadyAlias;
+    verify(ready(&atom) && ready(&alias));
+    let bundle: Bundle in Bundle::Complete = Bundle {};
+    verify(ready(&bundle.first) && other(&bundle.second) && clear(&bundle.marker));
+    let array: [Bundle; 2] = [Bundle {}, Bundle {}];
+    verify(ready(&array[0].first) && other(&array[1].second));
+}

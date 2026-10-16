@@ -61,7 +61,7 @@ mod selectors;
 mod value;
 mod view_stores;
 
-/// The ordered stores of one attached Unit body, from `statement_start` on.
+/// The ordered stores after the sequence's verified construction prefix.
 /// Each assignment composes its independently checked destination and value.
 pub(super) fn build_structural_scalar_field_store_sequence_traced(
     program: &dyn ::validation::CheckingInput,
@@ -71,13 +71,13 @@ pub(super) fn build_structural_scalar_field_store_sequence_traced(
     structural_parameters: &[CheckedUnitStructuralParameterPlan],
     scalar_parameters: &[CheckedStructuralScalarParameterPlan],
     parameter_storage: &[checked_trees::CheckedUnitParameterStoragePlan],
-    statement_start: usize,
+    construction_statement_count: usize,
     trace: &LocalConstructionTrace,
 ) -> Option<Vec<CheckedUnitEffectOperationPlan>> {
     let statements = program.statement_table.statements(state.statement_nodes);
     if !statements
         .iter()
-        .skip(statement_start)
+        .skip(construction_statement_count)
         .any(|statement| matches!(statement, StatementNode::Assignment(_)))
     {
         return Some(Vec::new());
@@ -91,7 +91,7 @@ pub(super) fn build_structural_scalar_field_store_sequence_traced(
     let execution_order = program
         .statement_table
         .admitted_execution_order(state.statement_nodes);
-    let start = execution_order.position(statement_start)?;
+    let start = construction_statement_count;
     for statement_index in execution_order.indices()[start..].iter().copied() {
         let statement = &statements[statement_index];
         let Some(assignment) = statement.as_assignment() else {

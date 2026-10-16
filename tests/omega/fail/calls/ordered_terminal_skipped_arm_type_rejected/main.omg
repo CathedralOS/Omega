@@ -1,0 +1,5 @@
+// A later unconditional arm is unexecuted, but its argument is still checked.
+machine identity(value: u64) -> u64 { value }
+machine main() -> u64 {
+    transition { _ -> identity(37) _ -> identity(false) }
+}

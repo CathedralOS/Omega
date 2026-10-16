@@ -26,7 +26,7 @@ mod collecting;
 mod traced;
 
 pub(in crate::execution::terminal_unit) use collecting::call_owns_statement_computations;
-pub(in crate::execution::terminal_unit) use traced::outer_calls_before_traced;
+pub(in crate::execution::terminal_unit) use traced::outer_calls_in_prefix_traced;
 
 pub(in crate::execution::terminal_unit) fn terminal_named_call(
     program: &dyn ::validation::CheckingInput,
@@ -167,7 +167,7 @@ pub(super) fn ordered_statement_call<'program>(
     Some((*expression, call))
 }
 
-/// `outer_calls_before` over the whole body, tracing where admission stopped.
+/// `outer_calls_in_prefix` over the whole body, tracing where admission stopped.
 pub(in crate::execution::terminal_unit) fn outer_calls_traced<'a>(
     program: &dyn ::validation::CheckingInput,
     facts: &'a CheckFacts,
@@ -176,16 +176,13 @@ pub(in crate::execution::terminal_unit) fn outer_calls_traced<'a>(
     calls: &'a [checked_trees::FlowCallFact],
     trace: &LocalConstructionTrace,
 ) -> Option<Vec<&'a checked_trees::FlowCallFact>> {
-    outer_calls_before_traced(
+    outer_calls_in_prefix_traced(
         program,
         facts,
         machine,
         state,
         calls,
-        program
-            .statement_table
-            .statements(state.statement_nodes)
-            .len(),
+        std::ops::Bound::Unbounded,
         trace,
     )
 }

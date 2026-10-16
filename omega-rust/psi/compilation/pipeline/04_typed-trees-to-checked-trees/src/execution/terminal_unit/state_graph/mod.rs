@@ -387,12 +387,9 @@ pub(super) fn build_traced(
         trace.phase("state graph: state flow");
         let flow = state_flow(facts, owner.symbol, state.symbol)?;
         let source_calls = facts.flow.control.calls.span_or_empty(flow.calls);
-        if source_calls
-            .windows(2)
-            .any(|pair| pair[0].statement_index > pair[1].statement_index)
-        {
-            return None;
-        }
+        // Flow retains execution order, which may revisit an earlier source
+        // label. Discovery selects prefix membership without sorting or
+        // requiring monotonic source coordinates from this arena roster.
         // A returned structural value is established by the ordinary operation
         // sequence before its return edge. Its operand calls belong to that
         // sequence too; excluding the tail statement loses their exact flow
@@ -408,7 +405,7 @@ pub(super) fn build_traced(
             || matches!(statements.get(terminator_index), Some(StatementNode::Expression(expression))
                 if matches!(program.expression_table.expression(*expression), ExpressionNode::Call(_)))
         {
-            terminator_index.checked_add(1)?
+            std::ops::Bound::Included(terminator_index)
         } else if control::terminal_named_call(program, owner, state, terminator_index)
             .is_some_and(|target| fused_target_index(program, &fused, target).is_none())
         {
@@ -417,20 +414,19 @@ pub(super) fn build_traced(
             // sequence plans it and counts its occurrence, binding a value
             // result as the state's returned value, and the terminator
             // completes after it.
-            terminator_index.checked_add(1)?
+            std::ops::Bound::Included(terminator_index)
         } else {
-            terminator_index
+            std::ops::Bound::Excluded(terminator_index)
         };
-        let after_calls = source_calls.partition_point(|call| call.statement_index < operation_end);
         // Computation roots retain handles into this arena. Borrow the original
         // occurrences so their exact identity survives nested-call validation.
         trace.phase("state graph: outer calls");
-        let calls = control::outer_calls_before_traced(
+        let calls = control::outer_calls_in_prefix_traced(
             program,
             facts,
             owner.symbol,
             state,
-            &source_calls[..after_calls],
+            source_calls,
             operation_end,
             trace,
         )?;

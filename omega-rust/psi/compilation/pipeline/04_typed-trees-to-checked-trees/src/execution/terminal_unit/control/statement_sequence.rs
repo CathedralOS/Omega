@@ -1,4 +1,4 @@
-//! The single-state body producer: authored-order scalar bindings, primitive
+//! The single-state body producer: execution-ordered scalar bindings, primitive
 //! and structural field stores, borrowed-window moves and repairs, selected
 //! operator and FMA applications, structural bindings, view-subslice locals,
 //! calls and completion.
@@ -8,7 +8,11 @@
 //! whole-body shape chooses a different producer, so any statement the
 //! sequence admits composes with any other.
 //!
-//! `build` sets up the sequence and walks the body's statements in order:
+//! Source ordinals identify facts; execution positions schedule operations.
+//! Inclusive/exclusive source anchors bound the sequence without treating a
+//! skipped following statement as an executable endpoint.
+//!
+//! `build` sets up the sequence and walks the body's admitted execution order:
 //! `local_data` plans a `let`, `assignments` plans an assignment, and
 //! `statement_call` then plans the call either statement leaves (or a call
 //! or expression statement performs). `completion` selects the structural or
@@ -39,6 +43,7 @@ use crate::execution::terminal_unit::scalar_return_expressions::checked_boolean_
 use crate::execution::terminal_unit::types::{ShapeCollector, is_unit, machine_binders};
 
 use checked_trees::CheckedUnitStructuralReturnPlan;
+use std::ops::Bound;
 
 mod assignments;
 pub(in crate::execution::terminal_unit) mod bounded_byte_values;
@@ -183,7 +188,7 @@ pub(in crate::execution::terminal_unit) fn build(
     calls: &[&checked_trees::FlowCallFact],
     trivial_affine_locals: &[(CheckedTrivialAffineStructuralLocalPlan, SymbolHandle)],
     construction_statement_count: usize,
-    statement_end: usize,
+    statement_end: Bound<usize>,
     _call_frames: Option<&validation::CallFrameResolver<'_>>,
     trace: &LocalConstructionTrace,
 ) -> Option<StatementSequence> {
@@ -193,7 +198,6 @@ pub(in crate::execution::terminal_unit) fn build(
         None => (None, usize::MAX),
     };
     let statements = program.statement_table.statements(state.statement_nodes);
-    let statement_end = statement_end.min(statements.len());
     // The walk plans each statement up to the body's completion: a trailing
     // transition run (each arm's destructure marker before it), the final
     // expression of a value body, or the scalar-control terminator's own
@@ -216,8 +220,22 @@ pub(in crate::execution::terminal_unit) fn build(
     let execution_order = program
         .statement_table
         .admitted_execution_order(state.statement_nodes);
-    let end_position = execution_order.position(statement_end)?;
-    let construction_position = execution_order.position(construction_statement_count)?;
+    trace.phase("statement sequence: execution window");
+    let end_position = execution_order.prefix_end(statement_end)?;
+    // The array constructor consumed an authored prefix. It must also be
+    // the executed prefix; no following source identity is needed to end it.
+    if !execution_order
+        .indices()
+        .iter()
+        .copied()
+        .take(construction_statement_count)
+        .eq(0..construction_statement_count)
+        || construction_statement_count > end_position
+    {
+        trace.phase("statement sequence: construction prefix differs from execution");
+        return None;
+    }
+    let construction_position = construction_statement_count;
     let ordered = &execution_order.indices()[..end_position];
     let walk_position = ordered
         .iter()
@@ -225,7 +243,6 @@ pub(in crate::execution::terminal_unit) fn build(
         .skip(construction_position)
         .find(|(_, index)| !sequenced(**index, &statements[**index]))
         .map_or(end_position, |(position, _)| position);
-    let walk_end = ordered.get(walk_position).copied().unwrap_or(statement_end);
     let rest: Vec<_> = ordered[walk_position..]
         .iter()
         .map(|index| &statements[*index])
@@ -241,7 +258,11 @@ pub(in crate::execution::terminal_unit) fn build(
             .all(|statement| matches!(statement, StatementNode::Transition(_)));
     if !completion_owns_rest {
         trace.phase("statement sequence: unsupported statement kind");
-        trace.statement(u32::try_from(walk_end).ok());
+        trace.statement(
+            ordered
+                .get(walk_position)
+                .and_then(|index| u32::try_from(*index).ok()),
+        );
         return None;
     }
     // A bounded byte owner's primitive predicates survive both a shared loan
@@ -280,6 +301,7 @@ pub(in crate::execution::terminal_unit) fn build(
     // Completion uses the actual checked exit after this prefix, not entry
     // claims: calls may already have consumed them. Qualified mutable carriers
     // still need their separate result contract; a scalar join cannot supply it.
+    trace.phase("statement sequence: scalar control guard");
     if scalar_control.is_some()
         && structural_parameters.iter().any(|parameter| {
             !parameter.qualifications.is_empty()

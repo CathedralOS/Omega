@@ -47,6 +47,7 @@ pub(crate) mod current_scalar_values;
 pub(crate) mod float_implications;
 mod runtime_indices;
 mod stored_integer_calls;
+mod zero_value_qualifications;
 
 // Ownership and custody: linear obligations, retained content, and values
 // live across a suspending call.
@@ -210,6 +211,7 @@ pub(crate) fn check_checked_facts_recording(
     }
 
     if diagnostics.is_empty() {
+        zero_value_qualifications::record(program, facts);
         facts
             .qualifications
             .link_value_formations(&mut facts.values.structural_values);

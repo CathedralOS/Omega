@@ -21,7 +21,7 @@ pub(crate) use boundary_machine::{
     build_boundary_machine, build_dynamic_slot_plans, build_static_boundary_requirements,
 };
 pub(super) use call_occurrences::{
-    call_owns_statement_computations, outer_calls_before_traced, terminal_named_call,
+    call_owns_statement_computations, outer_calls_in_prefix_traced, terminal_named_call,
 };
 pub(crate) use call_results::{
     bind_scalar_call_result, bind_structural_call_result, checked_structural_result_type,

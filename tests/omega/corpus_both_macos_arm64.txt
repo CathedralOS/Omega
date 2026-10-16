@@ -8,6 +8,12 @@
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
 pass/arithmetic/runtime_composite_bound_arrivals_exit built 12850ms exit:0 interpreter-exit:0 interpreter:agrees @82646dcce47b+wt
+pass/asm/checked_label_borrow_last_use_exit built 3891ms exit:0 interpreter-exit:0 interpreter:agrees @7c138f5545aa
+pass/asm/checked_label_call_result_exit built 3810ms exit:0 interpreter-exit:0 interpreter:agrees @7c138f5545aa
+pass/asm/checked_label_edges_exit built 3531ms exit:0 interpreter-exit:0 interpreter:agrees @7c138f5545aa
+pass/asm/checked_label_reverse_local_exit built 3537ms exit:0 interpreter-exit:0 interpreter:agrees @7c138f5545aa
+pass/asm/checked_label_specialization_exit built 3648ms exit:0 interpreter-exit:0 interpreter:agrees @7c138f5545aa
+pass/asm/checked_label_transition_exit built 3639ms exit:0 interpreter-exit:0 interpreter:agrees @7c138f5545aa
 pass/atomics/runtime_atomic_computed_operands_exit built 5756ms exit:0 interpreter-exit:0 interpreter:agrees @e460ea1df091+wt
 pass/atomics/runtime_atomic_computed_updates_exit built 5756ms exit:0 interpreter-exit:0 interpreter:agrees @e460ea1df091+wt
 pass/atomics/runtime_atomic_operand_order_exit built 5756ms exit:0 interpreter-exit:0 interpreter:agrees @e460ea1df091+wt
@@ -324,6 +330,8 @@ pass/control_flow/case_arm_scalar_payload_arguments_exit built 2555ms exit:70 in
 pass/control_flow/case_dispatch_unread_structural_payload_exit built 3088ms exit:70 interpreter-exit:70 interpreter:agrees @0c36a0fe0b35
 pass/control_flow/conditional_unit_completion_exit built 4490ms exit:70 interpreter-exit:70 interpreter:agrees @e477ee0294de+wt
 pass/control_flow/indexed_record_state_argument_exit built 1454ms exit:70 interpreter-exit:70 interpreter:agrees @a789a281bf39+wt
+pass/control_flow/ordered_terminal_call_after_labels_exit built 3516ms exit:0 interpreter-exit:0 interpreter:agrees @7c138f5545aa
+pass/control_flow/ordered_terminal_call_exit built 3526ms exit:0 interpreter-exit:0 interpreter:agrees @7c138f5545aa
 pass/control_flow/projected_case_subject_root_forwarding_exit built 1661ms exit:70 interpreter-exit:70 interpreter:agrees @e06e59f77bec+wt
 pass/control_flow/projected_field_exhaustive_case_dispatch_exit built 7575ms exit:70 interpreter-exit:70 interpreter:agrees @7084889a08d8+wt
 pass/control_flow/runtime_boolean_equality_copied_record_instances_exit built 4999ms exit:70 interpreter-exit:70 interpreter:agrees @36ad3370c97a
@@ -398,6 +406,7 @@ pass/domains/runtime_nested_record_membership_transport_exit built 1646ms exit:0
 pass/domains/runtime_qualified_borrowed_gated_input_exit built 1513ms exit:0 interpreter-exit:0 interpreter:agrees @f20b8ea3bb8d
 pass/domains/runtime_qualified_view_field_parameter_store_exit built 2494ms exit:70 stdout:match interpreter-exit:70 interpreter-stdout:match interpreter:agrees @f76d8aa42d2a
 pass/domains/utf8_field_write_from_param built 5058ms exit:0 interpreter-exit:0 interpreter:agrees @51cd9b31baf0
+pass/domains/zero_value_membership_occurrences_exit built 3526ms exit:0 interpreter-exit:0 interpreter:agrees @7c138f5545aa
 pass/drops/conditional_structural_return_cleanup_exit built 1549ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @615e23f184a6+wt
 pass/drops/contextual_cleanup_exit built 1075ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @db0816c5dcd4+wt
 pass/drops/contextual_core_drop_exit built 1453ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @bf12cd0f89bb+wt
@@ -585,7 +594,7 @@ pass/ownership/linear_call_result_place_assignment_exit built 2376ms exit:0 inte
 pass/ownership/linear_computed_requirement_argument_exit built 2474ms exit:0 interpreter-exit:0 interpreter:agrees @ec4721ab353c+wt
 pass/ownership/linear_computed_call_claim_transfers_exit built 2392ms exit:0 interpreter-exit:0 interpreter:agrees @7a112c8923bd+wt
 pass/ownership/linear_inline_constructed_argument_claims_exit built 2757ms exit:0 interpreter-exit:0 interpreter:agrees @7a112c8923bd+wt
-pass/ownership/linear_qualified_call_result_claims built 2522ms exit:0 interpreter-exit:0 interpreter:agrees @34440012a21b
+pass/ownership/linear_qualified_call_result_claims built 3984ms exit:0 interpreter-exit:0 interpreter:agrees @7c138f5545aa
 pass/ownership/linear_result_member_projection_arguments_exit built 1702ms exit:0 interpreter-exit:0 interpreter:agrees @6605065c28a7
 pass/ownership/linear_result_owners_residual_cleanup_exit built 1788ms exit:0 interpreter-exit:0 interpreter:agrees @6605065c28a7
 pass/ownership/linear_state_graph_claim_transport_exit built 3418ms exit:0 interpreter-exit:0 interpreter:agrees @4f5eb9941fad
