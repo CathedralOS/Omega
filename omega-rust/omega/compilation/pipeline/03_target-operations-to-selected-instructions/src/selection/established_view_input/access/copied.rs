@@ -86,7 +86,9 @@ pub(super) fn shared_projection(
         return None;
     }
     // An access-less structural descriptor identity is insufficient: unlike
-    // the direct byte-field declaration, it can also carry a mutable view.
+    // the direct byte-field declaration, it can also carry a mutable view. A
+    // stored descriptor whose declared ceiling is shared, byte or element,
+    // cannot.
     (shared_field
         || types.iter().any(|declaration| {
             declaration.id == selected
@@ -96,7 +98,10 @@ pub(super) fn shared_projection(
                         terminal_psi::ByteSequenceCarrier::BorrowedView {
                             access: Some(A::SharedBorrow)
                         }
-                    )
+                    ) | StructuralTypeShape::ElementView {
+                        access: Some(A::SharedBorrow),
+                        ..
+                    }
                 )
         }))
     .then_some(())
