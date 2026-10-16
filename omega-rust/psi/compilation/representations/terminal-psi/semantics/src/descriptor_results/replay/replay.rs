@@ -1,4 +1,5 @@
 use super::*;
+use std::sync::Arc;
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) enum Origin {
@@ -11,10 +12,13 @@ pub(super) type Value = Option<BTreeSet<Origin>>;
 pub(super) type Slots = BTreeMap<DescriptorLocation, Value>;
 #[derive(Clone, Default, PartialEq, Eq)]
 pub(super) struct State {
-    pub(super) slots: Slots,
+    // Position snapshots share immutable maps; only a real write detaches.
+    // This keeps captured contents independent without copying every slot at
+    // scalar operations or copying every nested map with a states snapshot.
+    pub(super) slots: Arc<Slots>,
     // Keys name incoming backing families, not addresses in local carriers.
     // Values are captured origins; reading them never replays a later write.
-    pub(super) contents: BTreeMap<DescriptorContentsQuery, Value>,
+    pub(super) contents: Arc<BTreeMap<DescriptorContentsQuery, Value>>,
     // Captured values remain valid; only later reads of untracked backing
     // contents become unavailable. The flag joins monotonically across edges.
     pub(super) contents_invalidated: bool,
@@ -310,7 +314,7 @@ impl<'a> Replay<'a> {
         let mut state = State::default();
         for row in &machine.places {
             state
-                .slots
+                .slots_mut()
                 .insert(DescriptorLocation::whole(row.place), None);
             let inventory = self.slot_kind.inventory(
                 self.types,
@@ -318,7 +322,7 @@ impl<'a> Replay<'a> {
                 *machine.place_types.get(&row.place)?,
             )?;
             for slot in inventory.slots.iter().chain(&inventory.opaque_referents) {
-                state.slots.insert(slot.clone(), None);
+                state.slots_mut().insert(slot.clone(), None);
             }
             if let DescriptorDefinition::Parameter {
                 structural_type,
@@ -343,14 +347,14 @@ impl<'a> Replay<'a> {
                 } else {
                     Origin::Storage(DescriptorLocation::whole(row.place))
                 };
-                state.slots.insert(
+                state.slots_mut().insert(
                     DescriptorLocation::whole(row.place),
                     Some(BTreeSet::from([origin])),
                 );
                 for slot in inventory.slots {
                     if !slot.path.is_empty() {
                         state
-                            .slots
+                            .slots_mut()
                             .insert(slot.clone(), Some(BTreeSet::from([Origin::Incoming(slot)])));
                     }
                 }
@@ -419,18 +423,6 @@ impl<'a> Replay<'a> {
             .iter()
             .map(canonical)
             .collect::<Option<Vec<_>>>()?;
-        let mut after = before.clone();
-        for (location, value) in &mut after.slots {
-            if definitions
-                .iter()
-                .any(|definition| definition.contains(location))
-            {
-                *value = None;
-            }
-        }
-        for definition in &definitions {
-            after.slots.insert(definition.clone(), None);
-        }
         let mut assigned = Slots::new();
         for (source, destination) in derivations {
             let projection = position.and_then(|position| {
@@ -491,7 +483,34 @@ impl<'a> Replay<'a> {
                 }
             }
         }
-        after.slots.extend(assigned);
+        // Every derivation reads the pre-operation snapshot. Apply only the
+        // final changed entries: assignments override cleared definitions, and
+        // an unchanged value need not detach the shared map. Canonicalization
+        // and every derivation above still run before any update is omitted.
+        let mut after = before.clone();
+        if !definitions.is_empty() {
+            for (location, value) in before.slots.iter() {
+                if value.is_some()
+                    && !assigned.contains_key(location)
+                    && definitions
+                        .iter()
+                        .any(|definition| definition.contains(location))
+                {
+                    after.slots_mut().insert(location.clone(), None);
+                }
+            }
+            for definition in &definitions {
+                if !assigned.contains_key(definition) && after.slots.get(definition) != Some(&None)
+                {
+                    after.slots_mut().insert(definition.clone(), None);
+                }
+            }
+        }
+        for (location, value) in assigned {
+            if after.slots.get(&location) != Some(&value) {
+                after.slots_mut().insert(location, value);
+            }
+        }
         Some(after)
     }
     pub(super) fn states(&mut self, identity: MachineId, depth: usize) -> Option<States> {
@@ -544,7 +563,7 @@ impl<'a> Replay<'a> {
                         Origin::Backing(origin.clone())
                     };
                     after
-                        .slots
+                        .slots_mut()
                         .insert(location.clone(), Some(BTreeSet::from([origin])));
                 }
             }
@@ -989,6 +1008,9 @@ pub(super) fn merge_value(state: &mut Slots, location: DescriptorLocation, value
     }
 }
 fn merge_state(existing: &mut State, incoming: &State) -> bool {
+    // Equal stored maps still need the symbolic incoming-contents join. Skip
+    // only an already-equal computed entry, so a no-op write need not detach
+    // a shared map and an absent entry remains distinct from an unknown one.
     let before = existing.clone();
     existing.contents_invalidated |= incoming.contents_invalidated;
     for query in before
@@ -1008,7 +1030,9 @@ fn merge_state(existing: &mut State, incoming: &State) -> bool {
             }
             _ => None,
         };
-        existing.contents.insert(query, value);
+        if existing.contents.get(&query) != Some(&value) {
+            existing.contents_mut().insert(query, value);
+        }
     }
     for location in before
         .slots
@@ -1024,15 +1048,25 @@ fn merge_state(existing: &mut State, incoming: &State) -> bool {
             (Some(left), Some(right)) => Some(left.union(right).cloned().collect()),
             _ => None,
         };
-        existing.slots.insert(location, value);
+        if existing.slots.get(&location) != Some(&value) {
+            existing.slots_mut().insert(location, value);
+        }
     }
     *existing != before
 }
 
 impl State {
+    pub(super) fn slots_mut(&mut self) -> &mut Slots {
+        Arc::make_mut(&mut self.slots)
+    }
+
+    pub(super) fn contents_mut(&mut self) -> &mut BTreeMap<DescriptorContentsQuery, Value> {
+        Arc::make_mut(&mut self.contents)
+    }
+
     pub(super) fn incoming_contents(&self, query: &DescriptorContentsQuery) -> Value {
         let mut origins = BTreeSet::from([Origin::IncomingContents(query.clone())]);
-        for (written, value) in &self.contents {
+        for (written, value) in self.contents.iter() {
             if written.root != query.root {
                 continue;
             }
@@ -1061,5 +1095,67 @@ impl State {
             origins.extend(value.as_ref()?.iter().cloned());
         }
         Some(origins)
+    }
+}
+
+#[cfg(test)]
+mod snapshot_tests {
+    use super::*;
+
+    fn location(number: u64) -> DescriptorLocation {
+        DescriptorLocation::whole(PlaceId::new(number).unwrap())
+    }
+
+    #[test]
+    fn replacement_preserves_both_maps_in_pre_write_snapshot() {
+        let slot = location(1);
+        let query = DescriptorContentsQuery {
+            root: slot.root,
+            steps: Vec::new(),
+        };
+        let old = Some(BTreeSet::from([Origin::Storage(location(2))]));
+        let new = Some(BTreeSet::from([Origin::Storage(location(3))]));
+        let mut before = State::default();
+        before.slots_mut().insert(slot.clone(), old.clone());
+        before.contents_mut().insert(query.clone(), old.clone());
+        let mut after = before.clone();
+        Replay::install_contents(
+            &mut after,
+            BTreeMap::from([
+                (DescriptorPayloadTarget::Storage(slot.clone()), new.clone()),
+                (
+                    DescriptorPayloadTarget::Incoming(query.clone()),
+                    new.clone(),
+                ),
+            ]),
+        );
+        after.contents_invalidated = true;
+        assert_eq!(before.slots.get(&slot), Some(&old));
+        assert_eq!(before.contents.get(&query), Some(&old));
+        assert!(!before.contents_invalidated);
+        assert_eq!(after.slots.get(&slot), Some(&new));
+        assert_eq!(after.contents.get(&query), Some(&new));
+    }
+
+    #[test]
+    fn equal_input_states_still_materialize_incoming_contents_at_join() {
+        let query = DescriptorContentsQuery {
+            root: location(1).root,
+            steps: Vec::new(),
+        };
+        let original = BTreeSet::from([Origin::Storage(location(2))]);
+        let mut before = State::default();
+        before
+            .contents_mut()
+            .insert(query.clone(), Some(original.clone()));
+        let mut joined = before.clone();
+        // Joining symbolic contents is not a raw-map equality shortcut: an
+        // incoming family is retained even when the stored payloads match.
+        assert!(merge_state(&mut joined, &before));
+        let mut expected = original.clone();
+        expected.insert(Origin::IncomingContents(query.clone()));
+        assert_eq!(joined.contents.get(&query), Some(&Some(expected)));
+        assert_eq!(before.contents.get(&query), Some(&Some(original)));
+        assert!(!merge_state(&mut joined, &before));
     }
 }

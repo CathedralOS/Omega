@@ -291,12 +291,12 @@ impl Replay<'_> {
             match target {
                 DescriptorPayloadTarget::Storage(location) => {
                     state
-                        .slots
+                        .slots_mut()
                         .retain(|stored, _| stored == &location || !location.contains(stored));
-                    state.slots.insert(location, value);
+                    state.slots_mut().insert(location, value);
                 }
                 DescriptorPayloadTarget::Incoming(query) => {
-                    state.contents.insert(query, value);
+                    state.contents_mut().insert(query, value);
                 }
             }
         }

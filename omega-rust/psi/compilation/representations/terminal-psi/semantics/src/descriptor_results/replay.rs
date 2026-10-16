@@ -16,6 +16,9 @@
 //! Symbolic incoming families retain the same weak update in call summaries.
 //! This overapproximation supplies provenance, never custody or vacant-storage
 //! access. Unknown writes still invalidate subsequent contents queries.
+//! Pre-operation and arrival snapshots share immutable slot/content maps. A
+//! write detaches its map before changing it; sharing never changes what an
+//! earlier captured value or symbolic incoming-family join observes.
 use super::*;
 use crate::descriptor_lifetimes::{DescriptorPathSegment, descriptor_path};
 
