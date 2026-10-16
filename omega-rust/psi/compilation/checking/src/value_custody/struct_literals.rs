@@ -112,16 +112,18 @@ pub(crate) fn validate_struct_literal_fields(
                         }
                     }
                     StatementNode::AssemblyFact(fact) => {
-                        scan_expression(
-                            program,
-                            machine,
-                            state,
-                            observations,
-                            fact.expression,
-                            diagnostics,
-                            &mut stored_integer_writes,
-                            statement_index,
-                        );
+                        for expression in program.tables.proof_fact_expression_roots(fact.fact) {
+                            scan_expression(
+                                program,
+                                machine,
+                                state,
+                                observations,
+                                expression,
+                                diagnostics,
+                                &mut stored_integer_writes,
+                                statement_index,
+                            );
+                        }
                     }
                     StatementNode::Assignment(assignment) => {
                         scan_expression(

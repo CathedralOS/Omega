@@ -93,7 +93,7 @@ pub(super) fn expression_prefix_roots(
     }
     let guarded = expression_is_transition_target(program, state, statement_index, expression);
     let mut roots = program
-        .statement_table
+        .tables
         .expression_roots(statement)
         .into_iter()
         .filter(|(role, root)| {

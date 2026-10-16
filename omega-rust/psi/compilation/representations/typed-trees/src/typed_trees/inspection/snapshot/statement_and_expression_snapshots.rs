@@ -49,7 +49,7 @@ pub enum StatementSnapshot {
     },
     AssemblyFact {
         contract_kind: &'static str,
-        expression: ExpressionSnapshot,
+        fact: super::declaration_snapshots::ProofFactSnapshot,
     },
     Assignment {
         target: ExpressionSnapshot,
@@ -301,7 +301,11 @@ pub(crate) fn statement_snapshot(
                 crate::statement::AssemblyFactKind::Requires => "requires",
                 crate::statement::AssemblyFactKind::Ensures => "ensures",
             },
-            expression: expression_snapshot(program, fact.expression),
+            fact: super::declaration_snapshots::fact_snapshots_for_span(
+                program,
+                arena::HandleSpan::from_parts(fact.fact, 1),
+            )
+            .remove(0),
         },
         StatementNode::Assignment(assignment) => StatementSnapshot::Assignment {
             target: expression_snapshot(program, assignment.target),

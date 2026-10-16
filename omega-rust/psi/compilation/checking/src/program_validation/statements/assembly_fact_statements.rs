@@ -25,25 +25,39 @@ pub(super) fn validate(
     } = *scope;
     let diagnostics = &mut *outputs.diagnostics;
     if let Some(state) = state {
-        crate::value_custody::locals::StateValueScope {
-            program,
-            machine,
-            state,
-            symbols,
-            prior_statements: writable_roots.statements,
-            context: "asm assertion",
+        for expression in program.tables.proof_fact_expression_roots(fact.fact) {
+            crate::value_custody::locals::StateValueScope {
+                program,
+                machine,
+                state,
+                symbols,
+                prior_statements: writable_roots.statements,
+                context: "asm assertion",
+            }
+            .expression(expression, diagnostics);
         }
-        .expression(fact.expression, diagnostics);
     }
-    if !proof_facts::is_boolean_asm_fact_expression(program, machine, state, fact.expression) {
-        let kind = match fact.kind {
-            typed_trees::statement::AssemblyFactKind::Requires => "requires",
-            typed_trees::statement::AssemblyFactKind::Ensures => "ensures",
-        };
+    let proof_fact = program.proof_facts.get(fact.fact);
+    if let Some(state) = state {
+        proof_facts::validate_proof_facts(
+            program,
+            std::slice::from_ref(proof_fact),
+            diagnostics,
+            proof_facts::ProofFactOwner::StatementContract {
+                machine,
+                state,
+                statement_index: scope.statement_index,
+                kind: "asm",
+            },
+        );
+    }
+    if let typed_trees::domain::ProofFact::Expression(expression) = proof_fact
+        && !proof_facts::is_boolean_asm_fact_expression(program, machine, state, *expression)
+    {
         diagnostics.push(Diagnostic::error(format!(
-            "machine `{}` state `{state_name}` asm `{kind}` fact `{}` is not boolean-shaped",
+            "machine `{}` state `{state_name}` asm fact `{}` is not boolean-shaped",
             machine.name,
-            program.expression_table.display_name(fact.expression),
+            program.expression_table.display_name(*expression)
         )));
     }
 }

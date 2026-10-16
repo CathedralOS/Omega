@@ -865,14 +865,18 @@ fn validate_statement<'p>(
                 }
             }
         }
-        StatementNode::AssemblyFact(fact) => validate_expression(
-            program,
-            machine_definition,
-            state_definition,
-            fact.expression,
-            roots,
-            diagnostics,
-        ),
+        StatementNode::AssemblyFact(fact) => {
+            for expression in program.tables.proof_fact_expression_roots(fact.fact) {
+                validate_expression(
+                    program,
+                    machine_definition,
+                    state_definition,
+                    expression,
+                    roots,
+                    diagnostics,
+                );
+            }
+        }
         StatementNode::Assignment(assignment) => {
             if let Some(root) = direct_write_only_root(program, assignment.target, roots) {
                 if !whole_root_replacement_is_admitted(program, root) {

@@ -529,7 +529,7 @@ pub(super) fn executable_statement_expression_roots(
     statement: &StatementNode,
 ) -> Vec<typed_trees::expression::ExpressionHandle> {
     program
-        .statement_table
+        .tables
         .expression_roots(statement)
         .into_iter()
         .filter(|(role, root)| {

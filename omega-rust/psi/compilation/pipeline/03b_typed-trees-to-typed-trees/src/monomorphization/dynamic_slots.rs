@@ -202,7 +202,7 @@ fn retarget_selector_calls(program: &mut TypedTrees) {
                 {
                     statement_targets.push((statements.handle_at(offset as u32), slot));
                 }
-                for (_, root) in program.statement_table.expression_roots(statement) {
+                for (_, root) in program.tables.expression_roots(statement) {
                     if !root.is_valid() {
                         continue;
                     }

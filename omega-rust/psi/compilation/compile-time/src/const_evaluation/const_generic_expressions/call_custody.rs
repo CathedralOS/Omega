@@ -870,7 +870,9 @@ impl<'program> Collector<'program> {
                             expressions.push(binding.implementation_operand);
                         }
                     }
-                    StatementNode::AssemblyFact(fact) => expressions.push(fact.expression),
+                    StatementNode::AssemblyFact(fact) => {
+                        expressions.extend(program.tables.proof_fact_expression_roots(fact.fact))
+                    }
                     StatementNode::Expression(expression) => expressions.push(*expression),
                     StatementNode::LocalData(local) => {
                         if local.initial_value.is_valid() {

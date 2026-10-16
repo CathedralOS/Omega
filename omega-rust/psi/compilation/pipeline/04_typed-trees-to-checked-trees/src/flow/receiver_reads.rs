@@ -450,7 +450,7 @@ impl DirectReads<'_, '_> {
             {
                 self.record(receiver);
             }
-            for (role, root) in program.statement_table.expression_roots(statement) {
+            for (role, root) in program.tables.expression_roots(statement) {
                 if !root.is_valid() {
                     continue;
                 }

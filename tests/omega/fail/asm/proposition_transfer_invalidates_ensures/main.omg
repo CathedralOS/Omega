@@ -1,0 +1,13 @@
+proposition ready(value: bool);
+data Subject { ready: bool; }
+machine change(subject: &mut Subject) -> u64 { subject.ready = false; 0 }
+machine Subject::transfer(subject: &mut Subject)
+requires ready(subject.ready);
+{
+    asm {
+    entry ensures ready(subject.ready):
+        jmp done(change(subject))
+    }
+    state done(value: u64) {}
+}
+machine main() {}

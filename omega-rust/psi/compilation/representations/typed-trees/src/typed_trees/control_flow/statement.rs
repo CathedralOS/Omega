@@ -5,6 +5,7 @@ use source::SourceSpan;
 use symbols::SymbolHandle;
 mod assembly;
 mod control_graph;
+mod payloads;
 pub use assembly::{AssemblyBlock, AssemblyControlFlow, AssemblyControlPoint, AssemblyExit};
 pub use control_graph::{
     StatementControlBlock, StatementControlExit, StatementControlGraph, StatementExecutionIter,
@@ -199,180 +200,7 @@ impl StatementTable {
         self.outcome_proof_selectors.span_or_empty(span)
     }
 
-    /// Deep-copy a statement span and every table-owned payload reachable
-    /// from it. Symbols are deliberately preserved: callers that clone a
-    /// lexical scope mint fresh symbols first, then remap those identities in
-    /// the copied graph. Keeping identity remapping out of this table primitive
-    /// also makes it useful for source-to-source expansion within one scope.
-    pub fn copy_statement_nodes_deep_from(
-        &mut self,
-        source: &StatementTable,
-        source_expressions: &crate::expression::ExpressionTable,
-        target_expressions: &mut crate::expression::ExpressionTable,
-        source_types: &crate::types::TypeReferenceTable,
-        target_types: &mut crate::types::TypeReferenceTable,
-        statements: HandleSpan<StatementNode>,
-    ) -> HandleSpan<StatementNode> {
-        let mut copied = Vec::new();
-        let mut assembly_blocks = Vec::new();
-
-        for statement in source.statements(statements) {
-            let statement = match statement {
-                StatementNode::Assembly(AssemblyControlPoint::Entry(handle)) => {
-                    let target = self.copy_assembly_from(source, *handle);
-                    assembly_blocks.extend(
-                        source
-                            .assembly(*handle)
-                            .blocks
-                            .handles()
-                            .zip(self.assembly(target).blocks.handles()),
-                    );
-                    StatementNode::Assembly(AssemblyControlPoint::Entry(target))
-                }
-                StatementNode::Assembly(AssemblyControlPoint::Label(handle)) => {
-                    let target = assembly_blocks
-                        .iter()
-                        .find(|(source, _)| source == handle)
-                        .map(|(_, target)| *target)
-                        .expect("assembly window copying includes its owning header");
-                    StatementNode::Assembly(AssemblyControlPoint::Label(target))
-                }
-                StatementNode::RootBinding(binding) => StatementNode::RootBinding(RootBinding {
-                    receiver: target_expressions.copy_from(source_expressions, binding.receiver),
-                    implementation_operand: if binding.implementation_operand.is_valid() {
-                        target_expressions
-                            .copy_from(source_expressions, binding.implementation_operand)
-                    } else {
-                        crate::expression::ExpressionHandle::invalid()
-                    },
-                    ..binding.clone()
-                }),
-                StatementNode::AssemblyFact(fact) => {
-                    StatementNode::AssemblyFact(TableAssemblyFact {
-                        kind: fact.kind,
-                        expression: target_expressions
-                            .copy_from(source_expressions, fact.expression),
-                    })
-                }
-                StatementNode::Assignment(assignment) => {
-                    StatementNode::Assignment(TableAssignment {
-                        target: target_expressions.copy_from(source_expressions, assignment.target),
-                        value: target_expressions.copy_from(source_expressions, assignment.value),
-                        receiving_type: crate::types::TypeReferenceHandle::invalid(),
-                    })
-                }
-                StatementNode::Call(call) => {
-                    let receiver = self
-                        .name_path_members
-                        .insert_many(source.name_path_members(call.receiver).iter().cloned());
-                    let arguments = call
-                        .arguments
-                        .is_empty()
-                        .then(HandleSpan::empty)
-                        .unwrap_or_else(|| {
-                            self.expression_handles.insert_many(
-                                source
-                                    .expression_handles(call.arguments)
-                                    .iter()
-                                    .map(|argument| {
-                                        target_expressions.copy_from(source_expressions, *argument)
-                                    }),
-                            )
-                        });
-                    let (authored_machine_application, static_requirement_dispatch) =
-                        target_expressions.copy_call_static_applications_from(
-                            source_expressions,
-                            call.authored_machine_application,
-                            call.static_requirement_dispatch.clone(),
-                        );
-                    StatementNode::Call(TableCall {
-                        authored_machine_application,
-                        static_machine_parameter: call.static_machine_parameter,
-                        receiver_root_symbol: call.receiver_root_symbol,
-                        receiver_symbol: call.receiver_symbol,
-                        target_symbol: call.target_symbol,
-                        receiver,
-                        target: call.target.clone(),
-                        static_requirement_dispatch,
-                        machine_arguments: call.machine_arguments.clone(),
-                        arguments,
-                        evidence_arguments: call.evidence_arguments.clone(),
-                        operational_acknowledgement: call.operational_acknowledgement,
-                        discards_result: call.discards_result,
-                        source_span: call.source_span,
-                        authored_call_selection: call.authored_call_selection,
-                    })
-                }
-                StatementNode::Expression(expression) => StatementNode::Expression(
-                    target_expressions.copy_from(source_expressions, *expression),
-                ),
-                StatementNode::LocalData(local) => {
-                    let type_reference = local.type_reference.is_valid().then(|| {
-                        target_types.copy_from(
-                            source_types,
-                            source_expressions,
-                            target_expressions,
-                            local.type_reference,
-                        )
-                    });
-                    let initial_value = local.initial_value.is_valid().then(|| {
-                        target_expressions.copy_from(source_expressions, local.initial_value)
-                    });
-                    StatementNode::LocalData(TableLocalData {
-                        role: local.role,
-                        symbol: local.symbol,
-                        name: local.name.clone(),
-                        type_reference: type_reference
-                            .unwrap_or_else(crate::types::TypeReferenceHandle::invalid),
-                        initial_value: initial_value
-                            .unwrap_or_else(crate::expression::ExpressionHandle::invalid),
-                        is_mutable: local.is_mutable,
-                        type_is_inferred: local.type_is_inferred,
-                        is_operand_capture: local.is_operand_capture,
-                        relevance: local.relevance,
-                    })
-                }
-                StatementNode::Transition(transition) => {
-                    let target = self.copy_transition_target_deep_from(
-                        source,
-                        source_expressions,
-                        target_expressions,
-                        transition.target,
-                    );
-                    let continuation = self.copy_transition_target_deep_from(
-                        source,
-                        source_expressions,
-                        target_expressions,
-                        transition.continuation,
-                    );
-                    let guard = match transition.guard {
-                        TransitionGuardNode::Always => TransitionGuardNode::Always,
-                        TransitionGuardNode::When(guard) => TransitionGuardNode::When(
-                            target_expressions.copy_from(source_expressions, guard),
-                        ),
-                    };
-                    StatementNode::Transition(TableTransition {
-                        target,
-                        continuation,
-                        guard,
-                        proof_selectors: self.outcome_proof_selectors.insert_many(
-                            source
-                                .outcome_proof_selectors(transition.proof_selectors)
-                                .iter()
-                                .cloned(),
-                        ),
-                        exit: transition.exit,
-                        source_span: transition.source_span,
-                    })
-                }
-            };
-            copied.push(statement);
-        }
-
-        self.insert_statements(copied)
-    }
-
-    fn copy_transition_target_deep_from(
+    pub(super) fn copy_transition_target_deep_from(
         &mut self,
         source: &StatementTable,
         source_expressions: &crate::expression::ExpressionTable,
@@ -425,83 +253,7 @@ impl StatementTable {
         self.insert_transition_target(target)
     }
 
-    /// Remap lexical symbols in a copied statement graph. Expression and type
-    /// payloads are delegated to their owning tables so no arena internals
-    /// escape this representation layer.
-    pub fn remap_symbols_in(
-        &mut self,
-        statements: HandleSpan<StatementNode>,
-        expressions: &mut crate::expression::ExpressionTable,
-        types: &mut crate::types::TypeReferenceTable,
-        symbols: &[(SymbolHandle, SymbolHandle)],
-    ) {
-        let statement_handles: Vec<_> = statements.handles().collect();
-        for handle in statement_handles {
-            let statement = self.statement(handle).clone();
-            match statement {
-                StatementNode::Assembly(_) => {} // Control metadata has no lexical value operands.
-                StatementNode::RootBinding(binding) => {
-                    expressions.remap_symbols_in(binding.receiver, symbols);
-                    if binding.implementation_operand.is_valid() {
-                        expressions.remap_symbols_in(binding.implementation_operand, symbols);
-                    }
-                }
-                StatementNode::AssemblyFact(fact) => {
-                    expressions.remap_symbols_in(fact.expression, symbols);
-                }
-                StatementNode::Assignment(assignment) => {
-                    expressions.remap_symbols_in(assignment.target, symbols);
-                    expressions.remap_symbols_in(assignment.value, symbols);
-                    if let StatementNode::Assignment(copied) = self.statement_mut(handle) {
-                        copied.receiving_type = crate::types::TypeReferenceHandle::invalid();
-                    }
-                }
-                StatementNode::Call(call) => {
-                    expressions.remap_call_static_applications(
-                        call.authored_machine_application,
-                        call.static_requirement_dispatch.as_ref(),
-                        symbols,
-                    );
-                    for argument in self.expression_handles(call.arguments).to_vec() {
-                        expressions.remap_symbols_in(argument, symbols);
-                    }
-                    let StatementNode::Call(current) = self.statements.get_mut(handle) else {
-                        unreachable!();
-                    };
-                    current.receiver_symbol = remapped(current.receiver_symbol, symbols);
-                    current.receiver_root_symbol = remapped(current.receiver_root_symbol, symbols);
-                    current.target_symbol = remapped(current.target_symbol, symbols);
-                    for argument in &mut current.machine_arguments {
-                        argument.remap_symbols(symbols);
-                    }
-                }
-                StatementNode::Expression(expression) => {
-                    expressions.remap_symbols_in(expression, symbols);
-                }
-                StatementNode::LocalData(local) => {
-                    types.remap_symbols_in(local.type_reference, expressions, symbols);
-                    expressions.remap_symbols_in(local.initial_value, symbols);
-                    let StatementNode::LocalData(current) = self.statements.get_mut(handle) else {
-                        unreachable!();
-                    };
-                    current.symbol = remapped(current.symbol, symbols);
-                }
-                StatementNode::Transition(transition) => {
-                    self.remap_transition_target_symbols(transition.target, expressions, symbols);
-                    self.remap_transition_target_symbols(
-                        transition.continuation,
-                        expressions,
-                        symbols,
-                    );
-                    if let TransitionGuardNode::When(guard) = transition.guard {
-                        expressions.remap_symbols_in(guard, symbols);
-                    }
-                }
-            }
-        }
-    }
-
-    fn remap_transition_target_symbols(
+    pub(super) fn remap_transition_target_symbols(
         &mut self,
         target: TransitionTargetHandle,
         expressions: &mut crate::expression::ExpressionTable,
@@ -621,61 +373,6 @@ impl StatementTable {
     /// A source terminal must not be confused with the arena's dummy terminal.
     pub fn transition_target_is_valid(&self, handle: TransitionTargetHandle) -> bool {
         self.transition_targets.is_valid(handle)
-    }
-
-    /// Every expression root `statement` carries, in authored order, with
-    /// the part of the statement it fills. A root the statement may omit (a
-    /// static binding's implementation operand, an absent initializer) keeps
-    /// its invalid handle; callers filter by role and validity as they need.
-    pub fn expression_roots(
-        &self,
-        statement: &StatementNode,
-    ) -> Vec<(StatementRootRole, crate::expression::ExpressionHandle)> {
-        use StatementRootRole as Role;
-        let mut roots = Vec::new();
-        match statement {
-            StatementNode::Assembly(_) => {} // Owned instructions follow in the lexical window.
-            StatementNode::RootBinding(binding) => {
-                roots.push((Role::BindingReceiver, binding.receiver));
-                roots.push((Role::BindingImplementation, binding.implementation_operand));
-            }
-            StatementNode::AssemblyFact(fact) => roots.push((Role::AssemblyFact, fact.expression)),
-            StatementNode::Assignment(assignment) => {
-                roots.push((Role::AssignmentTarget, assignment.target));
-                roots.push((Role::AssignmentValue, assignment.value));
-            }
-            StatementNode::Call(call) => roots.extend(
-                self.expression_handles(call.arguments)
-                    .iter()
-                    .map(|argument| (Role::CallArgument, *argument)),
-            ),
-            StatementNode::Expression(expression) => roots.push((Role::Expression, *expression)),
-            StatementNode::LocalData(local) => {
-                roots.push((Role::LocalInitializer, local.initial_value));
-            }
-            StatementNode::Transition(transition) => {
-                if let TransitionGuardNode::When(guard) = transition.guard {
-                    roots.push((Role::TransitionGuard, guard));
-                }
-                for target in [transition.target, transition.continuation] {
-                    if !self.transition_target_is_valid(target) {
-                        continue;
-                    }
-                    match self.transition_target(target) {
-                        TransitionTargetNode::Named { arguments, .. } => roots.extend(
-                            self.expression_handles(*arguments)
-                                .iter()
-                                .map(|argument| (Role::TransitionArgument, *argument)),
-                        ),
-                        TransitionTargetNode::Value(value) => {
-                            roots.push((Role::TransitionValue, *value));
-                        }
-                        TransitionTargetNode::Terminal => {}
-                    }
-                }
-            }
-        }
-        roots
     }
 
     pub fn statement_count(&self) -> usize {
@@ -807,7 +504,7 @@ impl StatementNode {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TableAssemblyFact {
     pub kind: AssemblyFactKind,
-    pub expression: crate::expression::ExpressionHandle,
+    pub fact: Handle<crate::domain::ProofFact>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

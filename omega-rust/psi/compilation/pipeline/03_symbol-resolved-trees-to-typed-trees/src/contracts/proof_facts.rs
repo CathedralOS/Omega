@@ -1,9 +1,7 @@
 mod domain_selections;
 pub(crate) use domain_selections::normalize as normalize_membership_selections;
 
-use crate::expressions::expression::{
-    lower_expression_handle_from_table, lower_expression_handle_from_table_in_fact_position,
-};
+use crate::expressions::expression::lower_expression_handle_from_table;
 use crate::lowerer::Lowerer;
 use crate::lowerer::name::lower_name;
 use crate::type_reference::domain_aliases::expand_domain_reference;
@@ -25,44 +23,11 @@ pub(crate) fn lower_proof_facts(
         let source_span = lowerer.source_trees.proof_fact_source_span(source_fact);
         match fact {
             resolved::domain::ProofFact::Expression(expression) => {
-                if let resolved::expression::ExpressionNode::Call(call) = lowerer
-                    .source_trees
-                    .tables
-                    .bodies
-                    .expressions
-                    .expression(*expression)
-                    && call.target_symbol.is_valid()
-                    && matches!(
-                        lowerer.source_trees.symbols.get(call.target_symbol).kind,
-                        symbols::SymbolKind::Proposition
-                            | symbols::SymbolKind::PropositionParameter
-                    )
-                {
-                    let application =
-                        crate::expressions::proposition::lower_proposition_application(
-                            lowerer, call,
-                        )?;
-                    let handle = lowerer.typed_trees.proof_facts.append_to_span(
-                        &mut lowered,
-                        typed::domain::ProofFact::Proposition(application),
-                    );
-                    if let Some(source_span) = source_span {
-                        lowerer
-                            .typed_trees
-                            .set_proof_fact_source_span(handle, source_span);
-                    }
-                    continue;
-                }
-                let expression = lower_expression_handle_from_table_in_fact_position(
-                    lowerer.source_trees,
-                    &lowerer.source_trees.tables.bodies.expressions,
-                    &mut lowerer.typed_trees,
-                    *expression,
-                )?;
-                let handle = lowerer.typed_trees.proof_facts.append_to_span(
-                    &mut lowered,
-                    typed::domain::ProofFact::Expression(expression),
-                );
+                let fact = lower_expression_fact(lowerer, *expression)?;
+                let handle = lowerer
+                    .typed_trees
+                    .proof_facts
+                    .append_to_span(&mut lowered, fact);
                 if let Some(source_span) = source_span {
                     lowerer
                         .typed_trees
@@ -292,4 +257,43 @@ pub(crate) fn lower_signature_contract(
         facts,
         token_count: contract.token_count,
     })
+}
+
+/// A fact expression has proof semantics even when authored inside a state body.
+pub(crate) fn lower_expression_fact(
+    lowerer: &mut Lowerer,
+    expression: resolved::expression::ExpressionHandle,
+) -> Result<typed::domain::ProofFact, Diagnostic> {
+    if let resolved::expression::ExpressionNode::Call(call) = lowerer
+        .source_trees
+        .tables
+        .bodies
+        .expressions
+        .expression(expression)
+        && call.target_symbol.is_valid()
+        && matches!(
+            lowerer.source_trees.symbols.get(call.target_symbol).kind,
+            symbols::SymbolKind::Proposition | symbols::SymbolKind::PropositionParameter
+        )
+    {
+        return crate::expressions::proposition::lower_proposition_application(lowerer, call)
+            .map(typed::domain::ProofFact::Proposition);
+    }
+    crate::expressions::expression::lower_fact_expression(lowerer, expression)
+        .map(typed::domain::ProofFact::Expression)
+}
+pub(crate) fn lower_statement_fact(
+    lowerer: &mut Lowerer,
+    expression: resolved::expression::ExpressionHandle,
+) -> Result<arena::Handle<typed::domain::ProofFact>, Diagnostic> {
+    let span = lowerer
+        .source_trees
+        .tables
+        .bodies
+        .expressions
+        .source_span(expression);
+    let fact = lower_expression_fact(lowerer, expression)?;
+    let handle = lowerer.typed_trees.proof_facts.insert(fact);
+    lowerer.typed_trees.set_proof_fact_source_span(handle, span);
+    Ok(handle)
 }

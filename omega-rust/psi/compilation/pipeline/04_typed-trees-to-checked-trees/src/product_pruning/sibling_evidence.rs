@@ -121,7 +121,9 @@ fn collect_statement(
             }
         }
         StatementNode::AssemblyFact(fact) => {
-            collect_expression(program, expressions, fact.expression);
+            for expression in program.tables.proof_fact_expression_roots(fact.fact) {
+                collect_expression(program, expressions, expression);
+            }
         }
         StatementNode::Assignment(assignment) => {
             collect_expression(program, expressions, assignment.target);

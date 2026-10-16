@@ -355,7 +355,7 @@ fn statement_expression_roots(
     use typed_trees::statement::StatementRootRole as Role;
     roots.extend(
         program
-            .statement_table
+            .tables
             .expression_roots(statement)
             .into_iter()
             .filter(|(role, root)| match role {

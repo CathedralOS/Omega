@@ -159,7 +159,7 @@ pub fn land_float_literal_destinations(program: &mut TypedTrees) {
                 &mut pairs,
             );
             for statement in program.statement_table.statements(state.statement_nodes) {
-                for (_, expression) in program.statement_table.expression_roots(statement) {
+                for (_, expression) in program.tables.expression_roots(statement) {
                     collect_comparison_pairs(
                         program,
                         expression,

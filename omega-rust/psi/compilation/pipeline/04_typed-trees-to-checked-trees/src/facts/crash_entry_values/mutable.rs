@@ -322,9 +322,13 @@ fn statement_may_overwrite(
                         read_path,
                     ))
         }
-        StatementNode::AssemblyFact(fact) => {
-            expression_may_overwrite(program, machine_symbol, fact.expression, symbol, read_path)
-        }
+        StatementNode::AssemblyFact(fact) => program
+            .tables
+            .proof_fact_expression_roots(fact.fact)
+            .into_iter()
+            .any(|expression| {
+                expression_may_overwrite(program, machine_symbol, expression, symbol, read_path)
+            }),
         StatementNode::Expression(expression) => {
             expression_may_overwrite(program, machine_symbol, *expression, symbol, read_path)
         }

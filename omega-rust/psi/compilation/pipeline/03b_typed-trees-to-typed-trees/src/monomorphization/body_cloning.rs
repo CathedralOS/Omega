@@ -499,15 +499,10 @@ pub(super) fn clone_single_specialized_machine(
         state.return_type =
             copy_type_reference(source, program, source_state.return_type, &symbol_map);
         state.statement_nodes = copy_statements(source, program, source_state.statement_nodes);
-        {
-            let tables = &mut program.tables;
-            tables.statement_table.remap_symbols_in(
-                state.statement_nodes,
-                &mut tables.expression_table,
-                &mut tables.type_reference_table,
-                &symbol_map,
-            );
-        }
+        program
+            .tables
+            .remap_statement_symbols(state.statement_nodes, &symbol_map);
+
         // Executable uses of a runtime-bound `Value` binder read the realized
         // parameter. The plain map intentionally leaves binder symbols in type
         // and contract positions alone: those are static contexts, and the
@@ -890,34 +885,15 @@ pub(super) fn copy_statements(
     statements: HandleSpan<StatementNode>,
 ) -> HandleSpan<StatementNode> {
     if let Some(source) = source {
-        let tables = &mut program.tables;
-        return tables.statement_table.copy_statement_nodes_deep_from(
-            &source.statement_table,
-            &source.expression_table,
-            &mut tables.expression_table,
-            &source.type_reference_table,
-            &mut tables.type_reference_table,
-            statements,
-        );
+        return program
+            .tables
+            .copy_statement_nodes_deep_from(&source.typed_program().tables, statements);
     }
     let mut staging = typed_trees::typed_trees::TypedTreeTables::default();
-    let staged = staging.statement_table.copy_statement_nodes_deep_from(
-        &program.statement_table,
-        &program.expression_table,
-        &mut staging.expression_table,
-        &program.type_reference_table,
-        &mut staging.type_reference_table,
-        statements,
-    );
-    let tables = &mut program.tables;
-    tables.statement_table.copy_statement_nodes_deep_from(
-        &staging.statement_table,
-        &staging.expression_table,
-        &mut tables.expression_table,
-        &staging.type_reference_table,
-        &mut tables.type_reference_table,
-        staged,
-    )
+    let staged = staging.copy_statement_nodes_deep_from(&program.tables, statements);
+    program
+        .tables
+        .copy_statement_nodes_deep_from(&staging, staged)
 }
 
 pub(super) fn copy_expression(

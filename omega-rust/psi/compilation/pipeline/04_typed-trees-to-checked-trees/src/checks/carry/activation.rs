@@ -200,7 +200,11 @@ impl ActivationCarryAccumulator<'_> {
                 self.visit_expression(binding.receiver);
                 self.visit_expression(binding.implementation_operand);
             }
-            StatementNode::AssemblyFact(fact) => self.visit_expression(fact.expression),
+            StatementNode::AssemblyFact(fact) => {
+                for expression in self.program.tables.proof_fact_expression_roots(fact.fact) {
+                    self.visit_expression(expression);
+                }
+            }
             StatementNode::Assignment(assignment) => {
                 self.visit_expression(assignment.target);
                 self.visit_expression(assignment.value);

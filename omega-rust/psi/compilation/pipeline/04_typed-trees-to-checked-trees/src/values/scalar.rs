@@ -60,6 +60,7 @@ pub(crate) use expression_plans::{
 };
 pub(crate) use machine_parameter_booleans::{
     lower_machine_parameter_boolean_expression, lower_parameter_boolean_expression,
+    lower_parameter_scalar_expression,
 };
 pub(crate) use result_contract::{
     lower_callable_parameter_range_requirements, lower_callable_scalar_contract_predicate,

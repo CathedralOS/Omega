@@ -133,7 +133,7 @@ pub(crate) fn sites(
     }
     let table = &program.expression_table;
     let mut pending: Vec<_> = program
-        .statement_table
+        .tables
         .expression_roots(statement)
         .into_iter()
         .map(|(_, root)| root)

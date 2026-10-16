@@ -497,7 +497,7 @@ fn statement_expression_roots(
         .statement_table
         .statements(state.statement_nodes)
         .iter()
-        .flat_map(|statement| program.statement_table.expression_roots(statement))
+        .flat_map(|statement| program.tables.expression_roots(statement))
         .map(|(_, root)| root)
         .collect()
 }

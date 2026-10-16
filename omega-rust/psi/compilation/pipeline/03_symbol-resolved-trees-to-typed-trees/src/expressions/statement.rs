@@ -93,7 +93,10 @@ fn lower_statement_node(
                         typed::statement::AssemblyFactKind::Ensures
                     }
                 },
-                expression: lower_statement_expression(lowerer, fact.expression)?,
+                fact: crate::contracts::proof_facts::lower_statement_fact(
+                    lowerer,
+                    fact.expression,
+                )?,
             }),
         ),
         resolved::statement::StatementNode::Assignment(assignment) => Ok(

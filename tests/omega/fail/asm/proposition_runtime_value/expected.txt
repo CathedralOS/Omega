@@ -1,0 +1,1 @@
+a proposition application is proof-only and cannot appear in a runtime value expression

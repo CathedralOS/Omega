@@ -118,12 +118,13 @@ pass/arrays/runtime_completed_array_window_replacement_exit built 6899ms exit:0 
 pass/arrays/runtime_computed_float_element_store_exit built 33700ms exit:70 @6c49683ce714
 pass/arrays/runtime_index_recast checked 20708ms @6c49683ce714
 pass/arrays/subject_field_where_index checked 17635ms @6c49683ce714
-pass/asm/checked_label_borrow_last_use_exit built 6789ms exit:0 @9f1c8cc89b93+wt
-pass/asm/checked_label_call_result_exit built 6778ms exit:0 @9f1c8cc89b93+wt
-pass/asm/checked_label_edges_exit built 7125ms exit:0 @9f1c8cc89b93+wt
-pass/asm/checked_label_reverse_local_exit built 7131ms exit:0 @9f1c8cc89b93+wt
-pass/asm/checked_label_specialization_exit built 7498ms exit:0 @9f1c8cc89b93+wt
-pass/asm/checked_label_transition_exit built 7324ms exit:0 @9f1c8cc89b93+wt
+pass/asm/checked_label_borrow_last_use_exit built 8141ms exit:0 @6d0b8da07bdd+wt
+pass/asm/checked_label_call_result_exit built 8114ms exit:0 @6d0b8da07bdd+wt
+pass/asm/checked_label_edges_exit built 8080ms exit:0 @6d0b8da07bdd+wt
+pass/asm/checked_label_reverse_local_exit built 8096ms exit:0 @6d0b8da07bdd+wt
+pass/asm/checked_label_specialization_exit built 7782ms exit:0 @6d0b8da07bdd+wt
+pass/asm/checked_label_transition_exit built 7643ms exit:0 @6d0b8da07bdd+wt
+pass/asm/proposition_label_contracts_exit built 7293ms exit:0 @6d0b8da07bdd+wt
 pass/atomics/atomic_global_order_operations checked 3600ms @6c49683ce714
 pass/atomics/atomic_order_surface checked 18279ms @6c49683ce714
 pass/atomics/runtime_atomic_after_quoted_write_exit built 33485ms exit:70 @326ed531359e+wt

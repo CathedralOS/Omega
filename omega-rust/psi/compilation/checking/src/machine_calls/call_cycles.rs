@@ -291,7 +291,9 @@ fn collect_statement_dependency_symbols(
             }
         }
         StatementNode::AssemblyFact(fact) => {
-            collect_expression_dependency_symbols(program, fact.expression, symbols)
+            for expression in program.tables.proof_fact_expression_roots(fact.fact) {
+                collect_expression_dependency_symbols(program, expression, symbols);
+            }
         }
         StatementNode::Assignment(assignment) => {
             collect_expression_dependency_symbols(program, assignment.target, symbols);

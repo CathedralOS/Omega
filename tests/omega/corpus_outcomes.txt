@@ -314,25 +314,39 @@ fail/arrays/qualified_array_literal_rejects_element_policy_conversion rejected 8
 	store in array literal element of type `u32` implicitly converts `u32 in Saturating` to `u32 in Wrapping` (implicit domain weakening); a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u32 in Wrapping`)
 fail/arrays/window_copy_preserves_inherited_element_policy rejected 316ms expected @308fbdc54ba0
 	array window replacement source must preserve the complete destination element type, including its qualifications
-fail/asm/backward_write_stale_ensures rejected 1050ms expected @9f1c8cc89b93+wt
+fail/asm/backward_write_stale_ensures rejected 1154ms expected @6d0b8da07bdd+wt
 	cannot prove asm `ensures` fact at block exit in Subject::change state `change` (statement 5): subject.ready
-fail/asm/borrow_read_after_backward_write rejected 1128ms expected @9f1c8cc89b93+wt
+fail/asm/borrow_read_after_backward_write rejected 1165ms expected @6d0b8da07bdd+wt
 	statement 6 mutates `main.cell.value` while local borrow `borrowed` is still active (borrowed at statement 1; its last use is at statement 7)
-fail/asm/cyclic_label rejected 171ms expected @9f1c8cc89b93+wt
+fail/asm/cyclic_label rejected 146ms expected @6d0b8da07bdd+wt
 	cyclic assembly label control in `Main::main` state `main` requires checked loop invariants; this control domain is not yet implemented
-fail/asm/duplicate_label rejected 7ms expected @9f1c8cc89b93+wt
+fail/asm/duplicate_label rejected 0ms expected @6d0b8da07bdd+wt
 	tests/omega/fail/asm/duplicate_label/main.omg:15:5: assembly label `entry` is declared more than once
-fail/asm/requires_after_prior_block_write rejected 1066ms expected @9f1c8cc89b93+wt
+fail/asm/proposition_missing_premise rejected 1167ms expected @6d0b8da07bdd+wt
+	cannot prove asm `requires` fact at block entry in observe state `entry` (statement 2): proposition:fact:ready(value)
+fail/asm/proposition_prior_write_invalidates_requires rejected 1147ms expected @6d0b8da07bdd+wt
+	cannot prove asm `requires` fact at block entry in change state `entry` (statement 5): proposition:fact:ready(subject.value)
+fail/asm/proposition_runtime_value rejected 54ms expected @6d0b8da07bdd+wt
+	a proposition application is proof-only and cannot appear in a runtime value expression
+fail/asm/proposition_transfer_invalidates_ensures rejected 1020ms expected @6d0b8da07bdd+wt
+	cannot prove asm `ensures` fact at block exit in Subject::transfer state `transfer` (statement 2): proposition:fact:ready(subject.ready)
+fail/asm/proposition_write_invalidates_ensures rejected 1180ms expected @6d0b8da07bdd+wt
+	cannot prove asm `ensures` fact at block exit in change state `entry` (statement 3): proposition:fact:ready(subject.value)
+fail/asm/proposition_wrong_argument_type rejected 296ms expected @6d0b8da07bdd+wt
+	machine `main` state `entry` asm contract proposition `ready` argument 1 does not match parameter `value` type `i32`
+fail/asm/proposition_wrong_transparent_exit rejected 1213ms expected @6d0b8da07bdd+wt
+	cannot prove asm `ensures` fact at block exit in change state `entry` (statement 3): boolean:subject.value > 0
+fail/asm/requires_after_prior_block_write rejected 1244ms expected @6d0b8da07bdd+wt
 	cannot prove asm `requires` fact at block entry in Subject::change state `change` (statement 5): subject.ready
-fail/asm/skipped_type_error rejected 283ms expected @9f1c8cc89b93+wt
+fail/asm/skipped_type_error rejected 325ms expected @6d0b8da07bdd+wt
 	machine `Main::main` state `main` assignment stores a boolean into a `u64` place, which holds a numeric value
-fail/asm/transition_argument_invalidates_exit_fact rejected 1120ms expected @9f1c8cc89b93+wt
+fail/asm/transition_argument_invalidates_exit_fact rejected 1268ms expected @6d0b8da07bdd+wt
 	cannot prove asm `ensures` fact at block exit in Main::main state `main` (statement 4): main.ready
-fail/asm/undefined_label rejected 1ms expected @9f1c8cc89b93+wt
+fail/asm/undefined_label rejected 0ms expected @6d0b8da07bdd+wt
 	tests/omega/fail/asm/undefined_label/main.omg:15:5: assembly jump names undeclared label `absent`
-fail/asm/wrong_label_entry_fact rejected 1187ms expected @9f1c8cc89b93+wt
+fail/asm/wrong_label_entry_fact rejected 1223ms expected @6d0b8da07bdd+wt
 	cannot prove asm `requires` fact at block entry in Main::main state `main` (statement 8): main.output == 99
-fail/asm/wrong_label_exit_fact rejected 1094ms expected @9f1c8cc89b93+wt
+fail/asm/wrong_label_exit_fact rejected 1178ms expected @6d0b8da07bdd+wt
 	cannot prove asm `ensures` fact at block exit in Main::main state `main` (statement 10): main.output == 99
 fail/atomics/atomic_boolean_expected rejected 221ms expected @e460ea1df091+wt
 	machine `replace` state `entry` assignment stores a boolean into a `u32` place, which holds a numeric value
@@ -5487,12 +5501,13 @@ pass/arrays/runtime_completed_array_window_replacement_exit checked 6861ms check
 pass/arrays/runtime_computed_float_element_store_exit checked 12987ms check-target:macos_arm64 @589aedee8ebc+wt
 pass/arrays/runtime_index_recast checked 12378ms @5041ef1af684+wt
 pass/arrays/subject_field_where_index checked 9537ms @5041ef1af684+wt
-pass/asm/checked_label_borrow_last_use_exit checked 6782ms check-target:linux_x86_64 @9f1c8cc89b93+wt
-pass/asm/checked_label_call_result_exit checked 6675ms check-target:linux_x86_64 @9f1c8cc89b93+wt
-pass/asm/checked_label_edges_exit checked 7124ms check-target:linux_x86_64 @9f1c8cc89b93+wt
-pass/asm/checked_label_reverse_local_exit checked 7134ms check-target:linux_x86_64 @9f1c8cc89b93+wt
-pass/asm/checked_label_specialization_exit checked 7500ms check-target:linux_x86_64 @9f1c8cc89b93+wt
-pass/asm/checked_label_transition_exit checked 7333ms check-target:linux_x86_64 @9f1c8cc89b93+wt
+pass/asm/checked_label_borrow_last_use_exit checked 8156ms check-target:linux_x86_64 @6d0b8da07bdd+wt
+pass/asm/checked_label_call_result_exit checked 8098ms check-target:linux_x86_64 @6d0b8da07bdd+wt
+pass/asm/checked_label_edges_exit checked 8127ms check-target:linux_x86_64 @6d0b8da07bdd+wt
+pass/asm/checked_label_reverse_local_exit checked 8130ms check-target:linux_x86_64 @6d0b8da07bdd+wt
+pass/asm/checked_label_specialization_exit checked 7802ms check-target:linux_x86_64 @6d0b8da07bdd+wt
+pass/asm/checked_label_transition_exit checked 7653ms check-target:linux_x86_64 @6d0b8da07bdd+wt
+pass/asm/proposition_label_contracts_exit checked 7299ms check-target:linux_x86_64 @6d0b8da07bdd+wt
 pass/atomics/atomic_global_order_operations checked 1566ms @a9ae30e1c334+wt
 pass/atomics/atomic_order_surface checked 9337ms @5041ef1af684+wt
 pass/atomics/runtime_atomic_after_quoted_write_exit checked 10962ms check-target:macos_arm64 @a9ae30e1c334+wt

@@ -1,7 +1,8 @@
 //! Type one lexical assembly graph. Instruction and assertion nodes remain
 //! in the enclosing statement window; explicit block metadata retains control.
 
-use super::{arguments::lower_statement_expression, lower_statement_node};
+use super::lower_statement_node;
+use crate::contracts::proof_facts::lower_statement_fact;
 use crate::lowerer::Lowerer;
 use arena::Handle;
 use diagnostics::Diagnostic;
@@ -27,22 +28,22 @@ pub(crate) fn lower(
             .assembly_expressions
             .span_or_empty(block.requires)
             .iter()
-            .map(|expression| lower_statement_expression(lowerer, *expression))
+            .map(|expression| lower_statement_fact(lowerer, *expression))
             .collect::<Result<Vec<_>, _>>()?;
         let ensures = declarations
             .assembly_expressions
             .span_or_empty(block.ensures)
             .iter()
-            .map(|expression| lower_statement_expression(lowerer, *expression))
+            .map(|expression| lower_statement_fact(lowerer, *expression))
             .collect::<Result<Vec<_>, _>>()?;
         // A label is a control point, not an assertion or a cleanup boundary.
         body.push(StatementNode::Assembly(AssemblyControlPoint::Label(
             Handle::invalid(),
         )));
-        body.extend(requires.into_iter().map(|expression| {
+        body.extend(requires.into_iter().map(|fact| {
             StatementNode::AssemblyFact(TableAssemblyFact {
                 kind: AssemblyFactKind::Requires,
-                expression,
+                fact,
             })
         }));
         let mut instructions = lowerer
@@ -65,10 +66,10 @@ pub(crate) fn lower(
             None
         };
         body.extend(instructions);
-        body.extend(ensures.into_iter().map(|expression| {
+        body.extend(ensures.into_iter().map(|fact| {
             StatementNode::AssemblyFact(TableAssemblyFact {
                 kind: AssemblyFactKind::Ensures,
-                expression,
+                fact,
             })
         }));
         body.extend(transfer);

@@ -184,3 +184,16 @@ pub(crate) fn lower_static_machine_argument(
     }
     Ok(selected)
 }
+
+pub(crate) fn lower_fact_expression(
+    lowerer: &mut Lowerer,
+    expression: resolved::expression::ExpressionHandle,
+) -> Result<typed::expression::ExpressionHandle, Diagnostic> {
+    table::lower_scoped_fact_expression(
+        lowerer.source_trees,
+        &lowerer.source_trees.tables.bodies.expressions,
+        &mut lowerer.typed_trees,
+        expression,
+        lowerer.equality_scope.as_ref(),
+    )
+}

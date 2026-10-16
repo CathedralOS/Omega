@@ -81,19 +81,39 @@ pub(super) fn live_contexts_prove_boolean_expression(
     contexts: &[facts::FactContextHandle],
     expression: typed_trees::expression::ExpressionHandle,
 ) -> bool {
+    live_scalar_value(
+        program,
+        facts,
+        state,
+        statement_index,
+        contexts,
+        expression,
+        typed_trees::types::PrimitiveType::Bool,
+    ) == Some(ScalarValue::Boolean(true))
+}
+
+fn live_scalar_value(
+    program: &dyn validation::CheckingInput,
+    facts: &checked_trees::CheckFacts,
+    state: &typed_trees::state::State,
+    statement_index: usize,
+    contexts: &[facts::FactContextHandle],
+    expression: typed_trees::expression::ExpressionHandle,
+    primitive: typed_trees::types::PrimitiveType,
+) -> Option<ScalarValue> {
     let Some(selected) = crate::values::lower_unit_scalar_argument(
         program,
         &facts.operators,
         state,
         statement_index,
         expression,
-        typed_trees::types::PrimitiveType::Bool,
+        primitive,
     ) else {
-        return false;
+        return None;
     };
     let Some(symbols) = crate::values::unit_scalar_binding_symbols(program, state, statement_index)
     else {
-        return false;
+        return None;
     };
     let semantic = &facts.semantic;
     let mut values = crate::values::PlaceScalarValues {
@@ -112,7 +132,6 @@ pub(super) fn live_contexts_prove_boolean_expression(
         },
     };
     crate::values::evaluate_checked_scalar(&selected, &mut values)
-        == Some(ScalarValue::Boolean(true))
 }
 
 pub(super) fn call_entry_contexts_prove_boolean_contract_expression(
@@ -472,3 +491,6 @@ pub(crate) fn contexts_prove_proposition_label(
                 })
     })
 }
+
+mod propositions;
+pub(super) use propositions::live_contexts_prove_proposition_application;

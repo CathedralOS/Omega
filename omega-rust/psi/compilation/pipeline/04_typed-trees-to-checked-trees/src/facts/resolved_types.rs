@@ -35,7 +35,7 @@ pub(crate) fn resolve_program_types(program: &dyn validation::CheckingInput) -> 
             for statement in program.statement_table.statements(state.statement_nodes) {
                 pending.extend(
                     program
-                        .statement_table
+                        .tables
                         .expression_roots(statement)
                         .into_iter()
                         .map(|(_, expression)| expression),

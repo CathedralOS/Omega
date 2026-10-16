@@ -167,7 +167,7 @@ pub(crate) fn collect_checked_proof_view_call_selections(
                 let Some(fact) = statement.as_assembly_fact() else {
                     continue;
                 };
-                fact_roots.push(fact.expression);
+                fact_roots.extend(program.tables.proof_fact_expression_roots(fact.fact));
             }
         }
     }

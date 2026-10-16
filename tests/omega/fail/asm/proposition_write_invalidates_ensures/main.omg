@@ -1,0 +1,6 @@
+proposition ready(value: i32);
+data Subject { value: i32; }
+machine change(subject: &mut Subject)
+requires ready(subject.value);
+{ asm where ensures ready(subject.value) { mov subject.value, 9 } }
+machine main() {}

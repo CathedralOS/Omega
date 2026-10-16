@@ -121,12 +121,14 @@ pub(crate) fn validate_proof_embeddings(
             for state in program.machine_states(machine) {
                 for statement in program.statement_table.statements(state.statement_nodes) {
                     if let Some(fact) = statement.as_assembly_fact() {
-                        collect_expression_nodes(
-                            program,
-                            fact.expression,
-                            &mut proof_nodes,
-                            &mut proof_seen,
-                        );
+                        for expression in program.tables.proof_fact_expression_roots(fact.fact) {
+                            collect_expression_nodes(
+                                program,
+                                expression,
+                                &mut proof_nodes,
+                                &mut proof_seen,
+                            );
+                        }
                     } else {
                         collect_statement_nodes(
                             program,
@@ -486,7 +488,7 @@ fn collect_statement_nodes(
     // Statement and expression argument spans have distinct arena owners.
     // Borrow the statement table's roots rather than interpreting its handles
     // in the expression table. Static root bindings supply no executable value.
-    for (role, expression) in program.statement_table.expression_roots(statement) {
+    for (role, expression) in program.tables.expression_roots(statement) {
         if matches!(
             role,
             StatementRootRole::BindingReceiver | StatementRootRole::BindingImplementation

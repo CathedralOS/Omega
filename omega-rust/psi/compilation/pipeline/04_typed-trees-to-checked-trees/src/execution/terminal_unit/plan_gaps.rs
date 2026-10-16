@@ -109,9 +109,12 @@ fn statement_site(
             ),
         ),
         StatementNode::Expression(handle) => (CoverageForm::ExpressionForm, expression(*handle)),
-        StatementNode::AssemblyFact(fact) => {
-            (CoverageForm::StatementForm, expression(fact.expression))
-        }
+        StatementNode::AssemblyFact(fact) => (
+            CoverageForm::StatementForm,
+            program
+                .proof_fact_source_span(fact.fact)
+                .unwrap_or_default(),
+        ),
     }
 }
 

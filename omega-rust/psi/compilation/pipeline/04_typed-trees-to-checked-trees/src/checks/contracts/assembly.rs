@@ -1,6 +1,7 @@
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use checked_trees::{CheckFacts, FlowStateFact};
 use diagnostics::Diagnostic;
+use symbols::JoinedPath;
 use typed_trees::statement::{AssemblyFactKind, StatementNode};
 use validation::{CanonicalPlace, canonical_place_from_expression_in_state};
 
@@ -53,7 +54,7 @@ fn check_state_assembly_facts(
                 state.symbol,
                 statements,
                 statement_index,
-                fact.expression,
+                fact.fact,
             );
         // A machine jump evaluates its arguments before taking the edge.
         // Its label exit observes the resulting outgoing frontier, rather
@@ -80,20 +81,15 @@ fn check_state_assembly_facts(
                     .flow
                     .semantic_constraint_contexts(*constraints)
                     .collect::<Vec<_>>();
-                live_contexts_prove_boolean_expression(
+                assembly_fact_is_proven(
                     program,
                     facts,
                     state,
                     *observation,
                     &contexts,
-                    fact.expression,
-                ) || (!invalidated_inside_block
-                    && semantic_contexts_prove_boolean_expression(
-                        program,
-                        &facts.semantic,
-                        &contexts,
-                        fact.expression,
-                    ))
+                    fact.fact,
+                    !invalidated_inside_block,
+                )
             })
         {
             continue;
@@ -107,7 +103,7 @@ fn check_state_assembly_facts(
             "cannot prove asm `{kind}` fact at {point} in {} state `{}` (statement {statement_index}): {}",
             machine_name(program, state_flow.machine_symbol),
             state.name,
-            program.expression_table.display_name(fact.expression),
+            assembly_fact_label(program, fact.fact),
         )));
     }
 }
@@ -152,7 +148,7 @@ fn asm_block_writes_fact_place(
     state_symbol: symbols::SymbolHandle,
     statements: &[StatementNode],
     ensures_index: usize,
-    fact_expression: ExpressionHandle,
+    proof_fact: arena::Handle<typed_trees::domain::ProofFact>,
 ) -> bool {
     let mut instruction_end = ensures_index;
     while instruction_end > 0
@@ -187,13 +183,19 @@ fn asm_block_writes_fact_place(
             )
         })
         .any(|written_place| {
-            expression_reads_overlapping_place(
-                program,
-                state_symbol,
-                ensures_index,
-                fact_expression,
-                &written_place,
-            )
+            program
+                .tables
+                .proof_fact_expression_roots(proof_fact)
+                .into_iter()
+                .any(|expression| {
+                    expression_reads_overlapping_place(
+                        program,
+                        state_symbol,
+                        ensures_index,
+                        expression,
+                        &written_place,
+                    )
+                })
         })
 }
 
@@ -289,4 +291,96 @@ fn expression_place_may_overlap(
                     &written_place.segments,
                 )
         })
+}
+
+fn assembly_fact_label(
+    program: &dyn validation::CheckingInput,
+    handle: arena::Handle<typed_trees::domain::ProofFact>,
+) -> String {
+    match program.proof_facts.get(handle) {
+        typed_trees::domain::ProofFact::Expression(expression) => {
+            program.expression_table.display_name(*expression)
+        }
+        typed_trees::domain::ProofFact::Proposition(application) => program
+            .normalize_proposition_application(application, None)
+            .map(|formula| formula.identity_label())
+            .unwrap_or_else(|| application.name.to_string()),
+        typed_trees::domain::ProofFact::Membership(membership) => format!(
+            "{} in {}",
+            program.expression_table.display_name(membership.value),
+            program.domain_path_members(membership.domain).joined_path()
+        ),
+    }
+}
+fn assembly_fact_is_proven(
+    program: &dyn validation::CheckingInput,
+    facts: &CheckFacts,
+    state: &typed_trees::state::State,
+    statement: usize,
+    contexts: &[facts::FactContextHandle],
+    handle: arena::Handle<typed_trees::domain::ProofFact>,
+    entry_preserved: bool,
+) -> bool {
+    match program.proof_facts.get(handle) {
+        typed_trees::domain::ProofFact::Expression(expression) => {
+            live_contexts_prove_boolean_expression(
+                program,
+                facts,
+                state,
+                statement,
+                contexts,
+                *expression,
+            ) || (entry_preserved
+                && semantic_contexts_prove_boolean_expression(
+                    program,
+                    &facts.semantic,
+                    contexts,
+                    *expression,
+                ))
+        }
+        typed_trees::domain::ProofFact::Proposition(application) => {
+            (entry_preserved
+                && program
+                    .normalize_proposition_application(application, None)
+                    .is_some_and(|formula| {
+                        super::prover::contexts_prove_proposition_label(
+                            &facts.semantic,
+                            program,
+                            contexts,
+                            &formula.identity_label(),
+                        )
+                    }))
+                || super::prover::live_contexts_prove_proposition_application(
+                    program,
+                    facts,
+                    state,
+                    statement,
+                    contexts,
+                    application,
+                )
+        }
+        typed_trees::domain::ProofFact::Membership(membership) => {
+            let Some(place) = canonical_place_from_expression_in_state(
+                program,
+                state.symbol,
+                statement,
+                membership.value,
+            ) else {
+                return false;
+            };
+            if membership.domain_arguments.is_empty() {
+                return super::prover::prove_domain_at_place(
+                    program,
+                    &facts.semantic,
+                    contexts,
+                    &place,
+                    membership.domain_symbol,
+                );
+            }
+            membership.semantic_domain.is_valid() && contexts.iter().any(|context| facts.semantic.context_view(facts.semantic.contexts.get(*context)).facts().any(|candidate| {
+                matches!(candidate.payload, facts::domain_membership_symbol_and_instance_pattern!(domain_symbol, semantic_domain) if domain_symbol == membership.domain_symbol && semantic_domain == membership.semantic_domain)
+                && candidate.place.as_place().and_then(|handle| crate::flow::canonical_place_from_semantic_place(program, &facts.semantic, facts.semantic.places.get(handle))).is_some_and(|candidate| candidate == place)
+            }))
+        }
+    }
 }

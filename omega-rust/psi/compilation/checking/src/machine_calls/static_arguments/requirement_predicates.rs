@@ -50,7 +50,7 @@ impl<'program> CallScopes<'program> {
             for state in program.machine_states(machine) {
                 expressions.clear();
                 for statement in program.statement_table.statements(state.statement_nodes) {
-                    for (_, root) in program.statement_table.expression_roots(statement) {
+                    for (_, root) in program.tables.expression_roots(statement) {
                         crate::expression_traversal::collect_expression_tree(
                             program,
                             root,

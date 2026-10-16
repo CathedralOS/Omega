@@ -1481,7 +1481,7 @@ fn visit_statement(
     if !retained.statement(statement) {
         return;
     }
-    for (_, expression) in program.statement_table.expression_roots(statement) {
+    for (_, expression) in program.tables.expression_roots(statement) {
         visit_expression(program, retained, expression);
     }
     match statement {
@@ -1541,9 +1541,12 @@ fn visit_statement(
                 }
             }
         }
-        StatementNode::RootBinding(_)
-        | StatementNode::AssemblyFact(_)
-        | StatementNode::Expression(_) => {}
+        StatementNode::AssemblyFact(fact) => visit_proof_facts(
+            program,
+            retained,
+            arena::HandleSpan::from_parts(fact.fact, 1),
+        ),
+        StatementNode::RootBinding(_) | StatementNode::Expression(_) => {}
     }
 }
 

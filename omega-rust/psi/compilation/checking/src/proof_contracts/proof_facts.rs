@@ -20,6 +20,12 @@ pub(crate) enum ProofFactOwner<'program> {
         machine: &'program str,
         kind: &'static str,
     },
+    StatementContract {
+        machine: &'program typed_trees::machine::Machine,
+        state: &'program typed_trees::state::State,
+        statement_index: usize,
+        kind: &'static str,
+    },
     StateSignatureContract {
         owner: StateSignatureOwner<'program>,
         state: &'program str,
@@ -257,6 +263,16 @@ impl fmt::Display for ProofFactOwner<'_> {
             Self::MachineContract { machine, kind } => {
                 write!(formatter, "machine `{machine}` {kind} contract")
             }
+            Self::StatementContract {
+                machine,
+                state,
+                kind,
+                ..
+            } => write!(
+                formatter,
+                "machine `{}` state `{}` {kind} contract",
+                machine.name, state.name
+            ),
             Self::StateSignatureContract { owner, state, kind } => {
                 write!(formatter, "{owner} state `{state}` {kind} contract")
             }
@@ -501,6 +517,19 @@ fn proof_argument_declared_type(
     argument: ExpressionHandle,
     owner: ProofFactOwner<'_>,
 ) -> Option<typed_trees::types::TypeReferenceHandle> {
+    if let ProofFactOwner::StatementContract {
+        state,
+        statement_index,
+        ..
+    } = owner
+    {
+        return crate::expression_type_reference_in_state(
+            program,
+            state.symbol,
+            statement_index,
+            argument,
+        );
+    }
     if let Some(member_name) = self_member_name(program, argument)
         && let Some(machine_name) = proof_fact_machine_name(owner)
         && let Some(attached_data) = program
@@ -546,6 +575,7 @@ fn proof_argument_declared_type(
 fn proof_fact_machine_name(owner: ProofFactOwner<'_>) -> Option<&str> {
     match owner {
         ProofFactOwner::MachineContract { machine, .. } => Some(machine),
+        ProofFactOwner::StatementContract { machine, .. } => Some(machine.name.as_str()),
         ProofFactOwner::StateSignatureContract {
             owner: StateSignatureOwner::Machine(machine),
             ..

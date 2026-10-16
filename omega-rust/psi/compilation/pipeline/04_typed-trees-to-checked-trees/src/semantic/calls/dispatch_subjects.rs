@@ -111,7 +111,7 @@ pub(crate) fn statement_dispatch_calls(
     }
     let table = &program.expression_table;
     let mut pending = program
-        .statement_table
+        .tables
         .expression_roots(statement)
         .into_iter()
         .map(|(_, root)| (root, false))

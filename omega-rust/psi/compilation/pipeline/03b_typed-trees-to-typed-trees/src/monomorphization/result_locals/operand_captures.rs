@@ -69,7 +69,7 @@ pub(super) fn adapt(program: &TypedTrees, updates: &mut [InferredUpdate]) {
             }
             let mut expressions = Vec::new();
             for statement in statements {
-                for (_, root) in program.statement_table.expression_roots(statement) {
+                for (_, root) in program.tables.expression_roots(statement) {
                     if root.is_valid() {
                         validation::expression_traversal::collect_expression_tree(
                             program,

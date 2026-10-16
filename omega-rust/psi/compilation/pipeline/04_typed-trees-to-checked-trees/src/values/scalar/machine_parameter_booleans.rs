@@ -105,3 +105,33 @@ fn scalar_parameters_and_types(
         .collect::<Option<Vec<_>>>()?;
     Some((scalar_parameters, parameter_types))
 }
+
+/// Lower a scalar in an authored parameter telescope without manufacturing an
+/// executable state. Proof aliases and abstract callable contracts share this
+/// checked arithmetic and operator-selection path.
+pub(crate) fn lower_parameter_scalar_expression(
+    program: &dyn validation::CheckingInput,
+    operators: &CheckedOperatorFacts,
+    owner: symbols::SymbolHandle,
+    parameters: &[typed_trees::signature::StateParameter],
+    expression: ExpressionHandle,
+    primitive: typed_trees::types::PrimitiveType,
+) -> Option<checked_trees::CheckedScalarExpression> {
+    if !validation::has_builtin_parameter_bound_expression_meaning(
+        program, owner, parameters, expression,
+    ) {
+        return None;
+    }
+    let (scalar_parameters, parameter_types) = scalar_parameters_and_types(program, parameters)?;
+    super::scalar_lowering::lower_return_expression(
+        program,
+        operators,
+        expression,
+        &scalar_parameters,
+        parameters,
+        &parameter_types,
+        &[],
+        primitive,
+        &[],
+    )
+}

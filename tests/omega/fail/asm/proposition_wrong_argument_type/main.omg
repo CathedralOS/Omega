@@ -1,0 +1,5 @@
+proposition ready(value: i32);
+machine main() {
+    let value: bool = true;
+    asm where requires ready(value) { nop }
+}

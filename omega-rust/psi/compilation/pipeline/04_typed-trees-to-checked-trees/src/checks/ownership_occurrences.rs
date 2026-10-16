@@ -149,7 +149,11 @@ pub(super) fn statement_steps_at_evaluation(
             order.expression(binding.receiver, false);
             order.expression(binding.implementation_operand, false);
         }
-        StatementNode::AssemblyFact(fact) => order.expression(fact.expression, false),
+        StatementNode::AssemblyFact(fact) => {
+            for expression in program.tables.proof_fact_expression_roots(fact.fact) {
+                order.expression(expression, false);
+            }
+        }
         StatementNode::Transition(transition) => {
             if !matches!(
                 evaluation,

@@ -933,7 +933,7 @@ fn collect_nested_receiving_obligations(
     let mut calls = Vec::new();
     let mut fields = Vec::new();
     let mut visited = Vec::new();
-    for (_, root) in program.statement_table.expression_roots(statement) {
+    for (_, root) in program.tables.expression_roots(statement) {
         validation::expression_traversal::visit_post_order(
             program,
             root,

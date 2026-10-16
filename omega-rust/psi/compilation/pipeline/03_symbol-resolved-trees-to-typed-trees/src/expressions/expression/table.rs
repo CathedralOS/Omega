@@ -41,3 +41,15 @@ pub(super) fn lower_expression_handle_from_table_in_fact_position(
         .in_fact_position()
         .lower(expression)
 }
+
+pub(super) fn lower_scoped_fact_expression(
+    program: &resolved::SymbolResolvedTrees,
+    source: &resolved::expression::ExpressionTable,
+    target: &mut typed::TypedTrees,
+    expression: resolved::expression::ExpressionHandle,
+    scope: Option<&EqualityScope>,
+) -> Result<typed::expression::ExpressionHandle, Diagnostic> {
+    lowerer::ExpressionTableLowerer::new(Some(program), source, target, None, scope)
+        .in_fact_position()
+        .lower(expression)
+}

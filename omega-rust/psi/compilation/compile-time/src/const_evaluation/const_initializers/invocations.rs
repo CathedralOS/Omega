@@ -770,7 +770,7 @@ impl Invocation<'_> {
                     roots.extend([assignment.target, assignment.value]);
                 }
                 typed_trees::statement::StatementNode::AssemblyFact(fact) => {
-                    roots.push(fact.expression);
+                    roots.extend(typed.tables.proof_fact_expression_roots(fact.fact));
                 }
                 _ => {}
             }

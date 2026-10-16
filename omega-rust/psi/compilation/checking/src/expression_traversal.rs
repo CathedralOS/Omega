@@ -365,7 +365,9 @@ pub fn collect_statement_expression_trees(
             }
         }
         typed_trees::statement::StatementNode::AssemblyFact(fact) => {
-            collect_expression_tree(program, fact.expression, handles)
+            for expression in program.tables.proof_fact_expression_roots(fact.fact) {
+                collect_expression_tree(program, expression, handles);
+            }
         }
         typed_trees::statement::StatementNode::Assignment(assignment) => {
             collect_expression_tree(program, assignment.target, handles);

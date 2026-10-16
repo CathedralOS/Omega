@@ -62,7 +62,7 @@ impl<'program> ConstructionObservations<'program> {
             .statement_table
             .statements(self.state.statement_nodes)
         {
-            for (_, expression) in self.program.statement_table.expression_roots(statement) {
+            for (_, expression) in self.program.tables.expression_roots(statement) {
                 crate::expression_traversal::collect_expression_nodes(
                     self.program,
                     expression,

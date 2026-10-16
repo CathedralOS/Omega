@@ -385,13 +385,17 @@ fn collect_elision_calls(program: &dyn ::validation::CheckingInput) -> Vec<Elisi
                             &mut calls,
                         );
                     }
-                    StatementNode::AssemblyFact(fact) => collect_expression_elision_calls(
-                        program,
-                        machine.symbol,
-                        state.symbol,
-                        fact.expression,
-                        &mut calls,
-                    ),
+                    StatementNode::AssemblyFact(fact) => {
+                        for expression in program.tables.proof_fact_expression_roots(fact.fact) {
+                            collect_expression_elision_calls(
+                                program,
+                                machine.symbol,
+                                state.symbol,
+                                expression,
+                                &mut calls,
+                            );
+                        }
+                    }
                     _ => {}
                 }
             }

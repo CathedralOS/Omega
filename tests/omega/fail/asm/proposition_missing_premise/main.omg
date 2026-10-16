@@ -1,0 +1,3 @@
+proposition ready(value: i32);
+machine observe(value: i32) { asm where requires ready(value) { nop } }
+machine main() { observe(7); }

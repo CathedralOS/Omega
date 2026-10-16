@@ -46,7 +46,11 @@ impl EvaluationTraversal<'_, '_> {
                 self.visit_expression(binding.receiver);
                 self.visit_expression(binding.implementation_operand);
             }
-            StatementNode::AssemblyFact(fact) => self.visit_expression(fact.expression),
+            StatementNode::AssemblyFact(fact) => {
+                for expression in self.program.tables.proof_fact_expression_roots(fact.fact) {
+                    self.visit_expression(expression);
+                }
+            }
             StatementNode::Assignment(assignment) => {
                 // Calls in assignment targets are not semantic call sites today;
                 // evaluate the checked value graph in its specified order.

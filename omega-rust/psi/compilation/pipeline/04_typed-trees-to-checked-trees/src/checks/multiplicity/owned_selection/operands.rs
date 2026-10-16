@@ -121,7 +121,7 @@ pub(super) fn statement_expressions(
     statement: &StatementNode,
 ) -> Vec<ExpressionHandle> {
     program
-        .statement_table
+        .tables
         .expression_roots(statement)
         .into_iter()
         .filter(|(role, root)| {

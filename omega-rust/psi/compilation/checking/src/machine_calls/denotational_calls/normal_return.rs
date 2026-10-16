@@ -129,7 +129,7 @@ fn primitive_value_closure(
                 };
                 let allowed = match statement {
                     StatementNode::Expression(_) | StatementNode::Transition(_) => program
-                        .statement_table
+                        .tables
                         .expression_roots(statement)
                         .iter()
                         .all(|(_, expression)| expression_is_closed(*expression)),

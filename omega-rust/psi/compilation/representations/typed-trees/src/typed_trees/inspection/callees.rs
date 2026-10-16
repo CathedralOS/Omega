@@ -68,7 +68,9 @@ fn collect_statement_callees(
             collect_expression_callees(typed, local.initial_value, visited, called);
         }
         StatementNode::AssemblyFact(fact) => {
-            collect_expression_callees(typed, fact.expression, visited, called);
+            for expression in typed.tables.proof_fact_expression_roots(fact.fact) {
+                collect_expression_callees(typed, expression, visited, called);
+            }
         }
         StatementNode::Transition(transition) => {
             if let crate::statement::TransitionGuardNode::When(guard) = &transition.guard {

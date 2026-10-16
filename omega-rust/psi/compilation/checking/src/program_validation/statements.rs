@@ -158,7 +158,9 @@ pub(super) fn statement_source_span(
     match statement {
         StatementNode::Assembly(_) => None,
         StatementNode::RootBinding(binding) => authored(binding.source_span),
-        StatementNode::AssemblyFact(fact) => expression_span(fact.expression),
+        StatementNode::AssemblyFact(fact) => {
+            program.proof_fact_source_span(fact.fact).and_then(authored)
+        }
         StatementNode::Assignment(assignment) => {
             expression_span(assignment.value).or_else(|| expression_span(assignment.target))
         }

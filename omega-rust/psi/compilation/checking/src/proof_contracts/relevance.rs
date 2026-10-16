@@ -85,15 +85,19 @@ pub(crate) fn validate_relevance(
                             diagnostics,
                         );
                     }
-                    StatementNode::AssemblyFact(fact) => validate_expression(
-                        program,
-                        &proof_only,
-                        machine,
-                        state,
-                        fact.expression,
-                        Context::Proof,
-                        diagnostics,
-                    ),
+                    StatementNode::AssemblyFact(fact) => {
+                        for expression in program.tables.proof_fact_expression_roots(fact.fact) {
+                            validate_expression(
+                                program,
+                                &proof_only,
+                                machine,
+                                state,
+                                expression,
+                                Context::Proof,
+                                diagnostics,
+                            );
+                        }
+                    }
                     StatementNode::Assignment(assignment) => {
                         validate_expression(
                             program,

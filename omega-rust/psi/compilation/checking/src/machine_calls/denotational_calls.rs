@@ -246,13 +246,9 @@ pub(crate) fn has_observation_free_checked_closure(
                     StatementNode::LocalData(local) => !local.is_mutable,
                     StatementNode::Call(call) => !call.receiver_symbol.is_valid(),
                     StatementNode::Expression(_) | StatementNode::Transition(_) => true,
-                } && program
-                    .statement_table
-                    .expression_roots(statement)
-                    .iter()
-                    .all(|(_, expression)| {
-                        expression_is_fact_observation_free(program, *expression)
-                    });
+                } && program.tables.expression_roots(statement).iter().all(
+                    |(_, expression)| expression_is_fact_observation_free(program, *expression),
+                );
                 if !allowed {
                     if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
                         eprintln!(

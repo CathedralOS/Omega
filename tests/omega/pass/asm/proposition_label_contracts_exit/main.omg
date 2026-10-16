@@ -1,0 +1,32 @@
+// Expected exit: 0. Ordinary propositions at assembly labels observe live values.
+proposition bounded(value: i32) = value >= 0 && value <= 10;
+proposition bounded_alias(value: i32) = bounded(value + 0);
+proposition ready(value: i32);
+machine preserve_ready(value: i32)
+requires ready(value);
+{ asm where requires ready(value) ensures ready(value) { nop } }
+machine specialized<const Instance: u64>() -> i32 {
+    let mut value: i32 = 7;
+    asm where requires bounded(value) ensures bounded_alias(value) { mov value, 9 }
+    value
+}
+data Main { input: i32; output: i32; }
+machine Main::main(main: &mut Main) crashes Trap {
+    main.input = 7;
+    asm {
+    entry requires bounded_alias(main.input):
+        mov main.output, main.input;
+        jmp done;
+    skipped:
+        mov main.output, 99;
+    done requires bounded(main.output) ensures bounded_alias(main.output):
+        mov main.output, main.output
+    }
+    let mut copied: i32 = 3;
+    asm where requires bounded(copied) ensures bounded_alias(copied) { mov copied, 9 }
+    let first: i32 = specialized<1>();
+    let second: i32 = specialized<2>();
+    transition main.output == 7 && copied == 9 && first == 9 && second == 9 { true -> good() false -> bad() }
+    state good() {}
+    state bad() { crash Trap; }
+}

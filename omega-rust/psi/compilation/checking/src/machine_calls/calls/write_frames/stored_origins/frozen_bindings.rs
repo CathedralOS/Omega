@@ -46,7 +46,7 @@ pub(in crate::machine_calls::calls::write_frames) fn statement_exposes_frozen_bi
     // Nested calls still contribute their own frames below; an unknown call
     // cannot hide behind this empty consumer effect.
     program
-        .statement_table
+        .tables
         .expression_roots(statement)
         .into_iter()
         .any(|(role, expression)| {
