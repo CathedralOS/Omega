@@ -1012,6 +1012,7 @@ fn merge_state(existing: &mut State, incoming: &State) -> bool {
     // only an already-equal computed entry, so a no-op write need not detach
     // a shared map and an absent entry remains distinct from an unknown one.
     let before = existing.clone();
+    let mut changed = !before.contents_invalidated && incoming.contents_invalidated;
     existing.contents_invalidated |= incoming.contents_invalidated;
     for query in before
         .contents
@@ -1032,27 +1033,53 @@ fn merge_state(existing: &mut State, incoming: &State) -> bool {
         };
         if existing.contents.get(&query) != Some(&value) {
             existing.contents_mut().insert(query, value);
+            changed = true;
         }
     }
-    for location in before
-        .slots
-        .keys()
-        .chain(incoming.slots.keys())
-        .cloned()
-        .collect::<BTreeSet<_>>()
-    {
+    // The maps already order the union of keys. Walk each once rather than
+    // rebuilding that union and searching both maps again for every slot.
+    let mut left = before.slots.iter().peekable();
+    let mut right = incoming.slots.iter().peekable();
+    while left.peek().is_some() || right.peek().is_some() {
+        let order = match (left.peek(), right.peek()) {
+            (Some((left, _)), Some((right, _))) => left.cmp(right),
+            (Some(_), None) => std::cmp::Ordering::Less,
+            (None, Some(_)) => std::cmp::Ordering::Greater,
+            (None, None) => unreachable!(),
+        };
+        let (location, previous, arriving) = match order {
+            std::cmp::Ordering::Less => {
+                let (location, value) = left.next().unwrap();
+                (location, Some(value), None)
+            }
+            std::cmp::Ordering::Greater => {
+                let (location, value) = right.next().unwrap();
+                (location, None, Some(value))
+            }
+            std::cmp::Ordering::Equal => {
+                let (location, previous) = left.next().unwrap();
+                let (_, arriving) = right.next().unwrap();
+                (location, Some(previous), Some(arriving))
+            }
+        };
+        // Raw slot unions are idempotent; symbolic contents joins above are
+        // not. Missing and present-unknown entries must remain distinct.
+        if previous == arriving {
+            continue;
+        }
         let value = match (
-            before.slots.get(&location).and_then(Option::as_ref),
-            incoming.slots.get(&location).and_then(Option::as_ref),
+            previous.and_then(Option::as_ref),
+            arriving.and_then(Option::as_ref),
         ) {
             (Some(left), Some(right)) => Some(left.union(right).cloned().collect()),
             _ => None,
         };
-        if existing.slots.get(&location) != Some(&value) {
-            existing.slots_mut().insert(location, value);
+        if previous != Some(&value) {
+            existing.slots_mut().insert(location.clone(), value);
+            changed = true;
         }
     }
-    *existing != before
+    changed
 }
 
 impl State {
@@ -1157,5 +1184,77 @@ mod snapshot_tests {
         assert_eq!(joined.contents.get(&query), Some(&Some(expected)));
         assert_eq!(before.contents.get(&query), Some(&Some(original)));
         assert!(!merge_state(&mut joined, &before));
+    }
+    #[test]
+    fn ordered_slot_join_preserves_absence_unknown_and_captured_origins() {
+        let variants = [
+            None,
+            Some(None),
+            Some(Some(BTreeSet::new())),
+            Some(Some(BTreeSet::from([Origin::Storage(location(8))]))),
+            Some(Some(BTreeSet::from([Origin::Storage(location(9))]))),
+        ];
+        for left in &variants {
+            for right in &variants {
+                for (left_invalid, right_invalid) in
+                    [(false, false), (false, true), (true, false), (true, true)]
+                {
+                    let mut before = State::default();
+                    let mut incoming = State::default();
+                    // Interleave one-sided and shared roots with descendant
+                    // keys so cursor advancement cannot drop a later row.
+                    let mut descendant = location(3);
+                    descendant.path.push(DescriptorPathSegment::FixedIndex(2));
+                    for (key, value) in [
+                        (location(1), left),
+                        (location(3), right),
+                        (descendant.clone(), left),
+                    ] {
+                        if let Some(value) = value {
+                            before.slots_mut().insert(key, value.clone());
+                        }
+                    }
+                    for (key, value) in [
+                        (location(2), right),
+                        (location(3), left),
+                        (descendant, right),
+                        (location(5), left),
+                    ] {
+                        if let Some(value) = value {
+                            incoming.slots_mut().insert(key, value.clone());
+                        }
+                    }
+                    before.contents_invalidated = left_invalid;
+                    incoming.contents_invalidated = right_invalid;
+                    let original_slots = (*before.slots).clone();
+                    let snapshot = before.clone();
+                    let mut expected = before.clone();
+                    expected.contents_invalidated |= right_invalid;
+                    let keys = before
+                        .slots
+                        .keys()
+                        .chain(incoming.slots.keys())
+                        .cloned()
+                        .collect::<BTreeSet<_>>();
+                    for key in keys {
+                        let value = match (before.slots.get(&key), incoming.slots.get(&key)) {
+                            (Some(Some(left)), Some(Some(right))) => {
+                                Some(left.union(right).cloned().collect())
+                            }
+                            _ => None,
+                        };
+                        expected.slots_mut().insert(key, value);
+                    }
+                    let expected_changed = expected != snapshot;
+                    let changed = merge_state(&mut before, &incoming);
+                    assert_eq!(changed, expected_changed);
+                    assert_eq!(before.slots, expected.slots);
+                    assert_eq!(before.contents_invalidated, expected.contents_invalidated);
+                    assert!(before.contents == expected.contents);
+                    // The reference and output writes detached their maps.
+                    assert_eq!(*snapshot.slots, original_slots);
+                }
+            }
+        }
     }
 }
