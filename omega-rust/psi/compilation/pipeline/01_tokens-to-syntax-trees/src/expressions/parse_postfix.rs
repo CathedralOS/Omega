@@ -560,18 +560,63 @@ pub(super) fn try_parse_static_machine_arguments<'tokens, 'source>(
         return Ok(None);
     }
 
-    // `<` is also a comparison. Speculative structural parsing owns only a
-    // fresh scratch arena; failed or non-call candidates publish no nodes.
-    let mut scratch = SyntaxTrees::new(input.source_id);
-    let result = parse_static_call_arguments(&mut scratch, input);
-    let Ok(Some((arguments, rest))) = result else {
-        return Ok(None);
-    };
-    let arguments = arguments
-        .iter()
-        .map(|argument| syntax_trees.copy_static_machine_argument(&scratch, argument))
-        .collect::<Vec<_>>();
-    Ok(Some((arguments.into_boxed_slice(), rest)))
+    // Decide the complete `<...>(` production, not an expression followed by
+    // an arbitrary `>`. Otherwise a const expression can consume the actual
+    // call operands as a shift and stop at a later comparison. Each candidate
+    // is bounded before `(` and parsed transactionally; only a complete pack
+    // publishes nodes. Groups may contain their own calls and comparisons.
+    let mut group_depth = 0usize;
+    let mut previous = None;
+    for (offset, token) in input.tokens.iter().enumerate() {
+        if token.is_non_semantic() {
+            continue;
+        }
+        let punctuation = token.punctuation();
+        if group_depth == 0
+            && punctuation == Some(PunctuationKind::LeftParen)
+            && matches!(
+                previous,
+                Some(PunctuationKind::Greater | PunctuationKind::GreaterGreater)
+            )
+        {
+            let mut prefix = input;
+            prefix.tokens = &input.tokens[..offset];
+            let mut scratch = SyntaxTrees::new(input.source_id);
+            if let Ok(Some((arguments, end))) = parse_static_call_arguments(&mut scratch, prefix)
+                && end.tokens.is_empty()
+                && !end.at_punctuation(PunctuationKind::Greater)
+            {
+                let arguments = arguments
+                    .iter()
+                    .map(|argument| syntax_trees.copy_static_machine_argument(&scratch, argument))
+                    .collect::<Vec<_>>();
+                let mut rest = input;
+                rest.tokens = &input.tokens[offset..];
+                return Ok(Some((arguments.into_boxed_slice(), rest)));
+            }
+        }
+        match punctuation {
+            Some(
+                PunctuationKind::LeftParen
+                | PunctuationKind::LeftBracket
+                | PunctuationKind::LeftBrace,
+            ) => group_depth += 1,
+            Some(
+                PunctuationKind::RightParen
+                | PunctuationKind::RightBracket
+                | PunctuationKind::RightBrace,
+            ) => {
+                let Some(depth) = group_depth.checked_sub(1) else {
+                    break;
+                };
+                group_depth = depth;
+            }
+            Some(PunctuationKind::Semicolon) if group_depth == 0 => break,
+            _ => {}
+        }
+        previous = punctuation;
+    }
+    Ok(None)
 }
 
 fn parse_static_call_arguments<'tokens, 'source>(
@@ -595,9 +640,6 @@ fn parse_static_call_arguments<'tokens, 'source>(
             return Ok(None);
         }
         cursor = cursor.take_punctuation(PunctuationKind::Greater, ">")?;
-        if !cursor.at_punctuation(PunctuationKind::LeftParen) {
-            return Ok(None);
-        }
         return Ok(Some((arguments.into_boxed_slice(), cursor)));
     }
 }
@@ -612,73 +654,154 @@ fn try_parse_static_argument<'tokens, 'source>(
     {
         return parse_static_type_argument(syntax_trees, input).map(Some);
     }
-    if input.at_integer() {
-        let (literal, rest) = input.take_integer_literal()?;
-        return Ok(Some((
-            StaticMachineArgument {
-                type_reference: syntax_trees::types::TypeReferenceHandle::invalid(),
-                path: Box::default(),
-                application: None,
-                const_literal: Some(literal),
-                evidence_projection: None,
-            },
-            rest,
-        )));
-    }
-
     let Ok((first, rest)) = input.take_identifier() else {
-        return Ok(None);
+        return try_parse_static_value_argument(syntax_trees, input);
     };
     input = rest;
-    if input.at_punctuation(PunctuationKind::Dot) {
+    let argument = if input.at_punctuation(PunctuationKind::Dot) {
         input = input.take_punctuation(PunctuationKind::Dot, ".")?;
         let (member, rest) = input.take_identifier()?;
-        return Ok(Some((
-            StaticMachineArgument {
-                type_reference: syntax_trees::types::TypeReferenceHandle::invalid(),
-                path: Box::default(),
-                application: None,
-                const_literal: None,
-                evidence_projection: Some(syntax_trees::expression::EvidenceProjection {
-                    term: first,
-                    member,
-                }),
-            },
-            rest,
-        )));
-    }
-
-    let mut path = vec![first];
-    while input.at_punctuation(PunctuationKind::ColonColon) {
-        let after_separator = input.take_punctuation(PunctuationKind::ColonColon, "::")?;
-        let Ok((member, rest)) = after_separator.take_identifier() else {
-            return Ok(None);
-        };
-        path.push(member);
         input = rest;
-    }
-
-    if input.at_punctuation(PunctuationKind::LeftBracket) || input.at_contextual("in") {
-        return parse_static_type_argument(syntax_trees, authored).map(Some);
-    }
-    let application = if let Some((application, rest)) =
-        try_parse_static_symbol_application(syntax_trees, input)?
-    {
-        input = rest;
-        Some(application)
+        StaticMachineArgument {
+            type_reference: syntax_trees::types::TypeReferenceHandle::invalid(),
+            path: Box::default(),
+            application: None,
+            const_literal: None,
+            evidence_projection: Some(syntax_trees::expression::EvidenceProjection {
+                term: first,
+                member,
+            }),
+        }
     } else {
-        None
-    };
+        let mut path = vec![first];
+        while input.at_punctuation(PunctuationKind::ColonColon) {
+            let after_separator = input.take_punctuation(PunctuationKind::ColonColon, "::")?;
+            let Ok((member, rest)) = after_separator.take_identifier() else {
+                return Ok(None);
+            };
+            path.push(member);
+            input = rest;
+        }
 
-    Ok(Some((
+        if input.at_punctuation(PunctuationKind::LeftBracket) || input.at_contextual("in") {
+            return parse_static_type_argument(syntax_trees, authored).map(Some);
+        }
+        let application = if let Some((application, rest)) =
+            try_parse_static_symbol_application(syntax_trees, input)?
+        {
+            input = rest;
+            Some(application)
+        } else {
+            None
+        };
         StaticMachineArgument {
             type_reference: syntax_trees::types::TypeReferenceHandle::invalid(),
             path: path.into_boxed_slice(),
             application,
             const_literal: None,
             evidence_projection: None,
+        }
+    };
+
+    // Names and projections share this decision: a lexed `>>` can continue
+    // either operand as a shift, or close its surrounding applications.
+    if input.at_punctuation(PunctuationKind::GreaterGreater)
+        && let Some(value) = try_parse_static_value_argument(syntax_trees, authored)?
+    {
+        return Ok(Some(value));
+    }
+    if !(input.at_punctuation(PunctuationKind::Comma)
+        || input.at_punctuation(PunctuationKind::Greater))
+    {
+        return try_parse_static_value_argument(syntax_trees, authored);
+    }
+
+    Ok(Some((argument, input)))
+}
+
+/// Values share the const-expression grammar with data applications. Keep the
+/// authored tree until the selected declaration supplies its expected carrier;
+/// parsing must not choose integer division or erase named operand custody.
+fn try_parse_static_value_argument<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    input: Input<'tokens, 'source>,
+) -> Result<Option<(StaticMachineArgument, Input<'tokens, 'source>)>, ParseError> {
+    let mut scratch = SyntaxTrees::new(input.source_id);
+    let parsed =
+        super::parse_expression::parse_const_integer_expression_handle(&mut scratch, input);
+    let (expression, rest) = match parsed {
+        Ok(parsed)
+            if parsed.1.at_punctuation(PunctuationKind::Comma)
+                || parsed.1.at_punctuation(PunctuationKind::Greater) =>
+        {
+            parsed
+        }
+        _ => {
+            // A lexed `>>` may close two applications instead of shifting.
+            // Prefer a complete expression; otherwise retry the delimited
+            // prefix transactionally, leaving both closers for their owners.
+            let mut boundaries = Vec::new();
+            let mut remaining = input;
+            while let Ok((_, boundary)) = remaining.split_at_top_level_punctuation(
+                PunctuationKind::GreaterGreater,
+                "static argument delimiter",
+            ) {
+                boundaries.push(boundary);
+                remaining = boundary.take_punctuation(PunctuationKind::GreaterGreater, ">>")?;
+            }
+            let mut selected = None;
+            for rest in boundaries.into_iter().rev() {
+                let mut prefix = input;
+                prefix.tokens = &input.tokens[..input.tokens.len() - rest.tokens.len()];
+                scratch = SyntaxTrees::new(input.source_id);
+                if let Ok((expression, end)) =
+                    super::parse_expression::parse_const_integer_expression_handle(
+                        &mut scratch,
+                        prefix,
+                    )
+                    && end.tokens.is_empty()
+                    && !end.at_punctuation(PunctuationKind::Greater)
+                {
+                    selected = Some((expression, rest));
+                    break;
+                }
+            }
+            let Some(selected) = selected else {
+                return Ok(None);
+            };
+            selected
+        }
+    };
+    if !(rest.at_punctuation(PunctuationKind::Comma)
+        || rest.at_punctuation(PunctuationKind::Greater))
+        || matches!(
+            scratch.expressions.expression(expression),
+            ExpressionNode::Name(_) | ExpressionNode::Member(_)
+        )
+    {
+        return Ok(None);
+    }
+    let (type_reference, const_literal) = match scratch.expressions.expression(expression) {
+        ExpressionNode::Integer(literal) => (Default::default(), Some(literal.clone())),
+        _ => {
+            let expression = syntax_trees.copy_expression_from(&scratch, expression);
+            (
+                syntax_trees.type_references.insert(
+                    syntax_trees::types::TypeReferenceNode::ConstExpression(expression),
+                ),
+                None,
+            )
+        }
+    };
+    Ok(Some((
+        StaticMachineArgument {
+            type_reference,
+            path: Box::default(),
+            application: None,
+            const_literal,
+            evidence_projection: None,
         },
-        input,
+        rest,
     )))
 }
 

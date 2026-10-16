@@ -774,6 +774,7 @@ pass/time/runtime_clock_out_parameter_loans_exit built 12826ms exit:0 interprete
 pass/time/runtime_clock_padded_out_parameter_prefix_exit built 15753ms exit:0 interpreter-exit:0 interpreter:agrees @f84dff68876d
 pass/time/runtime_clock_shared_import_slots_exit built 11288ms exit:0 interpreter-exit:0 interpreter:agrees @b8b69519109d+wt
 pass/time/runtime_time_host_native_darwin_exit built 12509ms exit:70 interpreter-exit:70 interpreter:agrees @b8b69519109d+wt
+pass/traits/computed_static_arguments_exit built 4096ms exit:0 interpreter-exit:0 interpreter:agrees @abff0035e791
 pass/traits/dyn_finite_family_dispatch checked 434ms @0cfa2d49940a
 pass/traits/inherited_region_application_identity_exit built 2797ms exit:0 interpreter-exit:0 interpreter:agrees @4e2bb3ff7b5e
 pass/traits/public_nested_machine_contract_scopes built 5729ms exit:0 interpreter-exit:0 interpreter:agrees @eb2c4b6a1507

@@ -1,0 +1,1 @@
+static type argument uses proof-static index expression `3 + 4` as a runtime type

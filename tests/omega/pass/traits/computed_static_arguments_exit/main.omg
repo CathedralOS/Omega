@@ -1,0 +1,44 @@
+// Expected exit: 0
+trait Arithmetic<Value> {
+    operator + combine(left: Value, right: Value) -> Value blocks;
+}
+Selected<const Output: i32> satisfies Arithmetic<i32> {
+    machine combine(left: i32, right: i32) -> i32 { Output }
+}
+machine choose<Operations satisfies Arithmetic<i32>>(left: i32, right: i32) -> i32
+blocks;
+requires 0 <= left && left <= 100
+requires 0 <= right && right <= 100
+{ left + right }
+
+const BASE: i32 = 3;
+const EIGHT: i32 = 8;
+data Config [copy] { value: i32; }
+const CONFIG: Config = Config { value: 8 };
+machine three() -> i32 { 3 }
+machine direct<const Value: i32>() -> i32 { Value }
+machine flag<const Value: bool>() -> bool { Value }
+machine main() blocks; crashes Trap {
+    let named: i32 = block choose<Selected<BASE + 4>>(5, 6);
+    let invoked: i32 = block choose<Selected<three() + 4>>(5, 6);
+    let rational: i32 = block choose<Selected<(3 / 2) * 4>>(5, 6);
+    let direct_value: i32 = direct<(2 * 4)>();
+    let nested: i32 = block choose<Selected<direct<(2 + 1)>() + 4>>(5, 6);
+    let shifted: i32 = block choose<Selected<EIGHT >> 1>>(5, 6);
+    let grouped_shift: i32 = block choose<Selected<(EIGHT >> 1)>>(5, 6);
+    let separated_shift: i32 = block choose<Selected<EIGHT >> 1> >(5, 6);
+    let member_shift: i32 = block choose<Selected<CONFIG.value >> 1>>(5, 6);
+    let grouped_member_shift: i32 = block choose<Selected<(CONFIG.value >> 1)>>(5, 6);
+    let literal_flag: bool = flag<true>();
+    let computed_flag: bool = flag<(1 < 2)>();
+    let comparison: bool = block choose<Selected<3 + 4>>(5, 6) > 0;
+    transition named == 7 && invoked == 7 && rational == 6 && direct_value == 8
+        && nested == 7 && shifted == 4 && grouped_shift == 4 && separated_shift == 4
+        && member_shift == 4 && grouped_member_shift == 4
+        && literal_flag && computed_flag && comparison {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

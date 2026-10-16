@@ -1,0 +1,4 @@
+machine type_only<Type>() {}
+machine test() {
+    type_only<3 + 4>();
+}

@@ -5124,6 +5124,18 @@ fail/traits/applied_nominal_callback_proposition_tag_rejected rejected 1271ms ex
 	machine parameter `Callback` of provider machine `visit` for trait requirement `Visitor::visit` does not refine `Callback`: its requires facts are not a conservative refinement
 fail/traits/captured_const_contract_distinct_binders rejected 1330ms expected @f3014db3f225+wt
 	cannot prove ensures contract for exit from Wrong::identity at statement 0: result <= Maximum
+fail/traits/computed_static_carrier rejected 29ms expected @abff0035e791
+	const argument expression: landed `u32` result cannot initialize `i32`
+fail/traits/computed_static_effect rejected 35ms expected @abff0035e791
+	const-generic application evaluation failed: machine `effect` is not build-time admissible: service reach [Console]; build-time evaluation requires empty service reach, no possible suspension or blocking, ordinary checked termination, no unadmitted linear runtime carrier, and admitted declaration-selection authority across the complete call closure
+fail/traits/computed_static_fractional rejected 41ms expected @abff0035e791
+	const argument expression: anonymous constant expression cannot land exactly at the selected integer carrier
+fail/traits/computed_static_overflow rejected 35ms expected @abff0035e791
+	const argument expression: anonymous constant expression cannot land exactly at the selected integer carrier
+fail/traits/computed_static_runtime rejected 20ms expected @abff0035e791
+	const argument expression: machine index operand must select a constant in its original lexical scope; runtime locals, parameters and open binders cannot be evaluated
+fail/traits/computed_static_type_category rejected 180ms expected @abff0035e791
+	machine `test` static type argument uses proof-static index expression `3 + 4` as a runtime type; computed const expressions are valid only inside an indexed-domain argument pack
 fail/traits/conformance_item_missing_member rejected 19ms expected @a9ae30e1c334+wt
 	closed conformance `PointShape satisfies Shape` is incomplete: missing `Shape::code`
 fail/traits/conformance_phantom_foreign_captured_operand rejected 1067ms expected @f3014db3f225+wt
@@ -8517,6 +8529,7 @@ pass/traits/applied_nominal_callback_proposition_contract checked 1763ms @a9ae30
 pass/traits/applied_nominal_callback_scopes_exit checked 11261ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/traits/applied_qualified_signature_region_scope_exit checked 10523ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/traits/boundary_trait_effects_host_call checked 10528ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/traits/computed_static_arguments_exit checked 4100ms check-target:macos_arm64 @abff0035e791
 pass/traits/conformance_unused_lifetime_scope_exit checked 11299ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/traits/contract_proposition_alias_correspondence checked 1696ms @f3014db3f225+wt
 pass/traits/default_row_captured_invocation_regions_exit checked 16549ms check-target:macos_arm64 @4730b1ac8a84

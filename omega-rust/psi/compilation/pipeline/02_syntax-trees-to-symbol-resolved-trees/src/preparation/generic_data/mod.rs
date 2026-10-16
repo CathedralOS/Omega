@@ -41,6 +41,7 @@ mod eligibility;
 pub(crate) use crate::preparation::type_equations as equations;
 pub(crate) use equations::{template_type_equation_offsets, validate_materialized_type_equations};
 pub(crate) mod module_constants;
+mod static_argument_positions;
 mod substitution;
 mod synthesis;
 mod uses;
@@ -184,13 +185,16 @@ pub fn closed_machine_const_arguments(
     let selection =
         declaration_selection::ConstantSelection::new(syntax, sources, top_level_bindings)?;
     let (positions, public_positions) = collect_machine_type_reference_positions(syntax);
-    Ok(collect_closed_const_arguments(
+    let mut arguments =
+        collect_closed_const_arguments(syntax, &selection, &positions, &public_positions, true);
+    static_argument_positions::collect(
         syntax,
         &selection,
         &positions,
         &public_positions,
-        true,
-    ))
+        &mut arguments,
+    );
+    Ok(arguments)
 }
 
 fn collect_closed_const_arguments(

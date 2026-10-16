@@ -172,5 +172,15 @@ pub(crate) fn lower_static_machine_argument(
             ..typed::expression::StaticMachineArgument::default()
         };
     }
+    if selected.type_reference.is_valid()
+        && (target
+            .static_const_literal_from_type_reference(selected.type_reference)
+            .is_some()
+            || matches!(target.type_reference_table.type_reference(selected.type_reference), typed::types::TypeReferenceNode::Named { symbol, .. } if !symbol.is_valid()))
+    {
+        selected = target
+            .static_operand_from_type_reference(selected.type_reference)
+            .map_err(Diagnostic::error)?;
+    }
     Ok(selected)
 }

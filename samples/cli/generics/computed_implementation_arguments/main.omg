@@ -1,0 +1,21 @@
+// Expected exit: 0
+trait Arithmetic<Value> {
+    operator + combine(left: Value, right: Value) -> Value blocks;
+}
+Selected<const Output: i32> satisfies Arithmetic<i32> {
+    machine combine(left: i32, right: i32) -> i32 { Output }
+}
+machine choose<Operations satisfies Arithmetic<i32>>(left: i32, right: i32) -> i32
+blocks;
+requires 0 <= left && left <= 100
+requires 0 <= right && right <= 100
+{
+    left + right
+}
+machine main() blocks; crashes Trap {
+    let seven: i32 = block choose<Selected<3 + 4>>(5, 6);
+    let eight: i32 = block choose<Selected<(2 * 4)>>(5, 6);
+    transition seven == 7 && eight == 8 { true -> done() _ -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}

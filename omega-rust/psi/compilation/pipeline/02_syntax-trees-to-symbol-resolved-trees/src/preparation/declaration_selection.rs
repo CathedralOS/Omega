@@ -79,6 +79,22 @@ impl<'base> ConstantSelection<'base> {
                     definition.name.source_span(),
                     None,
                 )),
+                Item::Machine(definition) => declarations.push((
+                    SymbolKind::Machine,
+                    definition.name.as_str().to_owned(),
+                    definition.name.source_span(),
+                    None,
+                )),
+                Item::Conformance(definition) => {
+                    if let Some(name) = &definition.alias {
+                        declarations.push((
+                            SymbolKind::Conformance,
+                            name.as_str().to_owned(),
+                            name.source_span(),
+                            None,
+                        ));
+                    }
+                }
                 Item::Module(module) => namespaces
                     .modules
                     .push(syntax.items.identifier_path_members(module.path).to_vec()),
@@ -600,6 +616,32 @@ impl<'base> ConstantSelection<'base> {
             )
             .ok_or_else(|| format!("`{name}` does not select one declared canonical data type"))?;
         self.data_declaration(syntax, name, selected)
+    }
+
+    /// Read a selected callable or implementation telescope for constant probe
+    /// destinations. This is ordinary source-scoped declaration lookup, never
+    /// permission to execute the selected body or infer an implementation.
+    pub(super) fn static_parameters<'syntax>(
+        &self,
+        syntax: &'syntax SyntaxTrees,
+        name: &Identifier,
+    ) -> Option<&'syntax [syntax_trees::item::TypeParameter]> {
+        let selected = self.symbols.find_top_level_by_name_and_kinds_from_source(
+            name.as_str(),
+            &[SymbolKind::Machine, SymbolKind::Conformance],
+            name.source_span(),
+        )?;
+        let source = self.symbols.symbol_source_span(selected)?;
+        syntax.root_items().find_map(|item| {
+            let (declaration, parameters) = match item {
+                Item::Machine(machine) => (&machine.name, machine.type_parameters),
+                Item::Conformance(conformance) => {
+                    (conformance.alias.as_ref()?, conformance.type_parameters)
+                }
+                _ => return None,
+            };
+            (declaration.source_span() == source).then(|| syntax.items.type_parameters(parameters))
+        })
     }
 
     pub(crate) fn constructor<'syntax>(

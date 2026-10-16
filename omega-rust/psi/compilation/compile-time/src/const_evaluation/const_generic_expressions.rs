@@ -155,7 +155,7 @@ pub(crate) fn evaluate(
                 syntax.type_references.type_reference(*destination),
                 TypeReferenceNode::Named(name) if name.as_str() == "bool"
             );
-            (extent_uses.contains(argument)
+            (lexical_arguments.contains(argument)
                 || boolean_destination
                 || requires_typed_expression_probe(&syntax, *expression))
             .then_some((*argument, *expression, *destination, *public))

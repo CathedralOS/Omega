@@ -694,9 +694,25 @@ fn visit_type_positions(
                 );
             }
         }
-        TypeReferenceNode::ConstExpression(_)
-        | TypeReferenceNode::Named(_)
-        | TypeReferenceNode::Unit => {}
+        TypeReferenceNode::ConstExpression(expression) => {
+            // A static expression can itself call an applied machine. Its
+            // argument positions belong to the same concrete owner and must
+            // settle before the enclosing invocation can execute.
+            let mut expressions = HashSet::new();
+            super::super::uses::collect_expression_handles(syntax, *expression, &mut expressions);
+            for expression in expressions {
+                visit_expression_type_inputs(syntax, expression, &mut |reference| {
+                    visit_type_positions(
+                        syntax,
+                        reference,
+                        positions,
+                        include_domain_arguments,
+                        traversal,
+                    );
+                });
+            }
+        }
+        TypeReferenceNode::Named(_) | TypeReferenceNode::Unit => {}
     }
 }
 
@@ -868,24 +884,18 @@ pub(in crate::preparation::generic_data) fn collect_machine_type_reference_posit
                 public_positions.extend_from_slice(&positions[start..]);
             }
             for statement in syntax.items.statements(state.statements) {
-                if let StatementNode::LocalData(local) = syntax.statements.statement(*statement) {
-                    collect_type_positions(syntax, local.type_reference, &mut positions, true);
+                for reference in super::super::uses::statement_type_inputs(syntax, *statement) {
+                    collect_type_positions(syntax, reference, &mut positions, true);
                 }
             }
         }
     }
     let concrete_expressions = concrete_machine_expression_handles(syntax);
-    for (handle, expression) in syntax.expressions.iter_expressions() {
-        if concrete_expressions.contains(handle)
-            && let ExpressionNode::Cast(cast) = expression
-        {
-            collect_type_positions(syntax, cast.target_type, &mut positions, true);
-            for argument in syntax
-                .type_references
-                .type_reference_handles(cast.semantic_domain_arguments)
-            {
-                collect_type_positions(syntax, *argument, &mut positions, true);
-            }
+    for (handle, _) in syntax.expressions.iter_expressions() {
+        if concrete_expressions.contains(handle) {
+            visit_expression_type_inputs(syntax, handle, &mut |reference| {
+                collect_type_positions(syntax, reference, &mut positions, true);
+            });
         }
     }
     (positions, public_positions)

@@ -241,8 +241,8 @@ helper that passes does not close an item.
     existing entry machines; provider planning installs each through the
     implementation's own plan and resolves installation reach from its rows.
     Remaining: product-producer parity for positional trait implementation
-    binders and their ordered mixed telescopes; general const-expression
-    closure and package projection for generic implementation applications;
+    binders and their ordered mixed telescopes; const-expression closure over
+    open binders and package projection for generic implementation applications;
     specialization of generic calling-policy realization machines and nested
     data arguments before plan evaluation. Reflection selection rejects a
     named implementation as a member's operation until callable-contract checking lands
