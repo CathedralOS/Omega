@@ -260,6 +260,8 @@ fail/arithmetic/transitive_bit_guard_missing_arrival rejected 830ms expected @a9
 fail/arithmetic/transitive_bit_guard_nonstrict_count rejected 821ms expected @a9ae30e1c334+wt
 	exact arithmetic in machine `bit` state `calculate` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	shift count in machine `bit` state `calculate` terminal expression is not provably below the operand width for `u64`: exact shifts prove `count < 64` (ch5 shift-count ruling -- proof-or-policy). Constrain the count's range (a ranged type, a `requires` clause, or a dominating guard), or pick a defined-count policy on the SHIFTED operand (`u64 in Wrapping` reduces the count modulo 64, equivalently `count & 63` for this carrier; `in Trapping` traps at runtime).
+fail/arithmetic/unconstrained_disjunction_exact_product rejected 283ms @fa9134cda58d+wt
+	exact arithmetic in machine `scale` state `entry` terminal expression may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
 fail/arithmetic/undeclared_bare_name_rejected rejected 2792ms expected @a9ae30e1c334+wt
 	machine `Main::main` state `main` uses `undeclared_var`, which is not a declared local, parameter, field, or type in this state (check the spelling)
 	store in machine `Main::main` state `exit_process` argument `return_code` implicitly converts `i32 in Wrapping` to `i32` (implicit domain weakening); a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as i32`)
@@ -5193,6 +5195,7 @@ pass/arithmetic/collection_result_bound_exit checked 5786ms check-target:macos_a
 pass/arithmetic/compound_assign checked 10321ms @5041ef1af684+wt
 pass/arithmetic/const_fold_unsigned_landed_ops_exit checked 14580ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/arithmetic/constant_trapping_shift_value_overflow_traps checked 13282ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/arithmetic/disjunctive_requires_exact_slot checked 1049ms @fa9134cda58d+wt
 pass/arithmetic/every_width_index checked 9830ms @5041ef1af684+wt
 pass/arithmetic/exact_integer_cast_proven checked 1628ms @a9ae30e1c334+wt
 pass/arithmetic/fixed_division_values_survive_calls_exit checked 7458ms check-target:macos_arm64 @589aedee8ebc+wt

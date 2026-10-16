@@ -1,0 +1,30 @@
+// Disjunctive equality requires bound an Exact profile slot.
+// `side == 0 || side == 1` is the convex hull [0, 1], so `position * 2 + side`
+// fits i32 for position in 0..=3. The product is formed in a subordinate
+// state, and the mirrored spelling puts the parameter on the right of `==`.
+
+machine slot(position: i32, side: i32) -> i32
+requires position >= 0 && position <= 3 && (side == 0 || side == 1)
+ensures result >= 0 && result < 8
+{
+    transition { _ -> product(position, side) }
+    state product(position: i32, side: i32) -> i32
+    requires position >= 0 && position <= 3 && (side == 0 || side == 1)
+    {
+        position * 2 + side
+    }
+}
+
+machine slot_mirrored(position: i32, side: i32) -> i32
+requires position >= 0 && position <= 3 && (0 == side || 1 == side)
+ensures result >= 0 && result < 8
+{
+    side + position * 2
+}
+
+machine main() {
+    let mut values: [f64; 8] = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
+    let direct: i32 = slot(1, 0);
+    values[direct] = 2.0;
+    values[slot_mirrored(3, 1)] = 7.0;
+}

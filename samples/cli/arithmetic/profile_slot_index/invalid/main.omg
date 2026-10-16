@@ -1,0 +1,14 @@
+// A disjunction discharged by an unrelated flag does not bound side.
+
+machine scale(side: i32, flag: i32) -> i32
+requires side == 0 || flag == 1
+{
+    side * 2
+}
+
+data Main {}
+
+machine Main::main(main: &mut Main) {
+    let scaled: i32 = scale(1, 1);
+    transition { _ -> {} }
+}

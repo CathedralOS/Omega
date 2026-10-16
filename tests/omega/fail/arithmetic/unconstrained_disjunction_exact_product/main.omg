@@ -1,0 +1,13 @@
+// `side == 0 || flag == 1` can be true because flag is 1, without bounding
+// side. Exact `side * 2` stays an overflow obligation.
+
+machine scale(side: i32, flag: i32) -> i32
+requires side == 0 || flag == 1
+{
+    side * 2
+}
+
+machine main() {
+    let scaled: i32 = scale(1, 1);
+    transition { _ -> {} }
+}

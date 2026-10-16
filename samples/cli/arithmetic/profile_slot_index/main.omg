@@ -1,0 +1,78 @@
+// Profile-likelihood endpoint slots are position * 2 + side.
+// Side is the case 0 or 1, not a closed numeric range written by hand.
+// Exact i32 accepts the product when that disjunction is the convex hull
+// [0, 1] and position stays in 0..=3. The index is then used as a local,
+// as a call result, and through the mirrored spelling 0 == side || 1 == side.
+//
+// Expected exit: 0
+// Expected output contains: slots=2,7
+
+use omega_language_std::console;
+use omega::language::core::float_operations;
+
+data Endpoints { values: [f64; 8]; }
+
+machine slot(position: i32, side: i32) -> i32
+requires position >= 0 && position <= 3 && (side == 0 || side == 1)
+ensures result >= 0 && result < 8
+{
+    transition { _ -> product(position, side) }
+    state product(position: i32, side: i32) -> i32
+    requires position >= 0 && position <= 3 && (side == 0 || side == 1)
+    {
+        position * 2 + side
+    }
+}
+
+machine slot_mirrored(position: i32, side: i32) -> i32
+requires position >= 0 && position <= 3 && (0 == side || 1 == side)
+ensures result >= 0 && result < 8
+{
+    side + position * 2
+}
+
+data Main { endpoints: Endpoints; }
+
+machine Main::main(main: &mut Main) reaches Console crashes Trap {
+    main.endpoints.values = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
+    let lower: i32 = slot(1, 0);
+    main.endpoints.values[lower] = 2.0;
+    main.endpoints.values[slot(3, 1)] = 7.0;
+    let mirrored: i32 = slot_mirrored(1, 0);
+    let low_value: f64 = main.endpoints.values[2];
+    let high_value: f64 = main.endpoints.values[7];
+    let low_scaled: i64 in Saturating = I64::from_f64(low_value);
+    let high_scaled: i64 in Saturating = I64::from_f64(high_value);
+    let low_code: i64 = low_scaled as i64;
+    let high_code: i64 = high_scaled as i64;
+    transition low_code == 2 {
+        true -> upper(high_code, lower, mirrored)
+        _ -> bad()
+    }
+    state upper(high_code: i64, lower: i32, mirrored: i32) {
+        transition high_code == 7 {
+            true -> indices(lower, mirrored)
+            _ -> bad()
+        }
+    }
+    state indices(lower: i32, mirrored: i32) {
+        transition lower == 2 {
+            true -> mirror(mirrored)
+            _ -> bad()
+        }
+    }
+    state mirror(mirrored: i32) {
+        transition mirrored == 2 {
+            true -> report()
+            _ -> bad()
+        }
+    }
+    state report() {
+        Console::write_line("slots=2,7");
+        Console::exit_process(0);
+    }
+    state bad() {
+        Console::write_line("slots=miss");
+        Console::exit_process(1);
+    }
+}
