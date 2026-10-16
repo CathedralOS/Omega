@@ -84,6 +84,7 @@ pub(crate) fn handle_assignment<'program>(
     poisoned_all: bool,
     poisoned_paths: &mut Vec<String>,
     born_zero: bool,
+    statement_index: usize,
 ) {
     // The binding naming the record this state's places are rooted at; see
     // `place_queries::is_data_rooted`.
@@ -198,6 +199,7 @@ pub(crate) fn handle_assignment<'program>(
         poisoned_all,
         poisoned_paths,
         born_zero,
+        statement_index,
     ) {
         return;
     }

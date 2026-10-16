@@ -10,10 +10,12 @@
 //! predicate's checked body over the field's current element knowledge. That
 //! knowledge starts from the facts standing before the first store (the
 //! place is established and no window is open on it), or from nothing, and
-//! each store replaces the written element exactly, or joins the stored value
-//! into every element when the index is not a literal. Any other fact that
-//! reads the contents cannot be re-proved here, so its window stays open and
-//! the consumption point rejects it.
+//! each store replaces the written element with the proved set of the stored
+//! value. A literal is that set's singleton. A value with no proved bounds
+//! keeps the element's carrier. A computed index joins the same set into
+//! every element, because the selector may name any of them. Any other fact
+//! that reads the contents cannot be re-proved here, so its window stays open
+//! and the consumption point rejects it.
 
 use super::assignment_windows::tracked_receiver;
 use super::place_queries::{data_definition_for_expression, write_place_spelling};
@@ -44,6 +46,7 @@ pub(super) fn handle_element_store<'program>(
     poisoned_all: bool,
     poisoned_paths: &[String],
     born_zero: bool,
+    statement_index: usize,
 ) -> bool {
     let Some(indexed) = program.expression_table.indexed_node(target) else {
         return false;
@@ -123,7 +126,11 @@ pub(super) fn handle_element_store<'program>(
         let element_type = element_carrier(program, field.type_reference);
         let stored = match (literal_value(program, value), element_type) {
             (Some(LiteralValue::Integer(stored)), Some(_)) => IntegerSet::singleton(stored),
-            (_, Some(carrier)) => carrier,
+            (_, Some(carrier)) => {
+                proved_stored_set(program, machine, state, statement_index, value)
+                    .map(|proved| proved.intersect(&carrier))
+                    .unwrap_or(carrier)
+            }
             (_, None) => IntegerSet::empty(),
         };
         let literal_index = element_index
@@ -237,6 +244,29 @@ fn reads_field_contents(
             reads
         }
     }
+}
+
+/// The integer set flow has already proved for `value` at this statement.
+/// `None` when the occurrence has no closed bounds; the caller then keeps
+/// the element carrier. This is the same observation exact arithmetic uses,
+/// so a cited element theorem, a bounded parameter, a local, and a call
+/// result all restore a collection predicate through one store.
+fn proved_stored_set(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    statement_index: usize,
+    value: ExpressionHandle,
+) -> Option<IntegerSet> {
+    let (low, high) =
+        crate::proof_contracts::arithmetic_domains::occurrence_integer_expression_bounds(
+            program,
+            machine.symbol,
+            state.symbol,
+            statement_index,
+            value,
+        )?;
+    Some(IntegerSet::range(i128::from(low), i128::from(high)))
 }
 
 fn element_carrier(

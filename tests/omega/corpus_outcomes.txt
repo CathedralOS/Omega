@@ -2068,6 +2068,8 @@ fail/dependent/collection_predicate_helper_theorem_false_rejected rejected 1551m
 	cannot prove ensures contract for exit from cell_is_set at statement 0: cells[index] >= 1
 fail/dependent/collection_predicate_requirement_unconstrained_rejected rejected 1545ms expected @a9ae30e1c334+wt
 	cannot prove requires contract for call first from Main::main: cells_valid(cells) == true (needs fact `cells_valid(cells) == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/dependent/collection_predicate_unbounded_element_store_rejected rejected 323ms expected @abbaf3aaa059+wt
+	data `Grid`'s default domain is still FALSE at state exit: the invariant window opened on `context.grid` must close first -- restore the `where` facts before this consumption point (ch11)
 fail/dependent/collection_predicate_uncited_sum_rejected rejected 817ms expected @a9ae30e1c334+wt
 	exact arithmetic in machine `Main::sum` state `sum` assignment may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
 fail/dependent/collection_predicate_zero_violating_read_rejected rejected 5635ms expected @a9ae30e1c334+wt
@@ -6425,6 +6427,7 @@ pass/dependent/case_where_match_contributes checked 1661ms @a9ae30e1c334+wt
 pass/dependent/case_where_zero_decided_first_case checked 1749ms @a9ae30e1c334+wt
 pass/dependent/collection_predicate_element_store_restored checked 1687ms @a9ae30e1c334+wt
 pass/dependent/collection_predicate_helper_theorem_bounds_sum checked 1687ms @a9ae30e1c334+wt
+pass/dependent/collection_predicate_proved_element_store checked 1217ms @abbaf3aaa059+wt
 pass/dependent/collection_predicate_terminal_rows_exit checked 13291ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/dependent/collection_predicate_zero_initialized checked 1924ms @a9ae30e1c334+wt
 pass/dependent/data_where_antisymmetric_fields_compile checked 2260ms @a9ae30e1c334+wt

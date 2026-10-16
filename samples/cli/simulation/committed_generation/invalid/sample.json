@@ -1,0 +1,7 @@
+{
+  "role": "intended-invalid",
+  "entry": "main.omg",
+  "rejection_contains": [
+    "data `Grid`'s default domain is still FALSE at state exit"
+  ]
+}

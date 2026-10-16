@@ -1,0 +1,97 @@
+// A store into a `cells_valid` array restores the predicate from the
+// stored value's proved set, not only from a 0/1 literal. Each store below
+// writes a value flow has already bounded to 0..=1: the cell itself, a
+// local, a field, a call result, a `requires`-bounded parameter, and the
+// same cell through a runtime index. An unbounded value still leaves the
+// window open
+// (fail/dependent/collection_predicate_unbounded_element_store_rejected).
+
+machine cells_valid(cells: &[i32; 4]) -> bool {
+    transition cells[0] == 0 || cells[0] == 1 {
+        true -> at_1(cells)
+        _ -> (false)
+    }
+    state at_1(cells: &[i32; 4]) -> bool {
+        transition cells[1] == 0 || cells[1] == 1 {
+            true -> at_2(cells)
+            _ -> (false)
+        }
+    }
+    state at_2(cells: &[i32; 4]) -> bool {
+        transition cells[2] == 0 || cells[2] == 1 {
+            true -> at_3(cells)
+            _ -> (false)
+        }
+    }
+    state at_3(cells: &[i32; 4]) -> bool {
+        transition cells[3] == 0 || cells[3] == 1 {
+            true -> (true)
+            _ -> (false)
+        }
+    }
+}
+
+machine cell_is_bit(cells: &[i32; 4], index: u64)
+requires cells_valid(cells) == true
+requires index < 4
+ensures cells[index] >= 0 && cells[index] <= 1
+{
+}
+
+machine one_bit(cells: &[i32; 4]) -> i32
+requires cells_valid(cells) == true
+ensures result >= 0 && result <= 1
+{
+    cell_is_bit(cells, 0);
+    transition { _ -> (cells[0]) }
+}
+
+data Grid where cells_valid(&board) == true, cells_valid(&next) == true {
+    board: [i32; 4];
+    next: [i32; 4];
+}
+
+data Main {
+    g: Grid;
+    held: i32;
+}
+
+machine store_parameter(context: &mut Main, bit: i32)
+requires bit >= 0 && bit <= 1
+{
+    context.g.board[3] = bit;
+}
+
+machine store_index(context: &mut Main, index: u64)
+requires index < 4
+{
+    cell_is_bit(&context.g.next, index);
+    context.g.board[index] = context.g.next[index];
+}
+
+machine Main::seed(context: &mut Main) {
+    context.g.next[0] = 1;
+    context.g.next[1] = 1;
+}
+
+machine Main::commit(context: &mut Main) {
+    cell_is_bit(&context.g.next, 0);
+    context.g.board[0] = context.g.next[0];
+
+    cell_is_bit(&context.g.next, 1);
+    let bit: i32 = context.g.next[1];
+    context.g.board[1] = bit;
+
+    cell_is_bit(&context.g.next, 2);
+    context.held = context.g.next[2];
+    context.g.board[2] = context.held;
+
+    context.g.board[0] = one_bit(&context.g.next);
+    store_parameter(context, 0);
+    store_index(context, 1);
+}
+
+machine Main::main(context: &mut Main) {
+    Main::seed(context);
+    Main::commit(context);
+}

@@ -1,0 +1,134 @@
+// One step of a 4-cell line, installed back onto the live board, then
+// stepped again.
+//
+// Seed board = [0, 1, 1, 0]. Cell 0 is born when board[1] + board[2] == 2,
+// and the other next cells are stored 0. The first next-board sum is 1.
+//
+// Commit copies each next cell into the board. The copied value is that
+// cell after `cell_is_bit`, so its 0..=1 bound is a proved fact rather than
+// a 0/1 literal. The board's `cells_valid` predicate has to hold again
+// after those stores.
+//
+// The second step therefore sees board = [1, 0, 0, 0]. Cell 0 dies, and
+// the next-board sum is 0.
+//
+// Expected exit: 50
+use omega_language_std::console;
+
+machine cells_valid(cells: &[i32; 4]) -> bool {
+    transition cells[0] == 0 || cells[0] == 1 {
+        true -> at_1(cells)
+        _ -> (false)
+    }
+
+    state at_1(cells: &[i32; 4]) -> bool {
+        transition cells[1] == 0 || cells[1] == 1 {
+            true -> at_2(cells)
+            _ -> (false)
+        }
+    }
+
+    state at_2(cells: &[i32; 4]) -> bool {
+        transition cells[2] == 0 || cells[2] == 1 {
+            true -> at_3(cells)
+            _ -> (false)
+        }
+    }
+
+    state at_3(cells: &[i32; 4]) -> bool {
+        transition cells[3] == 0 || cells[3] == 1 {
+            true -> (true)
+            _ -> (false)
+        }
+    }
+}
+
+machine cell_is_bit(cells: &[i32; 4], index: u64)
+requires cells_valid(cells) == true
+requires index < 4
+ensures cells[index] >= 0 && cells[index] <= 1
+{
+}
+
+data Grid [copy] where cells_valid(&board) == true, cells_valid(&next) == true {
+    board: [i32; 4];
+    next: [i32; 4];
+}
+
+data Main {
+    g: Grid;
+}
+
+machine Main::seed(context: &mut Main) {
+    context.g.board[1] = 1;
+    context.g.board[2] = 1;
+}
+
+machine Main::step(context: &mut Main) {
+    cell_is_bit(&context.g.board, 1);
+    cell_is_bit(&context.g.board, 2);
+    let neighbours: i32 in Wrapping = (context.g.board[1] + context.g.board[2]) as i32 in Wrapping;
+    transition neighbours == 2 {
+        true -> live(context)
+        _ -> die(context)
+    }
+
+    state live(context: &mut Main) {
+        context.g.next[0] = 1;
+        context.g.next[1] = 0;
+        context.g.next[2] = 0;
+        context.g.next[3] = 0;
+    }
+
+    state die(context: &mut Main) {
+        context.g.next[0] = 0;
+        context.g.next[1] = 0;
+        context.g.next[2] = 0;
+        context.g.next[3] = 0;
+    }
+}
+
+machine Main::commit(context: &mut Main) {
+    cell_is_bit(&context.g.next, 0);
+    context.g.board[0] = context.g.next[0];
+    cell_is_bit(&context.g.next, 1);
+    context.g.board[1] = context.g.next[1];
+    cell_is_bit(&context.g.next, 2);
+    context.g.board[2] = context.g.next[2];
+    cell_is_bit(&context.g.next, 3);
+    context.g.board[3] = context.g.next[3];
+}
+
+machine Main::checksum(context: &mut Main) -> i32 {
+    cell_is_bit(&context.g.next, 0);
+    cell_is_bit(&context.g.next, 1);
+    cell_is_bit(&context.g.next, 2);
+    cell_is_bit(&context.g.next, 3);
+    transition {
+        _ -> (context.g.next[0] + context.g.next[1] + context.g.next[2] + context.g.next[3])
+    }
+}
+
+machine Main::main(context: &mut Main) reaches Console {
+    Main::seed(context);
+    Main::step(context);
+    let first: i32 = Main::checksum(context);
+    Main::commit(context);
+    Main::step(context);
+    let second: i32 = Main::checksum(context);
+    transition first == 1 {
+        true -> check_second(context, second)
+        _ -> bad(context)
+    }
+
+    state check_second(context: &mut Main, second: i32) {
+        transition second == 0 {
+            true -> good(context)
+            _ -> bad(context)
+        }
+    }
+
+    state good(context: &mut Main) { Console::exit_process(50); }
+
+    state bad(context: &mut Main) { Console::exit_process(51); }
+}

@@ -611,6 +611,7 @@ fn walk_state(
                     poisoned_all,
                     &mut poisoned_paths,
                     born_zero,
+                    statement_ordinal,
                 );
                 // Assignment checking establishes the destination's declared
                 // type, not an unfinished containing predicate or every
