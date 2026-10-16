@@ -1161,7 +1161,9 @@ impl OperationFrame<'_, '_> {
                 ))
             }
             checked_trees::CheckedStoreRoot::Local { symbol } => {
-                let home = crate::emission::store_destination::local_store_root(
+                // A projected local names its selected subtree; the window
+                // resolver composes its captured prefix onto the home.
+                let home = crate::emission::store_destination::local_store_place(
                     symbol,
                     &self.evaluation.structural_locals,
                     self.evaluation.structural_root_parameters(),

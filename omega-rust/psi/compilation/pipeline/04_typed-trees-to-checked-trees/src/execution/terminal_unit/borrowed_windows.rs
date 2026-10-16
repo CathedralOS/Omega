@@ -283,6 +283,20 @@ pub(super) fn capture_assignment_destination(
         validation::stored_structural_type_identity(program, stored, &[], &[]),
     );
     let declared = stored;
+    // A destination the source names as a whole local or parameter selects no
+    // element and crosses no descriptor the right-hand side could change: the
+    // slot is fixed, and ownership rules keep a reference root's target live
+    // and unchanged while the replacement runs. Its scalar or byte store
+    // evaluates that target in the store operation itself, with the same
+    // result as a capture; only projected scalar and byte storage, whose
+    // selectors and descriptors the replacement may disturb, is captured.
+    if access.segments.is_empty()
+        && collection.is_none()
+        && (program.primitive_type_reference(declared).is_some()
+            || super::types::byte_sequence_carrier(program, declared, &[]).is_some())
+    {
+        return None;
+    }
     Some(
         CheckedUnitEffectOperationPlan::CaptureAssignmentDestination {
             statement_index,

@@ -165,6 +165,9 @@ struct ResolvedStoragePlace {
     root_access: StructuralAccess,
     root_multiplicity: StructuralMultiplicity,
     steps: Vec<ProjectionStep>,
+    /// Leading steps a projected local fixed when it was established. The
+    /// local holds its loan over them, so no later RHS can redirect them.
+    fixed_prefix: usize,
     checked_path: Vec<CheckedUnitStructuralPathSegment>,
     field: Option<terminal_psi::StructuralFieldDeclaration>,
     hole_type: StructuralTypeId,
@@ -290,9 +293,15 @@ impl BorrowedWindowLedger {
         // Inline fields and fixed-array coordinates already name stable
         // storage under their original PlaceId. Only descriptor crossings can
         // redirect that path after the RHS; those require a physical endpoint.
+        // The root slot's own descriptor (a reference or view held by the
+        // local or parameter itself) and everything a projected local fixed
+        // when it was established are held by that root's loan. The RHS
+        // cannot re-point them while the destination borrows through them,
+        // so they name the same endpoint after the RHS and need no capture.
         let capture_boundary = path
             .iter()
             .enumerate()
+            .filter(|(position, _)| *position > place.fixed_prefix)
             .filter_map(|(position, segment)| {
                 if *segment == StructuralPathSegment::Referent {
                     return Some(position + 1);
@@ -1012,6 +1021,8 @@ fn resolve_storage_place(
         restoration_required,
         qualifications,
         projected_qualifications,
+        alias_prefix,
+        path_root,
     ) = match plan.source {
         CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => {
             // Plan coordinates index the retained structural roster. A
@@ -1046,13 +1057,18 @@ fn resolve_storage_place(
                 parameter.access != StructuralAccess::Owned,
                 parameter.qualifications.clone(),
                 parameter.projected_qualifications.clone(),
+                Vec::new(),
+                parameter.structural_type,
             )
         }
         CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } => {
             // A window uses the same exclusive destination as an ordinary
             // field store. Referent traversal below retains the loan carrier;
             // accepting a local never substitutes its payload for its storage.
-            let root = super::store_destination::local_store_root(
+            // A projected local keeps its original storage: compose its
+            // captured prefix (array selection, descriptor crossing) before
+            // the checked path, exactly as a field store through it does.
+            let root = super::store_destination::local_store_place(
                 symbol,
                 &evaluation.structural_locals,
                 evaluation.structural_root_parameters(),
@@ -1070,6 +1086,8 @@ fn resolve_storage_place(
                 root.argument.access != StructuralAccess::Owned,
                 root.qualifications.to_vec(),
                 root.projected_qualifications.to_vec(),
+                root.argument.path.clone(),
+                root.selected_type,
             )
         }
         _ => {
@@ -1108,6 +1126,7 @@ fn resolve_storage_place(
             root_access,
             root_multiplicity,
             steps: Vec::new(),
+            fixed_prefix: 0,
             checked_path: Vec::new(),
             field: None,
             hole_type: root_type,
@@ -1117,15 +1136,28 @@ fn resolve_storage_place(
             projected_qualifications,
         });
     }
-    let (steps, leaf, borrowed_backing) =
-        lower_window_path(identities, root_type, &plan.path, structural_types).map_err(
+    let (lowered_steps, leaf, borrowed_backing) =
+        lower_window_path(identities, path_root, &plan.path, structural_types).map_err(
             |error| match error {
                 LoweringError::Unsupported(reason) => unpinned(&spelling, reason),
                 other => other,
             },
         )?;
-    // Owning a reference/view descriptor never owns its backing storage.
-    let restoration_required = restoration_required || borrowed_backing;
+    // Owning a reference/view descriptor never owns its backing storage,
+    // including one the projected local's prefix already crossed.
+    let restoration_required = restoration_required
+        || borrowed_backing
+        || alias_prefix.contains(&StructuralPathSegment::Referent);
+    let leading_referent = matches!(
+        lowered_steps.first(),
+        Some(ProjectionStep::Static(StructuralPathSegment::Referent))
+    );
+    let fixed_prefix = alias_prefix.len();
+    let steps = alias_prefix
+        .into_iter()
+        .map(ProjectionStep::Static)
+        .chain(lowered_steps)
+        .collect::<Vec<_>>();
     let checked_leaf_type = lookup_type_id(type_ids, &plan.type_identity)?;
     let (field, hole_type) = match leaf {
         WindowLeaf::Field(field) => {
@@ -1182,10 +1214,7 @@ fn resolve_storage_place(
         ));
     }
     let mut checked_path = plan.path.clone();
-    if matches!(
-        steps.first(),
-        Some(ProjectionStep::Static(StructuralPathSegment::Referent))
-    ) {
+    if leading_referent {
         checked_path.insert(0, CheckedUnitStructuralPathSegment::Referent);
     }
     Ok(ResolvedStoragePlace {
@@ -1194,6 +1223,7 @@ fn resolve_storage_place(
         root_access,
         root_multiplicity,
         steps,
+        fixed_prefix,
         checked_path,
         field,
         hole_type,
