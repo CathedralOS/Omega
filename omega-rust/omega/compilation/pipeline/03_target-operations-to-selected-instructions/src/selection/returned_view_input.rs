@@ -16,7 +16,21 @@ use selected_instructions::{
     SelectedMemoryAccess, SelectedMemoryAccessOrigin, SelectedMemoryAccessRole as R,
 };
 use semantic_vocabulary::{OperationId, PlaceId, StructuralPlaceKind};
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
+
+/// Successful geometry selections belong to this immutable function's type
+/// catalog. Keep full paths (including runtime selector identities); access
+/// reachability and producer inventories remain separate for each read.
+struct SourceGeometry<'a> {
+    function: &'a LegalizedScalarFunction,
+    selected_types: BTreeMap<
+        (
+            semantic_vocabulary::StructuralTypeId,
+            Vec<terminal_psi::StructuralPathSegment>,
+        ),
+        semantic_vocabulary::StructuralTypeId,
+    >,
+}
 
 /// Construction scratch for the coordinate walk. Recurrent bindings are
 /// dependencies, not evidence that a descriptor has real backing. Every
@@ -85,6 +99,10 @@ pub(super) fn replay_memory_origins(
     source: &LegalizedScalarFunction,
     accesses: &mut Vec<SelectedMemoryAccess>,
 ) -> Result<(), SelectedInstructionError> {
+    let mut geometry = SourceGeometry {
+        function: source,
+        selected_types: BTreeMap::new(),
+    };
     let mut replayed = Vec::with_capacity(accesses.len());
     for access in accesses.iter() {
         if !matches!(
@@ -99,8 +117,8 @@ pub(super) fn replay_memory_origins(
         }
         let mut producers = BTreeSet::new();
         let mut visited = OriginInventory::default();
-        for coordinate in access_coordinates(source, access)? {
-            collect_calls(source, &coordinate, &mut visited, &mut producers)?;
+        for coordinate in access_coordinates(&mut geometry, access)? {
+            collect_calls(&mut geometry, &coordinate, &mut visited, &mut producers)?;
         }
         visited.validate()?;
         if producers.is_empty() {
@@ -127,9 +145,10 @@ pub(super) fn replay_memory_origins(
 /// home. Start from the operation's selected operand where it is retained;
 /// other footprint families conservatively retain the named root's reach.
 fn access_coordinates(
-    function: &LegalizedScalarFunction,
+    geometry: &mut SourceGeometry<'_>,
     access: &SelectedMemoryAccess,
 ) -> Result<Vec<terminal_psi::StructuralArgument>, SelectedInstructionError> {
+    let function = geometry.function;
     use terminal_psi::{StructuralAccess, StructuralArgument};
     let whole = |place| StructuralArgument::whole(place, StructuralAccess::SharedBorrow);
     let SelectedMemoryAccessOrigin::Operation(operation) = access.origin else {
@@ -180,17 +199,17 @@ fn access_coordinates(
             }]
         }
         I::StructuralByteSequenceFieldRead { source, field, .. } => {
-            vec![field_coordinate(function, source, Some(*field))?]
+            vec![field_coordinate(geometry, source, Some(*field))?]
         }
         I::ByteSequenceLength { source, .. } | I::ElementViewLength { source, .. } => {
             vec![source.clone()]
         }
-        I::ByteSequencePredicate { operand, .. } => vec![byte_coordinate(function, operand)?],
+        I::ByteSequencePredicate { operand, .. } => vec![byte_coordinate(geometry, operand)?],
         I::ByteSequenceEqual { left, right }
         | I::EstablishByteSequenceConcatenation { left, right, .. } => {
             vec![
-                byte_coordinate(function, left)?,
-                byte_coordinate(function, right)?,
+                byte_coordinate(geometry, left)?,
+                byte_coordinate(geometry, right)?,
             ]
         }
         _ => vec![whole(access.place)],
@@ -199,13 +218,13 @@ fn access_coordinates(
 }
 
 fn byte_coordinate(
-    function: &LegalizedScalarFunction,
+    geometry: &mut SourceGeometry<'_>,
     operand: &terminal_psi::control_flow::ByteSequenceOperand,
 ) -> Result<terminal_psi::StructuralArgument, SelectedInstructionError> {
     match operand {
         terminal_psi::control_flow::ByteSequenceOperand::Whole { source, .. } => Ok(source.clone()),
         terminal_psi::control_flow::ByteSequenceOperand::Field { source, field, .. } => {
-            field_coordinate(function, source, Some(*field))
+            field_coordinate(geometry, source, Some(*field))
         }
     }
 }
@@ -213,10 +232,11 @@ fn byte_coordinate(
 /// Field IDs are declaration-local. Join the containing path first, including
 /// a selected payload namespace, before recovering its retained field identity.
 fn field_coordinate(
-    function: &LegalizedScalarFunction,
+    geometry: &mut SourceGeometry<'_>,
     source: &terminal_psi::StructuralArgument,
     field: Option<semantic_vocabulary::StructuralFieldId>,
 ) -> Result<terminal_psi::StructuralArgument, SelectedInstructionError> {
+    let function = geometry.function;
     let Some(field) = field else {
         return Ok(source.clone());
     };
@@ -230,14 +250,26 @@ fn field_coordinate(
         Some((terminal_psi::StructuralPathSegment::Case(case), prefix)) => (prefix, Some(*case)),
         _ => (source.path.as_slice(), None),
     };
-    let geometry = crate::structural_inputs::structural_reference_input::reference_source_geometry(
-        root,
-        prefix,
-        &signature.structural_types,
-    )
-    .ok_or(SelectedInstructionError::custody())?;
+    let key = (root, prefix.to_vec());
+    let selected_type = match geometry.selected_types.get(&key) {
+        Some(selected) => *selected,
+        None => {
+            // The first query still performs the complete geometry check.
+            // Cache only success; case and field checks below run every time.
+            let selected =
+                crate::structural_inputs::structural_reference_input::reference_source_geometry(
+                    root,
+                    prefix,
+                    &signature.structural_types,
+                )
+                .ok_or(SelectedInstructionError::custody())?
+                .selected;
+            geometry.selected_types.insert(key, selected);
+            selected
+        }
+    };
     let shape = &signature
-        .structural_type(geometry.selected)
+        .structural_type(selected_type)
         .ok_or(SelectedInstructionError::custody())?
         .shape;
     let fields = match case {
@@ -262,11 +294,12 @@ fn field_coordinate(
 /// Retain coordinates through value transport. This inventory is conservative
 /// about possible origins and supplies no access, allocation or count bound.
 fn collect_calls(
-    function: &LegalizedScalarFunction,
+    geometry: &mut SourceGeometry<'_>,
     coordinate: &terminal_psi::StructuralArgument,
     visited: &mut OriginInventory,
     calls: &mut BTreeSet<(OperationId, PlaceId)>,
 ) -> Result<(), SelectedInstructionError> {
+    let function = geometry.function;
     if !visited.enter(coordinate) {
         return Ok(());
     }
@@ -281,7 +314,7 @@ fn collect_calls(
     // Replacements are independently ordered by the live storage owner. Origin
     // accounting retains all overlapping possibilities, including the original
     // constructor value; it never reinterprets a future write as a live fact.
-    let stored = stored_sources(function, coordinate, visited, calls)?;
+    let stored = stored_sources(geometry, coordinate, visited, calls)?;
     match declaration.kind {
         StructuralPlaceKind::OperationResult {
             producer,
@@ -318,7 +351,7 @@ fn collect_calls(
                                     ..
                                 } = origin
                                 {
-                                    collect_calls(function, source, visited, calls)?;
+                                    collect_calls(geometry, source, visited, calls)?;
                                 }
                             }
                         }
@@ -337,17 +370,17 @@ fn collect_calls(
                 } => {
                     let root = super::reference_input::root_type(function, parent.place)
                         .ok_or(SelectedInstructionError::custody())?;
-                    let geometry = crate::structural_inputs::structural_reference_input::descriptor_source_geometry(
+                    let descriptor_geometry = crate::structural_inputs::structural_reference_input::descriptor_source_geometry(
                         root, &parent.path, &signature.structural_types,
                     ).ok_or(SelectedInstructionError::custody())?;
-                    if !geometry.readable || !crate::structural_inputs::structural_reference_input::runtime_indices_match(indices, &geometry.elements) {
+                    if !descriptor_geometry.readable || !crate::structural_inputs::structural_reference_input::runtime_indices_match(indices, &descriptor_geometry.elements) {
                         return Err(SelectedInstructionError::custody());
                     }
                     // A result index is relative to the captured cut, not to
                     // its parent's backing. Retain the exact descriptor prefix
                     // and union its backing reach instead of reusing that index
                     // as an original collection selector.
-                    collect_calls(function, parent, visited, calls)?;
+                    collect_calls(geometry, parent, visited, calls)?;
                 }
                 I::StructuralLeafCopy {
                     source: parent,
@@ -376,7 +409,7 @@ fn collect_calls(
                         access: coordinate.access,
                     };
                     collect_calls(
-                        function,
+                        geometry,
                         &rebased(&parent, &coordinate.path),
                         visited,
                         calls,
@@ -386,7 +419,7 @@ fn collect_calls(
                     // A view's selectors are in its backing coordinate. The
                     // source collection is retained conservatively when a cut
                     // cannot map an element back to one exact original index.
-                    collect_calls(function, parent, visited, calls)?;
+                    collect_calls(geometry, parent, visited, calls)?;
                 }
                 I::EstablishReference { source: parent, .. }
                 | I::EstablishPlacedReference { source: parent, .. } => {
@@ -395,11 +428,11 @@ fn collect_calls(
                         None => &[],
                         _ => return Err(SelectedInstructionError::custody()),
                     };
-                    collect_calls(function, &rebased(parent, suffix), visited, calls)?;
+                    collect_calls(geometry, &rebased(parent, suffix), visited, calls)?;
                 }
                 I::EstablishRecord { fields, .. } => {
                     constructed_fields(
-                        function,
+                        geometry,
                         structural_type,
                         None,
                         fields,
@@ -414,7 +447,7 @@ fn collect_calls(
                     ..
                 } => {
                     constructed_fields(
-                        function,
+                        geometry,
                         structural_type,
                         Some(*result_case),
                         fields,
@@ -430,7 +463,7 @@ fn collect_calls(
                     match coordinate.path.split_first() {
                         None => {
                             for element in elements {
-                                collect_calls(function, element, visited, calls)?;
+                                collect_calls(geometry, element, visited, calls)?;
                             }
                         }
                         Some((terminal_psi::StructuralPathSegment::FixedIndex(index), suffix)) => {
@@ -440,14 +473,14 @@ fn collect_calls(
                                         .map_err(|_| SelectedInstructionError::custody())?,
                                 )
                                 .ok_or(SelectedInstructionError::custody())?;
-                            collect_calls(function, &rebased(element, suffix), visited, calls)?;
+                            collect_calls(geometry, &rebased(element, suffix), visited, calls)?;
                         }
                         Some((
                             terminal_psi::StructuralPathSegment::RuntimeIndex { .. },
                             suffix,
                         )) => {
                             for element in elements {
-                                collect_calls(function, &rebased(element, suffix), visited, calls)?;
+                                collect_calls(geometry, &rebased(element, suffix), visited, calls)?;
                             }
                         }
                         _ => return Err(SelectedInstructionError::custody()),
@@ -497,7 +530,7 @@ fn collect_calls(
                         let binding = successor.structural_binding(place)
                             .ok_or(SelectedInstructionError::custody())?;
                         arrivals += 1;
-                        collect_calls(function, &rebased(&binding.argument, &coordinate.path), visited, calls)?;
+                        collect_calls(geometry, &rebased(&binding.argument, &coordinate.path), visited, calls)?;
                     }
                     Ok(())
                 };
@@ -544,7 +577,7 @@ fn rebased(
 }
 
 fn constructed_fields(
-    function: &LegalizedScalarFunction,
+    geometry: &mut SourceGeometry<'_>,
     identity: semantic_vocabulary::StructuralTypeId,
     case: Option<semantic_vocabulary::StructuralCaseId>,
     fields: &[terminal_psi::RecordFieldInitializer],
@@ -552,13 +585,14 @@ fn constructed_fields(
     visited: &mut OriginInventory,
     calls: &mut BTreeSet<(OperationId, PlaceId)>,
 ) -> Result<(), SelectedInstructionError> {
+    let function = geometry.function;
     if coordinate.path.is_empty() {
         if fields.is_empty() {
             visited.origin();
         }
         for field in fields {
             if let Some(child) = field.value.as_structural() {
-                collect_calls(function, child, visited, calls)?;
+                collect_calls(geometry, child, visited, calls)?;
             } else {
                 visited.origin();
             }
@@ -610,7 +644,7 @@ fn constructed_fields(
         return Err(SelectedInstructionError::custody());
     }
     if let Some(child) = initializer.value.as_structural() {
-        collect_calls(function, &rebased(child, suffix), visited, calls)?;
+        collect_calls(geometry, &rebased(child, suffix), visited, calls)?;
     } else {
         visited.origin();
     }
@@ -668,11 +702,12 @@ fn contains_borrowed_storage(
 }
 
 fn stored_sources(
-    function: &LegalizedScalarFunction,
+    geometry: &mut SourceGeometry<'_>,
     coordinate: &terminal_psi::StructuralArgument,
     visited: &mut OriginInventory,
     calls: &mut BTreeSet<(OperationId, PlaceId)>,
 ) -> Result<bool, SelectedInstructionError> {
+    let function = geometry.function;
     let mut found = false;
     for row in function.instructions() {
         let (destination, field, value) = match &row.kind {
@@ -702,7 +737,7 @@ fn stored_sources(
         if destination.place != coordinate.place {
             continue;
         }
-        let target = field_coordinate(function, &destination, field)?.path;
+        let target = field_coordinate(geometry, &destination, field)?.path;
         if !terminal_semantics::structural_paths_may_overlap(&target, &coordinate.path) {
             continue;
         }
@@ -713,7 +748,7 @@ fn stored_sources(
             &[]
         };
         let parent = terminal_psi::StructuralArgument::whole(value, coordinate.access);
-        collect_calls(function, &rebased(&parent, suffix), visited, calls)?;
+        collect_calls(geometry, &rebased(&parent, suffix), visited, calls)?;
     }
     Ok(found)
 }
