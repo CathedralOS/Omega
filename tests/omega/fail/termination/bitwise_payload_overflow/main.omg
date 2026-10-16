@@ -1,0 +1,12 @@
+machine main() { let value: u32 = fold(4294967295, 1); }
+
+// XOR is total; the nested Exact addition is not. Ranking admission must
+// never discharge the payload's independent arithmetic obligations.
+machine fold(value: u32, remaining: u64) -> u32
+terminates by remaining;
+{
+    transition remaining > 0 {
+        true -> fold((value + 1) ^ 3, remaining - 1)
+        _ -> (value)
+    }
+}

@@ -1,0 +1,44 @@
+use omega_language_std::console;
+use omega_language_std::targets::uefi_x86_64::integrity;
+
+data Main { table: [u8; 33]; }
+
+// The first 32 bytes are an independently checksummed table (Python zlib
+// CRC32 0x687a9448 with bytes 16..20 zero). The last byte is backing capacity,
+// deliberately outside HeaderSize. No real firmware pointer is involved.
+machine Main::main(context: &mut Main) reaches Console {
+    context.table = [73, 66, 73, 32, 83, 89, 83, 84, 0, 0, 2, 0,
+        32, 0, 0, 0, 72, 148, 122, 104, 0, 0, 0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 99];
+    let valid: bool = validate_table(&context.table, 0x5453595320494249, 0x20000, 32);
+    let wrong_signature: bool = validate_table(&context.table, 0x56524553544F4F42, 0x20000, 32);
+    let old_revision: bool = validate_table(&context.table, 0x5453595320494249, 0x20001, 32);
+    let short_layout: bool = validate_table(&context.table, 0x5453595320494249, 0x20000, 33);
+    let truncated: bool = validate_table(context.table[..31], 0x5453595320494249, 0x20000, 32);
+    let short_header: bool = validate_table(context.table[..23], 0x5453595320494249, 0x20000, 24);
+    context.table[32] = 100;
+    let trailing: bool = validate_table(&context.table, 0x5453595320494249, 0x20000, 32);
+    context.table[24] = 9;
+    let corrupt_payload: bool = validate_table(&context.table, 0x5453595320494249, 0x20000, 32);
+    context.table[24] = 1;
+    context.table[16] = 0;
+    let corrupt_crc: bool = validate_table(&context.table, 0x5453595320494249, 0x20000, 32);
+    context.table[16] = 72;
+    context.table[20] = 1;
+    // A matching CRC must not excuse a forbidden nonzero Reserved field.
+    context.table[16] = 39;
+    context.table[17] = 216;
+    context.table[18] = 223;
+    context.table[19] = 243;
+    let reserved: bool = validate_table(&context.table, 0x5453595320494249, 0x20000, 32);
+    context.table[20] = 0;
+    context.table[12] = 23;
+    let undersized: bool = validate_table(&context.table, 0x5453595320494249, 0x20000, 0);
+    transition valid && trailing && !wrong_signature && !old_revision
+        && !short_layout && !truncated && !short_header && !corrupt_payload
+        && !corrupt_crc && !reserved && !undersized {
+        true -> accepted()
+        _ -> rejected()
+    }
+    state accepted() { Console::exit_process(70); }
+    state rejected() { Console::exit_process(71); }
+}

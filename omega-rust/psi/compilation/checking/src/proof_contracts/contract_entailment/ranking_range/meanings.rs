@@ -225,13 +225,19 @@ pub(super) fn admitted_carrier(
                     _ => None,
                 };
             }
-            // `&` also names no overloadable spelling: a typed occurrence is
-            // the builtin operator. Unlike a shift both operands share one
+            // Bitwise operators name no overloadable spelling: a typed
+            // occurrence is builtin. Unlike a shift both operands share one
             // carrier -- an anonymous literal or natural coordinate is the
             // same wildcard input division's operands are -- and the
             // operation is total inside it, so meaning keeps that agreed
             // integer primitive as the result carrier.
-            if binary.operator == BinaryOperator::BitwiseAnd {
+            // Admit all three operations even when they only update an
+            // unrelated accumulator. Carrier admission does not assert a
+            // polynomial meaning or any decrease of that accumulator.
+            if matches!(
+                binary.operator,
+                BinaryOperator::BitwiseAnd | BinaryOperator::BitwiseOr | BinaryOperator::BitwiseXor
+            ) {
                 if left.zip(right).is_some_and(|(left, right)| {
                     program.primitive_type_reference(left)
                         != program.primitive_type_reference(right)

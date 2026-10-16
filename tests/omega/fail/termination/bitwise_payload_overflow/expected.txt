@@ -1,0 +1,1 @@
+exact arithmetic in machine `fold` state `entry` transition argument may overflow `u32`

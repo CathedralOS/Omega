@@ -1,0 +1,11 @@
+machine main() { let value: u32 = stuck(0, 3); }
+
+// Admitting a bitwise payload must not manufacture descent of the counter.
+machine stuck(value: u32, remaining: u64) -> u32
+terminates by remaining;
+{
+    transition remaining > 0 {
+        true -> stuck((value | 8) ^ 3, remaining)
+        _ -> (value)
+    }
+}

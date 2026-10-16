@@ -4929,6 +4929,11 @@ fail/tasks/task_runtime_provider_contract_narrowing rejected 1350ms expected @a9
 	machine parameter `Target` of provider machine `NarrowTaskRuntime::start` for trait requirement `TaskRuntime::start` does not refine `Target`: it may block, but the requirement omits `blocks;`
 fail/tasks/task_runtime_selected_provider_missing rejected 1678ms expected @a9ae30e1c334+wt
 	TaskRuntime boundary slot has no retained selected provider plan
+fail/termination/bitwise_payload_no_rank_progress rejected 932ms expected @94394d5fbb6f+wt
+	terminating machine stuck: cannot prove strict rank decrease on a recurrent arrival: the transition from `stuck` back to itself is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step
+	machine call cycle: `stuck` -- a member lacks a source-complete ranking witness; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
+fail/termination/bitwise_payload_overflow rejected 281ms expected @94394d5fbb6f+wt
+	exact arithmetic in machine `fold` state `entry` transition argument may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
 fail/termination/bounded_distance_inverted rejected 1100ms expected @9c4d1c444502+wt
 	cannot prove the `terminates by` ranking for machine Main::walk: `terminates by (limit, index)` inverts the named bounded distance -- `Nat::BoundedDistance` ranks `(lower, upper)`, which descends as the lower value climbs; write `terminates by (index, limit) -> Nat::BoundedDistance`
 fail/termination/bounded_distance_moving_call_bound rejected 4018ms expected @d988854a6e10+wt
@@ -8372,6 +8377,7 @@ pass/targets/target_body_call_contracts_exit checked 10525ms check-target:macos_
 pass/targets/target_family_entry_exit checked 11169ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/targets/target_machine_gating_exit checked 12231ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/targets/target_member_ranked_self_transition_exit checked 7211ms check-target:macos_arm64 @24b103700a81
+pass/targets/uefi_table_integrity_exit checked 9517ms check-target:macos_arm64 @94394d5fbb6f+wt
 pass/targets/unreached_family_missing_member_exit checked 11591ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/targets/unreached_foreign_body_caller_exit checked 11335ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/tasks/task_runtime_machine_selection_compile checked 1727ms @a9ae30e1c334+wt
@@ -8387,6 +8393,7 @@ pass/terminal_psi/structural_content_passthrough checked 1666ms @a9ae30e1c334+wt
 pass/terminal_psi/structural_scalar_trait_operator checked 12611ms check-target:linux_x86_64 @a9ae30e1c334+wt
 pass/terminal_psi/unsupported_optimizer_component checked 10624ms check-target:linux_x86_64 @a9ae30e1c334+wt
 pass/termination/auxiliary_payload_computed_arrival checked 1886ms @a9ae30e1c334+wt
+pass/termination/bitwise_payload_exit checked 8987ms check-target:macos_arm64 @94394d5fbb6f+wt
 pass/termination/borrowed_carrier_rank checked 10079ms @5041ef1af684+wt
 pass/termination/bounded_distance_named_view checked 3180ms @a9ae30e1c334+wt
 pass/termination/bounded_distance_rank checked 9696ms @5041ef1af684+wt
