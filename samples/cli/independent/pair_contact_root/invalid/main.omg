@@ -1,0 +1,8 @@
+// Index 2 of a two-entry contact ledger is outside the array.
+
+data Control { contacts: [u32; 2]; observed: u32; }
+
+machine Control::main(control: &mut Control) {
+    control.contacts = [7, 3];
+    control.observed = control.contacts[2];
+}
