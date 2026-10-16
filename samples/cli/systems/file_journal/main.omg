@@ -1,113 +1,100 @@
-// A real end-to-end filesystem workflow over Omega's std::fs seam, run for
-// real on macOS AND windows: make a directory,
-// create and write a file inside it, confirm the file exists via `stat`
-// (`read_metadata`), reopen and read the bytes back, rename it, remove the
-// file, then remove the directory. Every step must succeed; the program
-// tallies the seven verified steps and exits with that count (so a partial
-// failure exits with fewer than 7 and the harness assertion catches it).
-//
-// Format-neutral operations drive the raw `FilesystemHost` directly. Opening
-// and creating files goes through `Filesystem`: open flags are foreign-format
-// facts owned by the selected target package, not constants exposed through
-// the provider boundary for application code to assemble. This keeps Windows
-// binary mode and the POSIX encodings behind one checked adapter while the
-// sample still exercises raw stat/read/write/rename/remove operations.
-//
+// A portable filesystem journal: create a directory, write a 17-byte file,
+// inspect it, read its bytes back, rename it, and remove the file/directory.
+// Each successful step increments the tally; partial completion returns fewer
+// than seven. The application carries one Filesystem slot and no raw OS role.
 // Expected exit: 7.
-
 use omega_language_std::filesystem;
-use omega_language_std::filesystem_host;
-
 use omega_language_std::console;
 use omega::language::core::binding;
 
 data Main {
-    fs: Binding<FilesystemHost>;
-    files: Filesystem;
+    filesystem: Filesystem;
     console: Binding<Console>;
-    dir_mode: i32;
-    open_result: OpenResult;
-    fd: i32;
-    rc: i32;
-    n: i64;
-    // Step tally 0..=7. `in Wrapping` gives the `+ 1` a defined-overflow domain so
-    // the exact-arithmetic proof obligation is discharged (the value never nears
-    // the i32 range, but the checker requires an explicit domain regardless).
+    result: UnitResult;
+    opened: OpenResult;
+    transferred: IoResult;
+    metadata: MetadataResult;
     passed: i32 in Wrapping;
     buffer: [u8; 64];
-    meta: [u8; 144];
 }
 
-machine Main::main(main: &mut Main) reaches Console + FilesystemHost {
-    main.dir_mode = 493; // 0o755
+machine Main::main(main: &mut Main) reaches Console {
+    // The sample owns these paths. Remove its prior interrupted run first.
+    main.result = Filesystem::remove(&mut main.filesystem, "/tmp/omega_journal_dir/note.txt");
+    main.result = Filesystem::remove(&mut main.filesystem, "/tmp/omega_journal_dir/renamed.txt");
+    main.result = Filesystem::remove_dir(&mut main.filesystem, "/tmp/omega_journal_dir");
+    main.result = Filesystem::create_dir(&mut main.filesystem, "/tmp/omega_journal_dir");
+    transition main.result { UnitResult::Ok -> made_directory(main) _ -> done(main) }
 
-    // Best-effort clean slate so a re-run is deterministic (ignore the results:
-    // on a fresh machine these targets do not exist yet).
-    main.rc = main.fs.remove("/tmp/omega_journal_dir/note.txt");
-    main.rc = main.fs.remove("/tmp/omega_journal_dir/renamed.txt");
-    main.rc = main.fs.remove_dir("/tmp/omega_journal_dir");
-
-    // Step 1 — create the working directory.
-    main.rc = main.fs.create_dir("/tmp/omega_journal_dir", main.dir_mode);
-    transition main.rc == 0 { true -> made_dir(main) _ -> done(main) }
-
-    state made_dir(main: &mut Main) {
+    state made_directory(main: &mut Main) {
         main.passed = main.passed + 1;
-        // Step 2 — create the file through the portable target-format adapter
-        // and write a known 17-byte line.
-        main.open_result = Filesystem::create(&mut main.files, "/tmp/omega_journal_dir/note.txt");
-        transition main.open_result { OpenResult::Ok { file } -> opened_for_write(main, file) _ -> done(main) }
+        main.opened = Filesystem::create(&mut main.filesystem, "/tmp/omega_journal_dir/note.txt");
+        transition main.opened { OpenResult::Ok { file } -> write(main, file) _ -> done(main) }
     }
-    state opened_for_write(main: &mut Main, file: File) {
-        main.fd = file.fd;
-        main.n = main.fs.write(main.fd, "omega fs journal\n");
-        main.rc = main.fs.close(main.fd);
-        transition main.n == 17 { true -> wrote_file(main) _ -> done(main) }
+    state write(main: &mut Main, file: File) {
+        main.transferred = Filesystem::write(&mut main.filesystem, file, "omega fs journal\n");
+        main.result = Filesystem::close(&mut main.filesystem, file);
+        transition main.result { UnitResult::Ok -> written(main) _ -> done(main) }
     }
-    state wrote_file(main: &mut Main) {
+    state written(main: &mut Main) {
+        transition main.transferred { IoResult::Ok { count } -> count_written(main, count) _ -> done(main) }
+    }
+    state count_written(main: &mut Main, count: u64) {
+        transition count == 17 { true -> inspect(main) false -> done(main) }
+    }
+    state inspect(main: &mut Main) {
         main.passed = main.passed + 1;
-        // Step 3 — the file exists (stat succeeds; no read permission needed).
-        main.rc = main.fs.read_metadata("/tmp/omega_journal_dir/note.txt", &mut main.meta);
-        transition main.rc == 0 { true -> confirmed_present(main) _ -> done(main) }
+        main.metadata = Filesystem::metadata_path(&mut main.filesystem, "/tmp/omega_journal_dir/note.txt");
+        transition main.metadata { MetadataResult::Ok { meta } -> inspected(main, meta) _ -> done(main) }
     }
-    state confirmed_present(main: &mut Main) {
+    state inspected(main: &mut Main, metadata: Metadata) {
+        transition metadata.len == 17 { true -> open_for_read(main) false -> done(main) }
+    }
+    state open_for_read(main: &mut Main) {
         main.passed = main.passed + 1;
-        // Step 4 — reopen read-only through the same adapter and read the 17
-        // bytes back byte-exactly.
-        main.open_result = Filesystem::open(&mut main.files, "/tmp/omega_journal_dir/note.txt");
-        transition main.open_result { OpenResult::Ok { file } -> opened_for_read(main, file) _ -> done(main) }
+        main.opened = Filesystem::open(&mut main.filesystem, "/tmp/omega_journal_dir/note.txt");
+        transition main.opened { OpenResult::Ok { file } -> read(main, file) _ -> done(main) }
     }
-    state opened_for_read(main: &mut Main, file: File) {
-        main.fd = file.fd;
-        main.n = main.fs.read(main.fd, &mut main.buffer, 17);
-        main.rc = main.fs.close(main.fd);
-        transition main.n == 17 { true -> read_back(main) _ -> done(main) }
+    state read(main: &mut Main, file: File) {
+        main.transferred = Filesystem::read(&mut main.filesystem, file, &mut main.buffer, 17);
+        main.result = Filesystem::close(&mut main.filesystem, file);
+        transition main.result { UnitResult::Ok -> read_complete(main) _ -> done(main) }
     }
-    state read_back(main: &mut Main) {
+    state read_complete(main: &mut Main) {
+        transition main.transferred { IoResult::Ok { count } -> count_read(main, count) _ -> done(main) }
+    }
+    state count_read(main: &mut Main, count: u64) {
+        transition count == 17 { true -> bytes_read(main) false -> done(main) }
+    }
+    state bytes_read(main: &mut Main) {
+        transition main.buffer[0] == 111 && main.buffer[1] == 109 && main.buffer[2] == 101
+            && main.buffer[3] == 103 && main.buffer[4] == 97 && main.buffer[5] == 32
+            && main.buffer[6] == 102 && main.buffer[7] == 115 && main.buffer[8] == 32
+            && main.buffer[9] == 106 && main.buffer[10] == 111 && main.buffer[11] == 117
+            && main.buffer[12] == 114 && main.buffer[13] == 110 && main.buffer[14] == 97
+            && main.buffer[15] == 108 && main.buffer[16] == 10 {
+            true -> rename(main)
+            false -> done(main)
+        }
+    }
+    state rename(main: &mut Main) {
         main.passed = main.passed + 1;
-        // Step 5 — rename within the directory.
-        main.rc = main.fs.rename("/tmp/omega_journal_dir/note.txt", "/tmp/omega_journal_dir/renamed.txt");
-        transition main.rc == 0 { true -> renamed(main) _ -> done(main) }
+        main.result = Filesystem::rename(&mut main.filesystem, "/tmp/omega_journal_dir/note.txt", "/tmp/omega_journal_dir/renamed.txt");
+        transition main.result { UnitResult::Ok -> renamed(main) _ -> done(main) }
     }
     state renamed(main: &mut Main) {
         main.passed = main.passed + 1;
-        // Step 6 — remove the file.
-        main.rc = main.fs.remove("/tmp/omega_journal_dir/renamed.txt");
-        transition main.rc == 0 { true -> removed_file(main) _ -> done(main) }
+        main.result = Filesystem::remove(&mut main.filesystem, "/tmp/omega_journal_dir/renamed.txt");
+        transition main.result { UnitResult::Ok -> removed_file(main) _ -> done(main) }
     }
     state removed_file(main: &mut Main) {
         main.passed = main.passed + 1;
-        // Step 7 — remove the now-empty directory.
-        main.rc = main.fs.remove_dir("/tmp/omega_journal_dir");
-        transition main.rc == 0 { true -> removed_dir(main) _ -> done(main) }
+        main.result = Filesystem::remove_dir(&mut main.filesystem, "/tmp/omega_journal_dir");
+        transition main.result { UnitResult::Ok -> removed_directory(main) _ -> done(main) }
     }
-    state removed_dir(main: &mut Main) {
+    state removed_directory(main: &mut Main) {
         main.passed = main.passed + 1;
         transition { _ -> done(main) }
     }
-
-    state done(main: &mut Main) {
-        // Exit with the number of verified steps: 7 on full success.
-        main.console.exit_process(main.passed as i32);
-    }
+    state done(main: &mut Main) { main.console.exit_process(main.passed as i32); }
 }

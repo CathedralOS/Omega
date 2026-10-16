@@ -1,3 +1,4 @@
+use omega::language::core::filesystem_authority;
 // NATIVE fs errno (typed error model). Opens a path that does not exist; the
 // raw POSIX service reports failure as the negated errno, so the open returns
 // -ENOENT (-2) on every POSIX target: Linux's kernel result directly, and
@@ -13,7 +14,7 @@ data Main {
     n: i64;
 }
 
-machine Main::main(main: &mut Main) reaches PosixFilesystemHost {
+machine Main::main(main: &mut Main) reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation {
     main.rdonly = 0;
     main.fd = PosixFilesystemHost::open("/tmp/omega_definitely_absent_xyzzy.txt", main.rdonly);
     transition main.fd < 0 { true -> classify(main) _ -> fail(main) }

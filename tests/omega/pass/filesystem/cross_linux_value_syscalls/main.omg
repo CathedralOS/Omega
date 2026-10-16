@@ -1,3 +1,4 @@
+use omega::language::core::filesystem_authority;
 // Linux raw-filesystem syscall slice. Both targets lower the semantic
 // open/open_create operations through openat(AT_FDCWD, ...), preserve
 // value-returning read/write/close results, and adapt the portable four-argument
@@ -22,7 +23,7 @@ data Main {
     metadata: [u8; 144];
 }
 
-machine Main::main(main: &mut Main) reaches Console + PosixFilesystemHost {
+machine Main::main(main: &mut Main) reaches Console + DirectoryEnumeration + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation {
     // O_WRONLY | O_CREAT. /dev/null already exists, so this exercises the
     // four-argument openat adapter without leaving a filesystem artifact.
     main.fd = PosixFilesystemHost::open_create("/dev/null", 65, 438);
@@ -74,7 +75,7 @@ machine Main::main(main: &mut Main) reaches Console + PosixFilesystemHost {
         transition kind { ErrorKind::NotFound -> classify_bad_fd(main) _ -> fail_error_kind(main) }
     }
     state classify_bad_fd(main: &mut Main) {
-        let result: IoResult = Filesystem::read(&mut main.semantic_fs, File { fd: -1 }, &mut main.buffer, 1);
+        let result: IoResult = Filesystem::read(&mut main.semantic_fs, File { handle: 0 }, &mut main.buffer, 1);
         transition result {
             IoResult::Error { kind } -> check_bad_fd(main, kind)
             _ -> fail_error_kind(main)

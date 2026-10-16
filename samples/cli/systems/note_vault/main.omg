@@ -10,8 +10,7 @@
 // Metadata.modified_secs rides SystemTime::from_unix_seconds and compares
 // against Time::system_time_now() -- the user-facing spelling of the
 // runtime_fs_mtime_system_time_interop_exit canary. The `file_journal` sample
-// complements it by mixing portable open/create semantics with format-neutral
-// raw boundary operations.
+// complements it with a shorter portable create/read/rename/remove loop.
 //
 // Every step must succeed; the program tallies the fourteen verified steps
 // and exits with that count (a partial failure exits with fewer than 14).
@@ -19,7 +18,6 @@
 // Expected exit: 14.
 
 use omega_language_std::filesystem;
-use omega_language_std::filesystem_host;
 use omega_language_std::time;
 
 use omega_language_std::console;
@@ -49,7 +47,7 @@ machine Main::main(context: &mut Main) reaches Console {
         let next_passed: i32 in Wrapping = passed + 1;
         // 2. Header line.
         let io_result: IoResult = Filesystem::write(&mut context.fs, file, "vault v1\n");
-        let close_rc: i32 = Filesystem::close(&mut context.fs, file);
+        let close_result: UnitResult = Filesystem::close(&mut context.fs, file);
         transition io_result { IoResult::Ok { count } -> note1(context, next_passed) _ -> done(context, next_passed) }
     }
 
@@ -61,7 +59,7 @@ machine Main::main(context: &mut Main) reaches Console {
     }
     state note1_write(context: &mut Main, passed: i32 in Wrapping, file: File) {
         let io_result: IoResult = Filesystem::write(&mut context.fs, file, "note: alpha\n");
-        let close_rc: i32 = Filesystem::close(&mut context.fs, file);
+        let close_result: UnitResult = Filesystem::close(&mut context.fs, file);
         transition io_result { IoResult::Ok { count } -> note2(context, passed) _ -> done(context, passed) }
     }
 
@@ -73,7 +71,7 @@ machine Main::main(context: &mut Main) reaches Console {
     }
     state note2_write(context: &mut Main, passed: i32 in Wrapping, file: File) {
         let io_result: IoResult = Filesystem::write(&mut context.fs, file, "note: beta\n");
-        let close_rc: i32 = Filesystem::close(&mut context.fs, file);
+        let close_result: UnitResult = Filesystem::close(&mut context.fs, file);
         transition io_result { IoResult::Ok { count } -> audit(context, passed) _ -> done(context, passed) }
     }
 
@@ -131,7 +129,7 @@ machine Main::main(context: &mut Main) reaches Console {
     }
     state compact_write(context: &mut Main, passed: i32 in Wrapping, file: File) {
         let io_result: IoResult = Filesystem::write(&mut context.fs, file, "vault v1\n");
-        let close_rc: i32 = Filesystem::close(&mut context.fs, file);
+        let close_result: UnitResult = Filesystem::close(&mut context.fs, file);
         let meta_result: MetadataResult = Filesystem::metadata_path(&mut context.fs, "omega_vault/notes/current/vault.txt");
         transition meta_result { MetadataResult::Ok { meta } -> compact_ck(context, passed, meta) _ -> done(context, passed) }
     }

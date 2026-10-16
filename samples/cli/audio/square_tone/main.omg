@@ -1,3 +1,4 @@
+use omega::language::core::filesystem_authority;
 // A 444 Hz square wave rendered as a canonical 8-bit WAV file: one fixed
 // [u8; 8044] buffer holds the 44-byte RIFF header followed by 8000 unsigned
 // PCM samples (silence 128, high 192, low 64), written once through the
@@ -27,7 +28,7 @@ data Main {
     byte: u8;
 }
 
-machine Main::main(main: &mut Main) reaches Console + WavOutput + AudioPlayback + PosixFilesystemHost + WindowsFilesystemHost + ProcessExit {
+machine Main::main(main: &mut Main) reaches Console + WavOutput + AudioPlayback + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + WindowsFilesystemHost + ProcessExit {
     Console::write_line("square_tone: 444 Hz square wave, 8-bit unsigned mono PCM at 8000 Hz, 1 s");
 
     // Canonical 44-byte WAV header, little-endian fields.

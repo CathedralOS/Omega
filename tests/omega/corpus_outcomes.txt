@@ -2601,6 +2601,8 @@ fail/effects/invoked_family_block_marker_redundant rejected 1090ms expected @7e6
 	call to `emit` has operational envelope neither suspension nor blocking but acknowledges `block`; call acknowledgements must match exactly
 fail/effects/nominal_callback_console_const_reach rejected 105ms expected @a9ae30e1c334+wt
 	fixed-array length `[u8; length()]`: const evaluation of `length` failed: machine `length` is not build-time admissible: service reach [Console]; build-time evaluation requires empty service reach, no possible suspension or blocking, ordinary checked termination, no unadmitted linear runtime carrier, and admitted declaration-selection authority across the complete call closure
+fail/effects/portable_filesystem_write_needs_write_reach rejected 4838ms expected @aebe0714a499+wt
+	machine `read_only` publishes service reach `FilesystemContentRead` but its checked body reaches undeclared service `FilesystemContentWrite`
 fail/effects/provider_authored_reach_beyond_invocation rejected 920ms expected @7e6c0ae564d2+wt
 	machine `Provider::measure` state `measure` does not satisfy trait `Measure` machine `measure`: service `Length` is not allowed by the trait requirement
 fail/effects/reviewed_service_rows_missing_capability rejected 2676ms expected @088321186835+wt
@@ -4336,6 +4338,8 @@ fail/providers/occurrence_region_binding_conflicting_inputs rejected 42ms expect
 	call to `entry` has conflicting ordinary borrow constraints for an erased lifetime
 fail/providers/ordinary_exit_name_preserves_return_obligations rejected 1225ms expected @1e469c9b15bb
 	cannot prove ensures contract for exit from impossible at statement 1: false
+fail/providers/portable_slot_cannot_lend_raw_binding rejected 1873ms expected @aebe0714a499+wt
+	projected binding call target belongs to a different requirement
 fail/providers/primitive_reference_contract_refinement rejected 997ms expected @f3014db3f225+wt
 	machine `NarrowReader::read` realizes `Reader::read` but requires `value <= 8`, which the requirement does not imply; callers of the requirement prove only its own `requires`
 	machine `UnpromisedReader::read` realizes `Reader::read` but does not guarantee its `ensures result == value`; callers of the requirement assume it
@@ -6963,51 +6967,39 @@ pass/expressions/runtime_widened_comparison_exit checked 11140ms check-target:ma
 pass/expressions/scalar_match_boundary_composition_exit checked 12777ms check-target:macos_arm64 @9c4d1c444502
 pass/expressions/seq_consuming_combinators checked 10030ms @fcc053dc7014+wt
 pass/expressions/unit_case_return_call_product checked 5467ms check-target:macos_arm64 @589aedee8ebc+wt
-pass/filesystem/cross_linux_value_syscalls checked 22314ms @9dd545defbc0
-pass/filesystem/dir_walk_wrappers_exit rejected 10968ms check-target:macos_arm64 @a9ae30e1c334+wt
-	machine `Main::main` state `count`: value call `Filesystem.read_dir_count(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	qualified call `remove_dir_all` has no resolved callable declaration
-pass/filesystem/native_canonicalize rejected 7672ms check-target:macos_arm64 @a9ae30e1c334+wt
-	selected ProgramEntry Binding field `Main::fs` requires a selected Fused provider for boundary `FilesystemHost`
-pass/filesystem/native_close checked 15798ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/filesystem/native_crud checked 16496ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/filesystem/native_errno checked 15684ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/filesystem/native_filetype checked 20610ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/filesystem/native_fs_workflow checked 21963ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/filesystem/native_metadata_blocks checked 21087ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/filesystem/native_metadata_ctime_dev checked 20760ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/filesystem/native_metadata_ino checked 22793ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/filesystem/native_metadata_nlink checked 20876ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/filesystem/native_read_dir_iter checked 21661ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/filesystem/native_wrapper_write_all_result rejected 79860ms check-target:macos_arm64 @a9ae30e1c334+wt
-	selected ProgramEntry Binding field `Main::fs::host` requires a selected Fused provider for boundary `FilesystemHost`
-pass/filesystem/runtime_local_host_result_dispatch_exit checked 22832ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/filesystem/runtime_posix_borrowed_view_io_exit checked 16757ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/filesystem/runtime_posix_read_runtime_range_view_exit checked 6080ms check-target:macos_arm64 @2375f5327b1a+wt
-pass/filesystem/windows_canonicalize_exit rejected 173ms check-target:windows_x86_64 @a9ae30e1c334+wt
-	machine `FailedOpen::main` declares unknown boundary service `FilesystemHost`
-pass/filesystem/windows_native_create_write_close_exit checked 15147ms check-target:windows_x86_64 @91d9836f544f+wt
-pass/filesystem/windows_raw_argument_failures_exit checked 15248ms check-target:windows_x86_64 @91d9836f544f+wt
-pass/filesystem/windows_raw_breadth_exit checked 10462ms check-target:windows_x86_64 @91d9836f544f+wt
-pass/filesystem/windows_set_file_time_exit checked 10337ms check-target:windows_x86_64 @91d9836f544f+wt
-pass/filesystem/windows_wrapper_results_exit rejected 89089ms check-target:macos_arm64 @a9ae30e1c334+wt
-	selected ProgramEntry Binding field `Main::fs::host` requires a selected Fused provider for boundary `FilesystemHost`
-pass/filesystem/wrapper_lock_metadata_exit rejected 11509ms check-target:macos_arm64 @a9ae30e1c334+wt
-	machine `Main::main` state `lockx`: value call `Filesystem.lock(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `Main::main` state `un1`: value call `Filesystem.unlock(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `Main::main` state `locksh`: value call `Filesystem.lock_shared(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `Main::main` state `un2`: value call `Filesystem.unlock(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `Main::main` state `tryx`: value call `Filesystem.try_lock(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `Main::main` state `un3`: value call `Filesystem.unlock(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `Main::main` state `trysh`: value call `Filesystem.try_lock_shared(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `Main::main` state `un4`: value call `Filesystem.unlock(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-pass/filesystem/wrapper_open_with_exit rejected 11928ms check-target:macos_arm64 @a9ae30e1c334+wt
-	machine `Main::main` state `main`: value call `Filesystem.open_with(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `Main::main` state `leg2`: value call `Filesystem.open_with(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `Main::main` state `leg3`: value call `Filesystem.open_with(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `Main::main` state `leg4`: value call `Filesystem.open_with(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `Main::main` state `leg5`: value call `Filesystem.open_with(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `Main::main` state `leg6`: value call `Filesystem.open_with(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
+pass/filesystem/cross_linux_value_syscalls checked 16296ms @aebe0714a499+wt
+pass/filesystem/dir_walk_wrappers_exit rejected 23019ms check-target:macos_arm64 @aebe0714a499+wt
+	selected ProgramEntry Binding field `Main::fs::host` requires a selected Fused provider for boundary `FilesystemService`
+pass/filesystem/native_canonicalize rejected 18230ms check-target:macos_arm64 @aebe0714a499+wt
+	selected ProgramEntry Binding field `Main::filesystem::host` requires a selected Fused provider for boundary `FilesystemService`
+pass/filesystem/native_close checked 8128ms check-target:macos_arm64 @aebe0714a499+wt
+pass/filesystem/native_crud checked 9120ms check-target:macos_arm64 @aebe0714a499+wt
+pass/filesystem/native_errno checked 9152ms check-target:macos_arm64 @aebe0714a499+wt
+pass/filesystem/native_filetype checked 10207ms check-target:macos_arm64 @aebe0714a499+wt
+pass/filesystem/native_fs_workflow checked 10922ms check-target:macos_arm64 @aebe0714a499+wt
+pass/filesystem/native_metadata_blocks checked 10094ms check-target:macos_arm64 @aebe0714a499+wt
+pass/filesystem/native_metadata_ctime_dev checked 10537ms check-target:macos_arm64 @aebe0714a499+wt
+pass/filesystem/native_metadata_ino checked 10812ms check-target:macos_arm64 @aebe0714a499+wt
+pass/filesystem/native_metadata_nlink checked 10256ms check-target:macos_arm64 @aebe0714a499+wt
+pass/filesystem/native_read_dir_iter checked 10620ms check-target:macos_arm64 @aebe0714a499+wt
+pass/filesystem/native_wrapper_write_all_result rejected 18416ms check-target:macos_arm64 @aebe0714a499+wt
+	selected ProgramEntry Binding field `Main::fs::host` requires a selected Fused provider for boundary `FilesystemService`
+pass/filesystem/runtime_local_host_result_dispatch_exit checked 9920ms check-target:macos_arm64 @aebe0714a499+wt
+pass/filesystem/runtime_portable_copy_errors_exit checked 23928ms check-target:linux_x86_64 @aebe0714a499+wt
+pass/filesystem/runtime_portable_zero_descriptor_exit checked 20310ms check-target:linux_x86_64 @aebe0714a499+wt
+pass/filesystem/runtime_posix_borrowed_view_io_exit checked 9462ms check-target:macos_arm64 @aebe0714a499+wt
+pass/filesystem/runtime_posix_read_runtime_range_view_exit checked 9450ms check-target:macos_arm64 @aebe0714a499+wt
+pass/filesystem/windows_canonicalize_exit checked 20711ms check-target:linux_x86_64 @aebe0714a499+wt
+pass/filesystem/windows_native_create_write_close_exit checked 10616ms check-target:windows_x86_64 @aebe0714a499+wt
+pass/filesystem/windows_raw_argument_failures_exit checked 9329ms check-target:windows_x86_64 @aebe0714a499+wt
+pass/filesystem/windows_raw_breadth_exit checked 9660ms check-target:windows_x86_64 @aebe0714a499+wt
+pass/filesystem/windows_set_file_time_exit checked 9557ms check-target:windows_x86_64 @aebe0714a499+wt
+pass/filesystem/windows_wrapper_results_exit rejected 17322ms check-target:macos_arm64 @aebe0714a499+wt
+	selected ProgramEntry Binding field `Main::fs::host` requires a selected Fused provider for boundary `FilesystemService`
+pass/filesystem/wrapper_lock_metadata_exit rejected 17313ms check-target:macos_arm64 @aebe0714a499+wt
+	selected ProgramEntry Binding field `Main::fs::host` requires a selected Fused provider for boundary `FilesystemService`
+pass/filesystem/wrapper_open_with_exit rejected 17921ms check-target:macos_arm64 @aebe0714a499+wt
+	selected ProgramEntry Binding field `Main::fs::host` requires a selected Fused provider for boundary `FilesystemService`
 pass/float/admitted_float_conversion_crash checked 33720ms check-target:macos_arm64 @9c4d1c444502
 pass/float/admitted_float_lower_boundary_crash checked 33599ms check-target:macos_arm64 @9c4d1c444502
 pass/float/admitted_numeric_imports_preserve_semantics checked 41383ms check-target:macos_arm64 @9c4d1c444502
@@ -7889,6 +7881,7 @@ pass/providers/runtime_foreign_leaf_slice_element_argument_exit checked 16098ms 
 pass/providers/runtime_linear_provider_results_exit checked 11050ms check-target:macos_arm64 @83314997c2b2
 pass/providers/runtime_named_provider_explicit_state_exit checked 11429ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/providers/runtime_result_domain_requirement_overload_exit checked 11708ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/providers/runtime_transitive_provider_slot_exit checked 6816ms check-target:macos_arm64 @aebe0714a499+wt
 pass/providers/same_name_requirement_dispatch_exit checked 11740ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/providers/same_name_requirement_right_dispatch_exit checked 11571ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/providers/same_target_internal checked 9658ms @5041ef1af684+wt
@@ -8513,7 +8506,7 @@ pass/time/runtime_clock_padded_out_parameter_prefix_exit checked 10718ms check-t
 pass/time/runtime_clock_shared_import_slots_exit checked 7191ms check-target:macos_arm64 @b1d84da832b5+wt
 pass/time/runtime_duration_core_exit checked 16238ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/time/runtime_duration_units_and_scaling_exit checked 6659ms check-target:macos_arm64 @2ed2725134e877372235f00d3ce5c1602f59468c
-pass/time/runtime_fs_mtime_system_time_interop_exit checked 9465ms check-target:macos_arm64 @ea68f95d0acea7b04f53f3efe179629294cb3491
+pass/time/runtime_fs_mtime_system_time_interop_exit checked 23161ms check-target:macos_arm64 @aebe0714a499+wt
 pass/time/runtime_kernel_clock_wait_loans_exit checked 11642ms check-target:linux_x86_64 @a9ae30e1c334+wt
 pass/time/runtime_time_elapsed_since_exit checked 16005ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/time/runtime_time_host_native_darwin_exit checked 14978ms check-target:macos_arm64 @a9ae30e1c334+wt

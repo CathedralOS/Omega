@@ -1,0 +1,45 @@
+// Expected exit: 0.
+// Only the portable slot crosses into application data. The selected provider
+// retains a static raw requirement call; raw authority is not another field.
+use omega::language::core::binding;
+use omega_language_std::console;
+
+pub boundary trait RawMeasure {
+    machine measure(value: i32) -> i32;
+}
+pub boundary trait PortableMeasure {
+    machine measure(value: i32) -> i32 invokes RawMeasure;
+}
+RawMeasureProvider satisfies RawMeasure { RawMeasure::measure = measure_raw; }
+PortableMeasureProvider satisfies PortableMeasure { PortableMeasure::measure = measure_portable; }
+data RawMeasureDefaults { }
+machine measure_raw(value: i32) -> i32 { value }
+machine measure_portable(value: i32) -> i32 {
+    RawMeasure::measure(value)
+}
+data Main { portable: Binding<PortableMeasure>; }
+machine Main::main(main: &mut Main) reaches Console {
+    let observed: i32 = main.portable.measure(37);
+    transition observed == 37 {
+        true -> good()
+        false -> bad()
+    }
+    state good() { Console::exit_process(0); }
+    state bad() { Console::exit_process(1); }
+}
+
+linux_x86_64 machine RawMeasureDefaults::provider_defaults(defaults: &mut RawMeasureDefaults) {
+    RawMeasureDefaults::select_provider<RawMeasure, RawMeasureProvider>(defaults);
+}
+
+linux_arm64 machine RawMeasureDefaults::provider_defaults(defaults: &mut RawMeasureDefaults) {
+    RawMeasureDefaults::select_provider<RawMeasure, RawMeasureProvider>(defaults);
+}
+
+macos_arm64 machine RawMeasureDefaults::provider_defaults(defaults: &mut RawMeasureDefaults) {
+    RawMeasureDefaults::select_provider<RawMeasure, RawMeasureProvider>(defaults);
+}
+
+windows_x86_64 machine RawMeasureDefaults::provider_defaults(defaults: &mut RawMeasureDefaults) {
+    RawMeasureDefaults::select_provider<RawMeasure, RawMeasureProvider>(defaults);
+}

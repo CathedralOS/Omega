@@ -20,7 +20,7 @@ data Main {
     res: UnitResult;
 }
 
-machine Main::main(main: &mut Main) reaches FilesystemHost + Console {
+machine Main::main(main: &mut Main) reaches Console {
     // Bad path: the parent directory does not exist -> create fails -> Error.
     main.res = Filesystem::write_all(&mut main.fs, "/no_such_dir_xyz_999/f.txt", "hi");
     transition main.res { UnitResult::Ok -> bad_err(main) _ -> after_err(main) }

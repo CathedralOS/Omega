@@ -1,3 +1,4 @@
+use omega::language::core::filesystem_authority;
 // FULL NATIVE std::fs CRUD round-trip — RUNS end-to-end on real macOS syscalls.
 // Running the emitted mach-o prints
 //   "PASS: native fs CRUD round-trip (create+write+read 17B+close+remove)"
@@ -24,7 +25,7 @@ data Main {
     buffer: [u8; 64];
 }
 
-machine Main::main(main: &mut Main) reaches PosixFilesystemHost {
+machine Main::main(main: &mut Main) reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation {
     main.mode = 420;
     main.read_flags = 0;
     main.cap = 64;

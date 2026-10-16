@@ -1,3 +1,4 @@
+use omega::language::core::filesystem_authority;
 // NATIVE MetadataExt::nlink via stat (Rust os::unix::fs::MetadataExt::nlink).
 // Creates a file (link count 1), decodes st_nlink == 1, hard-links it to a
 // second name, then re-stats the ORIGINAL and confirms st_nlink is now 2 (both
@@ -20,7 +21,7 @@ data Main {
     buffer: [u8; 144];
 }
 
-machine Main::main_linux(main: &mut Main) reaches PosixFilesystemHost {
+machine Main::main_linux(main: &mut Main) reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation {
     main.mode = 420;
     main.fd = PosixFilesystemHost::create("/tmp/omega_nlink.txt", main.mode);
     main.n = PosixFilesystemHost::write(main.fd, "hi");
@@ -47,7 +48,7 @@ machine Main::main_linux(main: &mut Main) reaches PosixFilesystemHost {
     state fail(main: &mut Main) { main.n = PosixFilesystemHost::write(1, "FAIL: nlink\n"); }
 }
 
-machine Main::main_macos(main: &mut Main) reaches PosixFilesystemHost {
+machine Main::main_macos(main: &mut Main) reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation {
     main.mode = 420;
     main.fd = PosixFilesystemHost::create("/tmp/omega_nlink.txt", main.mode);
     main.n = PosixFilesystemHost::write(main.fd, "hi");

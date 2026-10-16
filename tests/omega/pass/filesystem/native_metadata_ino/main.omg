@@ -1,3 +1,4 @@
+use omega::language::core::filesystem_authority;
 // NATIVE MetadataExt::ino/uid/gid via stat (Rust os::unix::fs::MetadataExt). Two
 // distinct files share an owner (same st_uid/st_gid) but have DIFFERENT inodes;
 // a hard link to the first file shares its inode (st_ino equal). Proves st_ino
@@ -23,7 +24,7 @@ data Main {
     buffer: [u8; 144];
 }
 
-machine Main::main(main: &mut Main) reaches PosixFilesystemHost {
+machine Main::main(main: &mut Main) reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation {
     main.mode = 420;
     main.fd = PosixFilesystemHost::create("/tmp/omega_ino_a.txt", main.mode);
     main.n = PosixFilesystemHost::write(main.fd, "aa");

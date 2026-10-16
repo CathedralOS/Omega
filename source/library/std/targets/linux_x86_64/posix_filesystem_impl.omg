@@ -1,3 +1,4 @@
+use omega::language::core::filesystem_authority;
 // Linux POSIX filesystem service over direct system calls. The kernel
 // already returns the negated `errno` on failure, which is the trait's own
 // convention, so adapters pass results through. Paths are terminated into
@@ -12,57 +13,57 @@ data PosixFilesystemLinux { }  // requirement namespace for the system calls
 data PosixFilesystemLinuxSyscalls { }
 
 boundary requirement PosixFilesystemLinux::openat(dirfd: i32, path: &u8, flags: i32, mode: i32) -> i32
-reaches PosixFilesystemHost;
+reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation;
 boundary requirement PosixFilesystemLinux::read(fd: i32, buffer: &mut u8, count: u64) -> i64
-reaches PosixFilesystemHost;
+reaches FilesystemContentRead;
 boundary requirement PosixFilesystemLinux::write(fd: i32, bytes: &u8, count: u64) -> i64
-reaches PosixFilesystemHost;
+reaches FilesystemContentWrite;
 boundary requirement PosixFilesystemLinux::pread64(fd: i32, buffer: &mut u8, count: u64, offset: i64) -> i64
-reaches PosixFilesystemHost;
+reaches FilesystemContentRead;
 boundary requirement PosixFilesystemLinux::pwrite64(fd: i32, bytes: &u8, count: u64, offset: i64) -> i64
-reaches PosixFilesystemHost;
+reaches FilesystemContentWrite;
 boundary requirement PosixFilesystemLinux::close(fd: i32) -> i32
-reaches PosixFilesystemHost;
+;
 boundary requirement PosixFilesystemLinux::lseek(fd: i32, offset: i64, whence: i32) -> i64
-reaches PosixFilesystemHost;
+;
 boundary requirement PosixFilesystemLinux::mkdirat(dirfd: i32, path: &u8, mode: i32) -> i32
-reaches PosixFilesystemHost;
+reaches FilesystemMetadataMutation + FilesystemNamespaceMutation;
 boundary requirement PosixFilesystemLinux::unlinkat(dirfd: i32, path: &u8, flags: i32) -> i32
-reaches PosixFilesystemHost;
+reaches FilesystemNamespaceMutation;
 boundary requirement PosixFilesystemLinux::fchmodat(dirfd: i32, path: &u8, mode: u32) -> i32
-reaches PosixFilesystemHost;
+reaches FilesystemMetadataMutation;
 boundary requirement PosixFilesystemLinux::fchmod(fd: i32, mode: u32) -> i32
-reaches PosixFilesystemHost;
+reaches FilesystemMetadataMutation;
 boundary requirement PosixFilesystemLinux::renameat(from_dirfd: i32, from: &u8, to_dirfd: i32, to: &u8) -> i32
-reaches PosixFilesystemHost;
+reaches FilesystemNamespaceMutation;
 boundary requirement PosixFilesystemLinux::linkat(from_dirfd: i32, from: &u8, to_dirfd: i32, to: &u8, flags: i32) -> i32
-reaches PosixFilesystemHost;
+reaches FilesystemNamespaceMutation;
 boundary requirement PosixFilesystemLinux::symlinkat(target: &u8, link_dirfd: i32, link: &u8) -> i32
-reaches PosixFilesystemHost;
+reaches FilesystemNamespaceMutation;
 boundary requirement PosixFilesystemLinux::readlinkat(dirfd: i32, path: &u8, buffer: &mut u8, size: u64) -> i64
-reaches PosixFilesystemHost;
+reaches FilesystemMetadataQuery;
 boundary requirement PosixFilesystemLinux::getdents64(fd: i32, buffer: &mut u8, count: u64) -> i64
-reaches PosixFilesystemHost;
+reaches DirectoryEnumeration;
 boundary requirement PosixFilesystemLinux::newfstatat(dirfd: i32, path: &u8, buffer: &mut u8, flags: i32) -> i32
-reaches PosixFilesystemHost;
+reaches FilesystemMetadataQuery;
 boundary requirement PosixFilesystemLinux::fstat(fd: i32, buffer: &mut u8) -> i32
-reaches PosixFilesystemHost;
+reaches FilesystemMetadataQuery;
 boundary requirement PosixFilesystemLinux::ftruncate(fd: i32, length: i64) -> i32
-reaches PosixFilesystemHost;
+reaches FilesystemContentWrite + FilesystemMetadataMutation;
 boundary requirement PosixFilesystemLinux::utimensat(dirfd: i32, path: u64, times: &u8, flags: i32) -> i32
-reaches PosixFilesystemHost;
+reaches FilesystemMetadataMutation;
 boundary requirement PosixFilesystemLinux::fsync(fd: i32) -> i32
-reaches PosixFilesystemHost;
+;
 boundary requirement PosixFilesystemLinux::fdatasync(fd: i32) -> i32
-reaches PosixFilesystemHost;
+;
 boundary requirement PosixFilesystemLinux::dup(fd: i32) -> i32
-reaches PosixFilesystemHost;
+;
 boundary requirement PosixFilesystemLinux::flock(fd: i32, operation: i32) -> i32
-reaches PosixFilesystemHost;
+;
 boundary requirement PosixFilesystemLinux::fchownat(dirfd: i32, path: &u8, uid: i32, gid: i32, flags: i32) -> i32
-reaches PosixFilesystemHost;
+reaches FilesystemMetadataMutation;
 boundary requirement PosixFilesystemLinux::fchown(fd: i32, uid: i32, gid: i32) -> i32
-reaches PosixFilesystemHost;
+reaches FilesystemMetadataMutation;
 
 linux_x86_64 machine PosixFilesystemLinuxSyscalls::openat(dirfd: i32, path: &u8, flags: i32, mode: i32) -> i32
     satisfies PosixFilesystemLinux::openat
@@ -145,7 +146,7 @@ linux_x86_64 machine PosixFilesystemLinuxSyscalls::fchown(fd: i32, uid: i32, gid
 
 linux_x86_64 machine PosixFilesystemNativeProvider::open(path: &[u8] in Path, flags: i32) -> i32
     satisfies PosixFilesystemHost::open
-reaches PosixFilesystemHost
+reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
 {
     let mut terminated: [u8; 4096];
     let fits: bool = posix_terminated_path(path, &mut terminated);
@@ -162,7 +163,7 @@ reaches PosixFilesystemHost
 
 linux_x86_64 machine PosixFilesystemNativeProvider::open_create(path: &[u8] in Path, flags: i32, mode: i32) -> i32
     satisfies PosixFilesystemHost::open_create
-reaches PosixFilesystemHost
+reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
 {
     let mut terminated: [u8; 4096];
     let fits: bool = posix_terminated_path(path, &mut terminated);
@@ -179,7 +180,7 @@ reaches PosixFilesystemHost
 
 linux_x86_64 machine PosixFilesystemNativeProvider::create(path: &[u8] in Path, mode: i32) -> i32
     satisfies PosixFilesystemHost::create
-reaches PosixFilesystemHost
+reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
 {
     let mut terminated: [u8; 4096];
     let fits: bool = posix_terminated_path(path, &mut terminated);
@@ -196,7 +197,7 @@ reaches PosixFilesystemHost
 
 linux_x86_64 machine PosixFilesystemNativeProvider::read(fd: i32, buffer: &mut [u8], count: u64) -> i64
     satisfies PosixFilesystemHost::read
-reaches PosixFilesystemHost
+reaches FilesystemContentRead
 {
     transition buffer.len > 0 {
         true -> nonempty(fd, buffer, count)
@@ -219,7 +220,7 @@ reaches PosixFilesystemHost
 
 linux_x86_64 machine PosixFilesystemNativeProvider::write(fd: i32, bytes: &[u8]) -> i64
     satisfies PosixFilesystemHost::write
-reaches PosixFilesystemHost
+reaches FilesystemContentWrite
 {
     transition bytes.len > 0 {
         true -> nonempty(fd, bytes)
@@ -241,7 +242,7 @@ reaches PosixFilesystemHost
 
 linux_x86_64 machine PosixFilesystemNativeProvider::read_at(fd: i32, buffer: &mut [u8], count: u64, offset: i64) -> i64
     satisfies PosixFilesystemHost::read_at
-reaches PosixFilesystemHost
+reaches FilesystemContentRead
 {
     transition buffer.len > 0 {
         true -> nonempty(fd, buffer, count, offset)
@@ -264,7 +265,7 @@ reaches PosixFilesystemHost
 
 linux_x86_64 machine PosixFilesystemNativeProvider::write_at(fd: i32, bytes: &[u8], offset: i64) -> i64
     satisfies PosixFilesystemHost::write_at
-reaches PosixFilesystemHost
+reaches FilesystemContentWrite
 {
     transition bytes.len > 0 {
         true -> nonempty(fd, bytes, offset)
@@ -286,7 +287,7 @@ reaches PosixFilesystemHost
 
 linux_x86_64 machine PosixFilesystemNativeProvider::close(fd: i32) -> i32
     satisfies PosixFilesystemHost::close
-reaches PosixFilesystemHost
+
 {
     let outcome: i32 = PosixFilesystemLinux::close(fd);
     outcome
@@ -294,7 +295,7 @@ reaches PosixFilesystemHost
 
 linux_x86_64 machine PosixFilesystemNativeProvider::remove(path: &[u8] in Path) -> i32
     satisfies PosixFilesystemHost::remove
-reaches PosixFilesystemHost
+reaches FilesystemNamespaceMutation
 {
     let mut terminated: [u8; 4096];
     let fits: bool = posix_terminated_path(path, &mut terminated);
@@ -311,7 +312,7 @@ reaches PosixFilesystemHost
 
 linux_x86_64 machine PosixFilesystemNativeProvider::seek(fd: i32, offset: i64, whence: i32) -> i64
     satisfies PosixFilesystemHost::seek
-reaches PosixFilesystemHost
+
 {
     let outcome: i64 = PosixFilesystemLinux::lseek(fd, offset, whence);
     outcome
@@ -319,7 +320,7 @@ reaches PosixFilesystemHost
 
 linux_x86_64 machine PosixFilesystemNativeProvider::create_dir(path: &[u8] in Path, mode: i32) -> i32
     satisfies PosixFilesystemHost::create_dir
-reaches PosixFilesystemHost
+reaches FilesystemMetadataMutation + FilesystemNamespaceMutation
 {
     let mut terminated: [u8; 4096];
     let fits: bool = posix_terminated_path(path, &mut terminated);
@@ -336,7 +337,7 @@ reaches PosixFilesystemHost
 
 linux_x86_64 machine PosixFilesystemNativeProvider::remove_dir(path: &[u8] in Path) -> i32
     satisfies PosixFilesystemHost::remove_dir
-reaches PosixFilesystemHost
+reaches FilesystemNamespaceMutation
 {
     let mut terminated: [u8; 4096];
     let fits: bool = posix_terminated_path(path, &mut terminated);
@@ -353,7 +354,7 @@ reaches PosixFilesystemHost
 
 linux_x86_64 machine PosixFilesystemNativeProvider::create_dir_name(name: &[u8], mode: i32) -> i32
     satisfies PosixFilesystemHost::create_dir_name
-reaches PosixFilesystemHost
+reaches FilesystemMetadataMutation + FilesystemNamespaceMutation
 {
     let mut terminated: [u8; 4096];
     let fits: bool = posix_terminated_path(name, &mut terminated);
@@ -370,7 +371,7 @@ reaches PosixFilesystemHost
 
 linux_x86_64 machine PosixFilesystemNativeProvider::open_at(dirfd: i32, name: &[u8], flags: i32) -> i32
     satisfies PosixFilesystemHost::open_at
-reaches PosixFilesystemHost
+reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
 {
     let mut terminated: [u8; 4096];
     let fits: bool = posix_terminated_path(name, &mut terminated);
@@ -387,7 +388,7 @@ reaches PosixFilesystemHost
 
 linux_x86_64 machine PosixFilesystemNativeProvider::unlink_at(dirfd: i32, name: &[u8], flags: i32) -> i32
     satisfies PosixFilesystemHost::unlink_at
-reaches PosixFilesystemHost
+reaches FilesystemNamespaceMutation
 {
     let mut terminated: [u8; 4096];
     let fits: bool = posix_terminated_path(name, &mut terminated);
@@ -404,7 +405,7 @@ reaches PosixFilesystemHost
 
 linux_x86_64 machine PosixFilesystemNativeProvider::set_permissions(path: &[u8] in Path, mode: u32) -> i32
     satisfies PosixFilesystemHost::set_permissions
-reaches PosixFilesystemHost
+reaches FilesystemMetadataMutation
 {
     let mut terminated: [u8; 4096];
     let fits: bool = posix_terminated_path(path, &mut terminated);
@@ -421,7 +422,7 @@ reaches PosixFilesystemHost
 
 linux_x86_64 machine PosixFilesystemNativeProvider::set_file_permissions(fd: i32, mode: u32) -> i32
     satisfies PosixFilesystemHost::set_file_permissions
-reaches PosixFilesystemHost
+reaches FilesystemMetadataMutation
 {
     let outcome: i32 = PosixFilesystemLinux::fchmod(fd, mode);
     outcome
@@ -429,7 +430,7 @@ reaches PosixFilesystemHost
 
 linux_x86_64 machine PosixFilesystemNativeProvider::rename(from: &[u8] in Path, to: &[u8] in Path) -> i32
     satisfies PosixFilesystemHost::rename
-reaches PosixFilesystemHost
+reaches FilesystemNamespaceMutation
 {
     let mut first: [u8; 4096];
     let mut second: [u8; 4096];
@@ -448,7 +449,7 @@ reaches PosixFilesystemHost
 
 linux_x86_64 machine PosixFilesystemNativeProvider::hard_link(original: &[u8] in Path, link: &[u8] in Path) -> i32
     satisfies PosixFilesystemHost::hard_link
-reaches PosixFilesystemHost
+reaches FilesystemNamespaceMutation
 {
     let mut first: [u8; 4096];
     let mut second: [u8; 4096];
@@ -467,7 +468,7 @@ reaches PosixFilesystemHost
 
 linux_x86_64 machine PosixFilesystemNativeProvider::symlink(target: &[u8] in Path, link: &[u8] in Path) -> i32
     satisfies PosixFilesystemHost::symlink
-reaches PosixFilesystemHost
+reaches FilesystemNamespaceMutation
 {
     let mut first: [u8; 4096];
     let mut second: [u8; 4096];
@@ -486,7 +487,7 @@ reaches PosixFilesystemHost
 
 linux_x86_64 machine PosixFilesystemNativeProvider::read_link(path: &[u8] in Path, buffer: &mut [u8], count: u64) -> i64
     satisfies PosixFilesystemHost::read_link
-reaches PosixFilesystemHost
+reaches FilesystemMetadataQuery
 {
     let mut terminated: [u8; 4096];
     let fits: bool = posix_terminated_path(path, &mut terminated);
@@ -506,7 +507,7 @@ reaches PosixFilesystemHost
 
 linux_x86_64 machine PosixFilesystemNativeProvider::read_dir(fd: i32, buffer: &mut [u8], count: u64, position: &mut i64) -> i64
     satisfies PosixFilesystemHost::read_dir
-reaches PosixFilesystemHost
+reaches DirectoryEnumeration
 {
     let mut chunk: [u8; 4096];
     let capacity: u64 = posix_chunk_capacity(buffer, count);
@@ -517,7 +518,7 @@ reaches PosixFilesystemHost
 
 linux_x86_64 machine PosixFilesystemNativeProvider::remove_name(path: &[u8]) -> i32
     satisfies PosixFilesystemHost::remove_name
-reaches PosixFilesystemHost
+reaches FilesystemNamespaceMutation
 {
     let mut terminated: [u8; 4096];
     let fits: bool = posix_terminated_path(path, &mut terminated);
@@ -534,7 +535,7 @@ reaches PosixFilesystemHost
 
 linux_x86_64 machine PosixFilesystemNativeProvider::remove_dir_name(path: &[u8]) -> i32
     satisfies PosixFilesystemHost::remove_dir_name
-reaches PosixFilesystemHost
+reaches FilesystemNamespaceMutation
 {
     let mut terminated: [u8; 4096];
     let fits: bool = posix_terminated_path(path, &mut terminated);
@@ -551,7 +552,7 @@ reaches PosixFilesystemHost
 
 linux_x86_64 machine PosixFilesystemNativeProvider::read_metadata(path: &[u8] in Path, buffer: &mut [u8]) -> i32
     satisfies PosixFilesystemHost::read_metadata
-reaches PosixFilesystemHost
+reaches FilesystemMetadataQuery
 {
     let mut terminated: [u8; 4096];
     let fits: bool = posix_terminated_path(path, &mut terminated);
@@ -570,7 +571,7 @@ reaches PosixFilesystemHost
 
 linux_x86_64 machine PosixFilesystemNativeProvider::read_file_metadata(fd: i32, buffer: &mut [u8]) -> i32
     satisfies PosixFilesystemHost::read_file_metadata
-reaches PosixFilesystemHost
+reaches FilesystemMetadataQuery
 {
     let mut chunk: [u8; 4096];
     let outcome: i32 = PosixFilesystemLinux::fstat(fd, &mut chunk[0]);
@@ -580,7 +581,7 @@ reaches PosixFilesystemHost
 
 linux_x86_64 machine PosixFilesystemNativeProvider::read_symlink_metadata(path: &[u8] in Path, buffer: &mut [u8]) -> i32
     satisfies PosixFilesystemHost::read_symlink_metadata
-reaches PosixFilesystemHost
+reaches FilesystemMetadataQuery
 {
     let mut terminated: [u8; 4096];
     let fits: bool = posix_terminated_path(path, &mut terminated);
@@ -599,7 +600,7 @@ reaches PosixFilesystemHost
 
 linux_x86_64 machine PosixFilesystemNativeProvider::set_len(fd: i32, length: i64) -> i32
     satisfies PosixFilesystemHost::set_len
-reaches PosixFilesystemHost
+reaches FilesystemContentWrite + FilesystemMetadataMutation
 {
     let outcome: i32 = PosixFilesystemLinux::ftruncate(fd, length);
     outcome
@@ -607,7 +608,7 @@ reaches PosixFilesystemHost
 
 linux_x86_64 machine PosixFilesystemNativeProvider::set_file_times(fd: i32, times: &[u8]) -> i32
     satisfies PosixFilesystemHost::set_file_times
-reaches PosixFilesystemHost
+reaches FilesystemMetadataMutation
 {
     let mut chunk: [u8; 4096];
     let count: u64 = posix_fill_chunk(times, &mut chunk);
@@ -617,7 +618,7 @@ reaches PosixFilesystemHost
 
 linux_x86_64 machine PosixFilesystemNativeProvider::sync(fd: i32) -> i32
     satisfies PosixFilesystemHost::sync
-reaches PosixFilesystemHost
+
 {
     let outcome: i32 = PosixFilesystemLinux::fsync(fd);
     outcome
@@ -625,7 +626,7 @@ reaches PosixFilesystemHost
 
 linux_x86_64 machine PosixFilesystemNativeProvider::sync_data(fd: i32) -> i32
     satisfies PosixFilesystemHost::sync_data
-reaches PosixFilesystemHost
+
 {
     let outcome: i32 = PosixFilesystemLinux::fdatasync(fd);
     outcome
@@ -633,7 +634,7 @@ reaches PosixFilesystemHost
 
 linux_x86_64 machine PosixFilesystemNativeProvider::duplicate(fd: i32) -> i32
     satisfies PosixFilesystemHost::duplicate
-reaches PosixFilesystemHost
+
 {
     let outcome: i32 = PosixFilesystemLinux::dup(fd);
     outcome
@@ -641,7 +642,7 @@ reaches PosixFilesystemHost
 
 linux_x86_64 machine PosixFilesystemNativeProvider::lock_file(fd: i32, operation: i32) -> i32
     satisfies PosixFilesystemHost::lock_file
-reaches PosixFilesystemHost
+
 {
     let outcome: i32 = PosixFilesystemLinux::flock(fd, operation);
     outcome
@@ -649,7 +650,7 @@ reaches PosixFilesystemHost
 
 linux_x86_64 machine PosixFilesystemNativeProvider::change_owner(path: &[u8] in Path, uid: i32, gid: i32) -> i32
     satisfies PosixFilesystemHost::change_owner
-reaches PosixFilesystemHost
+reaches FilesystemMetadataMutation
 {
     let mut terminated: [u8; 4096];
     let fits: bool = posix_terminated_path(path, &mut terminated);
@@ -666,7 +667,7 @@ reaches PosixFilesystemHost
 
 linux_x86_64 machine PosixFilesystemNativeProvider::change_owner_no_follow(path: &[u8] in Path, uid: i32, gid: i32) -> i32
     satisfies PosixFilesystemHost::change_owner_no_follow
-reaches PosixFilesystemHost
+reaches FilesystemMetadataMutation
 {
     let mut terminated: [u8; 4096];
     let fits: bool = posix_terminated_path(path, &mut terminated);
@@ -683,14 +684,14 @@ reaches PosixFilesystemHost
 
 linux_x86_64 machine PosixFilesystemNativeProvider::change_file_owner(fd: i32, uid: i32, gid: i32) -> i32
     satisfies PosixFilesystemHost::change_file_owner
-reaches PosixFilesystemHost
+reaches FilesystemMetadataMutation
 {
     let outcome: i32 = PosixFilesystemLinux::fchown(fd, uid, gid);
     outcome
 }
 
 linux_x86_64 machine PosixFilesystemNativeProvider::provider_defaults(defaults: &mut PosixFilesystemNativeProvider) {
-    PosixFilesystemNativeProvider::select_provider<PosixFilesystemHost, PosixFilesystemNativeProvider>(defaults);
+    PosixFilesystemNativeProvider::select_provider<PosixFilesystemHost, PosixFilesystemImplementation>(defaults);
     PosixFilesystemNativeProvider::select_provider<PosixFilesystemLinux::openat, PosixFilesystemLinuxSyscalls>(defaults);
     PosixFilesystemNativeProvider::select_provider<PosixFilesystemLinux::read, PosixFilesystemLinuxSyscalls>(defaults);
     PosixFilesystemNativeProvider::select_provider<PosixFilesystemLinux::write, PosixFilesystemLinuxSyscalls>(defaults);

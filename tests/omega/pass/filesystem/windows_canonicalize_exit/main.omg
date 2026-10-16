@@ -29,7 +29,7 @@ data FailedOpen {
     result: UnitResult;
 }
 
-machine FailedOpen::main(failed_open: &mut FailedOpen) -> i32 reaches FilesystemHost {
+machine FailedOpen::main(failed_open: &mut FailedOpen) -> i32 {
     let outcome: UnitResult = Filesystem::canonicalize(&mut failed_open.filesystem, "omega_wcanon_missing.txt", &mut failed_open.buffer);
     transition outcome {
         UnitResult::Error { kind } -> failed(kind)
@@ -48,7 +48,7 @@ data Main {
     canon: [u8; 1024];
 }
 
-machine Main::main(main: &mut Main) reaches Console + FilesystemHost {
+machine Main::main(main: &mut Main) reaches Console {
     main.unit_result = Filesystem::write_all(&mut main.fs, "omega_wcanon_probe.txt", "canon");
     transition main.unit_result { UnitResult::Ok -> resolve(main) _ -> bad(main, 71) }
     state resolve(main: &mut Main) {
@@ -58,10 +58,7 @@ machine Main::main(main: &mut Main) reaches Console + FilesystemHost {
     state spelled(main: &mut Main) {
         // Native: '\\' (92, the \\?\ prefix). Hermetic: 'o' (111, the key
         // verbatim). Anything else = the resolve never wrote the buffer.
-        transition main.canon[0] == 92 { true -> make_dir(main) _ -> spelled_virtual(main) }
-    }
-    state spelled_virtual(main: &mut Main) {
-        transition main.canon[0] == 111 { true -> make_dir(main) _ -> bad(main, 73) }
+        transition canonical_prefix_is_valid(main.canon[0]) { true -> make_dir(main) _ -> bad(main, 73) }
     }
     state make_dir(main: &mut Main) {
         main.unit_result = Filesystem::create_dir(&mut main.fs, "omega_wcanon_dir");
@@ -72,10 +69,7 @@ machine Main::main(main: &mut Main) reaches Console + FilesystemHost {
         transition main.unit_result { UnitResult::Ok -> spelled_dir(main) _ -> bad(main, 77) }
     }
     state spelled_dir(main: &mut Main) {
-        transition main.canon[0] == 92 { true -> missing(main) _ -> spelled_dir_virtual(main) }
-    }
-    state spelled_dir_virtual(main: &mut Main) {
-        transition main.canon[0] == 111 { true -> missing(main) _ -> bad(main, 78) }
+        transition canonical_prefix_is_valid(main.canon[0]) { true -> missing(main) _ -> bad(main, 78) }
     }
     state missing(main: &mut Main) {
         let outcome: UnitResult = Filesystem::canonicalize(&mut main.fs, "omega_wcanon_missing.txt", &mut main.canon);
@@ -96,3 +90,11 @@ machine Main::main(main: &mut Main) reaches Console + FilesystemHost {
     state good(main: &mut Main) { Console::exit_process(70); }
     state bad(main: &mut Main, code: i32) { Console::exit_process(code); }
 }
+
+// A hosted native canonical path is absolute in its selected OS spelling.
+// The Windows model's independently authored relative-key oracle is retained.
+linux_x86_64 machine canonical_prefix_is_valid(byte: u8) -> bool { byte == 47 }
+linux_arm64 machine canonical_prefix_is_valid(byte: u8) -> bool { byte == 47 }
+macos_arm64 machine canonical_prefix_is_valid(byte: u8) -> bool { byte == 47 }
+macos_x86_64 machine canonical_prefix_is_valid(byte: u8) -> bool { byte == 47 }
+windows_x86_64 machine canonical_prefix_is_valid(byte: u8) -> bool { byte == 92 || byte == 111 }

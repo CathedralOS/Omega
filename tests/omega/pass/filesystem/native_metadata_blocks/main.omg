@@ -1,3 +1,4 @@
+use omega::language::core::filesystem_authority;
 // NATIVE MetadataExt::blocks/blksize via stat (Rust os::unix::fs::MetadataExt).
 // st_blksize (@112) is the filesystem's preferred I/O block size -- a real,
 // nonzero value (typically 4096). st_blocks (@104) is the 512-byte block count.
@@ -18,7 +19,7 @@ data Main {
     buffer: [u8; 144];
 }
 
-machine Main::main(main: &mut Main) reaches PosixFilesystemHost {
+machine Main::main(main: &mut Main) reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation {
     main.mode = 420;
     main.fd = PosixFilesystemHost::create("/tmp/omega_blocks.txt", main.mode);
     main.n = PosixFilesystemHost::write(main.fd, "some content here");

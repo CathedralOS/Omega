@@ -1598,40 +1598,33 @@ pass/expressions/runtime_widened_comparison_exit built 14956ms exit:70 @6c49683c
 pass/expressions/scalar_match_boundary_composition_exit built 32828ms exit:70 @6c49683ce714
 pass/expressions/seq_consuming_combinators checked 17840ms @6c49683ce714
 pass/expressions/unit_case_return_call_product built 14789ms exit:70 @6c49683ce714
-pass/filesystem/cross_linux_value_syscalls checked 64649ms @6c49683ce714
-pass/filesystem/dir_walk_wrappers_exit rejected 19198ms @8665e38f912c
-	selected ProgramEntry Binding field `Main::fs::host` requires a selected Fused provider for boundary `FilesystemHost`
-pass/filesystem/native_canonicalize rejected 4847ms @8665e38f912c
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(FilesystemHost::create),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,ref\\(constrained\\(slice\\(named\\(name\\(u8\\)\\)\\)\\,declared-domain\\(name\\(package:0202020202020202020202020202020202020202020202020202020202020202:product::[u8]::Path\\)\\)\\)\\)\\)\\,parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
-pass/filesystem/native_close built 17196ms @6c49683ce714
-pass/filesystem/native_crud built 18928ms exit:0 stdout:match @6c49683ce714
-pass/filesystem/native_errno built 17857ms exit:0 stdout:match @6c49683ce714
-pass/filesystem/native_filetype built 21354ms exit:0 stdout:match @6c49683ce714
-pass/filesystem/native_fs_workflow built 26480ms exit:0 stdout:match @6c49683ce714
-pass/filesystem/native_metadata_blocks built 21523ms exit:0 stdout:match @6c49683ce714
-pass/filesystem/native_metadata_ctime_dev built 22419ms exit:0 stdout:match @6c49683ce714
-pass/filesystem/native_metadata_ino built 25016ms @6c49683ce714
-pass/filesystem/native_metadata_nlink built 23262ms exit:0 stdout:match @6c49683ce714
-pass/filesystem/native_read_dir_iter built 22913ms exit:0 stdout:match @6c49683ce714
-pass/filesystem/native_wrapper_write_all_result rejected 18216ms @8665e38f912c
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(FilesystemHost::open_create),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,ref\\(constrained\\(slice\\(named\\(name\\(u8\\)\\)\\)\\,declared-domain\\(name\\(package:0202020202020202020202020202020202020202020202020202020202020202:product::[u8]::Path\\)\\)\\)\\)\\)\\,parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)\\,parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
-pass/filesystem/runtime_local_host_result_dispatch_exit built 20480ms exit:70 @6c49683ce714
-pass/filesystem/runtime_posix_borrowed_view_io_exit built 13334ms exit:0 stdout:match @91d9836f544f+wt
-pass/filesystem/runtime_posix_read_runtime_range_view_exit built 13191ms exit:0 stdout:match @91d9836f544f+wt
-pass/filesystem/windows_canonicalize_exit rejected 1202ms @8665e38f912c
-	machine `FailedOpen::main` declares unknown boundary service `FilesystemHost`
-pass/filesystem/windows_native_create_write_close_exit built 11516ms @91d9836f544f+wt
-pass/filesystem/windows_raw_argument_failures_exit built 11573ms @91d9836f544f+wt
-pass/filesystem/windows_raw_breadth_exit built 12076ms @308fbdc54ba0
-	unimplemented: capability=runtime-host-import-bindings task=TERMINAL-RUNTIME-DRIVERS route=interpreter: no trusted host implementation matches this exact foreign binding
-pass/filesystem/windows_set_file_time_exit built 10562ms @308fbdc54ba0
-	unimplemented: capability=runtime-host-import-bindings task=TERMINAL-RUNTIME-DRIVERS route=interpreter: no trusted host implementation matches this exact foreign binding
-pass/filesystem/windows_wrapper_results_exit rejected 18942ms @8665e38f912c
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(FilesystemHost::open_create),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,ref\\(constrained\\(slice\\(named\\(name\\(u8\\)\\)\\)\\,declared-domain\\(name\\(package:0202020202020202020202020202020202020202020202020202020202020202:product::[u8]::Path\\)\\)\\)\\)\\)\\,parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)\\,parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
-pass/filesystem/wrapper_lock_metadata_exit rejected 18721ms @8665e38f912c
-	selected ProgramEntry Binding field `Main::fs::host` requires a selected Fused provider for boundary `FilesystemHost`
-pass/filesystem/wrapper_open_with_exit rejected 20111ms @8665e38f912c
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(FilesystemHost::open_create),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,ref\\(constrained\\(slice\\(named\\(name\\(u8\\)\\)\\)\\,declared-domain\\(name\\(package:0202020202020202020202020202020202020202020202020202020202020202:product::[u8]::Path\\)\\)\\)\\)\\)\\,parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)\\,parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
+pass/filesystem/cross_linux_value_syscalls checked 16309ms @aebe0714a499+wt
+pass/filesystem/dir_walk_wrappers_exit built 27233ms exit:70 @aebe0714a499+wt
+pass/filesystem/native_canonicalize built 21466ms exit:0 stdout:match @aebe0714a499+wt
+pass/filesystem/native_close built 8247ms @aebe0714a499+wt
+pass/filesystem/native_crud built 9357ms exit:0 stdout:match @aebe0714a499+wt
+pass/filesystem/native_errno built 9003ms exit:0 stdout:match @aebe0714a499+wt
+pass/filesystem/native_filetype built 10039ms exit:0 stdout:match @aebe0714a499+wt
+pass/filesystem/native_fs_workflow built 11709ms exit:0 stdout:match @aebe0714a499+wt
+pass/filesystem/native_metadata_blocks built 10496ms exit:0 stdout:match @aebe0714a499+wt
+pass/filesystem/native_metadata_ctime_dev built 10786ms exit:0 stdout:match @aebe0714a499+wt
+pass/filesystem/native_metadata_ino built 11504ms @aebe0714a499+wt
+pass/filesystem/native_metadata_nlink built 10615ms exit:0 stdout:match @aebe0714a499+wt
+pass/filesystem/native_read_dir_iter built 10738ms exit:0 stdout:match @aebe0714a499+wt
+pass/filesystem/native_wrapper_write_all_result built 19701ms exit:0 stdout:match @aebe0714a499+wt
+pass/filesystem/runtime_local_host_result_dispatch_exit built 10042ms exit:70 @aebe0714a499+wt
+pass/filesystem/runtime_portable_copy_errors_exit built 22366ms exit:0 @aebe0714a499+wt
+pass/filesystem/runtime_portable_zero_descriptor_exit built 20279ms exit:0 @aebe0714a499+wt
+pass/filesystem/runtime_posix_borrowed_view_io_exit built 9599ms exit:0 stdout:match @aebe0714a499+wt
+pass/filesystem/runtime_posix_read_runtime_range_view_exit built 13858ms exit:0 stdout:match @aebe0714a499+wt
+pass/filesystem/windows_canonicalize_exit built 20711ms exit:70 @aebe0714a499+wt
+pass/filesystem/windows_native_create_write_close_exit built 10712ms @aebe0714a499+wt
+pass/filesystem/windows_raw_argument_failures_exit built 9441ms @aebe0714a499+wt
+pass/filesystem/windows_raw_breadth_exit built 9855ms @aebe0714a499+wt
+pass/filesystem/windows_set_file_time_exit built 9641ms @aebe0714a499+wt
+pass/filesystem/windows_wrapper_results_exit built 19883ms exit:70 @aebe0714a499+wt
+pass/filesystem/wrapper_lock_metadata_exit built 20326ms exit:70 @aebe0714a499+wt
+pass/filesystem/wrapper_open_with_exit built 20846ms exit:70 @aebe0714a499+wt
 pass/float/admitted_float_conversion_crash built 22290ms exit:signal signal:4 stdout:match @326ed531359e+wt
 pass/float/admitted_float_lower_boundary_crash built 23141ms exit:signal signal:4 stdout:match @326ed531359e+wt
 pass/float/admitted_numeric_imports_preserve_semantics built 237830ms exit:70 @909c94d50bd2
@@ -2519,6 +2512,7 @@ pass/providers/runtime_foreign_leaf_slice_element_argument_exit built 8208ms exi
 pass/providers/runtime_linear_provider_results_exit built 18304ms exit:0 @6c49683ce714
 pass/providers/runtime_named_provider_explicit_state_exit built 15464ms exit:70 @6c49683ce714
 pass/providers/runtime_result_domain_requirement_overload_exit built 15018ms exit:70 @6c49683ce714
+pass/providers/runtime_transitive_provider_slot_exit built 6722ms exit:0 @aebe0714a499+wt
 pass/providers/same_name_requirement_dispatch_exit built 15045ms exit:70 @6c49683ce714
 pass/providers/same_name_requirement_right_dispatch_exit built 14945ms exit:70 @6c49683ce714
 pass/providers/same_target_internal checked 17829ms @6c49683ce714
@@ -3146,7 +3140,7 @@ pass/time/runtime_clock_padded_out_parameter_prefix_exit built 8524ms exit:0 @32
 pass/time/runtime_clock_shared_import_slots_exit built 7332ms exit:0 @b1d84da832b5+wt
 pass/time/runtime_duration_core_exit built 38212ms exit:70 @6c49683ce714
 pass/time/runtime_duration_units_and_scaling_exit built 37868ms exit:0 @6c49683ce714
-pass/time/runtime_fs_mtime_system_time_interop_exit built 51253ms @6c49683ce714
+pass/time/runtime_fs_mtime_system_time_interop_exit built 22541ms @aebe0714a499+wt
 pass/time/runtime_kernel_clock_wait_loans_exit built 18193ms exit:0 @6c49683ce714
 pass/time/runtime_time_elapsed_since_exit built 20561ms exit:70 @6c49683ce714
 pass/time/runtime_time_host_native_darwin_exit built 6772ms exit:70 @f137abafccda+wt

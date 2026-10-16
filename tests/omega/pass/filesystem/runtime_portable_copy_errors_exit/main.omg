@@ -1,0 +1,84 @@
+// Expected exit: 0.
+// Copy transfers only the bounded initialized prefix, preserves scratch tails,
+// and propagates acquisition errors. Canonicalization checks capacity before
+// touching output; write_all propagates a real kernel write failure.
+use omega_language_std::filesystem;
+use omega_language_std::console;
+
+data Main {
+    filesystem: Filesystem;
+    scratch: [u8; 8];
+    readback: [u8; 8];
+    small: [u8; 2];
+}
+machine Main::main(main: &mut Main) reaches Console {
+    main.scratch[3] = 85;
+    main.readback[3] = 86;
+    main.small[0] = 87;
+    main.small[1] = 88;
+    let result: UnitResult = Filesystem::write_all(&mut main.filesystem, "omega_copy_source.txt", "abcdef");
+    transition result { UnitResult::Ok -> copy(main) _ -> bad(10) }
+    state copy(main: &mut Main) {
+        let result: IoResult = Filesystem::copy(&mut main.filesystem, "omega_copy_source.txt", "omega_copy_destination.txt", &mut main.scratch, 3);
+        transition result { IoResult::Ok { count } -> copied(main, count) _ -> bad(11) }
+    }
+    state copied(main: &mut Main, count: u64) {
+        transition count == 3 && main.scratch[0] == 97 && main.scratch[1] == 98 && main.scratch[2] == 99 && main.scratch[3] == 85 {
+            true -> read(main) false -> bad(12)
+        }
+    }
+    state read(main: &mut Main) {
+        let result: IoResult = Filesystem::read_all(&mut main.filesystem, "omega_copy_destination.txt", &mut main.readback, 8);
+        transition result { IoResult::Ok { count } -> read_count(main, count) _ -> bad(13) }
+    }
+    state read_count(main: &mut Main, count: u64) {
+        transition count == 3 && main.readback[0] == 97 && main.readback[1] == 98 && main.readback[2] == 99 && main.readback[3] == 86 {
+            true -> missing_source(main) false -> bad(14)
+        }
+    }
+    state missing_source(main: &mut Main) {
+        let result: IoResult = Filesystem::copy(&mut main.filesystem, "/no_such_omega_copy_parent_999/source", "omega_copy_uncreated.txt", &mut main.scratch, 8);
+        transition result { IoResult::Error { kind } -> source_error(main, kind) _ -> bad(15) }
+    }
+    state source_error(main: &mut Main, kind: ErrorKind) {
+        transition kind { ErrorKind::NotFound -> check_destination(main) _ -> bad(16) }
+    }
+    state check_destination(main: &mut Main) {
+        let exists: bool = Filesystem::exists(&mut main.filesystem, "omega_copy_uncreated.txt");
+        transition exists { false -> missing_destination(main) true -> bad(17) }
+    }
+    state missing_destination(main: &mut Main) {
+        let result: IoResult = Filesystem::copy(&mut main.filesystem, "omega_copy_source.txt", "/no_such_omega_copy_parent_999/destination", &mut main.scratch, 8);
+        transition result { IoResult::Error { kind } -> destination_error(main, kind) _ -> bad(18) }
+    }
+    state destination_error(main: &mut Main, kind: ErrorKind) {
+        transition kind { ErrorKind::NotFound -> canonical(main) _ -> bad(19) }
+    }
+    state canonical(main: &mut Main) {
+        let result: UnitResult = Filesystem::canonicalize(&mut main.filesystem, "omega_copy_source.txt", &mut main.small);
+        transition result { UnitResult::Error { kind } -> capacity_error(main, kind) _ -> bad(20) }
+    }
+    state capacity_error(main: &mut Main, kind: ErrorKind) {
+        transition kind { ErrorKind::InvalidInput -> unchanged(main) _ -> bad(21) }
+    }
+    state unchanged(main: &mut Main) {
+        transition main.small[0] == 87 && main.small[1] == 88 { true -> full(main) false -> bad(22) }
+    }
+    state full(main: &mut Main) {
+        let result: UnitResult = Filesystem::write_all(&mut main.filesystem, "/dev/full", "cannot fit");
+        transition result { UnitResult::Error { kind } -> full_error(main, kind) _ -> bad(23) }
+    }
+    state full_error(main: &mut Main, kind: ErrorKind) {
+        transition kind { ErrorKind::Other -> remove_source(main) _ -> bad(24) }
+    }
+    state remove_source(main: &mut Main) {
+        let result: UnitResult = Filesystem::remove(&mut main.filesystem, "omega_copy_source.txt");
+        transition result { UnitResult::Ok -> remove_destination(main) _ -> bad(25) }
+    }
+    state remove_destination(main: &mut Main) {
+        let result: UnitResult = Filesystem::remove(&mut main.filesystem, "omega_copy_destination.txt");
+        transition result { UnitResult::Ok -> good() _ -> bad(26) }
+    }
+    state good() { Console::exit_process(0); }
+    state bad(code: i32) { Console::exit_process(code); }
+}

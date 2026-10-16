@@ -6,4 +6,5 @@ machine build(builder: &mut Build) {
         location: "../../../../../source/library/std"
     });
     Build::bind(builder, windows_x86_64::ProgramEntry, Main::main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, Main::main);
 }

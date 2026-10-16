@@ -27,7 +27,7 @@ data Main {
     unit_result: UnitResult;
     open_result: OpenResult;
     io_result: IoResult;
-    rc: i32;
+    close_result: UnitResult;
 }
 
 machine Main::main(main: &mut Main) reaches Console {
@@ -63,8 +63,8 @@ machine Main::main(main: &mut Main) reaches Console {
     }
     state read_it(main: &mut Main, file: File) {
         main.io_result = Filesystem::read(&mut main.fs, file, &mut main.buffer, 32);
-        main.rc = Filesystem::close(&mut main.fs, file);
-        transition main.rc == 0 { true -> read_checked(main) _ -> bad(main, 82) }
+        main.close_result = Filesystem::close(&mut main.fs, file);
+        transition main.close_result { UnitResult::Ok -> read_checked(main) _ -> bad(main, 82) }
     }
     state read_checked(main: &mut Main) {
         transition main.io_result {

@@ -1,3 +1,4 @@
+use omega::language::core::filesystem_authority;
 // A persistent software-rendered image viewer. RIGHT/LEFT arrows load
 // img0.bmp / img1.bmp / img2.bmp afresh; Escape or the close button exits.
 // A pure-Omega decoder turns 24bpp bottom-up BMP pixels into the top-down
@@ -93,7 +94,7 @@ data Main {
     pumped: i32 [0..=16];
 }
 
-machine Main::main(main: &mut Main) reaches AppKit + Clock + Console + CoreGraphics + DarwinClock + PosixFilesystemHost + Gui + Input + ObjectiveC {
+machine Main::main(main: &mut Main) reaches AppKit + Clock + Console + CoreGraphics + DarwinClock + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + Gui + Input + ObjectiveC {
     // "#32770\0" -- the predefined dialog class (draggable top-level window).
     main.cls[0] = 35;
     main.cls[1] = 51;

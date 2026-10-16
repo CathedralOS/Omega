@@ -1,0 +1,85 @@
+// Expected exit: 0.
+// Zero File storage is absent; a real POSIX descriptor 0 is handle 1. Closing
+// child stdin makes the next acquisition exercise that distinction on the OS.
+// Zero OpenOptions must reopen read-only without truncation or write access.
+use omega_language_std::filesystem;
+use omega_language_std::posix_filesystem_host;
+use omega_language_std::console;
+
+data Main {
+    filesystem: Filesystem;
+    opened: OpenResult;
+    result: UnitResult;
+    transferred: IoResult;
+    file: File;
+    buffer: [u8; 4];
+}
+machine Main::main(main: &mut Main) reaches Console {
+    let outcome: IoResult = Filesystem::read(&mut main.filesystem, File { handle: 0 }, &mut main.buffer, 1);
+    transition outcome { IoResult::Error { kind } -> absent_read(main, kind) _ -> bad(10) }
+    state absent_read(main: &mut Main, kind: ErrorKind) {
+        transition kind { ErrorKind::BadDescriptor -> close_absent(main) _ -> bad(11) }
+    }
+    state close_absent(main: &mut Main) {
+        let outcome: UnitResult = Filesystem::close(&mut main.filesystem, File { handle: 0 });
+        transition outcome { UnitResult::Error { kind } -> absent_close(main, kind) _ -> bad(12) }
+    }
+    state absent_close(main: &mut Main, kind: ErrorKind) {
+        transition kind { ErrorKind::BadDescriptor -> free_zero(main) _ -> bad(13) }
+    }
+    state free_zero(main: &mut Main) {
+        let result: i32 = PosixFilesystemHost::close(0);
+        transition result == 0 { true -> create(main) false -> bad(14) }
+    }
+    state create(main: &mut Main) {
+        main.opened = Filesystem::create(&mut main.filesystem, "omega_zero_descriptor.txt");
+        transition main.opened { OpenResult::Ok { file } -> created(main, file) _ -> bad(15) }
+    }
+    state created(main: &mut Main, file: File) {
+        main.file = file;
+        transition file.handle == 1 { true -> write(main) false -> bad(16) }
+    }
+    state write(main: &mut Main) {
+        main.transferred = Filesystem::write(&mut main.filesystem, main.file, "zero");
+        transition main.transferred { IoResult::Ok { count } -> written(main, count) _ -> bad(17) }
+    }
+    state written(main: &mut Main, count: u64) {
+        transition count == 4 { true -> close_written(main) false -> bad(18) }
+    }
+    state close_written(main: &mut Main) {
+        main.result = Filesystem::close(&mut main.filesystem, main.file);
+        transition main.result { UnitResult::Ok -> reopen(main) _ -> bad(19) }
+    }
+    state reopen(main: &mut Main) {
+        main.opened = Filesystem::open_with(&mut main.filesystem, "omega_zero_descriptor.txt", OpenOptions { });
+        transition main.opened { OpenResult::Ok { file } -> readonly(main, file) _ -> bad(20) }
+    }
+    state readonly(main: &mut Main, file: File) {
+        main.file = file;
+        let outcome: IoResult = Filesystem::write(&mut main.filesystem, file, "x");
+        transition outcome { IoResult::Error { kind } -> rejected_write(main, kind) _ -> bad(21) }
+    }
+    state rejected_write(main: &mut Main, kind: ErrorKind) {
+        transition kind { ErrorKind::BadDescriptor -> read(main) _ -> bad(22) }
+    }
+    state read(main: &mut Main) {
+        main.transferred = Filesystem::read(&mut main.filesystem, main.file, &mut main.buffer, 4);
+        transition main.transferred { IoResult::Ok { count } -> read_count(main, count) _ -> bad(23) }
+    }
+    state read_count(main: &mut Main, count: u64) {
+        transition count == 4 && main.buffer[0] == 122 && main.buffer[1] == 101 && main.buffer[2] == 114 && main.buffer[3] == 111 {
+            true -> close_read(main)
+            false -> bad(24)
+        }
+    }
+    state close_read(main: &mut Main) {
+        main.result = Filesystem::close(&mut main.filesystem, main.file);
+        transition main.result { UnitResult::Ok -> remove(main) _ -> bad(25) }
+    }
+    state remove(main: &mut Main) {
+        main.result = Filesystem::remove(&mut main.filesystem, "omega_zero_descriptor.txt");
+        transition main.result { UnitResult::Ok -> good() _ -> bad(26) }
+    }
+    state good() { Console::exit_process(0); }
+    state bad(code: i32) { Console::exit_process(code); }
+}

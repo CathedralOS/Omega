@@ -1,46 +1,65 @@
-// NATIVE fs canonicalize via realpath (Rust fs::canonicalize). Creates a file
-// under /tmp, then canonicalizes its path. On macOS /tmp is a symlink to
-// /private/tmp, so realpath resolves the canonical path to "/private/tmp/...".
-// The buffer therefore begins "/private/tmp/": buffer[0]=='/', buffer[1]=='p'
-// (NOT 't' — that's the resolution proof), buffer[8]=='/'. Proves the realpath
-// op lowers and runs on real macOS syscalls, resolving symlinks for real.
-
-use omega_language_std::filesystem_host;
+// Expected exit: 0.
+// Expected output contains: PASS: canonicalize follows a real symlink
+// Resolve a real file and a distinct symlink to it. Their complete canonical
+// absolute paths must agree. This retains the original /tmp symlink pressure
+// without assuming that every host spells its target /private/tmp.
+use omega_language_std::filesystem;
+use omega_language_std::console;
 
 data Main {
-    discard: i32;
-    mode: i32;
-    fd: i32;
-    rc: i64;
-    b0: u8;
-    b1: u8;
-    b8: u8;
-    n: i64;
-    buffer: [u8; 1024];
+    filesystem: Filesystem;
+    result: UnitResult;
+    target: [u8; 1024];
+    alias: [u8; 1024];
 }
 
-machine Main::main(main: &mut Main) reaches FilesystemHost {
-    main.mode = 420;
-    main.fd = FilesystemHost::create("/tmp/omega_canon.txt", main.mode);
-    main.discard = FilesystemHost::close(main.fd);
-    main.rc = FilesystemHost::canonicalize("/tmp/omega_canon.txt", &mut main.buffer);
-    main.discard = FilesystemHost::remove("/tmp/omega_canon.txt");
-    transition main.rc != 0 { true -> decode(main) _ -> fail(main) }
-    state decode(main: &mut Main) {
-        // realpath resolves /tmp -> /private/tmp: the canonical path is
-        // "/private/tmp/omega_canon.txt".
-        main.b0 = main.buffer[0];
-        main.b1 = main.buffer[1];
-        main.b8 = main.buffer[8];
-        transition main.b0 == 47 { true -> checkp(main) _ -> fail(main) }
+machine same_canonical_path(left: &[u8; 1024], right: &[u8; 1024]) -> bool {
+    transition left[0] == 47 && right[0] == 47 {
+        true -> compare(left, right, 0)
+        false -> (false)
     }
-    state checkp(main: &mut Main) {
-        // buffer[1] == 'p' (of "private") proves /tmp was resolved, not left as-is
-        transition main.b1 == 112 { true -> checkslash(main) _ -> fail(main) }
+    state compare(left: &[u8; 1024], right: &[u8; 1024], position: u64) -> bool {
+        transition position < 1024 {
+            true -> byte(left, right, position)
+            false -> (true)
+        }
     }
-    state checkslash(main: &mut Main) {
-        transition main.b8 == 47 { true -> good(main) _ -> fail(main) }
+    state byte(left: &[u8; 1024], right: &[u8; 1024], position: u64) -> bool
+    requires position < 1024;
+    {
+        transition left[position] == right[position] {
+            true -> compare(left, right, position + 1)
+            false -> (false)
+        }
     }
-    state good(main: &mut Main) { main.n = FilesystemHost::write(1, "PASS: canonicalize resolves /tmp -> /private/tmp\n"); }
-    state fail(main: &mut Main) { main.n = FilesystemHost::write(1, "FAIL: canonicalize\n"); }
+}
+
+machine Main::main(main: &mut Main) reaches Console {
+    main.result = Filesystem::remove(&mut main.filesystem, "/tmp/omega_canon_alias.txt");
+    main.result = Filesystem::remove(&mut main.filesystem, "/tmp/omega_canon_file.txt");
+    main.result = Filesystem::write_all(&mut main.filesystem, "/tmp/omega_canon_file.txt", "canonical");
+    transition main.result { UnitResult::Ok -> link(main) _ -> cleanup(main, false) }
+    state link(main: &mut Main) {
+        main.result = Filesystem::symlink(&mut main.filesystem, "/tmp/omega_canon_file.txt", "/tmp/omega_canon_alias.txt");
+        transition main.result { UnitResult::Ok -> target(main) _ -> cleanup(main, false) }
+    }
+    state target(main: &mut Main) {
+        main.result = Filesystem::canonicalize(&mut main.filesystem, "/tmp/omega_canon_file.txt", &mut main.target);
+        transition main.result { UnitResult::Ok -> alias(main) _ -> cleanup(main, false) }
+    }
+    state alias(main: &mut Main) {
+        main.result = Filesystem::canonicalize(&mut main.filesystem, "/tmp/omega_canon_alias.txt", &mut main.alias);
+        transition main.result { UnitResult::Ok -> compare(main) _ -> cleanup(main, false) }
+    }
+    state compare(main: &mut Main) {
+        let same: bool = same_canonical_path(&main.target, &main.alias);
+        transition { _ -> cleanup(main, same) }
+    }
+    state cleanup(main: &mut Main, correct: bool) {
+        main.result = Filesystem::remove(&mut main.filesystem, "/tmp/omega_canon_alias.txt");
+        main.result = Filesystem::remove(&mut main.filesystem, "/tmp/omega_canon_file.txt");
+        transition correct { true -> good() false -> bad() }
+    }
+    state good() { Console::write_line("PASS: canonicalize follows a real symlink"); }
+    state bad() { Console::write_line("FAIL: canonicalize"); }
 }

@@ -1,18 +1,12 @@
-// WavOutput: the portable byte-file sink the audio samples write through.
-// An application calls only `WavOutput` directly; each target's named
-// implementation satisfies the trait and reaches its own raw filesystem
-// family — PosixFilesystemHost on linux/macos, WindowsFilesystemHost on
-// windows_x86_64 — so provider selection sees exactly one realizable raw
-// family per target. This is the settled provider-closure transport shape:
-// the application carries no raw-family binding or target-varying data.
-// `write_wav` creates/truncates `path`, writes `bytes`, closes, and returns
-// the byte count or a negative error (negated errno on POSIX, negated Win32
-// code on Windows).
-// The current raw interfaces explicitly reach their family identities, so
-// this portable ceiling conservatively includes both. `invokes` records
-// direct calls; it does not replace the service ceiling or select providers.
-// These names grant no filesystem authority. When the raw interfaces migrate
-// to core capability identities, this ceiling must follow their declared rows.
+use omega::language::core::filesystem_authority;
+// WavOutput: the portable byte-file sink used by the audio samples.
+// Applications carry one portable binding. Selected implementations call the
+// independently complete POSIX or Windows raw service; no raw binding enters
+// application data. POSIX operations publish core filesystem capabilities,
+// while the Windows service retains its explicit family reach. This portable
+// ceiling includes both and keeps synchronous invocation identities separate.
+// These reach names grant no filesystem authority. write_wav creates/truncates
+// the path, writes bytes, closes, and returns the byte count or negative error.
 use omega_language_std::filesystem_host;
 use omega_language_std::posix_filesystem_host;
 use omega_language_std::windows_filesystem_host;
@@ -21,7 +15,7 @@ use omega::language::core::binding;
 
 pub boundary trait WavOutput {
     machine write_wav(path: &[u8] in Path, bytes: &[u8]) -> i64
-        reaches WavOutput + PosixFilesystemHost + WindowsFilesystemHost
+        reaches WavOutput + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + WindowsFilesystemHost
         invokes PosixFilesystemHost;
         invokes WindowsFilesystemHost;
 }
@@ -31,7 +25,7 @@ data WindowsWavOutput { }
 
 linux_x86_64 machine PosixWavOutput::write_wav(path: &[u8] in Path, bytes: &[u8]) -> i64
     satisfies WavOutput::write_wav
-reaches PosixFilesystemHost
+reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
 {
     let fd: i32 = PosixFilesystemHost::create(path, 420);
     transition fd >= 0 { true -> write(fd, bytes) _ -> (widen_i32_to_i64(fd)) }
@@ -48,7 +42,7 @@ linux_x86_64 machine PosixWavOutput::provider_defaults(defaults: &mut PosixWavOu
 
 linux_arm64 machine PosixWavOutput::write_wav(path: &[u8] in Path, bytes: &[u8]) -> i64
     satisfies WavOutput::write_wav
-reaches PosixFilesystemHost
+reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
 {
     let fd: i32 = PosixFilesystemHost::create(path, 420);
     transition fd >= 0 { true -> write(fd, bytes) _ -> (widen_i32_to_i64(fd)) }
@@ -65,7 +59,7 @@ linux_arm64 machine PosixWavOutput::provider_defaults(defaults: &mut PosixWavOut
 
 macos_arm64 machine PosixWavOutput::write_wav(path: &[u8] in Path, bytes: &[u8]) -> i64
     satisfies WavOutput::write_wav
-reaches PosixFilesystemHost
+reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
 {
     let fd: i32 = PosixFilesystemHost::create(path, 420);
     transition fd >= 0 { true -> write(fd, bytes) _ -> (widen_i32_to_i64(fd)) }

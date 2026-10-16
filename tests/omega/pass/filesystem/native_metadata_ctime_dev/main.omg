@@ -1,3 +1,4 @@
+use omega::language::core::filesystem_authority;
 // NATIVE MetadataExt::ctime/dev via stat (Rust os::unix::fs::MetadataExt). Two
 // files on the same filesystem: st_ctime reads a real recent change time
 // (> 1e9), and both files share a NONZERO st_dev (@0) — the device of /tmp.
@@ -20,7 +21,7 @@ data Main {
     buffer: [u8; 144];
 }
 
-machine Main::main_linux(main: &mut Main) reaches PosixFilesystemHost {
+machine Main::main_linux(main: &mut Main) reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation {
     main.mode = 420;
     main.fd = PosixFilesystemHost::create("/tmp/omega_cd_a.txt", main.mode);
     main.n = PosixFilesystemHost::write(main.fd, "a");
@@ -70,7 +71,7 @@ machine Main::main_linux(main: &mut Main) reaches PosixFilesystemHost {
     state fail(main: &mut Main) { main.n = PosixFilesystemHost::write(1, "FAIL: ctime/dev\n"); }
 }
 
-machine Main::main_macos(main: &mut Main) reaches PosixFilesystemHost {
+machine Main::main_macos(main: &mut Main) reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation {
     main.mode = 420;
     main.fd = PosixFilesystemHost::create("/tmp/omega_cd_a.txt", main.mode);
     main.n = PosixFilesystemHost::write(main.fd, "a");

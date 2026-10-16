@@ -1,0 +1,10 @@
+use omega_language_std::filesystem;
+use omega_language_std::posix_filesystem_host;
+use omega::language::core::filesystem_authority;
+
+// A portable binding is not a raw POSIX receiver. Provider dependencies do not
+// give the application a second role for the same slot.
+data Main { filesystem: Filesystem; }
+machine Main::main(main: &mut Main) reaches FilesystemContentWrite {
+    let result: i64 = PosixFilesystemHost::write(&main.filesystem.host, 1, "x");
+}

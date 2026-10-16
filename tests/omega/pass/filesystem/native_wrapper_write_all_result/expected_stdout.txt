@@ -1,0 +1,1 @@
+PASS: write_all result Error-then-Ok correct

@@ -1,3 +1,4 @@
+use omega::language::core::filesystem_authority;
 // fs <-> time INTEROP (TASKS_TIME #9's ready leg, claimed by the fs lane
 // 2026-07-10g): a real file's Metadata mtime, decoded at the darwin stat
 // offset (st_mtimespec.tv_sec, i64 @48 -- the native_metadata_modified
@@ -25,7 +26,7 @@ data Main {
     time: Time;
 }
 
-machine Main::main(context: &mut Main) reaches Console + PosixFilesystemHost {
+machine Main::main(context: &mut Main) reaches Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + FilesystemMetadataQuery {
     let mode: i32 = 438;
     let mut buffer: [u8; 144];
     let descriptor: i32 = PosixFilesystemHost::create("/tmp/omega_time_interop.txt", mode);

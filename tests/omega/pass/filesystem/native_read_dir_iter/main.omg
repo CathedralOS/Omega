@@ -1,3 +1,4 @@
+use omega::language::core::filesystem_authority;
 // NATIVE fs read_dir ITERATION (Rust fs::read_dir's DirEntry walk) on real macOS.
 // This is the payoff of fixing the runtime-indexed-read instruction: it fills the
 // directory buffer via ___getdirentries64, then WALKS the packed dirent records
@@ -34,7 +35,7 @@ data Main {
     buffer: [u8; 512];
 }
 
-machine Main::main(main: &mut Main) reaches PosixFilesystemHost {
+machine Main::main(main: &mut Main) reaches DirectoryEnumeration + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation {
     main.dirmode = 493;
     main.filemode = 420;
     main.rdonly = 0;

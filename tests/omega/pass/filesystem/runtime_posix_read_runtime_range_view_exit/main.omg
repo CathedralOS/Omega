@@ -1,3 +1,4 @@
+use omega::language::core::filesystem_authority;
 // POSIX `read` lends a byte-view element of the caller's backing to the
 // native descriptor: the provider's `&mut buffer[0]` on its `&mut [u8]`
 // parameter is the foreign call's structural input, an inline byte element
@@ -24,7 +25,7 @@ data Main {
 // A caller-chosen window of a borrowed fixed buffer. The caller's second
 // call reuses the buffer from a later offset.
 machine read_window(fd: i32, bytes: &mut [u8; 64], start: u64 [0..=64]) -> i64
-    reaches PosixFilesystemHost
+    reaches FilesystemContentRead
 {
     PosixFilesystemHost::read(fd, &mut bytes[start..64], 64 - start)
 }
@@ -32,7 +33,7 @@ machine read_window(fd: i32, bytes: &mut [u8; 64], start: u64 [0..=64]) -> i64
 // The same window over a local buffer, read twice; the sentinel past the
 // window and the bytes the second transfer placed decide the result.
 machine read_local(fd: i32, start: u64 [0..=7]) -> i64
-    reaches PosixFilesystemHost
+    reaches FilesystemContentRead
 {
     let mut local: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 9];
     let first: i64 = PosixFilesystemHost::read(fd, &mut local[start..7], 7 - start);
@@ -43,7 +44,7 @@ machine read_local(fd: i32, start: u64 [0..=7]) -> i64
     }
 }
 
-machine Main::main(main: &mut Main) reaches PosixFilesystemHost {
+machine Main::main(main: &mut Main) reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation {
     main.source[0] = 11;
     main.source[31] = 66;
     main.source[64] = 55;

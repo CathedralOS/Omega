@@ -1,0 +1,1 @@
+PASS: canonicalize follows a real symlink

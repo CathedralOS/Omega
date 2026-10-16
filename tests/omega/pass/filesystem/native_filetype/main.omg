@@ -1,3 +1,4 @@
+use omega::language::core::filesystem_authority;
 // NATIVE file-type classification (Rust FileType / os::unix::fs::FileTypeExt) via
 // stat's st_mode format bits. `read_metadata` fills the buffer with the TARGET's
 // raw `struct stat`, so each bound target decodes its own layout: Darwin keeps
@@ -21,7 +22,7 @@ data Main {
     buffer: [u8; 144];
 }
 
-machine Main::main_linux(main: &mut Main) reaches PosixFilesystemHost {
+machine Main::main_linux(main: &mut Main) reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation {
     main.mode = 420;
     // 1: /dev/null must stat as a character device
     main.rc = PosixFilesystemHost::read_metadata("/dev/null", &mut main.buffer);
@@ -51,7 +52,7 @@ machine Main::main_linux(main: &mut Main) reaches PosixFilesystemHost {
     state fail(main: &mut Main) { main.n = PosixFilesystemHost::write(1, "FAIL: native filetype\n"); }
 }
 
-machine Main::main_macos(main: &mut Main) reaches PosixFilesystemHost {
+machine Main::main_macos(main: &mut Main) reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation {
     main.mode = 420;
     // 1: /dev/null must stat as a character device
     main.rc = PosixFilesystemHost::read_metadata("/dev/null", &mut main.buffer);

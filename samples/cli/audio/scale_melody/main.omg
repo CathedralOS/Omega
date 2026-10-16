@@ -1,3 +1,4 @@
+use omega::language::core::filesystem_authority;
 // A two-second C-major scale as a canonical 8-bit WAV file: eight square-wave
 // notes of 2000 samples (0.25 s) each, rendered into one fixed [u8; 16044]
 // buffer — the 44-byte RIFF header followed by 16000 unsigned PCM samples
@@ -32,7 +33,7 @@ data Main {
     byte: u8;
 }
 
-machine Main::main(main: &mut Main) reaches Console + WavOutput + AudioPlayback + PosixFilesystemHost + WindowsFilesystemHost + ProcessExit {
+machine Main::main(main: &mut Main) reaches Console + WavOutput + AudioPlayback + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + WindowsFilesystemHost + ProcessExit {
     Console::write_line("scale_melody: C-major scale, square wave, 8-bit unsigned mono PCM at 8000 Hz, 2 s");
 
     // Canonical 44-byte WAV header, little-endian fields.

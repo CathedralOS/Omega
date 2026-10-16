@@ -1,3 +1,4 @@
+use omega::language::core::filesystem_authority;
 // NATIVE end-to-end std::fs WORKFLOW sample — a realistic sequence exercising the
 // raw seam COHESIVELY on real syscalls (per-op canaries test each in
 // isolation; this proves they compose). `read_metadata` delivers the TARGET's
@@ -35,7 +36,7 @@ data Main {
     buffer: [u8; 144];
 }
 
-machine Main::main_linux(main: &mut Main) reaches PosixFilesystemHost {
+machine Main::main_linux(main: &mut Main) reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation {
     main.mode = 420;      // 0o644
     main.dir_mode = 493;  // 0o755
     main.ro_mode = 292;   // 0o444
@@ -105,7 +106,7 @@ machine Main::main_linux(main: &mut Main) reaches PosixFilesystemHost {
     state fail(main: &mut Main) { main.n = PosixFilesystemHost::write(1, "FAIL: fs workflow\n"); }
 }
 
-machine Main::main_macos(main: &mut Main) reaches PosixFilesystemHost {
+machine Main::main_macos(main: &mut Main) reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation {
     main.mode = 420;      // 0o644
     main.dir_mode = 493;  // 0o755
     main.ro_mode = 292;   // 0o444

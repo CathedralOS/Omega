@@ -1,3 +1,4 @@
+use omega::language::core::filesystem_authority;
 // Complete macos_arm64 `PosixFilesystemHost` provider over libSystem.
 // Each operation is an ordinary checked adapter: it terminates paths into
 // local buffers, lends caller backing for ordinary read/write transfers,
@@ -336,81 +337,81 @@ macos_arm64 machine posix_darwin_memcpy_binding() -> ForeignBinding<26, 7, 0> {
 }
 
 boundary requirement PosixFilesystemDarwin::c_open(path: &u8, flags: i32) -> i32
-reaches PosixFilesystemHost;
+reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation;
 boundary requirement PosixFilesystemDarwin::c_open_create(path: &u8, flags: i32, mode: i32) -> i32
-reaches PosixFilesystemHost;
+reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation;
 boundary requirement PosixFilesystemDarwin::c_create(path: &u8, mode: i32) -> i32
-reaches PosixFilesystemHost;
+reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation;
 boundary requirement PosixFilesystemDarwin::c_read(fd: i32, buffer: &mut u8, count: u64) -> i64
-reaches PosixFilesystemHost;
+reaches FilesystemContentRead;
 boundary requirement PosixFilesystemDarwin::c_write(fd: i32, bytes: &u8, count: u64) -> i64
-reaches PosixFilesystemHost;
+reaches FilesystemContentWrite;
 boundary requirement PosixFilesystemDarwin::c_read_at(fd: i32, buffer: &mut u8, count: u64, offset: i64) -> i64
-reaches PosixFilesystemHost;
+reaches FilesystemContentRead;
 boundary requirement PosixFilesystemDarwin::c_write_at(fd: i32, bytes: &u8, count: u64, offset: i64) -> i64
-reaches PosixFilesystemHost;
+reaches FilesystemContentWrite;
 boundary requirement PosixFilesystemDarwin::c_close(fd: i32) -> i32
-reaches PosixFilesystemHost;
+;
 boundary requirement PosixFilesystemDarwin::c_remove(path: &u8) -> i32
-reaches PosixFilesystemHost;
+reaches FilesystemNamespaceMutation;
 boundary requirement PosixFilesystemDarwin::c_seek(fd: i32, offset: i64, whence: i32) -> i64
-reaches PosixFilesystemHost;
+;
 boundary requirement PosixFilesystemDarwin::c_create_dir(path: &u8, mode: i32) -> i32
-reaches PosixFilesystemHost;
+reaches FilesystemMetadataMutation + FilesystemNamespaceMutation;
 boundary requirement PosixFilesystemDarwin::c_remove_dir(path: &u8) -> i32
-reaches PosixFilesystemHost;
+reaches FilesystemNamespaceMutation;
 boundary requirement PosixFilesystemDarwin::c_create_dir_name(name: &u8, mode: i32) -> i32
-reaches PosixFilesystemHost;
+reaches FilesystemMetadataMutation + FilesystemNamespaceMutation;
 boundary requirement PosixFilesystemDarwin::c_open_at(dirfd: i32, name: &u8, flags: i32) -> i32
-reaches PosixFilesystemHost;
+reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation;
 boundary requirement PosixFilesystemDarwin::c_unlink_at(dirfd: i32, name: &u8, flags: i32) -> i32
-reaches PosixFilesystemHost;
+reaches FilesystemNamespaceMutation;
 boundary requirement PosixFilesystemDarwin::c_set_permissions(path: &u8, mode: u32) -> i32
-reaches PosixFilesystemHost;
+reaches FilesystemMetadataMutation;
 boundary requirement PosixFilesystemDarwin::c_set_file_permissions(fd: i32, mode: u32) -> i32
-reaches PosixFilesystemHost;
+reaches FilesystemMetadataMutation;
 boundary requirement PosixFilesystemDarwin::c_rename(from: &u8, to: &u8) -> i32
-reaches PosixFilesystemHost;
+reaches FilesystemNamespaceMutation;
 boundary requirement PosixFilesystemDarwin::c_hard_link(original: &u8, link: &u8) -> i32
-reaches PosixFilesystemHost;
+reaches FilesystemNamespaceMutation;
 boundary requirement PosixFilesystemDarwin::c_symlink(target: &u8, link: &u8) -> i32
-reaches PosixFilesystemHost;
+reaches FilesystemNamespaceMutation;
 boundary requirement PosixFilesystemDarwin::c_read_link(path: &u8, buffer: &mut u8, count: u64) -> i64
-reaches PosixFilesystemHost;
+reaches FilesystemMetadataQuery;
 boundary requirement PosixFilesystemDarwin::c_read_dir(fd: i32, buffer: &mut u8, count: u64, position: &mut i64) -> i64
-reaches PosixFilesystemHost;
+reaches DirectoryEnumeration;
 boundary requirement PosixFilesystemDarwin::c_remove_name(path: &u8) -> i32
-reaches PosixFilesystemHost;
+reaches FilesystemNamespaceMutation;
 boundary requirement PosixFilesystemDarwin::c_remove_dir_name(path: &u8) -> i32
-reaches PosixFilesystemHost;
+reaches FilesystemNamespaceMutation;
 boundary requirement PosixFilesystemDarwin::c_read_metadata(path: &u8, buffer: &mut u8) -> i32
-reaches PosixFilesystemHost;
+reaches FilesystemMetadataQuery;
 boundary requirement PosixFilesystemDarwin::c_read_file_metadata(fd: i32, buffer: &mut u8) -> i32
-reaches PosixFilesystemHost;
+reaches FilesystemMetadataQuery;
 boundary requirement PosixFilesystemDarwin::c_read_symlink_metadata(path: &u8, buffer: &mut u8) -> i32
-reaches PosixFilesystemHost;
+reaches FilesystemMetadataQuery;
 boundary requirement PosixFilesystemDarwin::c_set_len(fd: i32, length: i64) -> i32
-reaches PosixFilesystemHost;
+reaches FilesystemContentWrite + FilesystemMetadataMutation;
 boundary requirement PosixFilesystemDarwin::c_set_file_times(fd: i32, times: &u8) -> i32
-reaches PosixFilesystemHost;
+reaches FilesystemMetadataMutation;
 boundary requirement PosixFilesystemDarwin::c_sync(fd: i32) -> i32
-reaches PosixFilesystemHost;
+;
 boundary requirement PosixFilesystemDarwin::c_sync_data(fd: i32) -> i32
-reaches PosixFilesystemHost;
+;
 boundary requirement PosixFilesystemDarwin::c_duplicate(fd: i32) -> i32
-reaches PosixFilesystemHost;
+;
 boundary requirement PosixFilesystemDarwin::c_lock_file(fd: i32, operation: i32) -> i32
-reaches PosixFilesystemHost;
+;
 boundary requirement PosixFilesystemDarwin::c_change_owner(path: &u8, uid: i32, gid: i32) -> i32
-reaches PosixFilesystemHost;
+reaches FilesystemMetadataMutation;
 boundary requirement PosixFilesystemDarwin::c_change_owner_no_follow(path: &u8, uid: i32, gid: i32) -> i32
-reaches PosixFilesystemHost;
+reaches FilesystemMetadataMutation;
 boundary requirement PosixFilesystemDarwin::c_change_file_owner(fd: i32, uid: i32, gid: i32) -> i32
-reaches PosixFilesystemHost;
+reaches FilesystemMetadataMutation;
 boundary requirement PosixFilesystemDarwin::c_error_location() -> u64
-reaches PosixFilesystemHost;
+;
 boundary requirement PosixFilesystemDarwin::c_copy_from_address(destination: &mut u8, source: u64, count: u64) -> u64
-reaches PosixFilesystemHost;
+;
 
 data PosixFilesystemDarwin { }  // requirement namespace for the libSystem imports
 data PosixFilesystemDarwinImports { }
@@ -494,7 +495,7 @@ macos_arm64 machine PosixFilesystemDarwinImports::c_copy_from_address(destinatio
 
 // The negated `errno` of the call that just failed.
 macos_arm64 machine PosixFilesystemDarwin::failure_i32() -> i32
-reaches PosixFilesystemHost
+
 {
     let location: u64 = PosixFilesystemDarwin::c_error_location();
     let mut code: [u8; 4];
@@ -504,7 +505,7 @@ reaches PosixFilesystemHost
 }
 
 macos_arm64 machine PosixFilesystemDarwin::failure_i64() -> i64
-reaches PosixFilesystemHost
+
 {
     let location: u64 = PosixFilesystemDarwin::c_error_location();
     let mut code: [u8; 4];
@@ -519,7 +520,7 @@ macos_arm64 machine PosixFilesystemDarwin::name_too_long_i64() -> i64 { -63 }
 
 macos_arm64 machine PosixFilesystemNativeProvider::open(path: &[u8] in Path, flags: i32) -> i32
     satisfies PosixFilesystemHost::open
-reaches PosixFilesystemHost
+reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
 {
     let mut terminated: [u8; 4096];
     let fits: bool = posix_terminated_path(path, &mut terminated);
@@ -539,7 +540,7 @@ reaches PosixFilesystemHost
 
 macos_arm64 machine PosixFilesystemNativeProvider::open_create(path: &[u8] in Path, flags: i32, mode: i32) -> i32
     satisfies PosixFilesystemHost::open_create
-reaches PosixFilesystemHost
+reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
 {
     let mut terminated: [u8; 4096];
     let fits: bool = posix_terminated_path(path, &mut terminated);
@@ -559,7 +560,7 @@ reaches PosixFilesystemHost
 
 macos_arm64 machine PosixFilesystemNativeProvider::create(path: &[u8] in Path, mode: i32) -> i32
     satisfies PosixFilesystemHost::create
-reaches PosixFilesystemHost
+reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
 {
     let mut terminated: [u8; 4096];
     let fits: bool = posix_terminated_path(path, &mut terminated);
@@ -579,7 +580,7 @@ reaches PosixFilesystemHost
 
 macos_arm64 machine PosixFilesystemNativeProvider::read(fd: i32, buffer: &mut [u8], count: u64) -> i64
     satisfies PosixFilesystemHost::read
-reaches PosixFilesystemHost
+reaches FilesystemContentRead
 {
     transition buffer.len > 0 {
         true -> nonempty(fd, buffer, count)
@@ -608,7 +609,7 @@ reaches PosixFilesystemHost
 
 macos_arm64 machine PosixFilesystemNativeProvider::write(fd: i32, bytes: &[u8]) -> i64
     satisfies PosixFilesystemHost::write
-reaches PosixFilesystemHost
+reaches FilesystemContentWrite
 {
     transition bytes.len > 0 {
         true -> nonempty(fd, bytes)
@@ -636,7 +637,7 @@ reaches PosixFilesystemHost
 
 macos_arm64 machine PosixFilesystemNativeProvider::read_at(fd: i32, buffer: &mut [u8], count: u64, offset: i64) -> i64
     satisfies PosixFilesystemHost::read_at
-reaches PosixFilesystemHost
+reaches FilesystemContentRead
 {
     transition buffer.len > 0 {
         true -> nonempty(fd, buffer, count, offset)
@@ -665,7 +666,7 @@ reaches PosixFilesystemHost
 
 macos_arm64 machine PosixFilesystemNativeProvider::write_at(fd: i32, bytes: &[u8], offset: i64) -> i64
     satisfies PosixFilesystemHost::write_at
-reaches PosixFilesystemHost
+reaches FilesystemContentWrite
 {
     transition bytes.len > 0 {
         true -> nonempty(fd, bytes, offset)
@@ -693,7 +694,7 @@ reaches PosixFilesystemHost
 
 macos_arm64 machine PosixFilesystemNativeProvider::close(fd: i32) -> i32
     satisfies PosixFilesystemHost::close
-reaches PosixFilesystemHost
+
 {
     let outcome: i32 = PosixFilesystemDarwin::c_close(fd);
     transition outcome < 0 {
@@ -704,7 +705,7 @@ reaches PosixFilesystemHost
 
 macos_arm64 machine PosixFilesystemNativeProvider::remove(path: &[u8] in Path) -> i32
     satisfies PosixFilesystemHost::remove
-reaches PosixFilesystemHost
+reaches FilesystemNamespaceMutation
 {
     let mut terminated: [u8; 4096];
     let fits: bool = posix_terminated_path(path, &mut terminated);
@@ -724,7 +725,7 @@ reaches PosixFilesystemHost
 
 macos_arm64 machine PosixFilesystemNativeProvider::seek(fd: i32, offset: i64, whence: i32) -> i64
     satisfies PosixFilesystemHost::seek
-reaches PosixFilesystemHost
+
 {
     let outcome: i64 = PosixFilesystemDarwin::c_seek(fd, offset, whence);
     transition outcome < 0 {
@@ -735,7 +736,7 @@ reaches PosixFilesystemHost
 
 macos_arm64 machine PosixFilesystemNativeProvider::create_dir(path: &[u8] in Path, mode: i32) -> i32
     satisfies PosixFilesystemHost::create_dir
-reaches PosixFilesystemHost
+reaches FilesystemMetadataMutation + FilesystemNamespaceMutation
 {
     let mut terminated: [u8; 4096];
     let fits: bool = posix_terminated_path(path, &mut terminated);
@@ -755,7 +756,7 @@ reaches PosixFilesystemHost
 
 macos_arm64 machine PosixFilesystemNativeProvider::remove_dir(path: &[u8] in Path) -> i32
     satisfies PosixFilesystemHost::remove_dir
-reaches PosixFilesystemHost
+reaches FilesystemNamespaceMutation
 {
     let mut terminated: [u8; 4096];
     let fits: bool = posix_terminated_path(path, &mut terminated);
@@ -775,7 +776,7 @@ reaches PosixFilesystemHost
 
 macos_arm64 machine PosixFilesystemNativeProvider::create_dir_name(name: &[u8], mode: i32) -> i32
     satisfies PosixFilesystemHost::create_dir_name
-reaches PosixFilesystemHost
+reaches FilesystemMetadataMutation + FilesystemNamespaceMutation
 {
     let mut terminated: [u8; 4096];
     let fits: bool = posix_terminated_path(name, &mut terminated);
@@ -795,7 +796,7 @@ reaches PosixFilesystemHost
 
 macos_arm64 machine PosixFilesystemNativeProvider::open_at(dirfd: i32, name: &[u8], flags: i32) -> i32
     satisfies PosixFilesystemHost::open_at
-reaches PosixFilesystemHost
+reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
 {
     let mut terminated: [u8; 4096];
     let fits: bool = posix_terminated_path(name, &mut terminated);
@@ -815,7 +816,7 @@ reaches PosixFilesystemHost
 
 macos_arm64 machine PosixFilesystemNativeProvider::unlink_at(dirfd: i32, name: &[u8], flags: i32) -> i32
     satisfies PosixFilesystemHost::unlink_at
-reaches PosixFilesystemHost
+reaches FilesystemNamespaceMutation
 {
     let mut terminated: [u8; 4096];
     let fits: bool = posix_terminated_path(name, &mut terminated);
@@ -835,7 +836,7 @@ reaches PosixFilesystemHost
 
 macos_arm64 machine PosixFilesystemNativeProvider::set_permissions(path: &[u8] in Path, mode: u32) -> i32
     satisfies PosixFilesystemHost::set_permissions
-reaches PosixFilesystemHost
+reaches FilesystemMetadataMutation
 {
     let mut terminated: [u8; 4096];
     let fits: bool = posix_terminated_path(path, &mut terminated);
@@ -855,7 +856,7 @@ reaches PosixFilesystemHost
 
 macos_arm64 machine PosixFilesystemNativeProvider::set_file_permissions(fd: i32, mode: u32) -> i32
     satisfies PosixFilesystemHost::set_file_permissions
-reaches PosixFilesystemHost
+reaches FilesystemMetadataMutation
 {
     let outcome: i32 = PosixFilesystemDarwin::c_set_file_permissions(fd, mode);
     transition outcome < 0 {
@@ -866,7 +867,7 @@ reaches PosixFilesystemHost
 
 macos_arm64 machine PosixFilesystemNativeProvider::rename(from: &[u8] in Path, to: &[u8] in Path) -> i32
     satisfies PosixFilesystemHost::rename
-reaches PosixFilesystemHost
+reaches FilesystemNamespaceMutation
 {
     let mut first: [u8; 4096];
     let mut second: [u8; 4096];
@@ -888,7 +889,7 @@ reaches PosixFilesystemHost
 
 macos_arm64 machine PosixFilesystemNativeProvider::hard_link(original: &[u8] in Path, link: &[u8] in Path) -> i32
     satisfies PosixFilesystemHost::hard_link
-reaches PosixFilesystemHost
+reaches FilesystemNamespaceMutation
 {
     let mut first: [u8; 4096];
     let mut second: [u8; 4096];
@@ -910,7 +911,7 @@ reaches PosixFilesystemHost
 
 macos_arm64 machine PosixFilesystemNativeProvider::symlink(target: &[u8] in Path, link: &[u8] in Path) -> i32
     satisfies PosixFilesystemHost::symlink
-reaches PosixFilesystemHost
+reaches FilesystemNamespaceMutation
 {
     let mut first: [u8; 4096];
     let mut second: [u8; 4096];
@@ -932,7 +933,7 @@ reaches PosixFilesystemHost
 
 macos_arm64 machine PosixFilesystemNativeProvider::read_link(path: &[u8] in Path, buffer: &mut [u8], count: u64) -> i64
     satisfies PosixFilesystemHost::read_link
-reaches PosixFilesystemHost
+reaches FilesystemMetadataQuery
 {
     let mut terminated: [u8; 4096];
     let fits: bool = posix_terminated_path(path, &mut terminated);
@@ -955,7 +956,7 @@ reaches PosixFilesystemHost
 
 macos_arm64 machine PosixFilesystemNativeProvider::read_dir(fd: i32, buffer: &mut [u8], count: u64, position: &mut i64) -> i64
     satisfies PosixFilesystemHost::read_dir
-reaches PosixFilesystemHost
+reaches DirectoryEnumeration
 {
     let mut chunk: [u8; 4096];
     let capacity: u64 = posix_chunk_capacity(buffer, count);
@@ -969,7 +970,7 @@ reaches PosixFilesystemHost
 
 macos_arm64 machine PosixFilesystemNativeProvider::remove_name(path: &[u8]) -> i32
     satisfies PosixFilesystemHost::remove_name
-reaches PosixFilesystemHost
+reaches FilesystemNamespaceMutation
 {
     let mut terminated: [u8; 4096];
     let fits: bool = posix_terminated_path(path, &mut terminated);
@@ -989,7 +990,7 @@ reaches PosixFilesystemHost
 
 macos_arm64 machine PosixFilesystemNativeProvider::remove_dir_name(path: &[u8]) -> i32
     satisfies PosixFilesystemHost::remove_dir_name
-reaches PosixFilesystemHost
+reaches FilesystemNamespaceMutation
 {
     let mut terminated: [u8; 4096];
     let fits: bool = posix_terminated_path(path, &mut terminated);
@@ -1009,7 +1010,7 @@ reaches PosixFilesystemHost
 
 macos_arm64 machine PosixFilesystemNativeProvider::read_metadata(path: &[u8] in Path, buffer: &mut [u8]) -> i32
     satisfies PosixFilesystemHost::read_metadata
-reaches PosixFilesystemHost
+reaches FilesystemMetadataQuery
 {
     let mut terminated: [u8; 4096];
     let fits: bool = posix_terminated_path(path, &mut terminated);
@@ -1031,7 +1032,7 @@ reaches PosixFilesystemHost
 
 macos_arm64 machine PosixFilesystemNativeProvider::read_file_metadata(fd: i32, buffer: &mut [u8]) -> i32
     satisfies PosixFilesystemHost::read_file_metadata
-reaches PosixFilesystemHost
+reaches FilesystemMetadataQuery
 {
     let mut chunk: [u8; 4096];
     let outcome: i32 = PosixFilesystemDarwin::c_read_file_metadata(fd, &mut chunk[0]);
@@ -1044,7 +1045,7 @@ reaches PosixFilesystemHost
 
 macos_arm64 machine PosixFilesystemNativeProvider::read_symlink_metadata(path: &[u8] in Path, buffer: &mut [u8]) -> i32
     satisfies PosixFilesystemHost::read_symlink_metadata
-reaches PosixFilesystemHost
+reaches FilesystemMetadataQuery
 {
     let mut terminated: [u8; 4096];
     let fits: bool = posix_terminated_path(path, &mut terminated);
@@ -1066,7 +1067,7 @@ reaches PosixFilesystemHost
 
 macos_arm64 machine PosixFilesystemNativeProvider::set_len(fd: i32, length: i64) -> i32
     satisfies PosixFilesystemHost::set_len
-reaches PosixFilesystemHost
+reaches FilesystemContentWrite + FilesystemMetadataMutation
 {
     let outcome: i32 = PosixFilesystemDarwin::c_set_len(fd, length);
     transition outcome < 0 {
@@ -1077,7 +1078,7 @@ reaches PosixFilesystemHost
 
 macos_arm64 machine PosixFilesystemNativeProvider::set_file_times(fd: i32, times: &[u8]) -> i32
     satisfies PosixFilesystemHost::set_file_times
-reaches PosixFilesystemHost
+reaches FilesystemMetadataMutation
 {
     let mut chunk: [u8; 4096];
     let count: u64 = posix_fill_chunk(times, &mut chunk);
@@ -1090,7 +1091,7 @@ reaches PosixFilesystemHost
 
 macos_arm64 machine PosixFilesystemNativeProvider::sync(fd: i32) -> i32
     satisfies PosixFilesystemHost::sync
-reaches PosixFilesystemHost
+
 {
     let outcome: i32 = PosixFilesystemDarwin::c_sync(fd);
     transition outcome < 0 {
@@ -1101,7 +1102,7 @@ reaches PosixFilesystemHost
 
 macos_arm64 machine PosixFilesystemNativeProvider::sync_data(fd: i32) -> i32
     satisfies PosixFilesystemHost::sync_data
-reaches PosixFilesystemHost
+
 {
     let outcome: i32 = PosixFilesystemDarwin::c_sync_data(fd);
     transition outcome < 0 {
@@ -1112,7 +1113,7 @@ reaches PosixFilesystemHost
 
 macos_arm64 machine PosixFilesystemNativeProvider::duplicate(fd: i32) -> i32
     satisfies PosixFilesystemHost::duplicate
-reaches PosixFilesystemHost
+
 {
     let outcome: i32 = PosixFilesystemDarwin::c_duplicate(fd);
     transition outcome < 0 {
@@ -1123,7 +1124,7 @@ reaches PosixFilesystemHost
 
 macos_arm64 machine PosixFilesystemNativeProvider::lock_file(fd: i32, operation: i32) -> i32
     satisfies PosixFilesystemHost::lock_file
-reaches PosixFilesystemHost
+
 {
     let outcome: i32 = PosixFilesystemDarwin::c_lock_file(fd, operation);
     transition outcome < 0 {
@@ -1134,7 +1135,7 @@ reaches PosixFilesystemHost
 
 macos_arm64 machine PosixFilesystemNativeProvider::change_owner(path: &[u8] in Path, uid: i32, gid: i32) -> i32
     satisfies PosixFilesystemHost::change_owner
-reaches PosixFilesystemHost
+reaches FilesystemMetadataMutation
 {
     let mut terminated: [u8; 4096];
     let fits: bool = posix_terminated_path(path, &mut terminated);
@@ -1154,7 +1155,7 @@ reaches PosixFilesystemHost
 
 macos_arm64 machine PosixFilesystemNativeProvider::change_owner_no_follow(path: &[u8] in Path, uid: i32, gid: i32) -> i32
     satisfies PosixFilesystemHost::change_owner_no_follow
-reaches PosixFilesystemHost
+reaches FilesystemMetadataMutation
 {
     let mut terminated: [u8; 4096];
     let fits: bool = posix_terminated_path(path, &mut terminated);
@@ -1174,7 +1175,7 @@ reaches PosixFilesystemHost
 
 macos_arm64 machine PosixFilesystemNativeProvider::change_file_owner(fd: i32, uid: i32, gid: i32) -> i32
     satisfies PosixFilesystemHost::change_file_owner
-reaches PosixFilesystemHost
+reaches FilesystemMetadataMutation
 {
     let outcome: i32 = PosixFilesystemDarwin::c_change_file_owner(fd, uid, gid);
     transition outcome < 0 {
@@ -1184,7 +1185,7 @@ reaches PosixFilesystemHost
 }
 
 macos_arm64 machine PosixFilesystemNativeProvider::provider_defaults(defaults: &mut PosixFilesystemNativeProvider) {
-    PosixFilesystemNativeProvider::select_provider<PosixFilesystemHost, PosixFilesystemNativeProvider>(defaults);
+    PosixFilesystemNativeProvider::select_provider<PosixFilesystemHost, PosixFilesystemImplementation>(defaults);
     PosixFilesystemNativeProvider::select_provider<PosixFilesystemDarwin::c_open, PosixFilesystemDarwinImports>(defaults);
     PosixFilesystemNativeProvider::select_provider<PosixFilesystemDarwin::c_open_create, PosixFilesystemDarwinImports>(defaults);
     PosixFilesystemNativeProvider::select_provider<PosixFilesystemDarwin::c_create, PosixFilesystemDarwinImports>(defaults);

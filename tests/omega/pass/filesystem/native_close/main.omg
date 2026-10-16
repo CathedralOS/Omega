@@ -17,7 +17,7 @@ data Main {
     rc: i32;
 }
 
-machine Main::main(main: &mut Main) reaches PosixFilesystemHost {
+machine Main::main(main: &mut Main) {
     main.fd_in = 5;
     main.rc = PosixFilesystemHost::close(main.fd_in);
 }
