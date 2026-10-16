@@ -265,3 +265,151 @@ fn copy_result(
     }
     Some(output.virtual_register)
 }
+
+/// Locate the call-owned save through private allocation transport. Spill slots
+/// and raw register copies cannot address the boundary's saved control slot.
+/// Their value and physical replay remain owned by allocation, not this query.
+pub fn save_position(
+    function: &SelectedFunction,
+    block: &SelectedBlock,
+    record: &SelectedNormalizedForeignCall,
+    call_position: usize,
+) -> Option<usize> {
+    let operation = record.invocation_site.operation()?;
+    let slot = LocalStorageSlotId::Boundary { operation };
+    let mut saves = block
+        .instructions
+        .iter()
+        .enumerate()
+        .filter(|(_, instruction)| {
+            instruction.kind == SelectedInstructionKind::SaveFloatingControl { slot }
+        });
+    let (position, save) = saves.next()?;
+    if saves.next().is_some()
+        || position >= call_position
+        || save.provenance.operations.as_slice() != [operation]
+        || !save.provenance.edges.is_empty()
+        || !save.provenance.values.is_empty()
+        || !save.provenance.obligations.is_empty()
+        || !save.provenance.fuel.is_empty()
+    {
+        return None;
+    }
+    for (index, instruction) in block.instructions[position + 1..call_position]
+        .iter()
+        .enumerate()
+    {
+        if !instruction.provenance.operations.contains(&operation)
+            && !private_transport(function, block, position + 1 + index, instruction)
+        {
+            return None;
+        }
+    }
+    Some(position)
+}
+
+fn private_transport(
+    function: &SelectedFunction,
+    block: &SelectedBlock,
+    position: usize,
+    instruction: &SelectedInstruction,
+) -> bool {
+    let provenance = &instruction.provenance;
+    if !provenance.operations.is_empty()
+        || !provenance.edges.is_empty()
+        || !provenance.obligations.is_empty()
+        || !provenance.fuel.is_empty()
+    {
+        return false;
+    }
+    match instruction.kind {
+        SelectedInstructionKind::CopyI64 => {
+            let [input, output] = instruction.operands.as_slice() else {
+                return false;
+            };
+            let (Some(input_value), Some(output_value)) = (
+                function.virtual_register(input.virtual_register),
+                function.virtual_register(output.virtual_register),
+            ) else {
+                return false;
+            };
+            input.access == RegisterOperandAccess::Use
+                && output.access == RegisterOperandAccess::Def
+                && input_value.scalar_type == output_value.scalar_type
+                && input_value.class == output_value.class
+                && instruction.implicit_uses.is_empty()
+                && instruction.implicit_defs.is_empty()
+                && instruction.clobbers.is_empty()
+                && instruction.operands.iter().all(|operand| {
+                    operand.fixed_view.is_none()
+                        && operand.tied_to.is_none()
+                        && !operand.early_clobber
+                })
+        }
+        SelectedInstructionKind::FrameAddress {
+            slot:
+                crate::FrameStorageSlotId::Local(LocalStorageSlotId::Spill {
+                    register: slot_register,
+                }),
+            byte_offset: 0,
+        } => {
+            let [output] = instruction.operands.as_slice() else {
+                return false;
+            };
+            provenance.values.is_empty()
+                && output.access == RegisterOperandAccess::Def
+                && function
+                    .virtual_register(output.virtual_register)
+                    .is_some_and(|value| {
+                        // Slot reuse separates storage identity from the value's lineage.
+                        matches!(value.origin, VirtualRegisterOrigin::SpillAddress {
+                            instruction: address_instruction, ..
+                        } if address_instruction == instruction.id)
+                    })
+                && function.local_storage_slots.iter().any(|home| {
+                    home.id
+                        == LocalStorageSlotId::Spill {
+                            register: slot_register,
+                        }
+                        && home.byte_size == 8
+                        && home.alignment == 8
+                })
+        }
+        SelectedInstructionKind::Load64 { byte_offset: 0 } => {
+            let [address, output] = instruction.operands.as_slice() else {
+                return false;
+            };
+            let Some(value) = function.virtual_register(address.virtual_register) else {
+                return false;
+            };
+            let VirtualRegisterOrigin::SpillAddress {
+                instruction: address_instruction,
+                ..
+            } = value.origin
+            else {
+                return false;
+            };
+            let Some(address_position) = block.instruction_index(address_instruction) else {
+                return false;
+            };
+            provenance.values.is_empty()
+                && address.access == RegisterOperandAccess::Use
+                && output.access == RegisterOperandAccess::Def
+                && instruction.implicit_uses.is_empty()
+                && instruction.implicit_defs.is_empty()
+                && instruction.clobbers.is_empty()
+                && address_position < position
+                && block.instructions[address_position]
+                    .operands
+                    .first()
+                    .is_some_and(|output| output.virtual_register == address.virtual_register)
+                && private_transport(
+                    function,
+                    block,
+                    address_position,
+                    &block.instructions[address_position],
+                )
+        }
+        _ => false,
+    }
+}

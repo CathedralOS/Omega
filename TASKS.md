@@ -3161,22 +3161,6 @@ crash and native exit behavior.
   failures as in **PROVIDER-SELECTION-AFTER-TERMINAL**. Prefix consumers stop at
   their checkpoint; stage counters distinguish execution from reused reports.
 
-- **GUI-CANARY-WINDOWS-EXECUTION.** (new-scope)
-  Execute `pass/host/runtime_gui_window_lifecycle_exit` and
-  `pass/host/runtime_gui_foreground_window_exit` with exit 70 on Windows.
-  Both now build Windows artifacts through `std/windows_gui_host.omg` and
-  its genuine user32 provider. Create/query/destroy checks and the bounded
-  message drain remain; the MSG allocation is borrowed mutably from the
-  caller, and each foreign message operation borrows its complete 48 bytes.
-  The Win32 canaries bind only `windows_x86_64`; a separate Linux control
-  rejects WindowsGuiHost without a provider. Argument controls refuse empty
-  or unterminated names and check NULL-window liveness/destruction.
-
-  Matching-host native execution remains unverified on this Linux session.
-  Keep the explicit Windows exit-70 oracles. The former bare-name virtual
-  desktop is not a provider; Terminal execution requires exact selected host
-  adapters and must not reproduce that dispatch.
-
 - **MACOS-NATIVE-LOST-SUCCESSES.** (new-scope)
   Restore the macOS ARM64 corpus rows that met their authored check, build or
   runtime oracle and no longer do. Every such check row carries a

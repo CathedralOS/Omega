@@ -67,24 +67,30 @@ pub fn derive_normalized_foreign_call_custody(
             caller_fragment(section, function.machine).ok_or(ObjectError::TextSizeOverflow)?;
         for (ordinal, record) in function.normalized_foreign_calls.iter().enumerate() {
             let owner = CallSiteOwner::from(record.invocation_site);
-            let invalid = || ObjectError::InvalidForeignCallSite {
+            let invalid = |reason| ObjectError::InvalidForeignCallProjection {
                 caller: function.machine,
                 owner,
-                offset: 0,
+                reason,
             };
             if record.call.binding.native_target() != Some(section.target)
                 || !record.call.binding.has_valid_entry_mechanism()
             {
-                return Err(invalid());
+                return Err(invalid(
+                    "binding target or native entry mechanism does not match",
+                ));
             }
-            let (block, instruction) =
-                unique_block_instruction(function, record.instruction).ok_or_else(invalid)?;
-            descriptor_input::validate(function, block, record).ok_or_else(invalid)?;
+            let (block, instruction) = unique_block_instruction(function, record.instruction)
+                .ok_or_else(|| invalid("selected call instruction is missing or repeated"))?;
+            descriptor_input::validate(function, block, record).ok_or_else(|| {
+                invalid("descriptor input guard does not match the selected call")
+            })?;
             if !foreign_invocation_provenance_matches(
                 &instruction.provenance,
                 record.invocation_site,
             ) {
-                return Err(invalid());
+                return Err(invalid(
+                    "selected call instruction lost its invocation provenance",
+                ));
             }
             if !matches!(
                 instruction.kind,
@@ -92,7 +98,9 @@ pub fn derive_normalized_foreign_call_custody(
                     boundary, ordinal: actual,
                 } if boundary == record.call.boundary && usize::try_from(actual) == Ok(ordinal)
             ) {
-                return Err(invalid());
+                return Err(invalid(
+                    "selected call boundary or roster ordinal does not match",
+                ));
             }
             if record.invocation_site.operation().is_none()
                 && selected_instructions::calls::normalized_foreign::return_transport::resolve(
@@ -100,7 +108,7 @@ pub fn derive_normalized_foreign_call_custody(
                 )
                 .is_none()
             {
-                return Err(invalid());
+                return Err(invalid("external completion has no exact return transport"));
             }
             let mut fields = section
                 .unresolved_normalized_foreign_calls
@@ -117,22 +125,27 @@ pub fn derive_normalized_foreign_call_custody(
                         || field.block != block.id
                         || field.state != machine_code::NormalizedForeignCallResolutionState::UnresolvedImportFieldV1
                     {
-                        return Err(invalid());
+                        return Err(invalid("placed import field does not match the selected call"));
                     }
                     Some(field)
                 }
                 (None, None, None) => None,
-                _ => return Err(invalid()),
+                _ => {
+                    return Err(invalid(
+                        "import relocation count does not match the native binding",
+                    ));
+                }
             };
             let text_offset = if let Some(field) = field {
-                usize::try_from(field.field_section_offset).map_err(|_| invalid())?
+                usize::try_from(field.field_section_offset)
+                    .map_err(|_| invalid("import relocation offset is not addressable"))?
             } else {
                 usize::try_from(
                     fragment_instruction_span(fragment, record.instruction)
-                        .ok_or_else(invalid)?
+                        .ok_or_else(|| invalid("native call has no emitted instruction span"))?
                         .0,
                 )
-                .map_err(|_| invalid())?
+                .map_err(|_| invalid("native instruction offset is not addressable"))?
             };
             let home_offsets = durable_home_offsets(function);
             let scalar_arguments = foreign_scalar_argument_custody(
@@ -174,7 +187,9 @@ pub fn derive_normalized_foreign_call_custody(
                 .iter()
                 .filter(|candidate| candidate.machine == function.machine);
             let (Some(abstracted), None) = (abstracted.next(), abstracted.next()) else {
-                return Err(invalid());
+                return Err(invalid(
+                    "caller is missing or repeated in the abstract operation roster",
+                ));
             };
             let mut ordinals =
                 abstracted
@@ -224,11 +239,14 @@ pub fn derive_normalized_foreign_call_custody(
                 .iter()
                 .filter(|frame| frame.machine == function.machine);
             let (Some(frame), None) = (frames.next(), frames.next()) else {
-                return Err(invalid());
+                return Err(invalid("caller frame is missing or repeated"));
             };
             if let target_operations::TargetBoundaryResult::Structural(home) = &record.call.result {
                 let slot = selected_instructions::LocalStorageSlotId::Structural {
-                    operation: record.invocation_site.operation().ok_or_else(invalid)?,
+                    operation: record
+                        .invocation_site
+                        .operation()
+                        .ok_or_else(|| invalid("structural result has no source operation"))?,
                     place: home.place(),
                 };
                 let mut homes = frame
@@ -236,7 +254,9 @@ pub fn derive_normalized_foreign_call_custody(
                     .iter()
                     .filter(|home| home.id == slot);
                 let Some(placed) = homes.next() else {
-                    return Err(invalid());
+                    return Err(invalid(
+                        "structural result storage is missing from the frame",
+                    ));
                 };
                 let shape = home.layout.shape();
                 if homes.next().is_some()
@@ -251,7 +271,9 @@ pub fn derive_normalized_foreign_call_custody(
                         .checked_add(u64::from(shape.byte_size))
                         .is_none_or(|end| end > frame.frame_size_bytes)
                 {
-                    return Err(invalid());
+                    return Err(invalid(
+                        "structural result storage has the wrong frame extent or alignment",
+                    ));
                 }
             }
             let committed = frame
@@ -283,11 +305,13 @@ pub fn derive_normalized_foreign_call_custody(
                         frame,
                         record,
                     )
-                    .ok_or_else(invalid)?,
+                    .map_err(invalid)?,
                 )
             } else {
                 if !record.call.callbacks.is_empty() {
-                    return Err(invalid());
+                    return Err(invalid(
+                        "callback addresses require an operation-owned native stack call",
+                    ));
                 }
                 None
             };

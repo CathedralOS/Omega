@@ -7,8 +7,7 @@ use crate::physical::fragment_publication::FragmentPublicationBinding;
 use image_emission::ObjectForeignCall;
 use machine_code::PlacedFunctionFragment;
 use selected_instructions::{
-    LocalStorageSlotId, SelectedBlock, SelectedFunction, SelectedInstructionKind,
-    SelectedNormalizedForeignCall,
+    LocalStorageSlotId, SelectedBlock, SelectedFunction, SelectedNormalizedForeignCall,
 };
 use target::Architecture;
 
@@ -72,9 +71,7 @@ fn check(
     if target != section.target || !displacement.is_multiple_of(8) {
         return None;
     }
-    let slot = LocalStorageSlotId::Boundary {
-        operation: operation,
-    };
+    let slot = LocalStorageSlotId::Boundary { operation };
     let mut homes = function
         .local_storage_slots
         .iter()
@@ -90,23 +87,14 @@ fn check(
     let call_position = transport.call_position;
     let restore_position = transport.restore_position?;
     let restore = block.instructions.get(restore_position)?;
-    let mut saves = block
-        .instructions
-        .iter()
-        .enumerate()
-        .filter(|(_, instruction)| {
-            instruction.kind == (SelectedInstructionKind::SaveFloatingControl { slot })
-        });
-    let (save_position, save) = saves.next()?;
-    if saves.next().is_some()
-        || save_position >= call_position
-        || restore.kind != (SelectedInstructionKind::RestoreFloatingControl { slot })
-        || block.instructions[save_position..=call_position]
-            .iter()
-            .any(|instruction| !instruction.provenance.operations.contains(&operation))
-    {
-        return None;
-    }
+    let save_position =
+        selected_instructions::calls::normalized_foreign::return_transport::save_position(
+            function,
+            block,
+            record,
+            call_position,
+        )?;
+    let save = &block.instructions[save_position];
     let matches_span = |instruction, offset, count| {
         image_emission::fragment_instruction_span(fragment, instruction).is_some_and(
             |(start, size)| {

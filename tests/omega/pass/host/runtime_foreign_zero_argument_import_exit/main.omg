@@ -1,0 +1,9 @@
+// Expected Windows exit: 70. Exercise a returning import without pointer arguments.
+use omega_language_std::console;
+use omega_language_std::windows_gui_host;
+
+data Main { }
+machine Main::main(main: &mut Main) reaches Console + WindowsGuiHost {
+    let foreground: u64 = WindowsGuiHost::foreground_window();
+    Console::exit_process(70);
+}

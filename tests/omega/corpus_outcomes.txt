@@ -7124,6 +7124,7 @@ pass/host/runtime_descriptor_scalar_input_exit checked 11138ms check-target:maco
 pass/host/runtime_encoded_record_view_observation_exit checked 3867ms check-target:macos_arm64 @61ba1df9375e+wt
 pass/host/runtime_fixed_arithmetic_across_console_exit checked 11481ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/host/runtime_foreign_scalar_loan_writeback_exit checked 7606ms check-target:windows_x86_64 @d041496df109
+pass/host/runtime_foreign_zero_argument_import_exit checked 9606ms check-target:windows_x86_64 @c6b298470bf5
 pass/host/runtime_gui_foreground_window_exit checked 11376ms check-target:windows_x86_64 @6050c1c112ee+wt
 pass/host/runtime_gui_window_lifecycle_exit checked 11396ms check-target:windows_x86_64 @6050c1c112ee+wt
 pass/host/runtime_stored_scalar_reference_foreign_export_exit checked 3861ms check-target:macos_arm64 @61ba1df9375e+wt

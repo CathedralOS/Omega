@@ -64,6 +64,11 @@ pub enum ObjectError {
         owner: CallSiteOwner,
         offset: usize,
     },
+    InvalidForeignCallProjection {
+        caller: MachineId,
+        owner: CallSiteOwner,
+        reason: &'static str,
+    },
     InvalidForeignCallArgument {
         caller: MachineId,
         owner: CallSiteOwner,

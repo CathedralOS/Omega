@@ -2353,10 +2353,10 @@ pass/host/runtime_console_byte_echo_exit built 5598ms exit:70 @6c49683ce714
 pass/host/runtime_console_byte_payload_bounds_exit built 4977ms exit:70 @6c49683ce714
 pass/host/runtime_fixed_arithmetic_across_console_exit built 5693ms exit:0 stdout:match stderr:match @6c49683ce714
 pass/host/runtime_foreign_scalar_loan_writeback_exit built 5642ms exit:70 @6c49683ce714
-pass/host/runtime_gui_foreground_window_exit rejected 10140ms @e3eb5bdd566b
-	selected ProgramEntry Binding field `Main::gui` requires a selected Fused provider for boundary `Gui`
-pass/host/runtime_gui_window_lifecycle_exit rejected 10884ms @e3eb5bdd566b
-	selected ProgramEntry Binding field `Main::gui` requires a selected Fused provider for boundary `Gui`
+pass/host/runtime_foreign_zero_argument_import_exit built 10428ms exit:70 @c6b298470bf5
+pass/host/runtime_gui_foreground_window_exit built 5629ms exit:70 @c6b298470bf5
+pass/host/runtime_gui_window_lifecycle_exit built 5163ms exit:70 @c6b298470bf5
+pass/host/runtime_windows_gui_argument_failures_exit built 5124ms exit:70 @c6b298470bf5
 pass/host/std_clock_sleep_exit built 5655ms exit:70 @6c49683ce714
 pass/inline_asm/asm_aarch64_system_registers_compile incomplete 11555ms @e3eb5bdd566b
 	`Main::main` has no executable body: this compiler does not lower a statement of it yet (call operation: target state); in state `Main::main::main`, statement 0
