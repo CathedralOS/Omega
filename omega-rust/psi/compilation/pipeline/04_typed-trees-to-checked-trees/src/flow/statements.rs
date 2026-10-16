@@ -369,31 +369,45 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
         // alias as a physical store would falsely replace its descriptor and
         // lose the captured address on the next write through that view.
         let content_writes = if statement.as_assignment().is_some() {
-            storage_writes.as_ref().and_then(|places| {
-                let origins = build.call_frames?.local_write_origins_before_store(
-                    machine,
-                    statement,
-                    |symbol, segments| {
-                        let Some(mut alias) = super::canonical_place_from_symbol(symbol) else {
-                            return false;
-                        };
-                        alias.segments.extend_from_slice(segments);
-                        super::operand_contexts::binding_origin_is_stable(
-                            program,
-                            &build.control,
-                            operand_writes,
-                            operand_unknown_write,
-                            &alias,
+            storage_writes.as_ref().map(|places| {
+                build
+                    .call_frames
+                    .and_then(|frames| {
+                        frames.local_write_origins_before_store(
+                            machine,
+                            statement,
+                            |symbol, segments| {
+                                let Some(mut alias) = super::canonical_place_from_symbol(symbol)
+                                else {
+                                    return false;
+                                };
+                                alias.segments.extend_from_slice(segments);
+                                super::operand_contexts::binding_origin_is_stable(
+                                    program,
+                                    &build.control,
+                                    operand_writes,
+                                    operand_unknown_write,
+                                    &alias,
+                                )
+                            },
                         )
-                    },
-                )?;
-                super::mutation::close_storage_places_over_origins(
-                    program,
-                    state,
-                    statement_index,
-                    places.clone(),
-                    &origins,
-                )
+                    })
+                    .and_then(|origins| {
+                        super::mutation::close_storage_places_over_origins(
+                            program,
+                            state,
+                            statement_index,
+                            places.clone(),
+                            &origins,
+                        )
+                    })
+                    // Without an origin inventory every earlier local that can
+                    // hold a reference is an unknown alias. Retire each one's
+                    // whole footprint, as an unknown-source origin is retired,
+                    // and keep facts held under every other name.
+                    .unwrap_or_else(|| {
+                        unknown_alias_footprints(program, state, statement_index, places)
+                    })
             })
         } else {
             storage_writes.clone()
@@ -605,4 +619,38 @@ fn append_proof_output_ensures(
         active_constraints,
         &[point],
     );
+}
+
+/// The physical writes plus every local declared before `statement_index`
+/// that may hold a reference. Primitive locals hold no reference and stay
+/// disjoint from the store; aggregates may embed one, so they are retired.
+fn unknown_alias_footprints(
+    program: &dyn ::validation::CheckingInput,
+    state: &typed_trees::state::State,
+    statement_index: usize,
+    places: &[validation::CanonicalPlace],
+) -> Vec<validation::CanonicalPlace> {
+    let mut footprints = places.to_vec();
+    for statement in program
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .take(statement_index)
+    {
+        let StatementNode::LocalData(local) = statement else {
+            continue;
+        };
+        if program
+            .primitive_type_reference(local.type_reference)
+            .is_some()
+        {
+            continue;
+        }
+        if let Some(alias) = super::canonical_place_from_symbol(local.symbol)
+            && !footprints.contains(&alias)
+        {
+            footprints.push(alias);
+        }
+    }
+    footprints
 }
