@@ -538,7 +538,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                 {
                     self.retain_builtin_type_reference(symbols::BuiltinTypeAtom::U64)?;
                 }
-                let member_symbol = self.declared_member_symbol(member);
+                let (member_symbol, case_variant) = self.declared_member(member);
                 let receiver = self.lower(member.receiver)?;
                 Ok(self
                     .target()
@@ -547,7 +547,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                             receiver,
                             member_symbol,
                             member: lower_name(&member.member),
-                            case_variant: member.case_variant.as_ref().map(lower_name),
+                            case_variant: case_variant.as_ref().map(lower_name),
                         },
                     )))
             }

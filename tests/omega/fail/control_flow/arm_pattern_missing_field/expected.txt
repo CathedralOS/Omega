@@ -1,1 +1,2 @@
 does not mention field `dy` of `Msg::Move` -- record patterns are exhaustive by law
+does not mention field `stamp` of `Msg::Move` -- record patterns are exhaustive by law

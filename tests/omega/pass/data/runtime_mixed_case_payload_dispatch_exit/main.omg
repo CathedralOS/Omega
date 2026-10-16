@@ -17,7 +17,7 @@ data Main {
 machine Main::main(main: &mut Main) reaches Console {
     main.event = Event::Treasure { gold: 50, consumed: true };
     transition main.event {
-        Event::Treasure { gold } -> check_gold(main, gold)
+        Event::Treasure { consumed as _, bonus as _, gold } -> check_gold(main, gold)
         _ -> bad(main)
     }
 

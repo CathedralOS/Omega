@@ -16,13 +16,13 @@ machine make(content: [u8; 8] in Utf8) -> Reply {
 machine size(bytes: &[u8]) -> u64 { bytes.len }
 machine local_matches(reply: Reply) -> bool {
     transition reply {
-        Reply::Message { content } -> (content == "Local" && size(&content) == 5)
+        Reply::Message { sequence as _, content } -> (content == "Local" && size(&content) == 5)
         Reply::Empty -> (false)
     }
 }
 machine field_matches(envelope: &Envelope) -> bool {
     transition envelope.reply {
-        Reply::Message { content } -> (content == "Field" && size(&content) == 5)
+        Reply::Message { sequence as _, content } -> (content == "Field" && size(&content) == 5)
         Reply::Empty -> (false)
     }
 }
@@ -35,7 +35,7 @@ machine main() crashes Trap {
     transition valid { true -> other(make("State")) false -> bad() }
     state other(reply: Reply) {
         transition reply {
-            Reply::Message { content } -> check(content == "State" && size(&content) == 5)
+            Reply::Message { sequence as _, content } -> check(content == "State" && size(&content) == 5)
             Reply::Empty -> bad()
         }
     }

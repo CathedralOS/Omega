@@ -9,6 +9,11 @@
 //! computed call subject. A computed subject's call is planned once at the
 //! first arm's statement; the parser's per-arm copies of it (each guard's
 //! subject and each payload read's receiver) all read that one result.
+//! Shared saved-dispatch resolution rejoins those exact authored occurrences
+//! to the producer's expression-root storage. Do not whitelist receivers by
+//! arm syntax here: ordinary scalar returns, calls and successor arguments
+//! all observe that storage. Call scheduling still requires its unique prior
+//! producer; independently authored calls keep their own occurrence and run.
 use super::super::{
     CheckedClosedSumCaseOutcomePlan, CheckedClosedSumCasePlan, CheckedClosedSumPayloadTransferPlan,
     DataMember,
@@ -264,25 +269,25 @@ pub(super) fn build(
     ) {
         return None;
     }
-    let symbol = &program
-        .type_reference_table
-        .type_reference(type_reference)
-        .as_named_symbol()?;
-    let data = program.data_definition_by_symbol(*symbol)?;
+    trace.phase("state graph: case subject closed declaration");
+    // An applied lifetime changes borrowing relations, not this declaration's
+    // case roster. Use the retained closed instance for both named storage and
+    // computed results; never reconstruct a declaration from its spelling.
+    let data = program.closed_data_definition(type_reference)?;
     // The roster is the cases a value of this instance can carry: a case
     // whose `where` fact this instance refutes (`Integer where T == i32` on
     // `Value<bool>`) is not a coverage obligation, exactly as typing's
     // exhaustiveness count treats it, so an authored dispatch over the
     // possible cases alone is complete without a `_` arm.
+    // Common fields do not add case alternatives. Their presence must not
+    // reject the saved-subject route or cause a computed subject to be replayed.
     let variants = program
         .data_members(data)
         .iter()
-        .map(|member| match member {
+        .filter_map(|member| match member {
             DataMember::Variant(variant) => Some(variant),
             _ => None,
         })
-        .collect::<Option<Vec<_>>>()?
-        .into_iter()
         .filter(|variant| !::validation::impossible_variant(program, variant))
         .collect::<Vec<_>>();
     // Primitive payloads enter the scalar roster below. Structural payloads
@@ -290,15 +295,13 @@ pub(super) fn build(
     // selected edge's checked cleanup partition.
     // Each arm selects at least one case, except a final `_` that follows
     // complete coverage (see below).
+    trace.phase("state graph: case coverage roster");
     if variants.is_empty() || statements.len() - transition_start > variants.len() + 1 {
         return None;
     }
     trace.phase("state graph: case selected arms");
     let mut cases = Vec::new();
     let mut count = returns::next_result_ordinal(operations.as_slice())?;
-    // Every copy of a computed subject the dispatch reads: the guards'
-    // subjects and the payload reads' receivers.
-    let mut subject_reads = Vec::new();
     for (index, statement) in statements[transition_start..].iter().enumerate() {
         let transition = statement.as_transition()?;
         let ordinal = u32::try_from(transition_start + index).ok()?;
@@ -309,7 +312,6 @@ pub(super) fn build(
                 if !dispatch.names(program, state, ordinal as usize, expression) {
                     return None;
                 }
-                subject_reads.push(expression);
                 vec![
                     variants
                         .iter()
@@ -414,46 +416,10 @@ pub(super) fn build(
                         };
                     (CheckedClosedSumCaseOutcomePlan::Return(arm), Vec::new())
                 }
-                TransitionTargetNode::Named { arguments, .. }
+                TransitionTargetNode::Named { .. }
                     if terminal_calls::external_callable(program, machine, fused, transition)
                         .is_some() =>
                 {
-                    // Operand computations can contain payload reads below
-                    // nested calls or projections. Every receiver copy still
-                    // belongs to this selected case of the one saved subject.
-                    if matches!(dispatch, DispatchSubject::Computed(_)) {
-                        let mut pending = program
-                            .statement_table
-                            .expression_handles(*arguments)
-                            .to_vec();
-                        let mut visited = Vec::new();
-                        while let Some(expression) = pending.pop() {
-                            if !program.expression_table.expression_is_valid(expression)
-                                || visited.contains(&expression)
-                            {
-                                continue;
-                            }
-                            visited.push(expression);
-                            if dispatch
-                                .payload_field(
-                                    program,
-                                    state,
-                                    ordinal as usize,
-                                    expression,
-                                    variant,
-                                    &mut subject_reads,
-                                )?
-                                .is_some()
-                            {
-                                continue;
-                            }
-                            validation::expression_traversal::children(
-                                program,
-                                program.expression_table.expression(expression),
-                                |child| pending.push(child),
-                            );
-                        }
-                    }
                     trace.phase("state graph: terminator: case successors: terminal call");
                     let arm = terminal_calls::arm_call(
                         program,
@@ -486,16 +452,6 @@ pub(super) fn build(
                     let &(_, target) = fused.get(target_index)?;
                     let arguments = program.statement_table.expression_handles(*arguments);
                     let target_parameters = program.state_parameters(target);
-                    for argument in arguments {
-                        dispatch.payload_field(
-                            program,
-                            state,
-                            ordinal as usize,
-                            *argument,
-                            variant,
-                            &mut subject_reads,
-                        )?;
-                    }
                     let mut payloads = Vec::new();
                     for (parameter_index, parameter) in
                         signatures[target_index].1.iter().enumerate()
@@ -511,7 +467,6 @@ pub(super) fn build(
                             ordinal as usize,
                             argument,
                             variant,
-                            &mut subject_reads,
                         )?
                         else {
                             continue;
@@ -564,19 +519,6 @@ pub(super) fn build(
         }
     }
     if cases.len() != variants.len() {
-        return None;
-    }
-    if let DispatchSubject::Computed(subject_expression) = dispatch
-        && !subject_reads_are_complete(
-            program,
-            facts,
-            machine,
-            state,
-            transition_start,
-            subject_expression,
-            &subject_reads,
-        )
-    {
         return None;
     }
     // The selected case makes its checked payload observations available; it
@@ -654,7 +596,6 @@ impl DispatchSubject<'_> {
         statement_index: usize,
         argument: typed_trees::expression::ExpressionHandle,
         variant: &'program typed_trees::data::DataVariant,
-        subject_reads: &mut Vec<typed_trees::expression::ExpressionHandle>,
     ) -> Option<Option<&'program typed_trees::data::DataField>> {
         // The cast judgment already established policy and interval membership.
         // Forward its unchanged carrier through the same field transfer used by
@@ -665,14 +606,7 @@ impl DispatchSubject<'_> {
             state.symbol,
             argument,
         ) {
-            return self.payload_field(
-                program,
-                state,
-                statement_index,
-                operand,
-                variant,
-                subject_reads,
-            );
+            return self.payload_field(program, state, statement_index, operand, variant);
         }
         match self {
             Self::Place(subject) => {
@@ -725,7 +659,6 @@ impl DispatchSubject<'_> {
                         && (!member.member_symbol.is_valid()
                             || member.member_symbol == field.symbol)
                 })?;
-                subject_reads.push(member.receiver);
                 Some(Some(field))
             }
         }
@@ -878,37 +811,4 @@ fn subject_call(
         operations,
     )?;
     Some((result, return_type))
-}
-
-/// Every call row at the dispatch that copies the computed subject is one
-/// the dispatch reads: the planned subject itself, a later guard's subject,
-/// or a payload read's receiver. A copy in any other position would be a
-/// second evaluation the single dispatch cannot account for.
-fn subject_reads_are_complete(
-    program: &dyn ::validation::CheckingInput,
-    facts: &CheckFacts,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    transition_start: usize,
-    subject: typed_trees::expression::ExpressionHandle,
-    subject_reads: &[typed_trees::expression::ExpressionHandle],
-) -> bool {
-    let Some(flow) =
-        crate::execution::terminal_unit::types::state_flow(facts, machine.symbol, state.symbol)
-    else {
-        return false;
-    };
-    facts
-        .flow
-        .control
-        .calls
-        .span_or_empty(flow.calls)
-        .iter()
-        .filter(|call| call.statement_index >= transition_start)
-        .filter(|call| {
-            dispatch_subjects::repeats_subject(program, subject, call.authored_expression)
-        })
-        .all(|call| {
-            call.authored_expression == subject || subject_reads.contains(&call.authored_expression)
-        })
 }

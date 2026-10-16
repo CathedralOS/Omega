@@ -15,9 +15,9 @@ requires at < 8
 {
     let token: Token = stream.tokens[at];
     transition token {
-        Token::Mark { kind: Kind::B } -> (token.start)
+        Token::Mark { start as _, end as _, kind: Kind::B } -> (token.start)
         Token::Word -> (token.end)
-        Token::Mark { kind: Kind::A } -> (token.end)
+        Token::Mark { start as _, end as _, kind: Kind::A } -> (token.end)
         _ -> (0)
     }
 }

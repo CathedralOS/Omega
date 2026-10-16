@@ -28,7 +28,7 @@ machine Main::main(context: &mut Main) reaches Console {
 
     state payload(context: &mut Main) {
         transition context.event {
-            Event::Treasure { gold } -> amount(context, gold)
+            Event::Treasure { consumed as _, gold } -> amount(context, gold)
             _ -> bad(context)
         }
     }

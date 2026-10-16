@@ -57,7 +57,7 @@ machine Main::main(main: &mut Main) reaches Console {
 
     state check_common_fields_payload_beside_common(main: &mut Main) {
         transition main.event {
-            Event::Treasure { gold } -> check_common_fields_treasure_gold(main, gold)
+            Event::Treasure { consumed as _, bonus as _, gold } -> check_common_fields_treasure_gold(main, gold)
             _ -> check_common_fields_fail(main, 3)
         }
     }
@@ -72,7 +72,7 @@ machine Main::main(main: &mut Main) reaches Console {
     state check_common_fields_store_common(main: &mut Main) {
         main.event.bonus = 9;
         transition main.event {
-            Event::Treasure { gold } -> check_common_fields_stored_common(main, gold)
+            Event::Treasure { consumed as _, bonus as _, gold } -> check_common_fields_stored_common(main, gold)
             _ -> check_common_fields_fail(main, 5)
         }
     }
@@ -95,7 +95,7 @@ machine Main::main(main: &mut Main) reaches Console {
 
     state check_common_fields_fight_payload(main: &mut Main) {
         transition main.event {
-            Event::Fight { strength, speed } -> check_common_fields_fight_values(main, strength, speed)
+            Event::Fight { consumed as _, bonus as _, strength, speed } -> check_common_fields_fight_values(main, strength, speed)
             _ -> check_common_fields_fail(main, 8)
         }
     }
@@ -195,7 +195,7 @@ machine Main::main(main: &mut Main) reaches Console {
     state check_local_stores_entry(main: &mut Main) {
     Main::store_local_event(main);
     transition main.event {
-        Event::Treasure { gold } -> check_local_stores_mixed_values(main, gold)
+        Event::Treasure { consumed as _, bonus as _, gold } -> check_local_stores_mixed_values(main, gold)
         _ -> check_local_stores_fail(main, 16)
     }
 

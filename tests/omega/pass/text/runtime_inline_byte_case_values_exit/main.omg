@@ -19,7 +19,7 @@ machine make() -> Reply {
 }
 machine observe(reply: Reply) -> bool {
     transition reply {
-        Reply::Message { content } -> (reply.sequence == 17 && content.bytes == "Gate")
+        Reply::Message { sequence as _, content } -> (reply.sequence == 17 && content.bytes == "Gate")
         Reply::Empty -> (false)
     }
 }
@@ -28,7 +28,7 @@ machine make_direct() -> DirectReply {
 }
 machine observe_direct(reply: DirectReply) -> bool {
     transition reply {
-        DirectReply::Message { content } -> (reply.sequence == 29 && reply.header == "Common" && content == "Next")
+        DirectReply::Message { header as _, sequence as _, content } -> (reply.sequence == 29 && reply.header == "Common" && content == "Next")
         DirectReply::Empty -> (false)
     }
 }
@@ -36,14 +36,14 @@ machine size(bytes: &[u8]) -> u64 { bytes.len }
 machine observe_borrowed(reply: &DirectReply, header_size: u64, content_size: u64) -> bool {
     let common: u64 = size(&reply.header);
     transition reply {
-        DirectReply::Message { content } -> (common == header_size && size(&content) == content_size && content.len == content_size)
+        DirectReply::Message { header as _, sequence as _, content } -> (common == header_size && size(&content) == content_size && content.len == content_size)
         DirectReply::Empty -> (common == header_size && content_size == 0)
     }
 }
 machine replace(bytes: &mut [u8; 8] in Utf8) -> bool { bytes = "é"; true }
 machine edit(reply: &mut DirectReply) -> bool {
     transition reply {
-        DirectReply::Message { content } -> (replace(&mut content))
+        DirectReply::Message { header as _, sequence as _, content } -> (replace(&mut content))
         DirectReply::Empty -> true
     }
 }

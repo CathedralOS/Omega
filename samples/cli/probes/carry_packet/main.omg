@@ -37,7 +37,7 @@ data Envelope [carry(
 machine carry_packet() {
     let letter: Envelope = Envelope { inner: Packet::Burst { count: 3, priority: 2, id: 9 }, stamp: 7 };
     transition letter.inner {
-        Packet::Burst { count, priority } -> judge(count, priority)
+        Packet::Burst { id as _, count, priority } -> judge(count, priority)
         Packet::Empty -> done(71)
     }
 

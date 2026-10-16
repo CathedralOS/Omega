@@ -40,9 +40,22 @@ pub(super) fn check(
                     subject,
                 )
             }) {
-                diagnostics.push(Diagnostic::error(
-                    "cannot prove selected case for payload access",
-                ));
+                let location = program
+                    .machine_by_symbol(state.machine_symbol)
+                    .map(|machine| {
+                        let state_name = program
+                            .state_in_machine(machine, state.state_symbol)
+                            .map(|state| state.name.as_str())
+                            .unwrap_or("<unknown>");
+                        format!(
+                            "machine `{}` state `{state_name}` statement {}: ",
+                            machine.name, access.statement_index
+                        )
+                    })
+                    .unwrap_or_default();
+                diagnostics.push(Diagnostic::error(format!(
+                    "{location}cannot prove selected case for payload access"
+                )));
             }
         }
     }

@@ -25,7 +25,7 @@ machine Main::replace(main: &mut Main) -> bool {
 
 machine observe(event: Event) -> bool {
     transition event {
-        Event::Packed { payload } -> (event.replaced && event.spare.value == 0
+        Event::Packed { common as _, spare as _, replaced as _, payload } -> (event.replaced && event.spare.value == 0
             && event.common.amount == 41 && event.common.marker == 9
             && payload.amount == 41 && payload.marker == 9)
         Event::Empty -> false
@@ -34,7 +34,7 @@ machine observe(event: Event) -> bool {
 
 machine observe_empty(event: Event) -> bool {
     transition event {
-        Event::Packed { payload } -> false
+        Event::Packed { common as _, spare as _, replaced as _, payload } -> false
         Event::Empty -> (event.common.amount == 41 && event.common.marker == 9
             && event.spare.value == 0)
     }

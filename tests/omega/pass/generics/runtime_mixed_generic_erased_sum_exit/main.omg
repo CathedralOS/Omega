@@ -15,7 +15,7 @@ data Main {
 machine Main::main(main: &mut Main) reaches Console {
     main.value = Mixed::Some { common: 7, value: 63 };
     transition main.value {
-        Mixed::Some { value, case_proof as _ } -> good(main, value)
+        Mixed::Some { common as _, proof as _, value, case_proof as _ } -> good(main, value)
         Mixed::None -> bad(main)
     }
     state good(main: &mut Main, value: i32 in Wrapping) {

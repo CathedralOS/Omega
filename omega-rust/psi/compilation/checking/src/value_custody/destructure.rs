@@ -132,7 +132,8 @@ pub(crate) fn validate_destructure_exhaustiveness(
 
 /// The arm-position exhaustiveness law: a `..`-free destructure arm's marker
 /// (`__arm_destructure#V=<variant>#<f1>...#~subject=<id>`) must spell every
-/// field of the record (empty variant) or of the named case's payload. `..` in
+/// field of the record (empty variant), or its common fields plus the named
+/// case's payload. `..` in
 /// the arm opts out of missing-field validation via a trailing `#~rest`.
 fn validate_arm_pattern_marker(
     program: &dyn crate::CheckingInput,
@@ -259,8 +260,13 @@ fn validate_arm_pattern_marker(
             return;
         };
         program
-            .data_payload_fields(case)
+            .data_members(data)
             .iter()
+            .filter_map(|member| match member {
+                typed_trees::data::DataMember::Field(field) => Some(field),
+                typed_trees::data::DataMember::Variant(_) => None,
+            })
+            .chain(program.data_payload_fields(case))
             .map(|field| field.name.as_str())
             .collect()
     };

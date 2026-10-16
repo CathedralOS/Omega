@@ -1,0 +1,75 @@
+data Choice {
+    case First(first: u64);
+    case Second(second: u64);
+    case Third(third: u64);
+}
+
+// Excluding First does not distinguish the remaining two cases.
+machine incomplete(choice: &Choice) -> u64 {
+    transition choice in Choice::First {
+        true -> 0
+        false -> choice.second
+    }
+}
+
+// Exclusions on one saved subject do not select a payload on another.
+machine wrong_subject(left: &Choice, right: &Choice) -> u64 {
+    transition !(left in Choice::First) && !(left in Choice::Third) {
+        true -> right.second
+        false -> 0
+    }
+}
+
+machine disjunctive(choice: &Choice) -> u64 {
+    transition !(choice in Choice::First) || !(choice in Choice::Third) {
+        true -> choice.second
+        false -> 0
+    }
+}
+
+machine set_first(choice: &mut Choice) -> bool {
+    choice = Choice::First { first: 7 };
+    true
+}
+machine split_stale(choice: &mut Choice) -> u64 {
+    transition !(choice in Choice::First) && set_first(choice) && !(choice in Choice::Third) {
+        true -> choice.second
+        false -> 0
+    }
+}
+
+machine replace(choice: &mut Choice) -> bool {
+    choice = Choice::Third { third: 7 };
+    true
+}
+
+// A write to the observed value retires earlier exclusions before the read.
+machine stale(choice: &mut Choice) -> u64 {
+    transition !(choice in Choice::First) && !(choice in Choice::Third) && replace(choice) {
+        true -> choice.second
+        false -> 0
+    }
+}
+
+machine set_first_false(choice: &mut Choice) -> bool {
+    choice = Choice::First { first: 7 };
+    false
+}
+machine false_split_stale(choice: &mut Choice) -> u64 {
+    transition (choice in Choice::First) || set_first_false(choice) || (choice in Choice::Third) {
+        true -> 0
+        false -> choice.second
+    }
+}
+machine false_trailing_stale(choice: &mut Choice) -> u64 {
+    transition (choice in Choice::First) || (choice in Choice::Third) || set_first_false(choice) {
+        true -> 0
+        false -> choice.second
+    }
+}
+machine wrapped_stale(choice: &mut Choice) -> u64 {
+    transition false == (choice in Choice::First) && (choice in Choice::Third) != true && set_first(choice) {
+        true -> choice.second
+        false -> 0
+    }
+}

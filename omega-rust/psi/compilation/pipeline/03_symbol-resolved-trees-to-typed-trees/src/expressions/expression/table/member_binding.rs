@@ -30,26 +30,23 @@ pub(crate) fn declared_receiver_method_target(
 }
 
 impl ExpressionTableLowerer<'_, '_, '_> {
-    pub(super) fn declared_member_symbol(&self, member: &TableMemberExpression) -> SymbolHandle {
+    pub(super) fn declared_member(
+        &self,
+        member: &TableMemberExpression,
+    ) -> (SymbolHandle, Option<resolved::name::DiagnosticName>) {
         // A nonzero selection already has an owner. Preserve it, including a
         // conflicting/stale selection, for the existing validation contract.
-        if member.member_symbol.is_valid()
-            || member.case_variant.is_some()
-            || !matches!(
-                self.source.expression(member.receiver),
-                ExpressionNode::Name(_)
-                    | ExpressionNode::Member(_)
-                    | ExpressionNode::Indexed(_)
-                    | ExpressionNode::StructLiteral(_)
-            )
-        {
-            return member.member_symbol;
+        if member.member_symbol.is_valid() {
+            return (member.member_symbol, member.case_variant.clone());
         }
         self.program
-            .and_then(|program| {
-                declared_receiver_field(program, self.source, member, 0).map(|field| field.symbol)
-            })
-            .unwrap_or(member.member_symbol)
+            .and_then(|program| declared_receiver_field(program, self.source, member, 0))
+            // Parsing knows the selected case but not a field's storage owner.
+            // A resolved common field belongs to the record, not that case's
+            // payload. Publish its exact identity and ordinary projection once;
+            // later stages must not reinterpret a case-qualified common read.
+            .map(|field| (field.symbol, None))
+            .unwrap_or_else(|| (member.member_symbol, member.case_variant.clone()))
     }
 }
 
@@ -59,16 +56,10 @@ fn declared_receiver_field<'program>(
     member: &TableMemberExpression,
     depth: usize,
 ) -> Option<&'program DataField> {
-    if depth >= 128
-        || member.case_variant.is_some()
-        || !expressions.expression_is_valid(member.receiver)
-    {
+    if depth >= 128 || !expressions.expression_is_valid(member.receiver) {
         return None;
     }
     if let ExpressionNode::StructLiteral(literal) = expressions.expression(member.receiver) {
-        if literal.case_name.is_some() || literal.case_symbol.is_some() {
-            return None;
-        }
         return declared_data_field(program, literal.type_symbol, member);
     }
     let receiver = declared_type(program, expressions, member.receiver, depth + 1)?;
@@ -86,6 +77,9 @@ fn declared_type<'program>(
     }
     match expressions.expression(expression) {
         ExpressionNode::Name(path) => declared_symbol_type(program, path.symbol),
+        ExpressionNode::Call(call) => {
+            crate::expressions::call_results::declared_call_return(program, call.target_symbol)
+        }
         ExpressionNode::ArrayLiteral(_) => {
             // Substitution copied the initializer, not its declaration's name.
             // The retained selection still supplies the complete element type,
@@ -148,9 +142,6 @@ fn declared_field<'program>(
     receiver: &TypeReference,
     member: &TableMemberExpression,
 ) -> Option<&'program DataField> {
-    if member.case_variant.is_some() {
-        return None;
-    }
     let definition =
         super::lowerer::resolved_data_definition_for_type(program, peel(program, receiver))?;
     declared_data_field(program, definition.symbol, member)
@@ -168,6 +159,28 @@ fn declared_data_field<'program>(
     let definition = definitions.next()?;
     if definitions.next().is_some() || !exact_top_level_data_symbol(program, definition) {
         return None;
+    }
+    if let Some(selected) = &member.case_variant {
+        let mut variants = program
+            .data_members(definition.members)
+            .iter()
+            .filter_map(|node| {
+                let DataMember::Variant(variant) = node else {
+                    return None;
+                };
+                (variant.name.as_str() == selected.as_str()).then_some(variant)
+            });
+        let variant = variants.next()?;
+        if variants.next().is_some()
+            || !variant.symbol.is_valid()
+            || program.symbols.get(variant.symbol).parent != definition.symbol
+            || program
+                .data_payload_fields(variant.payload)
+                .iter()
+                .any(|field| field.name.as_str() == member.member.as_str())
+        {
+            return None;
+        }
     }
     let mut fields = program
         .data_members(definition.members)

@@ -3,9 +3,7 @@ use super::super::super::super::{
     CheckedComposedUnitControlTerminatorPlan, StructuralCaseId, StructuralFieldId,
     StructuralParameterDeclaration,
 };
-use super::super::super::{
-    PlaceId, StructuralTypeShape, ValueDeclaration, terminal_scalar_type, unsupported,
-};
+use super::super::super::{PlaceId, ValueDeclaration, terminal_scalar_type, unsupported};
 use super::super::{LoweringError, catalogs};
 use super::CheckedComposedUnitControlStatePlan;
 use crate::emission::operation_emission::buffer::{OperationBuffer, StructuralBinding};
@@ -81,7 +79,7 @@ pub(super) fn prepare<'a>(
     .ok_or(LoweringError::Unsupported(
         "Unit graph case projection has no exact declared carrier",
     ))?;
-    let StructuralTypeShape::Sum { cases: declared } = &declaration.shape else {
+    let Some(declared) = declaration.shape.sum_cases() else {
         return unsupported("Unit graph case subject is not a sum");
     };
     let cases = declared

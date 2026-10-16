@@ -496,54 +496,74 @@ fn flatten_and_conjuncts(
     }
 }
 
-/// The positive observations a true guard evaluated, in evaluation order:
-/// both operands of a conjunction and the operand of a builtin `== true`
-/// decomposition. A disjunction, a negation, or any other comparison is one
-/// opaque observation; a false comparison describes no positive operand.
-fn true_guard_observations(
+/// Signed observations guaranteed by the selected Boolean outcome, in
+/// evaluation order. A true conjunction or false disjunction observes both
+/// children. Other short-circuit outcomes establish no individual operand.
+fn guard_observations(
     program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     expression: ExpressionHandle,
-    observations: &mut Vec<ExpressionHandle>,
+    value: bool,
+    observations: &mut Vec<(ExpressionHandle, bool)>,
 ) {
-    let Some(binary) = program.expression_table.binary_node(expression) else {
-        observations.push(expression);
-        return;
-    };
-    if binary.operator == typed_trees::expression::BinaryOperator::And {
-        true_guard_observations(program, machine, state, binary.left, observations);
-        true_guard_observations(program, machine, state, binary.right, observations);
-        return;
-    }
-    if binary.operator == typed_trees::expression::BinaryOperator::Equal
-        && validation::has_builtin_decomposed_guard_meaning(
-            program,
-            machine,
-            Some(state),
-            expression,
-        )
-    {
-        match (
-            program.expression_table.expression(binary.left),
-            program.expression_table.expression(binary.right),
-        ) {
-            (_, ExpressionNode::Boolean(true)) => {
-                return true_guard_observations(program, machine, state, binary.left, observations);
-            }
-            (ExpressionNode::Boolean(true), _) => {
-                return true_guard_observations(
+    use typed_trees::expression::{BinaryOperator, UnaryOperator};
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Unary(unary)
+            if unary.operator == UnaryOperator::LogicalNot
+                && validation::has_builtin_decomposed_guard_meaning(
+                    program,
+                    machine,
+                    Some(state),
+                    expression,
+                ) =>
+        {
+            guard_observations(program, machine, state, unary.operand, !value, observations);
+            return;
+        }
+        ExpressionNode::Binary(binary)
+            if (binary.operator == BinaryOperator::And && value)
+                || (binary.operator == BinaryOperator::Or && !value) =>
+        {
+            guard_observations(program, machine, state, binary.left, value, observations);
+            guard_observations(program, machine, state, binary.right, value, observations);
+            return;
+        }
+        ExpressionNode::Binary(binary)
+            if matches!(
+                binary.operator,
+                BinaryOperator::Equal | BinaryOperator::NotEqual
+            ) && validation::has_builtin_decomposed_guard_meaning(
+                program,
+                machine,
+                Some(state),
+                expression,
+            ) =>
+        {
+            let observed = match (
+                program.expression_table.expression(binary.left),
+                program.expression_table.expression(binary.right),
+            ) {
+                (_, ExpressionNode::Boolean(expected)) => Some((binary.left, *expected)),
+                (ExpressionNode::Boolean(expected), _) => Some((binary.right, *expected)),
+                _ => None,
+            };
+            if let Some((operand, expected)) = observed {
+                let equal = value == (binary.operator == BinaryOperator::Equal);
+                guard_observations(
                     program,
                     machine,
                     state,
-                    binary.right,
+                    operand,
+                    expected == equal,
                     observations,
                 );
+                return;
             }
-            _ => {}
         }
+        _ => {}
     }
-    observations.push(expression);
+    observations.push((expression, value));
 }
 
 /// Recognize `subject == Type::Case` (or its commute), the tag compare a
@@ -619,6 +639,91 @@ pub(in crate::flow) fn append_predicate_context(
         active_contexts,
         active_constraints,
     );
+    // A tag observation describes the evaluated storage, not the expression
+    // that produced it. In particular a saved dispatch result keeps its
+    // canonical occurrence without executing its call again. Retain the
+    // tag on that exact place before the generic predicate's repeatability
+    // check; a call-containing predicate itself remains non-repeatable.
+    if let Some((machine_position, state_position)) = build.state_location(program, state_symbol) {
+        let machine = &program.machines()[machine_position];
+        let state = &program.machine_states(machine)[state_position];
+        // Each signed observation held when it was evaluated, and the
+        // last one still holds at guard completion. An earlier one was
+        // followed by its successors' effects, and the short-circuit meet
+        // with the skipped path has already dropped its tag. It survives
+        // exactly when no write of this guard can reach its subject; a
+        // later conjunct that replaces the sum, or an unknown write,
+        // retires it.
+        let mut observations = Vec::new();
+        guard_observations(
+            program,
+            machine,
+            state,
+            expression,
+            value,
+            &mut observations,
+        );
+        let last = observations.len().saturating_sub(1);
+        for (position, (observation, selected)) in observations.into_iter().enumerate() {
+            let Some(binary) = program.expression_table.binary_node(observation) else {
+                continue;
+            };
+            if !validation::has_exact_case_membership_meaning(
+                program,
+                machine,
+                Some(state),
+                observation,
+                binary,
+            ) {
+                continue;
+            }
+            let ExpressionNode::Name(case) = program.expression_table.expression(binary.right)
+            else {
+                continue;
+            };
+            if position != last
+                && !validation::canonical_place_from_expression_in_state(
+                    program,
+                    state_symbol,
+                    statement_index,
+                    binary.left,
+                )
+                .is_some_and(|subject| {
+                    crate::flow::entry_origin_is_stable(
+                        program,
+                        &build.control,
+                        entry_writes,
+                        entry_unknown_write,
+                        &subject,
+                    )
+                })
+            {
+                continue;
+            }
+            append_observation_context(
+                program,
+                semantic,
+                build,
+                state_symbol,
+                statement_index,
+                &[binary.left],
+                if selected {
+                    FactPayload::AssignedCase {
+                        variant: case.symbol,
+                    }
+                } else {
+                    FactPayload::BooleanValue {
+                        expression: observation,
+                        value: false,
+                    }
+                },
+                point,
+                FactOrigin::TransitionGuard,
+                active_contexts,
+                active_constraints,
+            );
+        }
+    }
     // A `pred(place)` scrutinee taken true is whole-carrier evidence: every
     // byte currently at the operand's place sits in the named per-byte class.
     // The fact rides the operand's place, not the call's spelling, so any
@@ -626,79 +731,6 @@ pub(in crate::flow) fn append_predicate_context(
     // wherever the operand travels. The refused arm mints nothing — a byte
     // carrier failing the class is not a positive class.
     if value {
-        // A selected tag describes the evaluated storage, not the expression
-        // that produced it. In particular a saved dispatch result keeps its
-        // canonical occurrence without executing its call again. Retain the
-        // tag on that exact place before the generic predicate's repeatability
-        // check; a call-containing predicate itself remains non-repeatable.
-        if let Some((machine_position, state_position)) =
-            build.state_location(program, state_symbol)
-        {
-            let machine = &program.machines()[machine_position];
-            let state = &program.machine_states(machine)[state_position];
-            // Each positive observation held when it was evaluated, and the
-            // last one still holds at guard completion. An earlier one was
-            // followed by its successors' effects, and the short-circuit meet
-            // with the skipped path has already dropped its tag. It survives
-            // exactly when no write of this guard can reach its subject; a
-            // later conjunct that replaces the sum, or an unknown write,
-            // retires it.
-            let mut observations = Vec::new();
-            true_guard_observations(program, machine, state, expression, &mut observations);
-            let last = observations.len().saturating_sub(1);
-            for (position, observation) in observations.into_iter().enumerate() {
-                let Some(binary) = program.expression_table.binary_node(observation) else {
-                    continue;
-                };
-                if !validation::has_exact_case_membership_meaning(
-                    program,
-                    machine,
-                    Some(state),
-                    observation,
-                    binary,
-                ) {
-                    continue;
-                }
-                let ExpressionNode::Name(case) = program.expression_table.expression(binary.right)
-                else {
-                    continue;
-                };
-                if position != last
-                    && !validation::canonical_place_from_expression_in_state(
-                        program,
-                        state_symbol,
-                        statement_index,
-                        binary.left,
-                    )
-                    .is_some_and(|subject| {
-                        crate::flow::entry_origin_is_stable(
-                            program,
-                            &build.control,
-                            entry_writes,
-                            entry_unknown_write,
-                            &subject,
-                        )
-                    })
-                {
-                    continue;
-                }
-                append_observation_context(
-                    program,
-                    semantic,
-                    build,
-                    state_symbol,
-                    statement_index,
-                    &[binary.left],
-                    FactPayload::AssignedCase {
-                        variant: case.symbol,
-                    },
-                    point,
-                    FactOrigin::TransitionGuard,
-                    active_contexts,
-                    active_constraints,
-                );
-            }
-        }
         append_byte_predicate_context(
             program,
             semantic,

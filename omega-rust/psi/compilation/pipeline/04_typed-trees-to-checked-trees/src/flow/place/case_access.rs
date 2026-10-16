@@ -136,38 +136,71 @@ pub(crate) fn place_case_has_value(
     if !stable_subject(subject) || !case.is_valid() {
         return false;
     }
-    contexts.iter().any(|context| {
-        semantic
-            .context_view(semantic.contexts.get(*context))
-            .facts()
-            .any(|fact| match fact.payload {
-                FactPayload::BooleanValue { expression, value } => {
-                    query.predicate(expression, value, subject, case, required, 0)
-                }
-                FactPayload::BooleanExpression(expression)
-                | FactPayload::ContractBooleanExpression { expression, .. } => {
-                    query.predicate(expression, true, subject, case, required, 0)
-                }
-                FactPayload::AssignedCase { variant } => {
-                    let Some(place) = fact.place.as_place() else {
-                        return false;
-                    };
-                    canonical_place_from_semantic_place(
-                        program,
-                        semantic,
-                        semantic.places.get(place),
-                    )
-                    .as_ref()
-                        == Some(subject)
-                        && variant.is_valid()
-                        && program.symbols.get(variant).kind == symbols::SymbolKind::Variant
-                        && program.symbols.get(case).kind == symbols::SymbolKind::Variant
-                        && program.symbols.get(variant).parent == program.symbols.get(case).parent
-                        && (variant == case) == required
-                }
-                _ => false,
-            })
-    })
+    let has_case_evidence = |case, required| {
+        contexts.iter().any(|context| {
+            semantic
+                .context_view(semantic.contexts.get(*context))
+                .facts()
+                .any(|fact| match fact.payload {
+                    FactPayload::BooleanValue { expression, value } => {
+                        query.predicate(expression, value, subject, case, required, 0)
+                    }
+                    FactPayload::BooleanExpression(expression)
+                    | FactPayload::ContractBooleanExpression { expression, .. } => {
+                        query.predicate(expression, true, subject, case, required, 0)
+                    }
+                    FactPayload::AssignedCase { variant } => {
+                        let Some(place) = fact.place.as_place() else {
+                            return false;
+                        };
+                        canonical_place_from_semantic_place(
+                            program,
+                            semantic,
+                            semantic.places.get(place),
+                        )
+                        .as_ref()
+                            == Some(subject)
+                            && variant.is_valid()
+                            && program.symbols.get(variant).kind == symbols::SymbolKind::Variant
+                            && program.symbols.get(case).kind == symbols::SymbolKind::Variant
+                            && program.symbols.get(variant).parent
+                                == program.symbols.get(case).parent
+                            && (variant == case) == required
+                    }
+                    _ => false,
+                })
+        })
+    };
+    if has_case_evidence(case, required) {
+        return true;
+    }
+    if !required || program.symbols.get(case).kind != symbols::SymbolKind::Variant {
+        return false;
+    }
+    let Some(definition) = program.data_definition_by_symbol(program.symbols.get(case).parent)
+    else {
+        return false;
+    };
+    // An established finite sum has exactly one active case. Excluding every
+    // other declared case establishes this one, but each exclusion must come
+    // from the same live subject. Missing evidence is not a negative fact.
+    // Reuse the direct judgment rather than recursively inferring exclusions.
+    let mut declared = false;
+    let mut excluded_alternative = false;
+    for member in program.data_members(definition) {
+        let typed_trees::data::DataMember::Variant(alternative) = member else {
+            continue;
+        };
+        if alternative.symbol == case {
+            declared = true;
+        } else {
+            if !has_case_evidence(alternative.symbol, false) {
+                return false;
+            }
+            excluded_alternative = true;
+        }
+    }
+    declared && excluded_alternative
 }
 
 fn stable_subject(subject: &CanonicalPlace) -> bool {

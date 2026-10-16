@@ -14,7 +14,7 @@ machine observe(counter: &Counter) -> u32 in Wrapping {
 }
 machine selected(counter: &Counter) -> bool {
     transition counter {
-        Counter::Live { seed } -> (seed == 7)
+        Counter::Live { value as _, seed } -> (seed == 7)
         _ -> (false)
     }
 }

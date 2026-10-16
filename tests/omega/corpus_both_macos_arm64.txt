@@ -350,6 +350,7 @@ pass/control_flow/runtime_ranked_state_cycle_borrowed_record_exit built 2550ms e
 pass/control_flow/runtime_ranked_state_cycle_owned_record_exit built 2205ms exit:70 interpreter-exit:70 interpreter:agrees @64c766216f02+wt
 pass/control_flow/runtime_returned_nested_case_payload_capture_exit built 11883ms exit:0 interpreter-exit:0 interpreter:agrees @eea776ff9546+wt
 pass/control_flow/runtime_root_float_case_payload_exit built 4076ms exit:70 interpreter-exit:70 interpreter:agrees @a800cc9ab970
+pass/control_flow/runtime_scalar_case_arm_evaluation_exit built 38663ms exit:0 interpreter-exit:0 interpreter:agrees @e03f48653b6a
 pass/control_flow/self_case_payload_both_arms_exit built 2333ms exit:70 interpreter-exit:70 interpreter:agrees @6a3a2f5cba58
 pass/control_flow/shared_view_selected_disposition_exit built 1537ms exit:0 interpreter-exit:0 interpreter:agrees @a789a281bf39+wt
 pass/control_flow/single_case_parameter_dispatch_exit built 5838ms exit:70 interpreter-exit:70 interpreter:agrees @9158ef7b209e+wt

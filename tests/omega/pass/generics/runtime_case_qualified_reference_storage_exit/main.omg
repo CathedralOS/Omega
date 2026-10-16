@@ -94,8 +94,8 @@ machine empty_selection<'storage>(source: &'storage Cell) -> Selection<'storage>
 }
 machine read_selection<'storage>(selection: &Selection<'storage>) -> i32 {
     transition selection {
-        Selection::Left { target } -> target.value
-        Selection::Right { target } -> target.value
+        Selection::Left { stamp as _, target } -> target.value
+        Selection::Right { stamp as _, target } -> target.value
         Selection::Empty -> 0
     }
 }
@@ -127,8 +127,8 @@ machine forward_shared<'storage>(value: SharedSelection<'storage>) -> SharedSele
 }
 machine read_shared<'storage>(selection: &SharedSelection<'storage>) -> i32 {
     transition selection {
-        SharedSelection::Left { target } -> target.value
-        SharedSelection::Right { target } -> target.value
+        SharedSelection::Left { stamp as _, target } -> target.value
+        SharedSelection::Right { stamp as _, target } -> target.value
         SharedSelection::Empty -> 0
     }
 }
@@ -143,8 +143,8 @@ machine read_joined_selection<'storage>(
     state joined(selection: SharedSelection<'storage>) -> i32 {
         let copied: SharedSelection<'storage> = selection;
         transition copied {
-            SharedSelection::Left { target } -> target.value
-            SharedSelection::Right { target } -> target.value
+            SharedSelection::Left { stamp as _, target } -> target.value
+            SharedSelection::Right { stamp as _, target } -> target.value
             SharedSelection::Empty -> 0
         }
     }
@@ -204,8 +204,8 @@ machine write_exclusive(target: &mut Cell, stamp_matches: bool) -> bool {
 machine consume_exclusive<'storage>(selection: MutableSelection<'storage>) -> bool {
     let stamp_matches: bool = selection.stamp == 3;
     transition selection {
-        MutableSelection::Left { target } -> (write_exclusive(&mut target, stamp_matches))
-        MutableSelection::Right { target } -> (write_exclusive(&mut target, stamp_matches))
+        MutableSelection::Left { stamp as _, target } -> (write_exclusive(&mut target, stamp_matches))
+        MutableSelection::Right { stamp as _, target } -> (write_exclusive(&mut target, stamp_matches))
         MutableSelection::Empty -> false
     }
 }

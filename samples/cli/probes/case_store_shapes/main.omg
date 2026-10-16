@@ -29,7 +29,7 @@ requires level in Ten
 
 machine read(slot: &Slot) -> i32 in Wrapping {
     transition slot {
-        Slot::Ready { level } -> value(scale(level) as i32 in Wrapping)
+        Slot::Ready { stamp as _, level } -> value(scale(level) as i32 in Wrapping)
         Slot::Idle -> value(0)
     }
     state value(code: i32 in Wrapping) -> i32 in Wrapping { code }

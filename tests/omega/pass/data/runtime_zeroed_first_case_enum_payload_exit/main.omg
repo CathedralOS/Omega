@@ -16,7 +16,7 @@ data Context { token: Token; }
 
 machine main(context: &mut Context) reaches Console {
     transition context.token {
-        Token::Integer { base: Base::Decimal, empty } -> caller_empty(context, empty)
+        Token::Integer { start as _, base: Base::Decimal, empty } -> caller_empty(context, empty)
         _ -> bad(context, 71)
     }
 
@@ -31,7 +31,7 @@ machine main(context: &mut Context) reaches Console {
         holder.ready = true;
         let token: Token = holder.tokens[1];
         transition token {
-            Token::Integer { base: Base::Decimal, empty: false } -> start(context, token.start, holder.ready)
+            Token::Integer { start as _, base: Base::Decimal, empty: false } -> start(context, token.start, holder.ready)
             _ -> bad(context, 73)
         }
     }

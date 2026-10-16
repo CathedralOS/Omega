@@ -1,0 +1,9 @@
+machine `incomplete` state `entry`
+machine `wrong_subject` state `entry`
+machine `stale` state `entry`
+machine `disjunctive` state `entry`
+machine `split_stale` state `entry`
+machine `false_split_stale` state `entry`
+machine `false_trailing_stale` state `entry`
+machine `wrapped_stale` state `entry`
+cannot prove selected case for payload access

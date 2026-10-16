@@ -692,45 +692,6 @@ fn case_reads(
     }
 }
 
-/// The one sum case a deferred expression observes, when every case-prefixed
-/// read in it shares exactly one root and one leading case segment. A guard's
-/// sibling arm has no membership test of its own to name the case — the reads
-/// themselves are the only carrier — so an arm that reads nothing, mixes
-/// roots or cases, or reaches a case below a leading field segment returns
-/// `None` and keeps the ordinary lowering.
-pub(crate) fn single_leading_case_read(
-    expression: &LoweredDirectExpression,
-) -> Option<(PlaceId, StructuralCaseId)> {
-    let mut reads = Vec::new();
-    collect_direct_case_reads(expression, &mut reads);
-    let (source, path) = reads.first()?;
-    let CanonicalStructuralPathSegment::Case(case) = path.first()? else {
-        return None;
-    };
-    reads
-        .iter()
-        .all(|(root, path)| {
-            *root == *source && path.first() == Some(&CanonicalStructuralPathSegment::Case(*case))
-        })
-        .then_some((*source, *case))
-}
-
-/// Whether any lowered direct expression still observes a bound payload of
-/// `case` on `source` — the scalar-graph dispatch admission check.
-pub(crate) fn direct_case_reads(
-    expressions: &[LoweredDirectExpression],
-    source: PlaceId,
-    case: StructuralCaseId,
-) -> bool {
-    expressions.iter().any(|expression| {
-        let mut reads = Vec::new();
-        collect_direct_case_reads(expression, &mut reads);
-        reads.iter().any(|(root, path)| {
-            *root == source && path.first() == Some(&CanonicalStructuralPathSegment::Case(case))
-        })
-    })
-}
-
 fn collect_path_case_reads(
     path: &[crate::emission::operation_emission::expressions::LoweredElementPathSegment],
     reads: &mut Vec<(PlaceId, Vec<CanonicalStructuralPathSegment>)>,

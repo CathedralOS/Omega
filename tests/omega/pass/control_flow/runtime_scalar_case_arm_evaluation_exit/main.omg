@@ -1,0 +1,200 @@
+// Selection does not depend on an arm reading a payload. Constants, common
+// fields, nested borrowed reads and effectful results share ordinary evaluation.
+data Cell { value: u64; }
+data Message<'input> {
+    stamp: u64;
+    case Missing;
+    case Received(cell: &'input Cell);
+    case Number(value: u64);
+}
+data Envelope<'input> { message: Message<'input>; }
+
+machine read(message: &Message) -> u64 {
+    transition message {
+        Message::Missing -> 0
+        Message::Received { stamp as _, cell } -> cell.value
+        Message::Number { value, .. } -> value
+    }
+}
+machine common(message: &Message) -> u64 {
+    transition message {
+        Message::Missing -> message.stamp
+        Message::Received { .. } -> message.stamp
+        Message::Number { .. } -> message.stamp
+    }
+}
+machine observed(trace: &mut u64 in Wrapping, digit: u64 in Wrapping, value: u64) -> u64 {
+    trace = trace * 10 + digit;
+    value
+}
+machine selected(message: &Message, trace: &mut u64 in Wrapping) -> u64 {
+    transition message {
+        Message::Missing -> observed(trace, 1, message.stamp)
+        Message::Received { cell, .. } if message.stamp == 73 -> observed(trace, 2, cell.value)
+        Message::Received { cell, .. } -> observed(trace, 3, cell.value)
+        Message::Number { value, .. } -> observed(trace, 4, value)
+    }
+}
+machine owned(message: Message) -> u64 { read(&message) }
+machine forwarded(message: Message) -> u64 {
+    transition { _ -> arrived(message) }
+    state arrived(value: Message) -> u64 { read(&value) }
+}
+machine returned<'input>(cell: &'input Cell) -> Message<'input> {
+    Message::Received { stamp: 73, cell: cell }
+}
+
+// Memberships on separate values stay an ordered ladder, not one tag split.
+machine ordered(left: &Message, right: &Message) -> u64 {
+    transition {
+        left in Message::Missing -> 11
+        right in Message::Missing -> 22
+        _ -> 33
+    }
+}
+machine eliminated(message: &Message) -> u64 {
+    transition !(message in Message::Missing) && !(message in Message::Number) {
+        true -> message.cell.value
+        false -> 0
+    }
+}
+machine mark(marker: &mut bool) -> bool {
+    marker = true;
+    true
+}
+machine preserved(message: &Message, marker: &mut bool) -> u64 {
+    transition !(message in Message::Missing) && mark(marker) && !(message in Message::Number) {
+        true -> message.cell.value
+        false -> 0
+    }
+}
+machine mark_false(marker: &mut bool) -> bool {
+    marker = true;
+    false
+}
+machine preserved_false(message: &Message, marker: &mut bool) -> u64 {
+    transition (message in Message::Missing) || mark_false(marker) || (message in Message::Number) {
+        true -> 0
+        false -> message.cell.value
+    }
+}
+machine wrapped(message: &Message) -> u64 {
+    transition (message in Message::Missing) == false && true != (message in Message::Number)
+        && false == (message in Message::Missing) && (message in Message::Number) != true {
+        true -> message.cell.value
+        false -> 0
+    }
+}
+machine fallback(message: &Message, trace: &mut u64 in Wrapping) -> u64 {
+    transition message {
+        Message::Missing -> 0
+        _ -> observed(trace, 5, message.stamp)
+    }
+}
+machine produced<'input>(cell: &'input Cell, trace: &mut u64 in Wrapping) -> Message<'input> {
+    trace = trace * 10 + 6;
+    Message::Received { stamp: 73, cell: cell }
+}
+machine once(cell: &Cell, trace: &mut u64 in Wrapping) -> u64 {
+    transition produced(cell, trace) {
+        Message::Missing -> 0
+        Message::Received { cell as selected_cell, .. } -> observed(trace, 7, selected_cell.value)
+        Message::Number { value, .. } -> value
+    }
+}
+machine once_common(cell: &Cell, trace: &mut u64 in Wrapping) -> u64 {
+    transition produced(cell, trace) {
+        Message::Missing { stamp, .. } -> stamp
+        Message::Received { stamp, .. } -> stamp
+        Message::Number { stamp, .. } -> stamp
+    }
+}
+// An independently authored call is not another parser copy of the subject.
+machine twice(cell: &Cell, trace: &mut u64 in Wrapping) -> u64 {
+    transition produced(cell, trace) {
+        Message::Missing -> observed(trace, 9, 0)
+        Message::Received { .. } -> owned(produced(cell, trace))
+        Message::Number { value, .. } -> value
+    }
+}
+machine common_pattern(message: &Message) -> bool {
+    transition message {
+        Message::Received { stamp: 73, cell as _ } -> true
+        _ -> false
+    }
+}
+machine projected(envelope: &Envelope) -> u64 {
+    transition envelope.message {
+        Message::Missing -> 0
+        Message::Received { cell, .. } -> cell.value
+        Message::Number { value, .. } -> value
+    }
+}
+data Choice {
+    stamp: u64;
+    case First(first: u64);
+    case Second(second: u64);
+}
+machine conditional(choice: &Choice) -> u64 {
+    transition choice in Choice::First {
+        true -> choice.first
+        false -> choice.second
+    }
+}
+machine negated(choice: &Choice) -> u64 {
+    transition !(choice in Choice::First) {
+        true -> choice.second
+        false -> choice.first
+    }
+}
+
+machine main() crashes Trap {
+    let cell: Cell = Cell { value: 19 };
+    let missing: Message = Message::Missing { stamp: 41 };
+    let received: Message = returned(&cell);
+    let other: Message = Message::Received { stamp: 74, cell: &cell };
+    let number: Message = Message::Number { stamp: 53, value: 29 };
+    let envelope: Envelope = Envelope { message: Message::Received { stamp: 73, cell: &cell } };
+    let mut trace: u64 in Wrapping = 0;
+    let missing_value: u64 = selected(&missing, &mut trace);
+    let received_value: u64 = selected(&received, &mut trace);
+    let other_value: u64 = selected(&other, &mut trace);
+    let number_value: u64 = selected(&number, &mut trace);
+    let first: Choice = Choice::First { stamp: 17, first: 37 };
+    let second: Choice = Choice::Second { stamp: 23, second: 43 };
+    let missing_fallback: u64 = fallback(&missing, &mut trace);
+    let received_fallback: u64 = fallback(&received, &mut trace);
+    let number_fallback: u64 = fallback(&number, &mut trace);
+    let once_value: u64 = once(&cell, &mut trace);
+    let mut marker: bool = false;
+    let preserved_value: u64 = preserved(&received, &mut marker);
+    let mut false_marker: bool = false;
+    let false_value: u64 = preserved_false(&received, &mut false_marker);
+    let mut common_trace: u64 in Wrapping = 0;
+    let once_stamp: u64 = once_common(&cell, &mut common_trace);
+    let mut twice_trace: u64 in Wrapping = 0;
+    let twice_value: u64 = twice(&cell, &mut twice_trace);
+    transition read(&missing) == 0 && read(&received) == 19 && read(&number) == 29
+        && common(&missing) == 41 && common(&received) == 73 && common(&number) == 53
+        && missing_value == 41 && received_value == 19 && other_value == 19
+        && number_value == 29 && trace == 12345567 && read(&envelope.message) == 19
+        && once_value == 19 && projected(&envelope) == 19
+        && missing_fallback == 0 && received_fallback == 73 && number_fallback == 53
+        && ordered(&missing, &missing) == 11 && ordered(&received, &missing) == 22
+        && ordered(&received, &number) == 33
+        && eliminated(&received) == 19 && eliminated(&missing) == 0 && eliminated(&number) == 0
+        && preserved_value == 19 && marker
+        && false_value == 19 && false_marker && wrapped(&received) == 19
+        && wrapped(&missing) == 0 && wrapped(&number) == 0
+        && once_stamp == 73 && common_trace == 6
+        && twice_value == 19 && twice_trace == 66
+        && common_pattern(&received) && !common_pattern(&other) && !common_pattern(&missing)
+        && conditional(&first) == 37 && conditional(&second) == 43
+        && negated(&first) == 37 && negated(&second) == 43
+        && owned(returned(&cell)) == 19 && forwarded(returned(&cell)) == 19 {
+        true -> done()
+        false -> wrong()
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}

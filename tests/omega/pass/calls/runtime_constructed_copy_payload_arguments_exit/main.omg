@@ -12,7 +12,7 @@ machine tick(count: &mut u64) -> u64 {
 
 machine read(reply: Reply) -> bool {
     transition reply {
-        Reply::Values { first, second } ->
+        Reply::Values { marker as _, first, second } ->
             (first.value == 2 && second.value == 1 && reply.marker == 0)
         Reply::Empty -> (reply.marker == 3)
     }

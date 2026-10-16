@@ -1,0 +1,44 @@
+// Expected exit: 0
+// Missing messages preserve stamp 41 and read as 0; received messages preserve
+// stamp 73 and read the borrowed cell's 19. Retirement permits the later write.
+data Cell { value: u64; }
+data Message<'input> {
+    stamp: u64;
+    case Missing;
+    case Received(cell: &'input Cell);
+}
+
+machine receive<'input>(cell: &'input Cell, present: bool) -> Message<'input> {
+    transition present {
+        true -> Message::Received { stamp: 73, cell: cell }
+        false -> Message::Missing { stamp: 41 }
+    }
+}
+
+machine read(message: &Message) -> u64 {
+    transition message {
+        Message::Missing -> 0
+        Message::Received { cell, .. } -> cell.value
+    }
+}
+
+machine inspect(present: bool) -> bool {
+    let mut cell: Cell = Cell { value: 19 };
+    let message: Message = receive(&cell, present);
+    let value: u64 = read(&message);
+    let stamp: u64 = message.stamp;
+    cell.value = 23;
+    transition present {
+        true -> (value == 19 && stamp == 73 && cell.value == 23)
+        false -> (value == 0 && stamp == 41 && cell.value == 23)
+    }
+}
+
+machine main() crashes Trap {
+    transition inspect(true) && inspect(false) {
+        true -> done()
+        false -> wrong()
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}

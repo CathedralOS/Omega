@@ -10,7 +10,7 @@ data Envelope { choice: Choice; }
 machine inspect(envelope: Envelope) -> bool {
     let stamp: i32 = envelope.choice.stamp;
     transition envelope.choice {
-        Choice::Present { pair, unused } -> observe(pair.first, stamp)
+        Choice::Present { stamp as _, pair, unused } -> observe(pair.first, stamp)
         _ -> (false)
     }
     state observe(first: Token, stamp: i32) -> bool {

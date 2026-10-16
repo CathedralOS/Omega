@@ -20,7 +20,7 @@ machine update(event: &mut Event) {
 
 machine observe(event: &Event) -> bool {
     transition event {
-        Event::Value { value, proof as _ } -> (value == 7 && event.count == 9 && event.enabled)
+        Event::Value { enabled as _, common_proof as _, count as _, value, proof as _ } -> (value == 7 && event.count == 9 && event.enabled)
         _ -> (false)
     }
 }

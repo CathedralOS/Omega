@@ -54,7 +54,7 @@ linux_x86_64 boundary machine Imports::write(descriptor: i32, bytes: &[u8]) -> i
 
 machine observe(variant: &Variant) -> bool {
     transition variant {
-        Variant::Right { value, bytes } -> check(variant, value, bytes)
+        Variant::Right { revision as _, value, bytes } -> check(variant, value, bytes)
         _ -> (false)
     }
     state check(variant: &Variant, value: u32, bytes: &Bytes) -> bool {
@@ -64,7 +64,7 @@ machine observe(variant: &Variant) -> bool {
 }
 machine publish(variant: &Variant) -> i64 reaches ByteIo {
     transition variant {
-        Variant::Right { value as _, bytes } -> write(bytes)
+        Variant::Right { revision as _, value as _, bytes } -> write(bytes)
         _ -> (-1)
     }
     state write(bytes: &Bytes) -> i64 {

@@ -63,7 +63,7 @@ terminates;
     state next(known: Tree) -> Tree {
         transition known {
             Tree::Empty -> (empty_only(known))
-            Tree::Node { child } -> child
+            Tree::Node { marked as _, child } -> child
         }
     }
 }

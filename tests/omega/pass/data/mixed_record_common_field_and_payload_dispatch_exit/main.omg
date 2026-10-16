@@ -47,7 +47,7 @@ machine Main::main(main: &mut Main) reaches Console {
 machine classify(stream: &Stream, index: u64 [0..=7]) -> u64 [0..=100] {
     let token: Token = stream.tokens[index];
     transition token {
-        Token::Mark { kind: Kind::B } -> (token.start)
+        Token::Mark { start as _, end as _, kind: Kind::B } -> (token.start)
         _ -> (token.end)
     }
 }

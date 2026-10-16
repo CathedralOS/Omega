@@ -1696,8 +1696,8 @@ fail/contracts/case_requirement_replaced_through_parameter rejected 382ms expect
 	cannot prove requires contract for call observe from exercise: choice == constructor:6:Choice9:name:Cell (needs fact `choice == Choice::Cell` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/contracts/case_requirement_selector_changed rejected 384ms expected @6c0183cab07b
 	cannot prove requires contract for call observe from exercise: choices[position.index] == constructor:6:Choice9:name:Cell (needs fact `choice == Choice::Cell` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
-fail/contracts/case_requires_other_case_payload_read rejected 5075ms expected @a9ae30e1c334+wt
-	cannot prove selected case for payload access
+fail/contracts/case_requires_other_case_payload_read rejected 1647ms expected @e03f48653b6a
+	machine `observe` state `entry` statement 0: cannot prove selected case for payload access
 fail/contracts/copied_field_guarantee_after_overwrite rejected 1175ms expected @ea24f0fe7101
 	cannot prove requires contract for call equal_float from float_copies: saved.value == value (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call equal from scalar_inputs: initial == replacement (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
@@ -1811,16 +1811,26 @@ fail/contracts/undischarged_contract_entailment rejected 1869ms expected @1f63ee
 	checked machine `unchecked_claim` cannot establish proposition ensure `boolean:min_u64(right, 0) >= 1` in state `entry`; require it, cite a checked/accepted proof that ensures it, or supply its declared evidence
 fail/contracts/unused_argument_bound_mutation rejected 628ms expected @7e164e32caf5+wt
 	cannot prove requires contract for call bounded from main: count <= 8 (needs fact `count <= 8` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/control_flow/arm_pattern_missing_field rejected 2806ms expected @a9ae30e1c334+wt
+fail/control_flow/arm_pattern_missing_field rejected 581ms expected @e03f48653b6a
+	destructure arm in machine `Main::apply` state `apply` does not mention field `stamp` of `Msg::Move` -- record patterns are exhaustive by law: bind it, rename it with `as`, waive it with `as _`, or opt out with `..`
 	destructure arm in machine `Main::apply` state `apply` does not mention field `dy` of `Msg::Move` -- record patterns are exhaustive by law: bind it, rename it with `as`, waive it with `as _`, or opt out with `..`
 fail/control_flow/arm_pattern_rest_unknown_field rejected 2732ms expected @a9ae30e1c334+wt
 	destructure arm in machine `Main::apply` state `apply` names `typo`, which is not a field of `Msg::Move`
 fail/control_flow/bounded_mutable_scalar_store_outside_range rejected 927ms expected @a9ae30e1c334+wt
 	cannot prove assignment value `5` satisfies bounded target `value` in `replace.entry`; expected 0..=4
-fail/control_flow/case_payload_after_aliasing_guard_conjunct rejected 5472ms expected @a9ae30e1c334+wt
-	cannot prove selected case for payload access
-fail/control_flow/case_payload_after_effectful_constructor_guard rejected 1653ms expected @a9ae30e1c334+wt
-	cannot prove selected case for payload access
+fail/control_flow/case_elimination_requires_live_complete_exclusions rejected 600ms expected @e03f48653b6a
+	machine `incomplete` state `entry` statement 1: cannot prove selected case for payload access
+	machine `wrong_subject` state `entry` statement 0: cannot prove selected case for payload access
+	machine `disjunctive` state `entry` statement 0: cannot prove selected case for payload access
+	machine `split_stale` state `entry` statement 0: cannot prove selected case for payload access
+	machine `stale` state `entry` statement 0: cannot prove selected case for payload access
+	machine `false_split_stale` state `entry` statement 1: cannot prove selected case for payload access
+	machine `false_trailing_stale` state `entry` statement 1: cannot prove selected case for payload access
+	machine `wrapped_stale` state `entry` statement 0: cannot prove selected case for payload access
+fail/control_flow/case_payload_after_aliasing_guard_conjunct rejected 4168ms expected @e03f48653b6a
+	machine `read` state `entry` statement 0: cannot prove selected case for payload access
+fail/control_flow/case_payload_after_effectful_constructor_guard rejected 620ms expected @e03f48653b6a
+	machine `read` state `entry` statement 0: cannot prove selected case for payload access
 fail/control_flow/dispatch_boundary_adjacent_complement rejected 196ms expected @58a5ed816ae5
 	transition dispatch in `choose::entry` can fall through: no arm matches when every guard is false, and no `_` arm exists; add a `_ ->` arm (or complete the `true`/`false` pair)
 fail/control_flow/dispatch_boundary_adjacent_crash rejected 204ms expected @58a5ed816ae5
@@ -1845,12 +1855,12 @@ fail/control_flow/implicit_entry_parameter_capture rejected 819ms expected @a9ae
 	machine `inspect` state `finish` uses `input`, which is not a declared local, parameter, field, or type in this state (check the spelling)
 fail/control_flow/linear_result_repeated_successor_arguments rejected 1568ms expected @a9ae30e1c334+wt
 	linear value `receipt` was already transferred or consumed; it cannot be moved here
-fail/control_flow/projected_float_payload_after_guard_mutation rejected 70138ms expected @a9ae30e1c334+wt
-	cannot prove selected case for payload access
-fail/control_flow/projected_float_payload_after_negated_guard_mutation rejected 68974ms expected @a9ae30e1c334+wt
-	cannot prove selected case for payload access
-fail/control_flow/projected_float_payload_without_case rejected 69759ms expected @a9ae30e1c334+wt
-	cannot prove selected case for payload access
+fail/control_flow/projected_float_payload_after_guard_mutation rejected 5837ms expected @e03f48653b6a
+	machine `read` state `entry` statement 0: cannot prove selected case for payload access
+fail/control_flow/projected_float_payload_after_negated_guard_mutation rejected 5156ms expected @e03f48653b6a
+	machine `read` state `entry` statement 0: cannot prove selected case for payload access
+fail/control_flow/projected_float_payload_without_case rejected 3076ms expected @e03f48653b6a
+	machine `read` state `entry` statement 0: cannot prove selected case for payload access
 fail/control_flow/single_case_guarded_arm_nonexhaustive rejected 39ms expected @a9ae30e1c334+wt
 	match over `Carried` is not exhaustive: it relies on arms the compiler cannot count (predicate domains, guarded patterns, or value compares); add a `_` arm
 fail/control_flow/state_result_differs_from_machine_result rejected 3529ms expected @a9ae30e1c334+wt
@@ -6294,6 +6304,7 @@ pass/control_flow/runtime_ranked_state_cycle_borrowed_record_exit checked 11387m
 pass/control_flow/runtime_ranked_state_cycle_owned_record_exit checked 11629ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/control_flow/runtime_returned_nested_case_payload_capture_exit checked 12354ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/control_flow/runtime_root_float_case_payload_exit checked 6507ms check-target:macos_arm64 @aef42baa7504+wt
+pass/control_flow/runtime_scalar_case_arm_evaluation_exit checked 39487ms check-target:macos_arm64 @e03f48653b6a
 pass/control_flow/runtime_selected_parent_state_loan_exit checked 5794ms check-target:macos_arm64 @589aedee8ebc+wt
 pass/control_flow/runtime_shared_case_return_call_exit checked 14412ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/control_flow/runtime_string_literal_dispatch_exit checked 11401ms check-target:macos_arm64 @a9ae30e1c334+wt
