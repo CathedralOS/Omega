@@ -93,3 +93,6 @@ pub(crate) fn carried_digests<Function>(
         })
         .collect()
 }
+
+#[cfg(test)]
+mod report_counts_tests;

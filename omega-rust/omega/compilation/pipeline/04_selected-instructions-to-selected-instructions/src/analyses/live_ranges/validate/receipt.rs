@@ -2,6 +2,8 @@
 
 use std::collections::BTreeSet;
 
+use super::FunctionCounts;
+
 use crate::{LiveRangeValidationReceipt, ValidatedLiveRanges};
 use selected_instructions::{DistinctUseDefTie, LiveRangePlan, live_range_identity_from_digests};
 
@@ -11,22 +13,36 @@ pub(crate) fn admit(
     plan: LiveRangePlan,
     carried: &[bool],
     previous_digests: &[[u8; 32]],
+    previous_counts: &[FunctionCounts],
 ) -> ValidatedLiveRanges {
     let function_digests =
         crate::analyses::carried_digests(&plan.functions, carried, previous_digests, |function| {
             selected_instructions::live_range_function_digest(function)
         });
-    let receipt = build_receipt(&plan, &function_digests);
+    // Reuse report metadata under precisely the same function carry decision
+    // as its canonical digest. Missing metadata is computed from current rows.
+    let function_counts: std::sync::Arc<[FunctionCounts]> = plan
+        .functions
+        .iter()
+        .enumerate()
+        .map(|(index, function)| match previous_counts.get(index) {
+            Some(counts) if carried.get(index) == Some(&true) => *counts,
+            _ => FunctionCounts::new(function),
+        })
+        .collect();
+    let receipt = build_receipt(&plan, &function_digests, &function_counts);
     ValidatedLiveRanges {
         plan: plan.into(),
         receipt,
         function_digests,
+        function_counts,
     }
 }
 
 fn build_receipt(
     plan: &LiveRangePlan,
     function_digests: &[[u8; 32]],
+    function_counts: &[FunctionCounts],
 ) -> LiveRangeValidationReceipt {
     LiveRangeValidationReceipt {
         identity: live_range_identity_from_digests(plan, function_digests),
@@ -35,89 +51,69 @@ fn build_receipt(
         optimization_unit: plan.optimization_unit,
         fuel_schedule: plan.fuel_schedule,
         function_count: plan.functions.len(),
-        block_count: plan
-            .functions
+        block_count: function_counts
             .iter()
-            .map(|row| row.block_domains.len())
+            .map(|counts| counts.block_count)
             .sum(),
-        virtual_register_count: plan
-            .functions
+        virtual_register_count: function_counts
             .iter()
-            .map(|row| row.virtual_registers.len())
+            .map(|counts| counts.virtual_register_count)
             .sum(),
-        virtual_occurrence_count: plan
-            .functions
+        virtual_occurrence_count: function_counts
             .iter()
-            .flat_map(|row| &row.virtual_registers)
-            .map(|row| row.occurrences.len())
+            .map(|counts| counts.virtual_occurrence_count)
             .sum(),
-        fixed_constraint_count: plan
-            .functions
+        fixed_constraint_count: function_counts
             .iter()
-            .flat_map(|row| &row.virtual_registers)
-            .map(|row| row.fixed_constraints.len())
+            .map(|counts| counts.fixed_constraint_count)
             .sum(),
-        virtual_fragment_count: plan
-            .functions
+        virtual_fragment_count: function_counts
             .iter()
-            .flat_map(|row| &row.virtual_registers)
-            .map(|row| row.fragments.len())
+            .map(|counts| counts.virtual_fragment_count)
             .sum(),
-        architectural_unit_count: plan
-            .functions
+        architectural_unit_count: function_counts
             .iter()
-            .map(|row| row.architectural_units.len())
+            .map(|counts| counts.architectural_unit_count)
             .sum(),
-        architectural_action_count: plan
-            .functions
+        architectural_action_count: function_counts
             .iter()
-            .flat_map(|row| &row.architectural_units)
-            .map(|row| row.actions.len())
+            .map(|counts| counts.architectural_action_count)
             .sum(),
-        architectural_fragment_count: plan
-            .functions
+        architectural_fragment_count: function_counts
             .iter()
-            .flat_map(|row| &row.architectural_units)
-            .map(|row| row.fragments.len())
+            .map(|counts| counts.architectural_fragment_count)
             .sum(),
-        virtual_edge_connector_count: plan
-            .functions
+        virtual_edge_connector_count: function_counts
             .iter()
-            .flat_map(|row| &row.virtual_registers)
-            .map(|range| range.edge_connectors.len())
+            .map(|counts| counts.virtual_edge_connector_count)
             .sum(),
-        architectural_edge_connector_count: plan
-            .functions
+        architectural_edge_connector_count: function_counts
             .iter()
-            .flat_map(|row| &row.architectural_units)
-            .map(|range| range.edge_connectors.len())
+            .map(|counts| counts.architectural_edge_connector_count)
             .sum(),
-        interference_count: plan
-            .functions
+        interference_count: function_counts
             .iter()
-            .map(|row| row.interference.len())
+            .map(|counts| counts.interference_count)
             .sum(),
-        tied_pair_count: plan.functions.iter().map(|row| row.tied_pairs.len()).sum(),
-        copy_affinity_count: plan
-            .functions
+        tied_pair_count: function_counts
             .iter()
-            .map(|row| row.copy_affinities.len())
+            .map(|counts| counts.tied_pair_count)
             .sum(),
-        tied_component_count: plan
-            .functions
+        copy_affinity_count: function_counts
             .iter()
-            .map(|row| tied_component_count(&row.tied_pairs))
+            .map(|counts| counts.copy_affinity_count)
             .sum(),
-        early_clobber_count: plan
-            .functions
+        tied_component_count: function_counts
             .iter()
-            .map(|row| row.early_clobbers.len())
+            .map(|counts| counts.tied_component_count)
             .sum(),
-        early_clobber_use_count: plan
-            .functions
+        early_clobber_count: function_counts
             .iter()
-            .flat_map(|row| &row.early_clobbers)
-            .map(|row| row.uses.len())
+            .map(|counts| counts.early_clobber_count)
+            .sum(),
+        early_clobber_use_count: function_counts
+            .iter()
+            .map(|counts| counts.early_clobber_use_count)
             .sum(),
     }
 }

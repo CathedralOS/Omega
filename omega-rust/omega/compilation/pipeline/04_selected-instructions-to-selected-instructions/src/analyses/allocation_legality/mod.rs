@@ -38,7 +38,7 @@ pub fn analyze_allocation_legality(
         selected_keys,
         None,
     )?;
-    validate::admit(plan, &[], &[])
+    validate::admit(plan, &[], &[], &[])
 }
 
 /// Reuse proposals for functions whose complete live ranges and allocation
@@ -64,7 +64,12 @@ pub fn analyze_allocation_legality_reusing(
         selected_keys,
         Some((previous_ranges, previous_legality)),
     )?;
-    validate::admit(plan, &carried, &previous_legality.function_digests)
+    validate::admit(
+        plan,
+        &carried,
+        &previous_legality.function_digests,
+        &previous_legality.function_counts,
+    )
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -125,6 +130,8 @@ pub struct ValidatedAllocationLegality {
     /// Each function's share of the receipt identity, kept so a successor
     /// plan that carries a function over unchanged need not hash it again.
     pub(crate) function_digests: std::sync::Arc<[[u8; 32]]>,
+    /// Report-only counts, bound to the same admitted function as its digest.
+    pub(crate) function_counts: std::sync::Arc<[validate::FunctionCounts]>,
 }
 
 impl ValidatedAllocationLegality {

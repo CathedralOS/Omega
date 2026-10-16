@@ -9,6 +9,7 @@ use physical_instructions::{PostAllocationMachineBlock, PostAllocationMachineFun
 use selected_instructions::BlockMachineEffects;
 use selected_instructions_to_register_homes::ValidatedPreAllocationMachineEffects;
 
+use super::homes::PreparedHomes;
 use super::instruction;
 
 pub(super) fn build_functions(
@@ -40,6 +41,7 @@ pub(super) fn build_functions(
                     function: function_index,
                 });
             }
+            let prepared_homes = PreparedHomes::new(home_function);
             let blocks = function
                 .blocks
                 .iter()
@@ -50,7 +52,7 @@ pub(super) fn build_functions(
                         block_index,
                         block,
                         &effect_function.blocks[block_index],
-                        home_function,
+                        &prepared_homes,
                         physical,
                     )
                 })
@@ -70,7 +72,7 @@ fn build_block(
     block_index: usize,
     selected: &SelectedBlock,
     effects: &BlockMachineEffects,
-    homes: &selected_instructions_to_register_homes::FunctionRegisterHomes,
+    homes: &PreparedHomes<'_>,
     physical: &ValidatedPhysicalRegisterModel,
 ) -> Result<PostAllocationMachineBlock, PostAllocationMachineError> {
     if effects.block != selected.id {

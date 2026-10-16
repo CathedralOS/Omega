@@ -11,17 +11,19 @@ use selected_instructions::SelectedBlockId;
 use crate::AllocationLegalityError;
 use selected_instructions::{FunctionLiveRanges, LiveRangePoint, VirtualLiveRange};
 
-/// General candidates depend on the physical location and class, not the value
-/// visiting it. Keep only requested combinations while the function/environment
-/// and its availability remain immutable. Register-major traversal revisits
-/// locations out of order; a sparse ordered table avoids allocating every class
-/// at every block point (including unused locations and empty value ranges).
-/// Fixed constraints remain per-register checks outside this reusable result.
+/// General candidates depend on the block, class, and architectural availability,
+/// not the value visiting it. Availability is constant between the prepared unit
+/// fragment/action boundaries, so cache requested cells rather than individual
+/// points. Register starts and fixed-constraint boundaries inside one cell would
+/// otherwise repeat the same unit-conflict walks and retain duplicate vectors.
+/// Keep this sparse table local to the immutable function/environment; a spill
+/// changes positions and requires a new table. Fixed constraints still run at
+/// each register's actual point, outside the reusable unconstrained result.
 pub(super) struct CandidateViews<'a> {
     function: &'a FunctionLiveRanges,
     physical: &'a ValidatedPhysicalRegisterModel,
     reservations: &'a ValidatedRegisterReservationProfile,
-    candidates: BTreeMap<(RegisterClassId, SelectedBlockId, LiveRangePoint), Vec<RegisterViewId>>,
+    candidates: BTreeMap<(RegisterClassId, SelectedBlockId, usize), Vec<RegisterViewId>>,
     boundaries: Vec<LiveRangePoint>,
 }
 
@@ -70,8 +72,11 @@ impl<'a> CandidateViews<'a> {
         block: SelectedBlockId,
         point: LiveRangePoint,
     ) -> Vec<RegisterViewId> {
+        let cell = self
+            .boundaries
+            .partition_point(|boundary| *boundary <= point);
         self.candidates
-            .entry((class.id, block, point))
+            .entry((class.id, block, cell))
             .or_insert_with(|| {
                 unconstrained(
                     class,

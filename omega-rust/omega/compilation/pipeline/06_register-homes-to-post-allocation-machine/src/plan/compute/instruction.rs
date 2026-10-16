@@ -10,12 +10,13 @@ use physical_instructions::{PhysicalOperandFootprint, PostAllocationMachineInstr
 use selected_instructions::InstructionMachineEffects;
 
 use super::alternative;
+use super::homes::PreparedHomes;
 
 pub(super) fn build(
     function_index: usize,
     selected: &SelectedInstruction,
     effects: &InstructionMachineEffects,
-    homes: &selected_instructions_to_register_homes::FunctionRegisterHomes,
+    homes: &PreparedHomes<'_>,
     physical: &ValidatedPhysicalRegisterModel,
 ) -> Result<PostAllocationMachineInstruction, PostAllocationMachineError> {
     if effects.instruction != selected.id || effects.kind != selected.kind {
@@ -28,14 +29,12 @@ pub(super) fn build(
         .operands
         .iter()
         .map(|operand| {
-            let home = homes
-                .assignments
-                .iter()
-                .find(|home| home.virtual_register == operand.virtual_register)
-                .ok_or(PostAllocationMachineError::MissingHome {
+            let home = homes.get(operand.virtual_register).ok_or(
+                PostAllocationMachineError::MissingHome {
                     function: function_index,
                     register: operand.virtual_register.0,
-                })?;
+                },
+            )?;
             let view = physical.model().view(home.view).ok_or(
                 PostAllocationMachineError::UnknownView {
                     function: function_index,

@@ -6,7 +6,9 @@
 //! Receipt construction and focused corruption tests live below `validate/`;
 //! producer computation remains a sibling of this entire validation subtree.
 
+mod counts;
 mod receipt;
+pub(crate) use counts::FunctionCounts;
 pub(crate) use receipt::admit;
 
 use crate::{LiveRangeError, ValidatedLiveness};

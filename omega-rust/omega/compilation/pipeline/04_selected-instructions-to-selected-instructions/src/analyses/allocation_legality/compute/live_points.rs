@@ -22,7 +22,11 @@ pub(super) fn compute(
     entry_point: Option<(SelectedBlockId, LiveRangePoint)>,
     views: &mut CandidateViews<'_>,
 ) -> Result<Vec<VirtualLegalitySpan>, AllocationLegalityError> {
-    let mut boundaries = views.boundaries().to_vec();
+    // Architectural boundaries are already sorted for the immutable function.
+    // Merge them by cursor with this register's fixed boundaries below; copying
+    // and sorting the complete function list for every register repeats setup
+    // even when a register touches only one small fragment.
+    let mut boundaries = Vec::new();
     for constraint in &register.fixed_constraints {
         let point = match constraint.site {
             VirtualFixedConstraintSite::Entry => entry_point.map(|(_, point)| point),
@@ -44,15 +48,24 @@ pub(super) fn compute(
         }
         let fragment_offset = spans.len();
         let mut point = fragment.start;
-        let first_boundary = boundaries.partition_point(|boundary| *boundary <= point);
-        let last_boundary = boundaries.partition_point(|boundary| *boundary < fragment.end);
-        for end in boundaries[first_boundary..last_boundary]
-            .iter()
-            .copied()
-            .chain(std::iter::once(fragment.end))
-        {
-            if point >= end {
-                continue;
+        let mut architectural_index = views
+            .boundaries()
+            .partition_point(|boundary| *boundary <= point);
+        let mut fixed_index = boundaries.partition_point(|boundary| *boundary <= point);
+        while point < fragment.end {
+            let architectural = views.boundaries().get(architectural_index).copied();
+            let fixed = boundaries.get(fixed_index).copied();
+            let end = architectural
+                .into_iter()
+                .chain(fixed)
+                .min()
+                .unwrap_or(fragment.end)
+                .min(fragment.end);
+            if architectural == Some(end) {
+                architectural_index += 1;
+            }
+            if fixed == Some(end) {
+                fixed_index += 1;
             }
             let fixed = fixed_views::at_live_point(
                 function_index,

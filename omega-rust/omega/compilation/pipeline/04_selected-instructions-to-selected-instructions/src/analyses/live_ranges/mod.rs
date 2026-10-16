@@ -23,7 +23,7 @@ pub fn analyze_live_ranges<S: ValidatedSelectedAnalysis>(
 ) -> Result<ValidatedLiveRanges, LiveRangeError> {
     validate::require_liveness_of(selected, liveness)?;
     let plan = compute::compute_terminal_live_ranges(selected, liveness)?;
-    Ok(validate::admit(plan, &[], &[]))
+    Ok(validate::admit(plan, &[], &[], &[]))
 }
 
 /// Reuse function computations only for identical selected bodies and liveness.
@@ -46,6 +46,7 @@ pub fn analyze_live_ranges_reusing(
         plan,
         &carried,
         &previous_ranges.function_digests,
+        &previous_ranges.function_counts,
     ))
 }
 
@@ -158,6 +159,8 @@ pub struct ValidatedLiveRanges {
     /// Each function's share of the receipt identity, kept so a successor
     /// plan that carries a function over unchanged need not hash it again.
     pub(crate) function_digests: std::sync::Arc<[[u8; 32]]>,
+    /// Report-only counts, bound to the same admitted function as its digest.
+    pub(crate) function_counts: std::sync::Arc<[validate::FunctionCounts]>,
 }
 
 impl ValidatedLiveRanges {

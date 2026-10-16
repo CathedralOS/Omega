@@ -15,7 +15,13 @@ pub fn analyze_liveness<S: ValidatedSelectedAnalysis>(
     selected: &S,
 ) -> Result<ValidatedLiveness, LivenessError> {
     let plan = compute::compute_terminal_liveness(selected)?;
-    Ok(validate::admit_validated_liveness(selected, plan, &[], &[]))
+    Ok(validate::admit_validated_liveness(
+        selected,
+        plan,
+        &[],
+        &[],
+        &[],
+    ))
 }
 
 /// Reuse unchanged function computations from `previous_liveness`; the new
@@ -32,6 +38,7 @@ pub fn analyze_liveness_reusing(
         plan,
         &carried,
         &previous_liveness.function_digests,
+        &previous_liveness.function_counts,
     ))
 }
 
@@ -109,6 +116,8 @@ pub struct ValidatedLiveness {
     /// Each function's share of the receipt identity, kept so a successor
     /// plan that carries a function over unchanged need not hash it again.
     pub(crate) function_digests: std::sync::Arc<[[u8; 32]]>,
+    /// Report-only counts, bound to the same admitted function as its digest.
+    pub(crate) function_counts: std::sync::Arc<[validate::FunctionCounts]>,
 }
 
 impl ValidatedLiveness {

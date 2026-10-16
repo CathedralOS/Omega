@@ -4,6 +4,7 @@
 //! file performs the sole final plan assembly and identity assignment.
 
 mod alternative;
+mod homes;
 mod instruction;
 mod ordinary;
 mod roots;
