@@ -881,6 +881,7 @@ pass/collections/runtime_indexed_struct_field_rmw_exit built 15414ms exit:1 @6c4
 pass/collections/runtime_indexed_successor_argument_exit built 14914ms exit:70 @6c49683ce714
 pass/collections/runtime_indexed_write_call_value_exit built 6290ms exit:70 @f137abafccda+wt
 pass/collections/runtime_initialized_array_state_loan_exit built 15861ms exit:70 @6c49683ce714
+pass/collections/runtime_match_scalar_array_exit built 11678ms exit:0 @cc35a4f0d368+wt
 pass/collections/runtime_maze_pathfind_exit built 17742ms exit:70 @6c49683ce714
 pass/collections/runtime_member_decrement_index_bound_exit built 6381ms exit:70 @f137abafccda+wt
 pass/collections/runtime_multi_field_element_view_domains_exit built 17516ms exit:0 @6c49683ce714

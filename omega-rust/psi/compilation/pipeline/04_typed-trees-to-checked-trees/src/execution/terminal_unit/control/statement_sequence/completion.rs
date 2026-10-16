@@ -281,46 +281,56 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
         let statements = typed_trees::statement::reachable_state_statements(
             program.statement_table.statements(state.statement_nodes),
         );
-        let expression = statements.last()?.as_expression()?;
-        let statement_index = u32::try_from(statements.len().checked_sub(1)?).ok()?;
-        if let Some(path) = program.expression_table.name_path_node(*expression) {
-            if let Some((_, binding)) = array_bindings
-                .iter()
-                .find(|(symbol, _)| *symbol == path.symbol)
-            {
-                if binding.type_identity != program.normalized_type_identity(state.return_type) {
+        // Crash and transition tails produce no array. The scalar terminator
+        // owns those exits; requiring an expression here rejects a body that
+        // never returns.
+        if let Some(expression) = statements
+            .last()
+            .and_then(|statement| statement.as_expression().copied())
+        {
+            let statement_index = u32::try_from(statements.len().checked_sub(1)?).ok()?;
+            if let Some(path) = program.expression_table.name_path_node(expression) {
+                if let Some((_, binding)) = array_bindings
+                    .iter()
+                    .find(|(symbol, _)| *symbol == path.symbol)
+                {
+                    if binding.type_identity != program.normalized_type_identity(state.return_type)
+                    {
+                        return None;
+                    }
+                    return_binding(binding.clone())
+                } else {
                     return None;
                 }
-                return_binding(binding.clone())
             } else {
-                return None;
+                let elements = super::super::scalar_arrays::elements(
+                    program,
+                    facts,
+                    machine.symbol,
+                    state.symbol,
+                    statement_index,
+                    checked_trees::CheckedArrayConstructionSource::Statement,
+                    expression,
+                    state.return_type,
+                )?;
+                let result = CheckedUnitStructuralResultBindingPlan {
+                    statement_index,
+                    binding_ordinal: u32::try_from(structural_count).ok()?,
+                    type_identity: shapes.add_type(state.return_type, binders, &[])?,
+                    multiplicity: Multiplicity::Unrestricted,
+                    local: Default::default(),
+                };
+                operations.push(CheckedUnitEffectOperationPlan::EstablishLocal(
+                    checked_trees::CheckedUnitLocalBindingPlan::ScalarArray {
+                        source: checked_trees::CheckedArrayConstructionSource::Statement,
+                        result: result.clone(),
+                        elements,
+                    },
+                ));
+                return_binding(result)
             }
         } else {
-            let elements = super::super::scalar_arrays::elements(
-                program,
-                facts,
-                machine.symbol,
-                state.symbol,
-                statement_index,
-                checked_trees::CheckedArrayConstructionSource::Statement,
-                *expression,
-                state.return_type,
-            )?;
-            let result = CheckedUnitStructuralResultBindingPlan {
-                statement_index,
-                binding_ordinal: u32::try_from(structural_count).ok()?,
-                type_identity: shapes.add_type(state.return_type, binders, &[])?,
-                multiplicity: Multiplicity::Unrestricted,
-                local: Default::default(),
-            };
-            operations.push(CheckedUnitEffectOperationPlan::EstablishLocal(
-                checked_trees::CheckedUnitLocalBindingPlan::ScalarArray {
-                    source: checked_trees::CheckedArrayConstructionSource::Statement,
-                    result: result.clone(),
-                    elements,
-                },
-            ));
-            return_binding(result)
+            None
         }
     } else {
         None

@@ -1,0 +1,79 @@
+// A match selects one closed primitive array. Arms may be calls, literals,
+// or names. Only the selected arm runs. The result is observed through a
+// local, a parameter, a field, and a later state.
+use omega::language::core::float_operations;
+
+data Holder { values: [f64; 3]; }
+
+machine stage(scale: f64) -> [f64; 3] { [scale, scale + 1.0, scale + 2.0] }
+
+machine choose_call(order: u64) -> [f64; 3] {
+    match order {
+        0 -> stage(1.0)
+        1 -> stage(2.0)
+        _ -> stage(3.0)
+    }
+}
+
+machine choose_literal(order: u64) -> [f64; 3] {
+    match order {
+        0 -> [1.0, 2.0, 3.0]
+        _ -> [4.0, 5.0, 6.0]
+    }
+}
+
+machine choose_mixed(flag: bool, kept: [f64; 3]) -> [f64; 3] {
+    match flag {
+        true -> kept
+        false -> stage(7.0)
+    }
+}
+
+machine narrow(flag: bool) -> [f32; 2] {
+    match flag {
+        true -> [2.0f32, 4.0f32]
+        false -> [8.0f32, 1.0f32]
+    }
+}
+
+machine total(values: [f64; 3]) -> f64 { values[0] + values[1] + values[2] }
+
+machine boom() -> [f64; 3] crashes Trap { crash Trap; }
+
+machine skip_boom(flag: bool) -> [f64; 3] {
+    match flag {
+        true -> [1.0, 1.0, 1.0]
+        false -> boom()
+    }
+}
+
+machine main() crashes Trap {
+    let called: [f64; 3] = choose_call(1);
+    let literal: [f64; 3] = choose_literal(0);
+    let kept: [f64; 3] = [9.0, 8.0, 7.0];
+    let mixed: [f64; 3] = choose_mixed(true, kept);
+    let fallback: [f64; 3] = choose_mixed(false, kept);
+    let narrow_values: [f32; 2] = narrow(false);
+    let mut holder: Holder;
+    holder.values = choose_call(0);
+    let direct: f64 = total(choose_call(2));
+    let skipped: [f64; 3] = skip_boom(true);
+    let skipped_element: f64 = skipped[0];
+    transition called[0] == 2.0 && called[1] == 3.0 && called[2] == 4.0
+        && total(called) == 9.0
+        && literal[2] == 3.0
+        && mixed[0] == 9.0
+        && fallback[0] == 7.0 && fallback[2] == 9.0
+        && narrow_values[0] == 8.0f32 && narrow_values[1] == 1.0f32
+        && holder.values[0] == 1.0 && holder.values[2] == 3.0
+        && direct == 12.0
+        && skipped_element == 1.0 {
+        true -> carry(holder.values)
+        _ -> bad()
+    }
+    state carry(values: [f64; 3]) {
+        transition values[1] == 2.0 { true -> done() _ -> bad() }
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

@@ -1,0 +1,48 @@
+// Expected exit: 0.
+// Expected output contains: stage vector 9
+// A mass-action stage selects one concentration triple. The match subject is
+// the reaction order, and every arm is a call that returns a fresh [f64; 3].
+// The selected triple is then carried by value through a state, stored in a
+// field, and read back through a parameter.
+use omega_language_std::console;
+use omega::language::core::numeric_conversion;
+use omega::language::core::float_operations;
+
+data Stage { values: [f64; 3]; }
+data Main { stage: Stage; }
+
+machine stage(scale: f64) -> [f64; 3] { [scale, scale + 1.0, scale + 2.0] }
+
+machine choose(order: u64) -> [f64; 3] {
+    match order {
+        0 -> stage(1.0)
+        1 -> stage(2.0)
+        _ -> stage(3.0)
+    }
+}
+
+machine sum(values: [f64; 3]) -> f64 { values[0] + values[1] + values[2] }
+
+machine Main::main(main: &mut Main) reaches Console {
+    let chosen: [f64; 3] = choose(1);
+    transition { _ -> carry(main, chosen) }
+    state carry(main: &mut Main, values: [f64; 3]) {
+        main.stage.values = values;
+        transition { _ -> report(main, main.stage.values) }
+    }
+    state report(main: &mut Main, values: [f64; 3]) {
+        let total: f64 = sum(values);
+        transition total == 9.0 {
+            true -> pass()
+            _ -> fail()
+        }
+    }
+    state pass() {
+        Console::write_line("stage vector 9");
+        Console::exit_process(0);
+    }
+    state fail() {
+        Console::write_line("stage vector mismatch");
+        Console::exit_process(1);
+    }
+}

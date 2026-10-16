@@ -6,7 +6,8 @@
 //! and per-member establishment proof, not a constructor-specific exception.
 //! Closed primitive arrays select their scalar-array producer at the value
 //! boundary, independent of whether a record, case, or other value consumes it.
-//! The array occurrence owns its row-major leaf roots and independent replay.
+//! A match is not that producer: it selects one array, and only the chosen
+//! arm may run. Literal constructors still own the row-major leaf roster.
 //! Copy permission belongs to the selected leaf, not its root: a readable
 //! owned or borrowed root may supply an unrestricted child without moving it.
 //! Exact source/path replay and ordinary liveness remain downstream checks.
@@ -642,7 +643,15 @@ impl Builder<'_, '_> {
             && literal.case_symbol.is_none()
         {
             self.record_value(expression, expected)?
-        } else if validation::is_closed_primitive_array_type(self.program, expected) {
+        } else if validation::is_closed_primitive_array_type(self.program, expected)
+            && !matches!(
+                self.program.expression_table.expression(expression),
+                ExpressionNode::Match(_)
+            )
+        {
+            // Literal and projected constructors flatten to scalar leaves.
+            // A match selects one of those arrays; flattening it would require
+            // every arm to be a constructor and would evaluate unselected calls.
             self.scalar_array_value(expression, expected)?
         } else if let ExpressionNode::ArrayLiteral(literal) =
             self.program.expression_table.expression(expression)

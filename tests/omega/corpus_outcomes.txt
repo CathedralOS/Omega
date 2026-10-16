@@ -6099,6 +6099,7 @@ pass/collections/runtime_indexed_struct_field_rmw_exit checked 11022ms check-tar
 pass/collections/runtime_indexed_successor_argument_exit checked 11038ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/collections/runtime_indexed_write_call_value_exit checked 11113ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/collections/runtime_initialized_array_state_loan_exit checked 11053ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/collections/runtime_match_scalar_array_exit checked 11431ms check-target:macos_arm64 @cc35a4f0d368+wt
 pass/collections/runtime_maze_pathfind_exit checked 14399ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/collections/runtime_member_decrement_index_bound_exit checked 11348ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/collections/runtime_multi_field_element_view_domains_exit checked 10428ms check-target:macos_arm64 @a9ae30e1c334+wt
