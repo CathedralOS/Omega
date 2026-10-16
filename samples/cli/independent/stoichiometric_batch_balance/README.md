@@ -36,7 +36,8 @@ three independent exact elemental equations and excludes tuples whose gcd is
 not one. A match of calls selects the three-species or four-species signature
 record. A second match selects the reactant or product half of the coefficient
 row; both halves have length 2, and that length is read back through a local,
-a record field, a parameter, and the call result. It counts primitive solutions and selects minimum total coefficient
+a record field, a parameter, and the call result. The reactant write uses the
+same match under a mutable loan. It counts primitive solutions and selects minimum total coefficient
 sum, breaking ties lexicographically. `NO_BALANCE_WITHIN_BOUND` is a bounded
 search result; it does not assert impossibility outside that declared bound.
 The impossible fixture has nonzero nitrogen only on the product side, so its

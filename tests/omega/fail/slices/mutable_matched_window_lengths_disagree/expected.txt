@@ -1,0 +1,2 @@
+cannot prove ensures contract for exit from half
+result.len == 2

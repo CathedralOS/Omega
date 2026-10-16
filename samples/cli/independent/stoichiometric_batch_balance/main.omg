@@ -48,7 +48,8 @@ machine Main::main(context: &mut Main) reaches Console {
     }
     state windows(context: &mut Main) {
         let mut coefficients: [i64 in Wrapping; 4] = [0, 0, 0, 0];
-        chemistry::balance::write_reactants(&mut coefficients[0..2]);
+        let reactants_mut: &mut [i64 in Wrapping] = chemistry::balance::mutable_reactant_window(&mut coefficients, 0);
+        chemistry::balance::write_reactants(reactants_mut);
         let reactants: &[i64 in Wrapping] = chemistry::balance::reactant_window(&coefficients, 0);
         let held: chemistry::model::HeldWindow = chemistry::model::HeldWindow { values: reactants };
         let via_parameter: i64 in Wrapping = chemistry::balance::read_window(held.values);

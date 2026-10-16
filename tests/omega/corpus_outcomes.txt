@@ -4752,6 +4752,8 @@ fail/slices/match_index_guard_does_not_escape rejected 1510ms expected @a9ae30e1
 	cannot prove index `0` is within unknown slice length of `values` in observe::entry
 fail/slices/matched_window_lengths_disagree rejected 981ms expected @0e7ef4cb2ac8+wt
 	cannot prove ensures contract for exit from half at statement 0: result.len == 2
+fail/slices/mutable_matched_window_lengths_disagree rejected 1085ms expected @4c1943eecbaa+wt
+	cannot prove ensures contract for exit from half at statement 0: result.len == 2
 fail/slices/mutable_subslice_state_out_of_bounds rejected 1504ms expected @a9ae30e1c334+wt
 	cannot prove subslice range end bound `1..3` is within unknown slice length
 fail/slices/mutable_subslice_state_requires_nonempty rejected 550ms expected @82646dcce47b+wt
@@ -8255,6 +8257,7 @@ pass/slices/mutable_byte_field_range_scalar_initializer_exit checked 11831ms che
 pass/slices/mutable_field_range_call_state_exit checked 10873ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/slices/mutable_field_range_local_initializer_exit checked 12115ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/slices/mutable_field_range_scalar_initializer_exit checked 12303ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/slices/mutable_matched_window_length checked 6070ms check-target:macos_arm64 @80916bff5018+wt
 pass/slices/narrowed_view_return checked 9928ms @5041ef1af684+wt
 pass/slices/narrowed_view_window checked 8924ms @5041ef1af684+wt
 pass/slices/negated_mutable_array_call_exit checked 12275ms check-target:macos_arm64 @a9ae30e1c334+wt
