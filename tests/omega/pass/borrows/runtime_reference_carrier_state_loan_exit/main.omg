@@ -1,0 +1,34 @@
+// Expected exit: 0. State loans retain the record's existing reference leaf.
+data Cell { value: u64; }
+data Held<'storage> { target: &'storage Cell; }
+data Envelope<'storage> { held: Held<'storage>; marker: u64; }
+
+machine make<'storage>(source: &'storage Cell) -> Envelope<'storage> {
+    Envelope { held: Held { target: source }, marker: 5 }
+}
+
+machine exercise<'storage>(source: &'storage Cell) -> u64 crashes Trap {
+    let mut envelope: Envelope<'storage> = make(source);
+    transition { _ -> write(&mut envelope) }
+    state write(envelope: &mut Envelope<'storage>) -> u64 {
+        envelope.marker = 17;
+        transition { _ -> inspect(envelope) }
+    }
+    state inspect(envelope: &Envelope<'storage>) -> u64 {
+        transition envelope.marker == 17 {
+            true -> (envelope.held.target.value)
+            _ -> (0)
+        }
+    }
+}
+
+machine main() crashes Trap {
+    let cell: Cell = Cell { value: 23 };
+    let observed: u64 = exercise(&cell);
+    transition observed == 23 && cell.value == 23 {
+        true -> done()
+        _ -> wrong()
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}

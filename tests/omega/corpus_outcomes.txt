@@ -967,6 +967,8 @@ fail/borrows/reference_array_result_local_escape rejected 5961ms expected @a9ae3
 	machine `collect` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 fail/borrows/reference_array_shared_cohort_live_source_write rejected 1541ms expected @a9ae30e1c334+wt
 	statement 2 mutates `source.second.value` while local borrow `messages` is still active (borrowed at statement 0; its last use is at statement 3 and it is released at state exit)
+fail/borrows/reference_carrier_state_shared_write rejected 323ms expected @847c9f31b2f1+wt
+	machine `forbidden` state `write` assignment requires mutable source access through every reference crossed by its destination
 fail/borrows/reference_carrier_store_while_shared rejected 1634ms expected @a9ae30e1c334+wt
 	statement 2 mutates `carrier.destination` while local borrow `observed` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
 fail/borrows/reference_record_duplicate_mutable rejected 5388ms expected @a9ae30e1c334+wt
@@ -5894,6 +5896,7 @@ pass/borrows/runtime_reference_aggregate_call_result_replacement_exit checked 26
 pass/borrows/runtime_reference_aggregate_projected_replacement_exit checked 2693ms check-target:macos_arm64 @b886c487061b+wt
 pass/borrows/runtime_reference_array_pressure_exit checked 11385ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_reference_call_scalar_snapshot_exit checked 5051ms check-target:macos_arm64 @a9c11ff574b9+wt
+pass/borrows/runtime_reference_carrier_state_loan_exit checked 6546ms check-target:macos_arm64 @847c9f31b2f1+wt
 pass/borrows/runtime_reference_initializer_selector_before_later_write_exit checked 6499ms check-target:macos_arm64 @5b32c4eb36ff+wt
 pass/borrows/runtime_reference_local_constructor_leaf_retirement_exit checked 11055ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_reference_record_array_field_read_exit checked 11130ms check-target:macos_arm64 @a9ae30e1c334+wt

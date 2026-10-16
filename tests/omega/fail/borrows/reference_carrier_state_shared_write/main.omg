@@ -1,0 +1,10 @@
+data Cell { value: u64; }
+data Held<'storage> { target: &'storage Cell; }
+data Envelope<'storage> { held: Held<'storage>; marker: u64; }
+machine forbidden<'storage>(envelope: &mut Envelope<'storage>) {
+    transition { _ -> write(envelope) }
+    state write(envelope: &mut Envelope<'storage>) {
+        envelope.held.target.value = 9;
+    }
+}
+machine main() {}

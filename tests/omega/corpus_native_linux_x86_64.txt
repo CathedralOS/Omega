@@ -361,6 +361,7 @@ pass/borrows/runtime_reference_aggregate_call_result_replacement_exit built 1239
 pass/borrows/runtime_reference_aggregate_projected_replacement_exit built 12210ms exit:0 @6c49683ce714
 pass/borrows/runtime_reference_array_pressure_exit built 15207ms exit:70 @6c49683ce714
 pass/borrows/runtime_reference_call_scalar_snapshot_exit built 18030ms exit:0 @6c49683ce714
+pass/borrows/runtime_reference_carrier_state_loan_exit built 6529ms exit:0 @847c9f31b2f1+wt
 pass/borrows/runtime_reference_initializer_selector_before_later_write_exit built 23648ms exit:70 @6c49683ce714
 pass/borrows/runtime_reference_local_constructor_leaf_retirement_exit built 15105ms exit:70 @6c49683ce714
 pass/borrows/runtime_reference_record_array_field_read_exit built 14913ms exit:70 @6c49683ce714

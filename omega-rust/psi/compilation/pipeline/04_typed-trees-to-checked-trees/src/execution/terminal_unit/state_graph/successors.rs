@@ -101,66 +101,6 @@ impl SuccessorEdge {
     }
 }
 
-/// The terminal verifier refuses a continuation argument bound to a
-/// place whose declared type carries a reference, so a loan can only name
-/// storage whose declared shape has no `Reference` anywhere inside it.
-fn declared_contains_reference(
-    shapes: &crate::execution::terminal_unit::types::ShapeCollector<'_>,
-    identity: typed_trees::type_identity::TypeIdentityId,
-) -> bool {
-    let mut pending = vec![identity];
-    let mut visited = std::collections::BTreeSet::new();
-    while let Some(current) = pending.pop() {
-        if !visited.insert(current.clone()) {
-            continue;
-        }
-        let Some(plan) = shapes.types.get(&current) else {
-            return true;
-        };
-        let mut fields = |items: &[checked_trees::CheckedUnitStructuralFieldPlan]| {
-            for field in items {
-                if let checked_trees::CheckedUnitStructuralFieldType::Structural { type_identity } =
-                    &field.field_type
-                {
-                    pending.push(*type_identity);
-                }
-            }
-        };
-        match &plan.shape {
-            checked_trees::CheckedUnitStructuralTypeShape::Reference { .. } => return true,
-            checked_trees::CheckedUnitStructuralTypeShape::BindingCarrier
-            | checked_trees::CheckedUnitStructuralTypeShape::PrimitiveScalar(_)
-            | checked_trees::CheckedUnitStructuralTypeShape::ByteSequence(_) => {}
-            checked_trees::CheckedUnitStructuralTypeShape::Record { fields: items, .. } => {
-                fields(items);
-            }
-            checked_trees::CheckedUnitStructuralTypeShape::FixedArray {
-                element_type_identity,
-                ..
-            }
-            | checked_trees::CheckedUnitStructuralTypeShape::BorrowedSliceView {
-                element_type_identity,
-                ..
-            } => pending.push(*element_type_identity),
-            checked_trees::CheckedUnitStructuralTypeShape::Sum { cases } => {
-                for case in cases {
-                    fields(&case.fields);
-                }
-            }
-            checked_trees::CheckedUnitStructuralTypeShape::Mixed {
-                fields: items,
-                cases,
-            } => {
-                fields(items);
-                for case in cases {
-                    fields(&case.fields);
-                }
-            }
-        }
-    }
-    false
-}
-
 /// The callee catalog, source-state entry claims and source-state local
 /// results an edge plans its own operand calls against. A composite
 /// argument's call runs only on the selected edge, under the same argument
@@ -1307,10 +1247,9 @@ fn projected_loan_transfer(
     }) {
         return None;
     }
-    let identity = super::super::types::base_type_identity(program, projected_type, &[], &[]);
-    if identity.is_some_and(|identity| declared_contains_reference(shapes, identity)) {
-        return None;
-    }
+    // This loans the aggregate's existing home; it does not copy its embedded
+    // references. Ordinary reference formation and continuation replay retain
+    // the complete supplier/parent closure, including reference-bearing fields.
     let has_dynamic_selector = path.iter().any(|segment| {
         matches!(
             segment,
