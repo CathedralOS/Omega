@@ -1,0 +1,21 @@
+// Intended-invalid control for topological_order: marking a node outside the
+// 0..=7 node domain as emitted must be rejected at compile time.
+
+use omega_language_std::console;
+
+data Topo {
+    emitted: [u64 in Wrapping; 8];
+}
+
+machine Topo::mark_emitted(t: &mut Topo, node: u64 [0..=7]) {
+    t.emitted[node] = 1;
+}
+
+data Main {
+    topo: Topo;
+}
+
+machine Main::main(main: &mut Main) reaches Console {
+    Topo::mark_emitted(&mut main.topo, 8);
+    Console::exit_process(0);
+}
