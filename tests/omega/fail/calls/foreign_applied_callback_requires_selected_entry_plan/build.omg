@@ -1,0 +1,4 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "foreign_applied_callback_requires_selected_entry_plan");
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+}

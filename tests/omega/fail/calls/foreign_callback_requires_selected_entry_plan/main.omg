@@ -1,0 +1,28 @@
+use omega::language::core::external_binding;
+
+linux_x86_64 machine binding() -> ForeignBinding<9, 6, 11> {
+    ForeignBinding::DllImport { import: DllImport::ElfVersioned {
+        object: "libc.so.6", symbol: "atexit", version: "GLIBC_2.2.5"
+    } }
+}
+
+data RegistrarImports {}
+linux_x86_64 machine RegistrarImports::install<machine Callback>() -> i32
+where machine Callback satisfies Handler::notify;
+satisfies Registrar::install via binding();
+
+pub boundary trait Handler { machine notify(); }
+pub boundary trait Registrar {
+    machine install<machine Callback>() -> i32
+    where machine Callback satisfies Handler::notify;
+}
+
+data CallbackBody {}
+machine CallbackBody::notify() satisfies Handler::notify {}
+
+machine main() reaches Registrar crashes Trap {
+    let code: i32 = Registrar::install<CallbackBody::notify>();
+    transition code == 0 { true -> done() _ -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}

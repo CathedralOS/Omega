@@ -294,17 +294,19 @@ pub fn validate_nominal_callback_placement_bindings(
                     && realization.boundary_arguments.is_empty()
             })
             .collect::<Vec<_>>();
-        let foreign_registration = match registration_is_foreign(
+        let registration = match selected_callback_registration(
             typed,
             selected_providers,
             nominal_use.registration_operation,
         ) {
-            Ok(boundary) => boundary,
+            Ok(registration) => registration,
             Err(reason) => {
                 diagnostics.push(Diagnostic::error(reason));
                 continue;
             }
         };
+        let foreign_registration =
+            matches!(registration, SelectedCallbackRegistration::ForeignLeaf);
         let Some(resource_receipt) = nominal_use.callback_entry else {
             if foreign_registration
                 && typed
@@ -483,36 +485,52 @@ pub fn validate_nominal_callback_placement_bindings(
     }
 }
 
-fn registration_is_foreign(
+/// Checked nominal uses also cover symbolic bodies and unselected target
+/// siblings. Only a selected external leaf owns a native callback placement;
+/// retaining a checked source use does not select a provider for it.
+#[derive(Clone, Copy)]
+enum SelectedCallbackRegistration {
+    CheckedSource,
+    UnselectedDeclaration,
+    ForeignLeaf,
+}
+
+fn selected_callback_registration(
     typed: &TypedTrees,
     selected: &effects::SelectedProviderPlanFacts,
     operation: symbols::SymbolHandle,
-) -> Result<bool, String> {
+) -> Result<SelectedCallbackRegistration, String> {
     let identity = if let Some((owner, signature)) = typed.trait_machine_signature(operation) {
         if !owner.is_boundary {
-            return Ok(false);
+            return Ok(SelectedCallbackRegistration::CheckedSource);
         }
         typed.trait_requirement_callable_identity_text(owner, signature)
     } else if let Some(machine) = typed.machine_by_own_or_state_symbol(operation) {
         if machine.supplies_checked_body() {
-            return Ok(false);
+            return Ok(SelectedCallbackRegistration::CheckedSource);
         }
         typed
             .machine_callable_identity_text(machine)
             .ok_or_else(|| {
                 "nominal machine registration lost its complete callable identity".to_owned()
             })?
+    } else if typed.machine_parameter_signature(operation).is_some() {
+        // A checked generic forwarding edge retains its binder declaration.
+        // Its eventual concrete selection owns any external materialization.
+        return Ok(SelectedCallbackRegistration::CheckedSource);
     } else {
         return Err(format!(
             "nominal machine use lost its exact registration declaration: {} ({operation:?})",
             typed.symbols.display_path(operation, "::"),
         ));
     };
-    let (plan, row) = selected
-        .selected_requirement_row(&identity)
-        .ok_or_else(|| {
-            "nominal callback registration has no exact selected provider row".to_owned()
-        })?;
+    let Some((plan, row)) = selected.selected_requirement_row(&identity) else {
+        // This roster is a source judgment, not executable reachability. An
+        // unselected declaration has no native placement to publish. Actual
+        // external calls still owe provider selection and calling-plan custody
+        // at the ordinary selected-provider and Terminal realization joins.
+        return Ok(SelectedCallbackRegistration::UnselectedDeclaration);
+    };
     match &row.binding {
         effects::provider_plan::ProviderBinding::CheckedAdapter { .. } => {
             let context =
@@ -523,11 +541,11 @@ fn registration_is_foreign(
                     "callback forwarding provider does not supply a checked body".to_owned(),
                 );
             }
-            Ok(false)
+            Ok(SelectedCallbackRegistration::CheckedSource)
         }
         // Imports, syscalls, intrinsics and opaque table dispatch are actual
         // external leaves. None may borrow a checked-adapter exemption.
-        _ => Ok(true),
+        _ => Ok(SelectedCallbackRegistration::ForeignLeaf),
     }
 }
 

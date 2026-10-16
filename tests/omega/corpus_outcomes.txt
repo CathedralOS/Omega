@@ -1487,6 +1487,10 @@ fail/calls/empty_body_return_machine_rejected rejected 2801ms expected @a9ae30e1
 	machine `Main::get` state `get` declares a return type but its body is empty -- it can never produce the value (callers would silently bind 0). Return a value or drop the `-> T`.
 fail/calls/float_bound_requires_argument_rejected rejected 2839ms expected @a9ae30e1c334+wt
 	machine `Main::main` state `main` value call to `Main::pick` violates required fact `d > 5.0`: the instantiated fact is structurally false
+fail/calls/foreign_applied_callback_requires_selected_entry_plan rejected 3290ms expected @cf8d1dac5338
+	foreign callback registration requires an explicit selected callback calling plan
+fail/calls/foreign_callback_requires_selected_entry_plan rejected 3295ms expected @cf8d1dac5338
+	foreign callback registration requires an explicit selected callback calling plan
 fail/calls/free_machine_named_transition_rejected rejected 895ms expected @a9ae30e1c334+wt
 	unsupported transition target `scan`
 fail/calls/generic_operator_guard_argument_mismatch rejected 1817ms expected @cd5a3c1ae981+wt
