@@ -95,6 +95,9 @@ impl MachineEffectCatalogIdentity {
 /// carrier-scaled variants expanded over that carrier's `ALL`; `dynamic`
 /// items are variants whose forms `ALL` appends after the fixed roster.
 macro_rules! machine_semantic_kinds {
+    (@count fixed $variant:ident) => { 1usize };
+    (@count family $variant:ident($carrier:ident)) => { $carrier::ALL.len() };
+    (@count dynamic $variant:ident($form:ident)) => { 0usize };
     (@entry ($fixed:ident, $index:ident) fixed $variant:ident) => {{
         $fixed[$index] = Self::$variant;
         $index += 1;
@@ -116,8 +119,8 @@ macro_rules! machine_semantic_kinds {
 
         impl MachineSemanticKind {
             #[allow(unused_assignments)]
-            const FIXED: [Self; 131] = {
-                let mut fixed = [Self::Crash; 131];
+            const FIXED: [Self; 0 $(+ machine_semantic_kinds!(@count $kind $variant $(($payload))?))*] = {
+                let mut fixed = [Self::Crash; 0 $(+ machine_semantic_kinds!(@count $kind $variant $(($payload))?))*];
                 let mut index = 0usize;
                 $( machine_semantic_kinds!(@entry (fixed, index) $kind $variant $(($payload))?); )*
                 fixed
@@ -237,6 +240,7 @@ machine_semantic_kinds! {
     { fixed PortRegisterWrite },
     { fixed ModelSpecificRead },
     { fixed ModelSpecificWrite },
+    { fixed ProcessorHalt },
 
     { fixed AtomicFence },
     {
@@ -321,6 +325,7 @@ pub enum MachineAlternativeFamily {
     PortRegisterWrite,
     ModelSpecificRead,
     ModelSpecificWrite,
+    ProcessorHalt,
 
     AtomicFence,
     AtomicAccess(AtomicForm),
@@ -427,6 +432,7 @@ impl From<MachineSemanticKind> for MachineAlternativeFamily {
             MachineSemanticKind::PortRegisterWrite => Self::PortRegisterWrite,
             MachineSemanticKind::ModelSpecificRead => Self::ModelSpecificRead,
             MachineSemanticKind::ModelSpecificWrite => Self::ModelSpecificWrite,
+            MachineSemanticKind::ProcessorHalt => Self::ProcessorHalt,
 
             MachineSemanticKind::CopyBytes => Self::CopyBytes,
             MachineSemanticKind::BitwiseAndI64 => Self::BitwiseAndI64,

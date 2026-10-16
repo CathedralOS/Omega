@@ -1,0 +1,17 @@
+// Compile only: privileged HLT must remain a real zero-operand event through
+// helper calls and state transitions. Never execute this fixture on a host OS.
+use omega::language::core::assembly;
+
+machine pause_processor() reaches MachineControl {
+    asm { hlt }
+}
+
+machine main() reaches MachineControl {
+    asm { hlt }
+    pause_processor();
+    transition { _ -> idle() }
+    state idle() {
+        asm { hlt }
+        transition { _ -> idle() }
+    }
+}

@@ -15,6 +15,7 @@ pub struct SelectedConstraintKeys {
     pub port_register_write: Option<RegisterConstraintKey>,
     pub model_specific_read: Option<RegisterConstraintKey>,
     pub model_specific_write: Option<RegisterConstraintKey>,
+    pub processor_halt: Option<RegisterConstraintKey>,
     pub atomic_fence: Option<RegisterConstraintKey>,
     pub atomic_load: Option<RegisterConstraintKey>,
     pub atomic_store: Option<RegisterConstraintKey>,

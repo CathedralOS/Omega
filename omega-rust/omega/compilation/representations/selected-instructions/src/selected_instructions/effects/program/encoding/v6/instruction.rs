@@ -564,6 +564,7 @@ fn decode_alternative_for_version(
         250 => MachineAlternativeFamily::PortRegisterWrite,
         251 => MachineAlternativeFamily::ModelSpecificRead,
         252 => MachineAlternativeFamily::ModelSpecificWrite,
+        253 => MachineAlternativeFamily::ProcessorHalt,
 
         238 => MachineAlternativeFamily::AtomicFence,
         235 => MachineAlternativeFamily::ZeroBytes,

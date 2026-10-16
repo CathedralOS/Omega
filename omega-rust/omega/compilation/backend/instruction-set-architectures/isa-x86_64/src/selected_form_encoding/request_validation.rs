@@ -48,9 +48,11 @@ fn family_and_operand_count(
     X86_64SelectedFormEncodingError,
 > {
     Ok(match kind {
-        SelectedInstructionKind::RegisterAccess { operation } => {
-            (super::register_access::family(operation)?, 2, 0..=0)
-        }
+        SelectedInstructionKind::RegisterAccess { operation } => (
+            super::register_access::family(operation)?,
+            operation.input_carriers().len() + usize::from(operation.produces_value()),
+            0..=0,
+        ),
         SelectedInstructionKind::PlacedScalarAccess { form, .. } => {
             (MachineAlternativeFamily::PlacedScalarAccess(form), 2, 0..=0)
         }

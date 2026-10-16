@@ -217,6 +217,11 @@ pub fn x86_64_register_constraint_catalog(
         port_write,
         instruction_row(
             RegisterConstraintId(0),
+            crate::X86_64_PROCESSOR_HALT,
+            Vec::new(),
+        ),
+        instruction_row(
+            RegisterConstraintId(0),
             crate::X86_64_ATOMIC_FENCE,
             Vec::new(),
         ),

@@ -58,6 +58,9 @@ impl OperationFrame<'_, '_> {
             inputs.push(value.id);
         }
         let event = match (operation, inputs.as_slice()) {
+            (AsmRegisterOperation::ProcessorHalt, []) => {
+                terminal_psi::RegisterAccessEvent::ProcessorHalt
+            }
             (AsmRegisterOperation::SystemRead(register), []) => {
                 terminal_psi::RegisterAccessEvent::Read { register }
             }

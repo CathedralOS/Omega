@@ -1,0 +1,5 @@
+// Declaring reach cannot override the receiver's refusal of MachineControl.
+use omega::language::core::assembly;
+machine main() reaches MachineControl {
+    asm { hlt }
+}

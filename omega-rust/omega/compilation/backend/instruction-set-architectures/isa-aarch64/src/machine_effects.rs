@@ -246,6 +246,7 @@ fn selected_keys(
         port_register_write: None,
         model_specific_read: None,
         model_specific_write: None,
+        processor_halt: None,
         atomic_fence: Some(crate::AARCH64_ATOMIC_FENCE),
         // Apple's arm64 macOS baseline is Apple Silicon (M1 or later),
         // which includes FEAT_LSE. Generic AArch64/ELF does not promise it.
@@ -515,6 +516,7 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
         | MachineSemanticKind::PortRegisterWrite
         | MachineSemanticKind::ModelSpecificRead
         | MachineSemanticKind::ModelSpecificWrite
+        | MachineSemanticKind::ProcessorHalt
         | MachineSemanticKind::PortWrite => unreachable!("x86 port I/O has no AArch64 constraint"),
         MachineSemanticKind::SystemRegisterRead => {
             return crate::selected_form_encoding::register_access::effects(true);

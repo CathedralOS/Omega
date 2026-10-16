@@ -550,6 +550,9 @@ pub(super) fn decode_register_access(reader: &mut Reader<'_>) -> Result<Operatio
         CodecError::MalformedStructuralFoundation("unknown register access catalog identity"),
     )?;
     let event = match operation {
+        terminal_psi::RegisterOperation::ProcessorHalt => {
+            terminal_psi::RegisterAccessEvent::ProcessorHalt
+        }
         terminal_psi::RegisterOperation::SystemRead(register) => {
             terminal_psi::RegisterAccessEvent::Read { register }
         }

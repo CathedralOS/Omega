@@ -1,8 +1,9 @@
-//! Scalar register events shared by checked planning and target realization.
+//! Register and processor-control events shared by checking and realization.
 //!
 //! The register catalog supplies identity and operand contracts. These events
-//! retain an actual read or write, independently of the source place receiving
-//! a read or the expression supplying a write. Neither grants machine authority.
+//! retain the hardware event independently of its scalar operands: reads,
+//! writes and operand-free processor control all remain observable. No event
+//! grants machine authority.
 
 use super::{AsmSystemRegister, AsmTargetApplicability};
 
@@ -36,6 +37,9 @@ impl AsmRegisterCarrier {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum AsmRegisterOperation {
+    /// Stop instruction execution until the architecture's admitted wake event.
+    /// No value operand or result is implied; this is not an empty Unit call.
+    ProcessorHalt,
     SystemRead(AsmSystemRegister),
     SystemWrite(AsmSystemRegister),
     PortRead,
@@ -49,6 +53,7 @@ impl AsmRegisterOperation {
     /// tags carry no ISA encoding, operand values or authority disposition.
     pub const fn catalog_tag(self) -> u16 {
         match self {
+            Self::ProcessorHalt => 0x400,
             Self::SystemRead(register) => register.catalog_id() as u16,
             Self::SystemWrite(register) => 0x100 | register.catalog_id() as u16,
             Self::PortRead => 0x200,
@@ -60,6 +65,7 @@ impl AsmRegisterOperation {
 
     pub const fn from_catalog_tag(tag: u16) -> Option<Self> {
         match tag {
+            0x400 => return Some(Self::ProcessorHalt),
             0x200 => return Some(Self::PortRead),
             0x201 => return Some(Self::PortWrite),
             0x300 => return Some(Self::ModelSpecificRead),
@@ -79,6 +85,7 @@ impl AsmRegisterOperation {
     /// Decode the canonical name of an already resolved compiler builtin.
     pub fn from_intrinsic_name(name: &str) -> Option<Self> {
         match name {
+            "asm#hlt" => return Some(Self::ProcessorHalt),
             "asm#port_in" => return Some(Self::PortRead),
             "asm#port_out" => return Some(Self::PortWrite),
             "asm#rdmsr" => return Some(Self::ModelSpecificRead),
@@ -99,7 +106,7 @@ impl AsmRegisterOperation {
     pub const fn input_carriers(self) -> &'static [AsmRegisterCarrier] {
         use AsmRegisterCarrier::*;
         match self {
-            Self::SystemRead(_) => &[],
+            Self::SystemRead(_) | Self::ProcessorHalt => &[],
             Self::SystemWrite(_) => &[U64],
             Self::PortRead => &[U16],
             Self::PortWrite => &[U16, U8],
@@ -131,6 +138,7 @@ impl AsmRegisterOperation {
             | Self::PortRead
             | Self::PortWrite
             | Self::ModelSpecificRead
+            | Self::ProcessorHalt
             | Self::ModelSpecificWrite => true,
             Self::SystemWrite(register) => register.write_intrinsic_name().is_some(),
         }
@@ -145,6 +153,12 @@ mod tests {
     fn x86_register_signatures_retain_exact_carriers_and_catalog_identity() {
         use AsmRegisterCarrier::*;
         for (name, operation, inputs, result) in [
+            (
+                "asm#hlt",
+                AsmRegisterOperation::ProcessorHalt,
+                &[][..],
+                None,
+            ),
             (
                 "asm#port_in",
                 AsmRegisterOperation::PortRead,
@@ -185,7 +199,7 @@ mod tests {
                 AsmTargetApplicability::X86_64
             );
         }
-        for tag in [0x202, 0x302, 0x400, u16::MAX] {
+        for tag in [0x202, 0x302, 0x401, u16::MAX] {
             assert_eq!(AsmRegisterOperation::from_catalog_tag(tag), None);
         }
     }

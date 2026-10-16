@@ -610,6 +610,7 @@ macro_rules! effect_tag_arms {
             $enum::PortRegisterWrite => 250,
             $enum::ModelSpecificRead => 251,
             $enum::ModelSpecificWrite => 252,
+            $enum::ProcessorHalt => 253,
 
             $enum::AtomicFence => 238,
             $enum::AtomicAccess(form) => form.machine_tag(),

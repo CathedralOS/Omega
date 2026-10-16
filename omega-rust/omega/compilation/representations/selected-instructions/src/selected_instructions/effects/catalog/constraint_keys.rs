@@ -16,6 +16,7 @@ impl SelectedConstraintKeys {
             self.port_register_write,
             self.model_specific_read,
             self.model_specific_write,
+            self.processor_halt,
             self.atomic_fence,
             self.atomic_load,
             self.atomic_store,
@@ -144,6 +145,7 @@ impl SelectedConstraintKeys {
             MachineSemanticKind::PortRegisterWrite => return self.port_register_write,
             MachineSemanticKind::ModelSpecificRead => return self.model_specific_read,
             MachineSemanticKind::ModelSpecificWrite => return self.model_specific_write,
+            MachineSemanticKind::ProcessorHalt => return self.processor_halt,
             MachineSemanticKind::AtomicFence => return self.atomic_fence,
             MachineSemanticKind::AtomicAccess(form) => {
                 return match form.operation {

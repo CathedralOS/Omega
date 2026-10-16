@@ -1,4 +1,4 @@
-//! Scalar IN/OUT and RDMSR/WRMSR envelopes. Inputs are snapshotted before
+//! HLT and scalar IN/OUT and RDMSR/WRMSR envelopes. Inputs are snapshotted before
 //! architectural registers change; R10/R11 cycles use the already-clobbered
 //! RAX. BSWAP and LEA split/join EDX:EAX without changing flags or the stack.
 //! Intel SDM volume 2 specifies RDMSR's zero-extended EAX/EDX result halves:
@@ -27,6 +27,7 @@ pub(crate) fn semantic(operation: Operation) -> Option<Semantic> {
         Operation::PortWrite => Semantic::PortRegisterWrite,
         Operation::ModelSpecificRead => Semantic::ModelSpecificRead,
         Operation::ModelSpecificWrite => Semantic::ModelSpecificWrite,
+        Operation::ProcessorHalt => Semantic::ProcessorHalt,
         _ => return None,
     })
 }
@@ -37,6 +38,7 @@ pub(crate) fn operation(semantic: Semantic) -> Option<Operation> {
         Semantic::PortRegisterWrite => Operation::PortWrite,
         Semantic::ModelSpecificRead => Operation::ModelSpecificRead,
         Semantic::ModelSpecificWrite => Operation::ModelSpecificWrite,
+        Semantic::ProcessorHalt => Operation::ProcessorHalt,
         _ => return None,
     })
 }
@@ -77,13 +79,9 @@ pub(crate) fn effects(operation: Operation) -> MachineEncodedEffects {
         implicit_unit_clobbers: clobbers,
         trap: MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
         ..MachineEncodedEffects::fallthrough_v1(
+            (0..operation.input_carriers().len() as u16).collect(),
             if operation.produces_value() {
-                vec![0]
-            } else {
-                vec![0, 1]
-            },
-            if operation.produces_value() {
-                vec![1]
+                vec![operation.input_carriers().len() as u16]
             } else {
                 vec![]
             },
@@ -109,9 +107,13 @@ pub(crate) fn declaration(
                 variant: 0,
             },
             applicability: MachineAlternativeApplicability::Always,
-            size: MachineSizeKnowledge::EncoderResolved {
-                minimum_bytes: 1,
-                maximum_bytes: Some(40),
+            size: if operation == Operation::ProcessorHalt {
+                MachineSizeKnowledge::ExactBytes(1)
+            } else {
+                MachineSizeKnowledge::EncoderResolved {
+                    minimum_bytes: 1,
+                    maximum_bytes: Some(40),
+                }
             },
             latency: MachineLatencyKnowledge::StableBaselineUnavailable,
             encoded: effects(operation),
@@ -136,6 +138,13 @@ fn swap_bytes(bytes: &mut Vec<u8>, register: u8, wide: bool) {
 
 pub(crate) fn encode(operation: Operation, registers: &[u8]) -> Result<Vec<u8>, Error> {
     family(operation)?;
+    if operation == Operation::ProcessorHalt {
+        return if registers.is_empty() {
+            Ok(vec![0xf4])
+        } else {
+            Err(Error::OperandCountMismatch)
+        };
+    }
     let [first, second] = registers else {
         return Err(Error::OperandCountMismatch);
     };
@@ -224,6 +233,11 @@ fn decode(bytes: &[u8]) -> Option<Vec<Decoded>> {
     let mut decoded = Vec::new();
     while cursor < bytes.len() {
         match bytes[cursor] {
+            0xf4 => {
+                decoded.push(Decoded::Physical(Operation::ProcessorHalt));
+                cursor += 1;
+                continue;
+            }
             0xec | 0xee => {
                 decoded.push(Decoded::Physical(if bytes[cursor] == 0xec {
                     Operation::PortRead
@@ -296,6 +310,14 @@ fn decode(bytes: &[u8]) -> Option<Vec<Decoded>> {
 // hardware result have separate identities. Aliased input operands therefore
 // retain the exact same value instead of inventing independent source words.
 fn validate_bits(operation: Operation, registers: &[u8], bytes: &[u8]) -> Option<()> {
+    if operation == Operation::ProcessorHalt {
+        return (registers.is_empty()
+            && matches!(
+                decode(bytes)?.as_slice(),
+                [Decoded::Physical(Operation::ProcessorHalt)]
+            ))
+        .then_some(());
+    }
     const ZERO: u16 = u16::MAX;
     const RESULT: u16 = 1024;
     let mut words = std::array::from_fn::<_, 16, _>(|register| {
@@ -454,6 +476,30 @@ pub(crate) fn validate(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn processor_halt_is_one_operand_free_hardware_event() {
+        let operation = Operation::ProcessorHalt;
+        assert_eq!(encode(operation, &[]).unwrap(), [0xf4]);
+        assert!(encode(operation, &[0]).is_err());
+        assert!(validate_bits(operation, &[], &[0xf4]).is_some());
+        for bytes in [&[][..], &[0x90], &[0xf4, 0xf4], &[0xf4, 0x90], &[0xee]] {
+            assert!(validate_bits(operation, &[], bytes).is_none());
+        }
+        assert!(validate_bits(operation, &[0], &[0xf4]).is_none());
+        let encoded = effects(operation);
+        assert!(encoded.implicit_unit_clobbers.is_empty());
+        let declaration = declaration(operation, crate::X86_64_PROCESSOR_HALT);
+        assert_eq!(declaration.barrier, MachineBarrier::ExternalEffect);
+        assert_eq!(
+            declaration.trap,
+            MachineTrapBehavior::MayArchitecturalFaultV1
+        );
+        assert_eq!(
+            declaration.alternatives[0].size,
+            MachineSizeKnowledge::ExactBytes(1)
+        );
+    }
 
     #[test]
     fn every_operand_alias_preserves_port_and_model_specific_bits() {

@@ -373,6 +373,11 @@ pub const X86_64_MODEL_SPECIFIC_WRITE: RegisterConstraintKey = RegisterConstrain
     variant: 806,
 };
 
+pub const X86_64_PROCESSOR_HALT: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 807,
+};
+
 pub const X86_64_PORT_WRITE: RegisterConstraintKey = RegisterConstraintKey {
     family: RegisterConstraintFamily::Instruction,
     variant: 802,
@@ -503,7 +508,7 @@ pub const X86_64_JUMP: RegisterConstraintKey = RegisterConstraintKey {
 /// required by a register-passed scalar conditional-return CFG plus the first
 /// arithmetic row needed by the pressure vertical. This is not a claim that
 /// the target's ordinary instruction inventory is complete.
-pub(crate) const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 108] = [
+pub(crate) const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 109] = [
     X86_64_SYSTEM_V_CALL,
     X86_64_MICROSOFT_CALL,
     X86_64_SYSTEM_V_CALL_I64_PAIR_TO_I64,
@@ -676,6 +681,7 @@ pub(crate) const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 1
     X86_64_PORT_REGISTER_WRITE,
     X86_64_MODEL_SPECIFIC_READ,
     X86_64_MODEL_SPECIFIC_WRITE,
+    X86_64_PROCESSOR_HALT,
     X86_64_PLACED_READ,
     X86_64_PLACED_WRITE,
 ];

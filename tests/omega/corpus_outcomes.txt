@@ -3559,6 +3559,9 @@ fail/inline_asm/asm_deriver_only_exit rejected 0ms expected @9f1c8cc89b93+wt
 	tests/omega/fail/inline_asm/asm_deriver_only_exit/main.omg:6:11: asm instruction `iretq` is deriver-only: user-authored assembly may not spell entry/exit protocol operations or manufacture an unmodeled control exit
 fail/inline_asm/asm_fact_operand_mutation rejected 3214ms expected @9f1c8cc89b93+wt
 	cannot prove asm `ensures` fact at block exit in Main::main state `main` (statement 5): main.ready
+fail/inline_asm/asm_halt_excluded_machine_control rejected 57914ms expected @7e07966179ed+wt
+	requested behavior exclusions could not be satisfied by the reviewed mechanism closure
+	authority subject `toolchain::MachineControl` exercises excluded physical authority class MachineControl through mechanism CompilerIntrinsic(BuiltinFunction(AsmHlt))
 fail/inline_asm/asm_hidden_return rejected 0ms expected @9f1c8cc89b93+wt
 	tests/omega/fail/inline_asm/asm_hidden_return/main.omg:6:11: asm instruction `ret` creates a hidden control exit: user assembly may not return, call, or branch indirectly; spell control flow as `jmp state(...)`
 fail/inline_asm/asm_mov_bracket_memory rejected 0ms expected @9f1c8cc89b93+wt
@@ -7604,6 +7607,7 @@ pass/inline_asm/asm_msr_multi checked 6660ms @9f1c8cc89b93+wt
 pass/inline_asm/asm_port_contract checked 6656ms @9f1c8cc89b93+wt
 pass/inline_asm/asm_port_immediate checked 6690ms @9f1c8cc89b93+wt
 pass/inline_asm/asm_port_out_final_validation checked 6690ms check-target:linux_x86_64 @9f1c8cc89b93+wt
+pass/inline_asm/asm_processor_halt_compositions_compile checked 57980ms check-target:linux_x86_64 @7e07966179ed+wt
 pass/inline_asm/asm_reach_inherit checked 6849ms @9f1c8cc89b93+wt
 pass/inline_asm/asm_reach_wrapper checked 6821ms @9f1c8cc89b93+wt
 pass/inline_asm/asm_runtime_port_msr_final_validation checked 6759ms check-target:linux_x86_64 @9f1c8cc89b93+wt

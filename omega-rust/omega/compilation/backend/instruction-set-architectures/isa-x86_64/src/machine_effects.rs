@@ -271,6 +271,7 @@ fn selected_keys(
         port_register_write: Some(crate::X86_64_PORT_REGISTER_WRITE),
         model_specific_read: Some(crate::X86_64_MODEL_SPECIFIC_READ),
         model_specific_write: Some(crate::X86_64_MODEL_SPECIFIC_WRITE),
+        processor_halt: Some(crate::X86_64_PROCESSOR_HALT),
         atomic_fence: Some(crate::X86_64_ATOMIC_FENCE),
         // LOCK is architectural on every x86-64 target; no feature custody
         // gates the family the way AArch64's LSE does.
@@ -639,7 +640,8 @@ fn encoded_effects(semantic: MachineSemanticKind, variant: u32) -> MachineEncode
         MachineSemanticKind::PortRegisterRead
         | MachineSemanticKind::PortRegisterWrite
         | MachineSemanticKind::ModelSpecificRead
-        | MachineSemanticKind::ModelSpecificWrite => {
+        | MachineSemanticKind::ModelSpecificWrite
+        | MachineSemanticKind::ProcessorHalt => {
             return crate::selected_form_encoding::register_access::effects(
                 crate::selected_form_encoding::register_access::operation(semantic)
                     .expect("x86 register semantic"),
@@ -985,6 +987,7 @@ fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
             MachineSizeKnowledge::ExactBytes(x86_encoding::IMMEDIATE_PORT_WRITE_WIDTH as u16)
         }
         MachineSemanticKind::AtomicFence => MachineSizeKnowledge::ExactBytes(3),
+        MachineSemanticKind::ProcessorHalt => MachineSizeKnowledge::ExactBytes(1),
         MachineSemanticKind::FloatResultPolicy(form) => {
             crate::selected_form_encoding::float_result_policy::size(form)
         }

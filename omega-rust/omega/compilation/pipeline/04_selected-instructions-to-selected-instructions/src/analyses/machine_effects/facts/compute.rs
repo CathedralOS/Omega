@@ -118,6 +118,7 @@ fn terminal_selected_keys(
         port_register_write: keys.port_register_write,
         model_specific_read: keys.model_specific_read,
         model_specific_write: keys.model_specific_write,
+        processor_halt: keys.processor_halt,
         atomic_fence: keys.atomic_fence,
         placed_read: keys.placed_read,
         placed_write: keys.placed_write,
@@ -327,6 +328,9 @@ pub(crate) fn machine_semantic_kind(kind: SelectedInstructionKind) -> MachineSem
             }
             selected_instructions::RegisterOperation::ModelSpecificWrite => {
                 MachineSemanticKind::ModelSpecificWrite
+            }
+            selected_instructions::RegisterOperation::ProcessorHalt => {
+                MachineSemanticKind::ProcessorHalt
             }
         },
         SelectedInstructionKind::PlacedScalarAccess { form, .. } => {
