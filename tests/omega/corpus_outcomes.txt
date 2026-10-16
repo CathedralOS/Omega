@@ -6949,6 +6949,7 @@ pass/generics/runtime_equation_named_array_actual_exit checked 6887ms check-targ
 pass/generics/runtime_finite_recursive_reference_catalog_exit checked 11194ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/generics/runtime_forwarded_generic_slice_result_exit checked 4018ms check-target:macos_arm64 @71e65af3059c+wt
 pass/generics/runtime_forwarded_value_contract_exit checked 11857ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/generics/runtime_generic_array_field_writes_exit checked 8382ms check-target:macos_arm64 @ebb617ff4f07+wt
 pass/generics/runtime_generic_carrier_binder_equation_exit checked 5549ms check-target:macos_arm64 @589aedee8ebc+wt
 pass/generics/runtime_generic_carrier_equation_context_exit checked 5746ms check-target:macos_arm64 @589aedee8ebc+wt
 pass/generics/runtime_generic_carrier_equation_exit checked 5915ms check-target:macos_arm64 @0ee813e8e9c7+wt

@@ -845,6 +845,19 @@ fn projection_receiver_type(
     None
 }
 
+fn is_builtin_indexed_shape(
+    program: &dyn crate::CheckingInput,
+    mut reference: TypeReferenceHandle,
+) -> bool {
+    loop {
+        match program.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::Constrained { base_type, .. } => reference = *base_type,
+            TypeReferenceNode::FixedArray { .. } | TypeReferenceNode::Slice { .. } => return true,
+            _ => return false,
+        }
+    }
+}
+
 fn selected_value_type(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
@@ -1013,8 +1026,12 @@ fn selected_value_type(
             )?;
             // Selection needs the applied collection, not a raw field
             // telescope whose substituted elements could match another
-            // authored operator. This query does not materialize types.
+            // authored operator. This query does not materialize types. A
+            // fixed array or slice already selects builtin indexing by its
+            // shape: substituting its element or extent cannot introduce an
+            // authored operator, so only other carriers must be applied.
             if !substitutions.is_empty()
+                && !is_builtin_indexed_shape(program, collection)
                 && program.normalized_type_identity(collection)
                     != program.type_identity(TypeIdentityRequest {
                         substitutions,

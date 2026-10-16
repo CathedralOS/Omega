@@ -510,6 +510,7 @@ pass/generics/runtime_closed_case_array_payload_exit built 2379ms exit:0 interpr
 pass/generics/runtime_const_container_methods_exit built 1598ms exit:70 interpreter-exit:70 interpreter:agrees @0c36a0fe0b35
 pass/generics/runtime_copied_indexed_case_subject_exit built 1602ms exit:70 interpreter-exit:70 interpreter:agrees @0c36a0fe0b35
 pass/generics/runtime_finite_recursive_reference_catalog_exit built 2249ms exit:0 interpreter-exit:0 interpreter:agrees @f5eade25e1fd+wt
+pass/generics/runtime_generic_array_field_writes_exit built 8409ms exit:70 interpreter-exit:70 interpreter:agrees @ebb617ff4f07+wt
 pass/generics/runtime_inherited_composite_requirement_exit built 2899ms exit:0 interpreter-exit:0 interpreter:agrees @eed71058e867
 pass/generics/swapped_type_parameter_result checked 1783ms @c083b963e5ba
 pass/host/console_exit_process_exit built 1352ms exit:70 stdout:match interpreter-exit:70 interpreter-stdout:match interpreter:agrees @2424b17e715c

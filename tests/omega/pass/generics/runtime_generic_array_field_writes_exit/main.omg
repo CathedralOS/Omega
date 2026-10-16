@@ -1,0 +1,23 @@
+// Element stores into arrays whose type or extent comes from a generic data
+// parameter: a type-generic pair written through a reference and through a
+// local, and a const-generic nested record. Each array indexes builtin by its
+// shape, so writing through the mutable receiver needs no applied operator.
+use omega_language_std::console;
+data Pair<T> { items: [T; 2]; }
+data Outer<const N: u64> where N >= 1 { inner: Inner<N>; }
+data Inner<const N: u64> where N >= 1 { cells: [u8; N]; }
+machine Pair::set_second<T>(pair: &mut Pair<T>, value: T) { pair.items[1] = value; }
+machine Outer::fill<const N: u64>(outer: &mut Outer<N>) requires N >= 1; { outer.inner.cells[0] = 9; }
+data Main { pair: Pair<i32>; outer: Outer<3>; }
+machine Main::main(main: &mut Main) reaches Console {
+    Pair::set_second(&mut main.pair, 61);
+    Outer::fill(&mut main.outer);
+    let mut local: Pair<u8> = Pair { items: [0, 0] };
+    local.items[0] = 4;
+    transition main.pair.items[1] == 61 && main.outer.inner.cells[0] == 9 && local.items[0] == 4 {
+        true -> good(main)
+        _ -> bad(main)
+    }
+    state good(main: &mut Main) { Console::exit_process(70); }
+    state bad(main: &mut Main) { Console::exit_process(71); }
+}
