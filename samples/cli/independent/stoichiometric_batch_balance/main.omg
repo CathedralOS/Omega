@@ -8,7 +8,7 @@ use chemistry::balance;
 use chemistry::inventory;
 use chemistry::report;
 
-data Main { }
+data Main { signature: chemistry::model::Signature; }
 data Input {
     values: [i64 in Wrapping; 19];
     count: u64;
@@ -16,11 +16,55 @@ data Input {
 }
 
 machine Main::main(context: &mut Main) reaches Console {
-    let mut input: Input;
-    block Main::read(context, &mut input);
-    transition input.status == 0 && input.count == 19 {
-        true -> declare(context, &input)
-        false -> invalid(context)
+    let produced: chemistry::model::Signature = chemistry::balance::signature_of(3, 2, 1, 2, 1);
+    let local_fourth: i64 in Wrapping = produced.fourth;
+    transition { _ -> hold(context, produced, local_fourth) }
+    state hold(context: &mut Main, parameter: chemistry::model::Signature, local_fourth: i64 in Wrapping) {
+        transition parameter.active == 3 && parameter.fourth == 0 && local_fourth == 0 {
+            true -> store(context, parameter)
+            false -> signature_mismatch(context)
+        }
+    }
+    state store(context: &mut Main, parameter: chemistry::model::Signature) {
+        context.signature = parameter;
+        let called: chemistry::model::Signature = chemistry::balance::signature_of(4, 1, 1, 1, 1);
+        transition context.signature.active == 3 && context.signature.fourth == 0 && called.active == 4 && called.fourth == 1 {
+            true -> rows(context)
+            false -> signature_mismatch(context)
+        }
+    }
+    state rows(context: &mut Main) {
+        let first: [i64 in Wrapping; 4] = [2, 0, 1, 0];
+        let second: [i64 in Wrapping; 4] = [0, 1, 0, 0];
+        let third: [i64 in Wrapping; 4] = [0, 0, 0, 1];
+        let selected: &[i64 in Wrapping; 4] = chemistry::balance::axis(&first, &second, &third, 0);
+        let held: chemistry::model::Held = chemistry::model::Held { row: selected };
+        let via_parameter: i64 in Wrapping = chemistry::balance::read_axis(selected);
+        let via_call: &[i64 in Wrapping; 4] = chemistry::balance::axis(&first, &second, &third, 2);
+        transition selected[0] == 2 && held.row[0] == 2 && via_parameter == 2 && via_call[3] == 1 {
+            true -> windows(context)
+            false -> signature_mismatch(context)
+        }
+    }
+    state windows(context: &mut Main) {
+        let mut coefficients: [i64 in Wrapping; 4] = [0, 0, 0, 0];
+        chemistry::balance::write_reactants(&mut coefficients[0..2]);
+        let reactants: &[i64 in Wrapping] = chemistry::balance::reactant_window(&coefficients, 0);
+        let held: chemistry::model::HeldWindow = chemistry::model::HeldWindow { values: reactants };
+        let via_parameter: i64 in Wrapping = chemistry::balance::read_window(held.values);
+        let via_call: &[i64 in Wrapping] = chemistry::balance::reactant_window(&coefficients, 1);
+        transition reactants.len == 2 && reactants[0] == 2 && reactants[1] == 1 && held.values.len == 2 && via_parameter == 2 && via_call.len == 2 {
+            true -> consume(context)
+            false -> signature_mismatch(context)
+        }
+    }
+    state consume(context: &mut Main) {
+        let mut input: Input;
+        block Main::read(context, &mut input);
+        transition input.status == 0 && input.count == 19 {
+            true -> declare(context, &input)
+            false -> invalid(context)
+        }
     }
     state declare(context: &mut Main, input: &Input) {
         let mut reaction: chemistry::model::Reaction;
@@ -128,6 +172,10 @@ machine Main::main(context: &mut Main) reaches Console {
         chemistry::report::line_number(third);
         Console::write_line("CONSERVATION_OK");
         Console::exit_process(0);
+    }
+    state signature_mismatch(context: &mut Main) {
+        Console::write_line("SIGNATURE_MISMATCH");
+        Console::exit_process(71);
     }
     state invalid(context: &mut Main) {
         Console::write_line("INVALID_INPUT");

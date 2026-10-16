@@ -4740,6 +4740,8 @@ fail/slices/invalid_subslice_end_bounds_unchecked rejected 1563ms expected @a9ae
 	cannot prove subslice range end bound `..9` is within slice length 4
 fail/slices/match_index_guard_does_not_escape rejected 1510ms expected @a9ae30e1c334+wt
 	cannot prove index `0` is within unknown slice length of `values` in observe::entry
+fail/slices/matched_window_lengths_disagree rejected 981ms expected @0e7ef4cb2ac8+wt
+	cannot prove ensures contract for exit from half at statement 0: result.len == 2
 fail/slices/mutable_subslice_state_out_of_bounds rejected 1504ms expected @a9ae30e1c334+wt
 	cannot prove subslice range end bound `1..3` is within unknown slice length
 fail/slices/mutable_subslice_state_requires_nonempty rejected 550ms expected @82646dcce47b+wt
@@ -4839,6 +4841,8 @@ fail/slices/shared_subslice_state_cannot_lend_mutable rejected 178ms expected @9
 	argument `items` for state `forwarded` is declared `&mut` (`&mut [i32]`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
 fail/slices/shared_view_arrival_cannot_mutate rejected 146ms expected @096f2ecfd243+wt
 	machine `write` state `entry` local `output` requires mutable source access; shared or immutable storage cannot supply it
+fail/slices/short_record_field_window rejected 923ms expected @0e7ef4cb2ac8+wt
+	cannot prove requires contract for call take from main: held.values.len >= 2 (needs fact `window.len >= 2` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/slices/signed_slice_index_upper_only rejected 1061ms expected @e6088bf995e6
 	cannot prove index `index` is non-negative
 fail/slices/signed_slice_range_upper_only rejected 1708ms expected @a9ae30e1c334+wt
@@ -8226,6 +8230,7 @@ pass/slices/inclusive_subslice_literal_bounds_compile checked 1579ms @a9ae30e1c3
 pass/slices/live_view_edge_write checked 9740ms @5041ef1af684+wt
 pass/slices/local_array_element_view_exit checked 11239ms check-target:macos_arm64 @1f63ee648905+wt
 pass/slices/local_record_array_state_view_exit checked 12143ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/slices/matched_window_length_through_record_field checked 5723ms check-target:macos_arm64 @0e7ef4cb2ac8+wt
 pass/slices/mut_field_subview checked 9849ms @5041ef1af684+wt
 pass/slices/mut_slice_establish checked 9589ms @5041ef1af684+wt
 pass/slices/mutable_byte_field_range_local_initializer_exit checked 11274ms check-target:macos_arm64 @a9ae30e1c334+wt

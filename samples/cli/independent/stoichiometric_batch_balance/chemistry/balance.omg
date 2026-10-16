@@ -4,6 +4,59 @@ use chemistry::model;
 // All arithmetic is bounded independently of machine representation: atoms
 // <=16, coefficients <=8, and each elemental side <=256. Wrapping carriers
 // specify ordinary operators, but none of these operations can wrap.
+// A three-species reaction has no fourth product. The match arms are calls,
+// and each call returns a fresh signature record.
+machine absent_signature(first: i64 in Wrapping, second: i64 in Wrapping, third: i64 in Wrapping) -> chemistry::model::Signature {
+    chemistry::model::Signature { active: 3, fourth: 0 }
+}
+
+machine present_signature(first: i64 in Wrapping, second: i64 in Wrapping, third: i64 in Wrapping, fourth: i64 in Wrapping) -> chemistry::model::Signature {
+    chemistry::model::Signature { active: 4, fourth: fourth }
+}
+
+machine signature_of(species: i64 in Wrapping, first: i64 in Wrapping, second: i64 in Wrapping, third: i64 in Wrapping, fourth: i64 in Wrapping) -> chemistry::model::Signature {
+    match species as i64 {
+        3 -> absent_signature(first, second, third)
+        _ -> present_signature(first, second, third, fourth)
+    }
+}
+
+// The selected elemental axis is one of the three row loans. The match arm
+// names that loan; the result keeps the row's lifetime.
+machine axis<'row>(first: &'row [i64 in Wrapping; 4], second: &'row [i64 in Wrapping; 4], third: &'row [i64 in Wrapping; 4], which: i64) -> &'row [i64 in Wrapping; 4] {
+    match which {
+        0 -> first
+        1 -> second
+        _ -> third
+    }
+}
+
+machine read_axis(row: &[i64 in Wrapping; 4]) -> i64 in Wrapping {
+    row[0]
+}
+
+// Reactant columns are the leading half of the coefficient row; products are
+// the trailing half. The match selects one shared window of that row. Both
+// windows have length 2, and that length is part of the result contract.
+machine reactant_window<'row>(row: &'row [i64 in Wrapping; 4], which: i64) -> &'row [i64 in Wrapping]
+ensures result.len == 2 {
+    match which {
+        0 -> &row[0..2]
+        _ -> &row[2..4]
+    }
+}
+
+machine write_reactants(window: &mut [i64 in Wrapping])
+requires window.len >= 2 {
+    window[0] = 2;
+    window[1] = 1;
+}
+
+machine read_window(window: &[i64 in Wrapping]) -> i64 in Wrapping
+requires window.len >= 1 {
+    window[0]
+}
+
 machine divisor(left: i64 in Wrapping, right: i64 in Wrapping) -> i64 in Wrapping {
     transition { _ -> reduce(left, right) }
     state reduce(left: i64 in Wrapping, right: i64 in Wrapping) -> i64 in Wrapping {
@@ -64,13 +117,17 @@ machine solve(reaction: &chemistry::model::Reaction, result: &mut chemistry::mod
         }
     }
     state consider(reaction: &chemistry::model::Reaction, result: &mut chemistry::model::Balance, ordinal: i64 in Wrapping, coefficient_first: i64 in Wrapping, coefficient_second: i64 in Wrapping, coefficient_third: i64 in Wrapping, coefficient_fourth: i64 in Wrapping) {
+        let signature: chemistry::model::Signature = signature_of(reaction.species, coefficient_first, coefficient_second, coefficient_third, coefficient_fourth);
         let pair: i64 in Wrapping = divisor(coefficient_first, coefficient_second);
         let triple: i64 in Wrapping = divisor(pair, coefficient_third);
         let common: i64 in Wrapping = divisor(triple, coefficient_fourth);
-        let first: bool = conserved(&reaction.first, coefficient_first, coefficient_second, coefficient_third, coefficient_fourth);
-        let second: bool = conserved(&reaction.second, coefficient_first, coefficient_second, coefficient_third, coefficient_fourth);
-        let third: bool = conserved(&reaction.third, coefficient_first, coefficient_second, coefficient_third, coefficient_fourth);
-        transition common == 1 && first && second && third {
+        let first_row: &[i64 in Wrapping; 4] = axis(&reaction.first, &reaction.second, &reaction.third, 0);
+        let second_row: &[i64 in Wrapping; 4] = axis(&reaction.first, &reaction.second, &reaction.third, 1);
+        let third_row: &[i64 in Wrapping; 4] = axis(&reaction.first, &reaction.second, &reaction.third, 2);
+        let first: bool = conserved(first_row, coefficient_first, coefficient_second, coefficient_third, coefficient_fourth);
+        let second: bool = conserved(second_row, coefficient_first, coefficient_second, coefficient_third, coefficient_fourth);
+        let third: bool = conserved(third_row, coefficient_first, coefficient_second, coefficient_third, coefficient_fourth);
+        transition common == 1 && first && second && third && signature.active == reaction.species {
             true -> accept(reaction, result, ordinal, coefficient_first, coefficient_second, coefficient_third, coefficient_fourth)
             false -> scan(reaction, result, ordinal + 1)
         }

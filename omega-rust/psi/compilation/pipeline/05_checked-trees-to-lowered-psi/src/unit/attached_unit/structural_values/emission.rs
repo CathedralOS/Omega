@@ -180,9 +180,39 @@ pub(crate) fn emit(
         }
         _ => None,
     };
+    // A borrowed view's join uses the loan the carrier declares. The binding
+    // may still record the descriptor as owned storage, while each match arm
+    // forwards the view itself under that loan. An owned join parameter would
+    // disagree with those arms. A missing carrier access is the shared loan.
+    let view_loan = structural_types.iter().find_map(|declaration| {
+        if declaration.id != structural_type {
+            return None;
+        }
+        let access = match declaration.shape {
+            terminal_psi::StructuralTypeShape::Reference { access, .. } => {
+                return Some(access);
+            }
+            terminal_psi::StructuralTypeShape::ByteSequence(
+                terminal_psi::ByteSequenceCarrier::BorrowedView { access }
+                | terminal_psi::ByteSequenceCarrier::BoundedView { access, .. },
+            )
+            | terminal_psi::StructuralTypeShape::ElementView { access, .. } => access,
+            _ => return None,
+        };
+        Some(access.unwrap_or(StructuralAccess::SharedBorrow))
+    });
     let result_access = if let Some(access) = borrowed_alias {
         // Equal source/destination carriers transport the existing loan. They
         // do not acquire owned custody merely because mutable access is affine.
+        access
+    } else if sources.is_empty()
+        && let Some(access) = view_loan
+        && result.local.access == checked_trees::CheckedStructuralAccess::Owned
+        && result.multiplicity == Multiplicity::Unrestricted
+    {
+        // No owned residual rides this edge, so the join can keep the view
+        // loan. A selection that still owns source storage keeps the owned
+        // descriptor route below.
         access
     } else if result.local.access == checked_trees::CheckedStructuralAccess::SharedBorrow
         && result.multiplicity == Multiplicity::Unrestricted

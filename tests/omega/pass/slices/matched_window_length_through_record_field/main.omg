@@ -1,0 +1,34 @@
+// Both windows of a four-byte row have length 2. The match publishes that
+// shared length, and the caller reads it through a local, a record field,
+// a parameter, and the call itself.
+// Expected native exit: 0
+data Held<'row> { values: &'row [u8]; }
+
+machine half(items: &[u8; 4], which: i64) -> &[u8]
+ensures result.len == 2
+{
+    match which {
+        0 -> items[0..2]
+        _ -> items[2..4]
+    }
+}
+
+machine take(window: &[u8]) requires window.len >= 2 { }
+
+machine main() crashes Trap {
+    let bytes: [u8; 4] = [1, 2, 3, 4];
+    let view: &[u8] = half(&bytes, 0);
+    take(view);
+    take(half(&bytes, 1));
+    let held: Held = Held { values: view };
+    take(held.values);
+    transition { _ -> parameter(held.values) }
+    state parameter(window: &[u8]) requires window.len >= 2 {
+        transition window.len == 2 {
+            true -> done()
+            false -> bad()
+        }
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

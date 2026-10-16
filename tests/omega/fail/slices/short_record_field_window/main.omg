@@ -1,0 +1,18 @@
+// A field keeps the initializer's length. A one-byte window does not satisfy
+// a two-byte requirement after it is stored in a record.
+data Held<'row> { values: &'row [u8]; }
+
+machine short(items: &[u8; 4]) -> &[u8]
+ensures result.len == 1
+{
+    items[0..1]
+}
+
+machine take(window: &[u8]) requires window.len >= 2 { }
+
+machine main() crashes Trap {
+    let bytes: [u8; 4] = [1, 2, 3, 4];
+    let view: &[u8] = short(&bytes);
+    let held: Held = Held { values: view };
+    take(held.values);
+}

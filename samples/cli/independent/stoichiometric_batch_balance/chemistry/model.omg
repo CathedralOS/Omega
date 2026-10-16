@@ -26,6 +26,17 @@ data Batch {
     overflow: bool;
 }
 
+// Species count selects which coefficient signature a call produces.
+// `active` is 3 or 4; `fourth` is the coefficient the absent product uses.
+data Signature {
+    active: i64 in Wrapping;
+    fourth: i64 in Wrapping;
+}
+
+// One elemental row borrowed from the reaction that owns it.
+data Held<'row> { row: &'row [i64 in Wrapping; 4]; }
+data HeldWindow<'row> { values: &'row [i64 in Wrapping]; }
+
 machine element_total(atoms: &[i64 in Wrapping; 4], inventory: &[i64 in Wrapping; 4]) -> i64 in Wrapping {
     atoms[0] * inventory[0] + atoms[1] * inventory[1]
         + atoms[2] * inventory[2] + atoms[3] * inventory[3]

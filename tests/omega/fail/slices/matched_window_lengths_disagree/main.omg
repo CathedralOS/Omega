@@ -1,0 +1,11 @@
+// Arms of different lengths do not publish either length as the match result.
+machine half(items: &[u8; 4], which: i64) -> &[u8]
+ensures result.len == 2
+{
+    match which {
+        0 -> items[0..1]
+        _ -> items[0..2]
+    }
+}
+
+machine main() {}

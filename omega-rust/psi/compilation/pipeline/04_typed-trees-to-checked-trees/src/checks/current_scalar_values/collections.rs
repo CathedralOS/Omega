@@ -9,7 +9,9 @@ use super::{
     CurrentScalarValues, Length, LengthSubject, admitted, fixed_length, integer_carrier, scoped,
 };
 use symbols::SymbolHandle;
-use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
+use typed_trees::expression::{
+    BinaryOperator, ExpressionHandle, ExpressionNode, TableMatchExpression,
+};
 use typed_trees::types::TypeReferenceHandle;
 use validation::{
     ScopedArithmeticBinder, ScopedArithmeticBinding, ScopedArithmeticExpression,
@@ -217,6 +219,18 @@ impl CurrentScalarValues<'_> {
                     right: Box::new(start),
                 })
             }
+            ExpressionNode::Match(dispatch) => self.matched_length(dispatch, depth),
+            ExpressionNode::Member(member) => self
+                .saved_field_length(member, depth)
+                .or_else(|| {
+                    super::field_collection_length(
+                        self.program,
+                        self.machine,
+                        self.state,
+                        expression,
+                    )
+                })
+                .or_else(|| self.declared_extent(expression)),
             ExpressionNode::Call(call) => {
                 let parameters =
                     validation::call_target_parameters(self.program, call.target_symbol)?;
@@ -257,6 +271,142 @@ impl CurrentScalarValues<'_> {
             }
             _ => super::field_collection_length(self.program, self.machine, self.state, expression)
                 .or_else(|| self.declared_extent(expression)),
+        }
+    }
+
+    /// Every arm contributes its own length. One shared observation is the
+    /// result. Arms that are not identical still agree when each folds to the
+    /// same integer, so `row[0..2]` and `row[2..4]` both publish length 2.
+    /// An arm without a length, or two arms with different lengths, publishes
+    /// nothing.
+    fn matched_length(
+        &self,
+        dispatch: &TableMatchExpression,
+        depth: usize,
+    ) -> Option<ScopedArithmeticValue> {
+        let arms = self.program.expression_table.match_arms(dispatch.arms);
+        if arms.is_empty() {
+            return None;
+        }
+        let mut lengths = Vec::new();
+        for arm in arms {
+            lengths.push(self.collection_length(arm.value, depth + 1)?);
+        }
+        if lengths.iter().skip(1).all(|length| length == &lengths[0]) {
+            return Some(lengths[0].clone());
+        }
+        let mut folded = Vec::new();
+        for length in &lengths {
+            folded.push(self.exact_length(length)?);
+        }
+        let first = &folded[0];
+        folded
+            .iter()
+            .all(|length| length == first)
+            .then(|| ScopedArithmeticValue::Integer(first.clone()))
+    }
+
+    fn exact_length(&self, value: &ScopedArithmeticValue) -> Option<numerics::bignum::BigInt> {
+        let interval = validation::scoped_arithmetic_value_bounds(
+            self.program,
+            self.machine,
+            &self.hypotheses,
+            value,
+        )?;
+        let low = interval.low?;
+        let high = interval.high?;
+        (low == high).then_some(low)
+    }
+
+    /// The length captured when this field was filled by a record literal.
+    /// A missing or retired observation is not a length.
+    fn saved_field_length(
+        &self,
+        member: &typed_trees::expression::TableMemberExpression,
+        _depth: usize,
+    ) -> Option<ScopedArithmeticValue> {
+        let name = self
+            .program
+            .expression_table
+            .name_path_node(member.receiver)?;
+        if !name.symbol.is_valid()
+            || name.symbol != name.head_symbol
+            || self
+                .program
+                .expression_table
+                .name_path_members(name.members)
+                .len()
+                != 1
+            || !member.member_symbol.is_valid()
+        {
+            return None;
+        }
+        self.lengths
+            .iter()
+            .find(|length| {
+                length.subject
+                    == LengthSubject::Field {
+                        owner: name.symbol,
+                        field: member.member_symbol,
+                    }
+                    && length.value.is_some()
+            })?
+            .value
+            .clone()
+    }
+
+    /// Record each slice field of a plain record literal under the binding
+    /// that owns the literal. Replacing the binding drops the previous
+    /// fields first, including when the new value is not a record literal.
+    pub(super) fn capture_record_fields(
+        &mut self,
+        owner: SymbolHandle,
+        owner_name: &str,
+        initializer: ExpressionHandle,
+    ) {
+        self.lengths.retain(|length| {
+            !matches!(
+                length.subject,
+                LengthSubject::Field {
+                    owner: existing, ..
+                } if existing == owner
+            )
+        });
+        let Some(literal) = self
+            .program
+            .expression_table
+            .struct_literal_node(initializer)
+        else {
+            return;
+        };
+        if literal.case_symbol.is_some() || owner_name.is_empty() {
+            return;
+        }
+        for field in self.program.expression_table.struct_fields(literal.fields) {
+            if !field.field_symbol.is_valid() {
+                continue;
+            }
+            let Some(value) = self.collection_length(field.value, 0) else {
+                continue;
+            };
+            let Some(type_reference) = validation::expression_result_type_reference(
+                self.program,
+                self.machine,
+                self.state,
+                field.value,
+            ) else {
+                continue;
+            };
+            self.lengths.push(Length {
+                subject: LengthSubject::Field {
+                    owner,
+                    field: field.field_symbol,
+                },
+                name: format!("{owner_name}.{}", field.name.as_str()),
+                stable: false,
+                type_reference,
+                value: Some(value),
+            });
         }
     }
 

@@ -12,6 +12,13 @@
 //! the existing access and effect checks. Local descriptors use the same
 //! replacement and effect retirement as scalar bindings; their captured
 //! measures survive endpoint stores, never descriptor replacement.
+//!
+//! A match result has one length only when every arm's length is the same
+//! observation, or each arm folds to the same exact integer. Differing arms
+//! stay unknown rather than publishing one arm's extent. A plain record
+//! literal captures each slice field's length from that field's initializer
+//! at the binding; a later write of the record retires those field
+//! observations together with the record.
 use crate::checks::unsigned;
 use crate::values::scalar::structural_fields;
 use numerics::arithmetic::ArithmeticDomain;
@@ -38,6 +45,12 @@ struct Binding {
 enum LengthSubject {
     Storage(SymbolHandle),
     Result(SymbolHandle),
+    /// One slice field of a record local, captured from the literal that
+    /// initialized that field. The owner is the record binding.
+    Field {
+        owner: SymbolHandle,
+        field: SymbolHandle,
+    },
 }
 
 /// A captured descriptor observation, not the capacity of its backing owner.
@@ -192,6 +205,11 @@ impl<'program> CurrentScalarValues<'program> {
                         local.initial_value,
                         ordinal,
                     );
+                    values.capture_record_fields(
+                        local.symbol,
+                        local.name.as_str(),
+                        local.initial_value,
+                    );
                     if let Some(primitive) = integer_carrier(program, local.type_reference) {
                         // The executed initializer has one value even when its
                         // computation is unavailable to arithmetic reasoning.
@@ -247,6 +265,17 @@ impl<'program> CurrentScalarValues<'program> {
                     } else {
                         values.invalidate_operand_writes(
                             frames.map(|frames| frames.assignment_write_frame(machine, statement)),
+                        );
+                    }
+                    if let ExpressionNode::Name(name) =
+                        program.expression_table.expression(assignment.target)
+                        && name.symbol.is_valid()
+                        && name.symbol == name.head_symbol
+                    {
+                        values.capture_record_fields(
+                            name.symbol,
+                            &program.expression_table.display_name(assignment.target),
+                            assignment.value,
                         );
                     }
                 }
