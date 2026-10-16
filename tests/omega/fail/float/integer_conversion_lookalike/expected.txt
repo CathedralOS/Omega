@@ -1,1 +1,2 @@
-machine `lookalike` state `entry` terminal expression returns a value not provably within its declared range
+machine `lookalike` state `entry`
+stores a value not provably within its declared range

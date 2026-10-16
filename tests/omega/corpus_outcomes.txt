@@ -2603,16 +2603,16 @@ fail/float/float_semantics_lookalike_grants_no_primitive rejected 34ms expected 
 	`FloatSemantics::add` names a compiler primitive, but only the sealed toolchain declaration supplies it; merely naming a declaration `FloatSemantics::add` grants no primitive implementation or proof authority
 fail/float/format_conversion_exclusive_upper rejected 1866ms expected @9c4d1c444502
 	cannot prove ensures contract for exit from exclusive at statement 0: result >= 0.0 && result < 1.0
-fail/float/format_conversion_lookalike rejected 539ms expected @9c4d1c444502
-	cannot prove return value `__hoist_34` satisfies bounded return type in `lookalike.entry`; expected 0.10000000149011612..=0.10000000149011612
+fail/float/format_conversion_lookalike rejected 451ms expected @b60606588008+wt
+	cannot prove initializer `from_f64(value)` satisfies the bounded value of machine `lookalike` state `entry` local `__hoist_34`; expected 0.10000000149011612..=0.10000000149011612
 fail/float/format_conversion_requires_result_proof rejected 533ms expected @9c4d1c444502
 	cannot prove initializer `F32.from_f64(huge())` satisfies `finite` for the bounded value of machine `make` state `entry` constructor field `amount`
 	cannot prove call argument `F32.from_f64(huge())` satisfies `finite` for bounded parameter `value` for `consume` in `overflow.entry`
 	cannot prove return value `F32.from_f64(value)` satisfies `finite` for bounded return type in `unknown.entry`
 fail/float/generic_constructor_suffix_format_disagrees rejected 315ms expected @1b12798e27f4
 	literal `3.0` is suffixed `f64` but lands in a `f32` place -- a width suffix chooses the literal's format at the spelling, so it must agree with the destination's declared type (drop the suffix or fix one side)
-fail/float/integer_conversion_lookalike rejected 565ms expected @9c4d1c444502
-	machine `lookalike` state `entry` terminal expression returns a value not provably within its declared range: callers rely on the declared `[a..=b]` for exact arithmetic on the result, so the returned value must be proven to honor it (decision 17). Constrain the returned value, or widen/remove the return range constraint.
+fail/float/integer_conversion_lookalike rejected 443ms expected @b60606588008+wt
+	machine `lookalike` state `entry` local `__hoist_34` stores a value not provably within its declared range: the range is a store-enforced invariant every read trusts (indexes, exact arithmetic), so the stored value must be proven to honor it. Narrow the value with a dominating guard, a dependent bound, or a requires coupling -- or widen/remove the range
 fail/float/integer_to_float_coercion_requires_denotation rejected 511ms expected @9c4d1c444502
 	machine `rounded32` state `entry` cannot prove integer-to-`f32` cast operand `16777217` preserves its denotation; prove exact format representability or use a named conversion to round
 	machine `rounded64` state `entry` cannot prove integer-to-`f64` cast operand `9007199254740993` preserves its denotation; prove exact format representability or use a named conversion to round
