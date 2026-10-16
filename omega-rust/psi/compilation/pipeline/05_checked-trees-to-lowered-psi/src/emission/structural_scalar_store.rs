@@ -536,22 +536,59 @@ pub(crate) fn lower_window_path<'a>(
         steps = crossings;
     }
     let mut cursor = path;
+    // A selected case names the payload namespace its next field reads, as in
+    // scalar-field geometry; the consuming operation proves that case active.
+    let mut payload: Option<(
+        semantic_vocabulary::StructuralCaseId,
+        &'a [terminal_psi::StructuralFieldDeclaration],
+    )> = None;
     while let Some((segment, rest)) = cursor.split_first() {
         cursor = rest;
         // Explicit crossings consume the stored reference once. Implicit
         // selection through a reference normalizes only when selecting a
         // member or element, just as the scalar-field geometry does.
-        if !matches!(segment, CheckedUnitStructuralPathSegment::Referent) {
+        if payload.is_some() && !matches!(segment, CheckedUnitStructuralPathSegment::Field(_)) {
+            return unsupported("structural window case must select a payload field");
+        }
+        if !matches!(segment, CheckedUnitStructuralPathSegment::Referent) && payload.is_none() {
             let (owner, crossings) = structural_field_root(field_owner.id, structural_types)?;
             field_owner = owner;
             borrowed_backing |= !crossings.is_empty();
             steps.extend(crossings);
         }
         match segment {
-            CheckedUnitStructuralPathSegment::Field(identity) if identity.is_valid() => {
-                let (terminal_psi::record_or_mixed_shape_pattern!(fields)) = &field_owner.shape
+            CheckedUnitStructuralPathSegment::Case(identity) => {
+                let (StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. }) =
+                    &field_owner.shape
                 else {
-                    return unsupported("structural window carrier is not a record");
+                    return unsupported("structural window case owner is not a sum");
+                };
+                let mut matching = cases
+                    .iter()
+                    .filter(|case| case.identity == identities.intern(&identity.spelling()));
+                let selected = matching.next().ok_or(LoweringError::Unsupported(
+                    "structural window case is absent",
+                ))?;
+                if matching.next().is_some() {
+                    return unsupported("structural window case is ambiguous");
+                }
+                payload = Some((selected.id, selected.fields.as_slice()));
+                steps.push(ProjectionStep::Static(StructuralPathSegment::Case(
+                    selected.id,
+                )));
+            }
+            CheckedUnitStructuralPathSegment::Field(identity) if identity.is_valid() => {
+                let selected_case = payload.map(|(case, _)| case);
+                let fields = match payload.take() {
+                    Some((_, fields)) => fields,
+                    None => {
+                        let (terminal_psi::record_or_mixed_shape_pattern!(fields)) =
+                            &field_owner.shape
+                        else {
+                            return unsupported("structural window carrier is not a record");
+                        };
+                        fields.as_slice()
+                    }
                 };
                 if rest.is_empty() {
                     // The leaf resolves by identity alone: a scalar leaf is a
@@ -582,10 +619,15 @@ pub(crate) fn lower_window_path<'a>(
                 steps.push(ProjectionStep::Static(StructuralPathSegment::Field(
                     identities.intern(&identity.spelling()),
                 )));
+                let selection = selected_case
+                    .map(StructuralPathSegment::Case)
+                    .into_iter()
+                    .chain([StructuralPathSegment::Field(carrier.identity)])
+                    .collect::<Vec<_>>();
                 let nested = terminal_semantics::runtime_structural_path_tip(
                     structural_types.iter(),
                     field_owner.id,
-                    &[StructuralPathSegment::Field(carrier.identity)],
+                    &selection,
                 )
                 .map(|row| row.id)
                 .ok_or(LoweringError::Unsupported(
