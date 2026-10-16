@@ -1,0 +1,43 @@
+// A collection length is a u64 measure, so `embed` accepts it on a parameter,
+// a field, a local copy, and the count returned from that bound. A record
+// field spelled `len` stays that field.
+data Bag { items: [i32; 3]; }
+data Reading { len: i32; }
+
+machine observe(count: u64) -> bool
+requires embed(count) == 3
+{
+    transition { _ -> (true) }
+}
+
+machine span(items: &[i32; 3]) -> u32
+requires embed(items.len) == 3
+{
+    let count: u64 = items.len;
+    let accepted: bool = observe(count);
+    transition accepted { true -> (3) false -> (0) }
+}
+
+machine from_field(bag: &Bag) -> u32 {
+    span(&bag.items)
+}
+
+machine window(items: &[i32; 4])
+requires embed(items[0..2].len) == 2
+{}
+
+machine same_spelled_field(reading: &Reading)
+requires embed(reading.len) == embed(reading.len)
+{}
+
+machine main() crashes Trap {
+    let bag: Bag = Bag { items: [2, 3, 4] };
+    let reading: Reading = Reading { len: 4 };
+    let counted: u32 = from_field(&bag);
+    let row: [i32; 4] = [1, 2, 3, 4];
+    window(&row);
+    same_spelled_field(&reading);
+    transition counted == 3 { true -> done() false -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}

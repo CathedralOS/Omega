@@ -21,7 +21,8 @@ integer micrometres, while interval variables range continuously. `data/fixtures
 and bounds `[A_low,A_high,B_low,B_high,fit_low,fit_high]`.
 
 The private `model/audit.omg` sums named coefficients before selecting their
-endpoints. Summing each contributor's standalone uncertainty interval would
+endpoints. The contributor row is a fixed three-element array; calculation
+embeds that length and continues only when the returned span is 3. Summing each contributor's standalone uncertainty interval would
 lose cancellation and is intentionally not this algorithm. Classification is
 GUARANTEED for inclusive containment, IMPOSSIBLE for strict disjointness, and
 CONDITIONAL for the remainder. Endpoint touching counts as possible. The attainable

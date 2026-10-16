@@ -693,6 +693,7 @@ impl<'program> CurrentScalarValues<'program> {
             // merely because the declaration and formal symbol are equal.
             if let ScopedArithmeticBinder::Occurrence(occurrence) = binding.binder
                 && length_occurrence(self.program, occurrence, &lengths).is_none()
+                && literal_window_length(self.program, occurrence).is_none()
             {
                 return None;
             }
@@ -812,6 +813,62 @@ fn fixed_length(
         }
         _ => None,
     }
+}
+
+/// Exact length of `collection[start..end].len` when both bounds are closed
+/// integer literals. A fixed array's own `.len` stays on the declared extent;
+/// this is the same `end - start` a plain window comparison already uses.
+fn literal_window_length(
+    program: &dyn ::validation::CheckingInput,
+    expression: ExpressionHandle,
+) -> Option<ScopedArithmeticValue> {
+    let member = program.expression_table.member_node(expression)?;
+    if member.case_variant.is_some() || member.member_symbol.is_valid() {
+        return None;
+    }
+    let mut receiver = member.receiver;
+    while let Some(borrow) = program.expression_table.borrow_expression(receiver) {
+        receiver = borrow.target;
+    }
+    let indexed = program.expression_table.indexed_node(receiver)?;
+    if !program.expression_table.indexed_on_range(indexed) {
+        return None;
+    }
+    if validation::collection_operations::collection_measure_member(
+        program,
+        member,
+        validation::collection_operations::MeasureReceiver::Window,
+    ) != Some(language_semantics::declaration_selection::CollectionMeasure::Length)
+    {
+        return None;
+    }
+    let range = program.expression_table.range_node(indexed.index)?;
+    let start = if range.start.is_valid() {
+        closed_integer_literal(program, range.start)?
+    } else {
+        numerics::bignum::BigInt::zero()
+    };
+    if !range.end.is_valid() {
+        return None;
+    }
+    let mut end = closed_integer_literal(program, range.end)?;
+    if range.end_inclusive {
+        end = end.add(&numerics::bignum::BigInt::from_u64(1));
+    }
+    if start > end {
+        return None;
+    }
+    Some(ScopedArithmeticValue::Integer(end.sub(&start)))
+}
+
+fn closed_integer_literal(
+    program: &dyn ::validation::CheckingInput,
+    expression: ExpressionHandle,
+) -> Option<numerics::bignum::BigInt> {
+    program
+        .expression_table
+        .integer_node(expression)?
+        .value_bignum()
 }
 
 /// The fixed length a `collection.len` occurrence reads, if it reads one.
@@ -1016,6 +1073,7 @@ fn admitted(
         ExpressionNode::Member(_) => {
             length_occurrence(program, expression, lengths).is_some()
                 || field_occurrence(program, machine, state, expression).is_some()
+                || literal_window_length(program, expression).is_some()
         }
         ExpressionNode::Name(name) => {
             (name.symbol == name.head_symbol
@@ -1101,7 +1159,8 @@ fn scoped(
             ExpressionNode::Member(_) => {
                 let value = length_occurrence(program, expression, lengths)
                     .and_then(|length| length.value.clone())
-                    .or_else(|| field_occurrence(program, machine, state, expression))?;
+                    .or_else(|| field_occurrence(program, machine, state, expression))
+                    .or_else(|| literal_window_length(program, expression))?;
                 projections.push(ScopedArithmeticBinding {
                     binder: ScopedArithmeticBinder::Occurrence(expression),
                     value,

@@ -61,16 +61,37 @@ pub machine valid(assembly: &Assembly) -> bool {
 pub machine lower_choice(coefficient: i32 in Saturating, low: i32 in Saturating, high: i32 in Saturating) -> i32 in Saturating {
     transition coefficient >= 0 { true -> (low) false -> (high) }
 }
+// The contributor row is a fixed array of three. Its length is a collection
+// measure, so the bound is `embed` of that measure: directly on the parameter,
+// on the assembly field at the call, through a local copy, and as the count
+// this machine returns.
+pub machine observe_span(count: u64) -> bool
+requires embed(count) == 3
+{
+    transition { _ -> (true) }
+}
+pub machine contributor_span(contributors: &[Contributor; 3]) -> u32
+requires embed(contributors.len) == 3
+{
+    let count: u64 = contributors.len;
+    let accepted: bool = observe_span(count);
+    transition accepted { true -> (3) false -> (0) }
+}
 pub machine upper_choice(coefficient: i32 in Saturating, low: i32 in Saturating, high: i32 in Saturating) -> i32 in Saturating {
     transition coefficient >= 0 { true -> (high) false -> (low) }
 }
 pub machine calculate(assembly: &Assembly, audit: &mut Audit) {
-    audit.nominal = 0;
-    audit.radius = 0;
-    audit.thermal = 0;
-    audit.gauge_a = 0;
-    audit.gauge_b = 0;
-    transition { _ -> scan(assembly, audit, 0) }
+    let span: u32 = contributor_span(&assembly.contributors);
+    transition span == 3 { true -> begin(assembly, audit) false -> uncounted(audit) }
+    state begin(assembly: &Assembly, audit: &mut Audit) {
+        audit.nominal = 0;
+        audit.radius = 0;
+        audit.thermal = 0;
+        audit.gauge_a = 0;
+        audit.gauge_b = 0;
+        transition { _ -> scan(assembly, audit, 0) }
+    }
+    state uncounted(audit: &mut Audit) { audit.status = 0; }
     state scan(assembly: &Assembly, audit: &mut Audit, index: u32) {
         transition index < 3 { true -> add(assembly, audit, index) false -> endpoints(assembly, audit) }
     }

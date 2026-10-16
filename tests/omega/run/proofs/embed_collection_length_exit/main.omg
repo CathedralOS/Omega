@@ -1,0 +1,28 @@
+// Expected exit: 0
+// The returned span is the embedded length of a three-element row, observed
+// through the call, a local, a field, and the row parameter.
+data Bag [copy] { items: [i32; 3]; }
+data Held { count: u32; }
+
+machine observe(count: u64) -> bool
+requires embed(count) == 3
+{
+    transition { _ -> (true) }
+}
+
+machine span(items: &[i32; 3]) -> u32
+requires embed(items.len) == 3
+{
+    let count: u64 = items.len;
+    let accepted: bool = observe(count);
+    transition accepted { true -> (3) false -> (0) }
+}
+
+machine main() crashes Trap {
+    let bag: Bag = Bag { items: [2, 3, 4] };
+    let counted: u32 = span(&bag.items);
+    let held: Held = Held { count: counted };
+    transition held.count == 3 && counted == 3 { true -> done() false -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}

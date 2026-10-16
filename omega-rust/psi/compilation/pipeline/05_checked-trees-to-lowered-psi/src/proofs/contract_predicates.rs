@@ -97,6 +97,15 @@ fn proposition_with_polarity(
             let right = integer_math::lower(identities, right, terms, remaining)?;
             Ok(match (kind, positive) {
                 (CheckedIntegerComparisonKind::Equal, true) => {
+                    // Equality is symmetric. Terminal propositions store the
+                    // lesser mathematical term on the left; an embedding of a
+                    // collection length sorts above a small literal, so the
+                    // authored order is not already canonical.
+                    let (left, right) = if left > right {
+                        (right, left)
+                    } else {
+                        (left, right)
+                    };
                     Proposition::IntegerMathEqual(left, right)
                 }
                 (CheckedIntegerComparisonKind::Equal, false) => connective(

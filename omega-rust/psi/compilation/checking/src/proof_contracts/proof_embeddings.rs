@@ -395,6 +395,28 @@ fn is_unlanded_integer(program: &dyn crate::CheckingInput, expression: Expressio
         ExpressionNode::Integer(literal) if literal.landing().is_none())
 }
 
+/// The receiver a collection measure is read from.
+///
+/// Borrow spellings are peeled only for this classification. Embedding still
+/// refuses to treat an arbitrary borrow as an integer payload; the measure
+/// itself is the `u64` count, not the borrowed collection.
+fn collection_measure_receiver(
+    program: &dyn crate::CheckingInput,
+    member: &typed_trees::expression::TableMemberExpression,
+) -> Option<crate::collection_operations::MeasureReceiver> {
+    let mut receiver = member.receiver;
+    while let Some(borrow) = program.expression_table.borrow_expression(receiver) {
+        receiver = borrow.target;
+    }
+    if let ExpressionNode::Indexed(indexed) = program.expression_table.expression(receiver)
+        && program.expression_table.indexed_on_range(indexed)
+    {
+        return Some(crate::collection_operations::MeasureReceiver::Window);
+    }
+    expression_type_reference(program, receiver)
+        .map(crate::collection_operations::MeasureReceiver::Declared)
+}
+
 /// Exact declared result types shared by proof-only coercion and embedding.
 /// References are not erased here: embedding observes an integer payload,
 /// never the address or referent of an arbitrary borrow.
@@ -431,6 +453,24 @@ pub(crate) fn expression_type_reference(
                 return program
                     .data_field_named(data, member.member.as_str())
                     .map(|field| field.type_reference);
+            }
+            // Structural `.len` and `.capacity` are compiler-owned measures of
+            // an array, slice, or range window. Lowering already retains the
+            // builtin `u64` carrier for that measure; embedding has to recover
+            // the same carrier. A record field that happens to be spelled
+            // `len` is handled above and is not a measure.
+            if let Some(measure_receiver) = collection_measure_receiver(program, member)
+                && crate::collection_operations::collection_measure_member(
+                    program,
+                    member,
+                    measure_receiver,
+                )
+                .is_some()
+            {
+                return crate::proof_contracts::bound_expression_meaning::builtin_type_reference(
+                    program,
+                    symbols::BuiltinTypeAtom::U64,
+                );
             }
             crate::declarations::data_queries::data_field_type_by_symbol(
                 program,
