@@ -76,10 +76,14 @@ sample, its oracle, the current failure and the acceptance command.
 
 Keep that short record in the claim note: sample, acceptance, current
 failure, next necessary action and dependencies. Reread it after compaction
-and before changing direction. When resuming saved work after a crash or
-compaction, rebase first and check whether main already
-carries it (`git log origin/main -S '<distinctive line>'`) before reapplying a
-patch or rerunning its validation. A new obstacle updates this
+and before changing direction. Reuse the session that already has the
+checkout. After a landed repair, compact when the next assignment is a
+different outcome, and leave the context in place when the next run branches
+from that repair. The rule for cloud pods is in
+[cursor-swarm](../cursor-swarm/SKILL.md#reuse-the-session). When resuming
+saved work after a crash or compaction, rebase first and check whether main
+already carries it (`git log origin/main -S '<distinctive line>'`) before
+reapplying a patch or rerunning its validation. A new obstacle updates this
 frontier; it does not create a task for someone else. Do not split work or
 mine tasks to keep a slot occupied.
 

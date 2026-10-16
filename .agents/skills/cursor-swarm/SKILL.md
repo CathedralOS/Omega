@@ -208,6 +208,20 @@ conversation. Include:
 The worker keeps one Rust build active on its own machine. The coordinator
 does not build a compiler to warm the workers.
 
+## Reuse the session
+
+Reuse the session that already has the pod. A new VM spends a machine and
+the tokens required to rebuild the investigation. Resume the same agent id.
+A new Task call is for an id that is gone.
+
+After a solve lands and the next assignment is a different outcome, compact
+before that assignment. Compaction keeps the claim note: what landed, the
+witness, and the next failure. The following prompt is that note. The
+investigation trace does not carry forward.
+
+When the next run branches from that solve, do not compact. The session
+keeps the repair and cuts the next failing run from it.
+
 ## Drain
 
 A background cloud subagent finishes by notifying the coordinator. Do not

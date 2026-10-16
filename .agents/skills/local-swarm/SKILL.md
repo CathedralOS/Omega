@@ -63,8 +63,10 @@ using the native host's supported entrypoint.
 
 Dispatch outcome, acceptance, failure, next action, dependencies, design,
 exact worktree/base and publication permission. Agents reread the short assignment
-after compaction. A checkpoint is not completion; a missing next stage is more
-work on the same assignment.
+after compaction. Reuse the session that already has the checkout. Compact
+after a landed repair when the next assignment is a different outcome. When
+the next run branches from that repair, do not compact. A checkpoint is not
+completion; a missing next stage is more work on the same assignment.
 
 ## Coordinate and integrate
 

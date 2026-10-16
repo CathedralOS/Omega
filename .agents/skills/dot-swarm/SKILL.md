@@ -229,7 +229,10 @@ work between checks. When nothing useful remains runnable, wait for a report.
 
 Prefer the smallest same-domain residual in the worker's existing authorized
 chain; resume that assignment with `followup_task`. Use a new worker for a new
-independent assignment. Do not silently broaden a completed chain to any board
+independent assignment. Reuse the session: a new executor spends a machine
+and the tokens required to rebuild the investigation. After a landed repair,
+compact when the next assignment is a different outcome. When the next run
+branches from that repair, do not compact. Do not silently broaden a completed chain to any board
 item. Redispatch only while the user-requested wave scope and stopping condition
 remain open. A missing dependency blocks the item, not unrelated permitted work;
 when no eligible work exists, leave the slot empty and name the blocker.
