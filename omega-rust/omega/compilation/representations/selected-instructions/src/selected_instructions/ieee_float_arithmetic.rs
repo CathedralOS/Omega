@@ -1,6 +1,7 @@
 //! IEEE forms: one operation, interchange format and operation-owned rounding.
-//! Directed binary arithmetic saves and restores controls locally; ordinary
-//! arithmetic rounds nearest-even and integer conversions round toward zero.
+//! Directed binary arithmetic and directed square root save and restore
+//! controls locally; ordinary arithmetic rounds nearest-even and integer
+//! conversions round toward zero.
 //! The historical `NearestIeeeFloatArithmetic` transport/family name and tag
 //! remain stable. The complete operation ordinal carries the rounding mode;
 //! a nearest form cannot substitute for a directed occurrence.
@@ -162,7 +163,7 @@ mod tests {
             IeeeFloatArithmeticForm::from_machine_payload(IeeeFloatArithmeticForm::COUNT as u8),
             None
         );
-        assert_eq!(IeeeFloatArithmeticForm::ALL.len(), 134);
+        assert_eq!(IeeeFloatArithmeticForm::ALL.len(), 140);
         for payload in 0_u8..88 {
             let form = IeeeFloatArithmeticForm::from_machine_payload(payload)
                 .expect("every pre-extension machine payload remains decodable");

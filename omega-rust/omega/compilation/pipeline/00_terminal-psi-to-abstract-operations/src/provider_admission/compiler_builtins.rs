@@ -504,6 +504,32 @@ fn compiler_intrinsic_execution_identity(
                         semantic_vocabulary::IeeeFloatFormat::Binary64,
                     ) => symbols::BuiltinFunction::FloatDivideTowardNegativeF64,
                 }),
+                Arithmetic::DirectedSquareRoot { rounding } => builtin(match (rounding, format) {
+                    (
+                        target_operations::IeeeFloatRoundingDirection::TowardZero,
+                        semantic_vocabulary::IeeeFloatFormat::Binary32,
+                    ) => symbols::BuiltinFunction::FloatSqrtTowardZeroF32,
+                    (
+                        target_operations::IeeeFloatRoundingDirection::TowardZero,
+                        semantic_vocabulary::IeeeFloatFormat::Binary64,
+                    ) => symbols::BuiltinFunction::FloatSqrtTowardZeroF64,
+                    (
+                        target_operations::IeeeFloatRoundingDirection::TowardPositive,
+                        semantic_vocabulary::IeeeFloatFormat::Binary32,
+                    ) => symbols::BuiltinFunction::FloatSqrtTowardPositiveF32,
+                    (
+                        target_operations::IeeeFloatRoundingDirection::TowardPositive,
+                        semantic_vocabulary::IeeeFloatFormat::Binary64,
+                    ) => symbols::BuiltinFunction::FloatSqrtTowardPositiveF64,
+                    (
+                        target_operations::IeeeFloatRoundingDirection::TowardNegative,
+                        semantic_vocabulary::IeeeFloatFormat::Binary32,
+                    ) => symbols::BuiltinFunction::FloatSqrtTowardNegativeF32,
+                    (
+                        target_operations::IeeeFloatRoundingDirection::TowardNegative,
+                        semantic_vocabulary::IeeeFloatFormat::Binary64,
+                    ) => symbols::BuiltinFunction::FloatSqrtTowardNegativeF64,
+                }),
                 Arithmetic::Add => binary(Primitive::Add),
                 Arithmetic::Subtract => binary(Primitive::Subtract),
                 Arithmetic::Multiply => binary(Primitive::Multiply),

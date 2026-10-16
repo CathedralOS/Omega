@@ -1099,6 +1099,43 @@ fn program(form: IeeeFloatArithmeticForm, registers: &[u8]) -> Result<Vec<Instru
                 move_out,
             ]
         }
+        IeeeFloatArithmeticOperation::DirectedSquareRoot { rounding } => {
+            // Same private MXCSR envelope as directed binary arithmetic.
+            // SQRTSS/SQRTSD honor RC; one operand, opcode 0x51.
+            let mode = match rounding.ordinal() {
+                0 => 3,
+                1 => 2,
+                2 => 1,
+                _ => unreachable!(),
+            };
+            vec![
+                move_in(registers[0], LEFT_SCRATCH, double),
+                Instruction::AdjustStack { displacement: -16 },
+                Instruction::ControlWord {
+                    load: false,
+                    displacement: 0,
+                },
+                Instruction::StoreControlMode {
+                    value: 0x1f80 | (mode << 13),
+                },
+                Instruction::ControlWord {
+                    load: true,
+                    displacement: 4,
+                },
+                Instruction::Scalar {
+                    double,
+                    opcode: 0x51,
+                    destination: LEFT_SCRATCH,
+                    source: LEFT_SCRATCH,
+                },
+                Instruction::ControlWord {
+                    load: true,
+                    displacement: 0,
+                },
+                Instruction::AdjustStack { displacement: 16 },
+                move_out,
+            ]
+        }
         // Baseline SSE2 has no single-rounding multiply-add. Selection reaches
         // this form only from a realization carrying admitted AVX+FMA3 custody.
         IeeeFloatArithmeticOperation::FusedMultiplyAdd => vec![
@@ -1612,6 +1649,51 @@ mod tests {
                 assert!(matches!(
                     encoded.memory,
                     selected_instructions::MachineEncodedMemoryEffect::TemporaryStackStorageV1 {
+                        byte_count: 16,
+                        ..
+                    }
+                ));
+            }
+        }
+    }
+
+    #[test]
+    fn directed_square_root_uses_sqrt_opcode_under_the_private_rounding_envelope() {
+        // Directed square root occupies appended ordinals 67..=69.
+        for (operation, expected_mode) in [(67, 0x7f80u32), (68, 0x5f80), (69, 0x3f80)] {
+            for format in [IeeeFloatFormat::Binary32, IeeeFloatFormat::Binary64] {
+                let form = IeeeFloatArithmeticForm {
+                    operation: IeeeFloatArithmeticOperation::ALL[operation],
+                    format,
+                };
+                let program = super::program(form, &[0, 0]).unwrap();
+                assert_eq!(
+                    program[1],
+                    super::Instruction::AdjustStack { displacement: -16 }
+                );
+                assert_eq!(
+                    program[3],
+                    super::Instruction::StoreControlMode {
+                        value: expected_mode
+                    }
+                );
+                assert_eq!(
+                    program[5],
+                    super::Instruction::Scalar {
+                        double: !form.is_binary32(),
+                        opcode: 0x51,
+                        destination: super::LEFT_SCRATCH,
+                        source: super::LEFT_SCRATCH,
+                    }
+                );
+                assert_eq!(
+                    program[7],
+                    super::Instruction::AdjustStack { displacement: 16 }
+                );
+                let encoded = super::effects(form);
+                assert!(matches!(
+                    encoded.stack,
+                    selected_instructions::MachineEncodedStackEffect::TemporaryBytesV1 {
                         byte_count: 16,
                         ..
                     }

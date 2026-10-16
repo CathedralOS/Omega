@@ -214,6 +214,18 @@ pub(crate) fn derive_selected_intrinsic_settlement_proposals<'a>(
     }
 }
 
+/// One directed square root on one IEEE format. The mode is the operation,
+/// same as directed binary arithmetic, so nearest square root cannot satisfy it.
+fn nearest_directed_square_root(
+    rounding: target_operations::IeeeFloatRoundingDirection,
+    format: semantic_vocabulary::IeeeFloatFormat,
+) -> target_operations::CompilerBuiltinExecution {
+    nearest_arithmetic(
+        target_operations::IeeeFloatArithmeticOperation::DirectedSquareRoot { rounding },
+        format,
+    )
+}
+
 /// One directed binary rounding mode on one IEEE format realized as the
 /// nearest-neighbor arithmetic builtin.
 fn nearest_directed_binary(
@@ -487,6 +499,42 @@ fn compiler_builtin_execution(
                 symbols::BuiltinFunction::FloatDivideTowardNegativeF64 => {
                     return Some(nearest_directed_binary(
                         target_operations::IeeeFloatBinaryOperation::Divide,
+                        target_operations::IeeeFloatRoundingDirection::TowardNegative,
+                        semantic_vocabulary::IeeeFloatFormat::Binary64,
+                    ));
+                }
+                symbols::BuiltinFunction::FloatSqrtTowardZeroF32 => {
+                    return Some(nearest_directed_square_root(
+                        target_operations::IeeeFloatRoundingDirection::TowardZero,
+                        semantic_vocabulary::IeeeFloatFormat::Binary32,
+                    ));
+                }
+                symbols::BuiltinFunction::FloatSqrtTowardZeroF64 => {
+                    return Some(nearest_directed_square_root(
+                        target_operations::IeeeFloatRoundingDirection::TowardZero,
+                        semantic_vocabulary::IeeeFloatFormat::Binary64,
+                    ));
+                }
+                symbols::BuiltinFunction::FloatSqrtTowardPositiveF32 => {
+                    return Some(nearest_directed_square_root(
+                        target_operations::IeeeFloatRoundingDirection::TowardPositive,
+                        semantic_vocabulary::IeeeFloatFormat::Binary32,
+                    ));
+                }
+                symbols::BuiltinFunction::FloatSqrtTowardPositiveF64 => {
+                    return Some(nearest_directed_square_root(
+                        target_operations::IeeeFloatRoundingDirection::TowardPositive,
+                        semantic_vocabulary::IeeeFloatFormat::Binary64,
+                    ));
+                }
+                symbols::BuiltinFunction::FloatSqrtTowardNegativeF32 => {
+                    return Some(nearest_directed_square_root(
+                        target_operations::IeeeFloatRoundingDirection::TowardNegative,
+                        semantic_vocabulary::IeeeFloatFormat::Binary32,
+                    ));
+                }
+                symbols::BuiltinFunction::FloatSqrtTowardNegativeF64 => {
+                    return Some(nearest_directed_square_root(
                         target_operations::IeeeFloatRoundingDirection::TowardNegative,
                         semantic_vocabulary::IeeeFloatFormat::Binary64,
                     ));

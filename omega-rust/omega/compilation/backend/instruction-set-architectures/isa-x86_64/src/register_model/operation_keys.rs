@@ -67,6 +67,13 @@ pub const X86_64_IEEE_FLOAT_DIRECTED_BINARY: RegisterConstraintKey = RegisterCon
     variant: 792,
 };
 
+/// Directed square root: one input, one result, MXCSR read, RSP for the
+/// private control envelope, and scratch `xmm4`/`xmm5` clobbered.
+pub const X86_64_IEEE_FLOAT_DIRECTED_UNARY: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 793,
+};
+
 pub const X86_64_IEEE_FLOAT_ARITHMETIC: RegisterConstraintKey = RegisterConstraintKey {
     family: RegisterConstraintFamily::Instruction,
     variant: 785,
@@ -496,7 +503,7 @@ pub const X86_64_JUMP: RegisterConstraintKey = RegisterConstraintKey {
 /// required by a register-passed scalar conditional-return CFG plus the first
 /// arithmetic row needed by the pressure vertical. This is not a claim that
 /// the target's ordinary instruction inventory is complete.
-pub(crate) const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 107] = [
+pub(crate) const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 108] = [
     X86_64_SYSTEM_V_CALL,
     X86_64_MICROSOFT_CALL,
     X86_64_SYSTEM_V_CALL_I64_PAIR_TO_I64,
@@ -662,6 +669,7 @@ pub(crate) const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 1
     X86_64_FLOAT_RESULT_SATURATING,
     X86_64_BYTE_LITERAL_IMAGE_ADDRESS,
     X86_64_IEEE_FLOAT_DIRECTED_BINARY,
+    X86_64_IEEE_FLOAT_DIRECTED_UNARY,
     X86_64_ATOMIC_FENCE,
     X86_64_PORT_WRITE,
     X86_64_PORT_REGISTER_READ,

@@ -1,0 +1,40 @@
+// Directed square root of two selects the neighbor on the named side of the
+// true value. Binary64's nearest result sits above sqrt(2); binary32's sits
+// below it. A perfect square stays exact in every mode.
+
+use omega::language::core::float_operations;
+use omega_language_std::console;
+
+data Main { }
+
+machine Main::main(main: &mut Main) reaches Console {
+    let lower64: f64 = 1.41421356237309492343001693370752036571502685546875;
+    let upper64: f64 = 1.4142135623730951454746218587388284504413604736328125;
+    let two64: f64 = 2.0;
+    let zero64: f64 = F64::square_root_toward_zero(two64);
+    let positive64: f64 = F64::square_root_toward_positive(two64);
+    let negative64: f64 = F64::square_root_toward_negative(two64);
+    let ordinary64: f64 = F64::square_root(two64);
+
+    let lower32: f32 = 1.41421353816986083984375f32;
+    let upper32: f32 = 1.414213657379150390625f32;
+    let two32: f32 = 2.0f32;
+    let zero32: f32 = F32::square_root_toward_zero(two32);
+    let positive32: f32 = F32::square_root_toward_positive(two32);
+    let negative32: f32 = F32::square_root_toward_negative(two32);
+    let ordinary32: f32 = F32::square_root(two32);
+
+    let exact64: f64 = F64::square_root_toward_negative(25.0);
+    let exact32: f32 = F32::square_root_toward_positive(25.0f32);
+
+    transition zero64 == lower64 && negative64 == lower64
+        && positive64 == upper64 && ordinary64 == upper64
+        && zero32 == lower32 && negative32 == lower32
+        && positive32 == upper32 && ordinary32 == lower32
+        && exact64 == 5.0 && exact32 == 5.0f32 {
+        true -> good(main)
+        _ -> bad(main)
+    }
+    state good(main: &mut Main) { Console::exit_process(70); }
+    state bad(main: &mut Main) { Console::exit_process(77); }
+}

@@ -864,6 +864,50 @@ fn program(form: IeeeFloatArithmeticForm, registers: &[u8]) -> Vec<Word> {
                 move_out(first),
             ]
         }
+        IeeeFloatArithmeticOperation::DirectedSquareRoot { rounding } => {
+            // Same FPCR envelope as directed binary arithmetic. FSQRT is the
+            // one-source opcode 0b000011; RC selects the directed result.
+            let mode = match rounding.ordinal() {
+                0 => 3,
+                1 => 1,
+                2 => 2,
+                _ => unreachable!(),
+            };
+            vec![
+                move_in(registers[0], first, double),
+                Word::FloatingControl {
+                    read: true,
+                    general: result,
+                },
+                move_in(result, mask, true),
+                Word::MoveWide {
+                    keep: false,
+                    shift: 1,
+                    immediate: mode << 6,
+                    general: result,
+                },
+                Word::FloatingControl {
+                    read: false,
+                    general: result,
+                },
+                Word::OneSource {
+                    double,
+                    opcode: 0b00_0011,
+                    source: first,
+                    result: first,
+                },
+                Word::ToGeneral {
+                    double: true,
+                    vector: mask,
+                    general: result,
+                },
+                Word::FloatingControl {
+                    read: false,
+                    general: result,
+                },
+                move_out(first),
+            ]
+        }
         IeeeFloatArithmeticOperation::IsNan
         | IeeeFloatArithmeticOperation::IsInfinite
         | IeeeFloatArithmeticOperation::IsFinite
@@ -1316,6 +1360,52 @@ mod tests {
                         super::effects(form).stack,
                         selected_instructions::MachineEncodedStackEffect::UnchangedV1
                     );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn directed_square_root_restores_fpcr_after_one_source_fsqrt() {
+        for (operation, expected_mode) in [(67, 3), (68, 1), (69, 2)] {
+            for format in [IeeeFloatFormat::Binary32, IeeeFloatFormat::Binary64] {
+                let form = form(IeeeFloatArithmeticOperation::ALL[operation], format);
+                for registers in [[1, 1], [1, 2], [0, 0], [28, 30]] {
+                    let program = super::program(form, &registers);
+                    assert_eq!(
+                        program[1],
+                        super::Word::FloatingControl {
+                            read: true,
+                            general: registers[1]
+                        }
+                    );
+                    assert_eq!(
+                        program[3],
+                        super::Word::MoveWide {
+                            keep: false,
+                            shift: 1,
+                            immediate: expected_mode << 6,
+                            general: registers[1]
+                        }
+                    );
+                    assert_eq!(
+                        program[5],
+                        super::Word::OneSource {
+                            double: !form.is_binary32(),
+                            opcode: 0b00_0011,
+                            source: super::LEFT_SCRATCH,
+                            result: super::LEFT_SCRATCH,
+                        }
+                    );
+                    assert_eq!(
+                        program[7],
+                        super::Word::FloatingControl {
+                            read: false,
+                            general: registers[1]
+                        }
+                    );
+                    let bytes = super::encode(form, &registers).unwrap();
+                    super::validate(form, &registers, &bytes).unwrap();
                 }
             }
         }

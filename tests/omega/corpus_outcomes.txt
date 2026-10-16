@@ -6825,6 +6825,7 @@ pass/float/computed_comparison_literal_landing_exit checked 32379ms check-target
 pass/float/computed_float_bare_literal_comparison checked 29624ms check-target:macos_arm64 @9c4d1c444502
 pass/float/constructor_requirement_result_policy_exit checked 29175ms check-target:macos_arm64 @9c4d1c444502
 pass/float/data_where_float_field_restored_exit checked 28777ms check-target:macos_arm64 @9c4d1c444502
+pass/float/directed_square_root_radius_exit checked 15511ms check-target:macos_arm64 @cc35a4f0d368+wt
 pass/float/explicit_float_comparison_formats checked 4321ms @f7d5743143af
 pass/float/f32_arg_const_arith_landed_exit checked 28206ms check-target:macos_arm64 @9c4d1c444502
 pass/float/f32_per_operation_rounding_exit checked 46604ms check-target:macos_arm64 @1b12798e27f4

@@ -2769,7 +2769,9 @@ crash and native exit behavior.
     `FrameLayout(NonCanonicalLayout)`. Specialization retention through
     settlement is pinned by the six checked outcomes; matching-host
     execution remains the native-leg customer.
-  - **Directed float arithmetic.** Install the remaining named directed
+  - **Directed float arithmetic.** Directed binary arithmetic and directed
+    square root (ordinals 67..=69) execute through the local control envelope.
+    Directed fused multiply-add remains. Install any further named directed
     arithmetic as Omega builtins through stage 00
     `provider_admission/compiler_builtins.rs` (one
     `NearestIeeeFloatArithmetic` operation per execution), stage 02

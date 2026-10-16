@@ -86,14 +86,21 @@ impl IeeeFloatRoundingDirection {
 /// operands, and unary operations read one. The operand of
 /// `ConvertFormat` has the other interchange format; the
 /// operand of `FromInteger` is its named integer carrier.
-/// Directed binary operations retain the exact selected operation and mode.
-/// Their local save/restore envelope preserves the caller's canonical controls,
-/// masked exceptions and gradual-underflow invariant; mode is never ambient.
+/// Directed binary operations and directed square root retain the exact
+/// selected operation and mode. Their local save/restore envelope preserves
+/// the caller's canonical controls, masked exceptions and gradual-underflow
+/// invariant; mode is never ambient. A nearest square root cannot stand in
+/// for a directed one: the mode is part of the operation identity.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum IeeeFloatArithmeticOperation {
     /// Format and mode survive admission, codecs and independent byte recovery.
     DirectedBinary {
         operation: IeeeFloatBinaryOperation,
+        rounding: IeeeFloatRoundingDirection,
+    },
+    /// One directed square root. Appended after the dense 0..=66 catalog so
+    /// existing selected-form ordinals stay put.
+    DirectedSquareRoot {
         rounding: IeeeFloatRoundingDirection,
     },
     Add,
@@ -242,8 +249,8 @@ impl Ord for IeeeFloatArithmeticOperation {
 }
 
 impl IeeeFloatArithmeticOperation {
-    pub const ALL: [Self; 67] = {
-        let mut all = [Self::Add; 67];
+    pub const ALL: [Self; 70] = {
+        let mut all = [Self::Add; 70];
         let fixed = [
             Self::Add,
             Self::Subtract,
@@ -301,6 +308,14 @@ impl IeeeFloatArithmeticOperation {
             }
             operation += 1;
         }
+        let mut square_root_rounding = 0;
+        while square_root_rounding < IeeeFloatRoundingDirection::ALL.len() {
+            let directed = Self::DirectedSquareRoot {
+                rounding: IeeeFloatRoundingDirection::ALL[square_root_rounding],
+            };
+            all[directed.ordinal() as usize] = directed;
+            square_root_rounding += 1;
+        }
         all
     };
 
@@ -328,6 +343,7 @@ impl IeeeFloatArithmeticOperation {
                 operation,
                 rounding,
             } => 45 + operation.ordinal() * 3 + rounding.ordinal(),
+            Self::DirectedSquareRoot { rounding } => 67 + rounding.ordinal(),
             Self::IsNan => 31,
             Self::IsInfinite => 32,
             Self::IsFinite => 57,
@@ -371,7 +387,9 @@ impl IeeeFloatArithmeticOperation {
     /// realize or authenticate an explicitly directed operation.
     pub const fn rounding_direction(self) -> Option<IeeeFloatRoundingDirection> {
         match self {
-            Self::DirectedBinary { rounding, .. } => Some(rounding),
+            Self::DirectedBinary { rounding, .. } | Self::DirectedSquareRoot { rounding } => {
+                Some(rounding)
+            }
             _ => None,
         }
     }
@@ -396,6 +414,7 @@ impl IeeeFloatArithmeticOperation {
             | Self::IsSubnormal
             | Self::Classify
             | Self::SquareRoot
+            | Self::DirectedSquareRoot { .. }
             | Self::ConvertFormat
             | Self::FromInteger(_)
             | Self::TruncateToInteger { .. } => 1,

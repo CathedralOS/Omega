@@ -1,0 +1,61 @@
+// Expected exit: 0
+// Expected output contains: RADIUS
+// Directed square root of a planar radius. A 3-4-5 hypotenuse is exact in
+// every mode. sqrt(2) is not, so each directed mode selects its own neighbor
+// and nearest square root cannot stand in for a directed one.
+use omega::language::core::float_operations;
+use omega_language_std::console;
+
+data Main { squared: f64; }
+
+machine zero_radius(value: f64) -> f64 { F64::square_root_toward_zero(value) }
+machine positive_radius(value: f64) -> f64 { F64::square_root_toward_positive(value) }
+machine negative_radius(value: f64) -> f64 { F64::square_root_toward_negative(value) }
+
+machine Main::main(main: &mut Main) reaches Console {
+    let x: f64 = 3.0;
+    let y: f64 = 4.0;
+    let squared: f64 = x * x + y * y;
+    main.squared = squared;
+    let local_zero: f64 = F64::square_root_toward_zero(squared);
+    let field_positive: f64 = F64::square_root_toward_positive(main.squared);
+    let parameter_negative: f64 = negative_radius(squared);
+    let called_zero: f64 = zero_radius(main.squared);
+    let called_positive: f64 = positive_radius(squared);
+
+    let lower64: f64 = 1.41421356237309492343001693370752036571502685546875;
+    let upper64: f64 = 1.4142135623730951454746218587388284504413604736328125;
+    let two: f64 = 2.0;
+    let toward_zero64: f64 = F64::square_root_toward_zero(two);
+    let toward_positive64: f64 = F64::square_root_toward_positive(two);
+    let toward_negative64: f64 = F64::square_root_toward_negative(two);
+    let ordinary64: f64 = F64::square_root(two);
+
+    let lower32: f32 = 1.41421353816986083984375f32;
+    let upper32: f32 = 1.414213657379150390625f32;
+    let two32: f32 = 2.0f32;
+    let toward_zero32: f32 = F32::square_root_toward_zero(two32);
+    let toward_positive32: f32 = F32::square_root_toward_positive(two32);
+    let toward_negative32: f32 = F32::square_root_toward_negative(two32);
+    let ordinary32: f32 = F32::square_root(two32);
+    let negative: f64 = F64::square_root_toward_zero(0.0 - 1.0);
+
+    transition local_zero == 5.0 && field_positive == 5.0 && parameter_negative == 5.0
+        && called_zero == 5.0 && called_positive == 5.0
+        && toward_zero64 == lower64 && toward_negative64 == lower64
+        && toward_positive64 == upper64 && ordinary64 == upper64
+        && toward_zero32 == lower32 && toward_negative32 == lower32
+        && toward_positive32 == upper32 && ordinary32 == lower32
+        && negative != negative {
+        true -> good(main)
+        false -> bad(main)
+    }
+    state good(main: &mut Main) {
+        Console::write_line("RADIUS");
+        Console::exit_process(0);
+    }
+    state bad(main: &mut Main) {
+        Console::write_line("MISS");
+        Console::exit_process(1);
+    }
+}

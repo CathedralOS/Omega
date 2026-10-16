@@ -899,6 +899,7 @@ pub fn x86_64_register_constraint_catalog(
     for (key, inputs) in [
         (crate::X86_64_IEEE_FLOAT_ARITHMETIC, 2),
         (crate::X86_64_IEEE_FLOAT_DIRECTED_BINARY, 2),
+        (crate::X86_64_IEEE_FLOAT_DIRECTED_UNARY, 1),
         (crate::X86_64_IEEE_FLOAT_UNARY, 1),
         (crate::X86_64_IEEE_FLOAT_TERNARY, 3),
     ] {
@@ -912,7 +913,8 @@ pub fn x86_64_register_constraint_catalog(
             operands,
             implicit_uses: sorted_units(
                 view("mxcsr").units.iter().copied().chain(
-                    (key == crate::X86_64_IEEE_FLOAT_DIRECTED_BINARY)
+                    (key == crate::X86_64_IEEE_FLOAT_DIRECTED_BINARY
+                        || key == crate::X86_64_IEEE_FLOAT_DIRECTED_UNARY)
                         .then(|| view("rsp").units.iter().copied())
                         .into_iter()
                         .flatten(),

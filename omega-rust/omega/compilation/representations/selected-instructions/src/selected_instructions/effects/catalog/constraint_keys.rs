@@ -58,6 +58,11 @@ impl SelectedConstraintKeys {
             } else {
                 self.ieee_float_directed_binary
             },
+            if self.ieee_float_directed_unary == self.ieee_float_unary {
+                None
+            } else {
+                self.ieee_float_directed_unary
+            },
             self.ieee_float_unary,
             // AArch64's conversion forms are flag-free and intentionally
             // alias the ordinary unary row. Only a distinct target-owned row
@@ -153,7 +158,11 @@ impl SelectedConstraintKeys {
             }
             MachineSemanticKind::NearestIeeeFloatArithmetic(form) => {
                 if form.operation.rounding_direction().is_some() {
-                    return self.ieee_float_directed_binary;
+                    return match form.operand_count() {
+                        1 => self.ieee_float_directed_unary,
+                        2 => self.ieee_float_directed_binary,
+                        _ => None,
+                    };
                 }
                 return match form.operand_count() {
                     1 => match form.operation {

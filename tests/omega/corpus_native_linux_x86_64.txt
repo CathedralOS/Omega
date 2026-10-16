@@ -1624,6 +1624,7 @@ pass/float/computed_comparison_literal_landing_exit built 34436ms exit:0 @6c4968
 pass/float/computed_float_bare_literal_comparison built 34734ms exit:0 @6c49683ce714
 pass/float/constructor_requirement_result_policy_exit built 34056ms exit:0 @6c49683ce714
 pass/float/data_where_float_field_restored_exit built 32218ms exit:70 @6c49683ce714
+pass/float/directed_square_root_radius_exit built 21482ms exit:70 @cc35a4f0d368+wt
 pass/float/explicit_float_comparison_formats checked 7873ms @6c49683ce714
 pass/float/f32_arg_const_arith_landed_exit built 32829ms exit:70 @6c49683ce714
 pass/float/f32_per_operation_rounding_exit built 31705ms exit:77 @6c49683ce714

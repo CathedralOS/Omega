@@ -307,6 +307,7 @@ fn evaluate(
         }
         Operation::ConvertFormat => FloatSemantics::convert(format, first),
         Operation::SquareRoot => FloatSemantics::square_root(format, first),
+        Operation::DirectedSquareRoot { rounding } => directed_square_root(rounding)(format, first),
         Operation::MultiplyThenAdd => {
             FloatSemantics::multiply_then_add(format, first, &meanings[1], &meanings[2])
         }
@@ -335,6 +336,17 @@ fn evaluate(
         } => directed(operation, rounding)(format, first, &meanings[1]),
     };
     Ok(scalar(encode(realization.format, meaning)))
+}
+
+fn directed_square_root(
+    rounding: IeeeFloatRoundingDirection,
+) -> fn(FloatFormat, &FloatMeaning) -> FloatMeaning {
+    use IeeeFloatRoundingDirection as Direction;
+    match rounding {
+        Direction::TowardZero => FloatSemantics::square_root_toward_zero,
+        Direction::TowardPositive => FloatSemantics::square_root_toward_positive,
+        Direction::TowardNegative => FloatSemantics::square_root_toward_negative,
+    }
 }
 
 fn directed(

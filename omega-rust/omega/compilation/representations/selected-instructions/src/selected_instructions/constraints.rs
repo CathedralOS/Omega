@@ -86,6 +86,10 @@ pub struct SelectedConstraintKeys {
     /// Explicit binary rounding with exact local control preservation. An ISA
     /// may share the ordinary row when its existing scratch suffices.
     pub ieee_float_directed_binary: Option<RegisterConstraintKey>,
+    /// Explicit unary rounding (directed square root) with the same local
+    /// control preservation and one general-register input. An ISA may share
+    /// the ordinary unary row when its existing scratch suffices.
+    pub ieee_float_directed_unary: Option<RegisterConstraintKey>,
     /// The same IEEE forms with one general-register input (negation,
     /// square root and conversions) and one result.
     pub ieee_float_unary: Option<RegisterConstraintKey>,

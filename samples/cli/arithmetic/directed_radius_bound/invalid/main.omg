@@ -1,0 +1,10 @@
+// Expected rejection: a negative radius operand is disproved.
+use omega::language::core::float_operations;
+
+machine radius(value: f64) -> f64
+requires value == value && value >= 0.0 {
+    F64::square_root_toward_zero(value)
+}
+
+data Control { observed: f64; }
+machine Control::main(control: &mut Control) { control.observed = radius(-1.0); }
