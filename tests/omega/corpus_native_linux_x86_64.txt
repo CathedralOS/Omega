@@ -486,6 +486,7 @@ pass/build/product_description_paths_exit built 18043ms exit:0 @6c49683ce714
 pass/build/product_entry_named_user_machine_exit built 17445ms exit:0 @6c49683ce714
 pass/build/runtime_calling_register_copy_exit built 11147ms exit:0 @7c1edd43e7e4+wt
 pass/build/runtime_depend_mapping_exit built 19566ms exit:70 @6c49683ce714
+pass/build/runtime_firmware_map_cycle_exit built 23211ms exit:0 @0a3937c62bdf+wt
 pass/build/runtime_main_source_builder_is_ordinary_exit built 14790ms exit:70 @6c49683ce714
 pass/build/runtime_opaque_by_value_selected_exit built 15001ms exit:72 @6c49683ce714
 pass/build/runtime_static_service_exclusion_exit built 22141ms exit:0 @6c49683ce714

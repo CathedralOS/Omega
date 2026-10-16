@@ -6023,6 +6023,7 @@ pass/build/product_description_paths_exit checked 10456ms check-target:macos_arm
 pass/build/product_entry_named_user_machine_exit checked 10318ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/build/runtime_calling_register_copy_exit checked 9069ms check-target:macos_arm64 @7c1edd43e7e4+wt
 pass/build/runtime_depend_mapping_exit checked 11118ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/build/runtime_firmware_map_cycle_exit checked 14282ms check-target:macos_arm64 @0a3937c62bdf+wt
 pass/build/runtime_main_source_builder_is_ordinary_exit checked 11077ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/build/runtime_opaque_by_value_selected_exit checked 19630ms check-target:macos_arm64 @35f5679f7d28
 pass/build/runtime_static_service_exclusion_exit checked 10448ms check-target:macos_arm64 @a9ae30e1c334+wt

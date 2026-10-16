@@ -1,0 +1,186 @@
+// Expected exit: 0. Controlled firmware model: every operation is ordinary
+// Source code. Numeric map tokens stand for scripted allocations and are never
+// dereferenced. This exercises the shared protocol, not physical UEFI entry.
+use omega_language_std::targets::uefi_x86_64::handoff;
+
+const MODEL_RELEASE_FAILURE: u64 = 0x8000000000000015;
+const MODEL_EXIT_FAILURE: u64 = 0x8000000000000003;
+
+ModelFirmware satisfies UefiBootServices {
+    UefiBootServices::allocate_pages = allocate;
+    UefiBootServices::free_pages = release;
+    UefiBootServices::get_memory_map = acquire;
+    UefiBootServices::exit_boot_services = exit_services;
+}
+
+machine allocate(this: &EfiBootServicesTable, allocate_type: u32, memory_type: u32,
+    pages: u64, memory: &mut u64) -> u64 reaches UefiBootServices
+{
+    transition this.hdr_reserved == 2 {
+        true -> (EFI_OUT_OF_RESOURCES)
+        _ -> accepted(memory)
+    }
+    state accepted(memory: &mut u64) -> u64 {
+        memory = 8192;
+        EFI_SUCCESS
+    }
+}
+
+machine release(this: &EfiBootServicesTable, memory: u64, pages: u64) -> u64 {
+    transition this.hdr_reserved == 1 {
+        true -> (MODEL_RELEASE_FAILURE)
+        _ -> (EFI_SUCCESS)
+    }
+}
+
+machine acquire(this: &EfiBootServicesTable, map_size: &mut u64, map: u64,
+    key: &mut u64, descriptor_size: &mut u64, descriptor_version: &mut u32) -> u64
+{
+    transition map == 4096 {
+        true -> small(this, map_size)
+        _ -> snapshot(this, map_size, key, descriptor_size, descriptor_version)
+    }
+    state small(this: &EfiBootServicesTable, map_size: &mut u64) -> u64 {
+        transition this.hdr_reserved == 12 {
+            true -> overflow(map_size)
+            _ -> required(this, map_size)
+        }
+    }
+    state required(this: &EfiBootServicesTable, map_size: &mut u64) -> u64 {
+        transition this.hdr_reserved == 15 {
+            true -> exact_page(map_size)
+            _ -> growth(map_size)
+        }
+    }
+    state exact_page(map_size: &mut u64) -> u64 {
+        map_size = 8192;
+        EFI_BUFFER_TOO_SMALL
+    }
+    state overflow(map_size: &mut u64) -> u64 {
+        map_size = 0xFFFFFFFFFFFFFFFF;
+        EFI_BUFFER_TOO_SMALL
+    }
+    state growth(map_size: &mut u64) -> u64 {
+        map_size = 8080;
+        EFI_BUFFER_TOO_SMALL
+    }
+    state snapshot(this: &EfiBootServicesTable, map_size: &mut u64, key: &mut u64,
+        descriptor_size: &mut u64, descriptor_version: &mut u32) -> u64
+    {
+        map_size = 8080;
+        key = ((key as u64 in Saturating) + 1) as u64;
+        descriptor_size = 40;
+        descriptor_version = 1;
+        transition this.hdr_reserved {
+            3 -> short_stride(descriptor_size)
+            4 -> wrong_version(descriptor_version)
+            5 -> partial_descriptor(map_size)
+            6 -> empty_map(map_size)
+            10 -> oversized_map(map_size)
+            11 -> zero_stride(descriptor_size)
+            14 -> extended_descriptor(map_size, descriptor_size)
+            _ -> (EFI_SUCCESS)
+        }
+    }
+    state extended_descriptor(map_size: &mut u64, descriptor_size: &mut u64) -> u64 { map_size = 8064; descriptor_size = 48; EFI_SUCCESS }
+    state short_stride(descriptor_size: &mut u64) -> u64 { descriptor_size = 39; EFI_SUCCESS }
+    state wrong_version(descriptor_version: &mut u32) -> u64 { descriptor_version = 2; EFI_SUCCESS }
+    state partial_descriptor(map_size: &mut u64) -> u64 { map_size = 8081; EFI_SUCCESS }
+    state empty_map(map_size: &mut u64) -> u64 { map_size = 0; EFI_SUCCESS }
+    state oversized_map(map_size: &mut u64) -> u64 { map_size = 9000; EFI_SUCCESS }
+    state zero_stride(descriptor_size: &mut u64) -> u64 { descriptor_size = 0; EFI_SUCCESS }
+}
+
+machine exit_services(this: &EfiBootServicesTable, image: u64, map_key: u64) -> u64
+reaches UefiBootServices
+{
+    transition this.hdr_reserved {
+        7 -> stale(map_key)
+        8 -> (EFI_INVALID_PARAMETER)
+        9 -> (MODEL_EXIT_FAILURE)
+        3 -> (MODEL_EXIT_FAILURE)
+        4 -> (MODEL_EXIT_FAILURE)
+        5 -> (MODEL_EXIT_FAILURE)
+        6 -> (MODEL_EXIT_FAILURE)
+        10 -> (MODEL_EXIT_FAILURE)
+        11 -> (MODEL_EXIT_FAILURE)
+        _ -> (EFI_SUCCESS)
+    }
+    state stale(map_key: u64) -> u64 {
+        transition map_key < 3 {
+            true -> (EFI_INVALID_PARAMETER)
+            _ -> (EFI_SUCCESS)
+        }
+    }
+}
+
+machine check_case(table: &mut EfiBootServicesTable, scenario: u32) -> bool
+reaches UefiBootServices
+invokes UefiBootServices;
+{
+    table.hdr_reserved = scenario;
+    let mut cycle: UefiOsHandoffCycle = UefiOsHandoffCycle {
+        legs: UefiOsHandoffLegs {
+            table: table, image: 17, map: 4096, next_map: 0,
+            map_capacity: 4096, map_pages: 1, pages: 0, map_size: 0,
+            key: 0, descriptor_size: 0, descriptor_version: 0, status: 0
+        },
+        terminal: UefiOsHandoffTerminal {}, remaining: 0, exhaustion: 0
+    };
+    let disposition: UefiOsHandoffDisposition = UefiOsHandoffCycle::complete_boot_services(&mut cycle);
+    transition disposition {
+        UefiOsHandoffDisposition::Ready -> ready(&cycle, scenario)
+        UefiOsHandoffDisposition::Rejected { status } -> rejected(&cycle, scenario, status)
+    }
+    state ready(cycle: &UefiOsHandoffCycle, scenario: u32) -> bool {
+        (scenario == 0 || scenario == 7 || scenario == 14 || scenario == 15)
+            && cycle.legs.map == 8192
+            && ((scenario == 15 && cycle.legs.map_pages == 3 && cycle.legs.map_capacity == 12288)
+                || (scenario != 15 && cycle.legs.map_pages == 2 && cycle.legs.map_capacity == 8192))
+            && (((scenario == 0 || scenario == 14 || scenario == 15) && cycle.legs.key == 1 && cycle.remaining == 4)
+                || (scenario == 7 && cycle.legs.key == 3 && cycle.remaining == 2))
+    }
+    state rejected(cycle: &UefiOsHandoffCycle, scenario: u32, status: u64) -> bool {
+        transition scenario {
+            1 -> (status == MODEL_RELEASE_FAILURE && cycle.legs.map == 4096
+                && cycle.legs.map_pages == 1 && cycle.legs.next_map == 8192
+                && cycle.legs.pages == 2 && cycle.legs.map_capacity == 4096)
+            2 -> (status == EFI_OUT_OF_RESOURCES && cycle.legs.map == 4096
+                && cycle.legs.map_pages == 1 && cycle.legs.next_map == 0)
+            12 -> (status == EFI_OUT_OF_RESOURCES && cycle.legs.map == 4096
+                && cycle.legs.map_pages == 1 && cycle.legs.next_map == 0)
+            8 -> (status == EFI_INVALID_PARAMETER && cycle.remaining == 1 && cycle.legs.key == 4)
+            9 -> (status == MODEL_EXIT_FAILURE && cycle.remaining == 4 && cycle.legs.key == 1)
+            _ -> (status == EFI_INVALID_PARAMETER && cycle.legs.map == 8192 && cycle.legs.key == 1)
+        }
+    }
+}
+
+data Main { table: EfiBootServicesTable; }
+machine Main::main(main: &mut Main) reaches UefiBootServices
+invokes UefiBootServices;
+crashes Trap
+{
+    let first: bool = check_case(&mut main.table, 0);
+    let release: bool = check_case(&mut main.table, 1);
+    let allocate: bool = check_case(&mut main.table, 2);
+    let stride: bool = check_case(&mut main.table, 3);
+    let version: bool = check_case(&mut main.table, 4);
+    let partial: bool = check_case(&mut main.table, 5);
+    let empty: bool = check_case(&mut main.table, 6);
+    let retry: bool = check_case(&mut main.table, 7);
+    let exhausted: bool = check_case(&mut main.table, 8);
+    let rejected: bool = check_case(&mut main.table, 9);
+    let oversized: bool = check_case(&mut main.table, 10);
+    let zero: bool = check_case(&mut main.table, 11);
+    let overflow: bool = check_case(&mut main.table, 12);
+    let extended: bool = check_case(&mut main.table, 14);
+    let aligned: bool = check_case(&mut main.table, 15);
+    transition first && release && allocate && stride && version && partial
+        && empty && retry && exhausted && rejected && oversized && zero && overflow && extended && aligned {
+        true -> done()
+        _ -> wrong()
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}
