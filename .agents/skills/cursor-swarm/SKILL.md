@@ -96,6 +96,20 @@ of RAM, and a 254 GB disk. That measurement is that coordinator pod. Worker
 receipts from the same launch did not repeat those numbers. A later build is
 unknown until a pod that booted it is measured.
 
+## Baked compiler
+
+An environment install can leave `/workspace/build/gate-cli/debug/omega` on
+the disk. That binary surviving boot is not a skipped compile. On
+2026-10-16 a cold `mbx build -p omega --bin omega` with
+`CARGO_PROFILE_DEV_OPT_LEVEL=1` and `CARGO_TARGET_DIR=/workspace/build/gate-cli`
+took 9 minutes 1 second. The same command against that exact source finished
+in 0.22 seconds. Four sessions booted from build
+`bld-20261016-63173d80-ba40-4378-bfa4-2de5a7a5f84e`, found the 148 MB binary,
+and still spent 473, 474, 483, and 487 seconds in the first `mbx build`
+because `main` was newer than the snapshot. Record `first_build_seconds`.
+Do not treat a present binary as a fast build unless that number was measured
+on the session's own checkout.
+
 ## Select outcomes
 
 Complete the [mandatory main preflight](../../../AGENTS.md#sessions-and-subagents)
