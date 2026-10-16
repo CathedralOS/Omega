@@ -561,7 +561,13 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
     ) -> checked_trees::FlowOperandFact {
         let referents = referents.unwrap_or_else(|| {
             if expression != self.reference_slot_target && self.operand_is_view(expression) {
-                return self.reference_operand_referents(expression);
+                let referents = self.reference_operand_referents(expression);
+                // A borrowed parameter has no local storage origin. Its
+                // ingress referent is named by the parameter itself, exactly
+                // as its checked contracts and memberships name it.
+                if !referents.is_empty() || !self.names_whole_parameter(expression) {
+                    return referents;
+                }
             }
             // An owned container has its own address even when some children
             // are references. Resolve those descriptors only after projecting
@@ -765,6 +771,25 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                 .expression_result_type_at(self.program, self.machine, self.state, expression)
                 .is_some_and(|reference| self.is_view_type(reference))
         }
+    }
+
+    fn names_whole_parameter(&self, expression: ExpressionHandle) -> bool {
+        validation::canonical_place_from_expression_in_state(
+            self.program,
+            self.state.symbol,
+            self.statement_index,
+            expression,
+        )
+        .is_some_and(|place| {
+            place.segments.is_empty()
+                && place.root.as_symbol().is_some_and(|symbol| {
+                    typed_trees::signature::state_parameter_position(
+                        self.program.state_parameters(self.state),
+                        symbol,
+                    )
+                    .is_some()
+                })
+        })
     }
 
     fn is_view_type(&self, mut reference: typed_trees::types::TypeReferenceHandle) -> bool {
