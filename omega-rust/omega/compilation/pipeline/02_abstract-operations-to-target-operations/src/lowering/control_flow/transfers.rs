@@ -230,10 +230,12 @@ fn address_join_argument(
         )
     };
     let root_type = if let Some(home) = live.structural_homes.get(&argument.place) {
-        ((parameter.access == terminal_psi::StructuralAccess::SharedBorrow
-            || home
-                .operation_result()
-                .is_some_and(|(_, result)| result.place == argument.place))
+        // An owned arrival has its own declaration, not its predecessor's
+        // operation identity. Either live home can lend the same admitted
+        // projection; origin does not change its access or exact place.
+        (home.place() == argument.place
+            && (parameter.access == terminal_psi::StructuralAccess::SharedBorrow
+                || home.access() == terminal_psi::StructuralAccess::Owned)
             && !home.has_claims()
             && home.multiplicity() != terminal_psi::StructuralMultiplicity::Linear
             && accessible(home.structural_type(), home.multiplicity(), home.access()))

@@ -1,0 +1,18 @@
+// Repeated owned arrivals retain the pointer and projected record fields.
+data Pair { first: i64; second: i64; }
+machine main() crashes Trap {
+    let mut backing: Pair = Pair { first: 17, second: 23 };
+    let original: &mut Pair = &mut backing;
+    let child: &mut Pair = original;
+    child.first = 41;
+    let next: &mut Pair = child;
+    next.second = 53;
+    let first: i64 = next.first;
+    let second: i64 = next.second;
+    transition first == 41 && second == 53 {
+        true -> done()
+        false -> wrong()
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}

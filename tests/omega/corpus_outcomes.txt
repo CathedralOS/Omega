@@ -5318,6 +5318,7 @@ pass/borrows/opaque_reference_identity checked 2840ms @3ac38090e82f
 pass/borrows/opaque_region_known_calls checked 1740ms @641c98043b7c
 pass/borrows/owned_byte_value_call_exit checked 11067ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/owned_nested_record_copy_exit checked 11044ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/borrows/owned_reference_arrival_projection_exit checked 3581ms check-target:macos_arm64 @ea7b63644a0a+wt
 pass/borrows/owner_byte_read_during_shared_record_loan_exit checked 11145ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/plain_read_after_exclusive_loan_last_use_exit checked 10441ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/projected_claim_owner_shared_observation_exit checked 11079ms check-target:macos_arm64 @a9ae30e1c334+wt

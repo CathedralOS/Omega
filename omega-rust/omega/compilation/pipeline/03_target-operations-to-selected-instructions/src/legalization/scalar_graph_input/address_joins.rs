@@ -297,17 +297,6 @@ fn root_type(
         return ((owner == block || dominates(function, owner, block)) && permitted(joined))
             .then_some(joined.structural_type);
     }
-    if matches!(access, terminal_psi::exclusive_borrow_pair_pattern!())
-        && !function.structural_places.iter().any(|declaration| {
-            declaration.id == place
-                && matches!(
-                    declaration.kind,
-                    StructuralPlaceKind::OperationResult { .. }
-                )
-        })
-    {
-        return None;
-    }
     let (operation, result) = if let Some((operation, result, _)) =
         super::primitive_locals::producer(function, place)
     {
@@ -342,8 +331,14 @@ fn root_type(
                 block: owner,
                 declaration,
             } => {
-                return (owner == block || dominates(function, owner, block))
-                    .then_some(declaration.structural_type);
+                // An owned block arrival is a new local owner, not an
+                // operation result. Reconstruct its lending authority from
+                // that declaration and dominance, without inventing a
+                // predecessor producer identity.
+                return ((owner == block || dominates(function, owner, block))
+                    && declaration.multiplicity != StructuralMultiplicity::Linear
+                    && permitted(&declaration))
+                .then_some(declaration.structural_type);
             }
             legalized_operations::LegalizedStructuralCaseSource::Parameter { .. }
             | legalized_operations::LegalizedStructuralCaseSource::BorrowedParameter { .. } => {
