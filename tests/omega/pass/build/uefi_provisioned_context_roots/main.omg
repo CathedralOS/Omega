@@ -8,7 +8,8 @@ data BootContext {
 // establish either root. The physical bridge must precede this continuation.
 machine launch(context: &mut BootContext, image: Extent in Granted,
                storage: Extent in Granted) {
-    context.entered = true;
+    let temporary: BootContext = BootContext { entered: true };
+    context.entered = temporary.entered;
     transition { _ -> retain(context, image as Extent, storage as Extent) }
     state retain(context: &mut BootContext, image: Extent, storage: Extent) {
         transition { _ -> retain(context, image, storage) }
