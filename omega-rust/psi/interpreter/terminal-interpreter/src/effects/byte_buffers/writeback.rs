@@ -86,22 +86,20 @@ impl BoundaryByteBufferBinding {
                 array,
                 offset,
                 length,
-                referent,
                 ..
             } => {
                 if scope != BoundaryByteWriteScope::View {
                     return Err(malformed());
                 }
-                source.validate_mutable_referent(execution, referent)?;
+                source.validate_presented_referent(execution)?;
                 let start = usize::try_from(*offset).map_err(|_| malformed())?;
                 let end = usize::try_from(offset.checked_add(*length).ok_or_else(malformed)?)
                     .map_err(|_| malformed())?;
                 let bytes = execution.stored_byte_array_snapshot(array, start, end)?;
                 (bytes.bytes().to_vec(), *length)
             }
-            ByteSequenceBinding::MutableField { referent, .. }
-            | ByteSequenceBinding::MutableOwner { referent, .. } => {
-                source.validate_mutable_referent(execution, referent)?;
+            ByteSequenceBinding::MutableField { .. } | ByteSequenceBinding::MutableOwner { .. } => {
+                source.validate_presented_referent(execution)?;
                 let (bytes, capacity) = execution.exclusive_owner_bytes(source)?;
                 let length = u64::try_from(bytes.len()).map_err(|_| malformed())?;
                 (
@@ -152,13 +150,12 @@ impl BoundaryByteBufferBinding {
                 array,
                 offset,
                 length,
-                referent,
                 ..
             } => {
                 if self.scope != BoundaryByteWriteScope::View {
                     return Err(malformed());
                 }
-                self.source.validate_mutable_referent(execution, referent)?;
+                self.source.validate_presented_referent(execution)?;
                 let start = usize::try_from(*offset).map_err(|_| malformed())?;
                 let end = usize::try_from(offset.checked_add(*length).ok_or_else(malformed)?)
                     .map_err(|_| malformed())?;
@@ -172,9 +169,8 @@ impl BoundaryByteBufferBinding {
                 }
                 *length
             }
-            ByteSequenceBinding::MutableField { referent, .. }
-            | ByteSequenceBinding::MutableOwner { referent, .. } => {
-                self.source.validate_mutable_referent(execution, referent)?;
+            ByteSequenceBinding::MutableField { .. } | ByteSequenceBinding::MutableOwner { .. } => {
+                self.source.validate_presented_referent(execution)?;
                 let (bytes, capacity) = execution.exclusive_owner_bytes(&self.source)?;
                 let length = u64::try_from(bytes.len()).map_err(|_| malformed())?;
                 if self.scope == BoundaryByteWriteScope::View {

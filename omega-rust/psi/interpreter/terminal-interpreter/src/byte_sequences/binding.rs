@@ -122,6 +122,17 @@ impl ByteSequenceBinding {
         }
     }
 
+    /// Re-authenticate a retained binding against the identity it presents:
+    /// its descriptor home once a frame or field lookup relocated it, else
+    /// its own window. Comparing a relocated binding with its raw window would
+    /// reject the very loan this binding records.
+    pub(crate) fn validate_presented_referent(
+        &self,
+        execution: &TerminalExecution,
+    ) -> Result<(), TerminalInterpretError> {
+        self.validate_mutable_referent(execution, self.descriptor_home().ok_or_else(malformed)?)
+    }
+
     pub(crate) fn validate_mutable_referent(
         &self,
         execution: &TerminalExecution,
