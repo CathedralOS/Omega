@@ -1,0 +1,98 @@
+// Expected exit: 0
+// Expected output contains: zero float case rounds -1 and 1
+// A copy record whose first case carries f64 is zero-constructed as +0.0.
+// That payload, and exact ±0.5 ratios taken from a runtime-indexed f64 array,
+// round half away from zero. No passing sample executes this combination.
+module zero_float_case_round;
+use omega_language_std::console;
+use omega::language::core::numeric_conversion;
+use omega::language::core::float_operations;
+
+pub data Reading [copy] {
+    case Value(amount: f64);
+    case Absent;
+}
+pub data Holder [copy] {
+    reading: Reading;
+    ready: bool;
+}
+pub data Table {
+    moment: [f64; 2];
+    area: [f64; 2];
+}
+pub data Main {
+    slots: [Holder; 2];
+    table: Table;
+}
+
+machine round_away(value: f64) -> i32 in Wrapping {
+    transition value < 0.0 {
+        true -> negative(value)
+        false -> positive(value)
+    }
+    state negative(value: f64) -> i32 in Wrapping {
+        let converted: i32 in Saturating = I32::from_f64(value - 0.5);
+        converted as i32 in Wrapping
+    }
+    state positive(value: f64) -> i32 in Wrapping {
+        let converted: i32 in Saturating = I32::from_f64(value + 0.5);
+        converted as i32 in Wrapping
+    }
+}
+
+machine ratio(table: &Table, index: i32 in Wrapping) -> f64
+requires index >= 0 && index < 2
+{
+    table.moment[index] / table.area[index]
+}
+
+machine arm(application: &mut Main, index: i32 in Wrapping)
+requires index >= 0 && index < 2
+{
+    application.slots[index].ready = true;
+}
+
+pub machine Main::main(application: &mut Main) reaches Console
+invokes Console;
+{
+    arm(application, 0);
+    arm(application, 1);
+    application.slots[1].ready = false;
+    application.table.moment[0] = -1.0;
+    application.table.area[0] = 2.0;
+    application.table.moment[1] = 1.0;
+    application.table.area[1] = 2.0;
+    transition application.slots[0].reading {
+        Reading::Value { amount } -> observe(application, amount)
+        _ -> mismatch(application)
+    }
+    state observe(application: &mut Main, amount: f64) {
+        let zero: i32 in Wrapping = round_away(amount);
+        let negative: i32 in Wrapping = round_away(ratio(&application.table, 0));
+        let positive: i32 in Wrapping = round_away(ratio(&application.table, 1));
+        transition zero == 0 && negative == -1 && positive == 1 && application.slots[0].ready && !application.slots[1].ready {
+            true -> second(application)
+            false -> mismatch(application)
+        }
+    }
+    state second(application: &mut Main) {
+        transition application.slots[1].reading {
+            Reading::Value { amount } -> second_amount(application, amount)
+            _ -> mismatch(application)
+        }
+    }
+    state second_amount(application: &mut Main, amount: f64) {
+        transition round_away(amount) == 0 {
+            true -> report(application)
+            false -> mismatch(application)
+        }
+    }
+    state report(application: &mut Main) {
+        Console::write_line("zero float case rounds -1 and 1");
+        Console::exit_process(0);
+    }
+    state mismatch(application: &mut Main) {
+        Console::write_line("zero float case mismatch");
+        Console::exit_process(2);
+    }
+}
