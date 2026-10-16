@@ -19,7 +19,7 @@ use typed_trees::statement::{StatementNode, TableAssignment};
 /// binding, not merely a source expression with the same parameter symbol.
 pub fn state_reference_parameter_binding_is_stable(
     program: &dyn crate::CheckingInput,
-    _machine: &Machine,
+    machine: &Machine,
     state: &State,
     parameter: symbols::SymbolHandle,
 ) -> bool {
@@ -46,6 +46,23 @@ pub fn state_reference_parameter_binding_is_stable(
         .all(|statement| {
             if statement_returns_reference_without_effects(program, state, statement) {
                 return true;
+            }
+            // Replacing the parameter's own descriptor (a `mut` binding given
+            // another view) leaves no exact incoming origin at the exit. The
+            // shared destination-ownership query decides it, so a write
+            // through a non-`mut` borrowed parameter keeps its identity.
+            if let Some(assignment) = statement.as_assignment()
+                && is_binding(assignment.target)
+                && super::reference_subjects::reference_value_replaces_binding(
+                    program,
+                    machine,
+                    state,
+                    declaration.type_reference,
+                    assignment.target,
+                    assignment.value,
+                )
+            {
+                return false;
             }
             if let Some(call) = statement.as_call() {
                 let contract = super::super::callee_entry_contract(program, call.target_symbol);

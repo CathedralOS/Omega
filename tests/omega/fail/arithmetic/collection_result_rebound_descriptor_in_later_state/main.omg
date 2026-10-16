@@ -1,0 +1,17 @@
+// A later state that rebinds its `mut` view parameter also loses the exact
+// incoming origin the machine ensures names.
+machine count(values: &[u8], other: &[u8]) -> u64
+ensures result <= values.len {
+    transition { _ -> later(values, other) }
+    state later(mut values: &[u8], other: &[u8]) -> u64 {
+        values = other;
+        values.len
+    }
+}
+machine rejected() -> u8 {
+    let small: [u8; 1];
+    let large: [u8; 3];
+    let destination: [u8; 2];
+    let count: u64 = count(&small[..], &large[..]);
+    destination[count]
+}

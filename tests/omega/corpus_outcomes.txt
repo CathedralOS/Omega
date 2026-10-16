@@ -66,9 +66,11 @@ fail/arithmetic/collection_result_endpoint_effect rejected 610ms expected @d840c
 	cannot prove subslice range end bound `__hoist_14..__hoist_15` is within slice length 3
 fail/arithmetic/collection_result_false_loop_bound rejected 703ms expected @d840c6ae9019+wt
 	cannot prove ensures contract for exit from count at statement 1: result < values.len
-fail/arithmetic/collection_result_rebound_descriptor rejected 659ms expected @d840c6ae9019+wt
+fail/arithmetic/collection_result_rebound_descriptor rejected 898ms expected @ebb617ff4f07+wt
 	cannot prove ensures contract for exit from count at statement 1: result <= values.len; no exact incoming reference origin for values
 	cannot prove index `count` is within length 2 in rejected::entry
+fail/arithmetic/collection_result_rebound_descriptor_in_later_state rejected 927ms expected @ebb617ff4f07+wt
+	cannot prove ensures contract for exit from count at statement 1: result <= values.len; no exact incoming reference origin for values
 fail/arithmetic/collection_result_window_metadata rejected 645ms expected @d840c6ae9019+wt
 	cannot prove ensures contract for exit from rejected at statement 2: result <= 1
 fail/arithmetic/collection_result_wrong_argument rejected 197ms expected @d840c6ae9019+wt

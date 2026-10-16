@@ -104,7 +104,8 @@ pub(super) fn replaces_binding(
 }
 
 /// Reference-valued assignment can replace a local or field descriptor home.
-/// A bare borrowed parameter instead writes its referent. The same destination
+/// A bare exclusive borrowed parameter instead writes its referent; a mutable
+/// shared-reference binding replaces its descriptor. The same destination
 /// ownership decision supplies receiving types and loan retirement below.
 pub(super) fn replaces_reference_binding(
     program: &dyn crate::CheckingInput,
@@ -176,11 +177,13 @@ pub(super) fn reference_value_replaces_binding(
     target: ExpressionHandle,
     value: ExpressionHandle,
 ) -> bool {
-    // A borrowed parameter grants access to its referent, not a mutable home
-    // for its incoming descriptor. A local or projected field can instead
-    // own descriptor storage. This also keeps `&mut &mut T` assignment on the
-    // inner descriptor without rebinding the outer loan. Access and receiving
-    // validity remain separate checks; this query grants neither permission.
+    // An exclusive borrowed parameter grants access to its referent, not a
+    // mutable home for its incoming descriptor. A local or projected field
+    // can instead own descriptor storage. A shared parameter cannot write its
+    // referent at all, so assigning a `mut` one replaces its binding below.
+    // This also keeps `&mut &mut T` assignment on the inner descriptor
+    // without rebinding the outer loan. Access and receiving validity remain
+    // separate checks; this query grants neither permission.
     if crate::canonical_place_from_expression_in_state(
         program,
         state.symbol,
@@ -189,10 +192,15 @@ pub(super) fn reference_value_replaces_binding(
     )
     .is_some_and(|place| {
         place.segments.is_empty()
-            && place
-                .root
-                .as_symbol()
-                .is_some_and(|symbol| program.state_parameter_by_symbol(state, symbol).is_some())
+            && place.root.as_symbol().is_some_and(|symbol| {
+                program
+                    .state_parameter_by_symbol(state, symbol)
+                    .is_some_and(|parameter| {
+                        crate::reference_shell(program, parameter.type_reference).is_none_or(
+                            |shell| shell.access != language_semantics::ReferenceAccess::Shared,
+                        )
+                    })
+            })
     }) {
         return false;
     }
