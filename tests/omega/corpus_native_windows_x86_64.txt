@@ -320,7 +320,7 @@ pass/borrows/view_field_record_exit_disposal checked 3721ms @91bbf3e29aa9
 pass/borrows/write_projection_loan checked 12085ms @91bbf3e29aa9
 pass/borrows/writeonly_record_field_store built 11668ms exit:181 @91bbf3e29aa9
 pass/borrows/writeonly_record_field_store_variants built 11447ms exit:181 @91bbf3e29aa9
-pass/boundary/named_target_foreign_provider_exit built 5535ms exit:0 @14e1e1dd1503+wt
+pass/boundary/named_target_foreign_provider_exit built 5149ms exit:0 @a5c430559a50
 pass/build/artifact_only_output checked 12422ms @91bbf3e29aa9
 pass/build/artifact_only_required_output_completion checked 24385ms published:files/manifest.txt @91bbf3e29aa9
 pass/build/build_domain_context checked 12617ms @91bbf3e29aa9
@@ -1219,10 +1219,12 @@ pass/build/selected_const_array_length_exit rejected 2584ms @91bbf3e29aa9
 pass/build/sibling_module_service_exclusion_exit built 13072ms exit:0 @91bbf3e29aa9
 pass/build/sibling_module_slot_family_rows_exit built 12867ms exit:70 @91bbf3e29aa9
 pass/build/static_assumed_binding_spelling_exit built 13127ms exit:0 @91bbf3e29aa9
-pass/build/uefi_entry_schema_same_leaf incomplete 15190ms @91bbf3e29aa9
-	`launch` has no executable body: this compiler does not lower a transition of it yet (state graph: terminator: jump successor: loan transfer); in state `launch::entry`, statement 0
+pass/build/uefi_entry_schema_same_leaf rejected 7872ms @a5c430559a50
+	native artifact physical program entry failed: semantic entry requires a source bootstrap and installed-root physical bridge before executable publication
 pass/build/uefi_os_handoff_invocation incomplete 12882ms @e3eb5bdd566b
 	`Loader::run` has no executable body: this compiler does not lower a transition of it yet (state graph: terminator: jump successor: loan transfer); in state `Loader::run::run`, statement 0
+pass/build/uefi_provisioned_context_roots rejected 4912ms @a5c430559a50
+	native artifact physical program entry failed: semantic entry requires a source bootstrap and installed-root physical bridge before executable publication
 pass/calls/ambient_receiver_scalar_return_exit built 12679ms exit:70 @91bbf3e29aa9
 pass/calls/borrowed_binding_field_authority_exit built 13149ms exit:0 @91bbf3e29aa9
 pass/calls/borrowed_case_dispatch_member_leaf_reads built 12744ms exit:70 @91bbf3e29aa9

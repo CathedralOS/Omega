@@ -1308,13 +1308,16 @@ fail/build/static_service_exclusion_relayed rejected 8226ms expected @eca66ed24a
 	the selected composition retains service `Sink` through Terminal machine 4, reached through machine `Main::main` (Terminal machine 1) declared here
 fail/build/structural_equation_conflicting_argument rejected 37ms expected @a9ae30e1c334+wt
 	generic machine `capacity` where equation binds `Capacity` to 8 but its explicit argument is 7
-fail/build/uefi_entry_schema_accepted_wrong_convention rejected 5004ms expected @c46a502724a1+wt
+fail/build/uefi_entry_counterfeit_roots rejected 1884ms expected @a5c430559a50
+	target root slot `uefi_x86_64::ProgramEntry` requires visible parameter 0 (image) to have exact type `Extent[in Granted]`, but entry machine `launch` declares `Extent[in Granted]`
+	target root slot `uefi_x86_64::ProgramEntry` requires visible parameter 1 (initial storage) to have exact type `Extent[in Granted]`, but entry machine `launch` declares `Extent[in Granted]`
+fail/build/uefi_entry_schema_accepted_wrong_convention rejected 3414ms expected @a5c430559a50
 	target boundary schema `UefiApplication` evaluates physical requirement `UefiPhysicalEntry::enter` with SystemVAMD64, but `uefi_x86_64::ProgramEntry` requires MicrosoftX64
-fail/build/uefi_entry_schema_wrong_owner rejected 3429ms expected @c46a502724a1+wt
+fail/build/uefi_entry_schema_wrong_owner rejected 3558ms expected @a5c430559a50
 	target root slot `uefi_x86_64::ProgramEntry` takes boundary schema `UefiApplication` from a dependency's `targets/uefi_x86_64/entry.omg`, which needs an accepted program-entry binding; run `omega update` to review and accept it
-fail/build/uefi_program_entry_missing_storage_roots rejected 3638ms expected @c46a502724a1+wt
+fail/build/uefi_program_entry_missing_storage_roots rejected 2490ms expected @a5c430559a50
 	target schema `ProgramStorageApplication` exposes exactly image and initial-storage roots, but `launch` declares 0 visible parameters
-fail/build/uefi_program_entry_wrong_calling_policy rejected 3739ms expected @c46a502724a1+wt
+fail/build/uefi_program_entry_wrong_calling_policy rejected 2046ms expected @a5c430559a50
 	calling policy accepted an invalid plan: value 0 uses a register from the wrong architecture
 fail/build/unknown_boundary_slot_selection rejected 4563ms expected @cbb413ac54c3
 	build selects provider `LatchProvider` for unknown boundary slot `Gate`; the slot must exist in the loaded dependency closure
@@ -5971,10 +5974,13 @@ pass/build/selected_const_array_length_exit checked 19740ms check-target:macos_a
 pass/build/sibling_module_service_exclusion_exit checked 8068ms check-target:macos_arm64 @eca66ed24a79+wt
 pass/build/sibling_module_slot_family_rows_exit checked 11717ms check-target:macos_arm64 @b1d84da832b5+wt
 pass/build/static_assumed_binding_spelling_exit checked 10190ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/build/uefi_entry_schema_same_leaf checked 7689ms check-target:uefi_x86_64 @c46a502724a1+wt
+pass/build/uefi_entry_schema_same_leaf rejected 7896ms check-target:uefi_x86_64 regressed-from:checked+check-target:uefi_x86_64 @a5c430559a50
+	native artifact physical program entry failed: semantic entry requires a source bootstrap and installed-root physical bridge before executable publication
 pass/build/uefi_os_handoff_invocation rejected 9044ms check-target:uefi_x86_64 @c46a502724a1+wt
 	selected compiler intrinsic `<selected target>::UefiOsHandoffNativeProvider::satisfies::UefiOsHandoffTermination` for Terminal boundary `named-callable(path(UefiOsHandoffTermination::firmware_return),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(u64\\)\\)\\)),result-dispatch())` has no closed native catalog identity
 	selected compiler intrinsic `<selected target>::UefiOsHandoffNativeProvider::satisfies::UefiOsHandoffTermination` for Terminal boundary `named-callable(path(UefiOsHandoffTermination::transfer),parameters(),result-dispatch())` has no closed native catalog identity
+pass/build/uefi_provisioned_context_roots rejected 3947ms check-target:uefi_x86_64 @a5c430559a50
+	native artifact physical program entry failed: semantic entry requires a source bootstrap and installed-root physical bridge before executable publication
 pass/calling/calling_count_boundaries_exit checked 7399ms check-target:macos_arm64 @a14ec34a59ab+wt
 pass/calls/ambient_receiver_scalar_return_exit checked 10883ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/borrowed_binding_field_authority_exit checked 14360ms check-target:macos_arm64 @8df1d091a810
