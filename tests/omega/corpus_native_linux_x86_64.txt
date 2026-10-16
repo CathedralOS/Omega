@@ -234,6 +234,7 @@ pass/borrows/opaque_reference_identity checked 3358ms @6c49683ce714
 pass/borrows/opaque_region_known_calls checked 3359ms @6c49683ce714
 pass/borrows/owned_byte_value_call_exit built 15275ms exit:70 @6c49683ce714
 pass/borrows/owned_nested_record_copy_exit built 15221ms exit:70 @6c49683ce714
+pass/borrows/owned_reference_arrival_projection_exit built 6114ms exit:0 @4256d50ede5b
 pass/borrows/owner_byte_read_during_shared_record_loan_exit built 14872ms exit:70 @6c49683ce714
 pass/borrows/plain_read_after_exclusive_loan_last_use_exit built 17814ms exit:0 @6c49683ce714
 pass/borrows/projected_claim_owner_shared_observation_exit built 14886ms exit:70 @6c49683ce714
@@ -853,9 +854,9 @@ pass/collections/runtime_finite_element_view_call_write_exit built 34493ms exit:
 pass/collections/runtime_fixed_array_captured_selector_store_exit built 14784ms exit:70 @6c49683ce714
 pass/collections/runtime_fixed_array_projected_write_exit built 15343ms exit:45 @6c49683ce714
 pass/collections/runtime_fixed_array_selector_call_store_exit built 12620ms exit:70 @6c49683ce714
-pass/collections/runtime_fixed_byte_view_dynamic_state_loan_exit built 15178ms exit:70 @6c49683ce714
+pass/collections/runtime_fixed_byte_view_dynamic_state_loan_exit built 9950ms exit:70 @4256d50ede5b
 pass/collections/runtime_fixed_byte_view_dynamic_state_shared_loan_exit built 15207ms exit:70 @6c49683ce714
-pass/collections/runtime_fixed_byte_view_restricted_scalar_state_loan_exit built 15070ms exit:70 @6c49683ce714
+pass/collections/runtime_fixed_byte_view_restricted_scalar_state_loan_exit built 5452ms exit:70 @4256d50ede5b
 pass/collections/runtime_fixed_vec_contract_chain_exit built 15514ms exit:70 @6c49683ce714
 pass/collections/runtime_fixed_vec_round_trip_exit built 14780ms exit:70 @6c49683ce714
 pass/collections/runtime_float_array_projection_return_exit built 33909ms exit:0 @6c49683ce714
@@ -2498,6 +2499,7 @@ pass/ranges/subject_guard_compound_index_successor checked 3572ms @6c49683ce714
 pass/ranges/subject_unsigned_computed_index_lower_bound checked 3452ms @6c49683ce714
 pass/ranges/sum_payload_range_arith_narrowed_exit built 14860ms exit:70 @6c49683ce714
 pass/recast/bool_byte_view_compile checked 3405ms @6c49683ce714
+pass/recast/borrowed_byte_scalar_views_exit built 13300ms exit:0 @4256d50ede5b
 pass/recast/boundary_postcondition_backing_scalar_exit built 9232ms exit:0 @326ed531359e+wt
 pass/recast/boundary_postcondition_disjoint_aliased_write_exit built 9620ms exit:0 @326ed531359e+wt
 pass/recast/callee_returned_aggregate_view_exit built 17635ms exit:0 @6c49683ce714
@@ -2754,6 +2756,7 @@ pass/storage/large_zero_initialized_local_exit built 15602ms exit:70 @6c49683ce7
 pass/storage/runtime_alias_field_binary checked 3592ms @6c49683ce714
 pass/storage/runtime_alias_integer_write checked 3390ms @6c49683ce714
 pass/storage/runtime_bounded_effectful_initializer_exit built 17202ms exit:0 @6c49683ce714
+pass/storage/runtime_bounded_scalar_replacement_exit built 6164ms exit:0 @4256d50ede5b
 pass/storage/runtime_local_slice_forward_exit built 15232ms exit:70 @6c49683ce714
 pass/storage/runtime_machine_owned_indexed_integer_write_exit built 15264ms exit:79 @6c49683ce714
 pass/storage/runtime_machine_owned_indexed_struct_copy_exit built 14501ms exit:85 @6c49683ce714
@@ -3143,6 +3146,8 @@ pass/traits/runtime_dyn_mixed_scalar_borrow_boolean_exit built 7882ms exit:70 @6
 pass/traits/runtime_dyn_nested_result_exit built 17856ms exit:0 @6c49683ce714
 pass/traits/runtime_dyn_rebound_selector_forwarded_exit built 14839ms exit:70 @6c49683ce714
 pass/traits/runtime_dyn_requirement_contract_exit built 15080ms exit:70 @6c49683ce714
+pass/traits/runtime_dyn_selector_beside_scalar_field_variants_exit built 5407ms exit:70 @4256d50ede5b
+pass/traits/runtime_dyn_selector_beside_u64_field_store_exit built 5276ms exit:70 @4256d50ede5b
 pass/traits/runtime_dyn_selector_record_field_exit built 14663ms exit:70 @6c49683ce714
 pass/traits/runtime_dyn_structural_result_exit built 18062ms exit:0 @6c49683ce714
 pass/traits/runtime_dyn_two_impl_dispatch_exit built 14851ms exit:70 @6c49683ce714

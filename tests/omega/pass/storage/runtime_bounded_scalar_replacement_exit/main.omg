@@ -1,0 +1,26 @@
+// Expected exit: 0. Stores retain the bounded field's owning predicate.
+data Flags where first >= 0 && first <= 1, second >= 0 && second <= 1 {
+    first: i32;
+    second: i32;
+}
+data LiteralFlags { first: i32 [0..=1]; second: i32 [0..=1]; }
+data Main { flags: Flags; }
+machine assign(flags: &mut Flags, enabled: bool) {
+    flags.first = enabled as i32;
+    flags.second = (enabled as i32) ^ 1;
+}
+machine assign_write_only(flags: &write LiteralFlags, enabled: bool) {
+    flags.first = enabled as i32;
+    flags.second = (enabled as i32) ^ 1;
+}
+machine main(main: &mut Main) crashes Trap {
+    assign(&mut main.flags, true);
+    let mut local: LiteralFlags;
+    assign_write_only(&write local, false);
+    transition main.flags.first == 1 && main.flags.second == 0 && local.first == 0 && local.second == 1 {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

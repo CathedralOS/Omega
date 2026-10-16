@@ -3,11 +3,11 @@ use omega::language::core::drop;
 data Token [linear] { value: u64; }
 machine Token::drop(token: &mut Token) {}
 
-machine normal() {}
 machine leave_empty(token: &mut Token, return_normally: bool) crashes Trap {
     let detached: Token = token;
     drop(detached);
     // The later crash does not discharge debt on this returning sibling.
-    transition return_normally { true -> normal() }
-    crash Trap;
+    transition return_normally { true -> normal() false -> failed() }
+    state normal() {}
+    state failed() { crash Trap; }
 }

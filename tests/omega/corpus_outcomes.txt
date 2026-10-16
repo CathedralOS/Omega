@@ -3471,7 +3471,7 @@ fail/ownership/borrowed_storage_stale_read_in_hole rejected 1185ms expected @a9a
 fail/ownership/borrowed_window_changed_selector rejected 1325ms expected @a9ae30e1c334+wt
 	cannot store `tokens[index]` while `tokens[index]` is absent: the value moved out of borrowed storage at statement 2 must be restored as a whole
 	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `misplaced`, state `entry` (statement 2): `tokens[index]` must hold a value again before this state's exits consume the borrow
-fail/ownership/borrowed_window_crash_does_not_repair_return rejected 1170ms expected @a9ae30e1c334+wt
+fail/ownership/borrowed_window_crash_does_not_repair_return rejected 554ms expected @4256d50ede5b
 	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `leave_empty`, state `entry` (statement 0): `token` must hold a value again before this state's exits consume the borrow
 fail/ownership/borrowed_window_mutable_selector_observes_hole rejected 1146ms expected @a9ae30e1c334+wt
 	cannot use `tokens[index].byte` while `tokens[index]` is absent from borrowed storage: the value moved out at statement 2 must be restored first
@@ -7864,6 +7864,7 @@ pass/storage/large_zero_initialized_local_exit checked 11612ms check-target:maco
 pass/storage/runtime_alias_field_binary checked 1668ms @a9ae30e1c334+wt
 pass/storage/runtime_alias_integer_write checked 1632ms @a9ae30e1c334+wt
 pass/storage/runtime_bounded_effectful_initializer_exit checked 10573ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/storage/runtime_bounded_scalar_replacement_exit checked 6097ms check-target:macos_arm64 @4256d50ede5b
 pass/storage/runtime_local_slice_forward_exit checked 4853ms check-target:macos_arm64 @9dd545defbc0
 pass/storage/runtime_machine_owned_indexed_integer_write_exit checked 11156ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/storage/runtime_machine_owned_indexed_struct_copy_exit checked 11383ms check-target:macos_arm64 @a9ae30e1c334+wt

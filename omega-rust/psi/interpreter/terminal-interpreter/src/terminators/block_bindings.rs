@@ -32,7 +32,7 @@ use terminal_psi::{
 };
 
 use crate::byte_sequences::binding::ByteSequenceBinding;
-use crate::custody::bind_active_structural_arguments;
+use crate::custody::bind_active_block_arguments;
 use crate::custody::bind_affine_frontier;
 use crate::custody::bind_arguments;
 use crate::custody::resolve_single_structural_argument;
@@ -798,9 +798,18 @@ impl TerminalExecution<'_> {
                 value.absorb_qualifications(&parameter.qualifications);
             }
         }
-        let mut structural = bind_active_structural_arguments(
+        // Source parameters already hold their admitted owner/loan relation.
+        // Relabeling those same runtime places preserves it on another edge;
+        // a new independent input never acquires that provenance.
+        let source_parameters = descriptor_arguments
+            .iter()
+            .map(|argument| self.owned_block_source(argument.place))
+            .collect::<Vec<_>>();
+        let mut structural = bind_active_block_arguments(
             descriptor_parameters,
+            descriptor_arguments,
             &resolved_arguments,
+            &source_parameters,
             &self.program.structural_types(),
             &self.structural_cases,
         )?;

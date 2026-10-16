@@ -439,8 +439,46 @@ pub(crate) fn bind_active_structural_arguments(
         crate::structural_inputs::case_membership::StructuralCaseContents,
     >,
 ) -> Result<BTreeMap<PlaceId, TerminalStructuralValue>, TerminalInterpretError> {
+    let active = active_structural_parameters(parameters, arguments, types, cases)?;
+    bind_structural_arguments(&active, arguments)
+}
+
+/// An internal edge relabels already established storage in one activation.
+/// A whole owner may stay live beside a reborrow of that same source place;
+/// this does not supply a second owned value or authorize two exclusive loans.
+/// Entry and ordinary call binding keep the strict independent-input rule.
+pub(crate) fn bind_active_block_arguments(
+    parameters: &[StructuralParameterDeclaration],
+    sources: &[terminal_psi::StructuralArgument],
+    arguments: &[TerminalStructuralValue],
+    source_parameters: &[Option<&StructuralParameterDeclaration>],
+    types: &crate::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
+    cases: &BTreeMap<
+        StructuralRuntimePlace,
+        crate::structural_inputs::case_membership::StructuralCaseContents,
+    >,
+) -> Result<BTreeMap<PlaceId, TerminalStructuralValue>, TerminalInterpretError> {
+    if sources.len() != parameters.len() || source_parameters.len() != parameters.len() {
+        return Err(malformed());
+    }
+    let active = active_structural_parameters(parameters, arguments, types, cases)?;
+    bind_existing_structural_places(&active, arguments, sources, source_parameters)
+}
+
+fn active_structural_parameters(
+    parameters: &[StructuralParameterDeclaration],
+    arguments: &[TerminalStructuralValue],
+    types: &crate::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
+    cases: &BTreeMap<
+        StructuralRuntimePlace,
+        crate::structural_inputs::case_membership::StructuralCaseContents,
+    >,
+) -> Result<Vec<StructuralParameterDeclaration>, TerminalInterpretError> {
     if parameters.len() != arguments.len() {
-        return bind_structural_arguments(parameters, arguments);
+        return Err(TerminalInterpretError::StructuralArgumentCount {
+            expected: parameters.len(),
+            actual: arguments.len(),
+        });
     }
     let mut active_parameters = parameters.to_vec();
     for (parameter, argument) in active_parameters.iter_mut().zip(arguments) {
@@ -454,12 +492,70 @@ pub(crate) fn bind_active_structural_arguments(
         }
         parameter.projected_qualifications = active;
     }
-    bind_structural_arguments(&active_parameters, arguments)
+    Ok(active_parameters)
 }
 
 pub(crate) fn bind_structural_arguments(
     parameters: &[StructuralParameterDeclaration],
     arguments: &[TerminalStructuralValue],
+) -> Result<BTreeMap<PlaceId, TerminalStructuralValue>, TerminalInterpretError> {
+    bind_existing_structural_places(parameters, arguments, &[], &[])
+}
+
+/// A fresh reborrow names the owner's actual source place. A forwarded loan
+/// names its already admitted borrow parameter instead; its accompanying owner
+/// is still the same live affine source. The binder separately joins runtime
+/// identities and paths. Copies, linear custody and two loans do not form this
+/// relation, and independent inputs supply no source-parameter roster.
+fn retains_source_owner(
+    parameters: &[StructuralParameterDeclaration],
+    arguments: &[TerminalStructuralValue],
+    sources: &[terminal_psi::StructuralArgument],
+    source_parameters: &[Option<&StructuralParameterDeclaration>],
+    first: usize,
+    second: usize,
+) -> bool {
+    let (owner, loan) = match (parameters[first].access, parameters[second].access) {
+        (StructuralAccess::Owned, access) if access != StructuralAccess::Owned => (first, second),
+        (access, StructuralAccess::Owned) if access != StructuralAccess::Owned => (second, first),
+        _ => return false,
+    };
+    let Some(owner_source) = sources.get(owner) else {
+        return false;
+    };
+    let Some(loan_source) = sources.get(loan) else {
+        return false;
+    };
+    parameters[owner].multiplicity == StructuralMultiplicity::Affine
+        && arguments[loan].path.starts_with(&arguments[owner].path)
+        && owner_source.access == StructuralAccess::Owned
+        && owner_source.path.is_empty()
+        && loan_source.access == parameters[loan].access
+        && (owner_source.place == loan_source.place
+            || (source_parameters
+                .get(owner)
+                .copied()
+                .flatten()
+                .is_some_and(|source| {
+                    source.access == StructuralAccess::Owned
+                        && source.multiplicity == StructuralMultiplicity::Affine
+                })
+                && source_parameters
+                    .get(loan)
+                    .copied()
+                    .flatten()
+                    .is_some_and(|source| {
+                        source.access != StructuralAccess::Owned
+                            && source.multiplicity == StructuralMultiplicity::Unrestricted
+                            && crate::reference::access_covers(source.access, loan_source.access)
+                    })))
+}
+
+fn bind_existing_structural_places(
+    parameters: &[StructuralParameterDeclaration],
+    arguments: &[TerminalStructuralValue],
+    sources: &[terminal_psi::StructuralArgument],
+    source_parameters: &[Option<&StructuralParameterDeclaration>],
 ) -> Result<BTreeMap<PlaceId, TerminalStructuralValue>, TerminalInterpretError> {
     if arguments.len() != parameters.len() {
         return Err(TerminalInterpretError::StructuralArgumentCount {
@@ -500,9 +596,11 @@ pub(crate) fn bind_structural_arguments(
                 parameter.place,
             ));
         }
-        for (previous_parameter, previous_argument) in parameters[..argument_index]
+        for (previous_index, (previous_parameter, previous_argument)) in parameters
+            [..argument_index]
             .iter()
             .zip(&arguments[..argument_index])
+            .enumerate()
         {
             if previous_argument.opaque_identity != argument.opaque_identity {
                 continue;
@@ -524,7 +622,17 @@ pub(crate) fn bind_structural_arguments(
             // shared reads of copyable storage may overlap.
             let custody = previous_parameter.multiplicity != StructuralMultiplicity::Unrestricted
                 || parameter.multiplicity != StructuralMultiplicity::Unrestricted;
-            if overlapping && (custody || exclusive) {
+            if overlapping
+                && (custody || exclusive)
+                && !retains_source_owner(
+                    parameters,
+                    arguments,
+                    sources,
+                    source_parameters,
+                    previous_index,
+                    argument_index,
+                )
+            {
                 return Err(TerminalInterpretError::StructuralArgumentAliasing(
                     argument.opaque_identity,
                 ));
