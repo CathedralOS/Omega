@@ -143,11 +143,6 @@ pub(super) fn fragment_normalized_foreign_rejoin<'a>(
             Some((field, import))
         }
         (None, None, None) => {
-            let kernel = record
-                .call
-                .binding
-                .system_call()
-                .ok_or("normalized external entry mechanism is absent")?;
             let section = publication.text_section();
             let fragment = section
                 .function(occurrence.machine())
@@ -178,32 +173,51 @@ pub(super) fn fragment_normalized_foreign_rejoin<'a>(
                 .iter()
                 .map(|operand| operand.access)
                 .collect::<Vec<_>>();
-            match section.target.architecture {
-                target::Architecture::X86_64 => {
-                    isa_x86_64::validate_x86_64_selected_system_call_form(
-                        section.target,
-                        isa_x86_64::validated_x86_64_physical_register_model(),
-                        instruction.kind,
-                        span.alternative,
-                        &views,
-                        &accesses,
-                        kernel.number,
-                        bytes,
-                    )
-                    .map_err(|_| "kernel entry bytes disagree with its selected binding")?;
+            if record.call.binding.table_dispatch().is_some() {
+                if section.target.architecture != target::Architecture::X86_64 {
+                    return Err("table entry has no decoder for its architecture");
                 }
-                target::Architecture::Aarch64 => {
-                    isa_aarch64::validate_aarch64_selected_system_call_form(
-                        section.target,
-                        isa_aarch64::validated_aarch64_physical_register_model(),
-                        instruction.kind,
-                        span.alternative,
-                        &views,
-                        &accesses,
-                        kernel.number,
-                        bytes,
-                    )
-                    .map_err(|_| "kernel entry bytes disagree with its selected binding")?;
+                isa_x86_64::validate_x86_64_selected_table_call_form(
+                    record,
+                    span.alternative,
+                    &views,
+                    &accesses,
+                    bytes,
+                )
+                .map_err(|_| "table entry bytes disagree with its selected binding")?;
+            } else {
+                let kernel = record
+                    .call
+                    .binding
+                    .system_call()
+                    .ok_or("normalized external entry mechanism is absent")?;
+                match section.target.architecture {
+                    target::Architecture::X86_64 => {
+                        isa_x86_64::validate_x86_64_selected_system_call_form(
+                            section.target,
+                            isa_x86_64::validated_x86_64_physical_register_model(),
+                            instruction.kind,
+                            span.alternative,
+                            &views,
+                            &accesses,
+                            kernel.number,
+                            bytes,
+                        )
+                        .map_err(|_| "kernel entry bytes disagree with its selected binding")?;
+                    }
+                    target::Architecture::Aarch64 => {
+                        isa_aarch64::validate_aarch64_selected_system_call_form(
+                            section.target,
+                            isa_aarch64::validated_aarch64_physical_register_model(),
+                            instruction.kind,
+                            span.alternative,
+                            &views,
+                            &accesses,
+                            kernel.number,
+                            bytes,
+                        )
+                        .map_err(|_| "kernel entry bytes disagree with its selected binding")?;
+                    }
                 }
             }
             None

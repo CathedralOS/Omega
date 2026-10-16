@@ -145,7 +145,17 @@ pub(super) fn validate_declaration(
             semantic,
         ));
     }
+    let table_call = semantic == MachineSemanticKind::NormalizedForeignCall
+        && !declaration.alternatives.is_empty()
+        && declaration.alternatives.iter().all(|alternative| {
+            alternative.encoded.control == MachineEncodedControlEffect::IndirectExternalCallV1
+                && matches!(
+                    alternative.encoded.memory,
+                    MachineEncodedMemoryEffect::ReadTableFieldV1 { .. }
+                )
+        });
     let expected_memory = match semantic {
+        _ if table_call => crate::MachineMemoryEffect::ReadPointerV1,
         _ if temporary_stack => crate::MachineMemoryEffect::TemporaryStackStorageV1,
         MachineSemanticKind::AtomicFence => crate::MachineMemoryEffect::AtomicFenceV1,
         MachineSemanticKind::AtomicAccess(_) => crate::MachineMemoryEffect::AtomicPointerV1,
@@ -192,6 +202,7 @@ pub(super) fn validate_declaration(
         ));
     }
     let expected_trap = match semantic {
+        _ if table_call => crate::MachineTrapBehavior::MayArchitecturalFaultV1,
         _ if temporary_stack => crate::MachineTrapBehavior::MayArchitecturalFaultV1,
         MachineSemanticKind::PortWrite
         | MachineSemanticKind::AtomicAccess(_)
@@ -263,7 +274,7 @@ pub(super) fn validate_declaration(
         }
         (
             MachineSemanticKind::NormalizedForeignCall,
-            crate::MachineCallEffect::DirectExternalNormalReturnV1 {
+            crate::MachineCallEffect::ExternalNormalReturnV1 {
                 pre_call_stack_alignment,
             },
         ) if pre_call_stack_alignment.is_power_of_two()
@@ -697,6 +708,11 @@ fn validate_encoded_effects(
                 return Err(());
             }
             MachineEncodedControlEffect::SupervisorCallV1
+        } else if matches!(
+            encoded.memory,
+            MachineEncodedMemoryEffect::ReadTableFieldV1 { .. }
+        ) {
+            MachineEncodedControlEffect::IndirectExternalCallV1
         } else {
             MachineEncodedControlEffect::DirectRelativeCallV1
         };
@@ -773,7 +789,8 @@ fn validate_encoded_effects(
         }
         MachineEncodedControlEffect::FallThroughV1 => MachineBarrier::None,
         MachineEncodedControlEffect::DirectRelativeCallV1
-        | MachineEncodedControlEffect::IndirectTableCallOrTrapV1 => MachineBarrier::Call,
+        | MachineEncodedControlEffect::IndirectTableCallOrTrapV1
+        | MachineEncodedControlEffect::IndirectExternalCallV1 => MachineBarrier::Call,
         MachineEncodedControlEffect::SupervisorCallV1
             if declaration.semantic == MachineSemanticKind::NormalizedForeignCall
                 && declaration.call == crate::MachineCallEffect::SupervisorNormalReturnV1 =>
@@ -1064,6 +1081,19 @@ fn validate_encoded_effects(
             && encoded.implicit_unit_uses == constraint.implicit_uses
             && encoded.implicit_unit_defs == constraint.implicit_defs
             && encoded.implicit_unit_clobbers == constraint.clobbers => {}
+        (
+            MachineEncodedMemoryEffect::ReadTableFieldV1 {
+                pointer_operand, ..
+            },
+            MachineEncodedStackEffect::CallReturnAddressLifecycleV1 {
+                return_address_byte_count: 8,
+                ..
+            },
+            MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
+        ) if declaration.semantic == MachineSemanticKind::NormalizedForeignCall
+            && declaration.memory == crate::MachineMemoryEffect::ReadPointerV1
+            && encoded.control == MachineEncodedControlEffect::IndirectExternalCallV1
+            && encoded.external_operand_reads.contains(&pointer_operand) => {}
         (
             MachineEncodedMemoryEffect::ReadIndexedPointerV1 {
                 pointer_operand,

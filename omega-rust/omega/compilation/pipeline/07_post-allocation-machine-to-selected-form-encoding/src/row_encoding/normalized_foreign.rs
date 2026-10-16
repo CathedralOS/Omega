@@ -59,6 +59,25 @@ pub(super) fn encode(
         .iter()
         .map(|operand| operand.access)
         .collect::<Vec<_>>();
+    if record.call.binding.table_dispatch().is_some() {
+        if target.architecture != Architecture::X86_64 {
+            return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
+        }
+        let encoded = isa_x86_64::encode_x86_64_selected_table_call_form(
+            record,
+            machine.alternative.key,
+            &views,
+            &accesses,
+        )
+        .map_err(|_| OptimizedSelectedFormEncodingError::ArtifactMismatch)?;
+        return super::validated_encoded_draft(
+            instruction,
+            machine,
+            &encoded.footprint().encoded,
+            encoded.bytes().to_vec(),
+            SelectedFormEncodingState::Encoded,
+        );
+    }
     if let Some(binding) = record.call.binding.system_call() {
         if !record.call.callbacks.is_empty() {
             return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);

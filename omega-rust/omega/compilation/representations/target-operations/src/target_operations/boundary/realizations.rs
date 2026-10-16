@@ -138,6 +138,12 @@ pub enum NormalizedForeignCallMechanism {
         same_stack_contribution: task_plans::AdmittedSameStackContribution,
     },
     SystemCall(NormalizedSystemCallBinding),
+    Table {
+        target: target::TargetProfile,
+        byte_offset: u32,
+        dispatch_only: bool,
+        same_stack_contribution: task_plans::AdmittedSameStackContribution,
+    },
 }
 
 /// Exact source-free custody for a direct kernel entry. Unlike an imported
@@ -162,6 +168,7 @@ impl NormalizedForeignCallBinding {
             NormalizedForeignCallMechanism::Import { locator, .. } => {
                 Some(locator.target().native_target())
             }
+            NormalizedForeignCallMechanism::Table { target, .. } => Some(target.native_target()),
             NormalizedForeignCallMechanism::SystemCall(binding) => match binding.target {
                 target::TargetProfile::LinuxX64 | target::TargetProfile::LinuxArm64 => {
                     Some(binding.target.native_target())
@@ -182,6 +189,10 @@ impl NormalizedForeignCallBinding {
             NormalizedForeignCallMechanism::Import {
                 same_stack_contribution,
                 ..
+            }
+            | NormalizedForeignCallMechanism::Table {
+                same_stack_contribution,
+                ..
             } => identities.text(same_stack_contribution.requirement_identity()),
             NormalizedForeignCallMechanism::SystemCall(binding) => {
                 Some(binding.requirement_identity.as_str())
@@ -192,6 +203,10 @@ impl NormalizedForeignCallBinding {
     pub fn provider_plan_report_identity(&self) -> u64 {
         match &self.mechanism {
             NormalizedForeignCallMechanism::Import {
+                same_stack_contribution,
+                ..
+            }
+            | NormalizedForeignCallMechanism::Table {
                 same_stack_contribution,
                 ..
             } => same_stack_contribution.provider_plan_report_identity(),
@@ -212,7 +227,8 @@ impl NormalizedForeignCallBinding {
         };
         let call = &self.boundary_entry_plan.call;
         match &self.mechanism {
-            NormalizedForeignCallMechanism::Import { .. } => {
+            NormalizedForeignCallMechanism::Import { .. }
+            | NormalizedForeignCallMechanism::Table { .. } => {
                 call.policy == CallingPolicy::native_for_target(target)
                     && call.entry_control == EntryControl::CallReturn
             }
@@ -241,7 +257,8 @@ impl NormalizedForeignCallBinding {
     pub fn system_call(&self) -> Option<&NormalizedSystemCallBinding> {
         match &self.mechanism {
             NormalizedForeignCallMechanism::SystemCall(binding) => Some(binding),
-            NormalizedForeignCallMechanism::Import { .. } => None,
+            NormalizedForeignCallMechanism::Import { .. }
+            | NormalizedForeignCallMechanism::Table { .. } => None,
         }
     }
 
@@ -256,7 +273,35 @@ impl NormalizedForeignCallBinding {
                 locator,
                 same_stack_contribution,
             } => Some((locator, same_stack_contribution)),
+            NormalizedForeignCallMechanism::SystemCall(_)
+            | NormalizedForeignCallMechanism::Table { .. } => None,
+        }
+    }
+
+    /// User-space counterparties share stack and floating-control obligations,
+    /// whether their entry address comes from a linker or a named table field.
+    pub fn same_stack_contribution(&self) -> Option<&task_plans::AdmittedSameStackContribution> {
+        match &self.mechanism {
+            NormalizedForeignCallMechanism::Import {
+                same_stack_contribution,
+                ..
+            }
+            | NormalizedForeignCallMechanism::Table {
+                same_stack_contribution,
+                ..
+            } => Some(same_stack_contribution),
             NormalizedForeignCallMechanism::SystemCall(_) => None,
+        }
+    }
+
+    pub fn table_dispatch(&self) -> Option<(u32, bool)> {
+        match self.mechanism {
+            NormalizedForeignCallMechanism::Table {
+                byte_offset,
+                dispatch_only,
+                ..
+            } => Some((byte_offset, dispatch_only)),
+            _ => None,
         }
     }
 }

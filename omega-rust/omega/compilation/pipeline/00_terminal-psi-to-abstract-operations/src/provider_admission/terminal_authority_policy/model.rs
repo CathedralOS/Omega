@@ -78,19 +78,10 @@ impl TerminalAuthorityPolicy {
                     classify_from_inventory(committed_policy_mechanisms(), intrinsic)
                 }
             }
-            TerminalMechanismIdentity::NormalizedForeign(_) => self
-                .explicit_rows
-                .iter()
-                .find(|row| row.mechanism == mechanism)
-                .map(|row| row.disposition.clone())
-                .ok_or(UnclassifiedTerminalMechanism { mechanism }),
-            TerminalMechanismIdentity::Syscall(_) => self
-                .explicit_rows
-                .iter()
-                .find(|row| row.mechanism == mechanism)
-                .map(|row| row.disposition.clone())
-                .ok_or(UnclassifiedTerminalMechanism { mechanism }),
-            TerminalMechanismIdentity::CheckedPhysical(_) => self
+            TerminalMechanismIdentity::NormalizedForeign(_)
+            | TerminalMechanismIdentity::Table { .. }
+            | TerminalMechanismIdentity::Syscall(_)
+            | TerminalMechanismIdentity::CheckedPhysical(_) => self
                 .explicit_rows
                 .iter()
                 .find(|row| row.mechanism == mechanism)

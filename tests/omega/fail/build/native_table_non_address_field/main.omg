@@ -1,0 +1,14 @@
+data Table { query: u64; }
+boundary trait Query {
+    machine run(table: &Table) -> i32;
+}
+windows_x86_64 machine Table::invoke(table: &Table) -> i32
+satisfies Query::run via ForeignBinding::VtableField(query);
+
+machine main()
+reaches Query
+invokes Query;
+{
+    let table: Table;
+    let result: i32 = Query::run(&table);
+}

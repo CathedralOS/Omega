@@ -42,6 +42,47 @@ pub(super) fn rejoin_normalized_foreign_call(
             external_rows.len()
         ))]);
     };
+    if let (Some(boundary_entry_plan), selected, retained) = (
+        &external.boundary_entry_plan,
+        &selected_row.binding,
+        &external.binding,
+    ) {
+        let table = match (selected, retained) {
+            (
+                effects::provider_plan::ProviderBinding::VtableField { field, .. },
+                calling_conventions::ExternalBindingKind::VtableField {
+                    field: retained,
+                    byte_offset,
+                },
+            ) if field == retained => Some((*byte_offset, false)),
+            (
+                effects::provider_plan::ProviderBinding::TableFunction { field, .. },
+                calling_conventions::ExternalBindingKind::TableFunction {
+                    field: retained,
+                    byte_offset,
+                },
+            ) if field == retained => Some((*byte_offset, true)),
+            _ => None,
+        };
+        if let Some((byte_offset, dispatch_only)) = table {
+            let profile = target::TargetProfile::from_canonical_target_name(&selected_plan.target)
+                .map_err(|error| vec![error])?;
+            if profile.native_target() != target {
+                return Err(vec![Diagnostic::error(
+                    "table call names a different native target",
+                )]);
+            }
+            return Ok(NormalizedForeignCallBinding {
+                boundary_entry_plan: boundary_entry_plan.clone(),
+                mechanism: target_operations::NormalizedForeignCallMechanism::Table {
+                    target: profile,
+                    byte_offset,
+                    dispatch_only,
+                    same_stack_contribution: same_stack.clone(),
+                },
+            });
+        }
+    }
     let (
         effects::provider_plan::ProviderBinding::Import {
             evaluated: selected_import,

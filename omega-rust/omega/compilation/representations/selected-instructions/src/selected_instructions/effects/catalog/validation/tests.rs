@@ -1677,7 +1677,7 @@ fn normalized_foreign_call_declarations_bind_external_call_effects() {
         memory: crate::MachineMemoryEffect::NoneV1,
         trap: crate::MachineTrapBehavior::NeverV1,
         barrier: MachineBarrier::Call,
-        call: crate::MachineCallEffect::DirectExternalNormalReturnV1 {
+        call: crate::MachineCallEffect::ExternalNormalReturnV1 {
             pre_call_stack_alignment: 16,
         },
         cleanup: crate::MachineCleanupEffect::NoneV1,

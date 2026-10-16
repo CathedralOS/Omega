@@ -145,13 +145,17 @@ pub(super) fn structural_argument(
         && source.structural.as_ref().is_some_and(|signature| {
             signature.structural_types.iter().any(|declaration| {
                 declaration.id == target.structural_type
-                    && declaration.shape.is_borrowed_view_byte_sequence()
+                    && declaration.shape.is_borrowed_byte_carrier()
             })
         })
     {
-        if target.shape.byte_size != 16
+        // Native byte views pass their carrier words, not the address of a
+        // call-local descriptor. Fixed views have one pointer word; dynamic
+        // views additionally carry an extent. Internal borrowed-descriptor
+        // ABIs remain selected by BorrowedReference above.
+        if !matches!(target.shape.byte_size, 8 | 16)
             || target.shape.alignment != 8
-            || target.destination.shape.byte_size != 16
+            || target.destination.shape.byte_size != target.shape.byte_size
             || target.destination.shape.alignment != 8
         {
             return Err(SelectedInstructionError::custody());

@@ -138,6 +138,22 @@ impl<'a> ReviewContext<'a> {
                 u32::try_from(*number).ok() == Some(syscall.number())
                     && syscall.target() == self.target_profile
             }
+            (
+                ProviderBinding::VtableField { .. },
+                TerminalMechanismIdentity::Table {
+                    target,
+                    dispatch_only: false,
+                    ..
+                },
+            )
+            | (
+                ProviderBinding::TableFunction { .. },
+                TerminalMechanismIdentity::Table {
+                    target,
+                    dispatch_only: true,
+                    ..
+                },
+            ) => target == self.target_profile,
             _ => false,
         };
         if !role_matches {

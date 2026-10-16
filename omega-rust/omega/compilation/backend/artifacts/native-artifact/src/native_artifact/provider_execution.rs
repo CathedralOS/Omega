@@ -164,7 +164,7 @@ pub(super) fn validate_foreign_provider_binding(
     {
         return Err("native external call binding differs from its requirement");
     }
-    if let Some((_, contribution)) = foreign.binding.import() {
+    if let Some(contribution) = foreign.binding.same_stack_contribution() {
         validate_foreign_stack_contribution(
             requirement,
             foreign.provider_execution,

@@ -627,11 +627,10 @@ pub enum MachineCallEffect {
     InternalNormalReturnV1 {
         pre_call_stack_alignment: u16,
     },
-    /// Direct call to an evaluated foreign boundary that returns normally.
-    /// The callee is an imported external authority, not an internal machine;
-    /// the locator itself remains in the boundary's provider custody and is
-    /// never a selected-instruction operand or ambient lookup name.
-    DirectExternalNormalReturnV1 {
+    /// Call to an admitted foreign boundary that returns normally. Its encoded
+    /// control distinguishes a linker call from named-table dispatch; neither
+    /// changes the callee's external status or its ordinary ABI contract.
+    ExternalNormalReturnV1 {
         pre_call_stack_alignment: u16,
     },
 }
@@ -750,6 +749,12 @@ impl MachineEncodedEffects {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MachineEncodedMemoryEffect {
+    /// Load one pointer from a named, layout-derived table field. The call's
+    /// return-address write remains described by its stack lifecycle.
+    ReadTableFieldV1 {
+        pointer_operand: u16,
+        byte_offset: u32,
+    },
     /// Full coherent-memory ordering, independently decoded from barrier bytes.
     AtomicFenceV1,
     /// All accesses are confined to this newly reserved private region.
@@ -896,6 +901,8 @@ pub enum MachineEncodedControlEffect {
         target: RegisterViewId,
     },
     DirectRelativeCallV1,
+    /// Invoke an externally admitted address loaded from a named table field.
+    IndirectExternalCallV1,
     /// Load an exact immutable table slot; zero traps, otherwise call its address.
     IndirectTableCallOrTrapV1,
     /// Enter the kernel and resume at the following instruction on return.

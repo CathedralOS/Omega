@@ -81,7 +81,7 @@ pub(super) fn normalized_foreign_declaration(
         }
         return declaration;
     }
-    declaration.call = MachineCallEffect::DirectExternalNormalReturnV1 {
+    declaration.call = MachineCallEffect::ExternalNormalReturnV1 {
         pre_call_stack_alignment: 16,
     };
     declaration
@@ -140,7 +140,7 @@ pub fn aarch64_normalized_foreign_call_declaration(
         call: if supervisor {
             MachineCallEffect::SupervisorNormalReturnV1
         } else {
-            MachineCallEffect::DirectExternalNormalReturnV1 {
+            MachineCallEffect::ExternalNormalReturnV1 {
                 pre_call_stack_alignment: 16,
             }
         },
@@ -251,7 +251,7 @@ mod tests {
                     .unwrap();
                 match corruption {
                     0 => {
-                        row.call = MachineCallEffect::DirectExternalNormalReturnV1 {
+                        row.call = MachineCallEffect::ExternalNormalReturnV1 {
                             pre_call_stack_alignment: 16,
                         }
                     }

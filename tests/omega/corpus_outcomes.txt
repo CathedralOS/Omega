@@ -1105,6 +1105,11 @@ fail/build/helper_contract_context rejected 2394ms expected @a9ae30e1c334+wt
 	cannot prove ensures contract for exit from incorrect at statement 0: result == 4
 fail/build/hosted_program_entry_visible_parameter rejected 5252ms expected @a9ae30e1c334+wt
 	hosted `ProgramEntry` exposes no arrival parameters, but `launch` declares `argument`
+fail/build/native_table_non_address_field rejected 2530ms expected @acf418e4dcb4+wt
+	cannot realize table field `query` for `run`: table dispatch field must have type addr
+fail/build/native_table_write_only_dispatch rejected 1521ms expected @acf418e4dcb4+wt
+	machine `Table::invoke` state `invoke` declares `&write`, but the current milestone proves non-observation only for checked Omega bodies; boundary, accepted, requirement, and external-provider declarations require an admitted write-only boundary claim
+	machine `Table::invoke` state `invoke` declares `&write`, but the current milestone proves non-observation only for checked Omega bodies; boundary, accepted, requirement, and external-provider declarations require an admitted write-only boundary claim
 fail/build/opaque_by_value_without_selection rejected 13798ms expected @35f5679f7d28
 	`Main::main` uses opaque boundary data `Token` by value, but the build selects no `OpaqueRepresentation<Token, _>` application; add `Build::select_representation<Token, <conformance>>(builder)`
 fail/build/opaque_descriptor_host_type_use rejected 916ms expected @a9ae30e1c334+wt

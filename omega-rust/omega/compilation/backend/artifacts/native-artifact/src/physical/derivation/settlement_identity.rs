@@ -131,6 +131,18 @@ pub(crate) fn admitted_provider_boundary_trait_settlement_identity(
             .to_le_bytes(),
     );
     match mechanism {
+        target_operations::NormalizedForeignCallMechanism::Table {
+            target,
+            byte_offset,
+            dispatch_only,
+            same_stack_contribution,
+        } => {
+            digest.byte(3);
+            hash_bytes(&mut digest, target.target_name().as_bytes());
+            digest.raw(&byte_offset.to_le_bytes());
+            digest.byte(u8::from(*dispatch_only));
+            digest.raw(&same_stack_contribution.commitment().as_bytes());
+        }
         target_operations::NormalizedForeignCallMechanism::Import {
             locator,
             same_stack_contribution,

@@ -107,7 +107,7 @@ pub(super) fn normalized_foreign_declaration(
         }
         return declaration;
     }
-    declaration.call = MachineCallEffect::DirectExternalNormalReturnV1 {
+    declaration.call = MachineCallEffect::ExternalNormalReturnV1 {
         pre_call_stack_alignment: 16,
     };
     declaration
@@ -125,6 +125,13 @@ pub fn x86_64_normalized_foreign_call_declaration(
         return None;
     }
     let supervisor = record.call.binding.system_call().is_some();
+    let table = if record.call.binding.table_dispatch().is_some() {
+        Some(crate::selected_form_encoding::table_call::table_address(
+            record,
+        )?)
+    } else {
+        None
+    };
     let stack_pointer = crate::x86_64_physical_register_model_ref()
         .view_named("rsp")?
         .id;
@@ -188,19 +195,29 @@ pub fn x86_64_normalized_foreign_call_declaration(
         | (u32::from(stack_destinations != 0) << 2);
     let byte_count = if supervisor {
         12
+    } else if table.is_some() {
+        10
     } else {
         5_u16.checked_add(callback_byte_count)?
     };
     Some(MachineEffectDeclaration {
         semantic: MachineSemanticKind::NormalizedForeignCall,
         constraint: row.key,
-        memory: MachineMemoryEffect::NoneV1,
-        trap: MachineTrapBehavior::NeverV1,
+        memory: if table.is_some() {
+            MachineMemoryEffect::ReadPointerV1
+        } else {
+            MachineMemoryEffect::NoneV1
+        },
+        trap: if table.is_some() {
+            MachineTrapBehavior::MayArchitecturalFaultV1
+        } else {
+            MachineTrapBehavior::NeverV1
+        },
         barrier: MachineBarrier::Call,
         call: if supervisor {
             MachineCallEffect::SupervisorNormalReturnV1
         } else {
-            MachineCallEffect::DirectExternalNormalReturnV1 {
+            MachineCallEffect::ExternalNormalReturnV1 {
                 pre_call_stack_alignment: 16,
             }
         },
@@ -219,6 +236,19 @@ pub fn x86_64_normalized_foreign_call_declaration(
                     encoded.memory = MachineEncodedMemoryEffect::NoneV1;
                     encoded.stack = MachineEncodedStackEffect::UnchangedV1;
                     encoded.control = MachineEncodedControlEffect::SupervisorCallV1;
+                }
+                if let Some((_, byte_offset)) = table {
+                    let position =
+                        selected_instructions::calls::constraints::foreign_argument_registers(
+                            &record.call,
+                        )
+                        .iter()
+                        .position(|(parameter, _)| *parameter == 0)?;
+                    encoded.memory = MachineEncodedMemoryEffect::ReadTableFieldV1 {
+                        pointer_operand: u16::try_from(position).ok()?,
+                        byte_offset,
+                    };
+                    encoded.control = MachineEncodedControlEffect::IndirectExternalCallV1;
                 }
                 encoded
             },
@@ -295,7 +325,7 @@ mod tests {
                     .unwrap();
                 match corruption {
                     0 => {
-                        row.call = MachineCallEffect::DirectExternalNormalReturnV1 {
+                        row.call = MachineCallEffect::ExternalNormalReturnV1 {
                             pre_call_stack_alignment: 16,
                         }
                     }

@@ -45,6 +45,10 @@ mod request_validation;
 pub(crate) mod saturating_forms;
 mod scalar_call;
 pub(crate) mod system_call;
+pub(crate) mod table_call;
+pub use table_call::{
+    encode_x86_64_selected_table_call_form, validate_x86_64_selected_table_call_form,
+};
 #[cfg(test)]
 mod tests;
 pub(crate) mod trapping_forms;

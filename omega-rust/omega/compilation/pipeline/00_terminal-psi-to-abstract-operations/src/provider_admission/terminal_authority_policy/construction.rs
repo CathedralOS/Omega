@@ -45,6 +45,17 @@ pub(super) fn build_terminal_authority_policy(
                 );
             }
             TerminalMechanismIdentity::NormalizedForeign(_) => {}
+            TerminalMechanismIdentity::Table {
+                calling, provider, ..
+            } => {
+                if calling.is_zero() || provider.as_bytes() == &[0; 32] {
+                    return Err(
+                        TerminalAuthorityPolicyBuildError::EmptyImplementationContract(
+                            row.mechanism,
+                        ),
+                    );
+                }
+            }
             TerminalMechanismIdentity::Syscall(syscall)
                 if !matches!(
                     syscall.target(),

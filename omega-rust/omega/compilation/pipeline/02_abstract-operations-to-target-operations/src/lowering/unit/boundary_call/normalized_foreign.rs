@@ -149,6 +149,7 @@ pub(super) fn lower_normalized_foreign_structural_arguments(
                             row.shape,
                             StructuralTypeShape::ByteSequence(
                                 terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
+                                    | terminal_psi::ByteSequenceCarrier::BoundedView { .. }
                             )
                         )
                     });
@@ -166,13 +167,31 @@ pub(super) fn lower_normalized_foreign_structural_arguments(
                 )
                 .map_err(|_| LoweringError::BoundaryRealizationMismatch(boundary))?;
                 let shape = structural_parameter_shape(carrier, parameter.access);
+                // Fixed and dynamic byte loans use the same checked backing
+                // presentation. Only a dynamic view carries a runtime extent;
+                // a fixed view crosses the native ABI as one pointer.
+                let bounded = matches!(
+                    structural_types
+                        .get(&parameter.structural_type)
+                        .map(|row| &row.shape),
+                    Some(StructuralTypeShape::ByteSequence(
+                        terminal_psi::ByteSequenceCarrier::BoundedView { .. }
+                    ))
+                );
                 if argument.access != parameter.access
                     || parameter.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
                     || !parameter.qualifications.is_empty()
                     || !parameter.projected_qualifications.is_empty()
                     || destination.shape.byte_size != carrier.byte_size
                     || destination.shape.alignment != carrier.alignment
-                    || destination.shape.class == ValueClass::BorrowedReference
+                    || if bounded {
+                        destination.shape
+                            != ValueShape::integer(u32::from(pointer_size), pointer_size)
+                            || calling_conventions::byte_size_at_offset_zero(&destination.locations)
+                                != Some(u32::from(pointer_size))
+                    } else {
+                        destination.shape.class == ValueClass::BorrowedReference
+                    }
                 {
                     return Err(LoweringError::BoundaryRealizationMismatch(boundary));
                 }

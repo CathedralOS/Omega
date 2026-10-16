@@ -128,11 +128,26 @@ pub fn encode_machine_function_identity(
 pub fn encode_call_binding(bytes: &mut Vec<u8>, binding: &NormalizedForeignCallBinding) {
     // Empty target names cannot be import locators. Reserve that discriminant
     // for kernel entries while keeping existing import bytes unchanged.
-    let (locator, contribution) = match &binding.mechanism {
+    let contribution = match &binding.mechanism {
         target_operations::NormalizedForeignCallMechanism::Import {
             locator,
             same_stack_contribution,
-        } => (locator, same_stack_contribution),
+        } => {
+            encode_locator(bytes, locator);
+            same_stack_contribution
+        }
+        target_operations::NormalizedForeignCallMechanism::Table {
+            target,
+            byte_offset,
+            dispatch_only,
+            same_stack_contribution,
+        } => {
+            encode_string(bytes, "@table");
+            encode_string(bytes, target.target_name());
+            bytes.extend_from_slice(&byte_offset.to_le_bytes());
+            bytes.push(u8::from(*dispatch_only));
+            same_stack_contribution
+        }
         target_operations::NormalizedForeignCallMechanism::SystemCall(kernel) => {
             encode_string(bytes, "");
             encode_string(bytes, kernel.target.target_name());
@@ -148,7 +163,6 @@ pub fn encode_call_binding(bytes: &mut Vec<u8>, binding: &NormalizedForeignCallB
             return;
         }
     };
-    encode_locator(bytes, locator);
     encode_call_plan(bytes, &binding.boundary_entry_plan.call);
     encode_state_plan_identity(bytes, &binding.boundary_entry_plan.state);
     bytes.extend_from_slice(

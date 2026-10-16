@@ -67,7 +67,7 @@ pub(super) fn decode_instruction(
         1 if allow_scalar_call => MachineCallEffect::InternalNormalReturnV1 {
             pre_call_stack_alignment: cursor.u16()?,
         },
-        2 if allow_scalar_call => MachineCallEffect::DirectExternalNormalReturnV1 {
+        2 if allow_scalar_call => MachineCallEffect::ExternalNormalReturnV1 {
             pre_call_stack_alignment: cursor.u16()?,
         },
         _ => return Err(PreAllocationMachineEffectDecodeError::InvalidField),
@@ -732,6 +732,10 @@ fn decode_encoded_effects(
     let implicit_unit_defs = decode_units(cursor)?;
     let implicit_unit_clobbers = decode_units(cursor)?;
     let memory = match cursor.byte()? {
+        19 if allow_scalar_call => MachineEncodedMemoryEffect::ReadTableFieldV1 {
+            pointer_operand: cursor.u16()?,
+            byte_offset: cursor.u32()?,
+        },
         12 => MachineEncodedMemoryEffect::TemporaryStackStorageV1 {
             stack_pointer: register_model::RegisterViewId(cursor.u16()?),
             byte_count: cursor.u16()?,
@@ -849,6 +853,7 @@ fn decode_encoded_effects(
         },
         4 if allow_scalar_call => MachineEncodedControlEffect::DirectRelativeCallV1,
         13 if allow_scalar_call => MachineEncodedControlEffect::IndirectTableCallOrTrapV1,
+        14 if allow_scalar_call => MachineEncodedControlEffect::IndirectExternalCallV1,
         11 if allow_scalar_call => MachineEncodedControlEffect::SupervisorCallV1,
         12 => MachineEncodedControlEffect::AtomicRetryUntilCommitV1,
         5 if allow_jump => MachineEncodedControlEffect::UnconditionalRelativeBranchV1,

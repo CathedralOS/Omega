@@ -132,7 +132,9 @@ impl<'a> Reviewer<'a> {
             }
             ProviderBinding::CompilerIntrinsic { .. }
             | ProviderBinding::Import { .. }
-            | ProviderBinding::Syscall { .. } => {
+            | ProviderBinding::Syscall { .. }
+            | ProviderBinding::VtableField { .. }
+            | ProviderBinding::TableFunction { .. } => {
                 let mechanism = self
                     .context
                     .exact_mechanism(boundary, &selected_row.binding)?;
@@ -150,16 +152,6 @@ impl<'a> Reviewer<'a> {
             ProviderBinding::VtableSlot { .. } => {
                 return Err(format!(
                     "selected requirement `{requirement}` uses the unsupported vtable-slot terminal role"
-                ));
-            }
-            ProviderBinding::VtableField { .. } => {
-                return Err(format!(
-                    "selected requirement `{requirement}` uses the unsupported vtable-field terminal role"
-                ));
-            }
-            ProviderBinding::TableFunction { .. } => {
-                return Err(format!(
-                    "selected requirement `{requirement}` uses the unsupported table-function terminal role"
                 ));
             }
         }

@@ -196,23 +196,27 @@ pub(in crate::exit_contract) fn validate_normalized_foreign_call(
         }
         return Ok(());
     }
-    let SelectedFormEncodingState::UnresolvedNormalizedForeignCall { fixup } = &encoding.state
-    else {
-        return Err(WholeFunctionExitContractError::NonReturnControlEffect(
-            instruction,
-        ));
-    };
     let Some((bytes, footprint)) = encoded.encoded(encoding) else {
         return Err(WholeFunctionExitContractError::NonReturnControlEffect(
             instruction,
         ));
     };
+    let control_matches = match &encoding.state {
+        SelectedFormEncodingState::UnresolvedNormalizedForeignCall { fixup } => {
+            layout.normalized_foreign_call_fixup.as_ref() == Some(fixup)
+                && footprint.encoded.control == MachineEncodedControlEffect::DirectRelativeCallV1
+        }
+        SelectedFormEncodingState::Encoded => {
+            layout.normalized_foreign_call_fixup.is_none()
+                && footprint.encoded.control == MachineEncodedControlEffect::IndirectExternalCallV1
+        }
+        _ => false,
+    };
     if encoding.machine_disposition != SelectedFormMachineDisposition::RetainedV1
         || bytes != layout.bytes
         || layout.branch.is_some()
         || layout.internal_machine_fixup.is_some()
-        || layout.normalized_foreign_call_fixup.as_ref() != Some(fixup)
-        || footprint.encoded.control != MachineEncodedControlEffect::DirectRelativeCallV1
+        || !control_matches
         || footprint.encoded.trap != MachineEncodedTrapBehavior::MayArchitecturalFaultV1
     {
         return Err(WholeFunctionExitContractError::NonReturnControlEffect(
@@ -244,6 +248,11 @@ fn call_memory_stack_effects_match(
         Architecture::Aarch64 => footprint.encoded.stack == MachineEncodedStackEffect::UnchangedV1,
     };
     let memory_matches = match footprint.encoded.control {
+        MachineEncodedControlEffect::IndirectExternalCallV1 => {
+            matches!(footprint.encoded.memory,
+                MachineEncodedMemoryEffect::ReadTableFieldV1 { pointer_operand, .. }
+                    if footprint.encoded.external_operand_reads.contains(&pointer_operand))
+        }
         MachineEncodedControlEffect::IndirectTableCallOrTrapV1 => {
             matches!(footprint.encoded.memory,
                 MachineEncodedMemoryEffect::ReadPointerV1 { pointer_operand, byte_count: 8 }

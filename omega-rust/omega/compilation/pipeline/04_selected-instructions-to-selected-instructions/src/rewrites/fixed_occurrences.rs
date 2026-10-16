@@ -662,7 +662,9 @@ fn admit_copy(
     let payload = match register.scalar_type {
         ScalarType::Boolean => true,
         ScalarType::Integer(integer) => {
-            !integer.is_address() && matches!(integer.bits(), 8 | 16 | 32 | 64)
+            // A physical copy preserves the exact scalar carrier, including
+            // addr. It neither dereferences it nor grants backing authority.
+            matches!(integer.bits(), 8 | 16 | 32 | 64)
         }
         ScalarType::IeeeFloat(_) => true,
     };

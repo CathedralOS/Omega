@@ -61,7 +61,7 @@ fn system_call_effect_envelope_retains_supervisor_control_without_stack_effects(
     }
     let mut forged = source.clone();
     forged.functions[0].blocks[0].instructions[0].call =
-        MachineCallEffect::DirectExternalNormalReturnV1 {
+        MachineCallEffect::ExternalNormalReturnV1 {
             pre_call_stack_alignment: 16,
         };
     assert_ne!(
@@ -73,7 +73,7 @@ fn system_call_effect_envelope_retains_supervisor_control_without_stack_effects(
     // previously rejected both mechanisms before reaching their effects.
     let instruction = &mut forged.functions[0].blocks[0].instructions[0];
     instruction.constraint.family = RegisterConstraintFamily::Call;
-    instruction.call = MachineCallEffect::DirectExternalNormalReturnV1 {
+    instruction.call = MachineCallEffect::ExternalNormalReturnV1 {
         pre_call_stack_alignment: 16,
     };
     instruction.alternatives[0].encoded.control = MachineEncodedControlEffect::DirectRelativeCallV1;

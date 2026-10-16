@@ -106,7 +106,7 @@ pub fn resolve(
         Some(())
     };
     copies(&mut cursor)?;
-    let restore_position = if record.call.binding.import().is_some() {
+    let restore_position = if record.call.binding.same_stack_contribution().is_some() {
         let restore = block.instructions.get(cursor)?;
         if restore.kind
             != (SelectedInstructionKind::RestoreFloatingControl {

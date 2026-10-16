@@ -896,6 +896,7 @@ pub(crate) fn borrowed_byte_view_presentation(
                 declaration.shape,
                 StructuralTypeShape::ByteSequence(
                     terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
+                        | terminal_psi::ByteSequenceCarrier::BoundedView { .. }
                 )
             )
     }) {

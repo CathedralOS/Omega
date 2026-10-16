@@ -312,11 +312,29 @@ pub(super) fn foreign_call_custody_digest(calls: &[image_emission::ObjectForeign
             hash_bytes(&mut digest, kernel.requirement_identity.as_bytes());
             continue;
         }
-        let Some((locator, contribution)) = call.binding.import() else {
-            continue;
+        let contribution = match &call.binding.mechanism {
+            target_operations::NormalizedForeignCallMechanism::Import {
+                locator,
+                same_stack_contribution,
+            } => {
+                digest.raw(&[1]);
+                digest.raw(&locator.identity_digest().as_bytes());
+                same_stack_contribution
+            }
+            target_operations::NormalizedForeignCallMechanism::Table {
+                target,
+                byte_offset,
+                dispatch_only,
+                same_stack_contribution,
+            } => {
+                digest.raw(&[3]);
+                hash_bytes(&mut digest, target.target_name().as_bytes());
+                digest.raw(&byte_offset.to_le_bytes());
+                digest.raw(&[u8::from(*dispatch_only)]);
+                same_stack_contribution
+            }
+            target_operations::NormalizedForeignCallMechanism::SystemCall(_) => continue,
         };
-        digest.raw(&[1]);
-        digest.raw(&locator.identity_digest().as_bytes());
         digest.raw(
             &contribution
                 .report_identity()

@@ -66,7 +66,7 @@ fn encode_effect_tail(bytes: &mut Vec<u8>, instruction: &InstructionMachineEffec
             bytes.push(1);
             crate::codec_bytes::push_encoded(bytes, pre_call_stack_alignment.to_le_bytes());
         }
-        MachineCallEffect::DirectExternalNormalReturnV1 {
+        MachineCallEffect::ExternalNormalReturnV1 {
             pre_call_stack_alignment,
         } => {
             bytes.push(2);

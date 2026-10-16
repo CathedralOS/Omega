@@ -1,0 +1,59 @@
+// A named table field calls a native function with the table as its first argument.
+// QueryPerformanceCounter writes only the first i64; the function address follows it.
+// Expected exit: 0
+use omega::language::core::external_binding;
+
+boundary trait ModuleSymbols {
+    machine module(name: &[u8; 13]) -> addr;
+    machine symbol(module: addr, name: &[u8; 24]) -> addr;
+}
+data CounterTable { value: i64; query: addr; }
+data Observations { table: CounterTable; }
+boundary trait Counter {
+    machine query(table: &mut CounterTable) -> i32;
+}
+windows_x86_64 machine module_binding() -> ForeignBinding<12, 16, 0> {
+    ForeignBinding::DllImport { import: DllImport::PeByName {
+        library: "kernel32.dll", export: "GetModuleHandleA"
+    } }
+}
+windows_x86_64 machine symbol_binding() -> ForeignBinding<12, 14, 0> {
+    ForeignBinding::DllImport { import: DllImport::PeByName {
+        library: "kernel32.dll", export: "GetProcAddress"
+    } }
+}
+windows_x86_64 machine native_module(name: &[u8; 13]) -> addr
+satisfies ModuleSymbols::module via module_binding();
+windows_x86_64 machine native_symbol(module: addr, name: &[u8; 24]) -> addr
+satisfies ModuleSymbols::symbol via symbol_binding();
+windows_x86_64 machine CounterTable::invoke(table: &mut CounterTable) -> i32
+satisfies Counter::query via ForeignBinding::VtableField(query);
+
+machine measure(table: &mut CounterTable) -> i32
+reaches Counter
+invokes Counter;
+{
+    Counter::query(table)
+}
+
+machine main()
+reaches ModuleSymbols + Counter
+crashes Trap
+invokes ModuleSymbols;
+invokes Counter;
+{
+    let library: [u8; 13] = "kernel32.dll\0";
+    let symbol: [u8; 24] = "QueryPerformanceCounter\0";
+    let module: addr = ModuleSymbols::module(&library);
+    let function: addr = ModuleSymbols::symbol(module, &symbol);
+    let mut table: CounterTable = CounterTable { query: function };
+    let mut nested: Observations = Observations { table: CounterTable { query: function } };
+    let success: i32 = Counter::query(&mut table);
+    let forwarded: i32 = measure(&mut nested.table);
+    transition success != 0 && table.value > 0 && forwarded != 0 && nested.table.value > 0 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

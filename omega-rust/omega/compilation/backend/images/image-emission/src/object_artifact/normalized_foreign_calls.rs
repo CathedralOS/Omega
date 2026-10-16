@@ -259,7 +259,7 @@ pub fn derive_normalized_foreign_call_custody(
                 .checked_sub(frame.red_zone_resident_bytes)
                 .and_then(|extent| {
                     extent.checked_add(
-                        if record.call.binding.import().is_some()
+                        if record.call.binding.same_stack_contribution().is_some()
                             && architecture == target::Architecture::X86_64
                         {
                             8
@@ -271,7 +271,7 @@ pub fn derive_normalized_foreign_call_custody(
                 .ok_or(ObjectError::TextSizeOverflow)?;
             let caller_live_bytes =
                 u32::try_from(committed).map_err(|_| ObjectError::TextSizeOverflow)?;
-            let controls = if record.call.binding.import().is_some()
+            let controls = if record.call.binding.same_stack_contribution().is_some()
                 && record.invocation_site.operation().is_some()
             {
                 Some(
@@ -863,7 +863,7 @@ pub fn structural_result_capture(
         .get(instruction.operands.len().checked_sub(result_operands)?..)?;
     let call_position = block.instruction_index(instruction.id)?;
     let mut position = call_position.checked_add(1)?;
-    if record.call.binding.import().is_some() {
+    if record.call.binding.same_stack_contribution().is_some() {
         let restore = block.instructions.get(position)?;
         if restore.kind
             != (Kind::RestoreFloatingControl {

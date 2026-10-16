@@ -343,6 +343,7 @@ pub fn settle_checked_providers(
         target_name,
         provider_selection_target,
         &selected_semantic_plans,
+        &selected_provider_plans,
         &boundary_calling_plan_realizations,
         typed,
         opaque_representation_selections,

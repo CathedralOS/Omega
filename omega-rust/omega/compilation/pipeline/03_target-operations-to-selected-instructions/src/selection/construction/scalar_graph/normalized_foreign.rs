@@ -150,13 +150,13 @@ pub(super) fn emit_invocation(
     // Only returning user-space counterparties can change floating controls.
     // Supervisor entries retain the same argument/result sequence without a
     // private floating-control home or save/restore instructions.
-    let saved_controls =
-        call.binding
-            .import()
-            .and(operation)
-            .map(|operation| LocalStorageSlotId::Boundary {
-                operation: operation.operation,
-            });
+    let saved_controls = call
+        .binding
+        .same_stack_contribution()
+        .and(operation)
+        .map(|operation| LocalStorageSlotId::Boundary {
+            operation: operation.operation,
+        });
     // Durable scalars retain their bits in GPR storage. Transfer floating
     // arguments into short ABI-bank homes only at the call boundary; stack
     // arguments store those same bits directly into their exact-width slots.

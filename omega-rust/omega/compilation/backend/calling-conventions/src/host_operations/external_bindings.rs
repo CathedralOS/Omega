@@ -43,11 +43,13 @@ pub enum ExternalBindingKind {
     /// supplies its byte offset.
     VtableField {
         field: String,
+        byte_offset: u32,
     },
     /// Dispatch by fn-ptr FIELD like `VtableField`, but the table pointer is
     /// DISPATCH-ONLY -- never a wire argument (EFI table services take no
     /// This; protocol/COM methods do).
     TableFunction {
         field: String,
+        byte_offset: u32,
     },
 }

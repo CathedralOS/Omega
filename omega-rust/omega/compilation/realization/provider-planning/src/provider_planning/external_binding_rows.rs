@@ -1,8 +1,10 @@
 use diagnostics::Diagnostic;
 
-/// Extract normalized imports and syscalls for compiler-to-native custody.
-/// Native realization rejoins both mechanisms to the exact selected row;
-/// omitting syscalls loses that correspondence even when selection succeeded.
+mod table_dispatch;
+
+/// Retain selected external mechanisms for compiler-to-native custody.
+/// Imports, kernel entries and table fields rejoin the same selected row;
+/// table offsets additionally come from that declaration's authoritative layout.
 /// These rows grant no terminal authority or execution permission: the receiving
 /// policy and provider settlements remain independently required.
 /// Other selected provider mechanisms retain their existing specialized
@@ -11,6 +13,7 @@ pub(crate) fn extract_native_external_binding_rows(
     selected_target: Option<&str>,
     native_target: target::NativeTarget,
     selected_plans: &[effects::provider_plan::ProviderPlan],
+    selected_sources: &[crate::SelectedProviderPlanWithProvenance],
     boundary_calling_plan_realizations: &[
         crate::calling_policy_plans::BoundaryCallingPlanRealization
     ],
@@ -25,7 +28,7 @@ pub(crate) fn extract_native_external_binding_rows(
     // Do not rescan source `via` clauses after selection: doing so would create
     // a second binding authority beside the retained typed identity.
     for plan in selected_plans {
-        for row in &plan.rows {
+        for (row_index, row) in plan.rows.iter().enumerate() {
             let binding = match &row.binding {
                 ProviderBinding::Import { evaluated } => ExternalBindingKind::Import {
                     // The selected plan already commits the atomic evaluation
@@ -36,10 +39,43 @@ pub(crate) fn extract_native_external_binding_rows(
                 ProviderBinding::Syscall { number } => {
                     ExternalBindingKind::Syscall { number: *number }
                 }
+                ProviderBinding::VtableField { field, .. }
+                | ProviderBinding::TableFunction { field, .. } => {
+                    let source = selected_sources
+                        .iter()
+                        .find(|source| source.derived.plan == *plan)
+                        .ok_or_else(|| {
+                            vec![Diagnostic::error(
+                                "selected table binding has no source provenance",
+                            )]
+                        })?;
+                    let byte_offset = table_dispatch::field_offset(
+                        typed,
+                        native_target,
+                        &source.derived.provenance,
+                        row_index,
+                        field,
+                        opaque_representation_selections,
+                    )
+                    .map_err(|reason| {
+                        vec![Diagnostic::error(format!(
+                            "cannot realize table field `{field}` for `{}`: {reason}",
+                            row.method
+                        ))]
+                    })?;
+                    match row.binding {
+                        ProviderBinding::VtableField { .. } => ExternalBindingKind::VtableField {
+                            field: field.clone(),
+                            byte_offset,
+                        },
+                        _ => ExternalBindingKind::TableFunction {
+                            field: field.clone(),
+                            byte_offset,
+                        },
+                    }
+                }
                 ProviderBinding::CompilerIntrinsic { .. }
                 | ProviderBinding::VtableSlot { .. }
-                | ProviderBinding::VtableField { .. }
-                | ProviderBinding::TableFunction { .. }
                 | ProviderBinding::CheckedAdapter { .. } => continue,
             };
             let boundary_entry_plan = selected_source_boundary_entry_plan(
@@ -68,9 +104,7 @@ pub(crate) fn extract_native_external_binding_rows(
                         &row.method,
                         plan.identities.text(row.requirement_identity),
                         policy,
-                        // Imports and syscalls have no dispatch-only table
-                        // parameter; only a table function would.
-                        0,
+                        usize::from(matches!(binding, ExternalBindingKind::TableFunction { .. })),
                         opaque_representation_selections,
                     )
                     .map_err(|reason| {

@@ -366,7 +366,9 @@ fn callback_group_bytes(destination: X86_64CallbackMaterializationDestination) -
     }
 }
 
-fn x86_64_machine_register_encoding(register: calling_conventions::MachineRegister) -> Option<u8> {
+pub(super) fn x86_64_machine_register_encoding(
+    register: calling_conventions::MachineRegister,
+) -> Option<u8> {
     Some(match register {
         calling_conventions::MachineRegister::X86Rax => 0,
         calling_conventions::MachineRegister::X86Rcx => 1,
@@ -692,6 +694,75 @@ mod tests {
                 output: 2,
             },
             ownership: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn table_calls_encode_the_retained_field_and_reject_scratch_aliases() {
+        use super::super::table_call::{
+            encode_x86_64_selected_table_call_form, validate_x86_64_selected_table_call_form,
+        };
+        for windows in [false, true] {
+            for byte_offset in [0, 8, 65_536] {
+                let (_, _, alternative, operands, accesses, _, mut record) = inputs(windows, 1, 1);
+                let same_stack_contribution = record
+                    .call
+                    .binding
+                    .same_stack_contribution()
+                    .unwrap()
+                    .clone();
+                record.call.binding.mechanism =
+                    target_operations::NormalizedForeignCallMechanism::Table {
+                        target: if windows {
+                            target::TargetProfile::WindowsX64
+                        } else {
+                            target::TargetProfile::LinuxX64
+                        },
+                        byte_offset,
+                        dispatch_only: false,
+                        same_stack_contribution,
+                    };
+                let encoded = encode_x86_64_selected_table_call_form(
+                    &record,
+                    alternative,
+                    &operands,
+                    &accesses,
+                )
+                .unwrap();
+                assert_eq!(encoded.bytes.len(), 10);
+                assert_eq!(&encoded.bytes[3..7], &byte_offset.to_le_bytes());
+                assert_eq!(&encoded.bytes[7..], &[0x41, 0xff, 0xd3]);
+                for position in 0..encoded.bytes.len() {
+                    let mut corrupted = encoded.bytes.clone();
+                    corrupted[position] ^= 1;
+                    assert!(
+                        validate_x86_64_selected_table_call_form(
+                            &record,
+                            alternative,
+                            &operands,
+                            &accesses,
+                            &corrupted,
+                        )
+                        .is_err(),
+                        "changed byte {position}"
+                    );
+                }
+                let calling_conventions::ValueLocation::Register { register, .. } =
+                    &mut record.call.binding.boundary_entry_plan.call.parameters[0].locations[0]
+                else {
+                    panic!("one pointer argument must be in a register");
+                };
+                *register = calling_conventions::MachineRegister::X86R11;
+                assert!(
+                    encode_x86_64_selected_table_call_form(
+                        &record,
+                        alternative,
+                        &operands,
+                        &accesses,
+                    )
+                    .is_err()
+                );
+            }
         }
     }
 

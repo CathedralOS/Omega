@@ -538,6 +538,10 @@ pub(crate) fn derive_normalized_foreign_child(
         target_operations::NormalizedForeignCallMechanism::Import {
             same_stack_contribution,
             ..
+        }
+        | target_operations::NormalizedForeignCallMechanism::Table {
+            same_stack_contribution,
+            ..
         } => same_stack_contribution
             .provider_plan_commitment()
             .as_bytes(),
@@ -631,7 +635,7 @@ pub(crate) fn derive_normalized_foreign_child(
     // relocation-free object plan — the unresolved import field plus its
     // declared import symbol — where the object route binds it through
     // relocation records and an object-plan import row.
-    let (mutable_intervals, relocation) = if foreign.binding.system_call().is_some() {
+    let (mutable_intervals, relocation) = if foreign.binding.import().is_none() {
         if fragment_rejoin.is_none_or(|rejoin| rejoin.import.is_some()) {
             return Err("kernel entry lacks independently replayed fragment custody");
         }

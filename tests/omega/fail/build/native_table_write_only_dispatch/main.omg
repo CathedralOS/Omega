@@ -1,0 +1,15 @@
+// Dispatch must read the function field, even when the called function writes.
+data Table { query: addr; }
+boundary trait Query {
+    machine run(table: &write Table) -> i32;
+}
+windows_x86_64 machine Table::invoke(table: &write Table) -> i32
+satisfies Query::run via ForeignBinding::VtableField(query);
+
+machine main()
+reaches Query
+invokes Query;
+{
+    let mut table: Table;
+    let result: i32 = Query::run(&write table);
+}

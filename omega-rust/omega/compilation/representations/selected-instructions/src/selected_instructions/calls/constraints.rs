@@ -100,7 +100,8 @@ pub fn instantiate_foreign_call_constraint(
 ) -> Option<RegisterInstructionConstraint> {
     let target = call.binding.native_target()?;
     let expected_family = match call.binding.mechanism {
-        NormalizedForeignCallMechanism::Import { .. } => RegisterConstraintFamily::Call,
+        NormalizedForeignCallMechanism::Import { .. }
+        | NormalizedForeignCallMechanism::Table { .. } => RegisterConstraintFamily::Call,
         NormalizedForeignCallMechanism::SystemCall(_) => RegisterConstraintFamily::SystemCall,
     };
     if !base.operands.is_empty()

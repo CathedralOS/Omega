@@ -202,8 +202,14 @@ fn mint_source_evaluated_imports<'plan>(
     let mut diagnostics = Vec::new();
     for plan in plans {
         for row in &plan.rows {
-            let ProviderBinding::Import { evaluated } = &row.binding else {
-                continue;
+            let mechanism_digest = match &row.binding {
+                ProviderBinding::Import { evaluated } => {
+                    evaluated.locator().identity_digest().as_bytes()
+                }
+                ProviderBinding::VtableField { .. } | ProviderBinding::TableFunction { .. } => {
+                    *plan.identity_digest().as_bytes()
+                }
+                _ => continue,
             };
             let requirement = plan.identities.text(row.requirement_identity);
             if !demanded.contains(requirement) {
@@ -212,7 +218,7 @@ fn mint_source_evaluated_imports<'plan>(
             let plan_report_identity = plan.report_fingerprint();
             let plan_commitment =
                 SameStackProviderPlanCommitment::from_digest(*plan.identity_digest().as_bytes());
-            let locator_digest = evaluated.locator().identity_digest().as_bytes();
+            let locator_digest = mechanism_digest;
             let execution = SourceEvaluatedBindingExecution {
                 requirement_identity: requirement.to_owned(),
                 provider_plan_report_identity: plan_report_identity,
@@ -310,7 +316,12 @@ fn exact_demanded_import_plans<'proposal>(
                     .iter()
                     .filter(move |row| {
                         plan.identities.text(row.requirement_identity) == requirement.as_str()
-                            && matches!(row.binding, ProviderBinding::Import { .. })
+                            && matches!(
+                                row.binding,
+                                ProviderBinding::Import { .. }
+                                    | ProviderBinding::VtableField { .. }
+                                    | ProviderBinding::TableFunction { .. }
+                            )
                     })
                     .map(move |_| plan)
             })

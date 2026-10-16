@@ -54,6 +54,41 @@ pub(super) fn validate(
     {
         return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
     }
+    if record.call.binding.table_dispatch().is_some() {
+        if target.architecture != Architecture::X86_64
+            || !matches!(row.state, SelectedFormEncodingState::Encoded)
+        {
+            return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
+        }
+        let (bytes, retained) = encoded
+            .encoded(row)
+            .ok_or(OptimizedSelectedFormEncodingError::ArtifactMismatch)?;
+        let accesses = machine
+            .operands
+            .iter()
+            .map(|operand| operand.access)
+            .collect::<Vec<_>>();
+        let validated = isa_x86_64::validate_x86_64_selected_table_call_form(
+            record,
+            machine.alternative.key,
+            &operand_views(machine),
+            &accesses,
+            bytes,
+        )
+        .map_err(|_| OptimizedSelectedFormEncodingError::ArtifactMismatch)?;
+        let footprint = validated.footprint();
+        let decoded = decoded_footprint(
+            &footprint.register_reads,
+            &footprint.register_writes,
+            &footprint.encoded,
+        );
+        validate_machine_footprint(instruction, machine, &decoded)?;
+        validate_size(instruction, machine.alternative.size, bytes.len())?;
+        if retained != &decoded {
+            return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
+        }
+        return Ok(());
+    }
     if let Some(binding) = record.call.binding.system_call() {
         if !matches!(row.state, SelectedFormEncodingState::Encoded) {
             return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);

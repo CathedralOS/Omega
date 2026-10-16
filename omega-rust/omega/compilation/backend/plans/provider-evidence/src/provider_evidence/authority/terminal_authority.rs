@@ -341,6 +341,14 @@ pub enum TerminalMechanismIdentity {
     NormalizedForeign(NormalizedForeignTerminalMechanismIdentity),
     CheckedPhysical(CheckedPhysicalTerminalMechanismIdentity),
     Syscall(SyscallTerminalMechanismIdentity),
+    /// A selected named table field, with its physical layout and calling plan.
+    Table {
+        target: target::TargetProfile,
+        provider: crate::provider_plan::ProviderPlanDigest,
+        calling: crate::provider_plan::BoundaryCallingPlanCommitment,
+        byte_offset: u32,
+        dispatch_only: bool,
+    },
 }
 
 impl From<CompilerIntrinsicExecutionIdentity> for TerminalMechanismIdentity {
@@ -370,6 +378,23 @@ impl From<SyscallTerminalMechanismIdentity> for TerminalMechanismIdentity {
 /// Canonical role-tagged bytes for policy ordering and commitment.
 pub fn terminal_mechanism_identity_bytes(identity: TerminalMechanismIdentity) -> Vec<u8> {
     match identity {
+        TerminalMechanismIdentity::Table {
+            target,
+            provider,
+            calling,
+            byte_offset,
+            dispatch_only,
+        } => {
+            let target = target.identity().as_str().as_bytes();
+            let mut bytes = vec![4];
+            bytes.extend_from_slice(&(target.len() as u32).to_be_bytes());
+            bytes.extend_from_slice(target);
+            bytes.extend_from_slice(provider.as_bytes());
+            bytes.extend_from_slice(&calling.as_bytes());
+            bytes.extend_from_slice(&byte_offset.to_be_bytes());
+            bytes.push(u8::from(dispatch_only));
+            bytes
+        }
         TerminalMechanismIdentity::CompilerIntrinsic(intrinsic) => {
             let mut bytes = Vec::with_capacity(9);
             bytes.push(0);

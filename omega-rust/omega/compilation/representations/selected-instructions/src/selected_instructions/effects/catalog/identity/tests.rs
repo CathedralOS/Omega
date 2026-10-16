@@ -225,7 +225,7 @@ fn declaration(semantic: MachineSemanticKind) -> MachineEffectDeclaration {
             MachineBarrier::None
         },
         call: if semantic == MachineSemanticKind::NormalizedForeignCall {
-            MachineCallEffect::DirectExternalNormalReturnV1 {
+            MachineCallEffect::ExternalNormalReturnV1 {
                 pre_call_stack_alignment: 16,
             }
         } else if matches!(

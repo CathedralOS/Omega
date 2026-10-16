@@ -70,6 +70,52 @@ pub(super) fn derive_source_evaluated_mechanisms(
             ))]);
         }
         let mechanism = match &row.binding {
+            ProviderBinding::VtableField { .. } | ProviderBinding::TableFunction { .. } => {
+                let external = rows
+                    .external
+                    .filter(|_| rows.external_count == 1)
+                    .ok_or_else(|| {
+                        vec![Diagnostic::error(
+                            "table binding has no exact retained layout",
+                        )]
+                    })?;
+                let (byte_offset, dispatch_only) = match external.binding {
+                    calling_conventions::ExternalBindingKind::VtableField {
+                        byte_offset, ..
+                    } => (byte_offset, false),
+                    calling_conventions::ExternalBindingKind::TableFunction {
+                        byte_offset, ..
+                    } => (byte_offset, true),
+                    _ => {
+                        return Err(vec![Diagnostic::error(
+                            "table binding changed its mechanism",
+                        )]);
+                    }
+                };
+                let entry = external
+                    .boundary_entry_plan
+                    .as_ref()
+                    .ok_or_else(|| vec![Diagnostic::error("table binding has no calling plan")])?;
+                let signature = calling_conventions::CallSignature::of_placements(
+                    &entry.call.parameters,
+                    entry.call.result.as_ref(),
+                );
+                let validated =
+                    calling_conventions::validate_boundary_entry_plan(entry.clone(), &signature)
+                        .map_err(|error| vec![Diagnostic::error(error.to_string())])?;
+                effects::TerminalMechanismIdentity::Table {
+                    target: target::TargetProfile::from_canonical_target_name(
+                        &provider_plan.target,
+                    )
+                    .map_err(|error| vec![error])?,
+                    provider: provider_plan.identity_digest(),
+                    calling: effects::provider_plan::BoundaryCallingPlanCommitment::from_digest(
+                        validated.contract_commitment_digest(),
+                    ),
+                    byte_offset,
+                    dispatch_only,
+                }
+            }
             ProviderBinding::Syscall { number } => {
                 let target_profile =
                     target::TargetProfile::from_canonical_target_name(&provider_plan.target)
@@ -275,7 +321,10 @@ fn join_import_coverage_rows<'input>(
                     rows.selected_count += 1;
                     if matches!(
                         row.binding,
-                        ProviderBinding::Import { .. } | ProviderBinding::Syscall { .. }
+                        ProviderBinding::Import { .. }
+                            | ProviderBinding::Syscall { .. }
+                            | ProviderBinding::VtableField { .. }
+                            | ProviderBinding::TableFunction { .. }
                     ) {
                         rows.selected_external = Some((provider_plan, row));
                         has_external_demand = true;

@@ -98,7 +98,7 @@ fn every_selected_call_rule_binds_the_declared_abi_call_contract() {
             let expected_call = if supervisor {
                 MachineCallEffect::SupervisorNormalReturnV1
             } else if *semantic == MachineSemanticKind::NormalizedForeignCall {
-                MachineCallEffect::DirectExternalNormalReturnV1 {
+                MachineCallEffect::ExternalNormalReturnV1 {
                     pre_call_stack_alignment: convention.stack_alignment,
                 }
             } else {

@@ -299,7 +299,14 @@ fn decode_call_binding(
         }
         return Ok(binding);
     }
-    let locator = decode_locator_for_target(cursor, &target_name)?;
+    let (locator, table) = if target_name == "@table" {
+        let target_name = decode_string(cursor)?;
+        let target = TargetProfile::from_canonical_target_name(&target_name)
+            .map_err(|_| FixedViewCopyDecodeError::InvalidForeignTargetProfile)?;
+        (None, Some((target, cursor.u32()?, decode_bool(cursor)?)))
+    } else {
+        (Some(decode_locator_for_target(cursor, &target_name)?), None)
+    };
     let call = decode_call_plan(cursor)?;
     let state = decode_state_plan(cursor)?;
     let report_identity = cursor.u64()?;
@@ -339,9 +346,20 @@ fn decode_call_binding(
     }
     Ok(NormalizedForeignCallBinding {
         boundary_entry_plan: calling_conventions::BoundaryEntryPlan { call, state },
-        mechanism: target_operations::NormalizedForeignCallMechanism::Import {
-            locator,
-            same_stack_contribution: contribution,
+        mechanism: match (locator, table) {
+            (Some(locator), None) => target_operations::NormalizedForeignCallMechanism::Import {
+                locator,
+                same_stack_contribution: contribution,
+            },
+            (None, Some((target, byte_offset, dispatch_only))) => {
+                target_operations::NormalizedForeignCallMechanism::Table {
+                    target,
+                    byte_offset,
+                    dispatch_only,
+                    same_stack_contribution: contribution,
+                }
+            }
+            _ => return Err(FixedViewCopyDecodeError::InvalidForeignTargetProfile),
         },
     })
 }

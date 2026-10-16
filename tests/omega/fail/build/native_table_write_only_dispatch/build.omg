@@ -1,0 +1,4 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "native_table_write_only_dispatch");
+    Build::bind(builder, windows_x86_64::ProgramEntry, main);
+}

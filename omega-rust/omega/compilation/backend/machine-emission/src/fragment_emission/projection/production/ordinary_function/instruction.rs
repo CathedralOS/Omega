@@ -33,7 +33,19 @@ pub(super) fn emit(
     }
     let control = control::provenance(function, block, instruction)?;
     let internal_machine_fixup = translate_fixup(row, instruction)?;
-    let normalized_foreign_call_fixup = translate_foreign_fixup(row, instruction)?;
+    let import_free = if let SelectedInstructionKind::NormalizedForeignCall { boundary, ordinal } =
+        instruction.kind
+    {
+        let call = function
+            .normalized_foreign_calls
+            .get(ordinal as usize)
+            .filter(|call| call.instruction == instruction.id && call.call.boundary == boundary)
+            .ok_or(ResolvedFragmentEmissionError::RootMismatch)?;
+        call.call.binding.import().is_none()
+    } else {
+        false
+    };
+    let normalized_foreign_call_fixup = translate_foreign_fixup(row, instruction, import_free)?;
     let byte_literal_address_fixup = translate_byte_literal_fixup(row, instruction)?;
     let implementation_table_address_fixup =
         translate_implementation_table_fixup(row, instruction)?;
@@ -181,14 +193,12 @@ fn translate_fixup(
 fn translate_foreign_fixup(
     row: &ResolvedSelectedFormRow,
     instruction: &SelectedInstruction,
+    import_free: bool,
 ) -> Result<Option<FunctionFragmentNormalizedForeignCallFixup>, ResolvedFragmentEmissionError> {
-    // Supervisor entries were decoded completely before layout. They keep the
-    // ordinary foreign-call provenance, but must not manufacture an import field.
-    if matches!(
-        instruction.kind,
-        SelectedInstructionKind::NormalizedForeignCall { .. }
-    ) && instruction.constraint.family == register_model::RegisterConstraintFamily::SystemCall
-    {
+    // The retained mechanism, not the common call opcode, owns relocation.
+    // Kernel and table calls are fully encoded before layout; only imports
+    // introduce a linker field.
+    if import_free {
         if row.normalized_foreign_call_fixup.is_some()
             || row.internal_machine_fixup.is_some()
             || row.branch.is_some()
@@ -322,11 +332,11 @@ mod tests {
             implementation_table_address_fixup: None,
         };
         assert_eq!(
-            super::translate_foreign_fixup(&row, &instruction).unwrap(),
+            super::translate_foreign_fixup(&row, &instruction, true).unwrap(),
             None
         );
         instruction.constraint.family = RegisterConstraintFamily::Call;
-        assert!(super::translate_foreign_fixup(&row, &instruction).is_err());
+        assert!(super::translate_foreign_fixup(&row, &instruction, false).is_err());
     }
 
     fn row(bytes: Vec<u8>, fixup: SelectedFormInternalMachineFixup) -> ResolvedSelectedFormRow {

@@ -192,3 +192,6 @@ pub use semantic_unit_wrapper_encoding::{
 };
 
 pub use register_model::{X86_64_PLACED_READ, X86_64_PLACED_WRITE};
+pub use selected_form_encoding::{
+    encode_x86_64_selected_table_call_form, validate_x86_64_selected_table_call_form,
+};

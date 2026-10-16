@@ -148,7 +148,7 @@ pub fn machine_effect_catalog_identity(
                     pre_call_stack_alignment.to_le_bytes(),
                 );
             }
-            crate::MachineCallEffect::DirectExternalNormalReturnV1 {
+            crate::MachineCallEffect::ExternalNormalReturnV1 {
                 pre_call_stack_alignment,
             } => {
                 bytes.push(2);
@@ -283,6 +283,14 @@ pub fn encode_machine_encoded_effects_identity<Sink: MachineIdentityBytes + ?Siz
     encode_units(bytes, &effects.implicit_unit_defs);
     encode_units(bytes, &effects.implicit_unit_clobbers);
     match effects.memory {
+        MachineEncodedMemoryEffect::ReadTableFieldV1 {
+            pointer_operand,
+            byte_offset,
+        } => {
+            bytes.identity_bytes(&[19]);
+            bytes.identity_bytes(&pointer_operand.to_le_bytes());
+            bytes.identity_bytes(&byte_offset.to_le_bytes());
+        }
         MachineEncodedMemoryEffect::TemporaryStackStorageV1 {
             stack_pointer,
             byte_count,
@@ -468,6 +476,7 @@ pub fn encode_machine_encoded_effects_identity<Sink: MachineIdentityBytes + ?Siz
             bytes.identity_bytes(&target.0.to_le_bytes());
         }
         MachineEncodedControlEffect::DirectRelativeCallV1 => bytes.identity_bytes(&[4]),
+        MachineEncodedControlEffect::IndirectExternalCallV1 => bytes.identity_bytes(&[14]),
         MachineEncodedControlEffect::IndirectTableCallOrTrapV1 => bytes.identity_bytes(&[13]),
         MachineEncodedControlEffect::SupervisorCallV1 => bytes.identity_bytes(&[11]),
         MachineEncodedControlEffect::AtomicRetryUntilCommitV1 => bytes.identity_bytes(&[12]),

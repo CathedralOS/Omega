@@ -22,7 +22,8 @@ use target_operations::{
 // evaluated plan still selects and independently validates the exact row.
 fn entry_family(call: &LegalizedNormalizedForeignCall) -> register_model::RegisterConstraintFamily {
     match call.binding.mechanism {
-        target_operations::NormalizedForeignCallMechanism::Import { .. } => {
+        target_operations::NormalizedForeignCallMechanism::Import { .. }
+        | target_operations::NormalizedForeignCallMechanism::Table { .. } => {
             register_model::RegisterConstraintFamily::Call
         }
         target_operations::NormalizedForeignCallMechanism::SystemCall(_) => {
@@ -146,7 +147,13 @@ pub(crate) fn validate(
     constraint: &RegisterInstructionConstraint,
     environment: &ValidatedTargetRegisterEnvironment,
 ) -> Result<(), SelectedInstructionError> {
-    let invalid = || SelectedInstructionError::unsupported_shape(function);
+    // Expand at the failing check so diagnostic sites identify the refusal,
+    // rather than pointing every failure at a shared closure definition.
+    macro_rules! invalid {
+        () => {
+            SelectedInstructionError::unsupported_shape(function)
+        };
+    }
     // A completion has no physical return lane or callback registration. The
     // edge is retained as its owner, never recast as an operation identity.
     if invocation_site.operation().is_none()
@@ -155,7 +162,7 @@ pub(crate) fn validate(
             || !call.callbacks.is_empty()
             || !call.structural_arguments.is_empty())
     {
-        return Err(invalid());
+        return Err(invalid!());
     }
     let plan = &call.binding.boundary_entry_plan;
     // Target applicability, calling policy, and entry control are exact
@@ -168,11 +175,11 @@ pub(crate) fn validate(
                 .provider_plan_report_identity()
                 .get()
     {
-        return Err(invalid());
+        return Err(invalid!());
     }
-    let pointer_size = u16::try_from(environment.target().pointer_size).map_err(|_| invalid())?;
+    let pointer_size = u16::try_from(environment.target().pointer_size).map_err(|_| invalid!())?;
     let pointer_alignment =
-        u16::try_from(environment.target().pointer_alignment).map_err(|_| invalid())?;
+        u16::try_from(environment.target().pointer_alignment).map_err(|_| invalid!())?;
     // Every retained callback roster row joins exactly one private
     // materialization the registrar plan declares. Each row's native
     // ordinal, pointer-shape placement, destination custody, thunk identity,
@@ -181,12 +188,12 @@ pub(crate) fn validate(
     // destination or placement slot, and a substituted roster all fail
     // closed.
     if call.callbacks.len() != plan.call.callback_materializations.len() {
-        return Err(invalid());
+        return Err(invalid!());
     }
     let mut private_ordinals = Vec::new();
     for (index, callback) in call.callbacks.iter().enumerate() {
         let ordinal =
-            usize::try_from(callback.application.native_ordinal).map_err(|_| invalid())?;
+            usize::try_from(callback.application.native_ordinal).map_err(|_| invalid!())?;
         let placed = plan.call.parameters.get(ordinal) == Some(&callback.application.placement);
         let destination_admitted = match &callback.destination {
             calling_conventions::NativePlace::Parameter(parameter) => {
@@ -225,7 +232,7 @@ pub(crate) fn validate(
                     || prior.destination == callback.destination
             })
         {
-            return Err(invalid());
+            return Err(invalid!());
         }
         if matches!(
             callback.destination,
@@ -237,7 +244,7 @@ pub(crate) fn validate(
     if plan.call.parameters.len()
         != call.scalar_arguments.len() + call.structural_arguments.len() + private_ordinals.len()
     {
-        return Err(invalid());
+        return Err(invalid!());
     }
     // Each scalar argument keeps its authored plan position, its source's own
     // scalar type, and the exact placement the plan assigned.
@@ -257,21 +264,21 @@ pub(crate) fn validate(
                 _ => false,
             }
         {
-            return Err(invalid());
+            return Err(invalid!());
         }
     }
     // Storage geometry and foreign classification are different contracts.
     // Reconstruct both from source declarations; an owned indirect placement
     // still transfers bytes, whereas a borrow transports a referent pointer.
     if call.structural_arguments.len() != call.structural_indices.len() {
-        return Err(invalid());
+        return Err(invalid!());
     }
     let mut structural_shapes = Vec::new();
     for ((index, argument), indices) in structural_parameter_positions(call)
         .zip(&call.structural_arguments)
         .zip(&call.structural_indices)
     {
-        let signature = source.structural.as_ref().ok_or_else(invalid)?;
+        let signature = source.structural.as_ref().ok_or_else(|| invalid!())?;
         let parameter = signature
             .parameters
             .iter()
@@ -333,7 +340,7 @@ pub(crate) fn validate(
                     false,
                 )
             } else {
-                return Err(invalid());
+                return Err(invalid!());
             };
         let semantic = terminal_psi::StructuralArgument {
             place: argument.place,
@@ -348,7 +355,7 @@ pub(crate) fn validate(
             presentation
         {
             if presentation_debt {
-                return Err(invalid());
+                return Err(invalid!());
             }
             (argument.structural_type, offset, Vec::new())
         } else if argument
@@ -358,7 +365,7 @@ pub(crate) fn validate(
             let address = crate::selection::reference_input::borrowed_argument(
                 source, &semantic, argument, indices,
             )
-            .ok_or_else(invalid)?;
+            .ok_or_else(|| invalid!())?;
             // A thin pointer exports the original address and omits the
             // codec. The checked loan must admit only this byte footprint,
             // independently of the descriptor's source arrangement.
@@ -369,7 +376,7 @@ pub(crate) fn validate(
                     &signature.structural_types,
                 );
                 if exported_width != Some(argument.shape.byte_size) {
-                    return Err(invalid());
+                    return Err(invalid!());
                 }
             }
             let projection =
@@ -380,7 +387,7 @@ pub(crate) fn validate(
                     Some(argument.structural_type),
                     &signature.structural_types,
                 )
-                .ok_or_else(invalid)?;
+                .ok_or_else(|| invalid!())?;
             (
                 argument.structural_type,
                 address.referent_offset,
@@ -392,13 +399,13 @@ pub(crate) fn validate(
                 &argument.path,
                 &signature.structural_types,
             )
-            .ok_or_else(invalid)?
+            .ok_or_else(|| invalid!())?
         };
         let projected_shape = crate::structural_inputs::structural_reference_input::shape(
             projected_type,
             &signature.structural_types,
         )
-        .ok_or_else(invalid)?;
+        .ok_or_else(|| invalid!())?;
         let (storage_shape, abi_shape) = match argument.access {
             terminal_psi::StructuralAccess::Owned => {
                 // Whole-place owned transport still requires an owned root;
@@ -415,7 +422,7 @@ pub(crate) fn validate(
                     )
                 };
                 if !admitted_root {
-                    return Err(invalid());
+                    return Err(invalid!());
                 }
                 let classified =
                     abstract_operations_to_target_operations::classified_boundary_shape(
@@ -423,7 +430,7 @@ pub(crate) fn validate(
                         &signature.structural_types,
                         plan.call.policy,
                     )
-                    .map_err(|_| invalid())?;
+                    .map_err(|_| invalid!())?;
                 (projected_shape, classified)
             }
             terminal_psi::StructuralAccess::SharedBorrow
@@ -440,7 +447,7 @@ pub(crate) fn validate(
                             &signature.structural_types,
                             plan.call.policy,
                         )
-                        .map_err(|_| invalid())?;
+                        .map_err(|_| invalid!())?;
                     (
                         ValueShape::borrowed_reference(
                             projected_shape.byte_size,
@@ -454,7 +461,7 @@ pub(crate) fn validate(
                     | [ValueLocation::Stack { value_byte_offset: 0, byte_size, .. }]
                         if *byte_size == u32::from(pointer_size))
                     {
-                        return Err(invalid());
+                        return Err(invalid!());
                     }
                     (
                         ValueShape::borrowed_reference(
@@ -501,7 +508,7 @@ pub(crate) fn validate(
             || plan.call.parameters.get(index) != Some(&argument.destination)
             || argument.destination.shape != abi_shape
         {
-            return Err(invalid());
+            return Err(invalid!());
         }
         structural_shapes.push((index, abi_shape));
     }
@@ -519,7 +526,7 @@ pub(crate) fn validate(
                 || scalar_shape(result.scalar_type) != Some(home.shape)
                 || placement.shape != home.shape
             {
-                return Err(invalid());
+                return Err(invalid!());
             }
             let [
                 ValueLocation::Register {
@@ -529,38 +536,38 @@ pub(crate) fn validate(
                 },
             ] = placement.locations.as_slice()
             else {
-                return Err(invalid());
+                return Err(invalid!());
             };
             if *byte_size != home.shape.byte_size {
-                return Err(invalid());
+                return Err(invalid!());
             }
             Some(home.shape)
         }
         (TargetBoundaryResult::Structural(home), Some(placement), None) => {
-            let (producer, result) = home.operation_result().ok_or_else(invalid)?;
-            let signature = source.structural.as_ref().ok_or_else(invalid)?;
+            let (producer, result) = home.operation_result().ok_or_else(|| invalid!())?;
+            let signature = source.structural.as_ref().ok_or_else(|| invalid!())?;
             let storage = crate::structural_inputs::structural_reference_input::shape(
                 result.structural_type,
                 &signature.structural_types,
             )
-            .ok_or_else(invalid)?;
+            .ok_or_else(|| invalid!())?;
             let shape = abstract_operations_to_target_operations::classified_boundary_shape(
                 result.structural_type,
                 &signature.structural_types,
                 plan.call.policy,
             )
-            .map_err(|_| invalid())?;
+            .map_err(|_| invalid!())?;
             if Some(producer) != invocation_site.operation()
                 || crate::selection::aggregate_result_input::home(source, result.place)
                     != Some((producer, result))
                 || home.layout != target_operations::TargetStructuralHomeLayout::Aggregate(storage)
                 || placement.shape != shape
             {
-                return Err(invalid());
+                return Err(invalid!());
             }
             Some(shape)
         }
-        _ => return Err(invalid()),
+        _ => return Err(invalid!()),
     };
     // Re-validate the retained plan against the independently re-derived
     // signature; the canonical evaluation must equal the carried plan exactly.
@@ -571,11 +578,11 @@ pub(crate) fn validate(
     for argument in &call.scalar_arguments {
         *parameters
             .get_mut(argument.parameter_index as usize)
-            .ok_or_else(invalid)? =
-            scalar_shape(argument.source.scalar_type()).ok_or_else(invalid)?;
+            .ok_or_else(|| invalid!())? =
+            scalar_shape(argument.source.scalar_type()).ok_or_else(|| invalid!())?;
     }
     for (position, shape) in structural_shapes {
-        *parameters.get_mut(position).ok_or_else(invalid)? = shape;
+        *parameters.get_mut(position).ok_or_else(|| invalid!())? = shape;
     }
     let signature = CallSignature {
         parameters,
@@ -591,16 +598,16 @@ pub(crate) fn validate(
         }
         None => validate_boundary_entry_plan(plan.clone(), &signature),
     }
-    .map_err(|_| invalid())?;
+    .map_err(|_| invalid!())?;
     if validated.plan() != plan {
-        return Err(invalid());
+        return Err(invalid!());
     }
     // Reconstruct the complete physical row, including all result fragments,
     // from the semantic plan just checked above and the target template.
     if call_key(call, environment) != Some(key)
         || call_constraint(call, environment).as_ref() != Some(constraint)
     {
-        return Err(invalid());
+        return Err(invalid!());
     }
     Ok(())
 }
