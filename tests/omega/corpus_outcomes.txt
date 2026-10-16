@@ -4706,6 +4706,8 @@ fail/slices/signed_slice_range_upper_only rejected 1708ms expected @a9ae30e1c334
 	cannot prove every subslice range endpoint of `__hoist_14..__hoist_15` is non-negative
 fail/slices/signed_to_unsigned_cast_does_not_inherit_position rejected 291ms expected @2ab552549670+wt
 	Exact integer cast in machine `read` state `entry` from `i64` to `u64` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
+fail/slices/state_edge_overlapping_windows rejected 966ms expected @1810e541fd15+wt
+	state `overlap` receives `row[0..3]` as mutable more than once
 fail/slices/state_projected_bound_rebound_selector rejected 628ms expected @f329f97f57f7+wt
 	cannot prove index `inner` is within unknown slice length of `windows[outer].values` in replace::store
 fail/slices/state_projected_bound_wrong_field rejected 632ms expected @f329f97f57f7+wt
@@ -8721,6 +8723,7 @@ run/ownership/temporary_projected_copy_argument checked 5449ms check-target:maco
 run/ownership/temporary_projected_value_residual checked 11846ms check-target:macos_arm64 @93ba1f664f65+wt
 run/proofs/quotient_copy_paths checked 19698ms check-target:macos_arm64 @73e466d6222f+wt
 run/providers/module_named_float_conversion_family_exit checked 16353ms check-target:macos_arm64 @77cde1c51efd+wt
+run/slices/disjoint_local_state_windows checked 9595ms check-target:macos_arm64 @1810e541fd15+wt
 run/stores/runtime_float_indexed_call_result_exit checked 16446ms check-target:macos_arm64 @77cde1c51efd+wt
 run/stores/runtime_float_store_selector_snapshot_exit checked 16333ms check-target:macos_arm64 @77cde1c51efd+wt
 run/traits/static_implementation_method_arguments checked 5547ms check-target:macos_arm64 @93ba1f664f65+wt

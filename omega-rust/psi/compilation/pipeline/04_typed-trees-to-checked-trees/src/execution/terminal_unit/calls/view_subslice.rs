@@ -249,9 +249,11 @@ pub(crate) fn admit_resolved(
         ),
         // Call overlap owns the temporary loan for the invocation.
         CheckedSubsliceSite::CallArgument { .. } | CheckedSubsliceSite::Expression { .. } => true,
-        // An incoming loan's backing survives the source state. A local or
-        // owned array instead needs retained backing transport on the edge;
-        // constructing a descriptor does not supply that lifetime evidence.
+        // An incoming borrowed parameter survives the source state, so the
+        // edge only narrows it. An owned local fixed array is the same range:
+        // the edge forms the window descriptor and lowering keeps that
+        // local's storage for the successor. Refusing the local left no way
+        // to lend two windows of one occupancy row across a state edge.
         CheckedSubsliceSite::TransitionArgument { .. } => match subslice.range.root {
             CheckedStorageRoot::Parameter { index } => {
                 parameters.get(index as usize).is_some_and(|parameter| {
@@ -261,7 +263,10 @@ pub(crate) fn admit_resolved(
                     )
                 })
             }
-            _ => false,
+            CheckedStorageRoot::OwnedLocal { .. } => {
+                subslice.range.storage == ViewStorage::FixedArray
+            }
+            CheckedStorageRoot::ViewLocal { .. } => false,
         },
     };
     established.then_some(subslice)

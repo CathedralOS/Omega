@@ -322,6 +322,7 @@ run/domains/structural_qualification_nested_values built 23807ms exit:0 interpre
 run/float/folded_anonymous_operator_custody_exit built 27827ms exit:0 interpreter-exit:0 interpreter:agrees @d041496df109+wt
 run/proofs/quotient_copy_paths built 36875ms exit:70 interpreter-exit:70 interpreter:agrees @73e466d6222f+wt
 run/providers/module_named_float_conversion_family_exit built 16000ms exit:0 stdout:match stderr:match interpreter-exit:0 interpreter-stdout:match interpreter-stderr:match interpreter:agrees @77cde1c51efd+wt
+run/slices/disjoint_local_state_windows built 9268ms exit:12 interpreter-exit:12 interpreter:agrees @1810e541fd15+wt
 run/stores/runtime_float_indexed_call_result_exit built 15768ms exit:0 stdout:match stderr:match interpreter-exit:0 interpreter-stdout:match interpreter-stderr:match interpreter:agrees @77cde1c51efd+wt
 run/stores/runtime_float_store_selector_snapshot_exit built 16044ms exit:0 stdout:match stderr:match interpreter-exit:0 interpreter-stdout:match interpreter-stderr:match interpreter:agrees @77cde1c51efd+wt
 run/variant_decimal_runtime_division built 8601ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @14d037e0837c+wt

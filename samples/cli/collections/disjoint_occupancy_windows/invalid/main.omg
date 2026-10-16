@@ -1,0 +1,15 @@
+// Overlapping mutable windows of one row. The checker must reject this
+// before any native run.
+use omega_language_std::console;
+
+data Main { }
+
+machine Main::main(main: &mut Main) reaches Console {
+    let mut row: [i32 in Wrapping; 4] = [0, 0, 0, 0];
+    transition { _ -> overlap(main, &mut row[0..3], &mut row[2..4]) }
+    state overlap(main: &mut Main, left: &mut [i32 in Wrapping], right: &mut [i32 in Wrapping]) {
+        left[0] = 1;
+        right[0] = 2;
+        Console::exit_process(0);
+    }
+}

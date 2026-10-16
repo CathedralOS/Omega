@@ -632,9 +632,23 @@ impl StateGraphEmission<'_, '_> {
                             | checked_trees::CheckedStructuralAccess::SharedBorrow
                     )
                 {
-                    let loaned_binding = match transfer.source {
-                        checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult { binding_ordinal } => Some(binding_ordinal),
-                        checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedLoan { ref subject, .. } => subject.source.current_result_binding(&state.operations),
+                    let loaned_binding = match &transfer.source {
+                        checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult { binding_ordinal } => Some(*binding_ordinal),
+                        checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedLoan { subject, .. } => subject.source.current_result_binding(&state.operations),
+                        // A subslice of an owned local lends that local's home,
+                        // not a fresh array. The descriptor is the successor's
+                        // parameter; the home stays with the activation.
+                        checked_trees::CheckedStructuralControlTransferSourcePlan::ViewSubslice(argument) => {
+                            crate::unit::attached_unit::view_ranges::range(argument).and_then(|range| {
+                                match range.root {
+                                    checked_trees::CheckedStorageRoot::OwnedLocal { symbol } => {
+                                        checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol }
+                                            .current_result_binding(&state.operations)
+                                    }
+                                    _ => None,
+                                }
+                            })
+                        }
                         _ => None,
                     };
                     if let Some(binding_ordinal) = loaned_binding {
@@ -666,18 +680,39 @@ impl StateGraphEmission<'_, '_> {
                         ) || result.multiplicity()
                             == StructuralMultiplicity::Affine
                             || backing.is_some();
-                        if needs_home && (position != 0 || self.entry_reentered) {
+                        let subslice_view = matches!(
+                            transfer.source,
+                            checked_trees::CheckedStructuralControlTransferSourcePlan::ViewSubslice(
+                                _
+                            )
+                        );
+                        // A subslice's parameter place is the fresh descriptor.
+                        // Both windows of one local share that local's home;
+                        // recording each descriptor would look like two homes.
+                        let lent_home = if subslice_view {
+                            edge_evaluation.current_structural_place(result.place())
+                        } else {
+                            captured_backing
+                                .as_ref()
+                                .map_or(place, |(backing, _)| *backing)
+                        };
+                        // Unrestricted array storage has no affine death. A
+                        // subslice formed in a later state still names that
+                        // storage; the entry-home roster is only for homes
+                        // that must be disposed once at return.
+                        let unrestricted_subslice = subslice_view
+                            && result.multiplicity() != StructuralMultiplicity::Affine
+                            && backing.is_none();
+                        if needs_home
+                            && !unrestricted_subslice
+                            && (position != 0 || self.entry_reentered)
+                        {
                             return unsupported(
                                 "Unit graph local loan requires an activation entry home",
                             );
                         }
                         let homes = (result.multiplicity() == StructuralMultiplicity::Affine)
-                            .then_some((
-                                binding_ordinal,
-                                captured_backing
-                                    .as_ref()
-                                    .map_or(place, |(backing, _)| *backing),
-                            ))
+                            .then_some((binding_ordinal, lent_home))
                             .into_iter()
                             .chain(backing.map(|(backing, home)| {
                                 (

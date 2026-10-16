@@ -1,0 +1,20 @@
+// A later state lends two disjoint windows of an array it just built.
+// Exit 12 when both writes land in those windows.
+use omega_language_std::console;
+
+data Main { }
+
+machine Main::main(main: &mut Main) reaches Console {
+    transition { _ -> build(main) }
+    state build(main: &mut Main) {
+        let mut row: [i32 in Wrapping; 4] = [0, 0, 0, 0];
+        transition { _ -> windows(main, &mut row[0..2], &mut row[2..4]) }
+    }
+    state windows(main: &mut Main, left: &mut [i32 in Wrapping], right: &mut [i32 in Wrapping])
+    requires left.len >= 1 && right.len >= 1
+    {
+        left[0] = 5;
+        right[0] = 7;
+        Console::exit_process((left[0] + right[0]) as i32);
+    }
+}
