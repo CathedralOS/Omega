@@ -1,0 +1,20 @@
+// Passing the match straight into a call does not publish a length the arms
+// do not share.
+machine half(items: &mut [u8; 4], which: i64) -> &mut [u8]
+ensures result.len == 2
+{
+    match which {
+        0 -> &mut items[0..1]
+        _ -> &mut items[0..2]
+    }
+}
+
+machine write_pair(window: &mut [u8])
+requires window.len >= 2 {
+    window[0] = 1;
+}
+
+machine main() crashes Trap {
+    let mut items: [u8; 4] = [0, 0, 0, 0];
+    write_pair(half(&mut items, 0));
+}

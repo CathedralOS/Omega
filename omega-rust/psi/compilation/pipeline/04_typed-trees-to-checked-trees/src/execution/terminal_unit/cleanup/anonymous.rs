@@ -4,6 +4,9 @@
 //! while partial transfers retire the maximal untouched complement, in reverse
 //! establishment order. Captured reference descriptors use the shared loan
 //! retirement schedule, which keeps them live through returned descendants.
+//! A borrowed-parts call result is that same kind of descriptor: an empty
+//! `result_loans` roster still means the loan schedule owns it, so continuation
+//! cleanup does not mint a return-discard for the window.
 //! Partial transfers still require the captured permission partition; automatic
 //! affine disposal does not discharge a live linear obligation. This early
 //! geometry is completed against contextual hook dispositions once executable
@@ -212,6 +215,33 @@ fn projected_owner_actions(
     actions
 }
 
+/// The producer call returned a borrowed window or other caller-frame
+/// carrier. Its descriptor is not an owned value, so the continuation must
+/// not discard it. Named loans and empty anonymous rosters share this rule;
+/// the empty roster is what an operand call records, not a missing owner.
+fn loan_schedule_owns_window(
+    program: &dyn ::validation::CheckingInput,
+    operations: &[CheckedUnitEffectOperationPlan],
+    result: &CheckedUnitStructuralResultBindingPlan,
+) -> bool {
+    operations.iter().any(|operation| {
+        let Some(call) = operation.call() else {
+            return false;
+        };
+        let Some(produced) = call.structural_result() else {
+            return false;
+        };
+        if produced.binding_ordinal != result.binding_ordinal
+            || produced.statement_index != result.statement_index
+        {
+            return false;
+        }
+        validation::call_target_return_type(program, call.target.state).is_some_and(|returned| {
+            validation::reference_result_custody::has_borrowed_parts(program, returned)
+        })
+    })
+}
+
 /// Dispose anonymous argument owners at the call's normal continuation.
 /// The argument's access determines whether the whole owner or its maximal
 /// complement dies. Captured reference descriptors instead keep their one
@@ -275,6 +305,9 @@ pub(in crate::execution::terminal_unit) fn append_continuation(
             // A call can return a descendant that still borrows its operand;
             // immediate continuation cleanup would retire that operand twice
             // and, before the child ends, destroy backing that remains live.
+            // A mutable or shared window returned into the argument has the
+            // same obligation when its loan roster is empty: the producer
+            // minted no return-discard, and demanding one refuses the call.
             if operations.iter().any(|producer| {
                 super::super::control::statement_sequence::captured_reference_result(
                     program,
@@ -286,7 +319,8 @@ pub(in crate::execution::terminal_unit) fn append_continuation(
                     operations,
                 )
                 .is_some_and(|captured| captured.result == result)
-            }) {
+            }) || loan_schedule_owns_window(program, operations, result)
+            {
                 continue;
             }
             cleanup_actions.push(CheckedNormalCleanupAction::Discard(

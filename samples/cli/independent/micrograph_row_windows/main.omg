@@ -1,0 +1,42 @@
+// A label image lends one row as a mutable window. Both halves of the
+// first strip have length 2. The caller writes that window straight from
+// the lending call, then again through a local stored in a record field.
+// Expected exit: 0
+data Image { labels: [i32; 4]; }
+data Held<'row> { values: &'row mut [i32]; }
+
+machine half<'row>(image: &'row mut Image, which: i64) -> &'row mut [i32]
+ensures result.len == 2
+{
+    match which {
+        0 -> &mut image.labels[0..2]
+        _ -> &mut image.labels[2..4]
+    }
+}
+
+machine write_pair(window: &mut [i32])
+requires window.len >= 2 {
+    window[0] = 9;
+    window[1] = 8;
+}
+
+machine main() crashes Trap {
+    let mut image: Image;
+    image.labels[0] = 1;
+    image.labels[1] = 2;
+    image.labels[2] = 3;
+    image.labels[3] = 4;
+    transition { _ -> paint(&mut image) }
+    state paint(image: &mut Image) {
+        write_pair(half(image, 0));
+        let view: &mut [i32] = half(image, 0);
+        let held: Held = Held { values: view };
+        write_pair(held.values);
+        transition image.labels[0] == 9 && image.labels[1] == 8 && image.labels[2] == 3 && image.labels[3] == 4 {
+            true -> done()
+            false -> bad()
+        }
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

@@ -1,0 +1,33 @@
+// A unit call receives the mutable window from the call that lent it.
+// The same window then passes through a local, a record field, and a parameter.
+// Expected native exit: 0
+data Held<'row> { values: &'row mut [i32]; }
+
+machine half<'row>(items: &'row mut [i32; 4], which: i64) -> &'row mut [i32]
+ensures result.len == 2
+{
+    match which {
+        0 -> &mut items[0..2]
+        _ -> &mut items[2..4]
+    }
+}
+
+machine write_pair(window: &mut [i32])
+requires window.len >= 2 {
+    window[0] = 9;
+    window[1] = 8;
+}
+
+machine main() crashes Trap {
+    let mut items: [i32; 4] = [1, 2, 3, 4];
+    write_pair(half(&mut items, 0));
+    let view: &mut [i32] = half(&mut items, 0);
+    let held: Held = Held { values: view };
+    write_pair(held.values);
+    transition items[0] == 9 && items[1] == 8 && items[2] == 3 && items[3] == 4 {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
