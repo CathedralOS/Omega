@@ -1,0 +1,57 @@
+// A clip denominator is a computed distance difference. The guard that it
+// sits in [0.5, 8] admits that declared range, and the quotient of a
+// numerator in [0, 4] by that denominator is finite.
+//
+// Expected exit: 0
+use omega::language::core::float_operations;
+
+data Gap { difference: f64; }
+
+machine clip_fraction(start_distance: f64 [0.0..=4.0], end_distance: f64 [-4.0..=4.0]) -> f64 in Finite {
+    let difference: f64 = start_distance - end_distance;
+    transition difference >= 0.5 && difference <= 8.0 {
+        true -> admit(start_distance, difference)
+        _ -> zero()
+    }
+    state admit(start_distance: f64 [0.0..=4.0], difference: f64 [0.5..=8.0]) -> f64 in Finite {
+        start_distance / difference
+    }
+    state zero() -> f64 in Finite { 0.0 }
+}
+
+machine clip_fraction_reversed(start_distance: f64 [0.0..=4.0], end_distance: f64 [-4.0..=4.0]) -> f64 in Finite {
+    let difference: f64 = start_distance - end_distance;
+    transition 0.5 <= difference && 8.0 >= difference {
+        true -> admit(start_distance, difference)
+        _ -> zero()
+    }
+    state admit(start_distance: f64 [0.0..=4.0], difference: f64 [0.5..=8.0]) -> f64 in Finite {
+        start_distance / difference
+    }
+    state zero() -> f64 in Finite { 0.0 }
+}
+
+machine clip_fraction_field(start_distance: f64 [0.0..=4.0], end_distance: f64 [-4.0..=4.0]) -> f64 in Finite {
+    let gap: Gap;
+    gap.difference = start_distance - end_distance;
+    transition gap.difference >= 0.5 && gap.difference <= 8.0 {
+        true -> admit(start_distance, gap.difference)
+        _ -> zero()
+    }
+    state admit(start_distance: f64 [0.0..=4.0], difference: f64 [0.5..=8.0]) -> f64 in Finite {
+        start_distance / difference
+    }
+    state zero() -> f64 in Finite { 0.0 }
+}
+
+machine main() crashes Trap {
+    let direct: f64 in Finite = clip_fraction(1.0, -1.0);
+    let reversed: f64 in Finite = clip_fraction_reversed(1.0, -1.0);
+    let through_field: f64 in Finite = clip_fraction_field(1.0, -1.0);
+    transition direct == 0.5 && reversed == 0.5 && through_field == 0.5 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() { }
+    state bad() { crash Trap; }
+}

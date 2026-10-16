@@ -1642,6 +1642,7 @@ pass/float/float_trapping_propagated_nan_traps built 32545ms exit:signal signal:
 pass/float/foreign_control_state_restore built 22932ms exit:70 @b1d84da832b5+wt
 pass/float/fused_multiply_add_single_rounding_exit built 35913ms exit:0 @6c49683ce714
 pass/float/guarded_exact_float_conversion checked 7570ms @6c49683ce714
+pass/float/guarded_float_transition_range_exit built 11148ms exit:0 @cc35a4f0d368+wt
 pass/float/guarded_scalar_state_contract_exit built 34910ms exit:0 @6c49683ce714
 pass/float/hydrostatic_load_format_exit built 21168ms exit:0 stdout:match @326ed531359e+wt
 pass/float/literal_indexed_float_field_read_exit built 33026ms exit:70 @6c49683ce714

@@ -1,0 +1,15 @@
+// A lower bound alone does not prove a closed float range. `difference >= 0.5`
+// still admits values above 8, so the declared parameter `f64 [0.5..=8.0]`
+// stays unproved.
+machine open_upper(start_distance: f64, end_distance: f64) -> f64 {
+    let difference: f64 = start_distance - end_distance;
+    transition difference >= 0.5 {
+        true -> admit(difference)
+        _ -> 0.0
+    }
+    state admit(difference: f64 [0.5..=8.0]) -> f64 { difference }
+}
+
+machine main() {
+    _ = open_upper(1.0, -1.0);
+}

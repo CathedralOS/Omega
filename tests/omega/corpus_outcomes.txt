@@ -2631,6 +2631,8 @@ fail/float/finite_result_requires_proof rejected 487ms expected @9c4d1c444502
 	cannot prove return value `value` satisfies `finite` for bounded return type in `invalid.entry`
 fail/float/finite_store_invalidated rejected 464ms expected @9c4d1c444502
 	cannot prove transition argument `sample.value` satisfies `finite` for bounded parameter `value` in `inspect.entry`
+fail/float/float_guard_missing_upper_bound rejected 330ms expected @cc35a4f0d368+wt
+	cannot prove transition argument `difference` satisfies bounded parameter `difference` in `open_upper.entry`; expected 0.5..=8
 fail/float/float_range_field_store_outside_range rejected 223ms expected @71a3b689b85d+wt
 	cannot prove assignment value `0.5` satisfies bounded target `built.value` in `main.entry`; expected 0..0.5
 fail/float/float_semantics_lookalike_grants_no_primitive rejected 34ms expected @9c4d1c444502
@@ -6843,6 +6845,7 @@ pass/float/float_trapping_propagated_nan_traps checked 26892ms check-target:maco
 pass/float/foreign_control_state_restore checked 22857ms check-target:macos_arm64 @b1d84da832b5+wt
 pass/float/fused_multiply_add_single_rounding_exit checked 26137ms check-target:macos_arm64 @9c4d1c444502
 pass/float/guarded_exact_float_conversion checked 7372ms @9c4d1c444502
+pass/float/guarded_float_transition_range_exit checked 11151ms check-target:macos_arm64 @cc35a4f0d368+wt
 pass/float/guarded_scalar_state_contract_exit checked 26224ms check-target:macos_arm64 @9c4d1c444502
 pass/float/hydrostatic_load_format_exit checked 11293ms check-target:macos_arm64 @589aedee8ebc+wt
 pass/float/literal_indexed_float_field_read_exit checked 17424ms check-target:macos_arm64 @1b12798e27f4

@@ -27,7 +27,7 @@ use crate::checker::diagnostics::{
 use crate::checker::float_ranges::{
     float_range_for_assignment, float_range_for_call_argument, float_range_for_initializer,
     float_range_for_return_value, float_range_for_transition_argument,
-    float_range_from_constraints,
+    float_range_from_constraints, guarded_float_range,
 };
 use crate::checker::integer_ranges::{
     guarded_integer_range_for_assignment_with_context,
@@ -849,8 +849,19 @@ pub(crate) fn check_bounded_transition_argument(
     if let Some(target_range) =
         float_range_from_constraints(type_constraints(proof_plan, obligation.constraints))
     {
-        let Some(argument_range) = float_range_for_transition_argument(proof_plan, obligation)
-        else {
+        // The declared range is the goal. A co-located comparison of this
+        // argument, and any prior exit guard this arm refutes, narrows the
+        // place the same way an integer guard does. The comparison and the
+        // argument are one dispatch, so the fact needs no stability gate.
+        let Some(argument_range) = guarded_float_range(
+            proof_plan,
+            float_range_for_transition_argument(proof_plan, obligation),
+            obligation.argument,
+            &obligation.guard,
+            &obligation.refuted_exit_guards,
+            obligation.machine_symbol,
+            obligation.state_symbol,
+        ) else {
             diagnostics.push(cannot_prove_bounded_transition_float(
                 proof_plan,
                 obligation,

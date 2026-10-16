@@ -6,8 +6,9 @@
 //! `certificate.rs`, which emits a `ProofNode` package the proof-admission
 //! kernel re-decides instead of trusting the derivation -- while
 //! `integer_ranges.rs` and `float_ranges.rs`
-//! derive the ranges those checks compare, `guards.rs` narrows ranges by
-//! transition and assignment guards, `assignment_stability.rs` proves an
+//! derive the ranges those checks compare, `guards.rs` narrows integer ranges
+//! by transition and assignment guards, and `float_ranges.rs` narrows a
+//! co-located float comparison the same way, `assignment_stability.rs` proves an
 //! assignment guard survives to the assignment, `named_constraints.rs`
 //! decides named constraints, `dependent_bounds.rs` proves bounds that
 //! depend on sibling fields and lengths, `diagnostics.rs` words every
