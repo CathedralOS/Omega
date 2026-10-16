@@ -13,9 +13,9 @@ use crate::execution::terminal_unit::control::LocalConstructionTrace;
 use crate::execution::terminal_unit::control::statement_sequence::bounded_byte_values;
 use crate::execution::terminal_unit::types::terminal_field_identity;
 
-/// The storage roots an attached Unit body writes through: its exclusive
-/// borrowed parameters, its established locals, and the `mut` scalar formals
-/// it owns storage for.
+/// The storage roots retained for source-validated stores: owned or exclusive
+/// borrowed structural parameters, established locals, and the `mut` scalar
+/// formals the body owns storage for.
 #[derive(Clone, Copy)]
 pub(super) struct StoreRoots<'a> {
     pub(super) structural: &'a [CheckedUnitStructuralParameterPlan],
@@ -380,13 +380,13 @@ impl<'a> Destination<'a> {
         Some(segments)
     }
 
-    /// The root's write authority belongs to its current storage, independent
-    /// of entry versus continuation spelling. A nonlinear mutable owned
-    /// parameter supplies its home directly; a mutable or write-only borrow
-    /// supplies its referent. Both retain the complete signature roster and
-    /// all qualification checks. An established owned local supplies its own
-    /// authority. Ownership checking still rejects writes through immutable
-    /// bindings and outstanding incompatible loans.
+    /// Runtime storage authority belongs to the exact owned home or exclusive
+    /// borrowed referent, independent of entry versus continuation spelling.
+    /// Source assignment validation already judged binding mutability and the
+    /// stored-reference access route. This join retains the complete signature
+    /// roster and declared access; leaf planning keeps qualification and live
+    /// custody checks. A second binding-mutability test would reject writes
+    /// through references held inside an owned parameter.
     pub(super) fn exclusive_authority(
         &self,
         program: &dyn ::validation::CheckingInput,
@@ -431,10 +431,7 @@ impl<'a> Destination<'a> {
                 return None;
             }
         }
-        if planned_parameters != scalar.len() + structural.len()
-            || parameter.is_const
-            || !parameter.is_mutable
-        {
+        if planned_parameters != scalar.len() + structural.len() || parameter.is_const {
             return None;
         }
         let expected_access = match validation::reference_shell(program, parameter.type_reference) {

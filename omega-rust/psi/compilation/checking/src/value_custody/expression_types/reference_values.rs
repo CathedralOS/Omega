@@ -387,9 +387,13 @@ pub(super) fn subslice_view_matches_reference(
     required_substitutions: &[(symbols::SymbolHandle, TypeReferenceHandle)],
 ) -> bool {
     let mut substitutions = Vec::new();
-    let Some(collection) =
-        selected_value_type(program, indexed.collection, &mut substitutions, None, None)
-    else {
+    let Some(collection) = selected_value_type(
+        program,
+        indexed.collection,
+        &mut substitutions,
+        None,
+        &mut ProjectionAccess::default(),
+    ) else {
         return false;
     };
     let Some(collection) = substituted_reference(program, collection, &substitutions) else {
@@ -693,7 +697,13 @@ pub(super) fn declared_value_type(
     expression: ExpressionHandle,
     substitutions: &mut Vec<(symbols::SymbolHandle, TypeReferenceHandle)>,
 ) -> Option<TypeReferenceHandle> {
-    selected_value_type(program, expression, substitutions, None, None)
+    selected_value_type(
+        program,
+        expression,
+        substitutions,
+        None,
+        &mut ProjectionAccess::default(),
+    )
 }
 
 /// A projection off an owned rvalue forwards the leaf's declared exclusive
@@ -715,7 +725,7 @@ pub(crate) fn owned_rvalue_exclusive_reference_access(
         expression,
         &mut substitutions,
         None,
-        Some(ReferenceAccess::Mutable),
+        &mut ProjectionAccess::requiring(ReferenceAccess::Mutable),
     )?;
     let mut selected = substituted_reference(program, selected, &substitutions)?;
     selected = program
@@ -767,7 +777,7 @@ pub(crate) fn place_forwarded_exclusive_reference_access(
         expression,
         &mut substitutions,
         Some((root, root_type)),
-        Some(ReferenceAccess::Mutable),
+        &mut ProjectionAccess::requiring(ReferenceAccess::Mutable),
     ) else {
         return None;
     };
@@ -816,12 +826,13 @@ pub(crate) fn place_permits_reference_borrow(
         expression = indexed.collection;
     }
     let mut substitutions = Vec::new();
+    let mut projection = ProjectionAccess::requiring(access);
     let Some(selected) = selected_value_type(
         program,
         expression,
         &mut substitutions,
         Some((root, root_type)),
-        Some(access),
+        &mut projection,
     ) else {
         return false;
     };
@@ -836,11 +847,7 @@ pub(crate) fn place_permits_reference_borrow(
             access: source_access,
             ..
         } => reference_access_permits(*source_access, access),
-        _ => {
-            owned_root_is_writable
-                || declared_reference_access(program, root_type)
-                    .is_some_and(|source_access| reference_access_permits(source_access, access))
-        }
+        _ => owned_root_is_writable || projection.crossed_reference,
     }
 }
 
@@ -860,27 +867,56 @@ fn reference_access_permits(source: ReferenceAccess, required: ReferenceAccess) 
 /// referent. Check every crossed reference but leave the endpoint unpeeled:
 /// replacing a shared descriptor is legal through mutable containing storage,
 /// while indexing through that descriptor cannot authorize a write.
-pub(crate) fn place_permits_storage_write(
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum StorageWriteAccess {
+    OwnedStorage,
+    BorrowedStorage,
+}
+
+pub(crate) fn place_storage_write_access(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     root: symbols::SymbolHandle,
     root_type: TypeReferenceHandle,
-) -> bool {
+) -> Option<StorageWriteAccess> {
+    let mut projection = ProjectionAccess::requiring(ReferenceAccess::WriteOnly);
     selected_value_type(
         program,
         expression,
         &mut Vec::new(),
         Some((root, root_type)),
-        Some(ReferenceAccess::WriteOnly),
-    )
-    .is_some()
+        &mut projection,
+    )?;
+    Some(if projection.crossed_reference {
+        StorageWriteAccess::BorrowedStorage
+    } else {
+        StorageWriteAccess::OwnedStorage
+    })
+}
+
+/// One typed destination walk retains its access checks and whether it entered
+/// borrowed storage. The endpoint stays unpeeled: replacing a descriptor slot
+/// is different from writing through the reference stored there.
+#[derive(Default)]
+struct ProjectionAccess {
+    required: Option<ReferenceAccess>,
+    crossed_reference: bool,
+}
+
+impl ProjectionAccess {
+    fn requiring(access: ReferenceAccess) -> Self {
+        Self {
+            required: Some(access),
+            crossed_reference: false,
+        }
+    }
 }
 
 fn projection_receiver_type(
     program: &dyn crate::CheckingInput,
     mut reference: TypeReferenceHandle,
     substitutions: &[(symbols::SymbolHandle, TypeReferenceHandle)],
-    required_access: Option<ReferenceAccess>,
+    projection: &mut ProjectionAccess,
 ) -> Option<TypeReferenceHandle> {
     for _ in 0..128 {
         reference = substituted_reference(program, reference, substitutions)?;
@@ -889,11 +925,13 @@ fn projection_receiver_type(
             TypeReferenceNode::Reference {
                 referee, access, ..
             } => {
-                if required_access
+                if projection
+                    .required
                     .is_some_and(|required| !reference_access_permits(*access, required))
                 {
                     return None;
                 }
+                projection.crossed_reference = true;
                 *referee
             }
             _ => return Some(reference),
@@ -920,7 +958,7 @@ fn selected_value_type(
     expression: ExpressionHandle,
     substitutions: &mut Vec<(symbols::SymbolHandle, TypeReferenceHandle)>,
     forwarding_root: Option<(symbols::SymbolHandle, TypeReferenceHandle)>,
-    required_projection_access: Option<ReferenceAccess>,
+    projection: &mut ProjectionAccess,
 ) -> Option<TypeReferenceHandle> {
     match program.expression_table.expression(expression) {
         ExpressionNode::Name(name) => {
@@ -953,7 +991,7 @@ fn selected_value_type(
                     arm.value,
                     &mut arm_substitutions,
                     None,
-                    required_projection_access,
+                    projection,
                 )?;
                 let arm_type = substituted_reference(program, arm_type, &arm_substitutions)?;
                 match joined {
@@ -984,14 +1022,9 @@ fn selected_value_type(
                 member.receiver,
                 substitutions,
                 forwarding_root,
-                required_projection_access,
+                projection,
             )?;
-            let receiver = projection_receiver_type(
-                program,
-                receiver,
-                substitutions,
-                required_projection_access,
-            )?;
+            let receiver = projection_receiver_type(program, receiver, substitutions, projection)?;
             let (symbol, arguments) = match program.type_reference_table.type_reference(receiver) {
                 TypeReferenceNode::Named { symbol, .. } => (*symbol, &[][..]),
                 TypeReferenceNode::Generic {
@@ -1104,7 +1137,7 @@ fn selected_value_type(
                 indexed.collection,
                 substitutions,
                 forwarding_root,
-                required_projection_access,
+                projection,
             )?;
             // Selection needs the applied collection, not a raw field
             // telescope whose substituted elements could match another
@@ -1164,12 +1197,8 @@ fn selected_value_type(
             {
                 return None;
             }
-            let collection = projection_receiver_type(
-                program,
-                collection,
-                substitutions,
-                required_projection_access,
-            )?;
+            let collection =
+                projection_receiver_type(program, collection, substitutions, projection)?;
             crate::value_custody::places::collection_element_type(program, collection)
         }
         _ => None,

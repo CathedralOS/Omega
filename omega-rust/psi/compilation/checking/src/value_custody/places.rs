@@ -127,7 +127,18 @@ pub(crate) fn validate_assignment_target_handle(
         return;
     }
 
-    if !writable_roots.contains_for_write(root_name, target_is_bare_name) {
+    let access = crate::value_custody::reference_access::assignment_storage_write_access(
+        program,
+        machine,
+        current_state,
+        writable_roots.statements,
+        target,
+    );
+    let writes_borrowed_storage =
+        access == Some(crate::value_custody::expression_types::StorageWriteAccess::BorrowedStorage);
+    if !writable_roots.contains_for_write(root_name, target_is_bare_name)
+        && !writes_borrowed_storage
+    {
         // The writable set cannot distinguish a nonexistent root (a typo) from a real
         // but non-mutable one, so append a conditional typo hint -- correct whatever
         // the cause. (A full "data X has no field Y" check is the separate
@@ -137,13 +148,7 @@ pub(crate) fn validate_assignment_target_handle(
              because it is not mutable in this state (if `{root_name}` is undeclared -- a typo -- \
              no such field or local exists)"
         )));
-    } else if !crate::value_custody::reference_access::assignment_place_permits_write(
-        program,
-        machine,
-        current_state,
-        writable_roots.statements,
-        target,
-    ) {
+    } else if access.is_none() {
         diagnostics.push(Diagnostic::error(format!(
             "machine `{machine_name}` state `{state_name}` assignment requires mutable source access \
              through every reference crossed by its destination"

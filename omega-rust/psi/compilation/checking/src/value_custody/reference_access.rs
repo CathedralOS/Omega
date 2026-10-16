@@ -342,21 +342,19 @@ fn borrow_source_access_refusal(
     .then_some(ReferenceAccessRefusal::ExclusiveBorrowSourceRequired { root, access })
 }
 
-/// Assignment permission follows the access route independently of the
-/// binding's mutability. A range writes backing; an ordinary selection writes
-/// its slot. The existing root check owns whether that slot may be rebound.
-pub(crate) fn assignment_place_permits_write(
+/// Assignment permission follows the typed access route. Only a write that
+/// crosses an authorized reference can use its referent permission independently
+/// of the owned root's mutability. A range separately lends its backing; a
+/// descriptor-slot replacement still needs writable containing storage.
+pub(crate) fn assignment_storage_write_access(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     prior_statements: &[typed_trees::statement::StatementNode],
     target: ExpressionHandle,
-) -> bool {
-    let Some((root, root_type, writable)) =
-        source_place_root(program, machine, state, prior_statements, target)
-    else {
-        return false;
-    };
+) -> Option<super::expression_types::StorageWriteAccess> {
+    let (root, root_type, writable) =
+        source_place_root(program, machine, state, prior_statements, target)?;
     if let Some(indexed) = program.expression_table.indexed_node(target)
         && program.expression_table.indexed_on_range(indexed)
     {
@@ -367,9 +365,10 @@ pub(crate) fn assignment_place_permits_write(
             root_type,
             writable,
             language_semantics::ReferenceAccess::WriteOnly,
-        );
+        )
+        .then_some(super::expression_types::StorageWriteAccess::BorrowedStorage);
     }
-    crate::value_custody::expression_types::place_permits_storage_write(
+    crate::value_custody::expression_types::place_storage_write_access(
         program, target, root, root_type,
     )
 }
