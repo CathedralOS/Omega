@@ -1,0 +1,734 @@
+// Expected exit: 0.
+// Expected output contains: PASS
+//
+// Huffman coding over the fixed 16-byte input "ABRACADABRAABAAA":
+//   1. Build a frequency table for the 5 alphabet symbols 'A'..'D', 'R'
+//      (counts: A=9, B=3, C=1, D=1, R=2).
+//   2. Construct the Huffman tree bottom-up in a fixed array of 9 `TreeNode`
+//      sum values (`Leaf { symbol }`, `Branch { left, right }`) by repeatedly
+//      selecting the two active roots with smallest weights.
+//   3. Derive per-symbol code lengths and variable-length prefix bit patterns
+//      by walking parent links from each leaf to the root (index 8).
+//   4. Encode the 16-byte message into a packed MSB-first bitstream stored in
+//      a 4-byte array (29 bits -> [138, 215, 139, 56]).
+//   5. Decode the 29 bits by walking `TreeNode::Branch { left, right }` from
+//      the root until reaching `TreeNode::Leaf { symbol }`.
+//   6. Self-verify symbol frequencies, per-symbol code lengths (1, 2, 4, 4, 3),
+//      encoded bit count (29), packed bytes, and the 16-byte round-trip.
+
+use omega_language_std::console;
+
+domain u64::SymbolSlot(slot) requires slot < 5;
+domain u8::HuffmanSymbol(byte)
+requires
+    byte == 65 || byte == 66 || byte == 67 || byte == 68 || byte == 82;
+
+data TreeNode [copy] {
+    weight: u32 in Wrapping;
+    parent: u64 in Wrapping;
+    parent_bit: u8 in Wrapping;
+    active: bool;
+    case Empty;
+    case Leaf(symbol: u8);
+    case Branch(left: u64, right: u64) where left < 9 && right < 9;
+}
+
+data Main {
+    alphabet: [u8; 5];
+    input: [u8; 16];
+    frequencies: [u32 in Wrapping; 5];
+    nodes: [TreeNode; 9];
+    code_lengths: [u64; 5];
+    code_bits: [u8; 40];
+    packed: [u8 in Wrapping; 4];
+    decoded: [u8; 16];
+    expected_lengths: [u64; 5];
+    expected_packed: [u8 in Wrapping; 4];
+    cursor: u64;
+    scan: u64;
+    step: u64;
+    first_min: u64;
+    second_min: u64;
+    best_weight: u32 in Wrapping;
+    walk_node: u64;
+    walk_depth: u64;
+    rev_index: u64;
+    bit_cursor: u64;
+    total_bits: u64;
+    out_cursor: u64;
+    pause: [u8; 256];
+}
+
+machine lookup_symbol(alphabet: &[u8; 5], target: u8 in HuffmanSymbol) -> u64 {
+    transition { _ -> check(alphabet, target, 0) }
+    state check(alphabet: &[u8; 5], target: u8 in HuffmanSymbol, idx: u64) -> u64 {
+        transition idx < 5 {
+            true -> compare(alphabet, target, idx)
+            _ -> 5
+        }
+    }
+    state compare(alphabet: &[u8; 5], target: u8 in HuffmanSymbol, idx: u64) -> u64
+    requires idx < 5 {
+        transition alphabet[idx] == (target as u8) {
+            true -> idx
+            _ -> check(alphabet, target, idx + 1)
+        }
+    }
+}
+
+machine record_frequency(frequencies: &mut [u32 in Wrapping; 5], slot: u64 in SymbolSlot) {
+    frequencies[slot] = frequencies[slot] + 1;
+}
+
+machine Main::main(main: &mut Main) reaches Console {
+    Console::write_line("huffman_codec: bottom-up tree construction, bitstream pack, and round-trip decode");
+
+    // Alphabet: 'A' (65), 'B' (66), 'C' (67), 'D' (68), 'R' (82)
+    main.alphabet[0] = 65;
+    main.alphabet[1] = 66;
+    main.alphabet[2] = 67;
+    main.alphabet[3] = 68;
+    main.alphabet[4] = 82;
+
+    // Fixed 16-byte message: "ABRACADABRAABAAA"
+    main.input[0] = 65;
+    main.input[1] = 66;
+    main.input[2] = 82;
+    main.input[3] = 65;
+    main.input[4] = 67;
+    main.input[5] = 65;
+    main.input[6] = 68;
+    main.input[7] = 65;
+    main.input[8] = 66;
+    main.input[9] = 82;
+    main.input[10] = 65;
+    main.input[11] = 65;
+    main.input[12] = 66;
+    main.input[13] = 65;
+    main.input[14] = 65;
+    main.input[15] = 65;
+
+    // Hand-computed code lengths for frequencies (9, 3, 1, 1, 2)
+    main.expected_lengths[0] = 1;
+    main.expected_lengths[1] = 2;
+    main.expected_lengths[2] = 4;
+    main.expected_lengths[3] = 4;
+    main.expected_lengths[4] = 3;
+
+    // Hand-computed packed MSB-first bitstream (29 bits across 4 bytes)
+    main.expected_packed[0] = 138;
+    main.expected_packed[1] = 215;
+    main.expected_packed[2] = 139;
+    main.expected_packed[3] = 56;
+
+    main.cursor = 0;
+    transition { _ -> clear_freq(main) }
+
+    state clear_freq(main: &mut Main) {
+        transition main.cursor < 5 {
+            true -> clear_freq_slot(main)
+            _ -> start_count(main)
+        }
+    }
+
+    state clear_freq_slot(main: &mut Main) {
+        transition main.cursor < 5 {
+            true -> write_zero_freq(main)
+            _ -> start_count(main)
+        }
+    }
+
+    state write_zero_freq(main: &mut Main)
+    requires main.cursor < 5 {
+        main.frequencies[main.cursor] = 0;
+        main.code_lengths[main.cursor] = 0;
+        main.cursor = main.cursor + 1;
+        transition { _ -> clear_freq(main) }
+    }
+
+    // --- Step 1: Build frequency table ---
+    state start_count(main: &mut Main) {
+        main.cursor = 0;
+        transition { _ -> count_loop(main) }
+    }
+
+    state count_loop(main: &mut Main) {
+        transition main.cursor < 16 {
+            true -> count_byte(main)
+            _ -> init_leaves_start(main)
+        }
+    }
+
+    state count_byte(main: &mut Main)
+    requires main.cursor < 16 {
+        let byte: u8 = main.input[main.cursor];
+        transition byte == 65 || byte == 66 || byte == 67 || byte == 68 || byte == 82 {
+            true -> count_valid_symbol(main, byte)
+            _ -> fail(main)
+        }
+    }
+
+    state count_valid_symbol(main: &mut Main, byte: u8)
+    requires byte == 65 || byte == 66 || byte == 67 || byte == 68 || byte == 82 {
+        let slot: u64 = lookup_symbol(&main.alphabet, byte);
+        transition slot < 5 {
+            true -> bump_slot(main, slot)
+            _ -> fail(main)
+        }
+    }
+
+    state bump_slot(main: &mut Main, slot: u64)
+    requires slot < 5 {
+        record_frequency(&mut main.frequencies, slot);
+        main.cursor = main.cursor + 1;
+        transition { _ -> count_loop(main) }
+    }
+
+    // --- Step 2: Initialize leaf nodes 0..5 and empty branch slots 5..9 ---
+    state init_leaves_start(main: &mut Main) {
+        main.cursor = 0;
+        transition { _ -> init_leaves_loop(main) }
+    }
+
+    state init_leaves_loop(main: &mut Main) {
+        transition main.cursor < 5 {
+            true -> write_leaf(main)
+            _ -> init_branches_loop(main)
+        }
+    }
+
+    state write_leaf(main: &mut Main)
+    requires main.cursor < 5 {
+        main.nodes[main.cursor] = TreeNode::Leaf {
+            weight: main.frequencies[main.cursor],
+            parent: 9,
+            parent_bit: 0,
+            active: true,
+            symbol: main.alphabet[main.cursor],
+        };
+        main.cursor = main.cursor + 1;
+        transition { _ -> init_leaves_loop(main) }
+    }
+
+    state init_branches_loop(main: &mut Main) {
+        transition main.cursor < 9 {
+            true -> write_empty_branch(main)
+            _ -> build_tree_start(main)
+        }
+    }
+
+    state write_empty_branch(main: &mut Main)
+    requires main.cursor < 9 {
+        main.nodes[main.cursor] = TreeNode::Empty {
+            weight: 0,
+            parent: 9,
+            parent_bit: 0,
+            active: false,
+        };
+        main.cursor = main.cursor + 1;
+        transition { _ -> init_branches_loop(main) }
+    }
+
+    // --- Step 3: Bottom-up Huffman tree construction (merges into slots 5..9) ---
+    state build_tree_start(main: &mut Main) {
+        main.step = 0;
+        transition { _ -> merge_loop(main) }
+    }
+
+    state merge_loop(main: &mut Main) {
+        transition main.step < 4 {
+            true -> start_find_first(main)
+            _ -> derive_codes_start(main)
+        }
+    }
+
+    state start_find_first(main: &mut Main) {
+        main.first_min = 9;
+        main.best_weight = 1000;
+        main.scan = 0;
+        transition { _ -> find_first_loop(main) }
+    }
+
+    state find_first_loop(main: &mut Main) {
+        let limit: u64 in Wrapping = (5 as u64 in Wrapping) + (main.step as u64 in Wrapping);
+        transition main.scan < (limit as u64) && main.scan < 9 {
+            true -> check_first_candidate(main)
+            _ -> after_find_first(main)
+        }
+    }
+
+    state check_first_candidate(main: &mut Main)
+    requires main.scan < 9 {
+        let active: bool = main.nodes[main.scan].active;
+        let w: u32 in Wrapping = main.nodes[main.scan].weight;
+        transition active && w < main.best_weight {
+            true -> take_first_candidate(main, w)
+            _ -> next_first_candidate(main)
+        }
+    }
+
+    state take_first_candidate(main: &mut Main, w: u32 in Wrapping) {
+        main.first_min = main.scan;
+        main.best_weight = w;
+        main.scan = main.scan + 1;
+        transition { _ -> find_first_loop(main) }
+    }
+
+    state next_first_candidate(main: &mut Main) {
+        main.scan = main.scan + 1;
+        transition { _ -> find_first_loop(main) }
+    }
+
+    state after_find_first(main: &mut Main) {
+        transition main.first_min < 9 {
+            true -> deactivate_first(main)
+            _ -> fail(main)
+        }
+    }
+
+    state deactivate_first(main: &mut Main)
+    requires main.first_min < 9 {
+        main.nodes[main.first_min].active = false;
+        main.second_min = 9;
+        main.best_weight = 1000;
+        main.scan = 0;
+        transition { _ -> find_second_loop(main) }
+    }
+
+    state find_second_loop(main: &mut Main) {
+        let limit: u64 in Wrapping = (5 as u64 in Wrapping) + (main.step as u64 in Wrapping);
+        transition main.scan < (limit as u64) && main.scan < 9 {
+            true -> check_second_candidate(main)
+            _ -> after_find_second(main)
+        }
+    }
+
+    state check_second_candidate(main: &mut Main)
+    requires main.scan < 9 {
+        let active: bool = main.nodes[main.scan].active;
+        let w: u32 in Wrapping = main.nodes[main.scan].weight;
+        transition active && w < main.best_weight {
+            true -> take_second_candidate(main, w)
+            _ -> next_second_candidate(main)
+        }
+    }
+
+    state take_second_candidate(main: &mut Main, w: u32 in Wrapping) {
+        main.second_min = main.scan;
+        main.best_weight = w;
+        main.scan = main.scan + 1;
+        transition { _ -> find_second_loop(main) }
+    }
+
+    state next_second_candidate(main: &mut Main) {
+        main.scan = main.scan + 1;
+        transition { _ -> find_second_loop(main) }
+    }
+
+    state after_find_second(main: &mut Main) {
+        let branch_wrap: u64 in Wrapping = (5 as u64 in Wrapping) + (main.step as u64 in Wrapping);
+        let branch_idx: u64 = branch_wrap as u64;
+        transition main.first_min < 9 && main.second_min < 9 && branch_idx < 9 {
+            true -> create_branch(main, branch_idx)
+            _ -> fail(main)
+        }
+    }
+
+    state create_branch(main: &mut Main, branch_idx: u64)
+    requires main.first_min < 9 && main.second_min < 9 && branch_idx < 9 {
+        main.nodes[main.second_min].active = false;
+        main.nodes[main.first_min].parent = branch_idx as u64 in Wrapping;
+        main.nodes[main.first_min].parent_bit = 0;
+        main.nodes[main.second_min].parent = branch_idx as u64 in Wrapping;
+        main.nodes[main.second_min].parent_bit = 1;
+        let combined: u32 in Wrapping = main.nodes[main.first_min].weight + main.nodes[main.second_min].weight;
+        main.nodes[branch_idx] = TreeNode::Branch {
+            weight: combined,
+            parent: 9,
+            parent_bit: 0,
+            active: true,
+            left: main.first_min,
+            right: main.second_min,
+        };
+        let next_step: u64 in Wrapping = (main.step as u64 in Wrapping) + 1;
+        main.step = next_step as u64;
+        transition { _ -> merge_loop(main) }
+    }
+
+    // --- Step 4: Derive per-symbol code lengths and prefix bits ---
+    state derive_codes_start(main: &mut Main) {
+        main.cursor = 0;
+        transition { _ -> clear_code_bits(main) }
+    }
+
+    state clear_code_bits(main: &mut Main) {
+        transition main.cursor < 40 {
+            true -> zero_code_bit(main)
+            _ -> derive_symbol_start(main)
+        }
+    }
+
+    state zero_code_bit(main: &mut Main)
+    requires main.cursor < 40 {
+        main.code_bits[main.cursor] = 0;
+        main.cursor = main.cursor + 1;
+        transition { _ -> clear_code_bits(main) }
+    }
+
+    state derive_symbol_start(main: &mut Main) {
+        main.cursor = 0;
+        transition { _ -> derive_symbol_loop(main) }
+    }
+
+    state derive_symbol_loop(main: &mut Main) {
+        transition main.cursor < 5 {
+            true -> start_walk_depth(main)
+            _ -> encode_start(main)
+        }
+    }
+
+    state start_walk_depth(main: &mut Main)
+    requires main.cursor < 5 {
+        main.walk_node = main.cursor;
+        main.walk_depth = 0;
+        transition { _ -> walk_depth_loop(main) }
+    }
+
+    state walk_depth_loop(main: &mut Main) {
+        transition main.walk_node < 8 && main.walk_depth < 8 {
+            true -> step_walk_depth(main)
+            _ -> store_code_length(main)
+        }
+    }
+
+    state step_walk_depth(main: &mut Main)
+    requires main.walk_node < 8 && main.walk_depth < 8 {
+        let p: u64 in Wrapping = main.nodes[main.walk_node].parent;
+        main.walk_node = p as u64;
+        main.walk_depth = main.walk_depth + 1;
+        transition { _ -> walk_depth_loop(main) }
+    }
+
+    state store_code_length(main: &mut Main) {
+        transition main.cursor < 5 && main.walk_node == 8 && main.walk_depth >= 1 && main.walk_depth <= 8 {
+            true -> fill_symbol_bits_init(main)
+            _ -> fail(main)
+        }
+    }
+
+    state fill_symbol_bits_init(main: &mut Main)
+    requires main.cursor < 5 && main.walk_depth >= 1 && main.walk_depth <= 8 {
+        main.code_lengths[main.cursor] = main.walk_depth;
+        main.walk_node = main.cursor;
+        main.rev_index = main.walk_depth;
+        transition { _ -> fill_symbol_bits_loop(main) }
+    }
+
+    state fill_symbol_bits_loop(main: &mut Main) {
+        transition main.rev_index > 0 && main.rev_index <= 8 && main.walk_node < 8 && main.cursor < 5 {
+            true -> write_symbol_bit(main)
+            _ -> next_derive_symbol(main)
+        }
+    }
+
+    state write_symbol_bit(main: &mut Main)
+    requires main.rev_index > 0 && main.rev_index <= 8 && main.walk_node < 8 && main.cursor < 5 {
+        let bit_pos: u64 = main.rev_index - 1;
+        let table_idx: u64 = main.cursor * 8 + bit_pos;
+        transition table_idx < 40 {
+            true -> commit_symbol_bit(main, table_idx)
+            _ -> fail(main)
+        }
+    }
+
+    state commit_symbol_bit(main: &mut Main, table_idx: u64)
+    requires table_idx < 40 && main.walk_node < 8 && main.rev_index > 0 {
+        let b: u8 in Wrapping = main.nodes[main.walk_node].parent_bit;
+        main.code_bits[table_idx] = b as u8;
+        let p: u64 in Wrapping = main.nodes[main.walk_node].parent;
+        main.walk_node = p as u64;
+        main.rev_index = main.rev_index - 1;
+        transition { _ -> fill_symbol_bits_loop(main) }
+    }
+
+    state next_derive_symbol(main: &mut Main) {
+        main.cursor = main.cursor + 1;
+        transition { _ -> derive_symbol_loop(main) }
+    }
+
+    // --- Step 5: Encode input bytes into packed bitstream ---
+    state encode_start(main: &mut Main) {
+        main.packed[0] = 0;
+        main.packed[1] = 0;
+        main.packed[2] = 0;
+        main.packed[3] = 0;
+        main.cursor = 0;
+        main.bit_cursor = 0;
+        transition { _ -> encode_byte_loop(main) }
+    }
+
+    state encode_byte_loop(main: &mut Main) {
+        transition main.cursor < 16 {
+            true -> encode_lookup(main)
+            _ -> encode_done(main)
+        }
+    }
+
+    state encode_lookup(main: &mut Main)
+    requires main.cursor < 16 {
+        let sym: u8 = main.input[main.cursor];
+        transition sym == 65 || sym == 66 || sym == 67 || sym == 68 || sym == 82 {
+            true -> encode_valid_symbol(main, sym)
+            _ -> fail(main)
+        }
+    }
+
+    state encode_valid_symbol(main: &mut Main, sym: u8)
+    requires sym == 65 || sym == 66 || sym == 67 || sym == 68 || sym == 82 {
+        let slot: u64 = lookup_symbol(&main.alphabet, sym);
+        transition slot < 5 {
+            true -> encode_symbol_init(main, slot)
+            _ -> fail(main)
+        }
+    }
+
+    state encode_symbol_init(main: &mut Main, slot: u64)
+    requires slot < 5 {
+        main.scan = 0;
+        main.step = slot;
+        transition { _ -> encode_bit_loop(main) }
+    }
+
+    state encode_bit_loop(main: &mut Main) {
+        transition main.step < 5 {
+            true -> encode_bit_check(main)
+            _ -> fail(main)
+        }
+    }
+
+    state encode_bit_check(main: &mut Main)
+    requires main.step < 5 {
+        let len: u64 = main.code_lengths[main.step];
+        transition main.scan < len && main.scan < 8 {
+            true -> emit_one_bit(main)
+            _ -> next_encode_byte(main)
+        }
+    }
+
+    state emit_one_bit(main: &mut Main)
+    requires main.step < 5 && main.scan < 8 {
+        let table_idx: u64 = main.step * 8 + main.scan;
+        let byte_idx: u64 = main.bit_cursor / 8;
+        let bit_offset: u64 = main.bit_cursor % 8;
+        transition table_idx < 40 && byte_idx < 4 && bit_offset < 8 {
+            true -> pack_bit(main, table_idx, byte_idx, bit_offset)
+            _ -> fail(main)
+        }
+    }
+
+    state pack_bit(main: &mut Main, table_idx: u64, byte_idx: u64, bit_offset: u64)
+    requires table_idx < 40 && byte_idx < 4 && bit_offset < 8 {
+        let bit: u8 = main.code_bits[table_idx];
+        transition bit == 1 {
+            true -> set_packed_bit(main, byte_idx, bit_offset)
+            _ -> advance_bit_cursor(main)
+        }
+    }
+
+    state set_packed_bit(main: &mut Main, byte_idx: u64, bit_offset: u64)
+    requires byte_idx < 4 && bit_offset < 8 {
+        let shift_amt: u8 in Wrapping = (7 - bit_offset) as u8 in Wrapping;
+        let mask: u8 in Wrapping = (1 as u8 in Wrapping) << shift_amt;
+        main.packed[byte_idx] = main.packed[byte_idx] | mask;
+        transition { _ -> advance_bit_cursor(main) }
+    }
+
+    state advance_bit_cursor(main: &mut Main) {
+        main.bit_cursor = main.bit_cursor + 1;
+        main.scan = main.scan + 1;
+        transition { _ -> encode_bit_loop(main) }
+    }
+
+    state next_encode_byte(main: &mut Main) {
+        let next_cur: u64 in Wrapping = (main.cursor as u64 in Wrapping) + 1;
+        main.cursor = next_cur as u64;
+        transition { _ -> encode_byte_loop(main) }
+    }
+
+    state encode_done(main: &mut Main) {
+        main.total_bits = main.bit_cursor;
+        transition { _ -> decode_start(main) }
+    }
+
+    // --- Step 6: Decode packed bitstream back via TreeNode case dispatch ---
+    state decode_start(main: &mut Main) {
+        main.bit_cursor = 0;
+        main.out_cursor = 0;
+        main.walk_node = 8;
+        transition { _ -> decode_inspect_node(main) }
+    }
+
+    state decode_inspect_node(main: &mut Main)
+    requires main.walk_node < 9 {
+        let current: TreeNode = main.nodes[main.walk_node];
+        transition current {
+            TreeNode::Leaf { symbol, .. } -> decode_emit_symbol(main, symbol)
+            TreeNode::Branch { left, right, .. } -> decode_step_branch(main, left, right)
+            TreeNode::Empty { .. } -> fail(main)
+        }
+    }
+
+    state decode_emit_symbol(main: &mut Main, symbol: u8) {
+        transition main.out_cursor < 16 {
+            true -> store_decoded_symbol(main, symbol)
+            _ -> fail(main)
+        }
+    }
+
+    state store_decoded_symbol(main: &mut Main, symbol: u8)
+    requires main.out_cursor < 16 {
+        main.decoded[main.out_cursor] = symbol;
+        main.out_cursor = main.out_cursor + 1;
+        main.walk_node = 8;
+        transition main.out_cursor == 16 {
+            true -> verify_start(main)
+            _ -> decode_inspect_node(main)
+        }
+    }
+
+    state decode_step_branch(main: &mut Main, left: u64, right: u64)
+    requires left < 9 && right < 9 {
+        let byte_idx: u64 = main.bit_cursor / 8;
+        let bit_offset: u64 = main.bit_cursor % 8;
+        transition main.bit_cursor < main.total_bits && byte_idx < 4 && bit_offset < 8 {
+            true -> read_stream_bit(main, left, right, byte_idx, bit_offset)
+            _ -> fail(main)
+        }
+    }
+
+    state read_stream_bit(main: &mut Main, left: u64, right: u64, byte_idx: u64, bit_offset: u64)
+    requires left < 9 && right < 9 && byte_idx < 4 && bit_offset < 8 {
+        let shift_amt: u8 in Wrapping = (7 - bit_offset) as u8 in Wrapping;
+        let byte_val: u8 in Wrapping = main.packed[byte_idx];
+        let bit: u8 in Wrapping = (byte_val >> shift_amt) & 1;
+        main.bit_cursor = main.bit_cursor + 1;
+        transition bit == 0 {
+            true -> move_to_child(main, left)
+            _ -> move_to_child(main, right)
+        }
+    }
+
+    state move_to_child(main: &mut Main, child: u64)
+    requires child < 9 {
+        main.walk_node = child;
+        transition { _ -> decode_inspect_node(main) }
+    }
+
+    // --- Step 7: Self-verify frequencies, code lengths, bit count, packed bytes, and round-trip ---
+    state verify_start(main: &mut Main) {
+        transition main.total_bits == 29 && main.bit_cursor == 29 && main.out_cursor == 16 && main.nodes[8].weight == 16 {
+            true -> verify_frequencies(main)
+            _ -> fail(main)
+        }
+    }
+
+    state verify_frequencies(main: &mut Main) {
+        transition main.frequencies[0] == 9
+            && main.frequencies[1] == 3
+            && main.frequencies[2] == 1
+            && main.frequencies[3] == 1
+            && main.frequencies[4] == 2 {
+            true -> verify_lengths_init(main)
+            _ -> fail(main)
+        }
+    }
+
+    state verify_lengths_init(main: &mut Main) {
+        main.cursor = 0;
+        transition { _ -> verify_lengths_loop(main) }
+    }
+
+    state verify_lengths_loop(main: &mut Main) {
+        transition main.cursor < 5 {
+            true -> check_one_length(main)
+            _ -> verify_packed_init(main)
+        }
+    }
+
+    state check_one_length(main: &mut Main)
+    requires main.cursor < 5 {
+        transition main.code_lengths[main.cursor] == main.expected_lengths[main.cursor] {
+            true -> next_length_check(main)
+            _ -> fail(main)
+        }
+    }
+
+    state next_length_check(main: &mut Main) {
+        main.cursor = main.cursor + 1;
+        transition { _ -> verify_lengths_loop(main) }
+    }
+
+    state verify_packed_init(main: &mut Main) {
+        main.cursor = 0;
+        transition { _ -> verify_packed_loop(main) }
+    }
+
+    state verify_packed_loop(main: &mut Main) {
+        transition main.cursor < 4 {
+            true -> check_one_packed(main)
+            _ -> verify_roundtrip_init(main)
+        }
+    }
+
+    state check_one_packed(main: &mut Main)
+    requires main.cursor < 4 {
+        transition main.packed[main.cursor] == main.expected_packed[main.cursor] {
+            true -> next_packed_check(main)
+            _ -> fail(main)
+        }
+    }
+
+    state next_packed_check(main: &mut Main) {
+        main.cursor = main.cursor + 1;
+        transition { _ -> verify_packed_loop(main) }
+    }
+
+    state verify_roundtrip_init(main: &mut Main) {
+        main.cursor = 0;
+        transition { _ -> verify_roundtrip_loop(main) }
+    }
+
+    state verify_roundtrip_loop(main: &mut Main) {
+        transition main.cursor < 16 {
+            true -> check_one_decoded(main)
+            _ -> pass(main)
+        }
+    }
+
+    state check_one_decoded(main: &mut Main)
+    requires main.cursor < 16 {
+        transition main.decoded[main.cursor] == main.input[main.cursor] {
+            true -> next_decoded_check(main)
+            _ -> fail(main)
+        }
+    }
+
+    state next_decoded_check(main: &mut Main) {
+        main.cursor = main.cursor + 1;
+        transition { _ -> verify_roundtrip_loop(main) }
+    }
+
+    state pass(main: &mut Main) {
+        Console::write_line("PASS: 16 bytes encoded to 29 bits [138, 215, 139, 56] and decoded back (exit 0)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(0);
+    }
+
+    state fail(main: &mut Main) {
+        Console::write_line("FAIL: Huffman codec verification mismatch (exit 1)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause);
+        Console::exit_process(1);
+    }
+}

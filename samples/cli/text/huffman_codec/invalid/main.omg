@@ -1,0 +1,40 @@
+// Complete intended-invalid control: emitting a symbol ('Z' == 90) absent
+// from the Huffman table (`u8::HuffmanSymbol` requires 'A'..'D' or 'R')
+// must be rejected at compile time.
+
+use omega_language_std::console;
+
+domain u8::HuffmanSymbol(byte)
+requires
+    byte == 65 || byte == 66 || byte == 67 || byte == 68 || byte == 82;
+
+machine lookup_symbol(alphabet: &[u8; 5], target: u8 in HuffmanSymbol) -> u64 {
+    transition { _ -> check(alphabet, target, 0) }
+    state check(alphabet: &[u8; 5], target: u8 in HuffmanSymbol, idx: u64) -> u64 {
+        transition idx < 5 {
+            true -> compare(alphabet, target, idx)
+            _ -> 5
+        }
+    }
+    state compare(alphabet: &[u8; 5], target: u8 in HuffmanSymbol, idx: u64) -> u64
+    requires idx < 5 {
+        transition alphabet[idx] == (target as u8) {
+            true -> idx
+            _ -> check(alphabet, target, idx + 1)
+        }
+    }
+}
+
+data Main {
+    alphabet: [u8; 5];
+}
+
+machine Main::main(main: &mut Main) reaches Console {
+    main.alphabet[0] = 65;
+    main.alphabet[1] = 66;
+    main.alphabet[2] = 67;
+    main.alphabet[3] = 68;
+    main.alphabet[4] = 82;
+    let slot: u64 = lookup_symbol(&main.alphabet, 90);
+    Console::exit_process(slot as i32);
+}
