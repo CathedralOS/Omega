@@ -13,7 +13,7 @@
 // CloseHandle return BOOL, and a 0 reads back as the negated GetLastError —
 // the same never-stateful convention as the POSIX family's negated errno.
 //
-// Paths arrive as NUL-free UTF-8 (`Path`) and are transcoded to
+// Paths arrive as NUL-free bytes (`Path`) and are decoded as UTF-8 to
 // NUL-terminated UTF-16LE in a local buffer by `windows_wide_path`: the
 // decoder is a real UTF-8 walk — 1-4 byte sequences, continuation checks,
 // overlong and surrogate-range rejection, and a surrogate pair for 4-byte
@@ -86,9 +86,125 @@ windows_x86_64 machine WindowsFilesystemImports::c_get_last_error() -> u32
     satisfies WindowsFilesystemIo::c_get_last_error
     via windows_get_last_error_binding();
 
+boundary requirement WindowsFilesystemIo::c_read_file(handle: i64, buffer: &mut u8, count: u32, read_count: &mut u32, overlapped: u64) -> i32
+reaches WindowsFilesystemHost;
+windows_x86_64 machine windows_c_read_file_binding() -> ForeignBinding<12, 8, 0> {
+    ForeignBinding::DllImport { import: DllImport::PeByName { library: "kernel32.dll", export: "ReadFile" } }
+}
+windows_x86_64 machine WindowsFilesystemImports::c_read_file(handle: i64, buffer: &mut u8, count: u32, read_count: &mut u32, overlapped: u64) -> i32
+satisfies WindowsFilesystemIo::c_read_file
+via windows_c_read_file_binding();
+
+boundary requirement WindowsFilesystemIo::c_flush_file_buffers(handle: i64) -> i32
+reaches WindowsFilesystemHost;
+windows_x86_64 machine windows_c_flush_file_buffers_binding() -> ForeignBinding<12, 16, 0> {
+    ForeignBinding::DllImport { import: DllImport::PeByName { library: "kernel32.dll", export: "FlushFileBuffers" } }
+}
+windows_x86_64 machine WindowsFilesystemImports::c_flush_file_buffers(handle: i64) -> i32
+satisfies WindowsFilesystemIo::c_flush_file_buffers
+via windows_c_flush_file_buffers_binding();
+
+boundary requirement WindowsFilesystemIo::c_set_file_pointer(handle: i64, distance: i64, position: &mut i64, method: u32) -> i32
+reaches WindowsFilesystemHost;
+windows_x86_64 machine windows_c_set_file_pointer_binding() -> ForeignBinding<12, 16, 0> {
+    ForeignBinding::DllImport { import: DllImport::PeByName { library: "kernel32.dll", export: "SetFilePointerEx" } }
+}
+windows_x86_64 machine WindowsFilesystemImports::c_set_file_pointer(handle: i64, distance: i64, position: &mut i64, method: u32) -> i32
+satisfies WindowsFilesystemIo::c_set_file_pointer
+via windows_c_set_file_pointer_binding();
+
+boundary requirement WindowsFilesystemIo::c_get_current_process() -> i64
+reaches WindowsFilesystemHost;
+windows_x86_64 machine windows_c_get_current_process_binding() -> ForeignBinding<12, 17, 0> {
+    ForeignBinding::DllImport { import: DllImport::PeByName { library: "kernel32.dll", export: "GetCurrentProcess" } }
+}
+windows_x86_64 machine WindowsFilesystemImports::c_get_current_process() -> i64
+satisfies WindowsFilesystemIo::c_get_current_process
+via windows_c_get_current_process_binding();
+
+boundary requirement WindowsFilesystemIo::c_duplicate_handle(source_process: i64, source: i64, target_process: i64, target: &mut i64, desired_access: u32, inherit: i32, options: u32) -> i32
+reaches WindowsFilesystemHost;
+windows_x86_64 machine windows_c_duplicate_handle_binding() -> ForeignBinding<12, 15, 0> {
+    ForeignBinding::DllImport { import: DllImport::PeByName { library: "kernel32.dll", export: "DuplicateHandle" } }
+}
+windows_x86_64 machine WindowsFilesystemImports::c_duplicate_handle(source_process: i64, source: i64, target_process: i64, target: &mut i64, desired_access: u32, inherit: i32, options: u32) -> i32
+satisfies WindowsFilesystemIo::c_duplicate_handle
+via windows_c_duplicate_handle_binding();
+
+boundary requirement WindowsFilesystemIo::c_set_file_attributes(path: &u8, attributes: u32) -> i32
+reaches WindowsFilesystemHost;
+windows_x86_64 machine windows_c_set_file_attributes_binding() -> ForeignBinding<12, 18, 0> {
+    ForeignBinding::DllImport { import: DllImport::PeByName { library: "kernel32.dll", export: "SetFileAttributesW" } }
+}
+windows_x86_64 machine WindowsFilesystemImports::c_set_file_attributes(path: &u8, attributes: u32) -> i32
+satisfies WindowsFilesystemIo::c_set_file_attributes
+via windows_c_set_file_attributes_binding();
+
+boundary requirement WindowsFilesystemIo::c_move_file(from: &u8, to: &u8, flags: u32) -> i32
+reaches WindowsFilesystemHost;
+windows_x86_64 machine windows_c_move_file_binding() -> ForeignBinding<12, 11, 0> {
+    ForeignBinding::DllImport { import: DllImport::PeByName { library: "kernel32.dll", export: "MoveFileExW" } }
+}
+windows_x86_64 machine WindowsFilesystemImports::c_move_file(from: &u8, to: &u8, flags: u32) -> i32
+satisfies WindowsFilesystemIo::c_move_file
+via windows_c_move_file_binding();
+
+boundary requirement WindowsFilesystemIo::c_create_directory(path: &u8, security_attributes: u64) -> i32
+reaches WindowsFilesystemHost;
+windows_x86_64 machine windows_c_create_directory_binding() -> ForeignBinding<12, 16, 0> {
+    ForeignBinding::DllImport { import: DllImport::PeByName { library: "kernel32.dll", export: "CreateDirectoryW" } }
+}
+windows_x86_64 machine WindowsFilesystemImports::c_create_directory(path: &u8, security_attributes: u64) -> i32
+satisfies WindowsFilesystemIo::c_create_directory
+via windows_c_create_directory_binding();
+
+boundary requirement WindowsFilesystemIo::c_remove_directory(path: &u8) -> i32
+reaches WindowsFilesystemHost;
+windows_x86_64 machine windows_c_remove_directory_binding() -> ForeignBinding<12, 16, 0> {
+    ForeignBinding::DllImport { import: DllImport::PeByName { library: "kernel32.dll", export: "RemoveDirectoryW" } }
+}
+windows_x86_64 machine WindowsFilesystemImports::c_remove_directory(path: &u8) -> i32
+satisfies WindowsFilesystemIo::c_remove_directory
+via windows_c_remove_directory_binding();
+
+boundary requirement WindowsFilesystemIo::c_delete_file(path: &u8) -> i32
+reaches WindowsFilesystemHost;
+windows_x86_64 machine windows_c_delete_file_binding() -> ForeignBinding<12, 11, 0> {
+    ForeignBinding::DllImport { import: DllImport::PeByName { library: "kernel32.dll", export: "DeleteFileW" } }
+}
+windows_x86_64 machine WindowsFilesystemImports::c_delete_file(path: &u8) -> i32
+satisfies WindowsFilesystemIo::c_delete_file
+via windows_c_delete_file_binding();
+
+boundary requirement WindowsFilesystemIo::c_set_file_time(handle: i64, creation_time: u64, access_time: &u64, write_time: &u64) -> i32
+reaches WindowsFilesystemHost;
+windows_x86_64 machine windows_c_set_file_time_binding() -> ForeignBinding<12, 11, 0> {
+    ForeignBinding::DllImport { import: DllImport::PeByName { library: "kernel32.dll", export: "SetFileTime" } }
+}
+windows_x86_64 machine WindowsFilesystemImports::c_set_file_time(handle: i64, creation_time: u64, access_time: &u64, write_time: &u64) -> i32
+satisfies WindowsFilesystemIo::c_set_file_time
+via windows_c_set_file_time_binding();
+
+boundary requirement WindowsFilesystemIo::c_get_file_time(handle: i64, creation_time: u64, access_time: &mut u64, write_time: &mut u64) -> i32
+reaches WindowsFilesystemHost;
+windows_x86_64 machine windows_c_get_file_time_binding() -> ForeignBinding<12, 11, 0> {
+    ForeignBinding::DllImport { import: DllImport::PeByName { library: "kernel32.dll", export: "GetFileTime" } }
+}
+windows_x86_64 machine WindowsFilesystemImports::c_get_file_time(handle: i64, creation_time: u64, access_time: &mut u64, write_time: &mut u64) -> i32
+satisfies WindowsFilesystemIo::c_get_file_time
+via windows_c_get_file_time_binding();
+
+boundary requirement WindowsFilesystemIo::c_set_last_error(code: u32)
+reaches WindowsFilesystemHost;
+windows_x86_64 machine windows_c_set_last_error_binding() -> ForeignBinding<12, 12, 0> {
+    ForeignBinding::DllImport { import: DllImport::PeByName { library: "kernel32.dll", export: "SetLastError" } }
+}
+windows_x86_64 machine WindowsFilesystemImports::c_set_last_error(code: u32)
+satisfies WindowsFilesystemIo::c_set_last_error
+via windows_c_set_last_error_binding();
+
 // The negated Win32 error of the call that just failed. The u32 code widens
-// to i64 exactly; the i32 form saturates the wrap so the negation cannot
-// reach i32::MIN.
+// to i64 exactly; status-returning operations retain the existing i32 carrier.
 windows_x86_64 machine WindowsFilesystemNativeProvider::failure_i32() -> i32
 reaches WindowsFilesystemHost
 {
@@ -358,20 +474,34 @@ windows_x86_64 machine windows_wide_step(path: &[u8], out: &mut [u8], i: u64, o:
         transition { _ -> (WindowsWideStep { rc: 0, next_i: i5, next_o: o4 }) }
     }
 }
+// A HANDLE is opaque: reject only NULL and INVALID_HANDLE_VALUE, not every
+// high-bit value. Synchronous transfers do not accept FILE_FLAG_OVERLAPPED.
+windows_x86_64 machine WindowsFilesystemNativeProvider::normalize_handle(handle: i64) -> u64 {
+    transition handle != 0 && handle != -1 {
+        true -> (narrow_i64_to_u64_wrapping(handle))
+        _ -> (0)
+    }
+}
+windows_x86_64 machine WindowsFilesystemNativeProvider::invalid_handle() -> u64
+reaches WindowsFilesystemHost {
+    WindowsFilesystemIo::c_set_last_error(87);
+    0
+}
+windows_x86_64 machine WindowsFilesystemNativeProvider::completion_status(succeeded: i32) -> i32
+reaches WindowsFilesystemHost {
+    transition succeeded == 0 {
+        true -> (WindowsFilesystemNativeProvider::failure_i32())
+        _ -> (0)
+    }
+}
 windows_x86_64 machine WindowsFilesystemNativeProvider::create_file(path: &[u8] in Path, desired_access: u32, share_mode: u32, creation_disposition: u32, flags_and_attributes: u32) -> u64
-    satisfies WindowsFilesystemHost::create_file
-reaches WindowsFilesystemHost
-{
-    transition { _ -> create(path, desired_access, share_mode, creation_disposition, flags_and_attributes) }
-
-    state create(path: &[u8], desired_access: u32, share_mode: u32, creation_disposition: u32, flags_and_attributes: u32) -> u64 {
-        let mut wide: [u8; 8192];
-        let count: i64 = windows_wide_path(path, &mut wide);
-        let handle: i64 = WindowsFilesystemIo::c_create_file(&wide[0], desired_access, share_mode, 0, creation_disposition, flags_and_attributes, 0);
-        transition count > 0 && handle > 0 {
-            true -> (narrow_i64_to_u64_wrapping(handle))
-            _ -> (0)
-        }
+satisfies WindowsFilesystemHost::create_file
+reaches WindowsFilesystemHost {
+    let mut wide: [u8; 8192];
+    let count: i64 = windows_wide_path(path, &mut wide);
+    transition count > 0 && (flags_and_attributes & 1073741824) == 0 {
+        true -> (WindowsFilesystemNativeProvider::normalize_handle(WindowsFilesystemIo::c_create_file(&wide[0], desired_access, share_mode, 0, creation_disposition, flags_and_attributes, 0)))
+        _ -> (WindowsFilesystemNativeProvider::invalid_handle())
     }
 }
 
@@ -379,11 +509,13 @@ windows_x86_64 machine WindowsFilesystemNativeProvider::write_file(handle: u64, 
     satisfies WindowsFilesystemHost::write_file
 reaches WindowsFilesystemHost
 {
-    transition bytes.len > 0 {
-        true -> nonempty(handle, bytes)
-        _ -> empty(handle)
+    transition bytes.len <= 4294967295 {
+        true -> sized(handle, bytes)
+        _ -> (-87)
     }
-
+    state sized(handle: u64, bytes: &[u8]) -> i64 {
+        transition bytes.len > 0 { true -> nonempty(handle, bytes) _ -> empty(handle) }
+    }
     state nonempty(handle: u64, bytes: &[u8]) -> i64 {
         let mut written: u32 = 0;
         let count: u32 = narrow_u64_to_u32_wrapping(bytes.len);
@@ -436,8 +568,148 @@ reaches WindowsFilesystemHost
     WindowsFilesystemIo::c_get_last_error()
 }
 
+windows_x86_64 machine WindowsFilesystemNativeProvider::read_file(handle: u64, buffer: &mut [u8], count: u64) -> i64
+satisfies WindowsFilesystemHost::read_file
+reaches WindowsFilesystemHost {
+    transition count > 0 && count <= buffer.len && count <= 4294967295 {
+        true -> nonempty(handle, buffer, count)
+        _ -> zero_or_invalid(handle, count)
+    }
+    state nonempty(handle: u64, buffer: &mut [u8], count: u64) -> i64 {
+        let mut read_count: u32 = 0;
+        let raw_handle: i64 = narrow_u64_to_i64_wrapping(handle);
+        let amount: u32 = narrow_u64_to_u32_wrapping(count);
+        let succeeded: i32 = WindowsFilesystemIo::c_read_file(raw_handle, &mut buffer[0], amount, &mut read_count, 0);
+        transition succeeded == 0 { true -> failed() _ -> read(read_count) }
+    }
+    state zero_or_invalid(handle: u64, count: u64) -> i64 {
+        transition count == 0 { true -> empty(handle) _ -> (-87) }
+    }
+    state empty(handle: u64) -> i64 {
+        let mut dummy: [u8; 1];
+        let mut read_count: u32 = 0;
+        let raw_handle: i64 = narrow_u64_to_i64_wrapping(handle);
+        let succeeded: i32 = WindowsFilesystemIo::c_read_file(raw_handle, &mut dummy[0], 0, &mut read_count, 0);
+        transition succeeded == 0 { true -> failed() _ -> read(read_count) }
+    }
+    state read(count: u32) -> i64 { widen_u32_to_i64(count) }
+    state failed() -> i64 { WindowsFilesystemNativeProvider::failure_i64() }
+}
+windows_x86_64 machine WindowsFilesystemNativeProvider::flush_file_buffers(handle: u64) -> i32
+satisfies WindowsFilesystemHost::flush_file_buffers
+reaches WindowsFilesystemHost {
+    let raw_handle: i64 = narrow_u64_to_i64_wrapping(handle);
+    WindowsFilesystemNativeProvider::completion_status(WindowsFilesystemIo::c_flush_file_buffers(raw_handle))
+}
+windows_x86_64 machine WindowsFilesystemNativeProvider::set_file_pointer(handle: u64, distance: i64, method: u32) -> i64
+satisfies WindowsFilesystemHost::set_file_pointer
+reaches WindowsFilesystemHost {
+    let mut position: i64 = 0;
+    let raw_handle: i64 = narrow_u64_to_i64_wrapping(handle);
+    let succeeded: i32 = WindowsFilesystemIo::c_set_file_pointer(raw_handle, distance, &mut position, method);
+    transition succeeded == 0 { true -> (WindowsFilesystemNativeProvider::failure_i64()) _ -> (position) }
+}
+windows_x86_64 machine WindowsFilesystemNativeProvider::duplicate_handle(handle: u64) -> u64
+satisfies WindowsFilesystemHost::duplicate_handle
+reaches WindowsFilesystemHost {
+    let process: i64 = WindowsFilesystemIo::c_get_current_process();
+    let raw_handle: i64 = narrow_u64_to_i64_wrapping(handle);
+    let mut duplicate: i64 = 0;
+    let succeeded: i32 = WindowsFilesystemIo::c_duplicate_handle(process, raw_handle, process, &mut duplicate, 0, 0, 2);
+    transition succeeded == 0 { true -> (0) _ -> (WindowsFilesystemNativeProvider::normalize_handle(duplicate)) }
+}
+windows_x86_64 machine WindowsFilesystemNativeProvider::move_file(from: &[u8] in Path, to: &[u8] in Path, flags: u32) -> i32
+satisfies WindowsFilesystemHost::move_file
+reaches WindowsFilesystemHost {
+    let mut wide_from: [u8; 8192];
+    let mut wide_to: [u8; 8192];
+    let from_count: i64 = windows_wide_path(from, &mut wide_from);
+    let to_count: i64 = windows_wide_path(to, &mut wide_to);
+    transition from_count > 0 && to_count > 0 {
+        true -> (WindowsFilesystemNativeProvider::completion_status(WindowsFilesystemIo::c_move_file(&wide_from[0], &wide_to[0], flags)))
+        _ -> (-87)
+    }
+}
+// FILETIME is two little-endian DWORDs. The u64 homes below have the same
+// eight bytes with stronger alignment, and Windows x86-64 lends their addresses.
+windows_x86_64 machine WindowsFilesystemNativeProvider::set_file_time(handle: u64, access_time: u64, write_time: u64) -> i32
+satisfies WindowsFilesystemHost::set_file_time
+reaches WindowsFilesystemHost {
+    let raw_handle: i64 = narrow_u64_to_i64_wrapping(handle);
+    WindowsFilesystemNativeProvider::completion_status(WindowsFilesystemIo::c_set_file_time(raw_handle, 0, &access_time, &write_time))
+}
+windows_x86_64 machine WindowsFilesystemNativeProvider::get_file_time(handle: u64) -> WindowsFileTimeResult
+satisfies WindowsFilesystemHost::get_file_time
+reaches WindowsFilesystemHost {
+    let raw_handle: i64 = narrow_u64_to_i64_wrapping(handle);
+    let mut access_time: u64 = 0;
+    let mut write_time: u64 = 0;
+    let succeeded: i32 = WindowsFilesystemIo::c_get_file_time(raw_handle, 0, &mut access_time, &mut write_time);
+    transition succeeded == 0 { true -> failed() _ -> value(access_time, write_time) }
+    state failed() -> WindowsFileTimeResult {
+        let code: u32 = WindowsFilesystemIo::c_get_last_error();
+        WindowsFileTimeResult::Error { code: code }
+    }
+    state value(access_time: u64, write_time: u64) -> WindowsFileTimeResult {
+        WindowsFileTimeResult::Value { access_time: access_time, write_time: write_time }
+    }
+}
+windows_x86_64 machine WindowsFilesystemNativeProvider::set_file_attributes(path: &[u8] in Path, attributes: u32) -> i32
+satisfies WindowsFilesystemHost::set_file_attributes
+reaches WindowsFilesystemHost {
+    let mut wide: [u8; 8192];
+    let count: i64 = windows_wide_path(path, &mut wide);
+    transition count > 0 {
+        true -> (WindowsFilesystemNativeProvider::completion_status(WindowsFilesystemIo::c_set_file_attributes(&wide[0], attributes)))
+        _ -> (-87)
+    }
+}
+windows_x86_64 machine WindowsFilesystemNativeProvider::create_directory(path: &[u8] in Path) -> i32
+satisfies WindowsFilesystemHost::create_directory
+reaches WindowsFilesystemHost {
+    let mut wide: [u8; 8192];
+    let count: i64 = windows_wide_path(path, &mut wide);
+    transition count > 0 {
+        true -> (WindowsFilesystemNativeProvider::completion_status(WindowsFilesystemIo::c_create_directory(&wide[0], 0)))
+        _ -> (-87)
+    }
+}
+windows_x86_64 machine WindowsFilesystemNativeProvider::remove_directory(path: &[u8] in Path) -> i32
+satisfies WindowsFilesystemHost::remove_directory
+reaches WindowsFilesystemHost {
+    let mut wide: [u8; 8192];
+    let count: i64 = windows_wide_path(path, &mut wide);
+    transition count > 0 {
+        true -> (WindowsFilesystemNativeProvider::completion_status(WindowsFilesystemIo::c_remove_directory(&wide[0])))
+        _ -> (-87)
+    }
+}
+windows_x86_64 machine WindowsFilesystemNativeProvider::delete_file(path: &[u8] in Path) -> i32
+satisfies WindowsFilesystemHost::delete_file
+reaches WindowsFilesystemHost {
+    let mut wide: [u8; 8192];
+    let count: i64 = windows_wide_path(path, &mut wide);
+    transition count > 0 {
+        true -> (WindowsFilesystemNativeProvider::completion_status(WindowsFilesystemIo::c_delete_file(&wide[0])))
+        _ -> (-87)
+    }
+}
+
 windows_x86_64 machine WindowsFilesystemNativeProvider::provider_defaults(defaults: &mut WindowsFilesystemNativeProvider) {
     WindowsFilesystemNativeProvider::select_provider<WindowsFilesystemHost, WindowsFilesystemNativeProvider>(defaults);
+    WindowsFilesystemNativeProvider::select_provider<WindowsFilesystemIo::c_read_file, WindowsFilesystemImports>(defaults);
+    WindowsFilesystemNativeProvider::select_provider<WindowsFilesystemIo::c_flush_file_buffers, WindowsFilesystemImports>(defaults);
+    WindowsFilesystemNativeProvider::select_provider<WindowsFilesystemIo::c_set_file_pointer, WindowsFilesystemImports>(defaults);
+    WindowsFilesystemNativeProvider::select_provider<WindowsFilesystemIo::c_get_current_process, WindowsFilesystemImports>(defaults);
+    WindowsFilesystemNativeProvider::select_provider<WindowsFilesystemIo::c_duplicate_handle, WindowsFilesystemImports>(defaults);
+    WindowsFilesystemNativeProvider::select_provider<WindowsFilesystemIo::c_set_file_attributes, WindowsFilesystemImports>(defaults);
+    WindowsFilesystemNativeProvider::select_provider<WindowsFilesystemIo::c_move_file, WindowsFilesystemImports>(defaults);
+    WindowsFilesystemNativeProvider::select_provider<WindowsFilesystemIo::c_create_directory, WindowsFilesystemImports>(defaults);
+    WindowsFilesystemNativeProvider::select_provider<WindowsFilesystemIo::c_remove_directory, WindowsFilesystemImports>(defaults);
+    WindowsFilesystemNativeProvider::select_provider<WindowsFilesystemIo::c_delete_file, WindowsFilesystemImports>(defaults);
+    WindowsFilesystemNativeProvider::select_provider<WindowsFilesystemIo::c_set_file_time, WindowsFilesystemImports>(defaults);
+    WindowsFilesystemNativeProvider::select_provider<WindowsFilesystemIo::c_get_file_time, WindowsFilesystemImports>(defaults);
+    WindowsFilesystemNativeProvider::select_provider<WindowsFilesystemIo::c_set_last_error, WindowsFilesystemImports>(defaults);
     WindowsFilesystemNativeProvider::select_provider<WindowsFilesystemIo::c_create_file, WindowsFilesystemImports>(defaults);
     WindowsFilesystemNativeProvider::select_provider<WindowsFilesystemIo::c_write_file, WindowsFilesystemImports>(defaults);
     WindowsFilesystemNativeProvider::select_provider<WindowsFilesystemIo::c_close_handle, WindowsFilesystemImports>(defaults);

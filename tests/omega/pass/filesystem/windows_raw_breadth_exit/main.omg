@@ -1,61 +1,53 @@
-// RUN CANARY (exit 70) -- Windows raw-seam BREADTH: the wired-but-unverified
-// msvcrt ops beyond the open/read/write/close roundtrip. Exercises
-// sync (_commit), seek (_lseeki64, the only i64-returning 3-arg row),
-// duplicate (_dup), set_permissions (_chmod), rename (msvcrt `rename` --
-// fails if dest exists on Windows, so dest is pre-removed), create_dir
-// (_mkdir) and remove_dir (_rmdir). The interpreter's virtual fs is the
-// differential oracle. exit 70 = full pass; each probe has its own code:
-// 71 create, 72 write, 73 sync, 74 close, 75 reopen, 76 seek, 77 read
-// count, 78 seeked bytes, 79 dup, 80 read-through-dup, 81 close dup,
-// 82 chmod, 83 rename, 84 old name still opens, 85 mkdir, 86 remove file,
-// 87 rmdir.
-
-use omega_language_std::filesystem_host;
+// RUN CANARY (exit 70, Windows): real HANDLE-based raw filesystem operations.
+// Create/write/flush/reopen/seek/read, shared-cursor duplication, writable
+// attributes, non-replacing rename, missing old name, mkdir/delete/rmdir.
+// Failure exits 71..87 retain the original matrix's independent checks.
+use omega_language_std::windows_filesystem_host;
 
 use omega_language_std::console;
 
 data Main {
     buffer: [u8; 8];
-    fd: i32;
-    fd2: i32;
+    handle: u64;
+    duplicate: u64;
     n: i64;
     pos: i64;
     rc: i32;
 }
 
-machine Main::main(main: &mut Main) reaches Console + FilesystemHost {
-    main.fd = FilesystemHost::create("omega_fswin_breadth_a.txt", 438);
-    transition main.fd >= 0 { true -> write_it(main) _ -> bad(main, 71) }
+machine Main::main(main: &mut Main) reaches Console + WindowsFilesystemHost {
+    main.handle = WindowsFilesystemHost::create_file("omega_fswin_breadth_a.txt", 1073741824, 7, 2, 128);
+    transition main.handle != 0 { true -> write_it(main) _ -> bad(main, 71) }
 
     state write_it(main: &mut Main) {
-        main.n = FilesystemHost::write(main.fd, "abcdef");
+        main.n = WindowsFilesystemHost::write_file(main.handle, "abcdef");
         transition main.n == 6 { true -> sync_it(main) _ -> bad(main, 72) }
     }
 
     state sync_it(main: &mut Main) {
-        main.rc = FilesystemHost::sync(main.fd);
+        main.rc = WindowsFilesystemHost::flush_file_buffers(main.handle);
         transition main.rc == 0 { true -> close_it(main) _ -> bad(main, 73) }
     }
 
     state close_it(main: &mut Main) {
-        main.rc = FilesystemHost::close(main.fd);
+        main.rc = WindowsFilesystemHost::close_handle(main.handle);
         transition main.rc == 0 { true -> reopen(main) _ -> bad(main, 74) }
     }
 
     state reopen(main: &mut Main) {
-        // 32768 = O_BINARY (msvcrt); harmless for the virtual fs.
-        main.fd = FilesystemHost::open("omega_fswin_breadth_a.txt", 32768);
-        transition main.fd >= 0 { true -> seek_it(main) _ -> bad(main, 75) }
+        // OPEN_EXISTING with GENERIC_READ; HANDLEs need no CRT descriptor bridge.
+        main.handle = WindowsFilesystemHost::create_file("omega_fswin_breadth_a.txt", 2147483648, 7, 3, 128);
+        transition main.handle != 0 { true -> seek_it(main) _ -> bad(main, 75) }
     }
 
     state seek_it(main: &mut Main) {
         // SEEK_SET=0: land on byte 2 ('c').
-        main.pos = FilesystemHost::seek(main.fd, 2, 0);
+        main.pos = WindowsFilesystemHost::set_file_pointer(main.handle, 2, 0);
         transition main.pos == 2 { true -> read_it(main) _ -> bad(main, 76) }
     }
 
     state read_it(main: &mut Main) {
-        main.n = FilesystemHost::read(main.fd, &mut main.buffer, 2);
+        main.n = WindowsFilesystemHost::read_file(main.handle, &mut main.buffer, 2);
         transition main.n == 2 { true -> check_c(main) _ -> bad(main, 77) }
     }
 
@@ -68,57 +60,57 @@ machine Main::main(main: &mut Main) reaches Console + FilesystemHost {
     }
 
     state dup_it(main: &mut Main) {
-        main.fd2 = FilesystemHost::duplicate(main.fd);
-        main.rc = FilesystemHost::close(main.fd);
-        transition main.fd2 >= 0 { true -> read_dup(main) _ -> bad(main, 79) }
+        main.duplicate = WindowsFilesystemHost::duplicate_handle(main.handle);
+        main.rc = WindowsFilesystemHost::close_handle(main.handle);
+        transition main.duplicate != 0 { true -> read_dup(main) _ -> bad(main, 79) }
     }
 
     state read_dup(main: &mut Main) {
         // The dup shares (or copied) the file position: next byte is 'e'.
-        main.n = FilesystemHost::read(main.fd2, &mut main.buffer, 1);
+        main.n = WindowsFilesystemHost::read_file(main.duplicate, &mut main.buffer, 1);
         transition main.buffer[0] == 101 { true -> close_dup(main) _ -> bad(main, 80) }
     }
 
     state close_dup(main: &mut Main) {
-        main.rc = FilesystemHost::close(main.fd2);
+        main.rc = WindowsFilesystemHost::close_handle(main.duplicate);
         transition main.rc == 0 { true -> chmod_it(main) _ -> bad(main, 81) }
     }
 
     state chmod_it(main: &mut Main) {
-        // 438 = rw for owner/group/other (msvcrt honours _S_IREAD|_S_IWRITE).
-        main.rc = FilesystemHost::set_permissions("omega_fswin_breadth_a.txt", 438);
+        // FILE_ATTRIBUTE_NORMAL clears the readonly attribute, as the old chmod leg did.
+        main.rc = WindowsFilesystemHost::set_file_attributes("omega_fswin_breadth_a.txt", 128);
         transition main.rc == 0 { true -> pre_clean_dest(main) _ -> bad(main, 82) }
     }
 
     state pre_clean_dest(main: &mut Main) {
-        // msvcrt rename FAILS if dest exists (unlike POSIX replace): clear a
-        // leftover from a crashed prior run; rc deliberately unchecked.
-        main.rc = FilesystemHost::remove("omega_fswin_breadth_b.txt");
+        // MoveFileExW with flags 0 does not replace an existing destination.
+        // Clear a leftover from a crashed prior run; failure is harmless here.
+        main.rc = WindowsFilesystemHost::delete_file("omega_fswin_breadth_b.txt");
         transition true { _ -> rename_it(main) }
     }
 
     state rename_it(main: &mut Main) {
-        main.rc = FilesystemHost::rename("omega_fswin_breadth_a.txt", "omega_fswin_breadth_b.txt");
+        main.rc = WindowsFilesystemHost::move_file("omega_fswin_breadth_a.txt", "omega_fswin_breadth_b.txt", 0);
         transition main.rc == 0 { true -> probe_old(main) _ -> bad(main, 83) }
     }
 
     state probe_old(main: &mut Main) {
-        main.fd = FilesystemHost::open("omega_fswin_breadth_a.txt", 0);
-        transition main.fd < 0 { true -> mkdir_it(main) _ -> bad(main, 84) }
+        main.handle = WindowsFilesystemHost::create_file("omega_fswin_breadth_a.txt", 2147483648, 7, 3, 128);
+        transition main.handle == 0 { true -> mkdir_it(main) _ -> bad(main, 84) }
     }
 
     state mkdir_it(main: &mut Main) {
-        main.rc = FilesystemHost::create_dir("omega_fswin_breadth_dir", 448);
+        main.rc = WindowsFilesystemHost::create_directory("omega_fswin_breadth_dir");
         transition main.rc == 0 { true -> clean_file(main) _ -> bad(main, 85) }
     }
 
     state clean_file(main: &mut Main) {
-        main.rc = FilesystemHost::remove("omega_fswin_breadth_b.txt");
+        main.rc = WindowsFilesystemHost::delete_file("omega_fswin_breadth_b.txt");
         transition main.rc == 0 { true -> clean_dir(main) _ -> bad(main, 86) }
     }
 
     state clean_dir(main: &mut Main) {
-        main.rc = FilesystemHost::remove_dir("omega_fswin_breadth_dir");
+        main.rc = WindowsFilesystemHost::remove_directory("omega_fswin_breadth_dir");
         transition main.rc == 0 { true -> good(main) _ -> bad(main, 87) }
     }
 

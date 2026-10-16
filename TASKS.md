@@ -5624,19 +5624,14 @@ wait for Cathedral's instruction coverage. The interpreter is
   match their stdout oracles, and `runtime_local_host_result_dispatch_exit`
   exits 70. Still open on the raw side:
   - `WindowsFilesystemHost` (`source/library/std/windows_filesystem_host.omg`)
-    exists with its kernel32 provider for the first slice —
-    `create_file`/`write_file`/`close_handle`/`last_error` over
-    CreateFileW/WriteFile/CloseHandle/GetLastError, UTF-8 to UTF-16 path
-    transcoding, INVALID_HANDLE_VALUE mapped to 0, negated Win32 errors;
-    `pass/filesystem/windows_native_create_write_close_exit` exits 70 on
-    Windows x86-64 and `fail/providers/windows_filesystem_host_unprovided_on_linux`
-    pins the refusal. Still owed: read/seek/sync/duplicate/rename/mkdir/
-    rmdir/remove/set-file-time rows so
-    `pass/filesystem/windows_{raw_breadth,set_file_time}_exit` can hold the
-    Windows family instead of the mixed trait. Passing a local `[u8; N]`
-    by value or as a slice across a state transition inside the provider
-    hit `UnknownStructuralArgumentPlace` at target lowering; the adapter
-    converts inside the calling state. That lowering gap has no fixture yet.
+    covers synchronous HANDLE create/read/write/flush/seek/duplicate,
+    attributes, rename, directory creation/removal, deletion and file times
+    through kernel32. The raw breadth and set-file-time fixtures use this
+    family and build Windows artifacts; their Windows-specific exit-70
+    oracles still require execution on a Windows x86-64 host. The argument
+    refusal fixture covers oversized reads, asynchronous-handle creation,
+    invalid UTF-8 paths and failed timestamp queries. Linux retains its
+    missing-provider refusal; these foreign artifacts are not Linux runs.
   - `native_canonicalize`: `canonicalize` is a libc routine on Darwin and
     has no Linux system call, so it belongs to the target implementations of
     the portable service, not the raw POSIX trait.

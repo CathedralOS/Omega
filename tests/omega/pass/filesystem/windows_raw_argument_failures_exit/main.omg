@@ -1,0 +1,38 @@
+// Expected Windows exit: 70. Invalid requests fail before exposing storage
+// or creating a file; an OS metadata failure never becomes an all-zero success.
+use omega_language_std::windows_filesystem_host;
+use omega_language_std::console;
+
+data Main { buffer: [u8; 1]; }
+machine Main::main(main: &mut Main) reaches Console + WindowsFilesystemHost {
+    let extent: i64 = WindowsFilesystemHost::read_file(0, &mut main.buffer, 2);
+    transition extent == -87 { true -> asynchronous(main) _ -> bad(main, 71) }
+    state asynchronous(main: &mut Main) {
+        let removed: i32 = WindowsFilesystemHost::delete_file("omega_win_rejected_async.txt");
+        let handle: u64 = WindowsFilesystemHost::create_file("omega_win_rejected_async.txt", 1073741824, 7, 2, 1073741952);
+        let code: u32 = WindowsFilesystemHost::last_error();
+        transition handle == 0 && code == 87 { true -> absent(main) _ -> bad(main, 72) }
+    }
+    state absent(main: &mut Main) {
+        let handle: u64 = WindowsFilesystemHost::create_file("omega_win_rejected_async.txt", 2147483648, 7, 3, 128);
+        transition handle == 0 { true -> encoding(main) _ -> bad(main, 73) }
+    }
+    state encoding(main: &mut Main) {
+        let path: &[u8] in Path = "\xFF";
+        let handle: u64 = WindowsFilesystemHost::create_file(path, 1073741824, 7, 2, 128);
+        let code: u32 = WindowsFilesystemHost::last_error();
+        transition handle == 0 && code == 87 { true -> metadata(main) _ -> bad(main, 74) }
+    }
+    state metadata(main: &mut Main) {
+        let result: WindowsFileTimeResult = WindowsFilesystemHost::get_file_time(0);
+        transition result {
+            WindowsFileTimeResult::Error { code } -> error(main, code)
+            WindowsFileTimeResult::Value { access_time, write_time } -> bad(main, 75)
+        }
+    }
+    state error(main: &mut Main, code: u32) {
+        transition code != 0 { true -> good(main) _ -> bad(main, 76) }
+    }
+    state good(main: &mut Main) { Console::exit_process(70); }
+    state bad(main: &mut Main, code: i32) { Console::exit_process(code); }
+}

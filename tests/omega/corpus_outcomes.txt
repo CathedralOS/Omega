@@ -4143,8 +4143,8 @@ fail/providers/via_signature_mismatch_rejected rejected 1339ms expected @a9ae30e
 	machine `exit_leaf` state `entry` does not satisfy trait `Process` machine `exit` parameter `code`: expected `i32`, got `u32`
 fail/providers/via_with_body_rejected rejected 801ms expected @a9ae30e1c334+wt
 	machine `exit_composite` carries a `via` binding but is not an external leaf: `satisfies Requirement via <Binding>;` belongs on a BODYLESS external realization (a composite lowering is an ordinary checked body; an accepted axiom carries no realization)
-fail/providers/windows_filesystem_host_unprovided_on_linux rejected 31100ms expected @a9ae30e1c334+wt
-	selected ProgramEntry Binding field `Main::fs` requires a selected Fused provider for boundary `WindowsFilesystemHost`
+fail/providers/windows_filesystem_host_unprovided_on_linux rejected 8682ms expected @91d9836f544f+wt
+	no provider is selected for boundary requirement `WindowsFilesystemHost::last_error`, which the program entry reaches on target `linux_x86_64`
 fail/range/element_view_field_domain_occurrence rejected 863ms expected @a9ae30e1c334+wt
 	machine `store` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
 fail/range/funnel_guard_one_edge_unguarded rejected 5560ms expected @a9ae30e1c334+wt
@@ -6696,11 +6696,10 @@ pass/filesystem/runtime_posix_borrowed_view_io_exit checked 16757ms check-target
 pass/filesystem/runtime_posix_read_runtime_range_view_exit checked 6080ms check-target:macos_arm64 @2375f5327b1a+wt
 pass/filesystem/windows_canonicalize_exit rejected 173ms check-target:windows_x86_64 @a9ae30e1c334+wt
 	machine `FailedOpen::main` declares unknown boundary service `FilesystemHost`
-pass/filesystem/windows_native_create_write_close_exit checked 8934ms check-target:windows_x86_64 @9dd545defbc0
-pass/filesystem/windows_raw_breadth_exit rejected 11437ms check-target:windows_x86_64 @a9ae30e1c334+wt
-	selected ProgramEntry Binding field `Main::raw` requires a selected Fused provider for boundary `FilesystemHost`
-pass/filesystem/windows_set_file_time_exit rejected 11550ms check-target:windows_x86_64 @a9ae30e1c334+wt
-	selected ProgramEntry Binding field `Main::fs` requires a selected Fused provider for boundary `FilesystemHost`
+pass/filesystem/windows_native_create_write_close_exit checked 15147ms check-target:windows_x86_64 @91d9836f544f+wt
+pass/filesystem/windows_raw_argument_failures_exit checked 15248ms check-target:windows_x86_64 @91d9836f544f+wt
+pass/filesystem/windows_raw_breadth_exit checked 10462ms check-target:windows_x86_64 @91d9836f544f+wt
+pass/filesystem/windows_set_file_time_exit checked 10337ms check-target:windows_x86_64 @91d9836f544f+wt
 pass/filesystem/windows_wrapper_results_exit rejected 89089ms check-target:macos_arm64 @a9ae30e1c334+wt
 	selected ProgramEntry Binding field `Main::fs::host` requires a selected Fused provider for boundary `FilesystemHost`
 pass/filesystem/wrapper_lock_metadata_exit rejected 11509ms check-target:macos_arm64 @a9ae30e1c334+wt

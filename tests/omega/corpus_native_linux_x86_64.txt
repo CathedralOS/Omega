@@ -1589,15 +1589,14 @@ pass/filesystem/native_read_dir_iter built 22913ms exit:0 stdout:match @6c49683c
 pass/filesystem/native_wrapper_write_all_result rejected 18216ms @8665e38f912c
 	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(FilesystemHost::open_create),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,ref\\(constrained\\(slice\\(named\\(name\\(u8\\)\\)\\)\\,declared-domain\\(name\\(package:0202020202020202020202020202020202020202020202020202020202020202:product::[u8]::Path\\)\\)\\)\\)\\)\\,parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)\\,parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
 pass/filesystem/runtime_local_host_result_dispatch_exit built 20480ms exit:70 @6c49683ce714
-pass/filesystem/runtime_posix_borrowed_view_io_exit built 19997ms exit:0 stdout:match @6c49683ce714
-pass/filesystem/runtime_posix_read_runtime_range_view_exit built 20286ms exit:0 stdout:match @6c49683ce714
+pass/filesystem/runtime_posix_borrowed_view_io_exit built 13334ms exit:0 stdout:match @91d9836f544f+wt
+pass/filesystem/runtime_posix_read_runtime_range_view_exit built 13191ms exit:0 stdout:match @91d9836f544f+wt
 pass/filesystem/windows_canonicalize_exit rejected 1202ms @8665e38f912c
 	machine `FailedOpen::main` declares unknown boundary service `FilesystemHost`
-pass/filesystem/windows_native_create_write_close_exit built 23061ms @6c49683ce714
-pass/filesystem/windows_raw_breadth_exit rejected 5065ms @8665e38f912c
-	selected ProgramEntry Binding field `Main::raw` requires a selected Fused provider for boundary `FilesystemHost`
-pass/filesystem/windows_set_file_time_exit rejected 5088ms @8665e38f912c
-	selected ProgramEntry Binding field `Main::fs` requires a selected Fused provider for boundary `FilesystemHost`
+pass/filesystem/windows_native_create_write_close_exit built 11516ms @91d9836f544f+wt
+pass/filesystem/windows_raw_argument_failures_exit built 11573ms @91d9836f544f+wt
+pass/filesystem/windows_raw_breadth_exit built 10469ms @91d9836f544f+wt
+pass/filesystem/windows_set_file_time_exit built 10323ms @91d9836f544f+wt
 pass/filesystem/windows_wrapper_results_exit rejected 18942ms @8665e38f912c
 	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(FilesystemHost::open_create),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,ref\\(constrained\\(slice\\(named\\(name\\(u8\\)\\)\\)\\,declared-domain\\(name\\(package:0202020202020202020202020202020202020202020202020202020202020202:product::[u8]::Path\\)\\)\\)\\)\\)\\,parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)\\,parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
 pass/filesystem/wrapper_lock_metadata_exit rejected 18721ms @8665e38f912c
