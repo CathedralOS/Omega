@@ -1,9 +1,15 @@
 // Selection cannot add a qualification absent from the public result contract.
+// Issued is routed, so a result needs its issuer's provenance; a predicate-free,
+// route-free domain would admit any Token and test nothing (domains.md).
 use omega::language::core::drop;
 data Token [linear] { value: u64; }
 machine Token::drop(token: &mut Token) {}
-domain Token::Issued;
+domain Token::Issued established by Token::issue;
+machine Token::issue() -> Token
+ensures result in Token::Issued {
+    Token { value: 7 }
+}
 trait Factory { machine make() -> Token; }
-Plain satisfies Factory { machine make() -> Token { Token { value: 7 } } }
+Plain satisfies Factory { machine make() -> Token { Token::issue() } }
 machine consume(token: Token in Token::Issued) { drop(token); }
 machine probe() { consume(Factory::make(Plain as dyn Factory)); }

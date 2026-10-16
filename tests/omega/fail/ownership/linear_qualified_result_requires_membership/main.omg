@@ -1,10 +1,17 @@
 // Removing the native byte-carrier whitelist must not grant result membership.
 // The returned owner is linear, but its source has no Issued qualification.
+// Issued is routed: a predicate-free, route-free domain would admit any
+// Receipt and test nothing (domains.md).
 use omega::language::core::drop;
 
 data Receipt [linear] { code: i32; }
-domain Receipt::Issued;
+domain Receipt::Issued established by Receipt::issue;
 machine Receipt::drop(receipt: &mut Receipt) {}
+
+machine Receipt::issue() -> Receipt
+ensures result in Receipt::Issued {
+    Receipt { code: 1 }
+}
 
 machine missing(receipt: Receipt) -> Receipt in Issued { receipt }
 

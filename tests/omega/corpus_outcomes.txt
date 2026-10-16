@@ -3569,7 +3569,7 @@ fail/ownership/linear_qualified_field_observation_after_transfer rejected 1257ms
 	cannot use `receipt.code` in machine `consumed` state `entry` (statement 2) after `receipt` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `receipt` first
 	cannot use `replacement` in machine `reused_replacement` state `entry` (statement 3) after `replacement` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `replacement` first
 	cannot use `slot.receipt.code` in machine `main` state `entry` (statement 2) after `slot.receipt` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `slot.receipt` first
-fail/ownership/linear_qualified_result_requires_membership rejected 1621ms expected @a9ae30e1c334+wt
+fail/ownership/linear_qualified_result_requires_membership rejected 921ms expected @acf418e4dcb4+wt
 	cannot prove default-domain field requirement for return from missing at statement 0: receipt requires Receipt::Issued
 fail/ownership/linear_replaced_field_second_use rejected 1247ms expected @a9ae30e1c334+wt
 	cannot use `pair.left` in machine `main` state `entry` (statement 4) after `pair.left` was transferred or consumed at statement 3: it holds no value; read what is needed before the transfer or assign a whole value to `pair.left` first
@@ -4930,7 +4930,7 @@ fail/traits/dyn_structural_result_missing_disposition rejected 1570ms expected @
 	linear value `token` reaches scope exit without being consumed or transferred
 fail/traits/dyn_structural_result_reuse_input rejected 1155ms expected @a9ae30e1c334+wt
 	cannot use `token` in machine `probe` state `entry` (statement 3) after `token` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `token` first
-fail/traits/dyn_structural_result_unpromised_domain rejected 1585ms expected @f3014db3f225+wt
+fail/traits/dyn_structural_result_unpromised_domain rejected 890ms expected @acf418e4dcb4+wt
 	cannot prove requires contract for call consume from probe: Factory.dyn Factory::make(Plain as dyn Factory) in Token::Issued in state `entry`
 fail/traits/equatable_field_not_equatable rejected 37ms expected @a9ae30e1c334+wt
 	conformance `PlayerEquality satisfies Equatable<Player>`: field `pos` of `Player` is not Equatable: add `PosEquality satisfies Equatable<Pos> { }`
