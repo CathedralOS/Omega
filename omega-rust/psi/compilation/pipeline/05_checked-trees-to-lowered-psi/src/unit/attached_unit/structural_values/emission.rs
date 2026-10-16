@@ -183,24 +183,23 @@ pub(crate) fn emit(
     // A borrowed view's join uses the loan the carrier declares. The binding
     // may still record the descriptor as owned storage, while each match arm
     // forwards the view itself under that loan. An owned join parameter would
-    // disagree with those arms. A missing carrier access is the shared loan.
-    let view_loan = structural_types.iter().find_map(|declaration| {
-        if declaration.id != structural_type {
-            return None;
-        }
-        let access = match declaration.shape {
-            terminal_psi::StructuralTypeShape::Reference { access, .. } => {
-                return Some(access);
+    // disagree with those arms. Shared loans stay unrestricted. Exclusive
+    // byte and element views are affine, matching the descriptor contract:
+    // a mutable window match would otherwise arrive owned while every arm
+    // presents MutableBorrow. Reference loans still join only when the
+    // binding is unrestricted. A missing view access follows that pairing.
+    let view_loan = structural_types
+        .iter()
+        .find_map(|declaration| {
+            if declaration.id != structural_type {
+                return None;
             }
-            terminal_psi::StructuralTypeShape::ByteSequence(
-                terminal_psi::ByteSequenceCarrier::BorrowedView { access }
-                | terminal_psi::ByteSequenceCarrier::BoundedView { access, .. },
-            )
-            | terminal_psi::StructuralTypeShape::ElementView { access, .. } => access,
-            _ => return None,
-        };
-        Some(access.unwrap_or(StructuralAccess::SharedBorrow))
-    });
+            Some(borrowed_view_join_access(
+                &declaration.shape,
+                result.multiplicity,
+            ))
+        })
+        .flatten();
     let result_access = if let Some(access) = borrowed_alias {
         // Equal source/destination carriers transport the existing loan. They
         // do not acquire owned custody merely because mutable access is affine.
@@ -208,7 +207,6 @@ pub(crate) fn emit(
     } else if sources.is_empty()
         && let Some(access) = view_loan
         && result.local.access == checked_trees::CheckedStructuralAccess::Owned
-        && result.multiplicity == Multiplicity::Unrestricted
     {
         // No owned residual rides this edge, so the join can keep the view
         // loan. A selection that still owns source storage keeps the owned
@@ -614,6 +612,43 @@ pub(crate) fn emit(
         emission.operations,
     )?;
     Ok(declaration)
+}
+
+/// Loan access a borrowed-view join may publish for this carrier.
+///
+/// Shared observation is unrestricted. An exclusive byte or element view is
+/// affine, the same pairing `descriptor_value_access` uses. A reference loan
+/// joins only while the binding stays unrestricted, so an affine reference
+/// descriptor keeps the owned arrival it already had. Any other pairing
+/// publishes no view loan.
+fn borrowed_view_join_access(
+    shape: &StructuralTypeShape,
+    multiplicity: Multiplicity,
+) -> Option<StructuralAccess> {
+    let access = match shape {
+        StructuralTypeShape::Reference { access, .. } => {
+            return (multiplicity == Multiplicity::Unrestricted).then_some(*access);
+        }
+        StructuralTypeShape::ByteSequence(
+            terminal_psi::ByteSequenceCarrier::BorrowedView { access }
+            | terminal_psi::ByteSequenceCarrier::BoundedView { access, .. },
+        )
+        | StructuralTypeShape::ElementView { access, .. } => *access,
+        _ => return None,
+    };
+    let access = access.unwrap_or(match multiplicity {
+        Multiplicity::Unrestricted => StructuralAccess::SharedBorrow,
+        Multiplicity::Affine => StructuralAccess::MutableBorrow,
+        Multiplicity::Linear => return None,
+    });
+    match (access, multiplicity) {
+        (StructuralAccess::SharedBorrow, Multiplicity::Unrestricted) => Some(access),
+        (
+            StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow,
+            Multiplicity::Affine,
+        ) => Some(access),
+        _ => None,
+    }
 }
 
 /// Allocate a fresh dense id for each carried value declaration.
