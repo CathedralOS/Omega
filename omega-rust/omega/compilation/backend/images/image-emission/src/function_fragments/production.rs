@@ -176,8 +176,8 @@ pub fn build_function_fragment_object_artifact(
     }
     // Callback identities are unresolved object references, not projected byte
     // functions. Composition supplies their independently emitted body objects.
-    let foreign_calls = crate::derive_normalized_foreign_call_custody(source)
-        .map_err(|_| Error::Mismatch("fragment import lacks selected call custody"))?;
+    let foreign_calls =
+        crate::derive_normalized_foreign_call_custody(source).map_err(Error::ForeignCalls)?;
     super::imports::declare_callbacks(&foreign_calls, &mut object, text.psi)?;
     // Literal octets follow every byte of code, ahead of the import tail, so
     // the symbol order is program, private, literal pool, import.

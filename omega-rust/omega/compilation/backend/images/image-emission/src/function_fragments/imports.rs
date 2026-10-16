@@ -166,8 +166,7 @@ pub(super) fn validate(
     source: &StagedOptimizedRelocationFreeObjectContainer,
     artifact: &ObjectArtifact,
 ) -> Result<(), Error> {
-    let calls = derive_normalized_foreign_call_custody(source)
-        .map_err(|_| Error::Mismatch("fragment import lacks selected call custody"))?;
+    let calls = derive_normalized_foreign_call_custody(source).map_err(Error::ForeignCalls)?;
     let import_calls = calls
         .iter()
         .filter_map(|call| call.binding.import().map(|(locator, _)| (call, locator)))

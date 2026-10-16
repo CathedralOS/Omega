@@ -616,7 +616,7 @@ fn fragment_scalar_result_custody_rejoin(
         return false;
     };
     if normalization.kind != expected_kind
-        || Some(input.virtual_register) != transport.result_register
+        || transport.result_registers.as_slice() != [input.virtual_register]
         || normalization.provenance.operations.as_slice()
             != record.invocation_site.operation().as_slice()
         || normalization.provenance.values.as_slice() != [home.source_value]

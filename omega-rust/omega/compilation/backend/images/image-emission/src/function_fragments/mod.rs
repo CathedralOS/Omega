@@ -30,6 +30,7 @@ pub enum FunctionFragmentObjectArtifactError {
     },
     Mismatch(&'static str),
     PrivateFunctions(crate::ObjectError),
+    ForeignCalls(crate::ObjectError),
     NativeEntryBridge(machine_emission::native_entry_bridge::NativeEntryBridgeError),
     Overflow,
 }
@@ -50,6 +51,9 @@ impl std::fmt::Display for FunctionFragmentObjectArtifactError {
             ),
             Self::PrivateFunctions(error) => {
                 write!(formatter, "compiler-private function custody: {error}")
+            }
+            Self::ForeignCalls(error) => {
+                write!(formatter, "foreign-call custody: {error}")
             }
             Self::Overflow => {
                 formatter.write_str("shared object coordinate exceeds supported size")

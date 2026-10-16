@@ -1,0 +1,68 @@
+// Expected exit: 0
+use omega::language::core::external_binding;
+
+// Windows returns a 32-bit comparison code in RAX. Wrapping those bits in an
+// ordinary record exercises aggregate ABI capture, not scalar normalization.
+data Comparison { code: i32; }
+data Functions { compare: addr; }
+
+boundary trait Symbols {
+    machine module(name: &[u8; 13]) -> addr;
+    machine symbol(module: addr, name: &[u8; 21]) -> addr;
+}
+boundary trait Imports {
+    machine compare(left: &[u16; 5], left_count: i32, right: &[u16; 5], right_count: i32, ignore_case: i32) -> Comparison;
+}
+boundary trait Tables {
+    machine compare(table: &Functions, left: &[u16; 5], left_count: i32, right: &[u16; 5], right_count: i32, ignore_case: i32) -> Comparison;
+}
+
+windows_x86_64 machine module_binding() -> ForeignBinding<12, 16, 0> {
+    ForeignBinding::DllImport { import: DllImport::PeByName { library: "kernel32.dll", export: "GetModuleHandleA" } }
+}
+windows_x86_64 machine symbol_binding() -> ForeignBinding<12, 14, 0> {
+    ForeignBinding::DllImport { import: DllImport::PeByName { library: "kernel32.dll", export: "GetProcAddress" } }
+}
+windows_x86_64 machine compare_binding() -> ForeignBinding<12, 20, 0> {
+    ForeignBinding::DllImport { import: DllImport::PeByName { library: "kernel32.dll", export: "CompareStringOrdinal" } }
+}
+windows_x86_64 machine module(name: &[u8; 13]) -> addr
+satisfies Symbols::module via module_binding();
+windows_x86_64 machine symbol(module: addr, name: &[u8; 21]) -> addr
+satisfies Symbols::symbol via symbol_binding();
+windows_x86_64 machine compare_import(left: &[u16; 5], left_count: i32, right: &[u16; 5], right_count: i32, ignore_case: i32) -> Comparison
+satisfies Imports::compare via compare_binding();
+windows_x86_64 machine Functions::compare(table: &Functions, left: &[u16; 5], left_count: i32, right: &[u16; 5], right_count: i32, ignore_case: i32) -> Comparison
+satisfies Tables::compare via ForeignBinding::TableFunction(compare);
+
+machine compare_folded(table: &Functions, left: &[u16; 5], right: &[u16; 5]) -> Comparison
+reaches Tables
+invokes Tables;
+{
+    Tables::compare(table, left, 5, right, 5, 1)
+}
+
+machine main()
+reaches Symbols + Imports + Tables
+invokes Symbols;
+invokes Imports;
+invokes Tables;
+crashes Trap
+{
+    let library: [u8; 13] = "kernel32.dll\0";
+    let name: [u8; 21] = "CompareStringOrdinal\0";
+    let module: addr = Symbols::module(&library);
+    let function: addr = Symbols::symbol(module, &name);
+    let functions: Functions = Functions { compare: function };
+    let left: [u16; 5] = utf16"Omega";
+    let right: [u16; 5] = utf16"omega";
+    let imported: Comparison = Imports::compare(&left, 5, &right, 5, 1);
+    let indirect: Comparison = Tables::compare(&functions, &left, 5, &right, 5, 1);
+    let forwarded: Comparison = compare_folded(&functions, &left, &right);
+    transition imported.code == 2 && indirect.code == 2 && forwarded.code == 2 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

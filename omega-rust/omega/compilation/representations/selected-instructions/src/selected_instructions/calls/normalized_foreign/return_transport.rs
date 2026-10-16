@@ -1,8 +1,10 @@
 //! Locate a foreign result's ABI normalization through selected value copies.
 //!
-//! Runtime splitting preserves a fixed result in a fresh virtual register before
-//! later instructions. This query follows those exact effect-free copies; it
-//! does not infer another call, normalization, or floating-control operation.
+//! Allocation preserves fixed scalar results and aggregate fragments through
+//! effect-free copies before later instructions. This query follows each exact
+//! result identity in ABI fragment order; it does not infer another call,
+//! normalization, or floating-control operation. Aggregate fragments retain
+//! their place and byte offset rather than acquiring a scalar source identity.
 //! An external invocation has no return transport. Its last body instruction
 //! must instead be followed by the exact edge's uncharged containment trap.
 use crate::{
@@ -17,7 +19,9 @@ pub struct ReturnTransport {
     pub call_position: usize,
     pub restore_position: Option<usize>,
     pub normalization_position: usize,
-    pub result_register: Option<VirtualRegisterId>,
+    /// Current direct-result fragments in ABI order after the copies. Unit and
+    /// indirect results have no returned register fragments.
+    pub result_registers: Vec<VirtualRegisterId>,
 }
 
 pub fn resolve(
@@ -66,11 +70,11 @@ pub fn resolve(
             call_position,
             restore_position: None,
             normalization_position: call_position.checked_add(1)?,
-            result_register: None,
+            result_registers: Vec::new(),
         });
     }
     let operation = record.invocation_site.operation()?;
-    let mut result_register = if let Some(home) = record.call.result.scalar_home() {
+    let mut result_registers = if let Some(home) = record.call.result.scalar_home() {
         let output = call.operands.last()?;
         let value = function
             .virtual_registers
@@ -85,27 +89,60 @@ pub fn resolve(
         {
             return None;
         }
-        Some(output.virtual_register)
+        vec![output.virtual_register]
+    } else if let target_operations::TargetBoundaryResult::Structural(home) = &record.call.result {
+        use calling_conventions::ValueLocation;
+        let placement = record
+            .call
+            .binding
+            .boundary_entry_plan
+            .call
+            .result
+            .as_ref()?;
+        match placement.locations.as_slice() {
+            [ValueLocation::Indirect { .. }] => Vec::new(),
+            locations if !locations.is_empty() => {
+                let outputs = call
+                    .operands
+                    .get(call.operands.len().checked_sub(locations.len())?..)?;
+                let mut registers = Vec::with_capacity(locations.len());
+                for (location, output) in locations.iter().zip(outputs) {
+                    let ValueLocation::Register {
+                        value_byte_offset, ..
+                    } = location
+                    else {
+                        return None;
+                    };
+                    let value = function
+                        .virtual_registers
+                        .get(output.virtual_register.0 as usize)?;
+                    if output.access != RegisterOperandAccess::Def
+                        || value.origin
+                            != (VirtualRegisterOrigin::AbiTransport {
+                                instruction: call.id,
+                                place: home.place(),
+                                byte_offset: *value_byte_offset,
+                            })
+                        || registers.contains(&output.virtual_register)
+                    {
+                        return None;
+                    }
+                    registers.push(output.virtual_register);
+                }
+                registers
+            }
+            _ => return None,
+        }
     } else {
-        None
+        Vec::new()
     };
     let mut cursor = call_position.checked_add(1)?;
-    let mut copies = |cursor: &mut usize| -> Option<()> {
-        let Some(home) = record.call.result.scalar_home() else {
-            return Some(());
-        };
-        while let Some(instruction) = block.instructions.get(*cursor) {
-            let Some(next) =
-                copy_result(function, instruction, result_register?, home.source_value)
-            else {
-                break;
-            };
-            result_register = Some(next);
-            *cursor = cursor.checked_add(1)?;
-        }
-        Some(())
-    };
-    copies(&mut cursor)?;
+    follow_copies(
+        function,
+        &block.instructions,
+        &mut cursor,
+        &mut result_registers,
+    )?;
     let restore_position = if record.call.binding.same_stack_contribution().is_some() {
         let restore = block.instructions.get(cursor)?;
         if restore.kind
@@ -118,7 +155,12 @@ pub fn resolve(
         }
         let position = cursor;
         cursor = cursor.checked_add(1)?;
-        copies(&mut cursor)?;
+        follow_copies(
+            function,
+            &block.instructions,
+            &mut cursor,
+            &mut result_registers,
+        )?;
         Some(position)
     } else {
         None
@@ -127,15 +169,42 @@ pub fn resolve(
         call_position,
         restore_position,
         normalization_position: cursor,
-        result_register,
+        result_registers,
     })
+}
+
+fn follow_copies(
+    function: &SelectedFunction,
+    instructions: &[SelectedInstruction],
+    cursor: &mut usize,
+    result_registers: &mut [VirtualRegisterId],
+) -> Option<()> {
+    while let Some(instruction) = instructions.get(*cursor) {
+        let Some(input) = instruction.operands.first() else {
+            break;
+        };
+        let Some(fragment) = result_registers
+            .iter()
+            .position(|register| *register == input.virtual_register)
+        else {
+            break;
+        };
+        let Some(next) = copy_result(function, instruction, result_registers[fragment]) else {
+            break;
+        };
+        if result_registers.contains(&next) {
+            return None;
+        }
+        result_registers[fragment] = next;
+        *cursor = cursor.checked_add(1)?;
+    }
+    Some(())
 }
 
 fn copy_result(
     function: &SelectedFunction,
     instruction: &SelectedInstruction,
     source: VirtualRegisterId,
-    source_value: semantic_vocabulary::ValueId,
 ) -> Option<VirtualRegisterId> {
     let [input, output] = instruction.operands.as_slice() else {
         return None;
@@ -148,7 +217,6 @@ fn copy_result(
         || !instruction.implicit_defs.is_empty()
         || !instruction.clobbers.is_empty()
         || !instruction.provenance.operations.is_empty()
-        || instruction.provenance.values.as_slice() != [source_value]
         || !instruction.provenance.edges.is_empty()
         || !instruction.provenance.obligations.is_empty()
         || !instruction.provenance.fuel.is_empty()
@@ -164,14 +232,34 @@ fn copy_result(
     let output_value = function
         .virtual_registers
         .get(output.virtual_register.0 as usize)?;
+    let expected_origin = match input_value.origin {
+        VirtualRegisterOrigin::InstructionResult { source_value, .. } => {
+            if instruction.provenance.values.as_slice() != [source_value] {
+                return None;
+            }
+            VirtualRegisterOrigin::InstructionResult {
+                instruction: instruction.id,
+                source_value,
+            }
+        }
+        VirtualRegisterOrigin::AbiTransport {
+            place, byte_offset, ..
+        } => {
+            if !instruction.provenance.values.is_empty() {
+                return None;
+            }
+            VirtualRegisterOrigin::AbiTransport {
+                instruction: instruction.id,
+                place,
+                byte_offset,
+            }
+        }
+        _ => return None,
+    };
     if input_value.scalar_type != output_value.scalar_type
         || input_value.class != output_value.class
         || input_value.definition_site != output_value.definition_site
-        || output_value.origin
-            != (VirtualRegisterOrigin::InstructionResult {
-                instruction: instruction.id,
-                source_value,
-            })
+        || output_value.origin != expected_origin
     {
         return None;
     }

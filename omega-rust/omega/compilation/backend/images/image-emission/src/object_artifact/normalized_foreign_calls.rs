@@ -862,19 +862,11 @@ pub fn structural_result_capture(
     let operands = instruction
         .operands
         .get(instruction.operands.len().checked_sub(result_operands)?..)?;
-    let call_position = block.instruction_index(instruction.id)?;
-    let mut position = call_position.checked_add(1)?;
-    if record.call.binding.same_stack_contribution().is_some() {
-        let restore = block.instructions.get(position)?;
-        if restore.kind
-            != (Kind::RestoreFloatingControl {
-                slot: LocalStorageSlotId::Boundary { operation },
-            })
-        {
-            return None;
-        }
-        position = position.checked_add(1)?;
-    }
+    let transport = selected_instructions::calls::normalized_foreign::return_transport::resolve(
+        function, block, record,
+    )?;
+    let call_position = transport.call_position;
+    let mut position = transport.normalization_position;
     let address = block.instructions.get(position)?;
     if address.kind
         != (Kind::FrameAddress {
@@ -980,7 +972,10 @@ pub fn structural_result_capture(
     }
     let mut previous_end = address_offset.checked_add(address_bytes)?;
     position = position.checked_add(1)?;
-    for (location, operand) in placement.locations.iter().zip(operands) {
+    if transport.result_registers.len() != placement.locations.len() {
+        return None;
+    }
+    for (location, register) in placement.locations.iter().zip(transport.result_registers) {
         let ValueLocation::Register {
             value_byte_offset,
             byte_size,
@@ -989,12 +984,10 @@ pub fn structural_result_capture(
         else {
             return None;
         };
-        if value_byte_offset.checked_add(byte_size)? > shape.byte_size
-            || !transport_matches(operand.virtual_register, instruction.id, value_byte_offset)
-        {
+        if value_byte_offset.checked_add(byte_size)? > shape.byte_size {
             return None;
         }
-        let mut value = operand.virtual_register;
+        let mut value = register;
         let mut store = block.instructions.get(position)?;
         if matches!(store.kind, Kind::Float32ToBits | Kind::Float64ToBits) {
             let expected = match byte_size {
@@ -1160,7 +1153,7 @@ fn foreign_scalar_result_custody(
         .get(output.virtual_register.0 as usize)
         .map(|register| register.origin);
     if normalization.kind != kind
-        || Some(input.virtual_register) != transport.result_register
+        || transport.result_registers.as_slice() != [input.virtual_register]
         || normalization.provenance.operations.as_slice()
             != [record.invocation_site.operation().ok_or_else(invalid)?]
         || normalization.provenance.values.as_slice() != [home.source_value]
