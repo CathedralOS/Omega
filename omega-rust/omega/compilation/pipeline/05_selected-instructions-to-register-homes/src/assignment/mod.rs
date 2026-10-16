@@ -29,4 +29,5 @@ pub(crate) mod home_assignment;
 pub(crate) mod post_allocation_manifest;
 pub(crate) mod recovery;
 pub(crate) mod runtime_spill;
+mod same_home;
 pub(crate) mod transformed;

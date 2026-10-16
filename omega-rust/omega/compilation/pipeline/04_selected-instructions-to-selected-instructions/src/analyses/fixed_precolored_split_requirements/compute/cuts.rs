@@ -6,7 +6,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use register_model::{RegisterOperandAccess, RegisterViewId};
 
 use crate::FixedPrecoloredSplitRequirementError;
-use register_homes::{EntryFixedViewTransition, FixedPrecoloredInterval, VirtualPointLegality};
+use register_homes::{EntryFixedViewTransition, FixedPrecoloredInterval, VirtualLegalitySpan};
 use selected_instructions::VirtualFixedConstraintSite;
 
 pub(super) struct CutIndex<'a> {
@@ -45,16 +45,16 @@ impl<'a> CutIndex<'a> {
         &self,
         function: usize,
         register: u32,
-        point: &VirtualPointLegality,
+        point: &VirtualLegalitySpan,
     ) -> Result<(VirtualFixedConstraintSite, RegisterViewId), FixedPrecoloredSplitRequirementError>
     {
-        let rows = self.fixed.get(&(point.block.0, point.point.0));
+        let rows = self.fixed.get(&(point.block.0, point.start.0));
         let Some(rows) = rows else {
             return Err(
                 FixedPrecoloredSplitRequirementError::UnauthenticatedDomainBreak {
                     function,
                     register,
-                    point: point.point.0,
+                    point: point.start.0,
                 },
             );
         };
@@ -63,7 +63,7 @@ impl<'a> CutIndex<'a> {
                 FixedPrecoloredSplitRequirementError::AmbiguousFixedCutSite {
                     function,
                     register,
-                    point: point.point.0,
+                    point: point.start.0,
                 },
             );
         }
@@ -79,7 +79,7 @@ impl<'a> CutIndex<'a> {
                 FixedPrecoloredSplitRequirementError::UnauthenticatedDomainBreak {
                     function,
                     register,
-                    point: point.point.0,
+                    point: point.start.0,
                 },
             );
         };
@@ -98,7 +98,7 @@ impl<'a> CutIndex<'a> {
                 FixedPrecoloredSplitRequirementError::UnauthenticatedDomainBreak {
                     function,
                     register,
-                    point: point.point.0,
+                    point: point.start.0,
                 },
             );
         }

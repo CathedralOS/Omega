@@ -3,12 +3,12 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::FixedPrecoloredSplitRequirementError;
-use register_homes::{VirtualPointLegality, VirtualRegisterAllocationLegality};
+use register_homes::{VirtualLegalitySpan, VirtualRegisterAllocationLegality};
 use selected_instructions::{LiveRangeEdgeConnector, LiveRangeFragment, VirtualLiveRange};
 
 pub(super) struct FragmentInput<'a> {
     pub(super) fragment: &'a LiveRangeFragment,
-    pub(super) points: &'a [VirtualPointLegality],
+    pub(super) spans: &'a [VirtualLegalitySpan],
     pub(super) incoming: Option<LiveRangeEdgeConnector>,
 }
 
@@ -44,28 +44,39 @@ pub(super) fn tree<'a>(
         }
     }
 
-    let mut point_offset = 0usize;
+    let mut span_offset = 0usize;
     let mut admitted = BTreeSet::new();
     let mut inputs = Vec::with_capacity(range.fragments.len());
     for fragment in &range.fragments {
-        let width =
-            fragment.end.0.checked_sub(fragment.start.0).ok_or(
-                FixedPrecoloredSplitRequirementError::IntervalOverflow { function, register },
-            )?;
-        let width = usize::try_from(width).map_err(|_| {
-            FixedPrecoloredSplitRequirementError::IntervalOverflow { function, register }
-        })?;
-        let end = point_offset
-            .checked_add(width)
-            .ok_or(FixedPrecoloredSplitRequirementError::IntervalOverflow { function, register })?;
-        let points = legality.points.get(point_offset..end).ok_or(
-            FixedPrecoloredSplitRequirementError::NonCanonicalPointDomain {
+        if fragment.start > fragment.end {
+            return Err(FixedPrecoloredSplitRequirementError::IntervalOverflow {
                 function,
                 register,
-                point: fragment.start.0,
-            },
-        )?;
-        point_offset = end;
+            });
+        }
+        let first_span = span_offset;
+        let mut expected = fragment.start;
+        while expected < fragment.end {
+            let span = legality
+                .spans
+                .get(span_offset)
+                .filter(|span| {
+                    span.block == fragment.block
+                        && span.start == expected
+                        && span.start < span.end
+                        && span.end <= fragment.end
+                })
+                .ok_or(
+                    FixedPrecoloredSplitRequirementError::NonCanonicalPointDomain {
+                        function,
+                        register,
+                        point: expected.0,
+                    },
+                )?;
+            expected = span.end;
+            span_offset += 1;
+        }
+        let spans = &legality.spans[first_span..span_offset];
         // The connector dedup above keys by target, and every fragment's block
         // is probed exactly once, so anything left in `connectors` after this
         // loop necessarily targets a block with no fragment — a transport
@@ -74,14 +85,14 @@ pub(super) fn tree<'a>(
             Some(connector) if admitted.contains(&connector.source) => {
                 inputs.push(FragmentInput {
                     fragment,
-                    points,
+                    spans,
                     incoming: Some(connector),
                 });
             }
             None => {
                 inputs.push(FragmentInput {
                     fragment,
-                    points,
+                    spans,
                     incoming: None,
                 });
             }
@@ -96,7 +107,7 @@ pub(super) fn tree<'a>(
         }
         admitted.insert(fragment.block);
     }
-    if point_offset != legality.points.len() {
+    if span_offset != legality.spans.len() {
         return Err(
             FixedPrecoloredSplitRequirementError::UnsupportedCrossBlockRange { function, register },
         );

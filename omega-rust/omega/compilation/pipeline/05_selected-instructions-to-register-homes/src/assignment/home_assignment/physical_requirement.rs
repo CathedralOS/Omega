@@ -19,7 +19,7 @@ pub(super) fn validate(
             register: register.0,
         });
     }
-    if !legality.points.is_empty() {
+    if !legality.spans.is_empty() {
         return Ok(());
     }
     if !legality.entry_transitions.is_empty() {

@@ -206,9 +206,9 @@ fn require_view(
     legality: &register_homes::VirtualRegisterAllocationLegality,
 ) -> Result<(), FixedPrecoloredIntervalError> {
     let rows = legality
-        .points
+        .spans
         .iter()
-        .filter(|row| row.block == block && row.point == point)
+        .filter(|row| row.block == block && row.start <= point && point < row.end)
         .collect::<Vec<_>>();
     if rows.len() != 1 {
         return Err(FixedPrecoloredIntervalError::ConstraintPointMissing {

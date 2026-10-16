@@ -1,4 +1,6 @@
-//! Optimizer module role: executable entrance. Per-point physical-view legality compute -> validation entrance.
+//! Exact physical-view legality, compressed into constant candidate spans.
+//! The producer keeps each live fragment's coverage and every constraint
+//! boundary; consumers intersect and authenticate spans without expanding them.
 use crate::ValidatedAllocatorAvailability;
 use crate::ValidatedLiveRanges;
 use register_model::{
@@ -36,7 +38,7 @@ pub fn analyze_allocation_legality(
         selected_keys,
         None,
     )?;
-    Ok(validate::admit(plan, &[], &[]))
+    validate::admit(plan, &[], &[])
 }
 
 /// Reuse proposals for functions whose complete live ranges and allocation
@@ -62,11 +64,7 @@ pub fn analyze_allocation_legality_reusing(
         selected_keys,
         Some((previous_ranges, previous_legality)),
     )?;
-    Ok(validate::admit(
-        plan,
-        &carried,
-        &previous_legality.function_digests,
-    ))
+    validate::admit(plan, &carried, &previous_legality.function_digests)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -1,4 +1,6 @@
-use crate::{AllocationLegalityValidationReceipt, ValidatedAllocationLegality};
+use crate::{
+    AllocationLegalityError, AllocationLegalityValidationReceipt, ValidatedAllocationLegality,
+};
 use register_homes::{
     AllocationLegalityPlan, allocation_legality_function_digest,
     allocation_legality_identity_from_digests,
@@ -9,7 +11,30 @@ pub(crate) fn admit(
     plan: AllocationLegalityPlan,
     carried: &[bool],
     previous_digests: &[[u8; 32]],
-) -> ValidatedAllocationLegality {
+) -> Result<ValidatedAllocationLegality, AllocationLegalityError> {
+    // Compact spans can describe more logical points than could be allocated
+    // as dense rows. Receipt counts must not wrap on that larger domain.
+    let mut point_count = 0usize;
+    let mut candidate_count = 0usize;
+    for (function_index, function) in plan.functions.iter().enumerate() {
+        let overflow = || AllocationLegalityError::PointOverflow {
+            function: function_index,
+        };
+        for span in function
+            .virtual_registers
+            .iter()
+            .flat_map(|register| &register.spans)
+        {
+            let width = usize::try_from(span.end.0 - span.start.0).map_err(|_| overflow())?;
+            point_count = point_count.checked_add(width).ok_or_else(overflow)?;
+            let candidates = width
+                .checked_mul(span.candidates.len())
+                .ok_or_else(overflow)?;
+            candidate_count = candidate_count
+                .checked_add(candidates)
+                .ok_or_else(overflow)?;
+        }
+    }
     let function_digests =
         crate::analyses::carried_digests(&plan.functions, carried, previous_digests, |function| {
             allocation_legality_function_digest(function)
@@ -26,15 +51,8 @@ pub(crate) fn admit(
             .iter()
             .map(|function| function.virtual_registers.len())
             .sum(),
-        point_count: plan
-            .virtual_registers()
-            .map(|register| register.points.len())
-            .sum(),
-        candidate_count: plan
-            .virtual_registers()
-            .flat_map(|register| &register.points)
-            .map(|point| point.candidates.len())
-            .sum(),
+        point_count,
+        candidate_count,
         early_clobber_point_count: plan
             .virtual_registers()
             .map(|register| register.early_clobber_points.len())
@@ -49,9 +67,9 @@ pub(crate) fn admit(
             .map(|register| register.entry_transitions.len())
             .sum(),
     };
-    ValidatedAllocationLegality {
+    Ok(ValidatedAllocationLegality {
         plan: plan.into(),
         receipt,
         function_digests,
-    }
+    })
 }

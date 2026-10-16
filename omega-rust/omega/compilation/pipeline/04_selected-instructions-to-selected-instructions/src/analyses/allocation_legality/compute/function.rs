@@ -40,7 +40,7 @@ pub(super) fn compute(
                 .fragments
                 .first()
                 .map(|fragment| (fragment.block, fragment.start));
-            let points = live_points::compute(
+            let spans = live_points::compute(
                 function_index,
                 register,
                 class,
@@ -60,7 +60,7 @@ pub(super) fn compute(
             Ok(VirtualRegisterAllocationLegality {
                 virtual_register: register.virtual_register,
                 class: register.class,
-                points,
+                spans,
                 early_clobber_points,
                 entry_transitions,
             })

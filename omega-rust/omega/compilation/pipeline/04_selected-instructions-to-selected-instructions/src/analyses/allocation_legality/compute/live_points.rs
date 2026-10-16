@@ -1,12 +1,17 @@
-//! Candidate derivation at ordinary live-range points.
+//! Exact legality changes, retained as spans rather than per-phase copies.
+//!
+//! Physical unit fragments/actions and this value's fixed constraints are the
+//! only point-dependent inputs. Between their boundaries the candidate domain
+//! is constant. Derive once there; keep source-fragment boundaries so consumers
+//! can authenticate topology without reconstructing the expanded point stream.
 
 use register_model::{RegisterClass, RegisterViewId};
 use selected_instructions::SelectedBlockId;
 
 use super::{fixed_views, view_candidates::CandidateViews};
 use crate::AllocationLegalityError;
-use register_homes::VirtualPointLegality;
-use selected_instructions::{LiveRangePoint, VirtualLiveRange};
+use register_homes::VirtualLegalitySpan;
+use selected_instructions::{LiveRangePoint, VirtualFixedConstraintSite, VirtualLiveRange};
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn compute(
@@ -16,11 +21,39 @@ pub(super) fn compute(
     available: &[RegisterViewId],
     entry_point: Option<(SelectedBlockId, LiveRangePoint)>,
     views: &mut CandidateViews<'_>,
-) -> Result<Vec<VirtualPointLegality>, AllocationLegalityError> {
-    let mut points = Vec::new();
+) -> Result<Vec<VirtualLegalitySpan>, AllocationLegalityError> {
+    let mut boundaries = views.boundaries().to_vec();
+    for constraint in &register.fixed_constraints {
+        let point = match constraint.site {
+            VirtualFixedConstraintSite::Entry => entry_point.map(|(_, point)| point),
+            VirtualFixedConstraintSite::Operand { point, .. } => Some(point),
+        };
+        if let Some(point) = point {
+            boundaries.push(point);
+            if let Some(end) = point.0.checked_add(1) {
+                boundaries.push(LiveRangePoint(end));
+            }
+        }
+    }
+    boundaries.sort_unstable();
+    boundaries.dedup();
+    let mut spans: Vec<VirtualLegalitySpan> = Vec::new();
     for fragment in &register.fragments {
-        for raw_point in fragment.start.0..fragment.end.0 {
-            let point = LiveRangePoint(raw_point);
+        if fragment.start >= fragment.end {
+            continue;
+        }
+        let fragment_offset = spans.len();
+        let mut point = fragment.start;
+        let first_boundary = boundaries.partition_point(|boundary| *boundary <= point);
+        let last_boundary = boundaries.partition_point(|boundary| *boundary < fragment.end);
+        for end in boundaries[first_boundary..last_boundary]
+            .iter()
+            .copied()
+            .chain(std::iter::once(fragment.end))
+        {
+            if point >= end {
+                continue;
+            }
             let fixed = fixed_views::at_live_point(
                 function_index,
                 register,
@@ -45,12 +78,22 @@ pub(super) fn compute(
                     point: point.0,
                 });
             }
-            points.push(VirtualPointLegality {
-                block: fragment.block,
-                point,
-                candidates,
-            });
+            if spans.len() > fragment_offset
+                && spans
+                    .last()
+                    .is_some_and(|span| span.candidates == candidates)
+            {
+                spans.last_mut().expect("current fragment has a span").end = end;
+            } else {
+                spans.push(VirtualLegalitySpan {
+                    block: fragment.block,
+                    start: point,
+                    end,
+                    candidates,
+                });
+            }
+            point = end;
         }
     }
-    Ok(points)
+    Ok(spans)
 }

@@ -263,8 +263,8 @@ fn compute_function(
             });
         }
 
-        let block = register.points[0].block;
-        if register.points.iter().any(|point| point.block != block) {
+        let block = register.spans[0].block;
+        if register.spans.iter().any(|point| point.block != block) {
             return Err(SpillChoiceError::UnsupportedPressureShape {
                 function: function_index,
                 register: register.virtual_register.0,
@@ -301,7 +301,7 @@ fn compute_function(
                 .virtual_registers
                 .iter()
                 .find(|candidate| candidate.virtual_register == resident.register)
-                .is_none_or(|candidate| candidate.points.iter().any(|point| point.block != block))
+                .is_none_or(|candidate| candidate.spans.iter().any(|point| point.block != block))
         }) {
             return Err(SpillChoiceError::UnsupportedPressureShape {
                 function: function_index,
@@ -414,20 +414,14 @@ fn interval_bounds(
     register: &register_homes::VirtualRegisterAllocationLegality,
 ) -> Result<(LiveRangePoint, LiveRangePoint), SpillChoiceError> {
     let first = register
-        .points
+        .spans
         .first()
         .ok_or(SpillChoiceError::NoLivePoints {
             function,
             register: register.virtual_register.0,
         })?;
-    let last = register.points.last().expect("nonempty points established");
-    let end = last.point.0.checked_add(1).map(LiveRangePoint).ok_or(
-        SpillChoiceError::IntervalOverflow {
-            function,
-            register: register.virtual_register.0,
-        },
-    )?;
-    Ok((first.point, end))
+    let last = register.spans.last().expect("nonempty spans established");
+    Ok((first.start, last.end))
 }
 
 fn common_candidates(
@@ -435,14 +429,14 @@ fn common_candidates(
     register: &register_homes::VirtualRegisterAllocationLegality,
 ) -> Result<BTreeSet<RegisterViewId>, SpillChoiceError> {
     let first = register
-        .points
+        .spans
         .first()
         .ok_or(SpillChoiceError::NoLivePoints {
             function,
             register: register.virtual_register.0,
         })?;
     let mut common = first.candidates.iter().copied().collect::<BTreeSet<_>>();
-    for point in &register.points[1..] {
+    for point in &register.spans[1..] {
         common.retain(|candidate| point.candidates.binary_search(candidate).is_ok());
     }
     // Early-clobber definition points carry their own legality candidates:

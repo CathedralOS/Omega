@@ -5,7 +5,7 @@ use super::{
 };
 use super::{
     LiveRangeError, architectural_units, block_domain, connector, derive_early_clobbers,
-    derive_tied_pairs, fragments_from_points, operand_point, register_points,
+    derive_tied_pairs, operand_point, register_fragments,
 };
 
 pub(super) fn compute_function(
@@ -24,7 +24,7 @@ pub(super) fn compute_function(
     let copy_affinities = super::copy_affinities::derive(function_index, selected)?;
     let early_clobbers = derive_early_clobbers(function_index, liveness)?;
 
-    // Group the function's operand rows, live points and live edges by
+    // Group the function's operand rows, live fragments and live edges by
     // register once; each register's range then reads only its own rows, in
     // the order a scan of the whole function would have met them.
     let registers = selected
@@ -32,7 +32,7 @@ pub(super) fn compute_function(
         .iter()
         .map(|register| register.id)
         .collect::<BTreeSet<_>>();
-    let points = register_points(function_index, liveness, &registers)?;
+    let mut fragment_rows = register_fragments(function_index, liveness, &registers)?;
     let mut operand_rows = std::collections::BTreeMap::<_, Vec<_>>::new();
     for row in &liveness.operand_positions {
         operand_rows
@@ -91,18 +91,7 @@ pub(super) fn compute_function(
                 });
             }
         }
-        let register_points = points.get(&register.id);
-        let fragments = liveness
-            .blocks
-            .iter()
-            .enumerate()
-            .flat_map(|(index, block)| {
-                register_points
-                    .and_then(|blocks| blocks.get(&index))
-                    .map(|block_points| fragments_from_points(block.block, block_points.clone()))
-                    .unwrap_or_default()
-            })
-            .collect();
+        let fragments = fragment_rows.remove(&register.id).unwrap_or_default();
         let edge_connectors = edge_rows.get(&register.id).cloned().unwrap_or_default();
         virtual_rows.push(VirtualLiveRange {
             virtual_register: register.id,

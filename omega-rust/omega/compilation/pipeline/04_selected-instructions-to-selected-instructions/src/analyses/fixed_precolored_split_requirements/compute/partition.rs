@@ -8,7 +8,7 @@ use crate::FixedPrecoloredSplitRequirementError;
 use register_homes::{
     FixedPrecoloredInterval, FixedPrecoloredRegisterSplitRequirements,
     FixedPrecoloredSourceFragmentRequirements, FixedPrecoloredSourceSegment,
-    FixedPrecoloredSourceSegmentId, FixedPrecoloredSourceSegmentOpening, VirtualPointLegality,
+    FixedPrecoloredSourceSegmentId, FixedPrecoloredSourceSegmentOpening, VirtualLegalitySpan,
     VirtualRegisterAllocationLegality,
 };
 use selected_instructions::{LiveRangeFragment, LiveRangePoint, VirtualLiveRange};
@@ -52,7 +52,7 @@ pub(super) fn register(
     // domain so its own outgoing edges can parent later fragments.
     let mut closing_by_block = BTreeMap::<_, BTreeSet<RegisterViewId>>::new();
     for input in &inputs {
-        let first_domain = point_domain(function, register, input.points.first())?;
+        let first_domain = point_domain(function, register, input.spans.first())?;
         let (initial, opening) = match input.incoming {
             None => (
                 first_domain,
@@ -67,7 +67,7 @@ pub(super) fn register(
                     .copied()
                     .collect::<BTreeSet<_>>();
                 if compatible.is_empty() {
-                    let first = input.points.first().expect("point domain established");
+                    let first = input.spans.first().expect("point domain established");
                     let (site, destination_view) = cuts.boundary(function, register, first)?;
                     cuts.require_transition(function, register, parent, site, destination_view)?;
                     work.incompatible_boundary()?;
@@ -91,7 +91,7 @@ pub(super) fn register(
             function,
             register,
             input.fragment,
-            input.points,
+            input.spans,
             initial,
             opening,
             &mut cuts,
@@ -114,7 +114,7 @@ fn fragment(
     function: usize,
     register: u32,
     source: &LiveRangeFragment,
-    points: &[VirtualPointLegality],
+    spans: &[VirtualLegalitySpan],
     mut shared: BTreeSet<RegisterViewId>,
     mut opening: FixedPrecoloredSourceSegmentOpening,
     cuts: &mut CutIndex<'_>,
@@ -129,25 +129,11 @@ fn fragment(
 > {
     let mut segment_start = source.start;
     let mut segments = Vec::new();
-    for (offset, point) in points.iter().enumerate() {
-        work.point(point.candidates.len())?;
-        let offset = u32::try_from(offset).map_err(|_| {
-            FixedPrecoloredSplitRequirementError::IntervalOverflow { function, register }
-        })?;
-        let expected =
-            source.start.0.checked_add(offset).ok_or(
-                FixedPrecoloredSplitRequirementError::IntervalOverflow { function, register },
-            )?;
-        if point.block != source.block || point.point != LiveRangePoint(expected) {
-            return Err(
-                FixedPrecoloredSplitRequirementError::NonCanonicalPointDomain {
-                    function,
-                    register,
-                    point: expected,
-                },
-            );
-        }
-        if offset == 0 {
+    // Topology admitted exact nonempty coverage of this source fragment.
+    // Repeating an intersection with the same domain cannot change it.
+    for point in spans {
+        work.span(point.end.0 - point.start.0, point.candidates.len())?;
+        if point.start == source.start {
             continue;
         }
         let prior = shared.clone();
@@ -162,14 +148,14 @@ fn fragment(
             &mut segments,
             next_segment_id,
             segment_start,
-            point.point,
+            point.start,
             prior.clone(),
             opening,
             work,
         )?;
         cuts.use_transition(&prior, site, destination_view);
         work.incompatible_boundary()?;
-        segment_start = point.point;
+        segment_start = point.start;
         opening = FixedPrecoloredSourceSegmentOpening::IncompatibleFixedUseDomainBoundaryV1 {
             incoming: None,
             site,
@@ -202,7 +188,7 @@ fn fragment(
 fn point_domain(
     function: usize,
     register: u32,
-    point: Option<&VirtualPointLegality>,
+    point: Option<&VirtualLegalitySpan>,
 ) -> Result<BTreeSet<RegisterViewId>, FixedPrecoloredSplitRequirementError> {
     let point = point.ok_or(
         FixedPrecoloredSplitRequirementError::MissingSourceFragment { function, register },

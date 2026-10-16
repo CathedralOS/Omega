@@ -1,29 +1,5 @@
-//! Default-path route controls: entry-fixed-view transitions recorded in
-//! legality are the only direct-assignment failure the leaf-local
-//! fixed/precolored sequence may recover.
-
-#[test]
-fn default_path_routes_entry_transitions_into_the_leaf_local_fixed_view_sequence() {
-    let source = include_str!("../register_allocation.rs");
-    let entrance = source
-        .split("fn stage_register_allocation")
-        .nth(1)
-        .expect("the stage entrance body");
-    let gate = entrance
-        .find("UnresolvedEntryTransitions { .. }")
-        .expect("the entry-transition recovery gate");
-    let sequence = entrance
-        .find("stage_leaf_local_fixed_view_register_allocation")
-        .expect("the leaf-local fixed-view sequence call");
-    let pressure = entrance
-        .find("NoCompatibleHome { .. }")
-        .expect("the runtime-spill pressure arm");
-    let fallback = entrance
-        .rfind("OptimizedRegisterHomeCustodyError::Assignment(error)")
-        .expect("the unrecovered assignment error surface");
-    assert!(gate < sequence && sequence < fallback);
-    assert!(pressure < fallback);
-}
+//! Architecture guards for declared recovery and retained transformation prefixes.
+//! Default pressure behavior is exercised through the allocation corpus fixtures.
 
 #[test]
 fn shared_entry_route_probes_segment_homes_before_committing_the_sequence() {

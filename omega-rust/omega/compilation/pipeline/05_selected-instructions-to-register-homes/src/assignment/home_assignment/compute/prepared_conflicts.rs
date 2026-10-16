@@ -15,7 +15,7 @@ struct DomainPair {
     right_defines: bool,
 }
 
-pub(super) struct PreparedConflicts<'a> {
+pub(super) struct PreparedConflicts {
     /// Per domain, every domain it is constrained against, in ascending
     /// order, with the relationship the pair carries. Only related pairs are
     /// stored: a dense matrix of every domain pair was quadratic in the
@@ -23,16 +23,17 @@ pub(super) struct PreparedConflicts<'a> {
     /// thousands of them.
     pairs: Vec<Vec<(usize, DomainPair)>>,
     neighbors: Vec<Vec<usize>>,
-    views: Vec<Vec<(RegisterViewId, Option<&'a RegisterView>)>>,
+    physical_pairs: Vec<Vec<(RegisterViewId, DomainPair)>>,
 }
 
-impl<'a> PreparedConflicts<'a> {
+impl PreparedConflicts {
     pub(super) fn new(
+        function: usize,
         domains: &[AllocationDomain<'_>],
         domain_of: &BTreeMap<VirtualRegisterId, usize>,
         ranges: &FunctionLiveRanges,
-        physical: &'a ValidatedPhysicalRegisterModel,
-    ) -> Self {
+        physical: &ValidatedPhysicalRegisterModel,
+    ) -> Result<Self, RegisterHomeError> {
         let mut related = vec![BTreeMap::<usize, DomainPair>::new(); domains.len()];
         // The live-range representation already stores these relationships sparsely.
         // Record each authored fact once on both of its domains instead of rescanning
@@ -80,26 +81,58 @@ impl<'a> PreparedConflicts<'a> {
                     .collect()
             })
             .collect();
-        let views = domains
+        // This is the original placement preflight order. Every later candidate
+        // comes from these domains (or a subset), so neither class lookup nor
+        // typed view admission belongs inside a candidate/neighbor loop.
+        let model = physical.model();
+        let mut used_views = vec![false; model.views.len()];
+        for domain in domains {
+            for candidate in &domain.candidates {
+                let view = model
+                    .views
+                    .get(usize::from(candidate.0))
+                    .filter(|view| view.class == domain.members[0].class)
+                    .ok_or(RegisterHomeError::UnknownOrIncompatibleView {
+                        function,
+                        register: domain.members[0].virtual_register.0,
+                        view: candidate.0,
+                    })?;
+                used_views[usize::from(view.id.0)] = true;
+            }
+        }
+        // Hardware view relationships do not depend on virtual values. Keep
+        // only overlapping used views, not a domain-by-domain physical matrix.
+        // Validated physical models establish dense view IDs.
+        let physical_pairs = model
+            .views
             .iter()
-            .map(|domain| {
-                domain
-                    .candidates
+            .map(|left| {
+                if !used_views[usize::from(left.id.0)] {
+                    return Vec::new();
+                }
+                model
+                    .views
                     .iter()
-                    .map(|candidate| {
-                        let view = physical.model().views.iter().find(|view| {
-                            view.id == *candidate && view.class == domain.members[0].class
-                        });
-                        (*candidate, view)
+                    .filter_map(|right| {
+                        if !used_views[usize::from(right.id.0)] {
+                            return None;
+                        }
+                        let pair = DomainPair {
+                            interferes: left.footprints_overlap(right),
+                            left_defines: definition_overwrites_use(left, right),
+                            right_defines: definition_overwrites_use(right, left),
+                        };
+                        (pair.interferes || pair.left_defines || pair.right_defines)
+                            .then_some((right.id, pair))
                     })
                     .collect()
             })
             .collect();
-        Self {
+        Ok(Self {
             pairs,
             neighbors,
-            views,
-        }
+            physical_pairs,
+        })
     }
 
     pub(super) fn get_constrained_neighbors(&self, domain: usize) -> &[usize] {
@@ -121,46 +154,24 @@ impl<'a> PreparedConflicts<'a> {
             )
     }
 
-    pub(super) fn candidate_conflicts(
+    /// Candidates have already been admitted by construction. Both IDs come
+    /// from a domain's original candidates or its monotonically shrinking set.
+    pub(super) fn conflicts_between(
         &self,
-        function: usize,
-        domain_index: usize,
-        candidate: RegisterViewId,
-        assigned: &[(usize, RegisterViewId)],
-        domains: &[AllocationDomain<'_>],
-    ) -> Result<bool, RegisterHomeError> {
-        let candidate_view = self.checked_view(function, domain_index, candidate, domains)?;
-        for &(other_index, other_view_id) in assigned {
-            let other_view = self.checked_view(function, other_index, other_view_id, domains)?;
-            let pair = self.pair(domain_index, other_index);
-            if (pair.interferes && candidate_view.footprints_overlap(other_view))
-                || (pair.left_defines && definition_overwrites_use(candidate_view, other_view))
-                || (pair.right_defines && definition_overwrites_use(other_view, candidate_view))
-            {
-                return Ok(true);
-            }
-        }
-        Ok(false)
-    }
-
-    fn checked_view(
-        &self,
-        function: usize,
-        domain_index: usize,
-        candidate: RegisterViewId,
-        domains: &[AllocationDomain<'_>],
-    ) -> Result<&'a RegisterView, RegisterHomeError> {
-        // Missing views remain deferred until the original candidate visit, so preparation
-        // cannot reorder typed failures relative to domain construction or placement.
-        self.views[domain_index]
-            .binary_search_by_key(&candidate, |(view, _)| *view)
-            .ok()
-            .and_then(|position| self.views[domain_index][position].1)
-            .ok_or(RegisterHomeError::UnknownOrIncompatibleView {
-                function,
-                register: domains[domain_index].members[0].virtual_register.0,
-                view: candidate.0,
-            })
+        domain: usize,
+        view: RegisterViewId,
+        other_domain: usize,
+        other_view: RegisterViewId,
+    ) -> bool {
+        let physical = &self.physical_pairs[usize::from(view.0)];
+        let Ok(position) = physical.binary_search_by_key(&other_view, |(view, _)| *view) else {
+            return false;
+        };
+        let physical = physical[position].1;
+        let pair = self.pair(domain, other_domain);
+        (pair.interferes && physical.interferes)
+            || (pair.left_defines && physical.left_defines)
+            || (pair.right_defines && physical.right_defines)
     }
 }
 

@@ -30,8 +30,7 @@ use crate::assignment::home_assignment::compute::FunctionHomeReuse;
 use optimization_core::OptimizationWorkBudget;
 use register_homes::PostAllocationSelectedTransformation;
 use selected_instructions::{
-    FunctionLiveRanges, SelectedInstructionPlan, VirtualInterference, VirtualRegisterId,
-    VirtualRegisterOrigin,
+    FunctionLiveRanges, SelectedInstructionPlan, VirtualRegisterId, VirtualRegisterOrigin,
 };
 use selected_instructions_to_selected_instructions::{
     FixedViewCopyPolicy, RuntimeSpillError, RuntimeSpillSpanPolicy, SelectedProgramRef,
@@ -222,7 +221,9 @@ pub(super) fn transformations(
 pub(super) struct FailedDomain<'ranges> {
     function: usize,
     ranges: &'ranges FunctionLiveRanges,
-    members: std::collections::BTreeSet<VirtualRegisterId>,
+    members: Vec<VirtualRegisterId>,
+    components: crate::assignment::same_home::SameHomeComponents,
+    pressure: Vec<(VirtualRegisterId, usize)>,
     intrinsic: bool,
 }
 
@@ -249,7 +250,7 @@ impl<'ranges> FailedDomain<'ranges> {
             // Empty point-domain intersections and retained entry transitions
             // belong to this exact source value. Spilling neighbours cannot
             // change its pinned uses, clobbers or preservation obligation.
-            domain.members = std::collections::BTreeSet::from([VirtualRegisterId(register)]);
+            domain.members = vec![VirtualRegisterId(register)];
             domain.intrinsic = true;
         }
         Some(domain)
@@ -260,112 +261,128 @@ impl<'ranges> FailedDomain<'ranges> {
         ranges: &'ranges FunctionLiveRanges,
         leader: VirtualRegisterId,
     ) -> Self {
+        let components = crate::assignment::same_home::SameHomeComponents::from_ranges(ranges);
+        let members = components.members(leader);
+        let mut covered = Vec::new();
+        for pair in &ranges.interference {
+            for (member, other) in [(pair.lower, pair.higher), (pair.higher, pair.lower)] {
+                if members.binary_search(&member).is_ok() {
+                    covered.push((components.leader(other), member));
+                }
+            }
+        }
+        // Multiple interfering fragments of one candidate component cover a
+        // failed member only once. Keep this sparse relation in sorted storage.
+        covered.sort_unstable();
+        covered.dedup();
+        let mut pressure: Vec<(VirtualRegisterId, usize)> = Vec::new();
+        for (component, _) in covered {
+            if let Some((previous, count)) = pressure.last_mut()
+                && *previous == component
+            {
+                *count += 1;
+            } else {
+                pressure.push((component, 1));
+            }
+        }
         Self {
             function,
             ranges,
-            members: split_domain_members(ranges, leader),
+            members,
+            components,
+            pressure,
             intrinsic: false,
         }
     }
 
-    /// One candidate's relief: the member fragments it covers across the
-    /// split points, counting membership itself (a member's own split
-    /// dissolves its share of the shared-home requirement), plus every other
-    /// member it interferes with. Member fragments never interfere with each
-    /// other, so the domain's pressure is the union of every member's
-    /// interference. Zero means the candidate is not a pressure victim at all.
+    /// Score a candidate's whole shared-home component against the failed
+    /// component. Each failed member counts once even if several candidate
+    /// fragments interfere with it. A failed member itself can dissolve its
+    /// own share. Intrinsic value-local failures never admit neighbours.
     pub(super) fn relief(&self, function: usize, register: VirtualRegisterId) -> usize {
         if function != self.function {
             return 0;
         }
-        self.members
-            .iter()
-            .filter(|member| {
-                **member == register
-                    || (!self.intrinsic && interferes(self.ranges, register, **member))
+        if self.members.binary_search(&register).is_ok() {
+            return 1;
+        }
+        if self.intrinsic {
+            return 0;
+        }
+        self.pressure
+            .binary_search_by_key(&self.components.leader(register), |(component, _)| {
+                *component
             })
-            .count()
+            .map_or(0, |position| self.pressure[position].1)
     }
 
     pub(super) fn function(&self) -> usize {
         self.function
     }
-}
 
-// A pressure failure names the leader of one tied/edge-transferred domain: a
-// single live range split into disjoint member fragments at the tie and
-// transfer points, all sharing one home. Collect those fragments: the
-// connected component of use/def ties and edge transfers rooted at the named
-// leader. Those are the same relations domain construction unions, so this
-// reproduces the split range's membership without rebuilding allocation
-// domains.
-fn split_domain_members(
-    ranges: &FunctionLiveRanges,
-    leader: VirtualRegisterId,
-) -> std::collections::BTreeSet<VirtualRegisterId> {
-    let mut members = std::collections::BTreeSet::from([leader]);
-    let mut frontier = vec![leader];
-    while let Some(member) = frontier.pop() {
-        for tie in &ranges.tied_pairs {
-            let other = if tie.use_virtual_register == member {
-                tie.def_virtual_register
-            } else if tie.def_virtual_register == member {
-                tie.use_virtual_register
-            } else {
-                continue;
-            };
-            if members.insert(other) {
-                frontier.push(other);
-            }
-        }
-        for transfer in &ranges.edge_transfers {
-            let other = if transfer.argument == member {
-                transfer.parameter
-            } else if transfer.parameter == member {
-                transfer.argument
-            } else {
-                continue;
-            };
-            if members.insert(other) {
-                frontier.push(other);
-            }
-        }
+    // Prefer directly occupied fragments before their remote shared-home
+    // peers. Both are eligible, but moving the directly live value removes
+    // pressure here without depending on how much of its peer's range survives.
+    fn direct_relief(&self, register: VirtualRegisterId) -> usize {
+        self.members
+            .iter()
+            .filter(|member| {
+                **member == register || {
+                    let (lower, higher) = if register < **member {
+                        (register, **member)
+                    } else {
+                        (**member, register)
+                    };
+                    self.ranges
+                        .interference
+                        .binary_search(&selected_instructions::VirtualInterference {
+                            lower,
+                            higher,
+                        })
+                        .is_ok()
+                }
+            })
+            .count()
     }
-    members
+
+    fn spill_priority(&self, function: usize, register: VirtualRegisterId) -> (usize, u64) {
+        let points = self
+            .ranges
+            .virtual_registers
+            .iter()
+            .find(|range| range.virtual_register == register)
+            .map_or(0, |range| {
+                range
+                    .fragments
+                    .iter()
+                    .map(|fragment| u64::from(fragment.end.0 - fragment.start.0))
+                    .sum()
+            });
+        (
+            if function == self.function {
+                self.direct_relief(register)
+            } else {
+                0
+            },
+            points,
+        )
+    }
 }
 
-fn interferes(
-    ranges: &FunctionLiveRanges,
-    left: VirtualRegisterId,
-    right: VirtualRegisterId,
-) -> bool {
-    let (lower, higher) = if left < right {
-        (left, right)
-    } else {
-        (right, left)
-    };
-    ranges
-        .interference
-        .binary_search(&VirtualInterference { lower, higher })
-        .is_ok()
-}
-
-// The failed id is a tied-domain leader, not necessarily an admissible payload.
-// Prefer it only while it remains in the original roster; ordinary admission
-// still rejects terminal/edge uses, and removal restores the same fallback order.
-// Among the remaining overlapping candidates the choice coalesces the same
-// split-domain evidence the pressure predicate widened: the victim covering
-// the most member fragments of the failed domain — a member fragment covering
-// itself, an outsider covering every member it interferes with — relieves the
-// most of the failed requirement per step. Equal relief keeps roster order.
-fn candidate_position(
+// The failed identity is a domain leader, not a preferred spill payload.
+// Among eligible components, relieve the most directly covered fragments first,
+// then the greatest actual live extent (not the convex whole-function hull).
+// Long-lived blockers otherwise force recovery through many short failed
+// leaders and a whole-function analysis per victim. Equal scores retain roster
+// order. Intrinsic constraints still admit only the exact failed value.
+fn candidate_position<Priority: Ord + Copy>(
     failure: &crate::RegisterHomeError,
     roster: &[(usize, VirtualRegisterId)],
     mut overlaps: impl FnMut(&(usize, VirtualRegisterId)) -> bool,
-    relief: impl Fn(&(usize, VirtualRegisterId)) -> usize,
+    relief: impl Fn(&(usize, VirtualRegisterId)) -> Priority,
 ) -> Option<usize> {
-    let (function, register) = match failure {
-        crate::RegisterHomeError::NoCompatibleHome { function, register } => (function, register),
+    match failure {
+        crate::RegisterHomeError::NoCompatibleHome { .. } => {}
         crate::RegisterHomeError::NoCommonCandidate { function, register }
         | crate::RegisterHomeError::UnresolvedEntryTransitions {
             function, register, ..
@@ -378,21 +395,16 @@ fn candidate_position(
     };
     roster
         .iter()
-        .position(|candidate| *candidate == (*function, VirtualRegisterId(*register)))
-        .or_else(|| {
-            roster
-                .iter()
-                .enumerate()
-                .filter(|(_, candidate)| overlaps(candidate))
-                .map(|(position, candidate)| (position, relief(candidate)))
-                .min_by_key(|(position, relief)| (std::cmp::Reverse(*relief), *position))
-                .map(|(position, _)| position)
-        })
+        .enumerate()
+        .filter(|(_, candidate)| overlaps(candidate))
+        .map(|(position, candidate)| (position, relief(candidate)))
+        .min_by_key(|(position, relief)| (std::cmp::Reverse(*relief), *position))
+        .map(|(position, _)| position)
 }
 
 /// The split decision at one step: among the still-available roster
-/// candidates overlapping the failed domain, in the same most-relief-then-
-/// roster order the spill choice uses, the first whose fixed-view definition
+/// candidates overlapping the failed domain, in most-relief-then-roster
+/// order, the first whose fixed-view definition
 /// the split rewrite admits. `None` means no split is admissible and the step
 /// falls through to rematerialization or storage.
 #[allow(clippy::too_many_arguments)]
@@ -411,7 +423,7 @@ pub(super) fn admissible_split<'roster>(
         .copied()
         .filter_map(|candidate| {
             let relief = domain.relief(candidate.0, candidate.1);
-            (relief > 0).then_some((relief, candidate))
+            (relief > 0).then_some((domain.direct_relief(candidate.1), candidate))
         })
         .collect();
     // A stable sort keeps roster order among equal relief.
@@ -645,7 +657,7 @@ fn recover_over(
                 |(function, register)| {
                     domain
                         .as_ref()
-                        .map_or(0, |domain| domain.relief(*function, *register))
+                        .map_or((0, 0), |domain| domain.spill_priority(*function, *register))
                 },
             ) else {
                 break;

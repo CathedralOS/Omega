@@ -48,14 +48,21 @@ impl Work {
         add(&mut self.usage.iterations, 1)
     }
 
-    pub(super) fn point(
+    pub(super) fn span(
         &mut self,
+        points: u32,
         candidate_views: usize,
     ) -> Result<(), FixedPrecoloredSplitRequirementError> {
-        add(&mut self.usage.candidates, 1)?;
-        add(&mut self.usage.validation_steps, 1)?;
-        add(&mut self.usage.validation_steps, count(candidate_views)?)?;
-        add(&mut self.usage.iterations, 1)
+        // Preserve the logical point-work receipt and its budget while the
+        // implementation visits one constant domain instead of every phase.
+        let points = u64::from(points);
+        let candidates = count(candidate_views)?
+            .checked_mul(points)
+            .ok_or(FixedPrecoloredSplitRequirementError::WorkOverflow)?;
+        add(&mut self.usage.candidates, points)?;
+        add(&mut self.usage.validation_steps, points)?;
+        add(&mut self.usage.validation_steps, candidates)?;
+        add(&mut self.usage.iterations, points)
     }
 
     pub(super) fn segment(&mut self) -> Result<(), FixedPrecoloredSplitRequirementError> {

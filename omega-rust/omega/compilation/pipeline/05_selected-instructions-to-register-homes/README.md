@@ -38,10 +38,13 @@ maximal block-local half-open fragments, and connect exact successor transfers;
 they do not replace these with convex whole-function intervals. Candidate views
 exclude reservation, liveness, and action storage/write conflicts. An exact fixed
 view need not belong to the generally allocatable set.
-Legality producer and replay each prepare their own general candidates once per
-visited class/block/point within one immutable function and environment. Values
-sharing that location reuse only those general facts; their fixed constraints,
-early-definition checks, error order, and exact output rows remain individual.
+Legality retains constant candidate spans within each source fragment. Only
+architectural unit fragment edges/actions and the value's fixed sites can change
+the ordinary domain. Derivation visits those boundaries; identities, fixed-use
+partitioning and home assignment consume spans without expanding per-phase rows.
+Logical point/candidate receipt counts still describe the full covered domain,
+with checked arithmetic. Values sharing a boundary reuse general candidates;
+fixed constraints and early-definition checks remain individual.
 These invocation-local tables are not retained analysis admission or a cache
 across changing selected programs.
 
@@ -65,7 +68,9 @@ reconstructs domains, conflicts, and placement separately. Exhaustion is typed
 pressure, not permission to manufacture a home or silently change policy.
 
 The producer prepares domain-pair interference, both directional early-clobber
-relations, and candidate view lookups once per allocation attempt. These private
+relations, and sparse hardware-view conflicts once per allocation attempt. It
+admits all candidates in the original domain/view order before placement; later
+choices only remove candidates from those admitted sets. These private
 facts avoid repeating source scans during greedy placement; they do not change
 candidate order, ranking, error order, or the independently reconstructed result.
 Each new assignment can only remove viable views from remaining domains.
@@ -126,8 +131,14 @@ restricted to the failing function and values interfering with the failed
 domain. A failure names the domain leader, but ties and edge transfers split
 that live range into disjoint member fragments sharing one home; pressure
 evidence is coalesced across those split points, so a victim overlapping any
-member fragment — or a member fragment itself — counts. It tries the failed
-original value first, then the original ordered interference fallback. A
+member fragment — or a member fragment itself — counts. The candidate's own
+component participates too: a retired reload can hold a shared home while its
+still-rewritable destination lives in another block. Placement and recovery use
+one tied/edge component partition. Component-wide interference determines
+eligibility; directly covered failed members determine priority. Recovery first
+tries admitted fixed-view splits in direct-coverage order, then ranks spill
+victims by direct coverage and actual live extent, preserving roster order for
+equal scores. Indirect peers remain eligible when direct candidates are exhausted. A
 tied-domain leader may not be spillable; every attempted
 candidate still passes ordinary admission and is removed from the roster before
 that attempt. This private heuristic does not change the permitted spill evidence
@@ -139,16 +150,20 @@ Same-block uses must follow the definition. An edge-copy snapshot can
 retain a semantic block-parameter identity without being a physical entry
 parameter. Actual block parameters require a separate complete incoming-edge
 join: every predecessor is a dedicated edge-transfer block whose authentic
-argument is stored immediately after its defining copy, before reaching the
+argument is stored immediately after its current definition (a copy or an
+already-admitted reload), before reaching the
 destination. That destination must dominate every reload, which retains the
 parameter's exact type and lineage. Entry reachability with the initialization
 block removed detects any path that could bypass the store.
 Original bindings and registers remain intact; the now-unused parameter no
-longer contributes a live edge tie. Entry parameters, unsupported incoming paths,
-uses reachable without initialization, terminal/edge uses, and
-block parameters in cyclic functions still reject. Only changed blocks' settlement indices
+longer contributes a live edge tie. Entry parameters store at their actual
+entry boundary; cyclic incoming paths must establish the same exact
+initialization. Body, terminator and outgoing-edge uses reload through the same
+storage operation. Unsupported incoming paths and uses reachable without
+initialization still reject. Only changed blocks' settlement indices
 move; edges and other blocks remain identical. Rewritten values and spill
-addresses never expand the candidate roster. Each cumulative rewrite gets fresh
+addresses never expand the candidate roster; admitted splits can contribute
+their surviving pinned segment. Each cumulative rewrite gets fresh
 liveness, ranges, legality, and homes, each checked by its owner as it is
 produced; the completed recovery is not replayed. The current allocation
 view remains the same downstream representation. The manifest records exact transformed

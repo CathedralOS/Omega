@@ -36,7 +36,7 @@ pub use register_homes::{
     RecoveryClassificationPlan, RecoveryClassificationPolicy, RecoveryFutureUse,
     RecoveryVictimRole, RegisterClassAvailability, RegisterHomeDecodeError, RegisterHomeIdentity,
     RegisterHomePlan, SpillChoice, SpillChoiceIdentity, SpillChoicePlan, SpillChoicePolicy,
-    VirtualEarlyClobberPointLegality, VirtualPointLegality, VirtualRegisterAllocationLegality,
+    VirtualEarlyClobberPointLegality, VirtualLegalitySpan, VirtualRegisterAllocationLegality,
     VirtualRegisterHome, allocation_legality, allocation_legality_function_digest,
     allocation_legality_identity_from_digests, allocator_availability,
     allocator_availability_identity, classification, codec, constraints,

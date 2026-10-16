@@ -24,7 +24,8 @@
 //!
 //! Instruction-result definitions must dominate every flexible use. Incoming parameters
 //! instead require a dedicated edge definition on every predecessor: the edge
-//! copy's own output register, or — on a case-dispatch continuation — the
+//! transfer's current output register (a copy or an already-admitted reload),
+//! or — on a case-dispatch continuation — the
 //! bridge's field observation behind the payload's own `Load32`/`Load64`.
 //! Each is stored immediately, before later transfers create more pressure.
 //! A later `Def` operand on the victim redefines the register, so the slot
@@ -2040,11 +2041,15 @@ pub(super) fn parameter_definitions(
             if argument_value != binding.semantic.argument {
                 return Err(RuntimeSpillError::UnsupportedValue);
             }
-            let (owner, copy) = physical_definition(function, argument)?;
+            // The transfer consumes this register's current value, not the
+            // opcode that first established it. A preceding spill can replace
+            // the bridge copy with a reload while preserving exact lineage and
+            // the edge binding. Store after that physical definition; requiring
+            // CopyI64 here made two individually admitted spills non-composable.
+            let (owner, definition) = physical_definition(function, argument)?;
             if owner != block_index
-                || copy.id != instruction
-                || copy.kind != SelectedInstructionKind::CopyI64
-                || !copy.operands.iter().any(|operand| {
+                || definition.id != instruction
+                || !definition.operands.iter().any(|operand| {
                     operand.virtual_register == argument
                         && operand.access == RegisterOperandAccess::Def
                 })

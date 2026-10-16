@@ -8,7 +8,7 @@ pub use allocator_availability::{
 pub mod allocation_legality;
 pub use allocation_legality::{
     AllocationLegalityIdentity, AllocationLegalityPlan, EntryFixedViewTransition,
-    FunctionAllocationLegality, VirtualEarlyClobberPointLegality, VirtualPointLegality,
+    FunctionAllocationLegality, VirtualEarlyClobberPointLegality, VirtualLegalitySpan,
     VirtualRegisterAllocationLegality, allocation_legality_function_digest,
     allocation_legality_identity_from_digests,
 };

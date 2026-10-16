@@ -30,30 +30,17 @@ pub(crate) fn compute_function(
         }
     }
     let affinities = PreparedAffinities::new(domains.len(), &domain_of, &ranges.copy_affinities);
-    let conflicts = PreparedConflicts::new(&domains, &domain_of, ranges, physical);
+    let conflicts = PreparedConflicts::new(function, &domains, &domain_of, ranges, physical)?;
     // Give neighbor and affinity queries direct membership instead of
     // searching every unrelated domain again.
     let mut active = vec![true; domains.len()];
     let mut homes = BTreeMap::<VirtualRegisterId, RegisterViewId>::new();
-    // Preserve the original first selection's domain/candidate validation order.
-    // Thereafter all views are known, and immutable pair constraints only remove
-    // candidates: an older assignment cannot make a rejected view viable again.
+    // Preparation admits candidates in domain/view order. Immutable constraints
+    // only remove candidates from these already-admitted domains.
     let mut viable = domains
         .iter()
-        .enumerate()
-        .map(|(domain_index, domain)| {
-            domain
-                .candidates
-                .iter()
-                .copied()
-                .map(|candidate| {
-                    conflicts
-                        .candidate_conflicts(function, domain_index, candidate, &[], &domains)
-                        .map(|_| candidate)
-                })
-                .collect::<Result<Vec<_>, _>>()
-        })
-        .collect::<Result<Vec<_>, _>>()?;
+        .map(|domain| domain.candidates.iter().copied().collect::<Vec<_>>())
+        .collect::<Vec<_>>();
     let mut degrees = (0..domains.len())
         .map(|domain_index| conflicts.get_constrained_neighbors(domain_index).len())
         .collect::<Vec<_>>();
@@ -66,15 +53,13 @@ pub(crate) fn compute_function(
         // candidates: aliases, liveness, and interference facts are untouched,
         // and domain selection order is unchanged.
         let view = preferred_view(
-            function,
             domain_index,
-            &domains,
             &viable,
             &active,
             &homes,
             &affinities,
             &conflicts,
-        )?
+        )
         .ok_or(RegisterHomeError::NoCompatibleHome {
             function,
             register: domains[domain_index].leader().0,
@@ -92,13 +77,7 @@ pub(crate) fn compute_function(
             let mut retained = 0;
             for position in 0..candidates.len() {
                 let candidate = candidates[position];
-                if !conflicts.candidate_conflicts(
-                    function,
-                    remaining,
-                    candidate,
-                    &[(domain_index, view)],
-                    &domains,
-                )? {
+                if !conflicts.conflicts_between(remaining, candidate, domain_index, view) {
                     candidates[retained] = candidate;
                     retained += 1;
                 }
@@ -112,7 +91,7 @@ pub(crate) fn compute_function(
         assignments: legality
             .virtual_registers
             .iter()
-            .filter(|register| !register.points.is_empty())
+            .filter(|register| !register.spans.is_empty())
             .map(|register| VirtualRegisterHome {
                 virtual_register: register.virtual_register,
                 class: register.class,
@@ -145,27 +124,17 @@ pub(crate) fn compute_function(
 /// stealing the fewest such edges wins third; the plain first candidate breaks
 /// any remaining tie.
 fn preferred_view(
-    function: usize,
     domain_index: usize,
-    domains: &[AllocationDomain<'_>],
     viable: &[Vec<RegisterViewId>],
     active: &[bool],
     homes: &BTreeMap<VirtualRegisterId, RegisterViewId>,
     affinities: &PreparedAffinities,
-    conflicts: &PreparedConflicts<'_>,
-) -> Result<Option<RegisterViewId>, RegisterHomeError> {
+    conflicts: &PreparedConflicts,
+) -> Option<RegisterViewId> {
     let candidates = viable[domain_index].as_slice();
     let mut keeping = Vec::with_capacity(candidates.len());
     for &view in candidates {
-        if !strands_neighbor(
-            function,
-            domain_index,
-            view,
-            domains,
-            viable,
-            active,
-            conflicts,
-        )? {
+        if !strands_neighbor(domain_index, view, viable, active, conflicts) {
             keeping.push(view);
         }
     }
@@ -200,16 +169,14 @@ fn preferred_view(
             }
         }
         let stolen = stolen_coalesces(
-            function,
             domain_index,
             view,
-            domains,
             viable,
             active,
             homes,
             affinities,
             conflicts,
-        )?;
+        );
         let rank = (guaranteed, votes, Reverse(stolen));
         if leading.is_none_or(|(best_guaranteed, best_votes, best_stolen, _)| {
             rank > (best_guaranteed, best_votes, best_stolen)
@@ -217,33 +184,25 @@ fn preferred_view(
             leading = Some((guaranteed, votes, Reverse(stolen), view));
         }
     }
-    Ok(leading
+    leading
         .map(|(_, _, _, view)| view)
-        .or_else(|| pool.first().copied()))
+        .or_else(|| pool.first().copied())
 }
 
 fn stolen_coalesces(
-    function: usize,
     domain_index: usize,
     view: RegisterViewId,
-    domains: &[AllocationDomain<'_>],
     viable: &[Vec<RegisterViewId>],
     active: &[bool],
     homes: &BTreeMap<VirtualRegisterId, RegisterViewId>,
     affinities: &PreparedAffinities,
-    conflicts: &PreparedConflicts<'_>,
-) -> Result<usize, RegisterHomeError> {
+    conflicts: &PreparedConflicts,
+) -> usize {
     let mut stolen = 0;
     for &neighbor in conflicts.get_constrained_neighbors(domain_index) {
         if !active[neighbor]
             || viable[neighbor].binary_search(&view).is_err()
-            || !conflicts.candidate_conflicts(
-                function,
-                neighbor,
-                view,
-                &[(domain_index, view)],
-                domains,
-            )?
+            || !conflicts.conflicts_between(neighbor, view, domain_index, view)
         {
             continue;
         }
@@ -253,7 +212,7 @@ fn stolen_coalesces(
             }
         }
     }
-    Ok(stolen)
+    stolen
 }
 
 /// One still-unassigned partner domain's coalescing outlook. `pending` counts
@@ -281,7 +240,7 @@ fn partner_outlooks(
     active: &[bool],
     homes: &BTreeMap<VirtualRegisterId, RegisterViewId>,
     affinities: &PreparedAffinities,
-    conflicts: &PreparedConflicts<'_>,
+    conflicts: &PreparedConflicts,
 ) -> BTreeMap<usize, PartnerOutlook> {
     let mut outlooks = BTreeMap::<usize, PartnerOutlook>::new();
     for affinity in affinities.get_domain_affinities(domain_index) {
@@ -321,36 +280,28 @@ fn partner_outlooks(
 /// feasible. A neighbor whose viable set is already empty is doomed either
 /// way and does not count against the view.
 fn strands_neighbor(
-    function: usize,
     domain_index: usize,
     view: RegisterViewId,
-    domains: &[AllocationDomain<'_>],
     viable: &[Vec<RegisterViewId>],
     active: &[bool],
-    conflicts: &PreparedConflicts<'_>,
-) -> Result<bool, RegisterHomeError> {
+    conflicts: &PreparedConflicts,
+) -> bool {
     for &neighbor in conflicts.get_constrained_neighbors(domain_index) {
         if !active[neighbor] || viable[neighbor].is_empty() {
             continue;
         }
         let mut retains = false;
         for &candidate in &viable[neighbor] {
-            if !conflicts.candidate_conflicts(
-                function,
-                neighbor,
-                candidate,
-                &[(domain_index, view)],
-                domains,
-            )? {
+            if !conflicts.conflicts_between(neighbor, candidate, domain_index, view) {
                 retains = true;
                 break;
             }
         }
         if !retains {
-            return Ok(true);
+            return true;
         }
     }
-    Ok(false)
+    false
 }
 
 /// The most-constrained-first order: fewest viable views, then most

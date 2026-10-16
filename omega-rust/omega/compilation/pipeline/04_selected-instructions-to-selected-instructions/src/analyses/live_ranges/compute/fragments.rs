@@ -32,63 +32,70 @@ pub(super) fn block_domain(
     })
 }
 
-/// Each selected register's live points, by block position in `liveness`,
-/// gathered in one pass over every instruction's live and access sets. A
-/// register live into or used by an instruction is live just before it; one
-/// live out of or defined by it is live just after. A register's range reads
-/// its own points from this rather than rescanning every instruction's sets.
-pub(super) fn register_points(
+/// Stream before/after membership directly into block-local ranges. Liveness
+/// owns instruction order, so a repeated point is a duplicate and an adjacent
+/// point extends the last fragment. There is no per-point tree to build, clone,
+/// and collapse, nor a register-by-block rescan to recover the same ordering.
+pub(super) fn register_fragments(
     function: usize,
     liveness: &selected_instructions::FunctionLiveness,
     registers: &BTreeSet<VirtualRegisterId>,
-) -> Result<
-    std::collections::BTreeMap<
-        VirtualRegisterId,
-        std::collections::BTreeMap<usize, BTreeSet<LiveRangePoint>>,
-    >,
-    LiveRangeError,
-> {
-    let mut points = std::collections::BTreeMap::<
-        VirtualRegisterId,
-        std::collections::BTreeMap<usize, BTreeSet<LiveRangePoint>>,
-    >::new();
-    for (block_index, block) in liveness.blocks.iter().enumerate() {
+) -> Result<std::collections::BTreeMap<VirtualRegisterId, Vec<LiveRangeFragment>>, LiveRangeError> {
+    let mut fragments = registers
+        .iter()
+        .map(|register| (*register, Vec::new()))
+        .collect::<std::collections::BTreeMap<_, _>>();
+    for block in &liveness.blocks {
         for instruction in &block.instructions {
-            let sides = [
+            for (live, accessed, point) in [
                 (
                     &instruction.virtual_live_in,
                     &instruction.virtual_uses,
-                    before_point
-                        as fn(usize, LivenessPosition) -> Result<LiveRangePoint, LiveRangeError>,
+                    before_point(function, instruction.position)?,
                 ),
                 (
                     &instruction.virtual_live_out,
                     &instruction.virtual_defs,
-                    after_point,
+                    after_point(function, instruction.position)?,
                 ),
-            ];
-            for (live, accessed, side_point) in sides {
-                let mut members = live
-                    .iter()
-                    .chain(accessed)
-                    .filter(|register| registers.contains(register))
-                    .peekable();
-                if members.peek().is_none() {
-                    continue;
-                }
-                let point = side_point(function, instruction.position)?;
-                for register in members {
-                    points
-                        .entry(*register)
-                        .or_default()
-                        .entry(block_index)
-                        .or_default()
-                        .insert(point);
+            ] {
+                for register in live.iter().chain(accessed) {
+                    if let Some(rows) = fragments.get_mut(register) {
+                        append_point(function, rows, block.block, point)?;
+                    }
                 }
             }
         }
     }
-    Ok(points)
+    Ok(fragments)
+}
+
+/// Append one point from an ordered block traversal, tolerating membership
+/// duplicates (a value can be both live and explicitly accessed).
+pub(super) fn append_point(
+    function: usize,
+    fragments: &mut Vec<LiveRangeFragment>,
+    block: SelectedBlockId,
+    point: LiveRangePoint,
+) -> Result<(), LiveRangeError> {
+    let end = point
+        .0
+        .checked_add(1)
+        .map(LiveRangePoint)
+        .ok_or(LiveRangeError::PointOverflow { function })?;
+    if let Some(last) = fragments.last_mut()
+        && last.block == block
+        && point <= last.end
+    {
+        last.end = last.end.max(end);
+    } else {
+        fragments.push(LiveRangeFragment {
+            block,
+            start: point,
+            end,
+        });
+    }
+    Ok(())
 }
 
 pub(super) fn fragments_from_points(
@@ -232,6 +239,37 @@ pub(super) fn after_point(
 #[cfg(test)]
 mod tests {
     use super::{LiveRangeFragment, LiveRangePoint, SelectedBlockId, overlapping_rows};
+
+    #[test]
+    fn ordered_membership_matches_point_set_fragments() {
+        // Exhaust every hole/adjacency pattern, repeated membership and block
+        // boundary; block identity must keep even adjacent ranges separate.
+        for membership in 0u32..1024 {
+            let points = (0..10)
+                .filter(|point| membership & (1 << point) != 0)
+                .map(LiveRangePoint)
+                .collect::<std::collections::BTreeSet<_>>();
+            let mut actual = Vec::new();
+            let mut expected = Vec::new();
+            for block in [SelectedBlockId(9), SelectedBlockId(2)] {
+                for point in &points {
+                    super::append_point(0, &mut actual, block, *point).unwrap();
+                    super::append_point(0, &mut actual, block, *point).unwrap();
+                }
+                expected.extend(super::fragments_from_points(block, points.clone()));
+            }
+            assert_eq!(actual, expected);
+        }
+        assert!(matches!(
+            super::append_point(
+                3,
+                &mut Vec::new(),
+                SelectedBlockId(0),
+                LiveRangePoint(u32::MAX)
+            ),
+            Err(super::LiveRangeError::PointOverflow { function: 3 })
+        ));
+    }
 
     /// The sweep returns exactly the pairs a test of every row pair returns,
     /// including empty and touching fragments and rows spanning many blocks.

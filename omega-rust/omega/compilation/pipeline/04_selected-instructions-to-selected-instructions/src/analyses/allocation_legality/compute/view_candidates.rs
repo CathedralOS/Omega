@@ -22,6 +22,7 @@ pub(super) struct CandidateViews<'a> {
     physical: &'a ValidatedPhysicalRegisterModel,
     reservations: &'a ValidatedRegisterReservationProfile,
     candidates: BTreeMap<(RegisterClassId, SelectedBlockId, LiveRangePoint), Vec<RegisterViewId>>,
+    boundaries: Vec<LiveRangePoint>,
 }
 
 impl<'a> CandidateViews<'a> {
@@ -30,12 +31,34 @@ impl<'a> CandidateViews<'a> {
         physical: &'a ValidatedPhysicalRegisterModel,
         reservations: &'a ValidatedRegisterReservationProfile,
     ) -> Self {
+        // Candidate availability can change only at a unit fragment edge or
+        // on either side of a one-phase architectural action. Points are
+        // function-global; unrelated block boundaries merely subdivide work.
+        let mut boundaries = Vec::new();
+        for unit in &function.architectural_units {
+            for fragment in &unit.fragments {
+                boundaries.extend([fragment.start, fragment.end]);
+            }
+            for action in &unit.actions {
+                boundaries.push(action.point);
+                if let Some(end) = action.point.0.checked_add(1) {
+                    boundaries.push(LiveRangePoint(end));
+                }
+            }
+        }
+        boundaries.sort_unstable();
+        boundaries.dedup();
         Self {
             function,
             physical,
             reservations,
             candidates: BTreeMap::new(),
+            boundaries,
         }
+    }
+
+    pub(super) fn boundaries(&self) -> &[LiveRangePoint] {
+        &self.boundaries
     }
 
     // The function caller validates one immutable availability input before

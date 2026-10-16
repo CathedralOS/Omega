@@ -37,7 +37,7 @@ pub(super) fn build_domains<'a>(
     }
     tied_components(function, legality, ranges)?
         .into_iter()
-        .filter(|members| members.iter().any(|member| !member.points.is_empty()))
+        .filter(|members| members.iter().any(|member| !member.spans.is_empty()))
         .map(|members| {
             // A failed component reports the edge transfer naming one of its
             // members. The search runs only on that error path: searching
@@ -78,7 +78,6 @@ fn tied_components<'a>(
         .enumerate()
         .map(|(position, register)| (register.virtual_register, position))
         .collect::<BTreeMap<_, _>>();
-    let mut parents = (0..legality.virtual_registers.len()).collect::<Vec<_>>();
     for tie in &ranges.tied_pairs {
         let (Some(&used), Some(&defined)) = (
             positions.get(&tie.use_virtual_register),
@@ -91,11 +90,6 @@ fn tied_components<'a>(
             || legality.virtual_registers[defined].class != tie.class
         {
             return Err(unsupported_tie(function, tie.instruction.0));
-        }
-        let used_root = component_root(&parents, used);
-        let defined_root = component_root(&parents, defined);
-        if used_root != defined_root {
-            parents[defined_root] = used_root;
         }
     }
     for transfer in &ranges.edge_transfers {
@@ -114,16 +108,12 @@ fn tied_components<'a>(
         {
             return Err(error());
         }
-        let argument_root = component_root(&parents, argument);
-        let parameter_root = component_root(&parents, parameter);
-        if argument_root != parameter_root {
-            parents[parameter_root] = argument_root;
-        }
     }
+    let components = crate::assignment::same_home::SameHomeComponents::from_ranges(ranges);
     let mut grouped = BTreeMap::<usize, Vec<_>>::new();
-    for (position, register) in legality.virtual_registers.iter().enumerate() {
+    for register in &legality.virtual_registers {
         grouped
-            .entry(component_root(&parents, position))
+            .entry(positions[&components.leader(register.virtual_register)])
             .or_default()
             .push(register);
     }
@@ -228,20 +218,14 @@ fn interval_bounds(
     register: &VirtualRegisterAllocationLegality,
 ) -> Result<(LiveRangePoint, LiveRangePoint), RegisterHomeError> {
     let first = register
-        .points
+        .spans
         .first()
         .ok_or(RegisterHomeError::NoLivePoints {
             function,
             register: register.virtual_register.0,
         })?;
-    let last = register.points.last().expect("nonempty points established");
-    let end = last.point.0.checked_add(1).map(LiveRangePoint).ok_or(
-        RegisterHomeError::IntervalOverflow {
-            function,
-            register: register.virtual_register.0,
-        },
-    )?;
-    Ok((first.point, end))
+    let last = register.spans.last().expect("nonempty spans established");
+    Ok((first.start, last.end))
 }
 
 fn common_candidates(
@@ -249,7 +233,7 @@ fn common_candidates(
     register: &VirtualRegisterAllocationLegality,
 ) -> Result<BTreeSet<RegisterViewId>, RegisterHomeError> {
     let first = register
-        .points
+        .spans
         .first()
         .ok_or(RegisterHomeError::NoLivePoints {
             function,
@@ -257,7 +241,7 @@ fn common_candidates(
         })?;
     let common = intersect_candidates(
         &first.candidates,
-        register.points[1..]
+        register.spans[1..]
             .iter()
             .map(|point| point.candidates.as_slice())
             .chain(
@@ -275,7 +259,7 @@ fn common_candidates(
         // Inspect every point independently: intersection stops at its first
         // empty result, and an impossible individual phase must still refuse.
         if register
-            .points
+            .spans
             .iter()
             .all(|point| !point.candidates.is_empty())
             && register
@@ -318,13 +302,6 @@ fn intersect_candidates<'a>(
         common.retain(|candidate| candidates.binary_search(candidate).is_ok());
     }
     common.into_iter().collect()
-}
-
-fn component_root(parents: &[usize], mut position: usize) -> usize {
-    while parents[position] != position {
-        position = parents[position];
-    }
-    position
 }
 
 fn ordered_pair(

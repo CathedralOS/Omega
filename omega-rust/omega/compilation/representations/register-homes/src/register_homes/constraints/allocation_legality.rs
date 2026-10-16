@@ -61,16 +61,18 @@ pub struct FunctionAllocationLegality {
 pub struct VirtualRegisterAllocationLegality {
     pub virtual_register: VirtualRegisterId,
     pub class: RegisterClassId,
-    pub points: Vec<VirtualPointLegality>,
+    pub spans: Vec<VirtualLegalitySpan>,
     pub early_clobber_points: Vec<VirtualEarlyClobberPointLegality>,
     pub entry_transitions: Vec<EntryFixedViewTransition>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct VirtualPointLegality {
+pub struct VirtualLegalitySpan {
     pub block: SelectedBlockId,
-    pub point: LiveRangePoint,
-    /// Canonical view-ID-sorted candidates legal at this exact phase.
+    pub start: LiveRangePoint,
+    pub end: LiveRangePoint,
+    /// Canonical view-ID-sorted candidates legal throughout [start, end).
+    /// Spans partition each source fragment without crossing its boundary.
     pub candidates: Vec<RegisterViewId>,
 }
 

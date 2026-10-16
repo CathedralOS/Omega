@@ -28,7 +28,7 @@ pub use constraints::{
     FixedPrecoloredSplitRequirementPlan, FixedPrecoloredSplitRequirementPlanIdentity,
     FixedPrecoloredSplitRequirementPolicy, FunctionAllocationLegality,
     FunctionFixedPrecoloredIntervals, FunctionFixedPrecoloredSplitRequirements,
-    RegisterClassAvailability, VirtualEarlyClobberPointLegality, VirtualPointLegality,
+    RegisterClassAvailability, VirtualEarlyClobberPointLegality, VirtualLegalitySpan,
     VirtualRegisterAllocationLegality, allocation_legality, allocation_legality_function_digest,
     allocation_legality_identity_from_digests, allocator_availability,
     allocator_availability_identity, fixed_precolored_interval_plan_identity,
