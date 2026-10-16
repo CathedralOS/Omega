@@ -511,19 +511,28 @@ impl StructuralFieldType {
         &self,
         declarations: impl Iterator<Item = &'a StructuralTypeDeclaration>,
     ) -> Option<&'a StructuralTypeDeclaration> {
-        let (shape, restriction) = match self {
-            Self::BoundedInteger(_) | Self::RefinedScalar(_) => (
-                StructuralTypeShape::PrimitiveScalar(self.scalar_type()?),
-                Some(self),
-            ),
-            Self::ByteSequence(carrier) => (StructuralTypeShape::ByteSequence(*carrier), None),
-            _ => (self.canonical_leaf_shape()?, None),
-        };
-        let mut matching = declarations.filter(|declaration| {
-            declaration.shape == shape && declaration.scalar_restriction.as_ref() == restriction
-        });
+        let mut matching = declarations.filter(|declaration| self.declares_leaf(declaration));
         let declaration = matching.next()?;
         matching.next().is_none().then_some(declaration)
+    }
+
+    /// Whether one retained declaration is exactly this complete leaf contract.
+    /// A shape search cannot choose between equal carriers (a `dyn` selector is
+    /// plain u64 storage too), so a caller that already holds the checked
+    /// identity resolves that declaration and confirms it here instead.
+    pub fn declares_leaf(&self, declaration: &StructuralTypeDeclaration) -> bool {
+        let Some((shape, restriction)) = (match self {
+            Self::BoundedInteger(_) | Self::RefinedScalar(_) => self
+                .scalar_type()
+                .map(|scalar| (StructuralTypeShape::PrimitiveScalar(scalar), Some(self))),
+            Self::ByteSequence(carrier) => {
+                Some((StructuralTypeShape::ByteSequence(*carrier), None))
+            }
+            _ => self.canonical_leaf_shape().map(|shape| (shape, None)),
+        }) else {
+            return false;
+        };
+        declaration.shape == shape && declaration.scalar_restriction.as_ref() == restriction
     }
 
     /// The carrier a shared observation of the original field presents.

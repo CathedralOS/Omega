@@ -777,6 +777,8 @@ pass/traits/runtime_dyn_local_selection_exit built 983ms exit:70 interpreter-exi
 pass/traits/runtime_dyn_mixed_scalar_borrow_boolean_exit built 1006ms exit:70 interpreter-exit:70 interpreter:agrees @2424b17e715c
 pass/traits/runtime_dyn_rebound_selector_forwarded_exit built 982ms exit:70 interpreter-exit:70 interpreter:agrees @2424b17e715c
 pass/traits/runtime_dyn_requirement_contract_exit built 997ms exit:70 interpreter-exit:70 interpreter:agrees @2424b17e715c
+pass/traits/runtime_dyn_selector_beside_scalar_field_variants_exit built 5295ms exit:70 interpreter-exit:70 interpreter:agrees @2ff7be544fd3
+pass/traits/runtime_dyn_selector_beside_u64_field_store_exit built 5192ms exit:70 interpreter-exit:70 interpreter:agrees @2ff7be544fd3
 pass/traits/runtime_dyn_selector_record_field_exit built 976ms exit:70 interpreter-exit:70 interpreter:agrees @2424b17e715c
 pass/traits/runtime_dyn_two_impl_dispatch_exit built 1046ms exit:70 interpreter-exit:70 interpreter:agrees @2424b17e715c
 pass/traits/runtime_selected_case_reference_exit built 4218ms exit:0 interpreter-exit:0 interpreter:agrees @dd6871ed0476

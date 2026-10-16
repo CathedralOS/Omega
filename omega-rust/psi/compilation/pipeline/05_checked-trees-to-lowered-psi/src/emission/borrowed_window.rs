@@ -1130,24 +1130,41 @@ fn resolve_storage_place(
     let (field, hole_type) = match leaf {
         WindowLeaf::Field(field) => {
             let Some(hole_type) = field.field_type.as_structural().or_else(|| {
-                if let Some(carrier) = field.field_type.byte_sequence_carrier() {
-                    // The checked destination already names its exact leaf
-                    // type. Equal backing geometry elsewhere in the roster
-                    // cannot select or make that declaration ambiguous.
-                    let declaration =
-                        terminal_psi::find_structural_type(structural_types, checked_leaf_type)?;
-                    let terminal_psi::StructuralTypeShape::ByteSequence(declared) =
-                        declaration.shape
-                    else {
-                        return None;
-                    };
-                    return terminal_semantics::byte_carrier_geometry_matches(carrier, declared)
-                        .then_some(checked_leaf_type);
-                }
-                field
-                    .field_type
-                    .leaf_declaration(structural_types.iter())
-                    .map(|row| row.id)
+                // The checked destination already names its exact leaf type.
+                // Equal carriers elsewhere in the roster (byte backing of the
+                // same geometry, or a `dyn` selector that is also u64 storage)
+                // cannot select that declaration or make it ambiguous, so
+                // confirm the named declaration instead of searching by shape.
+                let declaration =
+                    terminal_psi::find_structural_type(structural_types, checked_leaf_type)?;
+                let presents = match field.field_type.byte_sequence_carrier() {
+                    Some(carrier) => match declaration.shape {
+                        terminal_psi::StructuralTypeShape::ByteSequence(declared) => {
+                            terminal_semantics::byte_carrier_geometry_matches(carrier, declared)
+                        }
+                        _ => false,
+                    },
+                    // A restricted field keeps its `where` bound or refinement
+                    // on the owning field declaration, which the capture
+                    // retains; the checked destination names the carrier the
+                    // store writes, never a standalone restricted leaf.
+                    None => {
+                        field.field_type.declares_leaf(declaration)
+                            || (declaration.scalar_restriction.is_none()
+                                && matches!(
+                                    field.field_type,
+                                    terminal_psi::StructuralFieldType::BoundedInteger(_)
+                                        | terminal_psi::StructuralFieldType::RefinedScalar(_)
+                                )
+                                && field.field_type.scalar_type().is_some_and(|scalar| {
+                                    declaration.shape
+                                        == terminal_psi::StructuralTypeShape::PrimitiveScalar(
+                                            scalar,
+                                        )
+                                }))
+                    }
+                };
+                presents.then_some(checked_leaf_type)
             }) else {
                 return Err(unpinned(
                     &spelling,
