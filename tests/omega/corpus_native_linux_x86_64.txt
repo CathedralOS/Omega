@@ -2326,6 +2326,7 @@ pass/proofs/lemma_requires_citation checked 17671ms @6c49683ce714
 pass/proofs/machine_parameterized_data_compile checked 3347ms @6c49683ce714
 pass/proofs/mathematical_machine_result_carrier built 18088ms exit:0 @6c49683ce714
 pass/proofs/mathematical_predicate_contract_import_exit built 18214ms exit:0 @6c49683ce714
+pass/proofs/mutable_fixed_array_ensures_exact_product built 5551ms exit:0 @abbaf3aaa059+wt
 pass/proofs/named_witness_static_trait_plural_compile checked 3605ms @6c49683ce714
 pass/proofs/nat_exact_subtraction_compile checked 3456ms @6c49683ce714
 pass/proofs/nat_metric_triangle_compile checked 3781ms @6c49683ce714

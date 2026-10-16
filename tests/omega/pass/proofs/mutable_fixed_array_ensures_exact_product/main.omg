@@ -1,0 +1,35 @@
+// A checked store through a mutable fixed array cites element equalities.
+// The caller forms an Exact product from those elements.
+machine store(cells: &mut [i64; 2])
+ensures cells[0] == 6 && cells[1] == 4
+{
+    cells[0] = 6;
+    cells[1] = 4;
+}
+
+machine store_at(cells: &mut [i64; 1], index: i32, value: i64)
+requires index == 0
+requires value == 3
+ensures cells[index] == 3
+{
+    cells[index] = value;
+}
+
+data Cells {
+    pair: [i64; 2];
+    one: [i64; 1];
+}
+
+machine main() crashes Trap {
+    let mut cells: Cells;
+    store(&mut cells.pair);
+    store_at(&mut cells.one, 0, 3);
+    let product: i64 = cells.pair[0] * cells.pair[1];
+    let scaled: i64 = cells.one[0] * 2;
+    transition product == 24 && scaled == 6 {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

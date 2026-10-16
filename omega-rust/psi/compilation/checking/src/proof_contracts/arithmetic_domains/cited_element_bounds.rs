@@ -7,7 +7,10 @@
 //! builtin comparison over an element `cells[index]` of a collection parameter.
 //! The selector substitutes through the shared ordered-value algebra; copied
 //! immutable values survive unknown writes, and other actuals require the
-//! complete call frame to preserve their observation. Literal indices are not
+//! complete call frame to preserve their observation. A mutable reference
+//! parameter is the post-state place of its argument, so an element comparison
+//! substitutes that referent; a mutable scalar formal is still not the
+//! caller's pre-call value. Literal indices are not
 //! a separate admission path. Static coordinate labels supply interval and
 //! invalidation metadata beside the symbol-owned ordered relation.
 //! Builtin windows use the shared canonical storage projection: the second
@@ -200,8 +203,17 @@ impl Substitution<'_> {
         }
         let position =
             typed_trees::signature::state_parameter_position(self.parameters, path.symbol)?;
-        // A formal the callee may write through is not a stable subject.
-        if self.parameters[position].is_mutable {
+        let parameter = &self.parameters[position];
+        // A mutable scalar formal's post-state is not the caller's argument
+        // value. A mutable reference formal is that argument's place, so an
+        // element fact about it substitutes through.
+        let reference = matches!(
+            self.program
+                .type_reference_table
+                .type_reference(parameter.type_reference),
+            typed_trees::types::TypeReferenceNode::Reference { .. }
+        );
+        if parameter.is_mutable && !reference {
             return None;
         }
         self.arguments.get(position).copied()

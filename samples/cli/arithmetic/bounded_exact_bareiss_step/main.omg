@@ -1,0 +1,65 @@
+// Exact Bareiss update after a mutable array store cites its ensures.
+//
+// metabolic_flux_analysis writes minors through `&mut [i64 in Wrapping; N]`
+// and divides only after a hand-written remainder test. This sample stores
+// each Exact factor through one mutable fixed-array parameter. Literal
+// indices cite `cells[i] == n`. A second store cites `cells[index]` for a
+// parameter index. The caller multiplies and divides those elements.
+//
+// (6 * 4 - 2 * 3) / 3 = 6.
+//
+// Expected exit: 0
+// Expected output contains: exact=6
+
+use omega_language_std::console;
+
+data Main {
+    cells: [i64; 5];
+    extra: [i64; 1];
+}
+
+machine store(cells: &mut [i64; 5])
+ensures cells[0] == 6 && cells[1] == 4 && cells[2] == 2 && cells[3] == 3 && cells[4] == 3
+{
+    cells[0] = 6;
+    cells[1] = 4;
+    cells[2] = 2;
+    cells[3] = 3;
+    cells[4] = 3;
+}
+
+machine store_at(cells: &mut [i64; 1], index: i32, value: i64)
+requires index == 0
+requires value >= 1 && value <= 12
+ensures cells[index] >= 1 && cells[index] <= 12
+{
+    cells[index] = value;
+}
+
+machine Main::main(main: &mut Main) reaches Console crashes Trap {
+    store(&mut main.cells);
+    store_at(&mut main.extra, 0, 6);
+    transition { _ -> reduce(main) }
+    state reduce(main: &mut Main) {
+        let diagonal: i64 = main.cells[0];
+        let value: i64 = main.cells[1];
+        let left: i64 = main.cells[2];
+        let above: i64 = main.cells[3];
+        let previous: i64 = main.cells[4];
+        let product: i64 = diagonal * value - left * above;
+        let reduced: i64 = product / previous;
+        let echoed: i64 = main.extra[0] * 2;
+        transition reduced == 6 && echoed == 12 {
+            true -> report()
+            _ -> bad()
+        }
+    }
+    state report() {
+        Console::write_line("exact=6");
+        Console::exit_process(0);
+    }
+    state bad() {
+        Console::write_line("exact=miss");
+        Console::exit_process(2);
+    }
+}
