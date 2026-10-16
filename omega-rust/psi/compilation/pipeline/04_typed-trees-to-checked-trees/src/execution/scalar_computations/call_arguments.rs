@@ -73,17 +73,15 @@ impl Builder<'_, '_> {
                 )
             })
         {
-            if arguments.len() != operation.input_type_names().len() {
+            if arguments.len() != operation.input_carriers().len() {
                 return;
             }
-            for (ordinal, (argument, carrier)) in arguments
-                .iter()
-                .zip(operation.input_type_names())
-                .enumerate()
+            for (ordinal, (argument, carrier)) in
+                arguments.iter().zip(operation.input_carriers()).enumerate()
             {
                 let (Ok(argument_ordinal), Some(primitive_type)) = (
                     u32::try_from(ordinal),
-                    typed_trees::types::PrimitiveType::from_name(carrier),
+                    typed_trees::types::PrimitiveType::from_name(carrier.name()),
                 ) else {
                     return;
                 };

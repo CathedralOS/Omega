@@ -89,6 +89,7 @@ pub(crate) fn encode(
     let (base, register) = match operation {
         RegisterOperation::SystemRead(register) => (0xd520_0000, register),
         RegisterOperation::SystemWrite(register) => (0xd500_0000, register),
+        _ => return Err(Aarch64SelectedFormEncodingError::AlternativeMismatch),
     };
     let selector: u16 = match register {
         SystemRegister::SctlrEl1 => 0xc080,

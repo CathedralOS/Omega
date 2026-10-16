@@ -45,7 +45,6 @@ pub(super) fn admit_calls<'a>(
                 // An atomic event or port write names no callee.
                 | CheckedUnitEffectOperationPlan::AtomicFence { .. }
                 | CheckedUnitEffectOperationPlan::AtomicAccess(_)
-                | CheckedUnitEffectOperationPlan::PortWrite { .. }
                 | CheckedUnitEffectOperationPlan::RegisterAccess { .. }
                 // The paired call carries the callee dependency; cleanup only
                 // disposes its discarded result.

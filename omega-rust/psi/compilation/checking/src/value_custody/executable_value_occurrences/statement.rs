@@ -48,19 +48,15 @@ impl ValueOccurrenceVisitor<'_, '_> {
                 );
             }
             StatementNode::Call(call) => {
-                let expected_primitives = if self
+                let register_operation = self
                     .program
                     .symbols
-                    .builtin_function_symbol(symbols::BuiltinFunction::AsmPortOut)
-                    == Some(call.target_symbol)
-                {
-                    [
-                        Some(typed_trees::types::PrimitiveType::U16),
-                        Some(typed_trees::types::PrimitiveType::U8),
-                    ]
-                } else {
-                    [None, None]
-                };
+                    .builtin_function_for_symbol(call.target_symbol)
+                    .and_then(|builtin| {
+                        language_core::inline_assembly::AsmRegisterOperation::from_intrinsic_name(
+                            builtin.name(),
+                        )
+                    });
                 for (argument_index, argument) in self
                     .program
                     .statement_table
@@ -77,7 +73,11 @@ impl ValueOccurrenceVisitor<'_, '_> {
                             statement_index,
                             role: CheckedValueStatementRole::CallArgument,
                         },
-                        expected_primitives.get(argument_index).copied().flatten(),
+                        register_operation
+                            .and_then(|operation| operation.input_carriers().get(argument_index))
+                            .and_then(|carrier| {
+                                typed_trees::types::PrimitiveType::from_name(carrier.name())
+                            }),
                     );
                 }
             }

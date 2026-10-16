@@ -116,8 +116,8 @@ macro_rules! machine_semantic_kinds {
 
         impl MachineSemanticKind {
             #[allow(unused_assignments)]
-            const FIXED: [Self; 127] = {
-                let mut fixed = [Self::Crash; 127];
+            const FIXED: [Self; 131] = {
+                let mut fixed = [Self::Crash; 131];
                 let mut index = 0usize;
                 $( machine_semantic_kinds!(@entry (fixed, index) $kind $variant $(($payload))?); )*
                 fixed
@@ -233,6 +233,11 @@ machine_semantic_kinds! {
     { fixed PortWrite },
     { fixed SystemRegisterRead },
     { fixed SystemRegisterWrite },
+    { fixed PortRegisterRead },
+    { fixed PortRegisterWrite },
+    { fixed ModelSpecificRead },
+    { fixed ModelSpecificWrite },
+
     { fixed AtomicFence },
     {
         /// One `Trapping` primitive at one carrier: the exact result, or an
@@ -312,6 +317,11 @@ pub enum MachineAlternativeFamily {
     PortWrite,
     SystemRegisterRead,
     SystemRegisterWrite,
+    PortRegisterRead,
+    PortRegisterWrite,
+    ModelSpecificRead,
+    ModelSpecificWrite,
+
     AtomicFence,
     AtomicAccess(AtomicForm),
     PlacedScalarAccess(PlacedScalarForm),
@@ -413,6 +423,11 @@ impl From<MachineSemanticKind> for MachineAlternativeFamily {
         match value {
             MachineSemanticKind::SystemRegisterRead => Self::SystemRegisterRead,
             MachineSemanticKind::SystemRegisterWrite => Self::SystemRegisterWrite,
+            MachineSemanticKind::PortRegisterRead => Self::PortRegisterRead,
+            MachineSemanticKind::PortRegisterWrite => Self::PortRegisterWrite,
+            MachineSemanticKind::ModelSpecificRead => Self::ModelSpecificRead,
+            MachineSemanticKind::ModelSpecificWrite => Self::ModelSpecificWrite,
+
             MachineSemanticKind::CopyBytes => Self::CopyBytes,
             MachineSemanticKind::BitwiseAndI64 => Self::BitwiseAndI64,
             MachineSemanticKind::BitwiseXorI64 => Self::BitwiseXorI64,

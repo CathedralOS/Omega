@@ -1,4 +1,4 @@
-//! Store emission: port writes and the one store lowering.
+//! Store emission over checked places and evaluated values.
 //!
 //! `OperationFrame::store` lowers every checked `CheckedStorePlan`. The
 //! plan's root resolves once in this frame — an authored parameter through
@@ -36,49 +36,15 @@ use crate::emission::indexed_write::IndexedWriteTarget;
 use crate::expression_preparation::bindings::ScalarBindings;
 use crate::expression_preparation::bindings::structural_paths::lower_structural_path;
 use crate::unit::{
-    CheckedScalarExpressionRole, LoweringError, OperationKind, PlaceId, ServiceReachSummary,
-    StructuralAccess, StructuralParameterDeclaration, StructuralTypeId, ValueDeclaration,
-    allocate_dense, lookup_service_id, terminal_scalar_type, unsupported,
+    CheckedScalarExpressionRole, LoweringError, OperationKind, PlaceId, StructuralAccess,
+    StructuralParameterDeclaration, StructuralTypeId, ValueDeclaration, allocate_dense,
+    terminal_scalar_type, unsupported,
 };
 use checked_trees::{
     CheckedScalarStoreValue, CheckedStoreLeaf, CheckedStorePlan, CheckedStoreValue,
 };
 
 impl OperationFrame<'_, '_> {
-    pub(super) fn port_write(
-        &mut self,
-        service_reach: &ServiceReachSummary,
-        port: u16,
-        value: u8,
-    ) -> Result<(), LoweringError> {
-        let checked = self.checked;
-        let rows = &checked.facts.service_reaches.rows;
-        let [port_service] = rows.services(service_reach.direct) else {
-            return unsupported(
-                "port output does not carry the unique exact checked PortIo service",
-            );
-        };
-        if !rows
-            .services(service_reach.transitive)
-            .contains(port_service)
-        {
-            return unsupported(
-                "port output does not carry the unique exact checked PortIo service",
-            );
-        }
-        // `CheckedUnitEffectOperationPlan::PortWrite` is minted only for the
-        // exact checked asm-port-out builtin. Its singleton direct row is
-        // therefore the symbol-backed PortIo authority; no spelling lookup is
-        // repeated here.
-        let service = lookup_service_id(self.service_ids, *port_service)?;
-        self.push_unit(OperationKind::PortWrite {
-            service,
-            port,
-            value,
-        });
-        Ok(())
-    }
-
     /// Lower one store. Its leaf representation decides the Terminal
     /// operation; see the module documentation.
     pub(super) fn store(

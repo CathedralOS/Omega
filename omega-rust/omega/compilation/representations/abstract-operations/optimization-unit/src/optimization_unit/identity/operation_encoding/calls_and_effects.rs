@@ -131,7 +131,7 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             bytes.id(*psi_operation);
             bytes.id(*service);
             bytes.u16(event.operation().catalog_tag());
-            encode_ids(bytes, event.inputs());
+            encode_ids(bytes, &event.inputs().copied().collect::<Vec<_>>());
             bytes.u8(u8::from(result.is_some()));
             if let Some(result) = result {
                 encode_abstract_result(bytes, *result);

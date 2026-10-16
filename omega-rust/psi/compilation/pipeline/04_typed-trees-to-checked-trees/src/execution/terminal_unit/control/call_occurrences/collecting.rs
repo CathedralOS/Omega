@@ -502,16 +502,16 @@ pub(super) fn collect_argument_calls(
     // roots as authored signatures. Their operands can contain real calls;
     // a physical instruction does not make those evaluations disappear.
     let (scalar_arguments, structural_arguments) = if let Some(operation) = register_operation {
-        if arguments.len() != operation.input_type_names().len() {
+        if arguments.len() != operation.input_carriers().len() {
             return None;
         }
         let scalar = arguments
             .iter()
-            .zip(operation.input_type_names())
+            .zip(operation.input_carriers())
             .map(|(argument, name)| {
                 Some((
                     *argument,
-                    typed_trees::types::PrimitiveType::from_name(name)?,
+                    typed_trees::types::PrimitiveType::from_name(name.name())?,
                 ))
             })
             .collect::<Option<Vec<_>>>()?;

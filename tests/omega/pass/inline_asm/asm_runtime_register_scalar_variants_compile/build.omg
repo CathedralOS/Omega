@@ -1,0 +1,5 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "asm_runtime_register_scalar_variants_compile");
+    builder.freestanding = true;
+    Build::bind(builder, linux_x86_64::ProgramEntry, Main::main);
+}

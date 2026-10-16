@@ -717,7 +717,6 @@ impl<'facts> CallTransfers<'facts> {
             CheckedUnitEffectOperationPlan::AtomicFence { argument, .. } => self.argument(argument),
             CheckedUnitEffectOperationPlan::ReleaseReference { .. }
             | CheckedUnitEffectOperationPlan::ContinuationCleanup { .. }
-            | CheckedUnitEffectOperationPlan::PortWrite { .. }
             | CheckedUnitEffectOperationPlan::Complete { .. } => 0,
         }
     }

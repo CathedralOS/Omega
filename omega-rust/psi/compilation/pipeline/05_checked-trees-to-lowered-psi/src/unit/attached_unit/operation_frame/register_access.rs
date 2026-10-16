@@ -21,14 +21,14 @@ impl OperationFrame<'_, '_> {
         service_reach: &ServiceReachSummary,
     ) -> Result<(), LoweringError> {
         // The resolved builtin minted this plan with its canonical singleton
-        // MachineControl reach. Keep that exact symbol rather than resolving
+        // builtin service reach. Keep that exact symbol rather than resolving
         // a service spelling again during emission.
         let rows = &self.checked.facts.service_reaches.rows;
         let [service] = rows.services(service_reach.direct) else {
-            return unsupported("register access lost its exact checked MachineControl reach");
+            return unsupported("register access lost its exact checked builtin service reach");
         };
         if !rows.services(service_reach.transitive).contains(service) {
-            return unsupported("register access lost its transitive MachineControl reach");
+            return unsupported("register access lost its transitive builtin service reach");
         }
         let service = lookup_service_id(self.service_ids, *service)?;
         let mut inputs = Vec::with_capacity(arguments.len());
@@ -67,10 +67,32 @@ impl OperationFrame<'_, '_> {
                     value: *value,
                 }
             }
+            (AsmRegisterOperation::PortRead, [port]) => {
+                terminal_psi::RegisterAccessEvent::PortRead { port: *port }
+            }
+            (AsmRegisterOperation::PortWrite, [port, value]) => {
+                terminal_psi::RegisterAccessEvent::PortWrite {
+                    port: *port,
+                    value: *value,
+                }
+            }
+            (AsmRegisterOperation::ModelSpecificRead, [index]) => {
+                terminal_psi::RegisterAccessEvent::ModelSpecificRead { index: *index }
+            }
+            (AsmRegisterOperation::ModelSpecificWrite, [index, value]) => {
+                terminal_psi::RegisterAccessEvent::ModelSpecificWrite {
+                    index: *index,
+                    value: *value,
+                }
+            }
             _ => return unsupported("register access disagrees with its evaluated operands"),
         };
         if operation.produces_value() != result.is_some()
-            || result.is_some_and(|result| result.primitive_type != PrimitiveType::U64)
+            || result.is_some_and(|result| {
+                operation.result_carrier().is_none_or(|carrier| {
+                    PrimitiveType::from_name(carrier.name()) != Some(result.primitive_type)
+                })
+            })
         {
             return unsupported("register result binding disagrees with its scalar event");
         }
@@ -82,7 +104,19 @@ impl OperationFrame<'_, '_> {
         let value = ValueDeclaration {
             qualifications: Default::default(),
             id: crate::unit::value_id(allocate_dense(self.next_value)?),
-            scalar_type: terminal_scalar_type(PrimitiveType::U64)?,
+            scalar_type: terminal_scalar_type(
+                PrimitiveType::from_name(
+                    operation
+                        .result_carrier()
+                        .ok_or(LoweringError::Unsupported(
+                            "register result has no scalar carrier",
+                        ))?
+                        .name(),
+                )
+                .ok_or(LoweringError::Unsupported(
+                    "unknown register scalar carrier",
+                ))?,
+            )?,
         };
         let id = self.operations.allocate();
         self.operations.push(Operation {

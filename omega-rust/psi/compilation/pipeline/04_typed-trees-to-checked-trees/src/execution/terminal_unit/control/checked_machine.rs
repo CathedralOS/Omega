@@ -275,8 +275,7 @@ pub(crate) fn build_checked_machine_residual_parts(
                 .source_local_declaration_ordinal()
                 .into_iter()
                 .collect(),
-            CheckedUnitEffectOperationPlan::PortWrite { .. }
-            | CheckedUnitEffectOperationPlan::RegisterAccess { .. }
+            CheckedUnitEffectOperationPlan::RegisterAccess { .. }
             | CheckedUnitEffectOperationPlan::EstablishLocal(
                 checked_trees::CheckedUnitLocalBindingPlan::ScalarArray { .. },
             )

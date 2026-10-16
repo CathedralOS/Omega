@@ -301,7 +301,7 @@ impl LegalizedScalarInstruction {
             LegalizedScalarInstructionKind::PortWrite { .. }
             | LegalizedScalarInstructionKind::AtomicFence { .. } => {}
             LegalizedScalarInstructionKind::RegisterAccess { event, .. } => {
-                event.inputs().iter().copied().for_each(visit);
+                event.inputs().copied().for_each(visit);
             }
             LegalizedScalarInstructionKind::AtomicAccess { event, .. } => {
                 event.operands().into_iter().for_each(visit);

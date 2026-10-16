@@ -1,0 +1,5 @@
+use omega::language::core::assembly;
+data Main { port: u16; byte: u8; }
+machine Main::main(main: &mut Main) reaches PortIo {
+    asm where clobbers rax, rdx, r10, r15 { in main.byte, main.port; }
+}

@@ -71,6 +71,10 @@ impl CompilerIntrinsicExecutionIdentity {
         use symbols::BuiltinFunction as B;
         use terminal_psi::{RegisterOperation as O, SystemRegister as R};
         let function = match operation {
+            O::PortRead => B::AsmPortIn,
+            O::PortWrite => B::AsmPortOut,
+            O::ModelSpecificRead => B::AsmReadMsr,
+            O::ModelSpecificWrite => B::AsmWriteMsr,
             O::SystemRead(register) => match register {
                 R::SctlrEl1 => B::AsmReadSctlrEl1,
                 R::TcrEl1 => B::AsmReadTcrEl1,

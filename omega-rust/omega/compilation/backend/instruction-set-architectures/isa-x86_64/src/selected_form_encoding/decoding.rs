@@ -2053,8 +2053,8 @@ pub(crate) fn footprint(
         return super::atomic::footprint(form, operands);
     }
     let (reads, writes, writes_rflags) = match kind {
-        SelectedInstructionKind::RegisterAccess { .. } => {
-            unreachable!("x86 request validation rejects AArch64 system registers")
+        SelectedInstructionKind::RegisterAccess { operation } => {
+            return super::register_access::footprint(operation, operands);
         }
         SelectedInstructionKind::PlacedScalarAccess { form, .. } => {
             if form.write {

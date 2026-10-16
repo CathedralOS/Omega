@@ -559,6 +559,26 @@ pub(super) fn decode_register_access(reader: &mut Reader<'_>) -> Result<Operatio
                 value: reader.id("ValueId")?,
             }
         }
+        terminal_psi::RegisterOperation::PortRead => terminal_psi::RegisterAccessEvent::PortRead {
+            port: reader.id("ValueId")?,
+        },
+        terminal_psi::RegisterOperation::PortWrite => {
+            terminal_psi::RegisterAccessEvent::PortWrite {
+                port: reader.id("ValueId")?,
+                value: reader.id("ValueId")?,
+            }
+        }
+        terminal_psi::RegisterOperation::ModelSpecificRead => {
+            terminal_psi::RegisterAccessEvent::ModelSpecificRead {
+                index: reader.id("ValueId")?,
+            }
+        }
+        terminal_psi::RegisterOperation::ModelSpecificWrite => {
+            terminal_psi::RegisterAccessEvent::ModelSpecificWrite {
+                index: reader.id("ValueId")?,
+                value: reader.id("ValueId")?,
+            }
+        }
     };
     Ok(OperationKind::RegisterAccess { service, event })
 }

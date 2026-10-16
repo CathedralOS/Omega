@@ -206,8 +206,7 @@ impl OperationFrame<'_, '_> {
     pub(super) fn lowers(operation: &CheckedUnitEffectOperationPlan) -> bool {
         matches!(
             operation,
-            CheckedUnitEffectOperationPlan::PortWrite { .. }
-                | CheckedUnitEffectOperationPlan::RegisterAccess { .. }
+            CheckedUnitEffectOperationPlan::RegisterAccess { .. }
                 | CheckedUnitEffectOperationPlan::EstablishLocal(
                     checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { .. }
                 )
@@ -265,12 +264,6 @@ impl OperationFrame<'_, '_> {
                 self.private_places,
                 self.operations,
             ),
-            CheckedUnitEffectOperationPlan::PortWrite {
-                service_reach,
-                port,
-                value,
-                ..
-            } => self.port_write(service_reach, *port, *value),
             CheckedUnitEffectOperationPlan::RegisterAccess {
                 coordinate,
                 operation,

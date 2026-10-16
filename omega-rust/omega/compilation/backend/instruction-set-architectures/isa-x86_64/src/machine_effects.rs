@@ -61,6 +61,13 @@ pub fn x86_64_machine_effect_catalog(
             .declaration_keys()
             .into_iter()
             .map(|(semantic, constraint)| {
+                if let Some(operation) =
+                    crate::selected_form_encoding::register_access::operation(semantic)
+                {
+                    return Ok(crate::selected_form_encoding::register_access::declaration(
+                        operation, constraint,
+                    ));
+                }
                 if semantic == MachineSemanticKind::PortWrite {
                     return Ok(crate::selected_form_encoding::port_write::declaration(
                         constraint,
@@ -260,6 +267,10 @@ fn selected_keys(
         port_write: Some(crate::X86_64_PORT_WRITE),
         system_register_read: None,
         system_register_write: None,
+        port_register_read: Some(crate::X86_64_PORT_REGISTER_READ),
+        port_register_write: Some(crate::X86_64_PORT_REGISTER_WRITE),
+        model_specific_read: Some(crate::X86_64_MODEL_SPECIFIC_READ),
+        model_specific_write: Some(crate::X86_64_MODEL_SPECIFIC_WRITE),
         atomic_fence: Some(crate::X86_64_ATOMIC_FENCE),
         // LOCK is architectural on every x86-64 target; no feature custody
         // gates the family the way AArch64's LSE does.
@@ -624,6 +635,15 @@ fn encoded_effects(semantic: MachineSemanticKind, variant: u32) -> MachineEncode
             .id
     };
     let (reads, writes) = match semantic {
+        MachineSemanticKind::PortRegisterRead
+        | MachineSemanticKind::PortRegisterWrite
+        | MachineSemanticKind::ModelSpecificRead
+        | MachineSemanticKind::ModelSpecificWrite => {
+            return crate::selected_form_encoding::register_access::effects(
+                crate::selected_form_encoding::register_access::operation(semantic)
+                    .expect("x86 register semantic"),
+            );
+        }
         MachineSemanticKind::SystemRegisterRead | MachineSemanticKind::SystemRegisterWrite => {
             unreachable!("AArch64 system-register semantics have no x86 constraint")
         }
@@ -946,6 +966,13 @@ fn saturating_form(semantic: MachineSemanticKind, carrier: SaturatingCarrier) ->
 
 fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
     match semantic {
+        MachineSemanticKind::PortRegisterRead
+        | MachineSemanticKind::PortRegisterWrite
+        | MachineSemanticKind::ModelSpecificRead
+        | MachineSemanticKind::ModelSpecificWrite => MachineSizeKnowledge::EncoderResolved {
+            minimum_bytes: 1,
+            maximum_bytes: Some(40),
+        },
         MachineSemanticKind::SystemRegisterRead | MachineSemanticKind::SystemRegisterWrite => {
             unreachable!("AArch64 system-register semantics have no x86 constraint")
         }

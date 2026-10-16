@@ -176,6 +176,43 @@ pub fn x86_64_register_constraint_catalog(
             .into_iter()
             .flat_map(|name| view(name).units.iter().copied()),
     );
+    let register_access_rows = [
+        (crate::X86_64_PORT_REGISTER_READ, true, false),
+        (crate::X86_64_PORT_REGISTER_WRITE, false, false),
+        (crate::X86_64_MODEL_SPECIFIC_READ, true, true),
+        (crate::X86_64_MODEL_SPECIFIC_WRITE, false, true),
+    ]
+    .map(|(key, read, model_specific)| {
+        let mut row = instruction_row(
+            RegisterConstraintId(0),
+            key,
+            vec![
+                allocatable(0, RegisterOperandAccess::Use, view("rax").class),
+                allocatable(
+                    1,
+                    if read {
+                        RegisterOperandAccess::Def
+                    } else {
+                        RegisterOperandAccess::Use
+                    },
+                    view("rax").class,
+                ),
+            ],
+        );
+        let mut scratch = vec!["rax", "rdx", "r10"];
+        if !read || model_specific {
+            scratch.push("r11");
+        }
+        if model_specific {
+            scratch.push("rcx");
+        }
+        row.clobbers = sorted_units(
+            scratch
+                .into_iter()
+                .flat_map(|name| view(name).units.iter().copied()),
+        );
+        row
+    });
     let mut constraints = vec![
         port_write,
         instruction_row(
@@ -604,6 +641,7 @@ pub fn x86_64_register_constraint_catalog(
         .find(|row| row.key == X86_64_SYSTEM_V_CALL_I64_PAIR_TO_I64)
         .expect("pair call row")
         .clone();
+    constraints.extend(register_access_rows);
     for (arity, key) in x86_64_system_v_register_call_keys().into_iter().enumerate() {
         if key == X86_64_SYSTEM_V_CALL_I64_PAIR_TO_I64 {
             continue;

@@ -31,7 +31,10 @@ pub(crate) fn bind_scalar_call_result(
             service_reach,
             result: None,
         } if operation.produces_value()
-            && result.primitive_type == typed_trees::types::PrimitiveType::U64 =>
+            && operation.result_carrier().is_some_and(|carrier| {
+                typed_trees::types::PrimitiveType::from_name(carrier.name())
+                    == Some(result.primitive_type)
+            }) =>
         {
             return Some(CheckedUnitEffectOperationPlan::RegisterAccess {
                 coordinate,

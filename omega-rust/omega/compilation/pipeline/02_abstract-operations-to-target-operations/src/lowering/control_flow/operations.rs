@@ -72,20 +72,15 @@ pub(super) fn lower_operation(
             event,
             result,
         } => {
-            let operand = event
-                .inputs()
-                .first()
-                .copied()
-                .map(|value| super::scalar_sources::source(value, function, live))
-                .transpose()?;
+            let event = event
+                .try_map_inputs(|value| super::scalar_sources::source(*value, function, live))?;
             let result_home = result
                 .map(|result| super::primitive_storage::retain_result(*psi_operation, result, live))
                 .transpose()?;
             operations.push(TargetUnitOperation::RegisterAccess {
                 psi_operation: *psi_operation,
                 service: *service,
-                event: *event,
-                operand,
+                event,
                 result_home,
             });
             provenance.operations.push(*psi_operation);

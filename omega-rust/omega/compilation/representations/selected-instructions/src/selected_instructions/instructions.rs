@@ -106,8 +106,8 @@ impl SelectedImageAddressReference {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SelectedInstructionKind {
-    /// One catalogued system-register access. Explicit operands contain the
-    /// read's defined value or the write's preserved input; no address is used.
+    /// One catalogued register access over exact scalar inputs and, for a
+    /// read, its observed result. The catalog fixes the ISA and operand roles.
     RegisterAccess {
         operation: terminal_psi::RegisterOperation,
     },

@@ -606,6 +606,11 @@ macro_rules! effect_tag_arms {
             $enum::PortWrite => 239,
             $enum::SystemRegisterRead => 247,
             $enum::SystemRegisterWrite => 248,
+            $enum::PortRegisterRead => 249,
+            $enum::PortRegisterWrite => 250,
+            $enum::ModelSpecificRead => 251,
+            $enum::ModelSpecificWrite => 252,
+
             $enum::AtomicFence => 238,
             $enum::AtomicAccess(form) => form.machine_tag(),
             $enum::PlacedScalarAccess(form) => form.machine_tag(),

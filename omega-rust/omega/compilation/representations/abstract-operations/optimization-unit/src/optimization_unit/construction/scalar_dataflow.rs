@@ -105,7 +105,7 @@ pub(super) fn operation_uses(operation: &AbstractOperation) -> Vec<ValueId> {
 fn direct_uses(operation: &AbstractOperation) -> Vec<ValueId> {
     use AbstractOperation as O;
     match operation {
-        O::RegisterAccess { event, .. } => event.inputs().to_vec(),
+        O::RegisterAccess { event, .. } => event.inputs().copied().collect(),
         abstract_operations::establish_case_or_record_fields_pattern!(fields) => fields
             .iter()
             .filter_map(|initializer| match &initializer.value {

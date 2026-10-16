@@ -9,14 +9,13 @@ use crate::execution::terminal_unit::calls::argument_paths::{
 };
 use crate::execution::terminal_unit::calls::service_forward;
 use crate::execution::terminal_unit::calls::structural_arguments::{
-    call_claim_transfers, exact_integer_at, structural_call_arguments,
+    call_claim_transfers, structural_call_arguments,
 };
 use crate::execution::terminal_unit::control::LocalConstructionTrace;
 use crate::execution::terminal_unit::types::{is_unit, machine_binders};
 use crate::execution::terminal_unit::{
-    BuiltinFunction, CheckFacts, CheckedStructuralScalarParameterPlan,
-    CheckedTrivialAffineStructuralLocalPlan, CheckedUnitCallCoordinate,
-    CheckedUnitEffectOperationPlan, CheckedUnitStructuralArgumentPlan,
+    CheckFacts, CheckedStructuralScalarParameterPlan, CheckedTrivialAffineStructuralLocalPlan,
+    CheckedUnitCallCoordinate, CheckedUnitEffectOperationPlan, CheckedUnitStructuralArgumentPlan,
     CheckedUnitStructuralParameterPlan, CheckedUnitStructuralResultBindingPlan, Multiplicity,
     PrimitiveType, SymbolHandle, strips_erased_parameter,
 };
@@ -194,8 +193,10 @@ pub(in crate::execution) fn build_call_operation(
         phase("register access: result and operands");
         if !operation.is_admitted()
             || match expected_call_result {
-                Some(ExpectedCallValueResult::Scalar(PrimitiveType::U64)) => {
-                    !operation.produces_value()
+                Some(ExpectedCallValueResult::Scalar(primitive_type)) => {
+                    operation.result_carrier().is_none_or(|carrier| {
+                        PrimitiveType::from_name(carrier.name()) != Some(primitive_type)
+                    })
                 }
                 None => operation.produces_value(),
                 _ => true,
@@ -204,13 +205,13 @@ pub(in crate::execution) fn build_call_operation(
             return None;
         }
         let parameter_types = operation
-            .input_type_names()
+            .input_carriers()
             .iter()
             .enumerate()
             .map(|(position, name)| {
                 Some(CheckedStructuralScalarParameterPlan {
                     source_position: u32::try_from(position).ok()?,
-                    primitive_type: PrimitiveType::from_name(name)?,
+                    primitive_type: PrimitiveType::from_name(name.name())?,
                 })
             })
             .collect::<Option<Vec<_>>>()?;
@@ -230,41 +231,6 @@ pub(in crate::execution) fn build_call_operation(
                 &parameter_types,
                 false,
             )?,
-            service_reach: call.service_reach,
-        });
-    }
-
-    if program
-        .symbols
-        .builtin_function_symbol(BuiltinFunction::AsmPortOut)
-        == Some(call.target_symbol)
-    {
-        let arguments = validation::call_site_argument_expressions(program, &call_site);
-        let [port, value] = arguments else {
-            return None;
-        };
-        return Some(CheckedUnitEffectOperationPlan::PortWrite {
-            coordinate,
-            port: exact_integer_at(
-                facts,
-                machine.symbol,
-                state.symbol,
-                call.statement_index,
-                *port,
-                PrimitiveType::U16,
-            )?
-            .try_into()
-            .ok()?,
-            value: exact_integer_at(
-                facts,
-                machine.symbol,
-                state.symbol,
-                call.statement_index,
-                *value,
-                PrimitiveType::U8,
-            )?
-            .try_into()
-            .ok()?,
             service_reach: call.service_reach,
         });
     }

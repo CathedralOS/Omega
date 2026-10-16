@@ -22,8 +22,8 @@ use crate::execution::terminal_unit::{
     CheckedUnitClaimTransferPlan, CheckedUnitStructuralArgumentPlan,
     CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralParameterPlan,
     CheckedUnitStructuralResultBindingPlan, MachineSupplyMode, Multiplicity, PermissionAccess,
-    PermissionClaimIdentity, PermissionEventKind, PermissionEventSource, PrimitiveType,
-    SymbolHandle, strips_erased_parameter,
+    PermissionClaimIdentity, PermissionEventKind, PermissionEventSource, SymbolHandle,
+    strips_erased_parameter,
 };
 
 pub(crate) fn structural_call_arguments(
@@ -1091,38 +1091,4 @@ pub(crate) fn computed_call_claim_transfers(
         }
     }
     (output.len() == events.len()).then_some(output)
-}
-
-pub(crate) fn exact_integer_at(
-    facts: &CheckFacts,
-    machine: SymbolHandle,
-    state: SymbolHandle,
-    statement_index: usize,
-    expression: typed_trees::expression::ExpressionHandle,
-    expected_type: PrimitiveType,
-) -> Option<u64> {
-    let matches = facts
-        .values
-        .expression_values(expression)
-        .filter(|(_, value)| {
-            value.origin
-                == checked_trees::CheckedValueOrigin::StateStatement {
-                    machine_symbol: machine,
-                    state_symbol: state,
-                    statement_index,
-                    role: checked_trees::CheckedValueStatementRole::CallArgument,
-                }
-        })
-        .map(|(_, value)| value)
-        .collect::<Vec<_>>();
-    let [value] = matches.as_slice() else {
-        return None;
-    };
-    if value.primitive_type != Some(expected_type) {
-        return None;
-    }
-    let range = value.integer_range.as_ref()?;
-    (range.minimum == range.maximum)
-        .then(|| range.minimum.to_u64())
-        .flatten()
 }

@@ -335,12 +335,6 @@ pub enum CheckedUnitEffectOperationPlan {
     /// One ordinary or boundary call with a Unit, scalar or structural
     /// result. Selected operators keep their own operand lanes.
     Call(CheckedUnitCallPlan),
-    PortWrite {
-        coordinate: CheckedUnitCallCoordinate,
-        port: u16,
-        value: u8,
-        service_reach: ServiceReachSummary,
-    },
     /// One catalogued register event. Operands retain the ordinary evaluated
     /// scalar call lanes; a read binds its scalar result at `coordinate`.
     RegisterAccess {
@@ -765,9 +759,7 @@ impl CheckedUnitEffectOperationPlan {
             Self::CaptureAssignmentDestination {
                 statement_index, ..
             } => Some(*statement_index),
-            Self::PortWrite { coordinate, .. } | Self::RegisterAccess { coordinate, .. } => {
-                Some(coordinate.statement_index)
-            }
+            Self::RegisterAccess { coordinate, .. } => Some(coordinate.statement_index),
             Self::AtomicAccess(access) => Some(access.statement_index),
             Self::AtomicFence {
                 statement_index, ..
@@ -805,9 +797,7 @@ impl CheckedUnitEffectOperationPlan {
     pub fn invocation_coordinate(&self) -> Option<CheckedUnitCallCoordinate> {
         match self {
             Self::Call(call) => Some(call.coordinate),
-            Self::PortWrite { coordinate, .. } | Self::RegisterAccess { coordinate, .. } => {
-                Some(*coordinate)
-            }
+            Self::RegisterAccess { coordinate, .. } => Some(*coordinate),
             _ => None,
         }
     }

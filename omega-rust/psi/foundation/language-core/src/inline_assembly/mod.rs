@@ -8,7 +8,7 @@
 //! entries rather than silently crossing the strict assembly surface.
 
 mod register_operations;
-pub use register_operations::AsmRegisterOperation;
+pub use register_operations::{AsmRegisterCarrier, AsmRegisterOperation};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AsmInstructionAvailability {

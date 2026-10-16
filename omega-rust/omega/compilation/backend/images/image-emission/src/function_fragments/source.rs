@@ -262,7 +262,7 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                             instruction.kind == selected_instructions::SelectedInstructionKind::RegisterAccess { operation: event.operation() }
                                 && instruction.provenance.operations.as_slice() == [*psi_operation]
                                 && instruction.provenance.values.iter().copied().eq(
-                                    event.inputs().iter().copied().chain(result.map(|result| result.value))
+                                    event.inputs().copied().chain(result.map(|result| result.value))
                                 )
                         }
                         _ => false,

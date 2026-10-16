@@ -1,0 +1,30 @@
+// Native-production canary: privileged register events retain their scalar
+// inputs and results through locals, parameters, fields, calls and states.
+// Compile only; executing port/MSR instructions requires a privileged host.
+use omega::language::core::assembly;
+data Main { port: u16; byte: u8; index: u32; value: u64; }
+machine port_identity(port: u16) -> u16 { port }
+machine value_identity(value: u64) -> u64 { value }
+machine read_port(port: u16) -> u8 reaches PortIo {
+    let mut value: u8 = 0;
+    asm where clobbers rax, rdx, r10, r15 { in value, port; }
+    value
+}
+machine write_register(index: u32, value: u64) reaches MachineControl {
+    asm where clobbers rax, rcx, rdx, r10, r11, r15 { wrmsr index, value; }
+}
+machine Main::main(main: &mut Main) reaches MachineControl + PortIo {
+    let port: u16 = port_identity(main.port);
+    let byte: u8 = read_port(port);
+    asm where clobbers rax, rdx, r10, r11, r15 { out port, byte; }
+    transition { _ -> next(main, port) }
+    state next(main: &mut Main, port: u16) {
+        write_register(main.index, value_identity(main.value));
+        asm where clobbers rax, rcx, rdx, r10, r11, r15 {
+            in main.byte, port_identity(port);
+            rdmsr main.value, main.index;
+            wrmsr main.index, value_identity(main.value);
+            out port_identity(main.port), main.byte
+        }
+    }
+}

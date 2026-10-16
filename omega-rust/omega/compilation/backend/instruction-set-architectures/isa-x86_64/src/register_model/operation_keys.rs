@@ -344,8 +344,28 @@ pub const X86_64_TRAPPING_CONVERT: RegisterConstraintKey = RegisterConstraintKey
     variant: 70,
 };
 
-/// Atomic load of every width: `MOVZX`/`MOV` into the observed result;
-/// acquire ordering is free under TSO. Never writes RFLAGS.
+/// Runtime port operands and read results use ordinary allocatable GPRs.
+/// Architectural inputs are snapshotted before scratch registers change.
+pub const X86_64_PORT_REGISTER_READ: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 803,
+};
+
+pub const X86_64_PORT_REGISTER_WRITE: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 804,
+};
+
+pub const X86_64_MODEL_SPECIFIC_READ: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 805,
+};
+
+pub const X86_64_MODEL_SPECIFIC_WRITE: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 806,
+};
+
 pub const X86_64_PORT_WRITE: RegisterConstraintKey = RegisterConstraintKey {
     family: RegisterConstraintFamily::Instruction,
     variant: 802,
@@ -476,7 +496,7 @@ pub const X86_64_JUMP: RegisterConstraintKey = RegisterConstraintKey {
 /// required by a register-passed scalar conditional-return CFG plus the first
 /// arithmetic row needed by the pressure vertical. This is not a claim that
 /// the target's ordinary instruction inventory is complete.
-pub(crate) const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 103] = [
+pub(crate) const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 107] = [
     X86_64_SYSTEM_V_CALL,
     X86_64_MICROSOFT_CALL,
     X86_64_SYSTEM_V_CALL_I64_PAIR_TO_I64,
@@ -644,6 +664,10 @@ pub(crate) const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 1
     X86_64_IEEE_FLOAT_DIRECTED_BINARY,
     X86_64_ATOMIC_FENCE,
     X86_64_PORT_WRITE,
+    X86_64_PORT_REGISTER_READ,
+    X86_64_PORT_REGISTER_WRITE,
+    X86_64_MODEL_SPECIFIC_READ,
+    X86_64_MODEL_SPECIFIC_WRITE,
     X86_64_PLACED_READ,
     X86_64_PLACED_WRITE,
 ];

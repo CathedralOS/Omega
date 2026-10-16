@@ -560,6 +560,11 @@ fn decode_alternative_for_version(
         239 => MachineAlternativeFamily::PortWrite,
         247 => MachineAlternativeFamily::SystemRegisterRead,
         248 => MachineAlternativeFamily::SystemRegisterWrite,
+        249 => MachineAlternativeFamily::PortRegisterRead,
+        250 => MachineAlternativeFamily::PortRegisterWrite,
+        251 => MachineAlternativeFamily::ModelSpecificRead,
+        252 => MachineAlternativeFamily::ModelSpecificWrite,
+
         238 => MachineAlternativeFamily::AtomicFence,
         235 => MachineAlternativeFamily::ZeroBytes,
         2 => MachineAlternativeFamily::CopyI64,

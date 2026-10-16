@@ -114,6 +114,10 @@ fn terminal_selected_keys(
         port_write: keys.port_write,
         system_register_read: keys.system_register_read,
         system_register_write: keys.system_register_write,
+        port_register_read: keys.port_register_read,
+        port_register_write: keys.port_register_write,
+        model_specific_read: keys.model_specific_read,
+        model_specific_write: keys.model_specific_write,
         atomic_fence: keys.atomic_fence,
         placed_read: keys.placed_read,
         placed_write: keys.placed_write,
@@ -304,13 +308,26 @@ fn exact_declaration<'a>(
 
 pub(crate) fn machine_semantic_kind(kind: SelectedInstructionKind) -> MachineSemanticKind {
     match kind {
-        SelectedInstructionKind::RegisterAccess { operation } => {
-            if operation.produces_value() {
+        SelectedInstructionKind::RegisterAccess { operation } => match operation {
+            selected_instructions::RegisterOperation::SystemRead(_) => {
                 MachineSemanticKind::SystemRegisterRead
-            } else {
+            }
+            selected_instructions::RegisterOperation::SystemWrite(_) => {
                 MachineSemanticKind::SystemRegisterWrite
             }
-        }
+            selected_instructions::RegisterOperation::PortRead => {
+                MachineSemanticKind::PortRegisterRead
+            }
+            selected_instructions::RegisterOperation::PortWrite => {
+                MachineSemanticKind::PortRegisterWrite
+            }
+            selected_instructions::RegisterOperation::ModelSpecificRead => {
+                MachineSemanticKind::ModelSpecificRead
+            }
+            selected_instructions::RegisterOperation::ModelSpecificWrite => {
+                MachineSemanticKind::ModelSpecificWrite
+            }
+        },
         SelectedInstructionKind::PlacedScalarAccess { form, .. } => {
             MachineSemanticKind::PlacedScalarAccess(form)
         }

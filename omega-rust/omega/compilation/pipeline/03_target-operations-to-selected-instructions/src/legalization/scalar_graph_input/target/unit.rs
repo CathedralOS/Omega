@@ -239,7 +239,6 @@ pub(super) fn validate_operation(
                 psi_operation,
                 service,
                 event,
-                operand,
                 result_home,
             },
             AbstractOperation::RegisterAccess {
@@ -251,17 +250,21 @@ pub(super) fn validate_operation(
         ) => {
             if psi_operation != expected_operation
                 || service != expected_service
-                || event != expected_event
+                || event.operation() != expected_event.operation()
             {
                 return Err(LegalizationError::custody());
             }
-            match (event.inputs(), operand) {
-                ([], None) => {}
-                ([value], Some(operand))
-                    if sources
-                        .iter()
-                        .any(|(identity, source)| identity == value && source == operand) => {}
-                _ => return Err(LegalizationError::custody()),
+            if event.inputs().count() != expected_event.inputs().count()
+                || event
+                    .inputs()
+                    .zip(expected_event.inputs())
+                    .any(|(operand, value)| {
+                        !sources
+                            .iter()
+                            .any(|(identity, source)| identity == value && source == operand)
+                    })
+            {
+                return Err(LegalizationError::custody());
             }
             match (result_home, result) {
                 (None, None) => {}

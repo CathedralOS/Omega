@@ -103,14 +103,12 @@ pub(crate) fn lower_call_arguments(
         })
     {
         let arguments = validation::call_site_argument_expressions(program, call_site);
-        if arguments.len() != operation.input_type_names().len() {
+        if arguments.len() != operation.input_carriers().len() {
             return None;
         }
         let mut scalar_arguments = Vec::new();
-        for (ordinal, (argument, carrier)) in arguments
-            .iter()
-            .zip(operation.input_type_names())
-            .enumerate()
+        for (ordinal, (argument, carrier)) in
+            arguments.iter().zip(operation.input_carriers()).enumerate()
         {
             if let Some(expression) = lower_return_expression(
                 program,
@@ -120,7 +118,7 @@ pub(crate) fn lower_call_arguments(
                 authored_parameters,
                 parameter_types,
                 locals,
-                PrimitiveType::from_name(carrier)?,
+                PrimitiveType::from_name(carrier.name())?,
                 exact_integer_casts,
             ) {
                 scalar_arguments.push((

@@ -54,18 +54,20 @@ pub(crate) fn operation_scalar_types_match(
     }
     match operation {
         O::RegisterAccess { event, result, .. } => {
-            let is_u64 = |carrier| matches!(carrier, ScalarType::Integer(integer)
-                if fixed(integer) && integer.bits() == 64
+            let matches_carrier = |scalar, bits| matches!(scalar, ScalarType::Integer(integer)
+                if fixed(integer) && integer.bits() == bits
                     && integer.sign() == semantic_vocabulary::IntegerSign::Unsigned);
-            event.operation().is_admitted() && match (event, result) {
-                (terminal_psi::RegisterAccessEvent::Read { .. }, Some(result)) => {
-                    is_u64(result.scalar_type) && scalar(result.value) == Some(result.scalar_type)
+            let signature = event.operation();
+            signature.is_admitted()
+                && match (signature.result_carrier(), result) {
+                    (None, None) => true,
+                    (Some(carrier), Some(result)) => matches_carrier(result.scalar_type, carrier.bits())
+                        && scalar(result.value) == Some(result.scalar_type),
+                    _ => false,
                 }
-                (terminal_psi::RegisterAccessEvent::Write { value, .. }, None) => {
-                    scalar(*value).is_some_and(is_u64)
-                }
-                _ => false,
-            }
+                && event.inputs().zip(signature.input_carriers()).all(|(value, carrier)| {
+                    scalar(*value).is_some_and(|scalar| matches_carrier(scalar, carrier.bits()))
+                })
         }
         O::EstablishPlacedReference { .. } => true,
         O::EstablishReference { storage, .. } => storage.as_ref().is_none_or(|view| {

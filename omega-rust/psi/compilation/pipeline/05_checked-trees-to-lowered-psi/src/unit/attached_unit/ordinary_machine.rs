@@ -1632,8 +1632,7 @@ impl MachineEmission<'_> {
                 .transpose()?,
         };
         let kind = match operation {
-            CheckedUnitEffectOperationPlan::PortWrite { .. }
-            | CheckedUnitEffectOperationPlan::RegisterAccess { .. }
+            CheckedUnitEffectOperationPlan::RegisterAccess { .. }
             | CheckedUnitEffectOperationPlan::Store(_)
             | CheckedUnitEffectOperationPlan::AtomicFence { .. }
             | CheckedUnitEffectOperationPlan::AtomicAccess(_)

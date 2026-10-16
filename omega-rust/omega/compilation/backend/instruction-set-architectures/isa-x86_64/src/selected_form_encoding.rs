@@ -28,6 +28,7 @@ pub(crate) mod float_result_policy;
 pub(crate) mod floating_control;
 pub(crate) mod ieee_float_arithmetic;
 pub(crate) mod port_write;
+pub(crate) mod register_access;
 mod scan_byte_sequence;
 mod zero_bytes;
 
@@ -266,6 +267,9 @@ pub fn validate_x86_64_selected_form_encoding(
     operands: &[RegisterViewId],
     bytes: &[u8],
 ) -> Result<ValidatedX86_64SelectedFormEncoding, X86_64SelectedFormEncodingError> {
+    if let SelectedInstructionKind::RegisterAccess { operation } = kind {
+        return register_access::validate(physical, operation, alternative, operands, bytes);
+    }
     if let SelectedInstructionKind::PortWrite { port, value } = kind {
         return port_write::validate(physical, port, value, alternative, operands, bytes);
     }

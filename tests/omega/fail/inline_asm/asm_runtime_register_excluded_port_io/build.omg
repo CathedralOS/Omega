@@ -1,0 +1,6 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "asm_runtime_register_excluded_port_io");
+    builder.freestanding = true;
+    Build::exclude_physical_authority(builder, PhysicalAuthorityClass::PortIo);
+    Build::bind(builder, linux_x86_64::ProgramEntry, Main::main);
+}

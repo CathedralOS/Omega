@@ -1888,29 +1888,29 @@ pass/host/runtime_gui_window_lifecycle_exit built 11364ms @6050c1c112ee+wt
 pass/host/runtime_stored_scalar_reference_foreign_export_exit built 17682ms exit:0 stdout:match @6c49683ce714
 pass/host/runtime_windows_gui_argument_failures_exit built 5898ms @6050c1c112ee+wt
 pass/host/std_clock_sleep_exit built 15533ms exit:70 @6c49683ce714
-pass/inline_asm/asm_aarch64_system_registers_compile built 6018ms @70d516d94e0b
-pass/inline_asm/asm_block_jmp_state built 17862ms @6c49683ce714
-pass/inline_asm/asm_exact_clobbers checked 18045ms @6c49683ce714
-pass/inline_asm/asm_machine_control_wrapper_reach checked 17525ms @6c49683ce714
-pass/inline_asm/asm_memory_transfer checked 17730ms @6c49683ce714
-pass/inline_asm/asm_memory_transfer_compile built 17385ms @6c49683ce714
-pass/inline_asm/asm_msr_multi checked 17724ms @6c49683ce714
-pass/inline_asm/asm_port_contract checked 17763ms @6c49683ce714
-pass/inline_asm/asm_port_immediate checked 17458ms @6c49683ce714
-pass/inline_asm/asm_port_out_final_validation built 7283ms @b66ca92ce32e+wt
-pass/inline_asm/asm_reach_inherit checked 17500ms @6c49683ce714
-pass/inline_asm/asm_reach_wrapper checked 17632ms @6c49683ce714
-pass/inline_asm/asm_runtime_port_msr_final_validation incomplete 5516ms @8665e38f912c
-	`Main::main` has no executable body: this compiler does not lower a call of it yet (call operation: call site); in state `Main::main::main`, statement 0
-pass/inline_asm/asm_selected_port_write_compositions_compile built 7314ms @b66ca92ce32e+wt
-pass/inline_asm/asm_state_jmp checked 17631ms @6c49683ce714
-pass/inline_asm/asm_sysreg_rw checked 17523ms @6c49683ce714
-pass/inline_asm/asm_sysregs checked 17522ms @6c49683ce714
-pass/inline_asm/asm_system_register_scalar_variants_compile built 6056ms @70d516d94e0b
-pass/inline_asm/asm_typed_places checked 17717ms @6c49683ce714
-pass/inline_asm/asm_where_contract checked 17573ms @6c49683ce714
-pass/inline_asm/asm_where_exact_clobbers_compile checked 17883ms @6c49683ce714
-pass/inline_asm/port_write_terminal_sequences checked 69617ms terminal-inspections:match @6c49683ce714
+pass/inline_asm/asm_aarch64_system_registers_compile built 6959ms @4f0f34f3cbb6+wt
+pass/inline_asm/asm_block_jmp_state built 6957ms @4f0f34f3cbb6+wt
+pass/inline_asm/asm_exact_clobbers checked 7510ms @4f0f34f3cbb6+wt
+pass/inline_asm/asm_machine_control_wrapper_reach checked 7500ms @4f0f34f3cbb6+wt
+pass/inline_asm/asm_memory_transfer checked 7066ms @4f0f34f3cbb6+wt
+pass/inline_asm/asm_memory_transfer_compile built 7049ms @4f0f34f3cbb6+wt
+pass/inline_asm/asm_msr_multi checked 6582ms @4f0f34f3cbb6+wt
+pass/inline_asm/asm_port_contract checked 6570ms @4f0f34f3cbb6+wt
+pass/inline_asm/asm_port_immediate checked 6529ms @4f0f34f3cbb6+wt
+pass/inline_asm/asm_port_out_final_validation built 6497ms @4f0f34f3cbb6+wt
+pass/inline_asm/asm_reach_inherit checked 6262ms @4f0f34f3cbb6+wt
+pass/inline_asm/asm_reach_wrapper checked 6249ms @4f0f34f3cbb6+wt
+pass/inline_asm/asm_runtime_port_msr_final_validation built 6356ms @4f0f34f3cbb6+wt
+pass/inline_asm/asm_runtime_register_scalar_variants_compile built 6361ms @4f0f34f3cbb6+wt
+pass/inline_asm/asm_selected_port_write_compositions_compile built 7258ms @4f0f34f3cbb6+wt
+pass/inline_asm/asm_state_jmp checked 7288ms @4f0f34f3cbb6+wt
+pass/inline_asm/asm_sysreg_rw checked 7091ms @4f0f34f3cbb6+wt
+pass/inline_asm/asm_sysregs checked 7084ms @4f0f34f3cbb6+wt
+pass/inline_asm/asm_system_register_scalar_variants_compile built 7027ms @4f0f34f3cbb6+wt
+pass/inline_asm/asm_typed_places checked 6923ms @4f0f34f3cbb6+wt
+pass/inline_asm/asm_where_contract checked 7641ms @4f0f34f3cbb6+wt
+pass/inline_asm/asm_where_exact_clobbers_compile checked 7588ms @4f0f34f3cbb6+wt
+pass/inline_asm/port_write_terminal_sequences checked 30615ms terminal-inspections:match @4f0f34f3cbb6+wt
 pass/layouts/access_plan_inaccessible_seed checked 4203ms @6c49683ce714
 pass/layouts/alternating_member_padding_layout_compile checked 3675ms @6c49683ce714
 pass/layouts/array_align_queries_compile checked 3614ms @6c49683ce714

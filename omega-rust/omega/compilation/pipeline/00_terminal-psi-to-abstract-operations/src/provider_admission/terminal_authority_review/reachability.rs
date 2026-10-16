@@ -165,11 +165,26 @@ impl<'a> AuthorityGraph<'a> {
                         register_operation,
                         operation,
                     } => {
-                        if self.target_profile.native_target().architecture
-                            != target::Architecture::Aarch64
-                        {
+                        if !matches!(
+                            (
+                                register_operation.target_applicability(),
+                                self.target_profile.native_target().architecture
+                            ),
+                            (
+                                terminal_psi::RegisterTargetApplicability::Aarch64,
+                                target::Architecture::Aarch64
+                            ) | (
+                                terminal_psi::RegisterTargetApplicability::X86_64,
+                                target::Architecture::X86_64
+                            )
+                        ) {
+                            let architecture = match register_operation.target_applicability() {
+                                terminal_psi::RegisterTargetApplicability::Aarch64 => "aarch64",
+                                terminal_psi::RegisterTargetApplicability::X86_64 => "x86_64",
+                                terminal_psi::RegisterTargetApplicability::Any => "any",
+                            };
                             return Err(format!(
-                                "reachable machine {machine:?} uses aarch64 register access on non-aarch64 target profile `{}`",
+                                "reachable machine {machine:?} uses {architecture} register access outside its target profile `{}`",
                                 self.target_profile.target_name(),
                             ));
                         }
