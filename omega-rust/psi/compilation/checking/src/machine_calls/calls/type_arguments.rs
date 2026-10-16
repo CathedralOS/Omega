@@ -8,6 +8,7 @@
 
 use super::*;
 use symbols::SymbolHandle;
+use typed_trees::const_integer::{self, ConstIntegerExpression};
 use typed_trees::data::TypeParameterKind;
 use typed_trees::expression::StaticMachineArgument;
 
@@ -62,7 +63,35 @@ pub(super) fn callable_type_arguments(
     let mut type_ordinal = 0;
     let mut const_selections = Vec::new();
     for selected in selected {
-        let actual = if selected.type_reference.is_valid() {
+        // A computed const argument keeps its expression in a type-reference
+        // payload. That payload is not a type selection: `step<Degree - 1>`
+        // occupies the const telescope, including while Degree is still open.
+        let const_expression = selected.type_reference.is_valid()
+            && matches!(
+                program
+                    .type_reference_table
+                    .type_reference(selected.type_reference),
+                typed_trees::types::TypeReferenceNode::ConstExpression(expression)
+                    if matches!(
+                        const_integer::classify(
+                            &program.expression_table,
+                            *expression,
+                            &|symbol, spelling| {
+                                program.machines().iter().any(|machine| {
+                                    program.machine_type_parameters(machine).iter().any(|parameter| {
+                                        parameter.kind.is_const_or_value()
+                                            && ((symbol.is_valid() && parameter.symbol == symbol)
+                                                || parameter.name.as_str() == spelling)
+                                    })
+                                })
+                            },
+                        ),
+                        Some(ConstIntegerExpression::Closed(_) | ConstIntegerExpression::Open)
+                    )
+            );
+        let actual = if const_expression {
+            None
+        } else if selected.type_reference.is_valid() {
             Some(selected.type_reference)
         } else if selected.symbol.is_valid() {
             let is_type = match program.symbols.get(selected.symbol).kind {
@@ -105,7 +134,8 @@ pub(super) fn callable_type_arguments(
             }
             bindings.push((parameter.symbol, actual));
             type_ordinal += 1;
-        } else if program.static_const_argument_identity(selected).is_some()
+        } else if const_expression
+            || program.static_const_argument_identity(selected).is_some()
             || (selected.symbol.is_valid()
                 && program.data_type_parameters.iter().any(|(_, parameter)| {
                     parameter.symbol == selected.symbol

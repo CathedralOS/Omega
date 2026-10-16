@@ -1,0 +1,98 @@
+// Expected exit: 0
+// Expected output contains: 1 10 100
+// Feature powers for one calibration setting. x^0 is 1. For Degree >= 1,
+// x^Degree is x * step<Degree - 1>(x), where step<0> is 1 and step<1> is x.
+use omega_language_std::console;
+
+data Basis<const Degree: u64> where Degree <= 2 {
+    setting: i64 in Wrapping;
+}
+
+machine step<const Degree: u64>(base: i64 in Wrapping) -> i64 in Wrapping
+{
+    transition Degree == 0 {
+        true -> (1)
+        _ -> (base)
+    }
+}
+
+machine power<const Degree: u64>(base: i64 in Wrapping) -> i64 in Wrapping
+requires Degree >= 1 && Degree <= 2
+{
+    let local: i64 in Wrapping = step<Degree - 1>(base);
+    base * local
+}
+
+machine from_field<const Degree: u64>(basis: &Basis<Degree>) -> i64 in Wrapping
+requires Degree >= 1 && Degree <= 2
+{
+    power<Degree>(basis.setting)
+}
+
+machine from_parameter<const Degree: u64>(base: i64 in Wrapping) -> i64 in Wrapping
+requires Degree >= 1 && Degree <= 2
+{
+    power<Degree>(base)
+}
+
+data Main { }
+
+machine Main::main(main: &mut Main) reaches Console {
+    let setting: i64 in Wrapping = 10;
+    let constant: i64 in Wrapping = step<0>(setting);
+    let linear: Basis<1> = Basis { setting: setting };
+    let linear_power: i64 in Wrapping = from_field(&linear);
+    let quadratic: Basis<2> = Basis { setting: setting };
+    let quadratic_power: i64 in Wrapping = from_parameter<2>(quadratic.setting);
+    transition constant == 1 && linear_power == 10 && quadratic_power == 100 {
+        true -> report(main, constant, linear_power, quadratic_power)
+        false -> Console::exit_process(1)
+    }
+    state report(main: &mut Main, constant: i64 in Wrapping, linear_power: i64 in Wrapping,
+                 quadratic_power: i64 in Wrapping) {
+        show(main, constant);
+        Console::write(" ");
+        show(main, linear_power);
+        Console::write(" ");
+        show(main, quadratic_power);
+        Console::write_line("");
+        Console::exit_process(0);
+    }
+}
+
+machine show(main: &mut Main, value: i64 in Wrapping) reaches Console {
+    transition value >= 0 && value < 1000 {
+        true -> hundreds(main, value / 100, value)
+        false -> Console::exit_process(1)
+    }
+    state hundreds(main: &mut Main, digit: i64 in Wrapping, value: i64 in Wrapping) {
+        transition digit > 0 {
+            true -> emit(main, digit, value, 100)
+            false -> tens(main, (value / 10) % 10, value)
+        }
+    }
+    state tens(main: &mut Main, digit: i64 in Wrapping, value: i64 in Wrapping) {
+        transition value >= 10 {
+            true -> emit(main, digit, value, 10)
+            false -> ones(main, value)
+        }
+    }
+    state emit(main: &mut Main, digit: i64 in Wrapping, value: i64 in Wrapping, place: i64 in Wrapping)
+    requires digit >= 0 && digit <= 9
+    {
+        Console::write_byte(digit as i32 + 48);
+        transition place == 100 { true -> tens(main, (value / 10) % 10, value) _ -> ones(main, value) }
+    }
+    state ones(main: &mut Main, value: i64 in Wrapping) {
+        let digit: i64 in Wrapping = value % 10;
+        transition digit >= 0 && digit <= 9 {
+            true -> finish(main, digit)
+            false -> Console::exit_process(1)
+        }
+    }
+    state finish(main: &mut Main, digit: i64 in Wrapping)
+    requires digit >= 0 && digit <= 9
+    {
+        Console::write_byte(digit as i32 + 48);
+    }
+}

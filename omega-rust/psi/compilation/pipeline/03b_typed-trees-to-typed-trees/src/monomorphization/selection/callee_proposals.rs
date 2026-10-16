@@ -10,6 +10,8 @@ use crate::monomorphization::{
     CallSite, CalleeState, Candidate, ExpressionHandle, StaticMachineArgument, SymbolHandle,
     SymbolKind, TypeReferenceHandle, const_arguments,
 };
+use typed_trees::const_integer::{self, ConstIntegerExpression};
+use typed_trees::types::TypeReferenceNode;
 
 /// An explicit argument has no binder slot of its selected kind. Omitted
 /// arguments can still be inferred; excess arguments cannot be discarded.
@@ -33,6 +35,35 @@ pub(crate) fn collect_machine_proposals_for_callee(
     let mut machine_index = 0usize;
     let mut evidence_index = 0usize;
     for selected in machine_arguments {
+        if let Some(expression) = const_expression_argument(program, selected) {
+            if const_index >= candidate.template.const_parameters.len() {
+                return Err(StaticArgumentOverflow);
+            }
+            // An open `Degree - 1` waits for the caller to specialize. A
+            // closed integer uses the same named binding as a decimal literal.
+            match const_integer::classify(
+                &program.expression_table,
+                expression,
+                &|symbol, spelling| const_binder(program, symbol, spelling),
+            ) {
+                Some(ConstIntegerExpression::Closed(value)) => {
+                    if let Some((handle, _, _)) = program
+                        .type_reference_table
+                        .named_references()
+                        .find(|(_, symbol, name)| !symbol.is_valid() && *name == value.to_string())
+                    {
+                        const_proposals.push((callee.candidate_index, const_index, handle));
+                    }
+                    const_index += 1;
+                    continue;
+                }
+                Some(ConstIntegerExpression::Open) => {
+                    const_index += 1;
+                    continue;
+                }
+                None => {}
+            }
+        }
         if selected.type_reference.is_valid() {
             if type_index >= candidate.template.type_parameters.len() {
                 return Err(StaticArgumentOverflow);
@@ -292,4 +323,37 @@ pub(crate) fn enclosing_statement_ordinal(
                 roots.contains(&handle).then_some(offset)
             }),
     }
+}
+
+fn const_expression_argument(
+    program: &dyn ::validation::CheckingInput,
+    argument: &StaticMachineArgument,
+) -> Option<ExpressionHandle> {
+    if !argument.type_reference.is_valid() {
+        return None;
+    }
+    match program
+        .type_reference_table
+        .type_reference(argument.type_reference)
+    {
+        TypeReferenceNode::ConstExpression(expression) => Some(*expression),
+        _ => None,
+    }
+}
+
+fn const_binder(
+    program: &dyn ::validation::CheckingInput,
+    symbol: SymbolHandle,
+    spelling: &str,
+) -> bool {
+    program.machines().iter().any(|machine| {
+        program
+            .machine_type_parameters(machine)
+            .iter()
+            .any(|parameter| {
+                parameter.kind.is_const_or_value()
+                    && ((symbol.is_valid() && parameter.symbol == symbol)
+                        || parameter.name.as_str() == spelling)
+            })
+    })
 }

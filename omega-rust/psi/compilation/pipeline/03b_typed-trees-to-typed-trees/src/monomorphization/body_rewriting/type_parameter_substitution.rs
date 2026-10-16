@@ -6,8 +6,8 @@ use validation::collect_statement_expression_trees;
 
 use crate::monomorphization::body_cloning::copy_type_reference;
 use crate::monomorphization::body_rewriting::const_substitution::{
-    fixed_array_const_replacements, substitute_const_index_expression_parameters,
-    substitute_fixed_array_const_parameters,
+    fixed_array_const_replacements, fold_closed_const_machine_arguments,
+    substitute_const_index_expression_parameters, substitute_fixed_array_const_parameters,
 };
 use crate::monomorphization::body_rewriting::machine_arguments::substitute_machine_parameter_type_references;
 use crate::monomorphization::{
@@ -108,6 +108,10 @@ pub(crate) fn substitute_cloned_type_parameters(
     substitute_fixed_array_const_parameters(program, &fixed_array_replacements, Some(type_start));
     substitute_const_index_expression_parameters(program, candidate, Some(type_start));
     substitute_machine_parameter_type_references(program, candidate, Some(type_start));
+    // Binder substitution rewrites `Degree` to a decimal spelling inside the
+    // cloned call. Fold that closed arithmetic before the next selection, or
+    // `step<Degree - 1>` never becomes `step<1>`.
+    fold_closed_const_machine_arguments(program);
     Ok(())
 }
 

@@ -9,10 +9,11 @@
 use diagnostics::Diagnostic;
 use numerics::literals::LandedIntegerType;
 use symbols::{SymbolHandle, SymbolKind};
+use typed_trees::const_integer::{self, ConstIntegerExpression};
 use typed_trees::data::TypeParameterKind;
-use typed_trees::expression::{ExpressionNode, StaticMachineArgument};
+use typed_trees::expression::{ExpressionHandle, ExpressionNode, StaticMachineArgument};
 use typed_trees::references::StaticArgumentCall;
-use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
+use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
 mod requirement_predicates;
 
@@ -193,7 +194,7 @@ fn validate_types(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for argument in arguments {
-        if argument.type_reference.is_valid() {
+        if argument.type_reference.is_valid() && !integer_const_argument(program, argument) {
             if let Some(caller) = caller {
                 crate::validate_static_type_argument(
                     program,
@@ -316,6 +317,13 @@ fn validate_arguments(
                 program.symbols.get(argument.symbol).kind,
                 SymbolKind::BuiltinType | SymbolKind::Data
             );
+        // `power<Degree - 1>` is a const value expression. Its type-reference
+        // payload is only the retained tree; it does not select a type binder.
+        if integer_const_argument(program, argument) && const_parameters.get(const_index).is_some()
+        {
+            const_index += 1;
+            continue;
+        }
         if argument.type_reference.is_valid() || (named_type && has_types) {
             if !parameters
                 .get(ordinal)
@@ -469,4 +477,49 @@ fn validate_arguments(
         }
     }
     Ok(())
+}
+
+fn const_expression_argument(
+    program: &dyn crate::CheckingInput,
+    argument: &StaticMachineArgument,
+) -> Option<ExpressionHandle> {
+    if !argument.type_reference.is_valid() {
+        return None;
+    }
+    match program
+        .type_reference_table
+        .type_reference(argument.type_reference)
+    {
+        TypeReferenceNode::ConstExpression(expression) => Some(*expression),
+        _ => None,
+    }
+}
+
+fn integer_const_argument(
+    program: &dyn crate::CheckingInput,
+    argument: &StaticMachineArgument,
+) -> bool {
+    const_expression_argument(program, argument).is_some_and(|expression| {
+        matches!(
+            const_integer::classify(
+                &program.expression_table,
+                expression,
+                &|symbol, spelling| const_binder(program, symbol, spelling),
+            ),
+            Some(ConstIntegerExpression::Closed(_) | ConstIntegerExpression::Open)
+        )
+    })
+}
+
+fn const_binder(program: &dyn crate::CheckingInput, symbol: SymbolHandle, spelling: &str) -> bool {
+    program.machines().iter().any(|machine| {
+        program
+            .machine_type_parameters(machine)
+            .iter()
+            .any(|parameter| {
+                parameter.kind.is_const_or_value()
+                    && ((symbol.is_valid() && parameter.symbol == symbol)
+                        || parameter.name.as_str() == spelling)
+            })
+    })
 }

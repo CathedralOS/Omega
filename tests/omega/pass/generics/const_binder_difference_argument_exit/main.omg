@@ -1,0 +1,46 @@
+// Expected exit: 0.
+// A const binder can appear in arithmetic that selects another const machine.
+// step<0> is 1 and step<1> is the base. power<Degree> multiplies by
+// step<Degree - 1>, through a local, a field, a parameter, and that call result.
+data Basis<const Degree: u64> where Degree <= 2 {
+    setting: i64 in Wrapping;
+}
+
+machine step<const Degree: u64>(base: i64 in Wrapping) -> i64 in Wrapping
+{
+    transition Degree == 0 { true -> (1) _ -> (base) }
+}
+
+machine power<const Degree: u64>(base: i64 in Wrapping) -> i64 in Wrapping
+requires Degree >= 1 && Degree <= 2
+{
+    let local: i64 in Wrapping = step<(Degree - 1)>(base);
+    base * local
+}
+
+machine from_field<const Degree: u64>(basis: &Basis<Degree>) -> i64 in Wrapping
+requires Degree >= 1 && Degree <= 2
+{
+    power<Degree>(basis.setting)
+}
+
+machine from_parameter<const Degree: u64>(base: i64 in Wrapping) -> i64 in Wrapping
+requires Degree >= 1 && Degree <= 2
+{
+    power<Degree>(base)
+}
+
+machine main() crashes Trap {
+    let setting: i64 in Wrapping = 10;
+    let linear: Basis<1> = Basis { setting: setting };
+    let quadratic: Basis<2> = Basis { setting: setting };
+    let constant: i64 in Wrapping = step<0>(setting);
+    let linear_power: i64 in Wrapping = from_field(&linear);
+    let quadratic_power: i64 in Wrapping = from_parameter<2>(quadratic.setting);
+    transition constant == 1 && linear_power == 10 && quadratic_power == 100 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() { }
+    state bad() { crash Trap; }
+}

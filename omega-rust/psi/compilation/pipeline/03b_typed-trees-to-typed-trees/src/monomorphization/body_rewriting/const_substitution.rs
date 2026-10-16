@@ -6,6 +6,10 @@ use crate::monomorphization::{
     Candidate, ExpressionHandle, ExpressionNode, StatementNode, SymbolHandle, TypeConstraintNode,
     TypeReferenceHandle, TypeReferenceNode, TypedTrees,
 };
+use numerics::literals::{IntegerLiteral, IntegerRadix};
+use typed_trees::const_integer::{self, ConstIntegerExpression};
+use typed_trees::expression::StaticMachineArgument;
+use typed_trees::name::Identifier;
 
 pub(crate) fn fixed_array_const_replacements(
     program: &dyn ::validation::CheckingInput,
@@ -316,4 +320,167 @@ pub(crate) fn substitute_const_index_expression(
         }
         _ => {}
     }
+}
+
+/// Replace a const-argument expression that closed under this specialization
+/// with the same decimal literal a source argument would have carried.
+///
+/// `step<Degree - 1>` inside `power<2>` is `step<2 - 1>` after binder
+/// substitution. Leaving that tree as a type reference never selects `step<1>`.
+pub(crate) fn fold_closed_const_machine_arguments(program: &mut TypedTrees) {
+    let expression_handles = program
+        .expression_table
+        .iter_expressions()
+        .filter_map(|(handle, expression)| {
+            matches!(expression, ExpressionNode::Call(_)).then_some(handle)
+        })
+        .collect::<Vec<_>>();
+    for handle in expression_handles {
+        let (mut arguments, application) = {
+            let ExpressionNode::Call(call) = program.expression_table.expression(handle) else {
+                continue;
+            };
+            (
+                call.machine_arguments.clone(),
+                call.authored_machine_application,
+            )
+        };
+        if fold_const_arguments(program, &mut arguments) {
+            let ExpressionNode::Call(call) = program.expression_table.expression_mut(handle) else {
+                continue;
+            };
+            call.machine_arguments = arguments;
+        }
+        if application.is_valid() {
+            let mut arguments = program
+                .expression_table
+                .static_machine_application_arguments(application)
+                .to_vec();
+            if fold_const_arguments(program, &mut arguments) {
+                program
+                    .expression_table
+                    .static_machine_application_arguments_mut(application)
+                    .clone_from_slice(&arguments);
+            }
+        }
+    }
+    let state_spans = program
+        .machines()
+        .iter()
+        .map(|machine| machine.states)
+        .collect::<Vec<_>>();
+    let mut statement_handles = Vec::new();
+    for states in state_spans {
+        for state in program.machine_states.span_or_empty(states) {
+            for (handle, statement) in program
+                .statement_table
+                .iter_statements(state.statement_nodes)
+            {
+                if statement.as_call().is_some() {
+                    statement_handles.push(handle);
+                }
+            }
+        }
+    }
+    for handle in statement_handles {
+        let (mut arguments, application) = {
+            let Some(call) = program.statement_table.statement(handle).as_call() else {
+                continue;
+            };
+            (
+                call.machine_arguments.clone(),
+                call.authored_machine_application,
+            )
+        };
+        if fold_const_arguments(program, &mut arguments) {
+            let StatementNode::Call(call) = program.statement_table.statement_mut(handle) else {
+                continue;
+            };
+            call.machine_arguments = arguments;
+        }
+        if application.is_valid() {
+            let mut arguments = program
+                .expression_table
+                .static_machine_application_arguments(application)
+                .to_vec();
+            if fold_const_arguments(program, &mut arguments) {
+                program
+                    .expression_table
+                    .static_machine_application_arguments_mut(application)
+                    .clone_from_slice(&arguments);
+            }
+        }
+    }
+}
+
+fn fold_const_arguments(program: &mut TypedTrees, arguments: &mut [StaticMachineArgument]) -> bool {
+    let mut changed = false;
+    for index in 0..arguments.len() {
+        if arguments[index].application.is_some() {
+            let mut nested = arguments[index]
+                .application
+                .as_ref()
+                .expect("nested static application")
+                .arguments
+                .clone();
+            if fold_const_arguments(program, &mut nested) {
+                arguments[index]
+                    .application
+                    .as_mut()
+                    .expect("nested static application")
+                    .arguments = nested;
+                changed = true;
+            }
+        }
+        let Some(value) = closed_const_argument(program, &arguments[index]) else {
+            continue;
+        };
+        remember_integer_type(program, value);
+        arguments[index] = StaticMachineArgument {
+            const_literal: Some(integer_literal(value)),
+            ..StaticMachineArgument::default()
+        };
+        changed = true;
+    }
+    changed
+}
+
+fn closed_const_argument(program: &TypedTrees, argument: &StaticMachineArgument) -> Option<i128> {
+    let TypeReferenceNode::ConstExpression(expression) = program
+        .type_reference_table
+        .type_reference(argument.type_reference)
+    else {
+        return None;
+    };
+    match const_integer::classify(&program.expression_table, *expression, &|_, _| false)? {
+        ConstIntegerExpression::Closed(value) => Some(value),
+        ConstIntegerExpression::Open => None,
+    }
+}
+
+fn remember_integer_type(program: &mut TypedTrees, value: i128) {
+    let spelling = value.to_string();
+    let exists = program
+        .type_reference_table
+        .named_references()
+        .any(|(_, symbol, name)| !symbol.is_valid() && name == spelling);
+    if exists {
+        return;
+    }
+    program
+        .type_reference_table
+        .insert(TypeReferenceNode::Named {
+            symbol: SymbolHandle::invalid(),
+            name: Identifier::generated(spelling),
+        });
+}
+
+fn integer_literal(value: i128) -> IntegerLiteral {
+    if let Ok(narrow) = i64::try_from(value) {
+        return IntegerLiteral::from_value(narrow);
+    }
+    let negative = value < 0;
+    let digits = value.unsigned_abs().to_string();
+    IntegerLiteral::from_parts(negative, IntegerRadix::Decimal, &digits)
+        .expect("decimal digits of a closed const integer")
 }

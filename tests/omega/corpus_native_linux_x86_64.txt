@@ -1755,6 +1755,7 @@ pass/generics/borrowed_applied_payload_field_static_selection checked 3761ms @6c
 pass/generics/closed_generic_local_field_observation_exit built 17359ms exit:0 @6c49683ce714
 pass/generics/closed_indexed_quantity built 33099ms exit:70 @6c49683ce714
 pass/generics/closed_sum_case_membership checked 3352ms @6c49683ce714
+pass/generics/const_binder_difference_argument_exit built 5835ms exit:0 @73e11f08dcbb+wt
 pass/generics/const_data_param checked 3202ms @6c49683ce714
 pass/generics/contextual_static_machine_applications_exit built 17461ms exit:0 @6c49683ce714
 pass/generics/contextual_static_machine_captured_operand_return_exit built 17535ms exit:0 @6c49683ce714

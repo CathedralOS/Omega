@@ -3392,6 +3392,8 @@ fail/generics/returned_applied_field_does_not_widen_access rejected 168ms expect
 	mutable argument `returned` for state `entry` is not writable in this state; the source cannot lend the requested exclusive access
 fail/generics/returned_generic_result_parameter_mismatch rejected 254ms expected @6ef08ceefee0+wt
 	machine `wrong` state `entry` local `__hoist_14` expects `Output`, but the value is delivered as `Input`
+fail/generics/runtime_difference_const_argument rejected 48ms expected @73e11f08dcbb+wt
+	const argument expression: machine index operand must select a constant in its original lexical scope; runtime locals, parameters and open binders cannot be evaluated
 fail/generics/runtime_index_carrier_argument_effect rejected 267ms expected @afe3f46cebb2+wt
 	cannot retain runtime index descriptor `Limit` from its application argument without an evaluated scalar subject
 fail/generics/runtime_index_carrier_array_extent_mismatch rejected 1790ms expected @afe3f46cebb2+wt
@@ -7327,6 +7329,7 @@ pass/generics/borrowed_applied_payload_field_static_selection checked 1827ms @d1
 pass/generics/closed_generic_local_field_observation_exit checked 10700ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/generics/closed_indexed_quantity checked 12823ms check-target:macos_arm64 @9c4d1c444502
 pass/generics/closed_sum_case_membership checked 1660ms @a9ae30e1c334+wt
+pass/generics/const_binder_difference_argument_exit checked 6006ms check-target:macos_arm64 @73e11f08dcbb+wt
 pass/generics/const_data_param checked 1647ms @a9ae30e1c334+wt
 pass/generics/contextual_static_machine_applications_exit checked 10752ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/generics/contextual_static_machine_captured_operand_return_exit checked 10681ms check-target:macos_arm64 @a9ae30e1c334+wt
