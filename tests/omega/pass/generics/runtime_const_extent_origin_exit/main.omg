@@ -1,0 +1,20 @@
+// A literal 0 fits `u64 [0..N]` when the machine requires `N >= 1`.
+// The const parameter does not change, so that requires stays a premise
+// of the symbolic return range.
+use omega_language_std::console;
+
+machine origin<const N: u64>() -> u64 [0..N]
+requires N >= 1 && N <= 8
+{
+    0
+}
+
+data Main { }
+
+machine Main::main(main: &mut Main) reaches Console {
+    let start: u64 [0..6] = origin<6>();
+    transition start == 0 {
+        true -> Console::exit_process(0)
+        false -> Console::exit_process(1)
+    }
+}

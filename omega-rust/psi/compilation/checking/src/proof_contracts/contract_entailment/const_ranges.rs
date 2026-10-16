@@ -2,6 +2,10 @@
 //! A store or return can consume live ordered facts from arithmetic validation;
 //! declaration-only queries use type envelopes, not guessed flow premises.
 //! No selected application supplies premises for the retained generic body.
+//! Const parameters do not change during the body, so a machine `requires`
+//! comparison whose leaves are only those parameters and integer literals
+//! stays a premise at every symbolic-range store and return. A mutable
+//! parameter's entry fact is not reread here: its subject can move.
 use super::{
     BigInt, BinaryOperator, Diagnostic, Engine, ExpressionHandle, ExpressionNode, Machine,
     Polynomial, StrictArithmeticBindingValue, StrictArithmeticSymbolBinding, SymbolHandle,
@@ -315,7 +319,93 @@ fn scope_engine<'program>(
     if !engine.strict_symbol_bindings_are_valid() || !engine.install_hypotheses(premises) {
         return None;
     }
+    let const_requires = const_requires_comparisons(program, machine, &mut engine);
+    if !engine.install_hypotheses(const_requires) {
+        return None;
+    }
     Some(engine)
+}
+
+/// Comparisons in this machine's `requires` whose operands mention only const
+/// parameters and integer literals. Those facts name values the body cannot
+/// assign, so they remain available when a return is checked against a
+/// symbolic range such as `u64 [0..N]` under `requires N >= 1`.
+fn const_requires_comparisons(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    engine: &mut Engine<'_>,
+) -> Vec<(BinaryOperator, Polynomial, Polynomial)> {
+    let mut comparisons = Vec::new();
+    for fact in super::citations::machine_requires_facts(program, machine) {
+        collect_const_comparisons(program, machine, engine, fact, &mut comparisons);
+    }
+    comparisons
+}
+
+fn collect_const_comparisons(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    engine: &mut Engine<'_>,
+    expression: ExpressionHandle,
+    comparisons: &mut Vec<(BinaryOperator, Polynomial, Polynomial)>,
+) {
+    let Some(binary) = program.expression_table.binary_node(expression) else {
+        return;
+    };
+    if binary.operator == BinaryOperator::And {
+        collect_const_comparisons(program, machine, engine, binary.left, comparisons);
+        collect_const_comparisons(program, machine, engine, binary.right, comparisons);
+        return;
+    }
+    if !matches!(
+        binary.operator,
+        BinaryOperator::Less
+            | BinaryOperator::LessOrEqual
+            | BinaryOperator::Greater
+            | BinaryOperator::GreaterOrEqual
+            | BinaryOperator::Equal
+    ) {
+        return;
+    }
+    let parameters = program.machine_type_parameters(machine);
+    if !const_parameter_operand(program, parameters, binary.left)
+        || !const_parameter_operand(program, parameters, binary.right)
+    {
+        return;
+    }
+    let (Some(left), Some(right)) = (
+        term(program, parameters, engine, binary.left),
+        term(program, parameters, engine, binary.right),
+    ) else {
+        return;
+    };
+    comparisons.push((binary.operator, left, right));
+}
+
+/// An operand the const-requires premise may mention: an integer literal, a
+/// const parameter, or arithmetic on those. State parameters and calls stay
+/// out because they are not stable for the whole body.
+fn const_parameter_operand(
+    program: &dyn crate::CheckingInput,
+    parameters: &[TypeParameter],
+    expression: ExpressionHandle,
+) -> bool {
+    if !expression.is_valid() {
+        return false;
+    }
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Integer(_) => true,
+        ExpressionNode::Name(_) => binder(program, parameters, expression).is_some(),
+        ExpressionNode::Borrow(inner) => const_parameter_operand(program, parameters, inner.target),
+        ExpressionNode::Binary(binary) => {
+            matches!(
+                binary.operator,
+                BinaryOperator::Add | BinaryOperator::Subtract | BinaryOperator::Multiply
+            ) && const_parameter_operand(program, parameters, binary.left)
+                && const_parameter_operand(program, parameters, binary.right)
+        }
+        _ => false,
+    }
 }
 
 fn contains(engine: &Engine<'_>, required: &[Polynomial; 2], actual: &[Polynomial; 2]) -> bool {
