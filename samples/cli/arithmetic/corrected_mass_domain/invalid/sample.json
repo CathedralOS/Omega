@@ -1,0 +1,7 @@
+{
+  "role": "intended-invalid",
+  "entry": "main.omg",
+  "rejection_contains": [
+    "cannot prove initializer of `corrected` in Main::main is in domain `f64::NonnegativeMass`"
+  ]
+}

@@ -1,0 +1,13 @@
+// A negative corrected mass is not a nonnegative f64 mass. The annotation
+// does not establish the predicate.
+use omega_language_std::console;
+
+domain f64::NonnegativeMass(value)
+requires value >= 0.0;
+
+data Main { }
+
+machine Main::main(main: &mut Main) reaches Console {
+    let corrected: f64 in NonnegativeMass = 0.0 - 1.0;
+    Console::exit_process(0);
+}
