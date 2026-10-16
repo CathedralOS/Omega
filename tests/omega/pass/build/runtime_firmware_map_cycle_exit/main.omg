@@ -21,7 +21,7 @@ machine allocate(this: &EfiBootServicesTable, allocate_type: u32, memory_type: u
         _ -> accepted(memory)
     }
     state accepted(memory: &mut u64) -> u64 {
-        memory = 8192;
+        memory = ((memory as u64 in Saturating) + 8192) as u64;
         EFI_SUCCESS
     }
 }
@@ -125,16 +125,36 @@ invokes UefiBootServices;
             map_capacity: 4096, map_pages: 1, pages: 0, map_size: 0,
             key: 0, descriptor_size: 0, descriptor_version: 0, status: 0
         },
-        terminal: UefiOsHandoffTerminal {}, remaining: 0, exhaustion: 0
+        terminal: UefiOsHandoffTerminal {}, remaining: 0, exhaustion: 0, started: false
     };
     let disposition: UefiOsHandoffDisposition = UefiOsHandoffCycle::complete_boot_services(&mut cycle);
-    transition disposition {
-        UefiOsHandoffDisposition::Ready -> ready(&cycle, scenario)
-        UefiOsHandoffDisposition::Rejected { status } -> rejected(&cycle, scenario, status)
+    let key: u64 = cycle.legs.key;
+    let remaining: u64 = cycle.remaining;
+    let map: u64 = cycle.legs.map;
+    let staged: u64 = cycle.legs.next_map;
+    let repeated: UefiOsHandoffDisposition = UefiOsHandoffCycle::complete_boot_services(&mut cycle);
+    transition repeated {
+        UefiOsHandoffDisposition::Rejected { status } -> retained(&cycle, disposition, scenario, status, key, remaining, map, staged)
+        _ -> (false)
+    }
+    state retained(cycle: &UefiOsHandoffCycle, disposition: UefiOsHandoffDisposition,
+        scenario: u32, status: u64, key: u64, remaining: u64, map: u64, staged: u64) -> bool
+    {
+        transition status == EFI_INVALID_PARAMETER && cycle.started && cycle.legs.key == key
+            && cycle.remaining == remaining && cycle.legs.map == map && cycle.legs.next_map == staged {
+            true -> checked(cycle, disposition, scenario)
+            _ -> (false)
+        }
+    }
+    state checked(cycle: &UefiOsHandoffCycle, disposition: UefiOsHandoffDisposition, scenario: u32) -> bool {
+        transition disposition {
+            UefiOsHandoffDisposition::Ready -> ready(cycle, scenario)
+            UefiOsHandoffDisposition::Rejected { status } -> rejected(cycle, scenario, status)
+        }
     }
     state ready(cycle: &UefiOsHandoffCycle, scenario: u32) -> bool {
         (scenario == 0 || scenario == 7 || scenario == 14 || scenario == 15)
-            && cycle.legs.map == 8192
+            && cycle.legs.map == 8192 && cycle.legs.next_map == 0 && cycle.legs.pages == 0
             && ((scenario == 15 && cycle.legs.map_pages == 3 && cycle.legs.map_capacity == 12288)
                 || (scenario != 15 && cycle.legs.map_pages == 2 && cycle.legs.map_capacity == 8192))
             && (((scenario == 0 || scenario == 14 || scenario == 15) && cycle.legs.key == 1 && cycle.remaining == 4)

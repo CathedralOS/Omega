@@ -270,6 +270,7 @@ pub data UefiOsHandoffCycle {
     terminal: UefiOsHandoffTerminal;
     remaining: u64;
     exhaustion: u64;
+    started: bool;
 }
 
 machine UefiOsHandoffCycle::acquire(uefi_os_handoff_cycle: &mut UefiOsHandoffCycle)
@@ -337,11 +338,17 @@ pub machine UefiOsHandoffCycle::complete_boot_services(uefi_os_handoff_cycle: &m
     reaches UefiBootServices
     invokes UefiBootServices;
 {
-    transition { _ -> initialize(uefi_os_handoff_cycle) }
+    // A retained decision is not permission to restart firmware operations.
+    // This guard also retains failed-release allocations and the spent budget.
+    transition uefi_os_handoff_cycle.started {
+        false -> initialize(uefi_os_handoff_cycle)
+        true -> (UefiOsHandoffDisposition::Rejected { status: EFI_INVALID_PARAMETER })
+    }
 
     // Deployment inputs: the stale-key bound and the exhaustion status are
     // target-authored constants installed before the cycle begins.
     state initialize(uefi_os_handoff_cycle: &mut UefiOsHandoffCycle) -> UefiOsHandoffDisposition {
+        uefi_os_handoff_cycle.started = true;
         uefi_os_handoff_cycle.remaining = UEFI_OS_HANDOFF_ATTEMPT_BOUND;
         uefi_os_handoff_cycle.exhaustion = UEFI_OS_HANDOFF_EXHAUSTION_STATUS;
         transition { _ -> acquire(uefi_os_handoff_cycle) }
@@ -439,6 +446,9 @@ pub machine UefiOsHandoffCycle::complete_boot_services(uefi_os_handoff_cycle: &m
         uefi_os_handoff_cycle.legs.map_pages = uefi_os_handoff_cycle.legs.pages;
         uefi_os_handoff_cycle.legs.map_capacity = ((uefi_os_handoff_cycle.legs.pages as u64 in Saturating)
             * EFI_PAGE_BYTES) as u64;
+        // Adoption transfers the staged allocation into the current owner.
+        uefi_os_handoff_cycle.legs.next_map = 0;
+        uefi_os_handoff_cycle.legs.pages = 0;
         transition { _ -> acquire(uefi_os_handoff_cycle) }
     }
 
