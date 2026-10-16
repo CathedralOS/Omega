@@ -176,3 +176,4 @@ pub use register_model::aarch64_indirect_aggregate_call_keys;
 pub use register_model::{aarch64_float_scalar_call_keys, aarch64_float_scalar_return_keys};
 
 pub use register_model::{AARCH64_PLACED_READ, AARCH64_PLACED_WRITE};
+pub use register_model::{AARCH64_SYSTEM_REGISTER_READ, AARCH64_SYSTEM_REGISTER_WRITE};

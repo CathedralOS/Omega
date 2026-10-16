@@ -1,0 +1,5 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "asm_system_register_destination_predicate");
+    builder.freestanding = true;
+    Build::bind(builder, linux_arm64::ProgramEntry, Main::main);
+}

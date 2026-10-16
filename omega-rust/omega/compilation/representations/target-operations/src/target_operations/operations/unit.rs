@@ -563,6 +563,15 @@ pub enum TargetUnitOperation {
         port: u16,
         value: u8,
     },
+    RegisterAccess {
+        psi_operation: OperationId,
+        service: ServiceId,
+        event: terminal_psi::RegisterAccessEvent,
+        /// Writes consume the exact evaluated scalar; reads have no input.
+        operand: Option<TargetUnitScalarArgumentSource>,
+        /// Reads define this home; writes produce no scalar.
+        result_home: Option<TargetUnitScalarHomeRequirement>,
+    },
     BoundarySettlement {
         psi_operation: OperationId,
         boundary: BoundaryMachineId,

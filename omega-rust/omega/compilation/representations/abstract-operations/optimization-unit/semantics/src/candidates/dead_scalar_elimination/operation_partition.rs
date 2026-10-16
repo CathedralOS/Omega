@@ -37,6 +37,7 @@ fn independently_validated_dead_scalar_operation_family(operation: &O) -> Option
         | abstract_operations::structural_establish_triple_pattern!(..)
         | abstract_operations::boundary_or_structural_call_pair_pattern!(..)
         | O::PortWrite { .. }
+        | O::RegisterAccess { .. }
         | O::Call { .. }
         | O::IeeeFloatConstant { .. }
         | O::NearestIeeeFloatFusedMultiplyAdd { .. }

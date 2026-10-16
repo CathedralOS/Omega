@@ -23,6 +23,12 @@ pub(super) fn lower(
             port,
             value,
         },
+        OperationKind::RegisterAccess { service, event } => AbstractOperation::RegisterAccess {
+            psi_operation: operation.id,
+            service,
+            event,
+            result: operation.result.scalar().map(Into::into),
+        },
         OperationKind::WriteOnlyPrimitiveStore {
             destination,
             path,

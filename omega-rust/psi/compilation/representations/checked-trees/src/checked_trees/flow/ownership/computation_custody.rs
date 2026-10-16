@@ -705,6 +705,9 @@ impl<'facts> CallTransfers<'facts> {
             CheckedUnitEffectOperationPlan::CaptureAssignmentDestination {
                 destination, ..
             } => self.argument_evaluation(destination),
+            CheckedUnitEffectOperationPlan::RegisterAccess { arguments, .. } => {
+                arguments.iter().map(|argument| self.scalar(argument)).sum()
+            }
             CheckedUnitEffectOperationPlan::AtomicAccess(atomic) => atomic
                 .event
                 .operands()

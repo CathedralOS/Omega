@@ -735,6 +735,13 @@ impl<'artifact> TerminalExecution<'artifact> {
                                     OperationKind::PortWrite { .. } => {
                                         self.execute_port_write(operation, handler)?
                                     }
+                                    OperationKind::RegisterAccess { event, .. } => {
+                                        return Err(TerminalInterpretError::UnsupportedCapability(
+                                            crate::capabilities::TerminalUnsupportedCapability::RegisterAccess {
+                                                operation: event.operation(),
+                                            },
+                                        ));
+                                    }
                                     OperationKind::Call { .. } => {
                                         self.execute_call(operation, &program)?
                                     }

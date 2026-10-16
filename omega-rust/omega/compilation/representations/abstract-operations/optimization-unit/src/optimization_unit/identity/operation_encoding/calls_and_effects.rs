@@ -121,6 +121,22 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             bytes.u16(*port);
             bytes.u8(*value);
         }
+        O::RegisterAccess {
+            psi_operation,
+            service,
+            event,
+            result,
+        } => {
+            bytes.u8(242);
+            bytes.id(*psi_operation);
+            bytes.id(*service);
+            bytes.u16(event.operation().catalog_tag());
+            encode_ids(bytes, event.inputs());
+            bytes.u8(u8::from(result.is_some()));
+            if let Some(result) = result {
+                encode_abstract_result(bytes, *result);
+            }
+        }
         O::Call {
             psi_operation,
             result,

@@ -167,6 +167,10 @@ fn decode_kind(
             port: cursor.u16()?,
             value: cursor.byte()?,
         },
+        247 => SelectedInstructionKind::RegisterAccess {
+            operation: crate::RegisterOperation::from_catalog_tag(cursor.u16()?)
+                .ok_or(PreAllocationMachineEffectDecodeError::InvalidField)?,
+        },
         238 => SelectedInstructionKind::AtomicFence,
         235 => SelectedInstructionKind::ZeroBytes,
         2 => SelectedInstructionKind::CopyI64,
@@ -554,6 +558,8 @@ fn decode_alternative_for_version(
         236 => MachineAlternativeFamily::LoadEncodedScalar,
         237 => MachineAlternativeFamily::StoreEncodedScalar,
         239 => MachineAlternativeFamily::PortWrite,
+        247 => MachineAlternativeFamily::SystemRegisterRead,
+        248 => MachineAlternativeFamily::SystemRegisterWrite,
         238 => MachineAlternativeFamily::AtomicFence,
         235 => MachineAlternativeFamily::ZeroBytes,
         2 => MachineAlternativeFamily::CopyI64,

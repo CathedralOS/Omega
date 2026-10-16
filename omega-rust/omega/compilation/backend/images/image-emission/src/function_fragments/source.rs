@@ -55,6 +55,7 @@ pub(super) fn requires_graph_storage_replay(operations: &[AbstractOperation]) ->
                     ..
                 }
                 | AbstractOperation::AtomicEvent { .. }
+                | AbstractOperation::RegisterAccess { .. }
                 | AbstractOperation::EstablishByteSequenceConcatenation { .. }
                 | AbstractOperation::EstablishPrimitiveLocal { .. }
                 | abstract_operations::establish_record_or_case_pattern!(..)
@@ -252,6 +253,21 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
         }
         for (operation_ordinal, operation) in abstracted.operations.iter().enumerate() {
             let admitted = match operation {
+                AbstractOperation::RegisterAccess { psi_operation, event, result, .. } => {
+                    let mut instructions = selected.instructions().filter(|instruction| {
+                        instruction.provenance.operations.contains(psi_operation)
+                    });
+                    match (instructions.next(), instructions.next()) {
+                        (Some(instruction), None) => {
+                            instruction.kind == selected_instructions::SelectedInstructionKind::RegisterAccess { operation: event.operation() }
+                                && instruction.provenance.operations.as_slice() == [*psi_operation]
+                                && instruction.provenance.values.iter().copied().eq(
+                                    event.inputs().iter().copied().chain(result.map(|result| result.value))
+                                )
+                        }
+                        _ => false,
+                    }
+                }
                 AbstractOperation::PortWrite { psi_operation, port, value, .. } => {
                     selected.instructions().any(|instruction| {
                         instruction.kind == selected_instructions::SelectedInstructionKind::PortWrite { port: *port, value: *value }

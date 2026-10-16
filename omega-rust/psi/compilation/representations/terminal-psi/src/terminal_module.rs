@@ -40,11 +40,11 @@ pub use boundary::{
 pub use control_flow::{
     AtomicAccessEvent, AtomicReadModifyWrite, Block, CrashCause, ElementViewRegion, FenceOrdering,
     FloatResultPolicy, MemoryOrdering, Operation, OperationKind, OperationResult,
-    RecordFieldInitializer, RecordFieldValue, ReferenceStorageView, ScalarCaseField,
-    StructuralCaseSuccessorEdge, StructuralOperationResult, StructuralResultClaimBinding,
-    StructuralStoreDisposition, SuccessorEdge, TargetMachineCallable, TargetMachineFamily,
-    TargetMachineFamilyMember, TargetMachineSupply, TerminalBlockNaturalRank, TerminalMachine,
-    TerminalNaturalCycle, TerminalNaturalRankComparison, TerminalNaturalRankEdge,
+    RecordFieldInitializer, RecordFieldValue, ReferenceStorageView, RegisterAccessEvent,
+    ScalarCaseField, StructuralCaseSuccessorEdge, StructuralOperationResult,
+    StructuralResultClaimBinding, StructuralStoreDisposition, SuccessorEdge, TargetMachineCallable,
+    TargetMachineFamily, TargetMachineFamilyMember, TargetMachineSupply, TerminalBlockNaturalRank,
+    TerminalMachine, TerminalNaturalCycle, TerminalNaturalRankComparison, TerminalNaturalRankEdge,
     TerminalRankedScc, Terminator, TrappingIntegerOperation, TrappingIntegerPrimitive,
     structural_parameter_position,
 };

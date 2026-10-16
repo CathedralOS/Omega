@@ -257,6 +257,7 @@ pub(crate) fn map_obligations(
         | OperationKind::EstablishTrivialAffineLocal { .. }
         | OperationKind::SelectImplementation { .. }
         | OperationKind::PortWrite { .. }
+        | OperationKind::RegisterAccess { .. }
         | OperationKind::IntegerConstant { .. }
         | OperationKind::BooleanConstant { .. }
         | OperationKind::IeeeFloatConstant { .. }

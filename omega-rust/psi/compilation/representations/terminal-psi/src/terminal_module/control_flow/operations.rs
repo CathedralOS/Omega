@@ -839,6 +839,14 @@ pub enum OperationKind {
         port: u16,
         value: u8,
     },
+    /// An observable machine-register event with evaluated scalar inputs.
+    /// Reads produce the operation's scalar result; writes produce Unit.
+    /// Exact service authority and target applicability remain independent
+    /// admission requirements of the selected realization.
+    RegisterAccess {
+        service: ServiceId,
+        event: super::RegisterAccessEvent,
+    },
     IntegerConstant {
         value: IntegerValue,
     },
@@ -1255,6 +1263,7 @@ impl OperationKind {
             Self::TrappingInteger { operation } => operation.map_operands(map),
             Self::FloatResultPolicy { policy } => policy.map_operands(map),
             Self::AtomicAccess { event, .. } => event.map_operands(map),
+            Self::RegisterAccess { event, .. } => event.map_operands(map),
             Self::NearestIeeeFloatFusedMultiplyAdd {
                 left,
                 right,

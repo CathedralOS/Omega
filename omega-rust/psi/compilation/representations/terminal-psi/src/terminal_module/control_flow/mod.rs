@@ -6,6 +6,7 @@ mod machines;
 mod operations;
 mod ranking;
 mod record_field;
+mod register_access;
 mod scalar_case_field;
 mod target_families;
 mod termination;
@@ -24,6 +25,7 @@ pub use ranking::{
     TerminalNaturalRankEdge, TerminalRankedScc,
 };
 pub use record_field::{RecordFieldInitializer, RecordFieldValue};
+pub use register_access::RegisterAccessEvent;
 pub use scalar_case_field::ScalarCaseField;
 pub use target_families::{
     TargetMachineCallable, TargetMachineFamily, TargetMachineFamilyMember, TargetMachineSupply,

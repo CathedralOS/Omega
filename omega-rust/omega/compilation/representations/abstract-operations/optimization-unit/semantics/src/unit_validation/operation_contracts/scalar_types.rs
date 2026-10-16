@@ -53,6 +53,20 @@ pub(crate) fn operation_scalar_types_match(
         return false;
     }
     match operation {
+        O::RegisterAccess { event, result, .. } => {
+            let is_u64 = |carrier| matches!(carrier, ScalarType::Integer(integer)
+                if fixed(integer) && integer.bits() == 64
+                    && integer.sign() == semantic_vocabulary::IntegerSign::Unsigned);
+            event.operation().is_admitted() && match (event, result) {
+                (terminal_psi::RegisterAccessEvent::Read { .. }, Some(result)) => {
+                    is_u64(result.scalar_type) && scalar(result.value) == Some(result.scalar_type)
+                }
+                (terminal_psi::RegisterAccessEvent::Write { value, .. }, None) => {
+                    scalar(*value).is_some_and(is_u64)
+                }
+                _ => false,
+            }
+        }
         O::EstablishPlacedReference { .. } => true,
         O::EstablishReference { storage, .. } => storage.as_ref().is_none_or(|view| {
             matches!(scalar(view.byte_offset), Some(ScalarType::Integer(integer))

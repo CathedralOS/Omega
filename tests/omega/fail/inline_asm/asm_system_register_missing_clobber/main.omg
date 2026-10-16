@@ -1,0 +1,5 @@
+use omega::language::core::assembly;
+data Main { value: u64; }
+machine Main::main(main: &mut Main) reaches MachineControl {
+    asm where clobbers x9 { read_sctlr_el1 main.value; }
+}

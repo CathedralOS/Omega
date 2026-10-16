@@ -60,6 +60,16 @@ pub fn aarch64_machine_effect_catalog(
             .declaration_keys()
             .into_iter()
             .map(|(semantic, constraint)| {
+                if matches!(
+                    semantic,
+                    MachineSemanticKind::SystemRegisterRead
+                        | MachineSemanticKind::SystemRegisterWrite
+                ) {
+                    return Ok(crate::selected_form_encoding::register_access::declaration(
+                        semantic == MachineSemanticKind::SystemRegisterRead,
+                        constraint,
+                    ));
+                }
                 if semantic == MachineSemanticKind::AtomicFence {
                     return Ok(crate::selected_form_encoding::atomic_fence::declaration(
                         constraint,
@@ -230,6 +240,8 @@ fn selected_keys(
     };
     Ok(SelectedConstraintKeys {
         port_write: None,
+        system_register_read: Some(crate::AARCH64_SYSTEM_REGISTER_READ),
+        system_register_write: Some(crate::AARCH64_SYSTEM_REGISTER_WRITE),
         atomic_fence: Some(crate::AARCH64_ATOMIC_FENCE),
         // Apple's arm64 macOS baseline is Apple Silicon (M1 or later),
         // which includes FEAT_LSE. Generic AArch64/ELF does not promise it.
@@ -495,6 +507,12 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
             }
         }
         MachineSemanticKind::PortWrite => unreachable!("x86 port I/O has no AArch64 constraint"),
+        MachineSemanticKind::SystemRegisterRead => {
+            return crate::selected_form_encoding::register_access::effects(true);
+        }
+        MachineSemanticKind::SystemRegisterWrite => {
+            return crate::selected_form_encoding::register_access::effects(false);
+        }
         MachineSemanticKind::AtomicFence => return MachineEncodedEffects::atomic_fence_v1(),
         MachineSemanticKind::LoadEncodedScalar => (vec![0, 1], vec![2, 3, 4, 5]),
         MachineSemanticKind::StoreEncodedScalar => (vec![0, 1, 2], vec![3, 4, 5]),

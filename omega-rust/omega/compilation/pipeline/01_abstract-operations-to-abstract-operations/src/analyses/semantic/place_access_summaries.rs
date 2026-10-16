@@ -589,6 +589,11 @@ fn scan_operation(
         }
     }
     match operation {
+        O::RegisterAccess { .. } => {
+            // Register writes may change memory interpretation. They are not
+            // ordinary accesses to one place that an alias summary can narrow.
+            pending.unsummarized = true;
+        }
         O::PrimitiveScalarRead { source, path, .. } => {
             pending.attribute(context, *source, runtime_prefix(path), AccessKind::Read);
         }

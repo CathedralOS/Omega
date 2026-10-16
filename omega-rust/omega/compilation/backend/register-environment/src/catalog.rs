@@ -64,6 +64,8 @@ pub(super) fn selected_environment_keys(
 ) -> TargetRegisterEnvironmentConstraintKeys {
     TargetRegisterEnvironmentConstraintKeys {
         port_write: keys.port_write,
+        system_register_read: keys.system_register_read,
+        system_register_write: keys.system_register_write,
         atomic_fence: keys.atomic_fence,
         placed_read: keys.placed_read,
         placed_write: keys.placed_write,
@@ -189,6 +191,8 @@ pub(super) fn selected_constraint_keys(target: NativeTarget) -> Option<SelectedC
         (Architecture::X86_64, ObjectFormat::Elf | ObjectFormat::MachO) => {
             Some(SelectedConstraintKeys {
                 port_write: Some(isa_x86_64::X86_64_PORT_WRITE),
+                system_register_read: None,
+                system_register_write: None,
                 atomic_fence: Some(isa_x86_64::X86_64_ATOMIC_FENCE),
                 placed_read: Some(isa_x86_64::X86_64_PLACED_READ),
                 placed_write: Some(isa_x86_64::X86_64_PLACED_WRITE),
@@ -294,6 +298,8 @@ pub(super) fn selected_constraint_keys(target: NativeTarget) -> Option<SelectedC
         }
         (Architecture::X86_64, ObjectFormat::Coff) => Some(SelectedConstraintKeys {
             port_write: Some(isa_x86_64::X86_64_PORT_WRITE),
+            system_register_read: None,
+            system_register_write: None,
             atomic_fence: Some(isa_x86_64::X86_64_ATOMIC_FENCE),
             placed_read: Some(isa_x86_64::X86_64_PLACED_READ),
             placed_write: Some(isa_x86_64::X86_64_PLACED_WRITE),
@@ -402,6 +408,8 @@ fn aarch64_selected_constraint_keys(target: NativeTarget) -> SelectedConstraintK
         };
     SelectedConstraintKeys {
         port_write: None,
+        system_register_read: Some(isa_aarch64::AARCH64_SYSTEM_REGISTER_READ),
+        system_register_write: Some(isa_aarch64::AARCH64_SYSTEM_REGISTER_WRITE),
         atomic_fence: Some(isa_aarch64::AARCH64_ATOMIC_FENCE),
         placed_read: Some(isa_aarch64::AARCH64_PLACED_READ),
         placed_write: Some(isa_aarch64::AARCH64_PLACED_WRITE),

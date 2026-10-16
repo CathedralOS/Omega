@@ -916,6 +916,9 @@ pub(crate) fn validate_decoded(
     decoded: &[DecodedInstruction],
 ) -> Result<(), X86_64SelectedFormEncodingError> {
     let valid = match kind {
+        SelectedInstructionKind::RegisterAccess { .. } => {
+            return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
+        }
         SelectedInstructionKind::PortWrite { .. } => {
             unreachable!("port envelopes use the dedicated exact decoder")
         }
@@ -2050,6 +2053,9 @@ pub(crate) fn footprint(
         return super::atomic::footprint(form, operands);
     }
     let (reads, writes, writes_rflags) = match kind {
+        SelectedInstructionKind::RegisterAccess { .. } => {
+            unreachable!("x86 request validation rejects AArch64 system registers")
+        }
         SelectedInstructionKind::PlacedScalarAccess { form, .. } => {
             if form.write {
                 (vec![operands[0], operands[1]], vec![], false)

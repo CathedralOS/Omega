@@ -235,6 +235,48 @@ pub(super) fn validate_operation(
             sources.push((result.value, Source::Home(*result_home)));
         }
         (
+            TargetUnitOperation::RegisterAccess {
+                psi_operation,
+                service,
+                event,
+                operand,
+                result_home,
+            },
+            AbstractOperation::RegisterAccess {
+                psi_operation: expected_operation,
+                service: expected_service,
+                event: expected_event,
+                result,
+            },
+        ) => {
+            if psi_operation != expected_operation
+                || service != expected_service
+                || event != expected_event
+            {
+                return Err(LegalizationError::custody());
+            }
+            match (event.inputs(), operand) {
+                ([], None) => {}
+                ([value], Some(operand))
+                    if sources
+                        .iter()
+                        .any(|(identity, source)| identity == value && source == operand) => {}
+                _ => return Err(LegalizationError::custody()),
+            }
+            match (result_home, result) {
+                (None, None) => {}
+                (Some(home), Some(result))
+                    if home.defining_operation == *psi_operation
+                        && home.source_value == result.value
+                        && home.scalar_type == result.scalar_type
+                        && Some(home.shape) == super::super::scalar_shape(result.scalar_type) =>
+                {
+                    sources.push((result.value, Source::Home(*home)));
+                }
+                _ => return Err(LegalizationError::custody()),
+            }
+        }
+        (
             TargetUnitOperation::PortWrite {
                 psi_operation,
                 service,

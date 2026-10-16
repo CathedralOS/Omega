@@ -434,6 +434,12 @@ pub enum AbstractOperation {
         port: u16,
         value: u8,
     },
+    RegisterAccess {
+        psi_operation: OperationId,
+        service: ServiceId,
+        event: terminal_psi::RegisterAccessEvent,
+        result: Option<AbstractResult>,
+    },
     Call {
         psi_operation: OperationId,
         result: ValueId,
@@ -1032,6 +1038,7 @@ impl AbstractOperation {
             | Self::SelectImplementation { psi_operation, .. }
             | Self::BoundaryCall { psi_operation, .. }
             | Self::PortWrite { psi_operation, .. }
+            | Self::RegisterAccess { psi_operation, .. }
             | Self::Call { psi_operation, .. }
             | Self::IntegerConstant { psi_operation, .. }
             | Self::IeeeFloatConstant { psi_operation, .. }

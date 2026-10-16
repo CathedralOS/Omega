@@ -798,6 +798,9 @@ fn validate_operation_foundation(
         OperationKind::PortWrite { .. } => {
             call_foundations::validate_port_write(module, operation)?
         }
+        OperationKind::RegisterAccess { .. } => {
+            call_foundations::validate_register_access(module, machine, operation)?
+        }
         OperationKind::EstablishZeroedStructural { .. } => {
             value_foundations::validate_establish_zeroed_structural(module, machine, operation)?
         }

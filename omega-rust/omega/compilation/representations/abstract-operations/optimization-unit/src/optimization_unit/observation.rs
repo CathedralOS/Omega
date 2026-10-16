@@ -426,7 +426,7 @@ fn operation_observations(
         | O::StructuralScalarFieldRead { .. } => (vec![event(C::StructuralState)], No, No),
         abstract_operations::call_or_call_structural_pattern!(..) => (vec![event(C::InternalCall)], May, May),
         O::BoundaryCall { .. } => (vec![event(C::BoundaryCall)], May, May),
-        O::PortWrite { .. } => (vec![event(C::Service)], No, No),
+        O::PortWrite { .. } | O::RegisterAccess { .. } => (vec![event(C::Service)], No, No),
         abstract_operations::jump_or_conditional_pattern!() => (vec![event(C::ControlTransfer)], No, No),
         O::StructuralCase { .. } => (
             vec![event(C::StructuralState), event(C::ControlTransfer)],

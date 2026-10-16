@@ -5,6 +5,7 @@ use abstract_operations::binding_arguments;
 pub fn operation_definition(operation: &AbstractOperation) -> Option<(ValueId, ScalarType)> {
     use AbstractOperation as O;
     match operation {
+        O::RegisterAccess { result, .. } => result.map(|result| (result.value, result.scalar_type)),
         O::Call {
             result,
             scalar_type,
@@ -104,6 +105,7 @@ pub(super) fn operation_uses(operation: &AbstractOperation) -> Vec<ValueId> {
 fn direct_uses(operation: &AbstractOperation) -> Vec<ValueId> {
     use AbstractOperation as O;
     match operation {
+        O::RegisterAccess { event, .. } => event.inputs().to_vec(),
         abstract_operations::establish_case_or_record_fields_pattern!(fields) => fields
             .iter()
             .filter_map(|initializer| match &initializer.value {

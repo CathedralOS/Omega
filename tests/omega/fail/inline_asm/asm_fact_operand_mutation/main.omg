@@ -1,0 +1,18 @@
+// An instruction preserves reference slots, but calls computing its operands
+// retain their writes. A completed register read cannot restore main.ready.
+use omega::language::core::assembly;
+data Main { port: u16; status: u8; ready: bool; }
+machine change(main: &mut Main) -> u16 {
+    main.ready = false;
+    0
+}
+machine Main::main(main: &mut Main) reaches PortIo requires main.ready {
+    asm where
+        requires main.ready
+        clobbers rax, rdx, r10, r15
+        ensures main.ready
+    {
+        mov main.port, change(main);
+        in main.status, main.port
+    }
+}

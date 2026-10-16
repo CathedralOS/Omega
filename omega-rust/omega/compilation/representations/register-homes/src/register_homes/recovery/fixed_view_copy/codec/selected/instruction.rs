@@ -85,6 +85,7 @@ pub(super) fn decode_instruction(
 fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
     let tag = match kind {
         SelectedInstructionKind::PortWrite { .. } => 239,
+        SelectedInstructionKind::RegisterAccess { .. } => 247,
         SelectedInstructionKind::AtomicFence => 238,
         SelectedInstructionKind::AtomicAccess { form } => form.machine_tag(),
         SelectedInstructionKind::PlacedScalarAccess { form, .. } => form.machine_tag(),
@@ -193,6 +194,9 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
     };
     bytes.push(tag);
     match kind {
+        SelectedInstructionKind::RegisterAccess { operation } => {
+            bytes.extend_from_slice(&operation.catalog_tag().to_le_bytes());
+        }
         SelectedInstructionKind::PortWrite { port, value } => {
             bytes.extend_from_slice(&port.to_le_bytes());
             bytes.push(value);
@@ -556,6 +560,10 @@ pub(in crate::register_homes::recovery::fixed_view_copy::codec) fn decode_kind(
         239 => SelectedInstructionKind::PortWrite {
             port: cursor.u16()?,
             value: cursor.byte()?,
+        },
+        tag @ 247 => SelectedInstructionKind::RegisterAccess {
+            operation: selected_instructions::RegisterOperation::from_catalog_tag(cursor.u16()?)
+                .ok_or(FixedViewCopyDecodeError::UnknownInstructionKind(tag))?,
         },
         238 => SelectedInstructionKind::AtomicFence,
         235 => SelectedInstructionKind::ZeroBytes,

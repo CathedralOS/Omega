@@ -1,0 +1,2 @@
+cannot prove asm `ensures` fact at block exit
+main.ready

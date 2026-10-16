@@ -89,7 +89,8 @@ pub(super) fn admit(
             // reach: no structural custody crosses the selected edge.
             CheckedUnitEffectOperationPlan::AtomicFence { .. }
             | CheckedUnitEffectOperationPlan::AtomicAccess(_)
-            | CheckedUnitEffectOperationPlan::PortWrite { .. } => {}
+            | CheckedUnitEffectOperationPlan::PortWrite { .. }
+            | CheckedUnitEffectOperationPlan::RegisterAccess { .. } => {}
             // The window pair the sequencer itself joined — a move-out
             // binding the displaced field value and the exact restoration
             // into the opened hole — carries no new custody across the

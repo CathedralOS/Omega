@@ -26,6 +26,9 @@ use terminal_psi::{OperationKind, Terminator};
 /// Driver task names and display diagnostics belong to the driver, not Psi.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TerminalUnsupportedCapability {
+    RegisterAccess {
+        operation: terminal_psi::RegisterOperation,
+    },
     /// Opaque members require separately admitted execution and result custody.
     TargetMachineMemberSupply {
         head: terminal_psi::TargetMachineCallable,
@@ -109,6 +112,13 @@ pub(crate) fn check_with_private_entry_ram(
                 .ok_or(TerminalInterpretError::VerifiedBlockMissing)?;
             for (operation_index, operation) in block.operations.iter().enumerate() {
                 let callee = match &operation.kind {
+                    OperationKind::RegisterAccess { event, .. } => {
+                        return Err(TerminalInterpretError::UnsupportedCapability(
+                            TerminalUnsupportedCapability::RegisterAccess {
+                                operation: event.operation(),
+                            },
+                        ));
+                    }
                     OperationKind::CallDynamic {
                         interface, slot, ..
                     } => {

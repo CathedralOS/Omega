@@ -490,53 +490,82 @@ pub(super) fn collect_argument_calls(
     calls: &[checked_trees::FlowCallFact],
     consumed: &mut Vec<arena::Handle<checked_trees::FlowCallFact>>,
 ) -> Option<()> {
-    // Register operands own no nested call. An argument call left unclaimed
-    // still refuses as an unconsumed nested call.
-    if structural_operands::has_register_operands_only(program, call.target_symbol) {
-        return Some(());
-    }
-    let parameters = validation::call_target_parameters(program, call.target_symbol)?;
-    let formals = parameters.iter().collect::<Vec<_>>();
-    if arguments.len() != formals.len() {
-        return None;
-    }
-    let mut structural_ordinal = 0u32;
-    let mut structural_arguments = Vec::new();
-    for (argument, parameter) in arguments.iter().zip(formals.iter()) {
-        if crate::execution::terminal_unit::strips_erased_parameter(parameter)?
-            || program
-                .primitive_type_reference(parameter.type_reference)
-                .is_some()
-        {
-            continue;
+    let register_operation = program
+        .symbols
+        .builtin_function_for_symbol(call.target_symbol)
+        .and_then(|builtin| {
+            language_core::inline_assembly::AsmRegisterOperation::from_intrinsic_name(
+                builtin.name(),
+            )
+        });
+    // Compiler-owned register signatures supply the same scalar argument
+    // roots as authored signatures. Their operands can contain real calls;
+    // a physical instruction does not make those evaluations disappear.
+    let (scalar_arguments, structural_arguments) = if let Some(operation) = register_operation {
+        if arguments.len() != operation.input_type_names().len() {
+            return None;
         }
-        structural_arguments.push(*argument);
-        collect_range_calls(
-            program,
-            facts,
-            machine,
-            state,
-            call.statement_index,
-            *argument,
-            checked_trees::CheckedSubsliceSite::CallArgument {
-                call_ordinal: u32::try_from(call.call_ordinal).ok()?,
-                argument_ordinal: structural_ordinal,
-            },
-            calls,
-            u32::try_from(call.call_ordinal.checked_add(1)?).ok()?,
-            consumed,
-        )?;
-        structural_ordinal = structural_ordinal.checked_add(1)?;
-    }
-    let scalar_arguments = arguments
-        .iter()
-        .zip(formals)
-        .filter_map(|(argument, parameter)| {
-            program
-                .primitive_type_reference(parameter.type_reference)
-                .map(|primitive| (*argument, primitive))
-        })
-        .collect::<Vec<_>>();
+        let scalar = arguments
+            .iter()
+            .zip(operation.input_type_names())
+            .map(|(argument, name)| {
+                Some((
+                    *argument,
+                    typed_trees::types::PrimitiveType::from_name(name)?,
+                ))
+            })
+            .collect::<Option<Vec<_>>>()?;
+        (scalar, Vec::new())
+    } else {
+        // Register operands own no nested call. An argument call left unclaimed
+        // still refuses as an unconsumed nested call.
+        if structural_operands::has_register_operands_only(program, call.target_symbol) {
+            return Some(());
+        }
+        let parameters = validation::call_target_parameters(program, call.target_symbol)?;
+        let formals = parameters.iter().collect::<Vec<_>>();
+        if arguments.len() != formals.len() {
+            return None;
+        }
+        let mut structural_ordinal = 0u32;
+        let mut structural_arguments = Vec::new();
+        for (argument, parameter) in arguments.iter().zip(formals.iter()) {
+            if crate::execution::terminal_unit::strips_erased_parameter(parameter)?
+                || program
+                    .primitive_type_reference(parameter.type_reference)
+                    .is_some()
+            {
+                continue;
+            }
+            structural_arguments.push(*argument);
+            collect_range_calls(
+                program,
+                facts,
+                machine,
+                state,
+                call.statement_index,
+                *argument,
+                checked_trees::CheckedSubsliceSite::CallArgument {
+                    call_ordinal: u32::try_from(call.call_ordinal).ok()?,
+                    argument_ordinal: structural_ordinal,
+                },
+                calls,
+                u32::try_from(call.call_ordinal.checked_add(1)?).ok()?,
+                consumed,
+            )?;
+            structural_ordinal = structural_ordinal.checked_add(1)?;
+        }
+        let scalar_arguments = arguments
+            .iter()
+            .zip(formals)
+            .filter_map(|(argument, parameter)| {
+                program
+                    .primitive_type_reference(parameter.type_reference)
+                    .map(|primitive| (*argument, primitive))
+            })
+            .collect::<Vec<_>>();
+        (scalar_arguments, structural_arguments)
+    };
     let mut roles = Vec::new();
     // All scalar operands belong to one invocation. Normalization can share a
     // computation between argument roots; retain its completed visit across

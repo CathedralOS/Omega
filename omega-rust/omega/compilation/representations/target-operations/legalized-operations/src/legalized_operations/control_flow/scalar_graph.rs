@@ -300,6 +300,9 @@ impl LegalizedScalarInstruction {
             }
             LegalizedScalarInstructionKind::PortWrite { .. }
             | LegalizedScalarInstructionKind::AtomicFence { .. } => {}
+            LegalizedScalarInstructionKind::RegisterAccess { event, .. } => {
+                event.inputs().iter().copied().for_each(visit);
+            }
             LegalizedScalarInstructionKind::AtomicAccess { event, .. } => {
                 event.operands().into_iter().for_each(visit);
             }
@@ -381,6 +384,10 @@ impl LegalizedScalarInstruction {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LegalizedScalarInstructionKind {
+    RegisterAccess {
+        service: semantic_vocabulary::ServiceId,
+        event: terminal_psi::RegisterAccessEvent,
+    },
     PortWrite {
         service: semantic_vocabulary::ServiceId,
         port: u16,
@@ -1002,6 +1009,7 @@ impl LegalizedScalarInstructionKind {
             Self::SelectImplementation { .. }
             | Self::FloatResultPolicy { .. }
             | Self::PortWrite { .. }
+            | Self::RegisterAccess { .. }
             | Self::AtomicFence { .. }
             | Self::AtomicAccess { .. }
             | Self::PlacedScalarAccess { .. }

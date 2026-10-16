@@ -158,10 +158,10 @@ impl BehaviorExclusions {
         for leaf in closure_review.leaves() {
             let Some(exercised) = leaf.exercised() else {
                 violations.push(format!(
-                    "requirement `{}` has no physical authority classification for mechanism {:?}; requested exclusions cannot be established",
+                    "authority subject `{}` has no physical authority classification for mechanism {:?}; requested exclusions cannot be established",
                     closure_review
                         .identities()
-                        .text(leaf.requirement_identity())
+                        .text(leaf.subject_identity())
                         .unwrap_or_default(),
                     leaf.mechanism(),
                 ));
@@ -170,10 +170,10 @@ impl BehaviorExclusions {
             for &class in exercised.classes() {
                 if self.excludes_physical_authority_class(class) {
                     violations.push(format!(
-                        "requirement `{}` exercises excluded physical authority class {class:?} through mechanism {:?}",
+                        "authority subject `{}` exercises excluded physical authority class {class:?} through mechanism {:?}",
                         closure_review
                             .identities()
-                            .text(leaf.requirement_identity())
+                            .text(leaf.subject_identity())
                             .unwrap_or_default(),
                         leaf.mechanism(),
                     ));
@@ -212,7 +212,7 @@ pub enum ProhibitedSite {
         operation: OperationId,
         boundary: BoundaryMachineId,
     },
-    PortWrite {
+    CheckedInstruction {
         block: BlockId,
         operation: OperationId,
     },
@@ -639,13 +639,14 @@ fn inspect_machine<'module>(
                         }
                     }
                 }
-                OperationKind::PortWrite { service, .. } => {
+                OperationKind::PortWrite { service, .. }
+                | OperationKind::RegisterAccess { service, .. } => {
                     if exclusions.excludes_service(*service) {
                         report.prohibited.push(ProhibitedBehavior {
                             exclusion: BehaviorExclusion::Service(*service),
                             entry,
                             machine: machine.id,
-                            site: ProhibitedSite::PortWrite {
+                            site: ProhibitedSite::CheckedInstruction {
                                 block: block.id,
                                 operation: operation.id,
                             },

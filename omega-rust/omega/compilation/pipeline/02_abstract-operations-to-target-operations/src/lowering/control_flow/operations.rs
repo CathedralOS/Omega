@@ -66,6 +66,31 @@ pub(super) fn lower_operation(
     }
     let first_output = operations.len();
     match operation {
+        AbstractOperation::RegisterAccess {
+            psi_operation,
+            service,
+            event,
+            result,
+        } => {
+            let operand = event
+                .inputs()
+                .first()
+                .copied()
+                .map(|value| super::scalar_sources::source(value, function, live))
+                .transpose()?;
+            let result_home = result
+                .map(|result| super::primitive_storage::retain_result(*psi_operation, result, live))
+                .transpose()?;
+            operations.push(TargetUnitOperation::RegisterAccess {
+                psi_operation: *psi_operation,
+                service: *service,
+                event: *event,
+                operand,
+                result_home,
+            });
+            provenance.operations.push(*psi_operation);
+            Ok(())
+        }
         AbstractOperation::PortWrite {
             psi_operation,
             service,

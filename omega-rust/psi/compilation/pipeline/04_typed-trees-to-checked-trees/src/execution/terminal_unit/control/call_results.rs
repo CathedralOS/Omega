@@ -23,6 +23,26 @@ pub(crate) fn bind_scalar_call_result(
     result: CheckedUnitScalarResultBindingPlan,
     allow_boundary: bool,
 ) -> Option<CheckedUnitEffectOperationPlan> {
+    let operation = match operation {
+        CheckedUnitEffectOperationPlan::RegisterAccess {
+            coordinate,
+            operation,
+            arguments,
+            service_reach,
+            result: None,
+        } if operation.produces_value()
+            && result.primitive_type == typed_trees::types::PrimitiveType::U64 =>
+        {
+            return Some(CheckedUnitEffectOperationPlan::RegisterAccess {
+                coordinate,
+                operation,
+                arguments,
+                service_reach,
+                result: Some(result),
+            });
+        }
+        operation => operation,
+    };
     let CheckedUnitEffectOperationPlan::Call(call) = operation else {
         return None;
     };

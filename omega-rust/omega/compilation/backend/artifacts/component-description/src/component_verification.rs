@@ -804,6 +804,16 @@ fn check_outgoing(
         let identity = format!("port-write:{}:{port}:{value}", service.get());
         derived_keys.insert((OutgoingAuthorityClass::PortSpaceWrite, identity));
     }
+    for (service, operation) in &inventory.register_accesses {
+        derived_keys.insert((
+            OutgoingAuthorityClass::RegisterAccess,
+            format!(
+                "register-access:{}:{}",
+                service.get(),
+                operation.catalog_tag()
+            ),
+        ));
+    }
     for service in &inventory.concrete_service_reach {
         derived_keys.insert((
             OutgoingAuthorityClass::ServiceCeiling,
@@ -845,6 +855,33 @@ fn check_outgoing(
                 require_bound_assumption(&description.assumptions, assumption)?;
             }
             (OutgoingAuthorityClass::ServiceCeiling, OutgoingEvidence::ModuleDerived, true) => {}
+            (
+                OutgoingAuthorityClass::RegisterAccess,
+                OutgoingEvidence::PhysicalMechanism(assumption),
+                true,
+            ) => {
+                if !inventory
+                    .register_accesses
+                    .iter()
+                    .any(|(service, operation)| {
+                        row.identity
+                            == format!(
+                                "register-access:{}:{}",
+                                service.get(),
+                                operation.catalog_tag(),
+                            )
+                            && assumption
+                                == super::component_description::register_mechanism_assumption(
+                                    *service, *operation,
+                                )
+                    })
+                {
+                    return Err(ComponentVerificationRejection::InvalidAuthorityEvidence(
+                        row.identity.clone(),
+                    ));
+                }
+                require_bound_assumption(&description.assumptions, assumption)?;
+            }
             (_, OutgoingEvidence::AssumptionBound(assumption), false) => {
                 require_bound_assumption(&description.assumptions, assumption)?;
             }

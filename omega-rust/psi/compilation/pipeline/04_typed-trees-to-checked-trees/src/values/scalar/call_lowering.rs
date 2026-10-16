@@ -93,6 +93,56 @@ pub(crate) fn lower_call_arguments(
     };
     let is_boundary = call_is_boundary(program, target_symbol);
 
+    if let Some(operation) = program
+        .symbols
+        .builtin_function_for_symbol(target_symbol)
+        .and_then(|builtin| {
+            language_core::inline_assembly::AsmRegisterOperation::from_intrinsic_name(
+                builtin.name(),
+            )
+        })
+    {
+        let arguments = validation::call_site_argument_expressions(program, call_site);
+        if arguments.len() != operation.input_type_names().len() {
+            return None;
+        }
+        let mut scalar_arguments = Vec::new();
+        for (ordinal, (argument, carrier)) in arguments
+            .iter()
+            .zip(operation.input_type_names())
+            .enumerate()
+        {
+            if let Some(expression) = lower_return_expression(
+                program,
+                operators,
+                *argument,
+                parameters,
+                authored_parameters,
+                parameter_types,
+                locals,
+                PrimitiveType::from_name(carrier)?,
+                exact_integer_casts,
+            ) {
+                scalar_arguments.push((
+                    *argument,
+                    CheckedLocatedScalarExpression {
+                        state: state.symbol,
+                        statement_ordinal,
+                        role: CheckedScalarExpressionRole::UnitCallArgument {
+                            call_ordinal: u32::try_from(call_ordinal).ok()?,
+                            argument_ordinal: u32::try_from(ordinal).ok()?,
+                        },
+                        expression,
+                    },
+                ));
+            }
+        }
+        return Some(LoweredCallArguments {
+            scalar_arguments,
+            proof_terms: Vec::new(),
+        });
+    }
+
     let target_parameters = validation::call_target_parameters(program, target_symbol)?;
     let explicit_arguments = validation::call_site_argument_expressions(program, call_site);
     let mut explicit_index = 0usize;

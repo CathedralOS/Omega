@@ -17,14 +17,16 @@ use semantic_vocabulary::{BoundaryMachineId, MachineId};
 
 use super::operations::{AuthorityEdge, authority_edge};
 
-pub(crate) struct ReachableCheckedPhysical {
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct ReachableCheckedOperation {
     pub(crate) origin: TerminalAuthorityClosureLeafOrigin,
+    pub(crate) service: semantic_vocabulary::ServiceId,
     pub(crate) mechanism: TerminalMechanismIdentity,
 }
 
 pub(crate) struct ReachableAuthorityEdges {
     pub(crate) boundaries: BTreeSet<BoundaryMachineId>,
-    pub(crate) checked_physical: Vec<ReachableCheckedPhysical>,
+    pub(crate) checked_operations: Vec<ReachableCheckedOperation>,
 }
 
 /// The realized plan's functions keyed by machine, with the dynamic dispatch
@@ -72,7 +74,7 @@ impl<'a> AuthorityGraph<'a> {
         let mut pending = vec![entry];
         let mut visited = BTreeSet::new();
         let mut boundaries = BTreeSet::new();
-        let mut checked_physical = BTreeMap::new();
+        let mut checked_operations = BTreeMap::new();
         while let Some(machine) = pending.pop() {
             if !visited.insert(machine) {
                 continue;
@@ -123,7 +125,11 @@ impl<'a> AuthorityGraph<'a> {
                             boundaries.insert(boundary);
                         }
                     }
-                    AuthorityEdge::CheckedPortWrite { port, operation } => {
+                    AuthorityEdge::CheckedPortWrite {
+                        service,
+                        port,
+                        operation,
+                    } => {
                         // Psi's `validate_port_write` already proved the write's
                         // service sits inside the machine's published ceiling;
                         // re-asking it here would replay the same fact.
@@ -145,16 +151,73 @@ impl<'a> AuthorityGraph<'a> {
                             machine,
                             operation,
                         };
-                        checked_physical
-                            .entry(origin)
-                            .or_insert(ReachableCheckedPhysical { origin, mechanism });
+                        record_checked_operation(
+                            &mut checked_operations,
+                            ReachableCheckedOperation {
+                                origin,
+                                service,
+                                mechanism,
+                            },
+                        )?;
+                    }
+                    AuthorityEdge::CheckedRegister {
+                        service,
+                        register_operation,
+                        operation,
+                    } => {
+                        if self.target_profile.native_target().architecture
+                            != target::Architecture::Aarch64
+                        {
+                            return Err(format!(
+                                "reachable machine {machine:?} uses aarch64 register access on non-aarch64 target profile `{}`",
+                                self.target_profile.target_name(),
+                            ));
+                        }
+                        let intrinsic = effects::CompilerIntrinsicExecutionIdentity::checked_register(register_operation)
+                            .ok_or_else(|| format!("register access {operation:?} has no admitted compiler catalog identity"))?;
+                        let origin = TerminalAuthorityClosureLeafOrigin::CheckedIntrinsic {
+                            machine,
+                            operation,
+                        };
+                        let mechanism = intrinsic.into();
+                        record_checked_operation(
+                            &mut checked_operations,
+                            ReachableCheckedOperation {
+                                origin,
+                                service,
+                                mechanism,
+                            },
+                        )?;
                     }
                 }
             }
         }
         Ok(ReachableAuthorityEdges {
             boundaries,
-            checked_physical: checked_physical.into_values().collect(),
+            checked_operations: checked_operations.into_values().collect(),
         })
     }
+}
+
+fn record_checked_operation(
+    operations: &mut BTreeMap<
+        (MachineId, semantic_vocabulary::OperationId),
+        ReachableCheckedOperation,
+    >,
+    instruction: ReachableCheckedOperation,
+) -> Result<(), String> {
+    let site = instruction
+        .origin
+        .checked_site()
+        .ok_or_else(|| "checked operation has no machine/operation custody".to_owned())?;
+    if let Some(previous) = operations.get(&site) {
+        if previous != &instruction {
+            return Err(format!(
+                "checked operation {site:?} claims distinct mechanisms or services"
+            ));
+        }
+    } else {
+        operations.insert(site, instruction);
+    }
+    Ok(())
 }

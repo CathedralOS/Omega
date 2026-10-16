@@ -182,6 +182,58 @@ pub(in crate::execution) fn build_call_operation(
         validation::CallSite::TransitionNamed { .. } => None,
     };
 
+    if let Some(operation) = program
+        .symbols
+        .builtin_function_for_symbol(call.target_symbol)
+        .and_then(|builtin| {
+            language_core::inline_assembly::AsmRegisterOperation::from_intrinsic_name(
+                builtin.name(),
+            )
+        })
+    {
+        phase("register access: result and operands");
+        if !operation.is_admitted()
+            || match expected_call_result {
+                Some(ExpectedCallValueResult::Scalar(PrimitiveType::U64)) => {
+                    !operation.produces_value()
+                }
+                None => operation.produces_value(),
+                _ => true,
+            }
+        {
+            return None;
+        }
+        let parameter_types = operation
+            .input_type_names()
+            .iter()
+            .enumerate()
+            .map(|(position, name)| {
+                Some(CheckedStructuralScalarParameterPlan {
+                    source_position: u32::try_from(position).ok()?,
+                    primitive_type: PrimitiveType::from_name(name)?,
+                })
+            })
+            .collect::<Option<Vec<_>>>()?;
+        if validation::call_site_argument_expressions(program, &call_site).len()
+            != parameter_types.len()
+        {
+            return None;
+        }
+        return Some(CheckedUnitEffectOperationPlan::RegisterAccess {
+            coordinate,
+            operation,
+            result: None,
+            arguments: checked_call_scalar_arguments(
+                facts,
+                state.symbol,
+                coordinate,
+                &parameter_types,
+                false,
+            )?,
+            service_reach: call.service_reach,
+        });
+    }
+
     if program
         .symbols
         .builtin_function_symbol(BuiltinFunction::AsmPortOut)

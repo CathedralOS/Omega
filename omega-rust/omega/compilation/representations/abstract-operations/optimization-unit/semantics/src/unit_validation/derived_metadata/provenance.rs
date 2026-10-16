@@ -51,6 +51,7 @@ pub(crate) fn expected_provenance(
         | O::EstablishRecord { psi_operation, .. }
         | abstract_operations::boundary_or_structural_call_pair_pattern!(psi_operation, ..)
         | O::PortWrite { psi_operation, .. }
+        | O::RegisterAccess { psi_operation, .. }
         | O::Call { psi_operation, .. }
         | O::IntegerConstant { psi_operation, .. }
         | O::IeeeFloatConstant { psi_operation, .. }

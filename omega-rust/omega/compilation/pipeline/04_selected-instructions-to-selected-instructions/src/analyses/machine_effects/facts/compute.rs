@@ -112,6 +112,8 @@ fn terminal_selected_keys(
 ) -> SelectedConstraintKeys {
     SelectedConstraintKeys {
         port_write: keys.port_write,
+        system_register_read: keys.system_register_read,
+        system_register_write: keys.system_register_write,
         atomic_fence: keys.atomic_fence,
         placed_read: keys.placed_read,
         placed_write: keys.placed_write,
@@ -302,6 +304,13 @@ fn exact_declaration<'a>(
 
 pub(crate) fn machine_semantic_kind(kind: SelectedInstructionKind) -> MachineSemanticKind {
     match kind {
+        SelectedInstructionKind::RegisterAccess { operation } => {
+            if operation.produces_value() {
+                MachineSemanticKind::SystemRegisterRead
+            } else {
+                MachineSemanticKind::SystemRegisterWrite
+            }
+        }
         SelectedInstructionKind::PlacedScalarAccess { form, .. } => {
             MachineSemanticKind::PlacedScalarAccess(form)
         }

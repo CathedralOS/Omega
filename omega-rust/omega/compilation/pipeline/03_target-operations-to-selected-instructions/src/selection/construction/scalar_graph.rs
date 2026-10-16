@@ -39,6 +39,7 @@ pub(in crate::selection) mod integer_conversion;
 mod normalized_foreign;
 mod placed_scalar_access;
 mod process_exit;
+mod register_access;
 mod scalar_call;
 mod scalar_stack;
 mod structural;
@@ -326,6 +327,9 @@ fn select_function(
                 )?;
                 continue;
             }
+            if register_access::emit(function, operation, &mut builder)? {
+                continue;
+            }
             if placed_scalar_access::emit(source, operation, &mut builder)? {
                 continue;
             }
@@ -383,6 +387,7 @@ fn select_function(
                         output
                     }
                     LegalizedScalarInstructionKind::PortWrite { .. }
+                    | LegalizedScalarInstructionKind::RegisterAccess { .. }
                     | LegalizedScalarInstructionKind::AtomicFence { .. }
                     | LegalizedScalarInstructionKind::AtomicAccess { .. }
                     | LegalizedScalarInstructionKind::PlacedScalarAccess { .. } => {

@@ -1023,6 +1023,33 @@ pub fn aarch64_register_constraint_catalog(
         row.key = key;
         constraints.push(row);
     }
+    for (key, access, scratch) in [
+        (
+            crate::AARCH64_SYSTEM_REGISTER_READ,
+            RegisterOperandAccess::Def,
+            &["x9", "x15"][..],
+        ),
+        (
+            crate::AARCH64_SYSTEM_REGISTER_WRITE,
+            RegisterOperandAccess::Use,
+            &["x9", "x10", "x11", "x15"][..],
+        ),
+    ] {
+        let mut clobbers = scratch
+            .iter()
+            .flat_map(|name| view(name).units.iter().copied())
+            .collect::<Vec<_>>();
+        clobbers.sort_unstable();
+        clobbers.dedup();
+        constraints.push(RegisterInstructionConstraint {
+            clobbers,
+            ..instruction_row(
+                RegisterConstraintId(0),
+                key,
+                vec![allocatable(0, access, GPR64)],
+            )
+        });
+    }
     constraints.sort_by_key(|constraint| constraint.key);
     for (id, constraint) in constraints.iter_mut().enumerate() {
         constraint.id =

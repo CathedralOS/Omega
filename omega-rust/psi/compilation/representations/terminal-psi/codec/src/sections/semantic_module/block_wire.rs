@@ -535,6 +535,9 @@ fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), Co
             port,
             value,
         } => call_operations::encode_port_write(writer, service, port, value)?,
+        OperationKind::RegisterAccess { service, event } => {
+            call_operations::encode_register_access(writer, service, event)?
+        }
         OperationKind::IntegerConstant { value } => {
             value_operations::encode_integer_constant(writer, value)?
         }
@@ -990,6 +993,7 @@ fn decode_operation(reader: &mut Reader<'_>) -> Result<Operation, CodecError> {
         operation_tags::CALL_DYNAMIC => call_operations::decode_call_dynamic(reader)?,
         operation_tags::BOUNDARY_CALL => call_operations::decode_boundary_call(reader)?,
         operation_tags::PORT_WRITE => call_operations::decode_port_write(reader)?,
+        operation_tags::REGISTER_ACCESS => call_operations::decode_register_access(reader)?,
         operation_tags::ESTABLISH_ZEROED_STRUCTURAL => {
             value_operations::decode_establish_zeroed_structural(reader)?
         }

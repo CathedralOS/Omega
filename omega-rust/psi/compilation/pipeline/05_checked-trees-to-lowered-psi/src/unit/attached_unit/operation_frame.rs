@@ -94,6 +94,7 @@ mod structural_results;
 pub(super) use structural_results::StructuralResults;
 mod loan_completions;
 mod locals;
+mod register_access;
 mod selection_retirement;
 mod stores;
 pub(super) use calls::CallInputs;
@@ -206,6 +207,7 @@ impl OperationFrame<'_, '_> {
         matches!(
             operation,
             CheckedUnitEffectOperationPlan::PortWrite { .. }
+                | CheckedUnitEffectOperationPlan::RegisterAccess { .. }
                 | CheckedUnitEffectOperationPlan::EstablishLocal(
                     checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { .. }
                 )
@@ -269,6 +271,20 @@ impl OperationFrame<'_, '_> {
                 value,
                 ..
             } => self.port_write(service_reach, *port, *value),
+            CheckedUnitEffectOperationPlan::RegisterAccess {
+                coordinate,
+                operation,
+                result,
+                arguments,
+                service_reach,
+            } => self.register_access(
+                identities,
+                *coordinate,
+                *operation,
+                result.as_ref(),
+                arguments,
+                service_reach,
+            ),
             CheckedUnitEffectOperationPlan::Store(store) => self.store(identities, store),
             CheckedUnitEffectOperationPlan::EstablishLocal(binding) => {
                 self.establish_local(identities, operation, binding)

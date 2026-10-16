@@ -176,6 +176,8 @@ pub fn target_register_environment_identity(
     bytes.extend_from_slice(&reservations.identity().bytes());
     for key in [
         selected_keys.port_write,
+        selected_keys.system_register_read,
+        selected_keys.system_register_write,
         selected_keys.atomic_fence,
         selected_keys.atomic_load,
         selected_keys.placed_read,

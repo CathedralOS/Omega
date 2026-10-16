@@ -63,6 +63,43 @@ impl Builder<'_, '_> {
         target: SymbolHandle,
         arguments: &[ExpressionHandle],
     ) {
+        if let Some(operation) = self
+            .program
+            .symbols
+            .builtin_function_for_symbol(target)
+            .and_then(|builtin| {
+                language_core::inline_assembly::AsmRegisterOperation::from_intrinsic_name(
+                    builtin.name(),
+                )
+            })
+        {
+            if arguments.len() != operation.input_type_names().len() {
+                return;
+            }
+            for (ordinal, (argument, carrier)) in arguments
+                .iter()
+                .zip(operation.input_type_names())
+                .enumerate()
+            {
+                let (Ok(argument_ordinal), Some(primitive_type)) = (
+                    u32::try_from(ordinal),
+                    typed_trees::types::PrimitiveType::from_name(carrier),
+                ) else {
+                    return;
+                };
+                self.record_root(
+                    self.pure,
+                    statement,
+                    CheckedScalarExpressionRole::UnitCallArgument {
+                        call_ordinal,
+                        argument_ordinal,
+                    },
+                    *argument,
+                    primitive_type,
+                );
+            }
+            return;
+        }
         let Some(parameters) = validation::call_target_parameters(self.program, target) else {
             return;
         };

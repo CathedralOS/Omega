@@ -53,8 +53,8 @@ impl ProhibitedSite {
                         .unwrap_or("<undeclared boundary>");
                 format!("call to boundary `{identity}` (block {block}, operation {operation})")
             }
-            ProhibitedSite::PortWrite { block, operation } => {
-                format!("port write (block {block}, operation {operation})")
+            ProhibitedSite::CheckedInstruction { block, operation } => {
+                format!("checked instruction (block {block}, operation {operation})")
             }
         }
     }

@@ -294,6 +294,7 @@ pub(super) fn retain_available(
                 ),
                 // Selected execution already joined exact realization custody.
                 CheckedUnitEffectOperationPlan::PortWrite { .. }
+                | CheckedUnitEffectOperationPlan::RegisterAccess { .. }
                 | CheckedUnitEffectOperationPlan::EstablishLocal(
                     checked_trees::CheckedUnitLocalBindingPlan::ScalarArray { .. },
                 )
@@ -421,6 +422,7 @@ pub(super) fn retain_available(
                     | CheckedUnitEffectOperationPlan::AtomicFence { .. }
                     | CheckedUnitEffectOperationPlan::AtomicAccess(_)
                     | CheckedUnitEffectOperationPlan::PortWrite { .. }
+                    | CheckedUnitEffectOperationPlan::RegisterAccess { .. }
                     | CheckedUnitEffectOperationPlan::EstablishLocal(checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { .. })
                     // A borrowed reference binds storage already owned by the
                     // frame; establish/release carry no callee dependency.

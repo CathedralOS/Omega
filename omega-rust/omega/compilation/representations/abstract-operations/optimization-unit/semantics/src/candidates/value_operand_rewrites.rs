@@ -19,6 +19,12 @@ use semantic_vocabulary::ValueId;
 /// their successor bindings are the caller's accounting.
 pub(crate) fn rewrite_value_operands(operation: &mut O, mut replace: impl FnMut(&mut ValueId)) {
     match operation {
+        O::RegisterAccess { event, .. } => {
+            event.map_operands(|mut value| {
+                replace(&mut value);
+                value
+            });
+        }
         O::EstablishStructuralArray { .. } | O::EstablishPlacedReference { .. } => {}
         O::EstablishReference { storage, .. } => {
             if let Some(view) = storage { replace(&mut view.byte_offset); }

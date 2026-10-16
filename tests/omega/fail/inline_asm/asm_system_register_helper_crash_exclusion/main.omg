@@ -1,0 +1,10 @@
+use omega::language::core::assembly;
+data Main { value: u64; }
+machine read_then_trap() -> u64 reaches MachineControl crashes Trap {
+    let mut observed: u64 = 0;
+    asm where clobbers x9, x15 { read_tpidr_el1 observed; }
+    crash Trap;
+}
+machine Main::main(main: &mut Main) reaches MachineControl crashes Trap {
+    main.value = read_then_trap();
+}

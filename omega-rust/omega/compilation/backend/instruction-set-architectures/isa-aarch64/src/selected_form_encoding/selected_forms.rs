@@ -142,6 +142,14 @@ fn family_and_operand_count(
             MachineAlternativeFamily::FloatResultPolicy(form),
             form.operand_count() + 1,
         ),
+        SelectedInstructionKind::RegisterAccess { operation } => (
+            if operation.produces_value() {
+                MachineAlternativeFamily::SystemRegisterRead
+            } else {
+                MachineAlternativeFamily::SystemRegisterWrite
+            },
+            1,
+        ),
         SelectedInstructionKind::PortWrite { .. } => {
             return Err(Aarch64SelectedFormEncodingError::AlternativeMismatch);
         }
@@ -425,6 +433,9 @@ fn encode_unchecked(
         }
         SelectedInstructionKind::FloatResultPolicy { form } => {
             return super::float_result_policy::encode(form, registers);
+        }
+        SelectedInstructionKind::RegisterAccess { operation } => {
+            return super::register_access::encode(operation, registers);
         }
         SelectedInstructionKind::PortWrite { .. } => {
             return Err(Aarch64SelectedFormEncodingError::AlternativeMismatch);

@@ -523,3 +523,42 @@ pub(super) fn decode_port_write(reader: &mut Reader<'_>) -> Result<OperationKind
         value: reader.u8()?,
     })
 }
+
+pub(super) fn encode_register_access(
+    writer: &mut Writer,
+    service: ServiceId,
+    event: terminal_psi::RegisterAccessEvent,
+) -> Result<(), CodecError> {
+    if !event.operation().is_admitted() {
+        return Err(CodecError::MalformedStructuralFoundation(
+            "register access has no admitted catalog operation",
+        ));
+    }
+    writer.u8(operation_tags::REGISTER_ACCESS);
+    writer.id(service);
+    writer.u16(event.operation().catalog_tag());
+    for value in event.inputs() {
+        writer.id(*value);
+    }
+    Ok(())
+}
+
+pub(super) fn decode_register_access(reader: &mut Reader<'_>) -> Result<OperationKind, CodecError> {
+    let service = reader.id("ServiceId")?;
+    let tag = reader.u16()?;
+    let operation = terminal_psi::RegisterOperation::from_catalog_tag(tag).ok_or(
+        CodecError::MalformedStructuralFoundation("unknown register access catalog identity"),
+    )?;
+    let event = match operation {
+        terminal_psi::RegisterOperation::SystemRead(register) => {
+            terminal_psi::RegisterAccessEvent::Read { register }
+        }
+        terminal_psi::RegisterOperation::SystemWrite(register) => {
+            terminal_psi::RegisterAccessEvent::Write {
+                register,
+                value: reader.id("ValueId")?,
+            }
+        }
+    };
+    Ok(OperationKind::RegisterAccess { service, event })
+}

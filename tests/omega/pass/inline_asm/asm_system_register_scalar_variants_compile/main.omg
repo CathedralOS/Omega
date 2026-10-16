@@ -1,0 +1,28 @@
+// Native-production canary: register inputs/outputs use ordinary scalar
+// locals, parameters, fields and completed calls across state boundaries.
+// Privileged instructions are compiled, never executed by a hosted gate.
+use omega::language::core::assembly;
+data Main { value: u64; }
+machine identity(value: u64) -> u64 { value }
+machine read_thread() -> u64 reaches MachineControl {
+    let mut observed: u64 = 0;
+    asm where clobbers x9, x15 { read_tpidr_el1 observed; }
+    observed
+}
+machine write_thread(value: u64) reaches MachineControl {
+    asm where clobbers x9, x10, x11, x15 { write_tpidr_el1 value; }
+}
+machine Main::main(main: &mut Main) reaches MachineControl {
+    let value: u64 = identity(17);
+    asm where clobbers x9, x10, x11, x15 { write_tpidr_el1 value; }
+    main.value = read_thread();
+    transition { _ -> next(main, value) }
+    state next(main: &mut Main, value: u64) {
+        write_thread(value);
+        asm where clobbers x9, x10, x11, x15 {
+            write_tpidr_el1 identity(main.value);
+            read_tpidr_el1 main.value;
+            read_far_el1 main.value
+        }
+    }
+}

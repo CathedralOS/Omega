@@ -75,6 +75,8 @@ pub(super) fn validate_declaration(
                 | MachineSemanticKind::HostedWriteByteI32
                 | MachineSemanticKind::HostedExitProcessI32
                 | MachineSemanticKind::PortWrite
+                | MachineSemanticKind::SystemRegisterRead
+                | MachineSemanticKind::SystemRegisterWrite
                 | MachineSemanticKind::AtomicFence
                 | MachineSemanticKind::AtomicAccess(_)
                 | MachineSemanticKind::PlacedScalarAccess(_)
@@ -205,6 +207,8 @@ pub(super) fn validate_declaration(
         _ if table_call => crate::MachineTrapBehavior::MayArchitecturalFaultV1,
         _ if temporary_stack => crate::MachineTrapBehavior::MayArchitecturalFaultV1,
         MachineSemanticKind::PortWrite
+        | MachineSemanticKind::SystemRegisterRead
+        | MachineSemanticKind::SystemRegisterWrite
         | MachineSemanticKind::AtomicAccess(_)
         | MachineSemanticKind::PlacedScalarAccess(_) => {
             crate::MachineTrapBehavior::MayArchitecturalFaultV1
@@ -780,6 +784,8 @@ fn validate_encoded_effects(
                 MachineSemanticKind::SaveFloatingControl
                     | MachineSemanticKind::RestoreFloatingControl
                     | MachineSemanticKind::PortWrite
+                    | MachineSemanticKind::SystemRegisterRead
+                    | MachineSemanticKind::SystemRegisterWrite
                     | MachineSemanticKind::AtomicFence
                     | MachineSemanticKind::AtomicAccess(_)
                     | MachineSemanticKind::PlacedScalarAccess(_)

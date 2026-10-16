@@ -31,6 +31,7 @@ const REQUIREMENT_CONTRACT_DOMAIN: &[u8] = b"omega-component-requirement-v1";
 const CANONICAL_ENTRY_CONTRACT_DOMAIN: &[u8] = b"omega-component-canonical-entry-v1";
 /// Domain prefix for a derived port-space mechanism assumption.
 const PORT_MECHANISM_DOMAIN: &[u8] = b"omega-component-port-mechanism-v1";
+const REGISTER_MECHANISM_DOMAIN: &[u8] = b"omega-component-register-mechanism-v1";
 
 /// Current and only published description schema.
 ///
@@ -216,6 +217,8 @@ pub enum OutgoingAuthorityClass {
     BoundaryRequirement,
     /// An immediate port-space write naming its exact service identity.
     PortSpaceWrite,
+    /// A catalogued register event retaining its exact service and register.
+    RegisterAccess,
     /// One service of the selected entry's concrete published reach. Bounds
     /// installation still owes are never folded in here: each retained
     /// `reaches <= Bound` row publishes separately in `service_bounds`.
@@ -228,6 +231,7 @@ impl OutgoingAuthorityClass {
             Self::BoundaryRequirement => 1,
             Self::PortSpaceWrite => 2,
             Self::ServiceCeiling => 3,
+            Self::RegisterAccess => 4,
         }
     }
 
@@ -236,6 +240,7 @@ impl OutgoingAuthorityClass {
             1 => Some(Self::BoundaryRequirement),
             2 => Some(Self::PortSpaceWrite),
             3 => Some(Self::ServiceCeiling),
+            4 => Some(Self::RegisterAccess),
             _ => None,
         }
     }
@@ -607,6 +612,16 @@ pub(crate) fn port_mechanism_assumption(service: ServiceId, port: u16, value: u8
     digest.finish()
 }
 
+pub(crate) fn register_mechanism_assumption(
+    service: ServiceId,
+    operation: terminal_psi::RegisterOperation,
+) -> [u8; 32] {
+    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(REGISTER_MECHANISM_DOMAIN);
+    digest.raw(&service.get().to_le_bytes());
+    digest.raw(&operation.catalog_tag().to_le_bytes());
+    digest.finish()
+}
+
 pub(crate) fn hex(bytes: &[u8]) -> String {
     let mut out = String::with_capacity(bytes.len() * 2);
     for byte in bytes {
@@ -634,6 +649,7 @@ pub(crate) struct DerivedInventory {
     pub(crate) custody: Vec<CustodyConstraint>,
     /// Exact port-space writes as `(service, port, value)`.
     pub(crate) port_writes: BTreeSet<(ServiceId, u16, u8)>,
+    pub(crate) register_accesses: BTreeSet<(ServiceId, terminal_psi::RegisterOperation)>,
     /// The selected entry's concrete published reach: services the
     /// component's own closed execution reaches. Retained installation-bound
     /// rows never fold into this set.
@@ -654,6 +670,7 @@ pub(crate) fn derive_component_inventory(
 ) -> Result<DerivedInventory, DescribeError> {
     let mut called_boundaries = BTreeSet::new();
     let mut port_writes = BTreeSet::new();
+    let mut register_accesses = BTreeSet::new();
     let mut custody = Vec::new();
 
     for machine in &module.machines {
@@ -696,6 +713,9 @@ pub(crate) fn derive_component_inventory(
                         value,
                     } => {
                         port_writes.insert((*service, *port, *value));
+                    }
+                    OperationKind::RegisterAccess { service, event } => {
+                        register_accesses.insert((*service, event.operation()));
                     }
                     OperationKind::Call { .. }
                     | OperationKind::CallUnit { .. }
@@ -969,6 +989,7 @@ pub(crate) fn derive_component_inventory(
         export_contracts,
         custody,
         port_writes,
+        register_accesses,
         concrete_service_reach,
         service_bounds,
     })
@@ -1082,6 +1103,20 @@ pub(crate) fn describe_decoded_component_facts(
         outgoing.push(OutgoingAuthority {
             class: OutgoingAuthorityClass::PortSpaceWrite,
             identity: format!("port-write:{}:{port}:{value}", service.get()),
+            evidence: OutgoingEvidence::PhysicalMechanism(assumption),
+        });
+    }
+
+    for (service, operation) in &inventory.register_accesses {
+        let assumption = register_mechanism_assumption(*service, *operation);
+        assumptions.push(assumption);
+        outgoing.push(OutgoingAuthority {
+            class: OutgoingAuthorityClass::RegisterAccess,
+            identity: format!(
+                "register-access:{}:{}",
+                service.get(),
+                operation.catalog_tag()
+            ),
             evidence: OutgoingEvidence::PhysicalMechanism(assumption),
         });
     }

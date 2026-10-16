@@ -81,6 +81,7 @@ impl TerminalFuelSchedule {
             | OperationKind::StructuralByteViewFieldStore { .. }
             | OperationKind::BoundaryCall { .. }
             | OperationKind::PortWrite { .. }
+            | OperationKind::RegisterAccess { .. }
             | OperationKind::IntegerConstant { .. }
             | OperationKind::IeeeFloatConstant { .. }
             | OperationKind::NearestIeeeFloatFusedMultiplyAdd { .. }

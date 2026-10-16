@@ -106,6 +106,11 @@ impl SelectedImageAddressReference {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SelectedInstructionKind {
+    /// One catalogued system-register access. Explicit operands contain the
+    /// read's defined value or the write's preserved input; no address is used.
+    RegisterAccess {
+        operation: terminal_psi::RegisterOperation,
+    },
     /// Exact x86 OUT DX, AL envelope with immediate semantic operands.
     /// RAX, RDX, R10 and R11 are clobbered; no RAM or flags are changed.
     PortWrite {

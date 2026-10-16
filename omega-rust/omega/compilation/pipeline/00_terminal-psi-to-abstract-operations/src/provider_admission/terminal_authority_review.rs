@@ -41,13 +41,10 @@ pub(crate) fn review_terminal_authority_closure(
     let root_edges = context
         .graph
         .reachable_authority_edges(input.plan().entry)?;
-    if !root_edges.checked_physical.is_empty() {
-        return Err(
-            "root-reachable checked physical operation has no selected provider requirement custody"
-                .into(),
-        );
-    }
     let mut reviewer = Reviewer::new(context);
+    for instruction in root_edges.checked_operations {
+        reviewer.admit_program_root(instruction)?;
+    }
     for boundary in root_edges.boundaries {
         reviewer.expand_boundary(boundary)?;
     }

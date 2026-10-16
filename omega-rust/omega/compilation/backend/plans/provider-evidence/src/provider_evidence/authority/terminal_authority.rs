@@ -63,6 +63,40 @@ pub enum CompilerPlacedScalarOperation {
     Write,
 }
 
+impl CompilerIntrinsicExecutionIdentity {
+    /// Fixed-register instructions already have exact compiler-owned builtin
+    /// coordinates. Normalize to those closed identities, retaining both the
+    /// register and direction rather than creating a foreign/physical alias.
+    pub const fn checked_register(operation: terminal_psi::RegisterOperation) -> Option<Self> {
+        use symbols::BuiltinFunction as B;
+        use terminal_psi::{RegisterOperation as O, SystemRegister as R};
+        let function = match operation {
+            O::SystemRead(register) => match register {
+                R::SctlrEl1 => B::AsmReadSctlrEl1,
+                R::TcrEl1 => B::AsmReadTcrEl1,
+                R::Ttbr0El1 => B::AsmReadTtbr0El1,
+                R::Ttbr1El1 => B::AsmReadTtbr1El1,
+                R::MairEl1 => B::AsmReadMairEl1,
+                R::VbarEl1 => B::AsmReadVbarEl1,
+                R::TpidrEl1 => B::AsmReadTpidrEl1,
+                R::EsrEl1 => B::AsmReadEsrEl1,
+                R::FarEl1 => B::AsmReadFarEl1,
+            },
+            O::SystemWrite(register) => match register {
+                R::SctlrEl1 => B::AsmWriteSctlrEl1,
+                R::TcrEl1 => B::AsmWriteTcrEl1,
+                R::Ttbr0El1 => B::AsmWriteTtbr0El1,
+                R::Ttbr1El1 => B::AsmWriteTtbr1El1,
+                R::MairEl1 => B::AsmWriteMairEl1,
+                R::VbarEl1 => B::AsmWriteVbarEl1,
+                R::TpidrEl1 => B::AsmWriteTpidrEl1,
+                R::EsrEl1 | R::FarEl1 => return None,
+            },
+        };
+        Some(Self::BuiltinFunction(function))
+    }
+}
+
 /// Portable identity of one sealed scalar requirement's complete schema and
 /// normalized placement operation. Both declaration derivation and receiving
 /// native admission have these axes; no source spelling or backing is inferred.
@@ -879,14 +913,45 @@ pub enum TerminalAuthorityClosureLeafOrigin {
         machine: semantic_vocabulary::MachineId,
         operation: semantic_vocabulary::OperationId,
     },
+    CheckedIntrinsic {
+        machine: semantic_vocabulary::MachineId,
+        operation: semantic_vocabulary::OperationId,
+    },
+}
+
+impl TerminalAuthorityClosureLeafOrigin {
+    pub const fn checked_site(
+        self,
+    ) -> Option<(
+        semantic_vocabulary::MachineId,
+        semantic_vocabulary::OperationId,
+    )> {
+        match self {
+            Self::SelectedBoundary => None,
+            Self::CheckedPhysical { machine, operation }
+            | Self::CheckedIntrinsic { machine, operation } => Some((machine, operation)),
+        }
+    }
+}
+
+/// A selected requirement and a direct program-root instruction have different
+/// custody. A root instruction must never acquire an invented provider schema,
+/// requirement or selected plan merely to enter the classification inventory.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TerminalAuthorityClosureCustody {
+    SelectedRequirement {
+        service_schema: crate::provider_plan::ServiceSchemaDigest,
+        requirement_identity: terminal_psi::TerminalIdentityIndex,
+        provider_plan: crate::provider_plan::ProviderPlanDigest,
+    },
+    ProgramRoot {
+        service_identity: terminal_psi::TerminalIdentityIndex,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalAuthorityClosureLeaf {
-    service_schema: crate::provider_plan::ServiceSchemaDigest,
-    /// Index into the terminal module's `identities` table.
-    requirement_identity: terminal_psi::TerminalIdentityIndex,
-    provider_plan: crate::provider_plan::ProviderPlanDigest,
+    custody: TerminalAuthorityClosureCustody,
     mechanism: TerminalMechanismIdentity,
     origin: TerminalAuthorityClosureLeafOrigin,
     exercised: Option<TerminalAuthorityDisposition>,
@@ -904,13 +969,35 @@ impl TerminalAuthorityClosureLeaf {
         permitted: Option<TerminalAuthorityDisposition>,
     ) -> Result<Self, TerminalAuthorityClosureReviewBuildError> {
         let leaf = Self {
-            service_schema,
-            requirement_identity,
-            provider_plan,
+            custody: TerminalAuthorityClosureCustody::SelectedRequirement {
+                service_schema,
+                requirement_identity,
+                provider_plan,
+            },
             mechanism,
             origin,
             exercised,
             permitted,
+        };
+        leaf.validate()?;
+        Ok(leaf)
+    }
+
+    /// Retain an exactly classified root instruction without asserting receiver
+    /// admission. Source machine-owner admission and an explicitly supplied
+    /// receiving permission are different axes; this constructor grants neither.
+    pub fn program_root(
+        service_identity: terminal_psi::TerminalIdentityIndex,
+        mechanism: TerminalMechanismIdentity,
+        origin: TerminalAuthorityClosureLeafOrigin,
+        exercised: TerminalAuthorityDisposition,
+    ) -> Result<Self, TerminalAuthorityClosureReviewBuildError> {
+        let leaf = Self {
+            custody: TerminalAuthorityClosureCustody::ProgramRoot { service_identity },
+            mechanism,
+            origin,
+            exercised: Some(exercised),
+            permitted: None,
         };
         leaf.validate()?;
         Ok(leaf)
@@ -926,8 +1013,31 @@ impl TerminalAuthorityClosureLeaf {
         ) {
             return Err(TerminalAuthorityClosureReviewBuildError::MechanismOriginMismatch);
         }
-        if self.requirement_identity.is_absent() {
+        if matches!(
+            self.origin,
+            TerminalAuthorityClosureLeafOrigin::CheckedIntrinsic { .. }
+        ) && !matches!(
+            self.mechanism,
+            TerminalMechanismIdentity::CompilerIntrinsic(_)
+        ) {
+            return Err(TerminalAuthorityClosureReviewBuildError::MechanismOriginMismatch);
+        }
+        if self.subject_identity().is_absent() {
             return Err(TerminalAuthorityClosureReviewBuildError::EmptyRequirement);
+        }
+        if matches!(
+            self.custody,
+            TerminalAuthorityClosureCustody::ProgramRoot { .. }
+        ) {
+            if self.origin == TerminalAuthorityClosureLeafOrigin::SelectedBoundary {
+                return Err(TerminalAuthorityClosureReviewBuildError::MechanismOriginMismatch);
+            }
+            if self.exercised.is_none() {
+                return Err(TerminalAuthorityClosureReviewBuildError::UnclassifiedAuthority);
+            }
+            if self.permitted.is_some() {
+                return Err(TerminalAuthorityClosureReviewBuildError::AdmissionAxisInconsistent);
+            }
         }
         if let Some(permitted) = &self.permitted {
             let exercised = self
@@ -943,16 +1053,36 @@ impl TerminalAuthorityClosureLeaf {
         Ok(())
     }
 
-    pub const fn service_schema(&self) -> crate::provider_plan::ServiceSchemaDigest {
-        self.service_schema
+    pub const fn custody(&self) -> TerminalAuthorityClosureCustody {
+        self.custody
     }
 
-    pub const fn requirement_identity(&self) -> terminal_psi::TerminalIdentityIndex {
-        self.requirement_identity
+    pub const fn subject_identity(&self) -> terminal_psi::TerminalIdentityIndex {
+        match self.custody {
+            TerminalAuthorityClosureCustody::SelectedRequirement {
+                requirement_identity,
+                ..
+            } => requirement_identity,
+            TerminalAuthorityClosureCustody::ProgramRoot { service_identity } => service_identity,
+        }
     }
 
-    pub const fn provider_plan(&self) -> crate::provider_plan::ProviderPlanDigest {
-        self.provider_plan
+    pub const fn service_schema(&self) -> Option<crate::provider_plan::ServiceSchemaDigest> {
+        match self.custody {
+            TerminalAuthorityClosureCustody::SelectedRequirement { service_schema, .. } => {
+                Some(service_schema)
+            }
+            TerminalAuthorityClosureCustody::ProgramRoot { .. } => None,
+        }
+    }
+
+    pub const fn provider_plan(&self) -> Option<crate::provider_plan::ProviderPlanDigest> {
+        match self.custody {
+            TerminalAuthorityClosureCustody::SelectedRequirement { provider_plan, .. } => {
+                Some(provider_plan)
+            }
+            TerminalAuthorityClosureCustody::ProgramRoot { .. } => None,
+        }
     }
 
     pub const fn origin(&self) -> TerminalAuthorityClosureLeafOrigin {
@@ -1033,6 +1163,9 @@ impl TerminalAuthorityClosureReviewReceipt {
         }
         for leaf in &leaves {
             leaf.validate()?;
+            if identities.text(leaf.subject_identity()).is_none() {
+                return Err(TerminalAuthorityClosureReviewBuildError::EmptyRequirement);
+            }
         }
         let identity = terminal_authority_closure_review_identity(
             terminal_artifact_identity,
@@ -1111,18 +1244,39 @@ fn compare_closure_leaves(
     right: &TerminalAuthorityClosureLeaf,
     identities: &terminal_psi::TerminalIdentityTable,
 ) -> std::cmp::Ordering {
-    left.service_schema
-        .as_bytes()
-        .cmp(right.service_schema.as_bytes())
+    if matches!(
+        left.custody,
+        TerminalAuthorityClosureCustody::ProgramRoot { .. }
+    ) && matches!(
+        right.custody,
+        TerminalAuthorityClosureCustody::ProgramRoot { .. }
+    ) {
+        return left
+            .origin
+            .checked_site()
+            .cmp(&right.origin.checked_site())
+            .then_with(|| {
+                identities
+                    .text(left.subject_identity())
+                    .cmp(&identities.text(right.subject_identity()))
+            })
+            .then_with(|| {
+                terminal_mechanism_identity_bytes(left.mechanism)
+                    .cmp(&terminal_mechanism_identity_bytes(right.mechanism))
+            });
+    }
+    left.service_schema()
+        .map(|schema| *schema.as_bytes())
+        .cmp(&right.service_schema().map(|schema| *schema.as_bytes()))
         .then_with(|| {
             identities
-                .text(left.requirement_identity)
-                .cmp(&identities.text(right.requirement_identity))
+                .text(left.subject_identity())
+                .cmp(&identities.text(right.subject_identity()))
         })
         .then_with(|| {
-            left.provider_plan
-                .as_bytes()
-                .cmp(right.provider_plan.as_bytes())
+            left.provider_plan()
+                .map(|plan| *plan.as_bytes())
+                .cmp(&right.provider_plan().map(|plan| *plan.as_bytes()))
         })
         .then_with(|| left.origin.cmp(&right.origin))
         .then_with(|| {
@@ -1137,10 +1291,13 @@ fn same_closure_leaf_key(
     left: &TerminalAuthorityClosureLeaf,
     right: &TerminalAuthorityClosureLeaf,
 ) -> bool {
-    left.service_schema == right.service_schema
-        && left.requirement_identity == right.requirement_identity
-        && left.provider_plan == right.provider_plan
-        && left.origin == right.origin
+    match (left.custody, right.custody) {
+        (
+            TerminalAuthorityClosureCustody::ProgramRoot { .. },
+            TerminalAuthorityClosureCustody::ProgramRoot { .. },
+        ) => left.origin.checked_site() == right.origin.checked_site(),
+        _ => left.custody == right.custody && left.origin == right.origin,
+    }
 }
 
 fn terminal_authority_closure_review_identity(
@@ -1153,7 +1310,7 @@ fn terminal_authority_closure_review_identity(
     identities: &terminal_psi::TerminalIdentityTable,
 ) -> [u8; 32] {
     let mut digest = crate::provider_evidence::digest_encoder::DomainDigestEncoder::new(
-        b"omega.terminal-authority.closure-review.v4\0",
+        b"omega.terminal-authority.closure-review.v5\0",
     );
     digest.raw(&terminal_artifact_identity);
     digest.byte(match target.architecture {
@@ -1182,17 +1339,28 @@ fn terminal_authority_closure_review_identity(
     }
     digest.raw(&(leaves.len() as u64).to_be_bytes());
     for leaf in leaves {
-        digest.raw(leaf.service_schema.as_bytes());
-        let requirement = identities
-            .text(leaf.requirement_identity)
-            .unwrap_or_default();
+        match leaf.custody {
+            TerminalAuthorityClosureCustody::SelectedRequirement { service_schema, .. } => {
+                digest.byte(0);
+                digest.raw(service_schema.as_bytes());
+            }
+            TerminalAuthorityClosureCustody::ProgramRoot { .. } => digest.byte(1),
+        }
+        let requirement = identities.text(leaf.subject_identity()).unwrap_or_default();
         digest.raw(&(requirement.len() as u64).to_be_bytes());
         digest.raw(requirement.as_bytes());
-        digest.raw(leaf.provider_plan.as_bytes());
+        if let Some(provider_plan) = leaf.provider_plan() {
+            digest.raw(provider_plan.as_bytes());
+        }
         match leaf.origin {
             TerminalAuthorityClosureLeafOrigin::SelectedBoundary => digest.byte(0),
             TerminalAuthorityClosureLeafOrigin::CheckedPhysical { machine, operation } => {
                 digest.byte(1);
+                digest.raw(&machine.get().to_be_bytes());
+                digest.raw(&operation.get().to_be_bytes());
+            }
+            TerminalAuthorityClosureLeafOrigin::CheckedIntrinsic { machine, operation } => {
+                digest.byte(2);
                 digest.raw(&machine.get().to_be_bytes());
                 digest.raw(&operation.get().to_be_bytes());
             }

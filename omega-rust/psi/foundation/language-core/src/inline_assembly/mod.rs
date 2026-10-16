@@ -7,6 +7,9 @@
 //! Recognized instructions without a complete source contract remain refusal
 //! entries rather than silently crossing the strict assembly surface.
 
+mod register_operations;
+pub use register_operations::AsmRegisterOperation;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AsmInstructionAvailability {
     UserChecked,
@@ -305,7 +308,7 @@ impl AsmControlRegister {
 /// for plus its read-only syndrome registers; ELR_EL1/SPSR_EL1 stay out —
 /// writing them participates in a mode transition (eret's regime contract),
 /// which AsmInstructionContract does not model.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum AsmSystemRegister {
     SctlrEl1,
     TcrEl1,
@@ -319,6 +322,36 @@ pub enum AsmSystemRegister {
 }
 
 impl AsmSystemRegister {
+    /// Stable catalog identity, independent of architectural instruction bits.
+    pub const fn catalog_id(self) -> u8 {
+        match self {
+            Self::SctlrEl1 => 0,
+            Self::TcrEl1 => 1,
+            Self::Ttbr0El1 => 2,
+            Self::Ttbr1El1 => 3,
+            Self::MairEl1 => 4,
+            Self::VbarEl1 => 5,
+            Self::TpidrEl1 => 6,
+            Self::EsrEl1 => 7,
+            Self::FarEl1 => 8,
+        }
+    }
+
+    pub const fn from_catalog_id(identity: u8) -> Option<Self> {
+        match identity {
+            0 => Some(Self::SctlrEl1),
+            1 => Some(Self::TcrEl1),
+            2 => Some(Self::Ttbr0El1),
+            3 => Some(Self::Ttbr1El1),
+            4 => Some(Self::MairEl1),
+            5 => Some(Self::VbarEl1),
+            6 => Some(Self::TpidrEl1),
+            7 => Some(Self::EsrEl1),
+            8 => Some(Self::FarEl1),
+            _ => None,
+        }
+    }
+
     const ALL: [Self; 9] = [
         Self::SctlrEl1,
         Self::TcrEl1,

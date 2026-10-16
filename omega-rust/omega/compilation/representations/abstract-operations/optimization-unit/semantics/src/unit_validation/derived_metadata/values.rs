@@ -26,6 +26,7 @@ pub(crate) fn expected_uses(
 ) -> Vec<ValueUse> {
     use abstract_operations::AbstractOperation as O;
     let values = match operation {
+        O::RegisterAccess { event, .. } => event.inputs().to_vec(),
         O::EstablishStructuralArray { .. } => Vec::new(),
         O::EstablishScalarArray { elements, .. } => elements.clone(),
         O::EstablishReference { storage, .. } => {

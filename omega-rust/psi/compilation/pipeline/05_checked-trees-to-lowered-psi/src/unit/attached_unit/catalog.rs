@@ -1453,7 +1453,8 @@ pub(super) fn lower_unit_services_including(
                 CheckedUnitEffectOperationPlan::Call(call) => {
                     collect_service_summary(&facts.rows, call.target.service_reach, &mut selected)?;
                 }
-                CheckedUnitEffectOperationPlan::PortWrite { service_reach, .. } => {
+                CheckedUnitEffectOperationPlan::PortWrite { service_reach, .. }
+                | CheckedUnitEffectOperationPlan::RegisterAccess { service_reach, .. } => {
                     collect_service_summary(&facts.rows, *service_reach, &mut selected)?;
                 }
                 CheckedUnitEffectOperationPlan::EstablishLocal(

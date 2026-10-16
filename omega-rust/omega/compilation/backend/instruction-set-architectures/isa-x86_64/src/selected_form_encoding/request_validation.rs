@@ -48,6 +48,9 @@ fn family_and_operand_count(
     X86_64SelectedFormEncodingError,
 > {
     Ok(match kind {
+        SelectedInstructionKind::RegisterAccess { .. } => {
+            return Err(X86_64SelectedFormEncodingError::AlternativeMismatch);
+        }
         SelectedInstructionKind::PlacedScalarAccess { form, .. } => {
             (MachineAlternativeFamily::PlacedScalarAccess(form), 2, 0..=0)
         }

@@ -16,6 +16,10 @@ use selected_instructions::{
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum DecodedWord {
+    RegisterAccess {
+        operation: selected_instructions::RegisterOperation,
+        operand: u8,
+    },
     AtomicFence,
     Crash,
     /// `b.<condition> #8`: skip exactly the next word, the inline trap of a
@@ -308,6 +312,9 @@ pub(crate) fn decode_words(
 }
 
 fn decode_word(word: u32) -> Result<DecodedWord, Aarch64SelectedFormEncodingError> {
+    if let Some((operation, operand)) = super::register_access::decode(word) {
+        return Ok(DecodedWord::RegisterAccess { operation, operand });
+    }
     if word == 0xd503_3fbf {
         return Ok(DecodedWord::AtomicFence);
     }
@@ -682,6 +689,10 @@ pub(crate) fn validate_decoded(
     decoded: &[DecodedWord],
 ) -> Result<(), Aarch64SelectedFormEncodingError> {
     let valid = match kind {
+        SelectedInstructionKind::RegisterAccess { operation } => {
+            matches!((registers, decoded), ([operand], [DecodedWord::RegisterAccess { operation: actual, operand: actual_operand }])
+                if operation == *actual && operand == actual_operand)
+        }
         SelectedInstructionKind::PortWrite { .. } => false,
         SelectedInstructionKind::PlacedScalarAccess {
             form, byte_offset, ..
@@ -1060,6 +1071,13 @@ pub(crate) fn footprint(
         SelectedInstructionKind::FloatResultPolicy { form } => {
             return super::float_result_policy::footprint(form, operands);
         }
+        SelectedInstructionKind::RegisterAccess { operation } => {
+            if operation.produces_value() {
+                (vec![], vec![0], false)
+            } else {
+                (vec![0], vec![], false)
+            }
+        }
         SelectedInstructionKind::PortWrite { .. } => {
             unreachable!("x86 port I/O cannot form an AArch64 request")
         }
@@ -1144,7 +1162,9 @@ pub(crate) fn footprint(
         .collect();
     let physical = aarch64_physical_register_model_ref();
     let units = |name: &str| physical.view_named(name).unwrap().units.clone();
-    let encoded = if kind == SelectedInstructionKind::AtomicFence {
+    let encoded = if let SelectedInstructionKind::RegisterAccess { operation } = kind {
+        super::register_access::effects(operation.produces_value())
+    } else if kind == SelectedInstructionKind::AtomicFence {
         MachineEncodedEffects::atomic_fence_v1()
     } else if kind == SelectedInstructionKind::Crash {
         selected_instructions::MachineEncodedEffects::crash_v1(&units("pc"))

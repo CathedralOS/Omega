@@ -434,7 +434,7 @@ pub const AARCH64_BYTE_LITERAL_IMAGE_ADDRESS: RegisterConstraintKey = RegisterCo
 /// Closed baseline constraint inventory owned by the AArch64 target.
 /// Includes scalar control, arithmetic, calls, and pointer loads; other
 /// ordinary and feature-specific instruction rows remain absent.
-pub(crate) const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 116] = [
+pub(crate) const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 118] = [
     AARCH64_AAPCS64_CALL,
     AARCH64_DARWIN_CALL,
     AARCH64_AAPCS64_CALL_I64_PAIR_TO_I64,
@@ -656,7 +656,19 @@ pub(crate) const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 
     AARCH64_ATOMIC_FENCE,
     AARCH64_PLACED_READ,
     AARCH64_PLACED_WRITE,
+    AARCH64_SYSTEM_REGISTER_READ,
+    AARCH64_SYSTEM_REGISTER_WRITE,
 ];
+
+pub const AARCH64_SYSTEM_REGISTER_READ: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 902,
+};
+
+pub const AARCH64_SYSTEM_REGISTER_WRITE: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 903,
+};
 
 pub const AARCH64_PLACED_READ: RegisterConstraintKey = RegisterConstraintKey {
     family: RegisterConstraintFamily::Instruction,

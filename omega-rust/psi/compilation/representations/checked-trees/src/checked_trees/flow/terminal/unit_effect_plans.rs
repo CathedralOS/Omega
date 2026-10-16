@@ -338,6 +338,15 @@ pub enum CheckedUnitEffectOperationPlan {
         value: u8,
         service_reach: ServiceReachSummary,
     },
+    /// One catalogued register event. Operands retain the ordinary evaluated
+    /// scalar call lanes; a read binds its scalar result at `coordinate`.
+    RegisterAccess {
+        coordinate: CheckedUnitCallCoordinate,
+        operation: language_core::inline_assembly::AsmRegisterOperation,
+        result: Option<CheckedUnitScalarResultBindingPlan>,
+        arguments: Vec<CheckedCallScalarArgument>,
+        service_reach: ServiceReachSummary,
+    },
     /// One store `place = value` over its exact destination place and value:
     /// an authored scalar, byte or sum-field assignment, the repair of an
     /// open borrowed window, or an owned local's rebind. The destination's
@@ -753,7 +762,9 @@ impl CheckedUnitEffectOperationPlan {
             Self::CaptureAssignmentDestination {
                 statement_index, ..
             } => Some(*statement_index),
-            Self::PortWrite { coordinate, .. } => Some(coordinate.statement_index),
+            Self::PortWrite { coordinate, .. } | Self::RegisterAccess { coordinate, .. } => {
+                Some(coordinate.statement_index)
+            }
             Self::AtomicAccess(access) => Some(access.statement_index),
             Self::AtomicFence {
                 statement_index, ..
@@ -791,7 +802,9 @@ impl CheckedUnitEffectOperationPlan {
     pub fn invocation_coordinate(&self) -> Option<CheckedUnitCallCoordinate> {
         match self {
             Self::Call(call) => Some(call.coordinate),
-            Self::PortWrite { coordinate, .. } => Some(*coordinate),
+            Self::PortWrite { coordinate, .. } | Self::RegisterAccess { coordinate, .. } => {
+                Some(*coordinate)
+            }
             _ => None,
         }
     }

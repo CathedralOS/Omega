@@ -487,6 +487,22 @@ fn machine_non_transition_invocation_sites(
             if matches!(site, validation::CallSite::TransitionNamed { .. }) {
                 continue;
             }
+            // A checked register transfer is a compiler-owned instruction,
+            // not an unresolved machine invocation. Its architectural fault
+            // capability is distinct from an authored language crash route.
+            // Operand calls retain separate flow rows and still join below.
+            if program
+                .symbols
+                .builtin_function_for_symbol(call.target_symbol)
+                .and_then(|builtin| {
+                    language_core::inline_assembly::AsmRegisterOperation::from_intrinsic_name(
+                        builtin.name(),
+                    )
+                })
+                .is_some_and(|operation| operation.is_admitted())
+            {
+                continue;
+            }
             // Declaration operations retain an exact intrinsic selection,
             // not a machine/state target. Their declaration operands do not
             // create product execution edges; separately inventoried operand

@@ -98,6 +98,7 @@ macro_rules! call_and_scalar_constant_operations {
         Self::Call { .. }
             | Self::SelectImplementation { .. }
             | Self::PortWrite { .. }
+            | Self::RegisterAccess { .. }
             | Self::IntegerConstant { .. }
             | Self::BooleanConstant { .. }
             | Self::IeeeFloatConstant { .. }

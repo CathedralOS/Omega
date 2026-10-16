@@ -173,6 +173,7 @@ fn inputs(operation: &O, values: &mut Vec<ValueId>) -> bool {
             .map(|(index, _)| index),
     );
     match operation {
+        O::RegisterAccess { event, .. } => values.extend(event.inputs()),
         // This pass never removes structural storage. A primitive read has no
         // scalar operand, but remains an observation even when its result dies.
         O::PrimitiveScalarRead { .. } => {}

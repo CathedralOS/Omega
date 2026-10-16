@@ -1,0 +1,4 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "asm_fact_operand_mutation");
+    builder.freestanding = true;
+}

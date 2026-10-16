@@ -73,6 +73,12 @@ pub(super) fn project(
         }
     } else {
         match &node.operation {
+            AbstractOperation::RegisterAccess { service, event, .. } => {
+                LegalizedScalarInstructionKind::RegisterAccess {
+                    service: *service,
+                    event: *event,
+                }
+            }
             AbstractOperation::PortWrite {
                 psi_operation,
                 service,

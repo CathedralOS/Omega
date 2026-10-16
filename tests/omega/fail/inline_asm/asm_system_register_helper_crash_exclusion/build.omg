@@ -1,0 +1,6 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "asm_system_register_helper_crash_exclusion");
+    builder.freestanding = true;
+    Build::exclude_crash(builder, CrashCause::Trap);
+    Build::bind(builder, linux_arm64::ProgramEntry, Main::main);
+}

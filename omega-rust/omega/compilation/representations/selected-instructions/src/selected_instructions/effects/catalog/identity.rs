@@ -604,6 +604,8 @@ macro_rules! effect_tag_arms {
             }
             $enum::TrappingInteger(form) => trapping_family_tag(form),
             $enum::PortWrite => 239,
+            $enum::SystemRegisterRead => 247,
+            $enum::SystemRegisterWrite => 248,
             $enum::AtomicFence => 238,
             $enum::AtomicAccess(form) => form.machine_tag(),
             $enum::PlacedScalarAccess(form) => form.machine_tag(),

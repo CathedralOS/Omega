@@ -42,6 +42,20 @@ pub(in crate::legalization) fn instruction(
 pub(in crate::legalization) fn admit(
     node: &OptimizationNode,
 ) -> Result<(OperationId, Option<ValueId>), NodeRejection> {
+    if let AbstractOperation::RegisterAccess {
+        psi_operation,
+        event,
+        result,
+        ..
+    } = &node.operation
+    {
+        if !event.operation().is_admitted()
+            || event.operation().produces_value() != result.is_some()
+        {
+            return Err(NodeRejection::Malformed);
+        }
+        return Ok((*psi_operation, result.map(|result| result.value)));
+    }
     if let AbstractOperation::AtomicEvent {
         psi_operation,
         event,
@@ -745,6 +759,12 @@ pub(super) fn validate(
                 continue;
             }
         }
+        if let AbstractOperation::RegisterAccess { result: None, .. } = &node.operation {
+            if result.is_some() || !node.definitions.is_empty() {
+                return Err(LegalizationError::custody());
+            }
+            continue;
+        }
         if matches!(node.operation, AbstractOperation::PortWrite { .. }) {
             if result.is_some() || !node.definitions.is_empty() {
                 return Err(LegalizationError::custody());
@@ -783,6 +803,10 @@ pub(super) fn validate(
             return Err(LegalizationError::custody());
         }
         let expected_type = match &node.operation {
+            AbstractOperation::RegisterAccess {
+                result: Some(result),
+                ..
+            } => result.scalar_type,
             AbstractOperation::SelectImplementation { result, .. } => result.scalar_type,
             AbstractOperation::AtomicEvent { event, .. } => {
                 super::atomic_access::event(event)

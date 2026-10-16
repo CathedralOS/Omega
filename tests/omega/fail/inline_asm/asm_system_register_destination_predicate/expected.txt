@@ -1,0 +1,3 @@
+cannot prove assignment value
+satisfies bounded target
+expected 0..=1

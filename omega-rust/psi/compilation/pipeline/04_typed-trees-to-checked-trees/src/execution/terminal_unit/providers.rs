@@ -49,10 +49,7 @@ pub(super) fn checked_provider_attachment_requirements(
     // provider obligation. Their executable callees retain their own closure.
     let call_operations = operations
         .iter()
-        .filter(|operation| {
-            operation.call().is_some_and(|call| call.is_boundary())
-                || matches!(operation, CheckedUnitEffectOperationPlan::PortWrite { .. })
-        })
+        .filter(|operation| operation.call().is_some_and(|call| call.is_boundary()))
         .collect::<Vec<_>>();
     // A routed receiver carries ordinary structural arguments beside the
     // attached provider field, so non-self parameters are no longer blanket
@@ -115,10 +112,7 @@ pub(super) fn checked_provider_attachment_requirements(
     let mut requirements = Vec::with_capacity(call_operations.len());
     for operation in call_operations {
         let boundary = operation.call().filter(|planned| planned.is_boundary());
-        let coordinate = match operation {
-            CheckedUnitEffectOperationPlan::PortWrite { coordinate, .. } => *coordinate,
-            _ => boundary?.coordinate,
-        };
+        let coordinate = boundary?.coordinate;
         let matching_calls = calls
             .iter()
             .filter(|call| {

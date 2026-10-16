@@ -486,7 +486,9 @@ pub(super) fn lower(
         | terminal_psi::call_structural_pair_pattern!(..)
         | OperationKind::BoundaryCall { .. }
         | OperationKind::Call { .. } => calls::lower(operation, machine),
-        OperationKind::PortWrite { .. } | OperationKind::WriteOnlyPrimitiveStore { .. } => {
+        OperationKind::PortWrite { .. }
+        | OperationKind::RegisterAccess { .. }
+        | OperationKind::WriteOnlyPrimitiveStore { .. } => {
             effects::lower(operation, machine, structural_types, value_types)
         }
         OperationKind::StructuralScalarFieldStore { .. }

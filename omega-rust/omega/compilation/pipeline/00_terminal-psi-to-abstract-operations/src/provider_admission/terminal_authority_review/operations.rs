@@ -12,7 +12,13 @@ pub(super) enum AuthorityEdge {
     },
     Boundary(BoundaryMachineId),
     CheckedPortWrite {
+        service: semantic_vocabulary::ServiceId,
         port: u16,
+        operation: semantic_vocabulary::OperationId,
+    },
+    CheckedRegister {
+        service: semantic_vocabulary::ServiceId,
+        register_operation: terminal_psi::RegisterOperation,
         operation: semantic_vocabulary::OperationId,
     },
 }
@@ -28,8 +34,15 @@ pub(super) fn authority_edge(operation: &AbstractOperation) -> AuthorityEdge {
         AbstractOperation::Call { callee, .. } => AuthorityEdge::Internal(*callee),
         AbstractOperation::BoundaryCall { boundary, .. }
         | AbstractOperation::ExternalCompletion { boundary, .. } => AuthorityEdge::Boundary(*boundary),
-        AbstractOperation::PortWrite { port, psi_operation, .. } => {
-            AuthorityEdge::CheckedPortWrite { port: *port, operation: *psi_operation }
+        AbstractOperation::PortWrite { service, port, psi_operation, .. } => {
+            AuthorityEdge::CheckedPortWrite { service: *service, port: *port, operation: *psi_operation }
+        }
+        AbstractOperation::RegisterAccess { service, event, psi_operation, .. } => {
+            AuthorityEdge::CheckedRegister {
+                service: *service,
+                register_operation: event.operation(),
+                operation: *psi_operation,
+            }
         }
         // An atomic event carries no call or boundary edge; its ordering and
         // custody evidence stay on the operation itself.

@@ -145,6 +145,7 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         }
         SelectedInstructionKind::TrappingInteger { form } => trapping_family_tag(form),
         SelectedInstructionKind::PortWrite { .. } => 239,
+        SelectedInstructionKind::RegisterAccess { .. } => 247,
         SelectedInstructionKind::AtomicFence => 238,
         SelectedInstructionKind::AtomicAccess { form } => form.machine_tag(),
         SelectedInstructionKind::PlacedScalarAccess { form, .. } => form.machine_tag(),
@@ -216,6 +217,9 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::ImmutableImageAddress { .. } => 232,
     });
     match kind {
+        SelectedInstructionKind::RegisterAccess { operation } => {
+            crate::codec_bytes::push_encoded(bytes, operation.catalog_tag().to_le_bytes());
+        }
         SelectedInstructionKind::PortWrite { port, value } => {
             crate::codec_bytes::push_encoded(bytes, port.to_le_bytes());
             bytes.push(value);

@@ -159,6 +159,7 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
         // other tag of this plan identity.
         SelectedInstructionKind::TrappingInteger { form } => crate::trapping_family_tag(form),
         SelectedInstructionKind::PortWrite { .. } => 239,
+        SelectedInstructionKind::RegisterAccess { .. } => 247,
         SelectedInstructionKind::AtomicFence => 238,
         SelectedInstructionKind::AtomicAccess { form } => form.machine_tag(),
         SelectedInstructionKind::PlacedScalarAccess { form, .. } => form.machine_tag(),
@@ -230,6 +231,9 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
         SelectedInstructionKind::ImmutableImageAddress { .. } => 232,
     });
     match instruction.kind {
+        SelectedInstructionKind::RegisterAccess { operation } => {
+            crate::codec_bytes::push_encoded(bytes, operation.catalog_tag().to_le_bytes());
+        }
         SelectedInstructionKind::PortWrite { port, value } => {
             crate::codec_bytes::push_encoded(bytes, port.to_le_bytes());
             bytes.push(value);

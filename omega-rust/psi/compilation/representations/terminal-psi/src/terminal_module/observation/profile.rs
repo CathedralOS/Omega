@@ -152,6 +152,11 @@ pub enum TerminalTraceOrdinaryEventKind {
         service: ServiceId,
         service_identity: TerminalIdentityIndex,
     },
+    RegisterAccess {
+        service: ServiceId,
+        service_identity: TerminalIdentityIndex,
+        operation: language_core::inline_assembly::AsmRegisterOperation,
+    },
 }
 
 /// One statically observable ordinary external-event site.

@@ -21,6 +21,7 @@ mod encoding_types;
 mod float_bits;
 pub(crate) mod float_result_policy;
 pub(crate) mod floating_control;
+pub(crate) mod register_access;
 mod scan_byte_sequence;
 pub(crate) mod trapping_forms;
 mod zero_bytes;

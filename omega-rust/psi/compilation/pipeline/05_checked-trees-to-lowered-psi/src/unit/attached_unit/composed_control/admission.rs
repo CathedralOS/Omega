@@ -46,6 +46,7 @@ pub(super) fn admit_calls<'a>(
                 | CheckedUnitEffectOperationPlan::AtomicFence { .. }
                 | CheckedUnitEffectOperationPlan::AtomicAccess(_)
                 | CheckedUnitEffectOperationPlan::PortWrite { .. }
+                | CheckedUnitEffectOperationPlan::RegisterAccess { .. }
                 // The paired call carries the callee dependency; cleanup only
                 // disposes its discarded result.
                 | CheckedUnitEffectOperationPlan::ContinuationCleanup { .. }

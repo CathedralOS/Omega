@@ -729,3 +729,41 @@ pub(super) fn validate_port_write(
     }
     Ok(())
 }
+
+pub(super) fn validate_register_access(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    operation: &Operation,
+) -> Result<(), CodecError> {
+    let OperationKind::RegisterAccess { service, event } = &operation.kind else {
+        return malformed("register validator received another operation");
+    };
+    if !has_service(module, *service) || !event.operation().is_admitted() {
+        return malformed("register access has no declared service or admitted register");
+    }
+    let is_u64 = |scalar| {
+        matches!(scalar,
+        semantic_vocabulary::ScalarType::Integer(integer)
+            if !integer.is_address() && integer.bits() == 64
+                && integer.sign() == semantic_vocabulary::IntegerSign::Unsigned)
+    };
+    match event {
+        terminal_psi::RegisterAccessEvent::Read { .. } => {
+            if operation
+                .result
+                .scalar()
+                .is_none_or(|result| !is_u64(result.scalar_type))
+            {
+                return malformed("register read does not declare its exact u64 result");
+            }
+        }
+        terminal_psi::RegisterAccessEvent::Write { value, .. } => {
+            if operation.result != OperationResult::Unit
+                || super::declared_scalar_type(machine, *value).is_none_or(|scalar| !is_u64(scalar))
+            {
+                return malformed("register write does not consume one exact u64 value");
+            }
+        }
+    }
+    Ok(())
+}

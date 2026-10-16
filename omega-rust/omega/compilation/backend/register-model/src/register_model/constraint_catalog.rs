@@ -75,6 +75,8 @@ pub struct TargetRegisterEnvironmentConstraintKeys {
     pub placed_read: Option<RegisterConstraintKey>,
     pub placed_write: Option<RegisterConstraintKey>,
     pub port_write: Option<RegisterConstraintKey>,
+    pub system_register_read: Option<RegisterConstraintKey>,
+    pub system_register_write: Option<RegisterConstraintKey>,
     pub atomic_fence: Option<RegisterConstraintKey>,
     pub atomic_load: Option<RegisterConstraintKey>,
     pub atomic_store: Option<RegisterConstraintKey>,
