@@ -78,9 +78,12 @@ pub(super) fn emit(
                         &signature.structural_types,
                     )
                     .ok_or_else(|| invalid())?;
-                if !signature.entry_claims.is_empty()
-                    || (geometry.byte_offset, geometry.byte_size)
-                        != (*byte_offset, u32::from(*byte_size))
+                // Custody belongs to exact places, not the function-wide
+                // entry roster. A primitive write preserves unrelated claims;
+                // the declared destination and projection checks retain
+                // its storage authority and exact scalar geometry.
+                if (geometry.byte_offset, geometry.byte_size)
+                    != (*byte_offset, u32::from(*byte_size))
                     || !runtime_indices_match(indices, &geometry.elements)
                 {
                     return Err(invalid());

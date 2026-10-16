@@ -250,6 +250,7 @@ pass/ownership/linear_call_result_claims_exit built 8451ms exit:0 interpreter-ex
 pass/ownership/linear_call_result_members_fused_owner_exit built 8790ms exit:0 interpreter-exit:0 interpreter:agrees @815ea0247677
 pass/ownership/linear_call_result_place_assignment_exit built 8398ms exit:0 interpreter-exit:0 interpreter:agrees @815ea0247677
 pass/ownership/linear_computed_call_claim_transfers_exit built 10578ms exit:0 interpreter-exit:0 interpreter:agrees @815ea0247677
+pass/ownership/linear_primitive_storage_exit built 6061ms exit:0 interpreter-exit:0 interpreter:agrees @c909d76fb4bc
 pass/ownership/linear_qualified_call_result_claims built 9103ms exit:0 interpreter-exit:0 interpreter:agrees @815ea0247677
 pass/ownership/linear_result_owners_residual_cleanup_exit built 9360ms exit:0 interpreter-exit:0 interpreter:agrees @b74df5e46260
 pass/ownership/linear_state_graph_call_arguments_exit built 8417ms exit:0 interpreter-exit:0 interpreter:agrees @815ea0247677

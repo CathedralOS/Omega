@@ -7638,6 +7638,7 @@ pass/ownership/linear_computed_call_claim_transfers_exit checked 13028ms check-t
 pass/ownership/linear_domain_forward checked 9416ms @5041ef1af684+wt
 pass/ownership/linear_entry_handoff checked 9222ms @5041ef1af684+wt
 pass/ownership/linear_inline_constructed_argument_claims_exit checked 11905ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/ownership/linear_primitive_storage_exit checked 6816ms check-target:macos_arm64 @c909d76fb4bc
 pass/ownership/linear_qualified_call_result_claims checked 6577ms check-target:macos_arm64 @7c1edd43e7e4+wt
 pass/ownership/linear_result_member_projection_arguments_exit checked 11845ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/ownership/linear_result_owners_residual_cleanup_exit checked 10713ms check-target:macos_arm64 @a9ae30e1c334+wt

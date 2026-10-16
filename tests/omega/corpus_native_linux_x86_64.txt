@@ -2226,6 +2226,7 @@ pass/ownership/linear_computed_call_claim_transfers_exit built 21495ms exit:0 @6
 pass/ownership/linear_domain_forward checked 17980ms @6c49683ce714
 pass/ownership/linear_entry_handoff checked 17889ms @6c49683ce714
 pass/ownership/linear_inline_constructed_argument_claims_exit built 19802ms exit:0 @6c49683ce714
+pass/ownership/linear_primitive_storage_exit built 6322ms exit:0 @c909d76fb4bc
 pass/ownership/linear_qualified_call_result_claims built 8432ms exit:0 @7c1edd43e7e4+wt
 pass/ownership/linear_result_member_projection_arguments_exit built 18041ms exit:0 @6c49683ce714
 pass/ownership/linear_result_owners_residual_cleanup_exit built 17702ms exit:0 @6c49683ce714

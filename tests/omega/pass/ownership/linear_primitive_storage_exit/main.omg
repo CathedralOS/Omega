@@ -1,0 +1,26 @@
+// Expected exit: 0. Primitive writes preserve unrelated live claims.
+use omega::language::core::drop;
+data Receipt [linear] { code: i32; }
+machine Receipt::drop(receipt: &mut Receipt) {}
+machine update(receipt: Receipt) crashes Trap {
+    let mut marker: u32 = 0;
+    asm { mov marker, 7 }
+    transition marker == 7 {
+        true -> holding(receipt)
+        false -> bad(receipt)
+    }
+    state holding(receipt: Receipt) {
+        let mut other: u32 = 0;
+        asm { mov other, 9 }
+        transition other == 9 && receipt.code == 11 {
+            true -> complete(receipt)
+            false -> bad(receipt)
+        }
+    }
+    state complete(receipt: Receipt) { drop(receipt); }
+    state bad(receipt: Receipt) { drop(receipt); crash Trap; }
+}
+machine main() crashes Trap {
+    let receipt: Receipt = Receipt { code: 11 };
+    update(receipt);
+}
