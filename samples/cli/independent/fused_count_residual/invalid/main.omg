@@ -1,0 +1,17 @@
+// The residual array has three differences. Index 3 is outside that length.
+
+data Moment {
+    differences: [f64; 3];
+}
+
+machine store_past_end(moment: &mut Moment, value: f64) {
+    moment.differences[3] = value;
+}
+
+data Main {
+    moment: Moment;
+}
+
+machine Main::main(main: &mut Main) {
+    store_past_end(&mut main.moment, 1.0);
+}

@@ -1,0 +1,108 @@
+// Expected exit: 0.
+// Expected output contains: PASS
+//
+// One fused rounding of a count residual keeps a positive moment where two
+// roundings cancel it. differential_expression estimates dispersion with
+// sum((count / factor - mean)^2 - mean / factor). No runnable sample observes
+// that fused residual through a local, a field, a parameter, and a call result.
+//
+// The cancelling pair is the same binary64 values as the check-only probe
+// samples/cli/probes/fma_rounding. Separate rounding is multiply_then_add.
+// The three stored differences 0.5, 1.5, 2.5 accumulate with fused squaring
+// to 8.75. An exact 2 * 3 + 4 agrees under both roundings. x86 builds admit
+// AVX+FMA3; that feature is not inferred from the host.
+
+use omega_language_std::console;
+use omega::language::core::float_operations;
+
+data Moment {
+    differences: [f64; 3];
+    fused: f64;
+    separate: f64;
+    chain: f64;
+}
+
+machine fused_parameter(left: f64, right: f64, addend: f64) -> f64 {
+    F64::fused_multiply_add(left, right, addend)
+}
+
+machine separate_parameter(left: f64, right: f64, addend: f64) -> f64 {
+    F64::multiply_then_add(left, right, addend)
+}
+
+machine difference(moment: &Moment, index: i32 in Wrapping) -> f64 {
+    transition index >= 0 && index < 3 {
+        true -> read(moment, index)
+        false -> 0.0
+    }
+    state read(moment: &Moment, index: i32 in Wrapping) -> f64
+    requires index >= 0 && index < 3 {
+        moment.differences[index]
+    }
+}
+
+machine accumulate(moment: &mut Moment) {
+    moment.chain = 0.0;
+    transition { _ -> step(moment, 0) }
+    state step(moment: &mut Moment, index: i32 in Wrapping) {
+        transition index >= 0 && index < 3 {
+            true -> square(moment, index)
+            false -> done()
+        }
+    }
+    state square(moment: &mut Moment, index: i32 in Wrapping)
+    requires index >= 0 && index < 3 {
+        let value: f64 = difference(moment, index);
+        moment.chain = fused_parameter(value, value, moment.chain);
+        transition { _ -> step(moment, index + 1) }
+    }
+    state done() { }
+}
+
+data Main {
+    moment: Moment;
+}
+
+machine Main::main(main: &mut Main) reaches Console {
+    main.moment.differences[0] = 0.5;
+    main.moment.differences[1] = 1.5;
+    main.moment.differences[2] = 2.5;
+    transition { _ -> cancel(main) }
+
+    state cancel(main: &mut Main) {
+        let left: f64 = 1.0000000000000002220446049250313080847263336181640625;
+        let addend: f64 = 0.0 - 1.000000000000000444089209850062616169452667236328125;
+        let local_fused: f64 = F64::fused_multiply_add(left, left, addend);
+        let local_separate: f64 = F64::multiply_then_add(left, left, addend);
+        main.moment.fused = fused_parameter(left, left, addend);
+        main.moment.separate = separate_parameter(left, left, addend);
+        transition local_fused > 0.0 && local_separate == 0.0
+            && main.moment.fused == local_fused
+            && main.moment.separate == local_separate {
+            true -> scan(main)
+            false -> fail(main)
+        }
+    }
+    state scan(main: &mut Main) {
+        accumulate(&mut main.moment);
+        transition { _ -> exact(main) }
+    }
+    state exact(main: &mut Main) {
+        let fused_product: f64 = fused_parameter(2.0, 3.0, 4.0);
+        let separate_product: f64 = separate_parameter(2.0, 3.0, 4.0);
+        transition main.moment.chain == 8.75
+            && fused_product == 10.0
+            && separate_product == 10.0 {
+            true -> pass(main)
+            false -> fail(main)
+        }
+    }
+    state pass(main: &mut Main) {
+        Console::write_line("PASS");
+        Console::exit_process(0);
+    }
+    state fail(main: &mut Main) {
+        Console::write_line("FAIL");
+        Console::exit_process(1);
+    }
+}
