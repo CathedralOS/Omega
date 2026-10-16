@@ -1,0 +1,467 @@
+// Fixed-limb unsigned bignum arithmetic (8 x u32 little-endian limbs in a record).
+//
+// Exercises per-node arithmetic-policy semantics (Wrapping limb arithmetic,
+// explicit widening conversions via widen_u32_to_u64, and quotient/remainder by
+// a provably nonzero small limb) across nested carry loops:
+//   - bignum_compare: most-significant-limb scan returning -1, 0, or 1
+//   - bignum_add: 8-limb ripple-carry addition returning final carry
+//   - bignum_sub: 8-limb ripple-borrow subtraction returning final borrow
+//   - bignum_mul_schoolbook: 4x4-into-8-limb schoolbook multiply with nested carry loop
+//   - bignum_divmod_small: 8-limb division and modulo by a nonzero u32 limb
+//   - bignum_render_decimal: repeated divmod by 10 into a 40-digit ASCII buffer
+//
+// Scripted sequence on carry-heavy inputs:
+//   A = [0xFFFFFFFF, 0xFFFFFFFF, 1, 0, 0, 0, 0, 0] = 2^65 - 1
+//     = 36893488147419103231
+//   B = [0xFFFFFFFF, 2, 3, 0, 0, 0, 0, 0] = 3 * 2^64 + 3 * 2^32 - 1
+//     = 55340232234013556735
+//   A + B = [4294967294, 2, 5, 0, 0, 0, 0, 0]
+//   B - A = [0, 3, 1, 0, 0, 0, 0, 0]
+//   A * B = [1, 4294967293, 4294967290, 5, 6, 0, 0, 0]
+//         = 2041694202000999755773599949770440310785
+//   (A * B) divmod 10^9 = ([198321098, 116451454, 3306282068, 25, 0, 0, 0, 0], 440310785)
+//
+// Expected exit: 0.
+// Expected output contains: PASS
+
+use omega_language_std::console;
+use omega::language::core::numeric_conversion;
+
+data Bignum [copy] {
+    limbs: [u32; 8] in Wrapping;
+}
+
+machine bignum_zero(out: &mut Bignum) {
+    transition { _ -> loop_(out, 0) }
+
+    state loop_(out: &mut Bignum, index: u64) {
+        transition index < 8 {
+            true -> clear(out, index)
+            _ -> done()
+        }
+    }
+
+    state clear(out: &mut Bignum, index: u64) {
+        out.limbs[index] = 0;
+        transition { _ -> loop_(out, index + 1) }
+    }
+
+    state done() {}
+}
+
+machine bignum_copy(source: &Bignum, out: &mut Bignum) {
+    transition { _ -> loop_(source, out, 0) }
+
+    state loop_(source: &Bignum, out: &mut Bignum, index: u64) {
+        transition index < 8 {
+            true -> copy_limb(source, out, index)
+            _ -> done()
+        }
+    }
+
+    state copy_limb(source: &Bignum, out: &mut Bignum, index: u64) {
+        out.limbs[index] = source.limbs[index];
+        transition { _ -> loop_(source, out, index + 1) }
+    }
+
+    state done() {}
+}
+
+machine bignum_equals(left: &Bignum, right: &Bignum) -> bool {
+    transition { _ -> loop_(left, right, 0) }
+
+    state loop_(left: &Bignum, right: &Bignum, index: u64) -> bool {
+        transition index < 8 {
+            true -> check_limb(left, right, index)
+            _ -> (true)
+        }
+    }
+
+    state check_limb(left: &Bignum, right: &Bignum, index: u64) -> bool {
+        let l: u32 = left.limbs[index] as u32;
+        let r: u32 = right.limbs[index] as u32;
+        transition l == r {
+            true -> loop_(left, right, index + 1)
+            _ -> (false)
+        }
+    }
+}
+
+// Compare two 8-limb unsigned bignums from most-significant limb (7) to least (0).
+// Returns -1 when left < right, 1 when left > right, and 0 when equal.
+machine bignum_compare(left: &Bignum, right: &Bignum) -> i32 {
+    transition { _ -> loop_(left, right, 8) }
+
+    state loop_(left: &Bignum, right: &Bignum, remaining: u64) -> i32 {
+        transition remaining > 0 && remaining <= 8 {
+            true -> inspect(left, right, remaining - 1)
+            _ -> (0)
+        }
+    }
+
+    state inspect(left: &Bignum, right: &Bignum, index: u64) -> i32 {
+        let l: u32 = left.limbs[index] as u32;
+        let r: u32 = right.limbs[index] as u32;
+        transition l < r {
+            true -> (-1)
+            _ -> check_greater(left, right, index, l, r)
+        }
+    }
+
+    state check_greater(left: &Bignum, right: &Bignum, index: u64, l: u32, r: u32) -> i32 {
+        transition l > r {
+            true -> (1)
+            _ -> loop_(left, right, index)
+        }
+    }
+}
+
+// Ripple-carry addition across 8 limbs. Each limb sum reduces modulo 2^32 under
+// Wrapping, while explicit widening to u64 computes the carry into the next limb.
+machine bignum_add(left: &Bignum, right: &Bignum, out: &mut Bignum) -> u32 {
+    transition { _ -> loop_(left, right, out, 0, 0) }
+
+    state loop_(left: &Bignum, right: &Bignum, out: &mut Bignum, index: u64, carry: u32) -> u32 {
+        transition index < 8 && carry <= 1 {
+            true -> step(left, right, out, index, carry)
+            _ -> (carry)
+        }
+    }
+
+    state step(left: &Bignum, right: &Bignum, out: &mut Bignum, index: u64, carry: u32) -> u32 {
+        let l_wrap: u32 in Wrapping = left.limbs[index];
+        let r_wrap: u32 in Wrapping = right.limbs[index];
+        let c_wrap: u32 in Wrapping = carry as u32 in Wrapping;
+        let low_sum_64: u64 = ((l_wrap + r_wrap + c_wrap) as u32) as u64;
+        out.limbs[index] = (low_sum_64 as u32) as u32 in Wrapping;
+
+        let l64: u64 = (l_wrap as u32) as u64;
+        let r64: u64 = (r_wrap as u32) as u64;
+        let c64: u64 = carry as u64;
+        let wide_sum: u64 = l64 + r64 + c64;
+        let next_carry64: u64 = wide_sum >> 32;
+        let next_carry: u32 = next_carry64 as u32;
+        transition { _ -> loop_(left, right, out, index + 1, next_carry) }
+    }
+}
+
+// Ripple-borrow subtraction across 8 limbs (left - right).
+// Returns final borrow (0 when left >= right, 1 when left < right).
+machine bignum_sub(left: &Bignum, right: &Bignum, out: &mut Bignum) -> u32 {
+    transition { _ -> loop_(left, right, out, 0, 0) }
+
+    state loop_(left: &Bignum, right: &Bignum, out: &mut Bignum, index: u64, borrow: u32) -> u32 {
+        transition index < 8 {
+            true -> step(left, right, out, index, borrow)
+            _ -> (borrow)
+        }
+    }
+
+    state step(left: &Bignum, right: &Bignum, out: &mut Bignum, index: u64, borrow: u32) -> u32 {
+        let l_wrap: u32 in Wrapping = left.limbs[index];
+        let r_wrap: u32 in Wrapping = right.limbs[index];
+        let b_wrap: u32 in Wrapping = borrow as u32 in Wrapping;
+        let low_diff: u32 in Wrapping = l_wrap - r_wrap - b_wrap;
+        out.limbs[index] = low_diff;
+
+        let l64: u64 in Wrapping = widen_u32_to_u64(l_wrap as u32) as u64 in Wrapping;
+        let r64: u64 in Wrapping = widen_u32_to_u64(r_wrap as u32) as u64 in Wrapping;
+        let b64: u64 in Wrapping = widen_u32_to_u64(borrow) as u64 in Wrapping;
+        let need64: u64 in Wrapping = r64 + b64;
+        transition (l64 as u64) < (need64 as u64) {
+            true -> loop_(left, right, out, index + 1, 1)
+            _ -> loop_(left, right, out, index + 1, 0)
+        }
+    }
+}
+
+// Schoolbook multiplication of the low 4 limbs of `left` and `right` into 8-limb `out`.
+machine bignum_mul_schoolbook(left: &Bignum, right: &Bignum, out: &mut Bignum) {
+    bignum_zero(out);
+    transition { _ -> outer(left, right, out, 0) }
+
+    state outer(left: &Bignum, right: &Bignum, out: &mut Bignum, i: u64) {
+        transition i < 4 {
+            true -> inner(left, right, out, i, 0, 0)
+            _ -> done()
+        }
+    }
+
+    state inner(left: &Bignum, right: &Bignum, out: &mut Bignum, i: u64, j: u64, carry: u64) {
+        transition i < 4 && j < 4 && carry <= 4294967295 {
+            true -> mul_step(left, right, out, i, j, carry)
+            _ -> finish_row(left, right, out, i, carry)
+        }
+    }
+
+    state mul_step(left: &Bignum, right: &Bignum, out: &mut Bignum, i: u64, j: u64, carry: u64) {
+        let pos: u64 = i + j;
+        let a64: u64 = (left.limbs[i] as u32) as u64;
+        let b64: u64 = (right.limbs[j] as u32) as u64;
+        let cur64: u64 = (out.limbs[pos] as u32) as u64;
+        let prod: u64 = a64 * b64 + cur64 + carry;
+        let low: u32 = (prod & 4294967295) as u32;
+        out.limbs[pos] = low as u32 in Wrapping;
+        let next_carry: u64 = prod >> 32;
+        transition { _ -> inner(left, right, out, i, j + 1, next_carry) }
+    }
+
+    state finish_row(left: &Bignum, right: &Bignum, out: &mut Bignum, i: u64, carry: u64) {
+        transition i < 4 && carry <= 4294967295 {
+            true -> store_row_carry(left, right, out, i, carry)
+            _ -> done()
+        }
+    }
+
+    state store_row_carry(left: &Bignum, right: &Bignum, out: &mut Bignum, i: u64, carry: u64) {
+        let tail: u64 = i + 4;
+        let cur: u32 in Wrapping = out.limbs[tail];
+        let c32: u32 in Wrapping = (carry as u32) as u32 in Wrapping;
+        out.limbs[tail] = cur + c32;
+        transition { _ -> outer(left, right, out, i + 1) }
+    }
+
+    state done() {}
+}
+
+// Divide 8-limb `dividend` by nonzero small limb `divisor`, storing the 8-limb
+// quotient in `quotient` and returning the remainder in `0..divisor`.
+machine bignum_divmod_small(dividend: &Bignum, divisor: u32, quotient: &mut Bignum) -> u32
+requires
+    divisor > 0;
+{
+    let d64: u64 = divisor as u64;
+    transition d64 > 0 && d64 <= 4294967295 {
+        true -> loop_(dividend, d64, quotient, 8, 0)
+        _ -> (0)
+    }
+
+    state loop_(dividend: &Bignum, d64: u64, quotient: &mut Bignum, remaining: u64, rem: u64) -> u32 {
+        transition remaining == 0 && rem < d64 && d64 <= 4294967295 {
+            true -> (rem as u32)
+            _ -> check_step(dividend, d64, quotient, remaining, rem)
+        }
+    }
+
+    state check_step(dividend: &Bignum, d64: u64, quotient: &mut Bignum, remaining: u64, rem: u64) -> u32 {
+        transition remaining > 0 && remaining <= 8 && d64 > 0 && d64 <= 4294967295 && rem < d64 {
+            true -> step(dividend, d64, quotient, remaining - 1, rem)
+            _ -> (0)
+        }
+    }
+
+    state step(dividend: &Bignum, d64: u64, quotient: &mut Bignum, index: u64, rem: u64) -> u32 {
+        let limb64: u64 = (dividend.limbs[index] as u32) as u64;
+        let combined: u64 = (rem << 32) | limb64;
+        let q_limb64: u64 = combined / d64;
+        let next_rem: u64 = combined % d64;
+        let q_limb32: u32 = narrow_u64_to_u32_wrapping(q_limb64);
+        quotient.limbs[index] = q_limb32 as u32 in Wrapping;
+        transition { _ -> loop_(dividend, d64, quotient, index, next_rem) }
+    }
+}
+
+// Render an 8-limb bignum into a 40-byte ASCII decimal buffer via repeated divmod by 10.
+machine bignum_render_decimal(value: &Bignum, digits: &mut [u8; 40]) {
+    let mut work: Bignum = Bignum {
+        limbs: [
+            (0u32 as u32 in Wrapping),
+            (0u32 as u32 in Wrapping),
+            (0u32 as u32 in Wrapping),
+            (0u32 as u32 in Wrapping),
+            (0u32 as u32 in Wrapping),
+            (0u32 as u32 in Wrapping),
+            (0u32 as u32 in Wrapping),
+            (0u32 as u32 in Wrapping)
+        ]
+    };
+    let mut next_work: Bignum = Bignum {
+        limbs: [
+            (0u32 as u32 in Wrapping),
+            (0u32 as u32 in Wrapping),
+            (0u32 as u32 in Wrapping),
+            (0u32 as u32 in Wrapping),
+            (0u32 as u32 in Wrapping),
+            (0u32 as u32 in Wrapping),
+            (0u32 as u32 in Wrapping),
+            (0u32 as u32 in Wrapping)
+        ]
+    };
+    bignum_copy(value, &mut work);
+    transition { _ -> loop_(&mut work, &mut next_work, digits, 40) }
+
+    state loop_(work: &mut Bignum, next_work: &mut Bignum, digits: &mut [u8; 40], remaining: u64) {
+        transition remaining > 0 && remaining <= 40 {
+            true -> extract_digit(work, next_work, digits, remaining - 1)
+            _ -> done()
+        }
+    }
+
+    state extract_digit(work: &mut Bignum, next_work: &mut Bignum, digits: &mut [u8; 40], pos: u64) {
+        let rem: u32 = bignum_divmod_small(work, 10, next_work);
+        bignum_copy(next_work, work);
+        let ascii_u32: u32 in Wrapping = (rem as u32 in Wrapping) + 48;
+        digits[pos] = narrow_u32_to_u8_wrapping(ascii_u32 as u32);
+        transition { _ -> loop_(work, next_work, digits, pos) }
+    }
+
+    state done() {}
+}
+
+machine bytes40_equal(left: &[u8; 40], right: &[u8]) -> bool {
+    transition right.len == 40 {
+        true -> loop_(left, right, 0)
+        _ -> (false)
+    }
+
+    state loop_(left: &[u8; 40], right: &[u8], index: u64) -> bool {
+        transition index < 40 && right.len == 40 {
+            true -> check_byte(left, right, index)
+            _ -> (true)
+        }
+    }
+
+    state check_byte(left: &[u8; 40], right: &[u8], index: u64) -> bool {
+        transition left[index] == right[index] {
+            true -> loop_(left, right, index + 1)
+            _ -> (false)
+        }
+    }
+}
+
+data Main {
+    a: Bignum;
+    b: Bignum;
+    sum: Bignum;
+    diff: Bignum;
+    roundtrip: Bignum;
+    prod: Bignum;
+    quot: Bignum;
+    work: Bignum;
+    next_work: Bignum;
+    expected_sum: Bignum;
+    expected_diff: Bignum;
+    expected_prod: Bignum;
+    expected_quot: Bignum;
+    digits: [u8; 40];
+}
+
+machine Main::main(main: &mut Main) reaches Console {
+    // A = 2^65 - 1 = [0xFFFFFFFF, 0xFFFFFFFF, 1, 0, 0, 0, 0, 0]
+    main.a = Bignum {
+        limbs: [
+            (4294967295u32 as u32 in Wrapping),
+            (4294967295u32 as u32 in Wrapping),
+            (1u32 as u32 in Wrapping),
+            (0u32 as u32 in Wrapping),
+            (0u32 as u32 in Wrapping),
+            (0u32 as u32 in Wrapping),
+            (0u32 as u32 in Wrapping),
+            (0u32 as u32 in Wrapping)
+        ]
+    };
+
+    // B = 3 * 2^64 + 3 * 2^32 - 1 = [0xFFFFFFFF, 2, 3, 0, 0, 0, 0, 0]
+    main.b = Bignum {
+        limbs: [
+            (4294967295u32 as u32 in Wrapping),
+            (2u32 as u32 in Wrapping),
+            (3u32 as u32 in Wrapping),
+            (0u32 as u32 in Wrapping),
+            (0u32 as u32 in Wrapping),
+            (0u32 as u32 in Wrapping),
+            (0u32 as u32 in Wrapping),
+            (0u32 as u32 in Wrapping)
+        ]
+    };
+
+    // Hand-computed constants for verification.
+    main.expected_sum = Bignum {
+        limbs: [
+            (4294967294u32 as u32 in Wrapping),
+            (2u32 as u32 in Wrapping),
+            (5u32 as u32 in Wrapping),
+            (0u32 as u32 in Wrapping),
+            (0u32 as u32 in Wrapping),
+            (0u32 as u32 in Wrapping),
+            (0u32 as u32 in Wrapping),
+            (0u32 as u32 in Wrapping)
+        ]
+    };
+
+    main.expected_diff = Bignum {
+        limbs: [
+            (0u32 as u32 in Wrapping),
+            (3u32 as u32 in Wrapping),
+            (1u32 as u32 in Wrapping),
+            (0u32 as u32 in Wrapping),
+            (0u32 as u32 in Wrapping),
+            (0u32 as u32 in Wrapping),
+            (0u32 as u32 in Wrapping),
+            (0u32 as u32 in Wrapping)
+        ]
+    };
+
+    main.expected_prod = Bignum {
+        limbs: [
+            (1u32 as u32 in Wrapping),
+            (4294967293u32 as u32 in Wrapping),
+            (4294967290u32 as u32 in Wrapping),
+            (5u32 as u32 in Wrapping),
+            (6u32 as u32 in Wrapping),
+            (0u32 as u32 in Wrapping),
+            (0u32 as u32 in Wrapping),
+            (0u32 as u32 in Wrapping)
+        ]
+    };
+
+    main.expected_quot = Bignum {
+        limbs: [
+            (198321098u32 as u32 in Wrapping),
+            (116451454u32 as u32 in Wrapping),
+            (3306282068u32 as u32 in Wrapping),
+            (25u32 as u32 in Wrapping),
+            (0u32 as u32 in Wrapping),
+            (0u32 as u32 in Wrapping),
+            (0u32 as u32 in Wrapping),
+            (0u32 as u32 in Wrapping)
+        ]
+    };
+
+    let expected_digits: &[u8] = "2041694202000999755773599949770440310785";
+
+    let cmp_ab: i32 = bignum_compare(&main.a, &main.b);
+    let cmp_ba: i32 = bignum_compare(&main.b, &main.a);
+    let cmp_aa: i32 = bignum_compare(&main.a, &main.a);
+
+    let add_carry: u32 = bignum_add(&main.a, &main.b, &mut main.sum);
+    let sub_borrow: u32 = bignum_sub(&main.b, &main.a, &mut main.diff);
+    let rt_borrow: u32 = bignum_sub(&main.sum, &main.b, &mut main.roundtrip);
+
+    bignum_mul_schoolbook(&main.a, &main.b, &mut main.prod);
+    let rem_1e9: u32 = bignum_divmod_small(&main.prod, 1000000000, &mut main.quot);
+    bignum_render_decimal(&main.prod, &mut main.digits);
+
+    let sum_ok: bool = add_carry == 0 && bignum_equals(&main.sum, &main.expected_sum);
+    let diff_ok: bool = sub_borrow == 0 && bignum_equals(&main.diff, &main.expected_diff);
+    let rt_ok: bool = rt_borrow == 0 && bignum_equals(&main.roundtrip, &main.a);
+    let prod_ok: bool = bignum_equals(&main.prod, &main.expected_prod);
+    let div_ok: bool = rem_1e9 == 440310785 && bignum_equals(&main.quot, &main.expected_quot);
+    let dec_ok: bool = bytes40_equal(&main.digits, expected_digits);
+    let cmp_ok: bool = cmp_ab == -1 && cmp_ba == 1 && cmp_aa == 0;
+
+    transition cmp_ok && sum_ok && diff_ok && rt_ok && prod_ok && div_ok && dec_ok {
+        true -> pass()
+        _ -> fail()
+    }
+
+    state pass() {
+        Console::write_line("PASS: fixed_limb_bignum compare, add, sub, schoolbook mul, divmod, and decimal render verified");
+        Console::exit_process(0);
+    }
+
+    state fail() {
+        Console::write_line("FAIL: fixed_limb_bignum verification mismatch");
+        Console::exit_process(1);
+    }
+}

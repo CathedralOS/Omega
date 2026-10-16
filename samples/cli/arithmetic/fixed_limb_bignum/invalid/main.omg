@@ -1,0 +1,18 @@
+// Complete intended-invalid control for fixed_limb_bignum: storing the 9th
+// carry limb at index 8 overflows the fixed 8-limb `[u32; 8]` bignum record.
+
+data Bignum [copy] {
+    limbs: [u32; 8] in Wrapping;
+}
+
+machine store_overflow_carry(out: &mut Bignum, carry: u32 in Wrapping) {
+    out.limbs[8] = carry;
+}
+
+data Main {
+    value: Bignum;
+}
+
+machine Main::main(main: &mut Main) {
+    store_overflow_carry(&mut main.value, 1);
+}
