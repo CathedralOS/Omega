@@ -113,6 +113,16 @@ python3 tools/corpus_gate.py --filter wire/,fail/proofs
 python3 tools/corpus_gate.py --record             # re-pin the golden
 ```
 
+`--runner PATH` may reuse an immutable compiler built in another checkout.
+The gate supplies `OMEGA_CORPUS_ROOT` so fixture sources, oracles and discovery
+belong to the measured checkout; the runner's compiled-in path is only the
+default for direct invocation. The SDK follows `OMEGA_LIBRARY_ROOT`, preserving
+an explicit library override. Prebuilt runners must report their effective
+fixture root through `fixture-root-v1`; missing or mismatched reports refuse
+recording. Historical `--compare` runners freshly built in their measured
+checkout remain supported. Qualification still binds the compiler artifact and
+immutable source/oracle bytes.
+
 `--filter` matches comma-separated `tier/group/name` fragments (also
 `OMEGA_CORPUS_FIXTURE_FILTER`); `--shard k/N` selects a
 deterministic hash slice for splitting the run across sessions.

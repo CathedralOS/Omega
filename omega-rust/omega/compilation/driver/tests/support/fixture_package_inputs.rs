@@ -79,6 +79,9 @@ pub mod process_exit_acceptance;
 pub mod sealed_fixture_staging;
 
 pub fn repo_root() -> PathBuf {
+    if let Some(root) = std::env::var_os("OMEGA_CORPUS_ROOT") {
+        return PathBuf::from(root);
+    }
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .ancestors()
         .nth(4)

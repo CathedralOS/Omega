@@ -28,11 +28,14 @@ def record(fixture, status="checked", millis=1, expected=None, facts=None,
 
 
 
-def fake_runner(records: str, stdout: str = ""):
+def fake_runner(records: str, stdout: str = "", *, reported_root=None, report_root=True):
     """A Popen stand-in that writes `records` where the gate asks for them."""
     def popen(arguments, **options):
         Path(options["env"]["OMEGA_CORPUS_RECORDS"]).write_text(records)
-        return SimpleNamespace(stdout=io.StringIO(stdout), stderr=io.StringIO(""),
+        root = reported_root or options["env"]["OMEGA_CORPUS_ROOT"]
+        metadata = ("corpus_runner: fixture-root-v1 " + os.fsencode(root).hex() + "\n"
+                    if report_root else "")
+        return SimpleNamespace(stdout=io.StringIO(stdout), stderr=io.StringIO(metadata),
                                returncode=0, wait=lambda: 0)
     return popen
 
@@ -60,14 +63,41 @@ class OptionalHistoryProvenance(unittest.TestCase):
             self.assertIsNone(corpus_gate.commits_between("historical-revision"))
 
 
-class RunnerLibrarySelection(unittest.TestCase):
-    def runner_environment(self, environment):
+class RunnerInputSelection(unittest.TestCase):
+    def runner_environment(self, environment, root=corpus_gate.ROOT):
         rows = corpus_records.render([record("pass/library/selection")])
         with patch.dict(os.environ, environment, clear=True), \
              patch.object(corpus_gate.subprocess, "Popen",
                           side_effect=fake_runner(rows)) as invocation:
-            corpus_gate.run_runner(Path("corpus_runner"))
+            corpus_gate.run_runner(Path("corpus_runner"), root=root)
         return invocation.call_args.kwargs["env"]
+
+    def test_fixture_root_follows_the_measured_checkout_over_a_stale_environment(self):
+        measured = Path(tempfile.gettempdir()) / "measured-omega-checkout"
+        environment = self.runner_environment(
+            {"OMEGA_CORPUS_ROOT": "another-checkout"}, root=measured)
+        self.assertEqual(environment["OMEGA_CORPUS_ROOT"], str(measured))
+        self.assertEqual(environment["OMEGA_LIBRARY_ROOT"], str(measured / "source/library"))
+
+    def test_prebuilt_runner_without_fixture_root_is_refused(self):
+        with patch.object(corpus_gate.subprocess, "Popen", side_effect=
+                          fake_runner(corpus_records.render([record("pass/root/control")]), report_root=False)):
+            with self.assertRaisesRegex(corpus_gate.InfrastructureFailure, "report exactly one fixture root"):
+                corpus_gate.run_runner(Path("corpus_runner"))
+
+    def test_fresh_historical_build_keeps_its_known_checkout(self):
+        rows = [record("pass/root/control")]
+        with patch.object(corpus_gate.subprocess, "Popen", side_effect=
+                          fake_runner(corpus_records.render(rows), report_root=False)):
+            measured = corpus_gate.run_runner(Path("corpus_runner"), freshly_built=True)
+            self.assertEqual([row["fixture"] for row in measured], ["pass/root/control"])
+
+    def test_a_reported_foreign_checkout_is_refused(self):
+        foreign = str(Path(tempfile.gettempdir()) / "other-omega-checkout")
+        with patch.object(corpus_gate.subprocess, "Popen", side_effect=
+                          fake_runner(corpus_records.render([record("pass/root/control")]), reported_root=foreign)):
+            with self.assertRaisesRegex(corpus_gate.InfrastructureFailure, "differs from measured"):
+                corpus_gate.run_runner(Path("corpus_runner"))
 
     def test_default_library_belongs_to_the_measured_checkout(self):
         environment = self.runner_environment({})

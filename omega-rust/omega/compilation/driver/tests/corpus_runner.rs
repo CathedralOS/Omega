@@ -24,7 +24,8 @@
 //! Running under nextest (`NEXTEST` is set by the harness) exits immediately
 //! so this target never executes the corpus as one opaque "test".
 //!
-//! Knobs: `OMEGA_CORPUS_FIXTURE_FILTER` (comma-separated `tier/group/name`
+//! Knobs: `OMEGA_CORPUS_ROOT` (measured checkout, set by corpus_gate.py for
+//! frozen runners built elsewhere), `OMEGA_CORPUS_FIXTURE_FILTER` (comma-separated `tier/group/name`
 //! fragments), `OMEGA_CORPUS_SHARD=k/N` (deterministic hash slice, stable
 //! across fixture additions), `OMEGA_CORPUS_JOBS` (worker count, default host
 //! parallelism capped at 12), `OMEGA_CORPUS_FIXTURE_SECS` (per-fixture cap,
@@ -2127,6 +2128,13 @@ fn main() {
         return;
     }
     let root = repo_root();
+    let encoded_root = root
+        .as_os_str()
+        .as_encoded_bytes()
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect::<String>();
+    eprintln!("corpus_runner: fixture-root-v1 {encoded_root}");
     let workers = env::var("OMEGA_CORPUS_JOBS")
         .ok()
         .and_then(|value| value.parse::<usize>().ok())

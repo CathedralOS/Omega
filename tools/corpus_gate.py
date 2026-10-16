@@ -457,9 +457,12 @@ def shutil_which(name: str):
     return which(name)
 
 
-def run_runner(binary: Path, root: Path = ROOT) -> list[dict]:
+def run_runner(binary: Path, root: Path = ROOT, *, freshly_built=False) -> list[dict]:
     env = dict(os.environ)
     env.pop("NEXTEST", None)
+    # A frozen runner may have been built in another checkout. Its fixture
+    # root must agree with this gate's source/oracle tree, just as the SDK does.
+    env["OMEGA_CORPUS_ROOT"] = str(root)
     # A reused build cache may retain another worktree's development library.
     # Corpus inputs belong to this checkout; preserve deliberate overrides.
     env.setdefault("OMEGA_LIBRARY_ROOT", str(root / "source/library"))
@@ -479,10 +482,14 @@ def run_runner(binary: Path, root: Path = ROOT) -> list[dict]:
         raise InfrastructureFailure(
             f"corpus_gate: cannot launch runner {binary}: {error}") from error
     buffered_stderr = collections.deque(maxlen=2000)
+    root_reports = []
+    root_prefix = "corpus_runner: fixture-root-v1 "
 
     def stream_progress():
         for line in proc.stderr:
-            if line.startswith("corpus_runner:"):
+            if line.startswith(root_prefix):
+                root_reports.append(line[len(root_prefix):].strip())
+            elif line.startswith("corpus_runner:"):
                 sys.stderr.write(line)
                 sys.stderr.flush()
             else:
@@ -502,6 +509,21 @@ def run_runner(binary: Path, root: Path = ROOT) -> list[dict]:
         sys.stderr.writelines(list(buffered_stderr)[-200:])
         raise InfrastructureFailure(
             f"corpus_gate: runner exited {proc.returncode}")
+    # Freshly building a historical runner in root establishes its baked-in
+    # default even before this protocol existed. A supplied binary has no such
+    # guarantee: missing, ambiguous or mismatched reports cannot authorize rows.
+    if root_reports or not freshly_built:
+        if len(root_reports) != 1:
+            raise InfrastructureFailure(
+                "corpus_gate: runner must report exactly one fixture root; "
+                "rebuild prebuilt runners that predate fixture-root-v1")
+        try:
+            reported_root = Path(os.fsdecode(bytes.fromhex(root_reports[0])))
+        except ValueError as error:
+            raise InfrastructureFailure("corpus_gate: unreadable runner fixture root") from error
+        if not reported_root.is_absolute() or reported_root.resolve() != root.resolve():
+            raise InfrastructureFailure(
+                f"corpus_gate: runner fixture root {reported_root} differs from measured {root}")
     try:
         return corpus_records.parse(records)
     except ValueError as error:
@@ -794,7 +816,7 @@ def base_records_for(revision: str, leg: str, selected: list) -> list:
         if selection:
             os.environ[FILTER_VARIABLE] = selection
         try:
-            measured = run_runner(build_runner(worktree), worktree)
+            measured = run_runner(build_runner(worktree), worktree, freshly_built=True)
         finally:
             if previous is None:
                 os.environ.pop(FILTER_VARIABLE, None)
@@ -1266,7 +1288,7 @@ def main() -> int:
     load_start = load_average()
     try:
         binary = options.runner or build_runner()
-        records = run_runner(binary)
+        records = run_runner(binary, freshly_built=options.runner is None)
         context = measurement_context(load_start)
         if compare_revision is not None:
             return compare_with_revision(options, compare_leg, compare_revision, records)
