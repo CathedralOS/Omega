@@ -292,5 +292,24 @@ class CompareRecords(unittest.TestCase):
             "pass/a/x: exit - -> 70"])
 
 
+    def test_completed_engine_agreement_is_a_gain_after_no_agreement(self):
+        for previous in ("unchecked", "declined", "exhausted", "disagrees"):
+            with self.subTest(previous=previous):
+                base = [self.row("pass/a/x", "built", facts={"interpreter": previous})]
+                head = [self.row("pass/a/x", "built", facts={"interpreter": "agrees"})]
+                result = corpus_records.compare_records(base, head)
+                self.assertEqual(result["losses"], [])
+                self.assertEqual(result["gains"], [f"pass/a/x: interpreter {previous} -> agrees"])
+                self.assertEqual(corpus_records.compare_records(head, base)["losses"],
+                                 [f"pass/a/x: interpreter agrees -> {previous}"])
+
+    def test_new_agreement_does_not_hide_a_changed_exit(self):
+        base = [self.row("pass/a/x", "built", facts={"exit": "70", "interpreter": "declined"})]
+        head = [self.row("pass/a/x", "built", facts={"exit": "71", "interpreter": "agrees"})]
+        result = corpus_records.compare_records(base, head)
+        self.assertEqual(result["losses"], ["pass/a/x: exit 70 -> 71"])
+        self.assertEqual(result["gains"], ["pass/a/x: interpreter declined -> agrees"])
+
+
 if __name__ == "__main__":
     unittest.main()

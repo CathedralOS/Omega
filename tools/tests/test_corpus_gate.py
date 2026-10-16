@@ -39,6 +39,41 @@ def fake_runner(records: str, stdout: str = "", *, reported_root=None, report_ro
                                returncode=0, wait=lambda: 0)
     return popen
 
+class CachedBaselineSelectionTests(unittest.TestCase):
+    def test_new_fixture_does_not_run_an_empty_base_selection(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            cache = root / "base.txt"
+            cache.write_text(corpus_records.render([record("pass/old/program")]))
+            with patch.object(corpus_gate, "baseline_path", return_value=cache), \
+                 patch.object(corpus_gate, "checkout_base", return_value=root), \
+                 patch.object(corpus_gate, "build_runner") as build:
+                rows = corpus_gate.base_records_for(
+                    "base", "both", ["pass/old/program", "pass/new/program"])
+            self.assertEqual([row["fixture"] for row in rows], ["pass/old/program"])
+            build.assert_not_called()
+
+    def test_missing_old_fixture_is_measured_beside_new_fixture(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            main = root / "tests/omega/pass/old/program/main.omg"
+            main.parent.mkdir(parents=True)
+            main.write_text("machine main() {}")
+            cache = root / "base.txt"
+            selections = []
+            def measure(*arguments, **keywords):
+                selections.append(os.environ.get(corpus_gate.FILTER_VARIABLE))
+                return [record("pass/old/program")]
+            with patch.object(corpus_gate, "baseline_path", return_value=cache), \
+                 patch.object(corpus_gate, "checkout_base", return_value=root), \
+                 patch.object(corpus_gate, "build_runner", return_value=root / "runner"), \
+                 patch.object(corpus_gate, "run_runner", side_effect=measure):
+                rows = corpus_gate.base_records_for(
+                    "base", "both", ["pass/old/program", "pass/new/program"])
+            self.assertEqual(selections, ["pass/old/program"])
+            self.assertEqual([row["fixture"] for row in rows], ["pass/old/program"])
+
+
 class OptionalHistoryProvenance(unittest.TestCase):
     def test_slow_history_lookup_terminates_a_real_subprocess(self):
         execute = subprocess.run

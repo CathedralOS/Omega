@@ -804,6 +804,14 @@ def base_records_for(revision: str, leg: str, selected: list) -> list:
               if cache.is_file() else {})
     missing = [fixture for fixture in selected if fixture not in cached]
     if missing:
+        worktree = checkout_base(revision)
+        # A warm cache contains every old fixture but cannot contain rows for
+        # newly added programs. Do not launch a base runner with an empty
+        # effective selection: absence on the base is a comparison fact, not
+        # a runner failure. Fixture discovery uses these same main.omg roots.
+        missing = [fixture for fixture in missing
+                   if (worktree / "tests/omega" / fixture / "main.omg").is_file()]
+    if missing:
         selection = os.environ.get(FILTER_VARIABLE, "")
         exact = ",".join(missing)
         # Exact names keep a top-up cheap; the original selection already
@@ -811,7 +819,6 @@ def base_records_for(revision: str, leg: str, selected: list) -> list:
         # environment block on Windows.
         if len(missing) < len(selected) and len(exact) < 20_000:
             selection = exact
-        worktree = checkout_base(revision)
         previous = os.environ.get(FILTER_VARIABLE)
         if selection:
             os.environ[FILTER_VARIABLE] = selection
