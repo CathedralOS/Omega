@@ -108,9 +108,11 @@ Discovery pointers: `advance` names proof_advisor, corpus_gate `--jev`,
 triage_advisor and jev_attribute; `tools/testing.md` names the test_affected
 augment, `--attribute LOG`, triage_advisor, jev_attribute and corpus_gate
 `--jev`; the swarm skills (devin-swarm, dot-swarm, codex-swarm) name the
-`secret_ids` injection cloud sessions need to reach the API, and devin-swarm
-and local-swarm name the two testing.md pointers. A deleted skill must not
-orphan a row above — move its pointer into one of these files.
+`secret_ids` injection cloud sessions need to reach the API. cursor-swarm has
+no `secret_ids` field and records Jev unavailable unless the worker
+environment already holds the key. devin-swarm and local-swarm name the two
+testing.md pointers. A deleted skill must not orphan a row above — move its
+pointer into one of these files.
 
 Proven-deferred: board dedup (recipe in experiment record). Falsified:
 Jev-alone scoping for test-time savings — it hedges to run-everything
