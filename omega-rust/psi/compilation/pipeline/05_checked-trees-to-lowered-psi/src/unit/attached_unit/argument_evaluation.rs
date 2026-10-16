@@ -401,6 +401,30 @@ impl Evaluation {
         }
     }
 
+    /// Keep one affine owner for an emitted home. A later named binding claims
+    /// the anonymous call row; two different locals on one place are refused.
+    fn record_affine_home(&mut self, owner: StructuralValueOwner) -> Result<(), LoweringError> {
+        if let Some(existing) = self
+            .structural_value_owners
+            .iter_mut()
+            .find(|existing| existing.value.place == owner.value.place)
+        {
+            if existing.symbol.is_valid()
+                && owner.symbol.is_valid()
+                && existing.symbol != owner.symbol
+            {
+                return unsupported("affine home is owned by two locals");
+            }
+            if !existing.symbol.is_valid() && owner.symbol.is_valid() {
+                existing.symbol = owner.symbol;
+                existing.statement = owner.statement;
+            }
+            return Ok(());
+        }
+        self.structural_value_owners.push(owner);
+        Ok(())
+    }
+
     /// Publish one completed structural result into the state's existing value
     /// and local namespaces. Calls and constructors share the original home;
     /// registration neither copies payload fields nor changes cleanup custody.
@@ -532,12 +556,16 @@ impl Evaluation {
         // Residual cleanup tracks values this statement established. A
         // projected owned alias established none: the root it names keeps its
         // own owner row and its own residual complement.
+        // A call and the local initialized from it publish one emitted home.
+        // The anonymous result and the named binding are two registrations of
+        // that home. A second row would make the next edge transfer the owner
+        // twice, so the later named binding claims the existing row.
         if multiplicity == StructuralMultiplicity::Affine && produced.path().is_empty() {
-            self.structural_value_owners.push(StructuralValueOwner {
+            self.record_affine_home(StructuralValueOwner {
                 symbol: local.symbol,
                 statement: result.statement_index,
                 value: produced.operation_result()?.clone(),
-            });
+            })?;
         }
         operations.bind_structural_value(result.binding_ordinal, produced);
         Ok(())

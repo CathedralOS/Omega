@@ -3287,6 +3287,7 @@ run/borrows/stored_subview_identity built 18102ms exit:0 @6c49683ce714
 run/borrows/stored_subview_nested_call_result built 8724ms exit:0 @6c49683ce714
 run/borrows/stored_subview_repeated_updates built 17996ms exit:0 @6c49683ce714
 run/borrows/transition_shared_borrow built 14962ms exit:0 @6c49683ce714
+run/calls/affine_call_local_field_exit built 11211ms exit:0 @0e7ef4cb2ac8+wt
 run/calls/byte_literal_expression_values built 17837ms exit:0 @6c49683ce714
 run/calls/fixed_dividend_across_console_calls built 6615ms exit:0 stdout:match @326ed531359e+wt
 run/calls/nested_range_call_operands built 8768ms exit:0 @6c49683ce714

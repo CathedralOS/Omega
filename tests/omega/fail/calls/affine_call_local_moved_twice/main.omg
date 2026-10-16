@@ -1,0 +1,19 @@
+// Moving an affine call result into a local consumes that home. A later
+// use of the same local is not a second owner of the moved value.
+use omega::language::core::float_operations;
+
+data Precise { high: f64; low: f64; }
+
+machine make(first: f64, second: f64) -> Precise {
+    Precise { high: first, low: second }
+}
+machine finish(high: f64, low: f64) -> Precise {
+    Precise { high: high, low: low }
+}
+
+machine main() -> Precise {
+    let value: Precise = make(1.0, 2.0);
+    let moved: Precise = value;
+    let again: Precise = value;
+    finish(moved.high, again.low)
+}

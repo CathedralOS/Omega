@@ -731,7 +731,7 @@ fn prepare_owners(
         }
         Ok(true)
     };
-    let mut owners = Vec::new();
+    let mut owners: Vec<argument_evaluation::StructuralValueOwner> = Vec::new();
     for owner in &evaluation.structural_value_owners {
         // Anonymous completed operands have no authored symbol to query.
         // Actual whole-owned consumption retires their unique emitted home,
@@ -743,6 +743,19 @@ fn prepare_owners(
             continue;
         }
         if available(owner.symbol, owner.statement)? {
+            // Survivor identity is the emitted home. An anonymous call row and
+            // the local that names that home are one owner; transferring both
+            // consumes the home on the first argument and refuses the second.
+            if let Some(existing) = owners
+                .iter_mut()
+                .find(|existing| existing.value.place == owner.value.place)
+            {
+                if !existing.symbol.is_valid() && owner.symbol.is_valid() {
+                    existing.symbol = owner.symbol;
+                    existing.statement = owner.statement;
+                }
+                continue;
+            }
             owners.push(owner.clone());
         }
     }
@@ -765,9 +778,25 @@ fn prepare_owners(
                 .ok_or(LoweringError::Unsupported(
                     "selection survivor has no authored local",
                 ))?;
-        if owners.iter().any(|owner| owner.symbol == symbol)
-            || !available(symbol, local.statement_index)?
+        if !available(symbol, local.statement_index)? {
+            continue;
+        }
+        if let Some(position) = owners
+            .iter()
+            .position(|owner| owner.symbol == symbol || owner.value.place == argument.place)
         {
+            // The named local adopts an anonymous row for this same home.
+            // A second valid symbol would be two locals claiming one place.
+            if owners[position].value.place == argument.place
+                && owners[position].symbol.is_valid()
+                && owners[position].symbol != symbol
+            {
+                return unsupported("affine home is owned by two locals");
+            }
+            if !owners[position].symbol.is_valid() {
+                owners[position].symbol = symbol;
+                owners[position].statement = local.statement_index;
+            }
             continue;
         }
         if checked.type_multiplicity(local.declared_type) != Multiplicity::Affine {

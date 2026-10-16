@@ -1,0 +1,60 @@
+// Expected exit: 0.
+// A field of an affine record is one owner. The record may arrive through a
+// local bound to a call, a parameter, a direct call result, or a nested field,
+// and the carrier may be an f64 record or an i32 record.
+use omega::language::core::float_operations;
+
+data Precise { high: f64; low: f64; }
+data Holder { value: Precise; }
+data Pair { high: i32; low: i32; }
+
+machine make(first: f64, second: f64) -> Precise {
+    Precise { high: first, low: second }
+}
+machine finish(high: f64, low: f64) -> Precise {
+    Precise { high: high, low: low }
+}
+machine make_pair(first: i32, second: i32) -> Pair {
+    Pair { high: first, low: second }
+}
+machine finish_pair(high: i32, low: i32) -> Pair {
+    Pair { high: high, low: low }
+}
+
+machine from_local(first: f64, second: f64) -> Precise {
+    let value: Precise = make(first, second);
+    finish(value.high, value.low)
+}
+machine from_parameter(value: Precise) -> Precise {
+    finish(value.high, value.low)
+}
+machine from_call(first: f64, second: f64) -> Precise {
+    finish(make(first, second).high, make(first, second).low)
+}
+machine from_field(first: f64, second: f64) -> Precise {
+    let holder: Holder = Holder { value: make(first, second) };
+    finish(holder.value.high, holder.value.low)
+}
+machine pair_local(first: i32, second: i32) -> Pair {
+    let value: Pair = make_pair(first, second);
+    finish_pair(value.high, value.low)
+}
+
+machine main() crashes Trap {
+    let local: Precise = from_local(5.0, 2.0);
+    let parameter: Precise = from_parameter(make(5.0, 2.0));
+    let called: Precise = from_call(5.0, 2.0);
+    let field: Precise = from_field(5.0, 2.0);
+    let pair: Pair = pair_local(5, 2);
+    transition local.high == 5.0 && local.low == 2.0
+        && parameter.high == 5.0 && parameter.low == 2.0
+        && called.high == 5.0 && called.low == 2.0
+        && field.high == 5.0 && field.low == 2.0
+        && pair.high == 5 && pair.low == 2
+    {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
