@@ -328,14 +328,15 @@ pub(super) fn contains_readable_bytes(
     }) || reads_owner_layout(function, place, types)
 }
 
-/// Exact completed descriptor home; it carries no ownership of borrowed bytes.
-pub(in crate::legalization) fn descriptor_result(
-    function: &PsiOptimizationFunction,
+/// Exact completed descriptor declaration, independent of its producer family.
+/// Completion retains the loan carrier; it grants no access to its referent.
+pub(in crate::legalization) fn completed_descriptor<'function>(
+    function: &'function PsiOptimizationFunction,
     place: semantic_vocabulary::PlaceId,
     types: &[terminal_psi::StructuralTypeDeclaration],
 ) -> Option<(
     semantic_vocabulary::OperationId,
-    semantic_vocabulary::StructuralTypeId,
+    &'function terminal_psi::StructuralOperationResult,
 )> {
     let (producer, result) = super::structural_case::source_result(function, place).ok()?;
     (matches!(
@@ -350,12 +351,25 @@ pub(in crate::legalization) fn descriptor_result(
         && terminal_semantics::descriptor_results::is_descriptor(
             types.iter(),
             result.structural_type,
-        )
-        && function.block_nodes().any(|node| {
-            let materialized = node.operation.materialized_structural_result();
-            materialized == Some((producer, result))
-        }))
-    .then_some((producer, result.structural_type))
+        ))
+    .then_some((producer, result))
+}
+
+/// A materialized descriptor result owns its payload home. Other observations
+/// may retain view coordinates without demanding that descriptor's storage.
+pub(in crate::legalization) fn descriptor_result(
+    function: &PsiOptimizationFunction,
+    place: semantic_vocabulary::PlaceId,
+    types: &[terminal_psi::StructuralTypeDeclaration],
+) -> Option<(
+    semantic_vocabulary::OperationId,
+    semantic_vocabulary::StructuralTypeId,
+)> {
+    let (producer, result) = completed_descriptor(function, place, types)?;
+    function
+        .block_nodes()
+        .any(|node| node.operation.materialized_structural_result() == Some((producer, result)))
+        .then_some((producer, result.structural_type))
 }
 
 /// Derive the current call's complete backing roster, rather than trusting the

@@ -57,8 +57,8 @@ pub(in crate::lowering) fn resolve<'parameter>(
         });
     }
     if let Some(home) = homes.get(&place) {
-        let (declaration, source) = match &home.origin {
-            TargetStructuralHomeOrigin::OperationResult { operation, result } => (
+        let declaration = match &home.origin {
+            TargetStructuralHomeOrigin::OperationResult { result, .. } => {
                 StructuralParameterDeclaration {
                     place: result.place,
                     position: 0,
@@ -67,37 +67,16 @@ pub(in crate::lowering) fn resolve<'parameter>(
                     multiplicity: result.multiplicity,
                     qualifications: result.qualifications.clone(),
                     projected_qualifications: result.projected_qualifications.clone(),
-                },
-                if function.operations.iter().any(|producer| {
-                    matches!(producer,
-                        abstract_operations::AbstractOperation::EstablishElementView {
-                            psi_operation, result: produced, ..
-                        } | abstract_operations::AbstractOperation::ElementViewSubslice {
-                        psi_operation, result: produced, ..
-                    } if psi_operation == operation && produced == result
-                    )
-                }) {
-                    TargetStructuralArgumentSource::EstablishedElementView {
-                        psi_operation: *operation,
-                    }
-                } else {
-                    TargetStructuralArgumentSource::StructuralHome {
-                        psi_operation: *operation,
-                    }
-                },
-            ),
-            TargetStructuralHomeOrigin::BlockParameter { block, declaration } => (
-                declaration.clone(),
-                TargetStructuralArgumentSource::BlockParameter {
-                    block: *block,
-                    place,
-                },
-            ),
+                }
+            }
+            TargetStructuralHomeOrigin::BlockParameter { declaration, .. } => declaration.clone(),
         };
+        // Existing storage supplies the argument source, including a view's
+        // descriptor payload; the home origin retains its exact producer.
         return Ok(StructuralArgumentRoot {
             declaration,
             backing_shape: home.layout.shape(),
-            source,
+            source: home.argument_source(),
         });
     }
     if address_joins.contains(&place) || block_views.contains(&place) {

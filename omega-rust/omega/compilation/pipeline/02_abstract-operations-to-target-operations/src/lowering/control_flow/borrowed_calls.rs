@@ -595,7 +595,7 @@ pub(super) fn byte_argument(
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     let (identity, source) = if let Some((producer, result)) =
-        crate::lowering::scalar::byte_views::descriptor_result(
+        crate::lowering::scalar::byte_views::completed_descriptor(
             function,
             argument.place,
             types,

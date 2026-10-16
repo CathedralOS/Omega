@@ -682,24 +682,22 @@ fn observes_length(
     }
 }
 
-/// Authenticate a completed descriptor through its allocated result home and
-/// exact producer declaration, independent of the producer's call origin.
-/// Calls, copies and declarations materialize the same descriptor carrier;
-/// establishment recipes keep their separate SSA geometry route. Retained
-/// byte qualifications describe the produced value without changing its
-/// descriptor layout. Backing provenance is
-/// retained separately by call and descriptor custody; a result home never
-/// becomes a new independent allocation merely because it has a descriptor
-/// layout.
-pub(in crate::lowering) fn descriptor_result<'a>(
-    function: &'a AbstractFunction,
+/// Join a completed descriptor to its exact producer and required result home.
+/// A call can demand descriptor
+/// payload storage from any view result; its original backing and loan access
+/// remain independent. Observations retain the materialized-only query below.
+pub(in crate::lowering) fn completed_descriptor<'function>(
+    function: &'function AbstractFunction,
     place: PlaceId,
     types: &StructuralTypeLookup<'_>,
     homes: &BTreeMap<PlaceId, target_operations::TargetStructuralHomeRequirement>,
-) -> Option<(OperationId, &'a terminal_psi::StructuralOperationResult)> {
+) -> Option<(
+    OperationId,
+    &'function terminal_psi::StructuralOperationResult,
+)> {
     let (producer, stored) = homes.get(&place)?.operation_result()?;
     let mut producers = function.operations.iter().filter_map(|operation| {
-        let result = operation.materialized_structural_result();
+        let result = operation.structural_result();
         result.filter(|(_, result)| result.place == place)
     });
     let (operation, result) = producers.next()?;
@@ -722,6 +720,25 @@ pub(in crate::lowering) fn descriptor_result<'a>(
             result.structural_type,
         ))
     .then_some((operation, result))
+}
+
+/// A completed descriptor whose payload is independently materialized.
+/// View observations may retain SSA coordinates instead of loading a home.
+pub(in crate::lowering) fn descriptor_result<'function>(
+    function: &'function AbstractFunction,
+    place: PlaceId,
+    types: &StructuralTypeLookup<'_>,
+    homes: &BTreeMap<PlaceId, target_operations::TargetStructuralHomeRequirement>,
+) -> Option<(
+    OperationId,
+    &'function terminal_psi::StructuralOperationResult,
+)> {
+    let (producer, result) = completed_descriptor(function, place, types, homes)?;
+    function
+        .operations
+        .iter()
+        .any(|operation| operation.materialized_structural_result() == Some((producer, result)))
+        .then_some((producer, result))
 }
 
 /// A whole operand's own checks: the source must resolve to a live view and

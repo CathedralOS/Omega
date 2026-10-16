@@ -56,36 +56,11 @@ pub(super) fn argument(
             types,
         );
     }
-    // An established element view is a descriptor root, not ordinary storage:
-    // the argument names its producer so the image replays the descriptor's
-    // own establishment, and the projected element offset rides on top. A
-    // mutable view's affine cleanup home is custody bookkeeping, never the
-    // borrowed pointer's canonical storage.
-    let (root_type, source) = if let Some((producer, structural_type)) = live
-        .views
-        .get(&argument.place)
-        .filter(|(_, structural_type)| {
-            matches!(
-                types
-                    .get(structural_type)
-                    .map(|declaration| &declaration.shape),
-                Some(StructuralTypeShape::ElementView { .. })
-            )
-        }) {
-        (
-            *structural_type,
-            target_operations::TargetStructuralArgumentSource::EstablishedElementView {
-                psi_operation: *producer,
-            },
-        )
-    } else if let Some(home) = live.structural_homes.get(&argument.place) {
+    let (root_type, source) = if let Some(home) = live.structural_homes.get(&argument.place) {
         // A loan addresses the existing home without transferring its claims.
         // The borrow's unrestricted multiplicity is independent of the owned
         // aggregate's affine or linear obligations.
-        if home.access() != StructuralAccess::Owned
-            || !home.qualifications().is_empty()
-            || !home.projected_qualifications().is_empty()
-        {
+        if home.access() != StructuralAccess::Owned {
             return Err(invalid());
         }
         // A join owns its destination storage, not any incoming producer's

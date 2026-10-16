@@ -3,8 +3,8 @@ use crate::LegalizationError;
 use crate::legalization::scalar_graph_input::target;
 
 use super::{
-    AbstractOperation, AbstractOperationPlan, CallPlan, PsiOptimizationFunction,
-    StructuralMultiplicity, StructuralPlaceKind, TargetOperationPlan,
+    AbstractOperationPlan, CallPlan, PsiOptimizationFunction, StructuralMultiplicity,
+    StructuralPlaceKind, TargetOperationPlan,
 };
 use crate::legalization::scalar_graph_input::aggregate_results::home_layout;
 use crate::legalization::scalar_graph_input::structural_case;
@@ -145,19 +145,6 @@ pub(in crate::legalization::scalar_graph_input) fn reconstruct_at_owner(
                 target_operations::TargetStructuralArgumentSource::BlockParameter {
                     block,
                     place: declaration.place,
-                },
-            )
-        } else if let Some((producer, view_type)) =
-            element_view_producer(caller, argument.place, &plan.structural_types)
-        {
-            // An element view is a descriptor root: the argument names its
-            // establishing producer, never a storage home, and the projected
-            // element offset rides on top. The descriptor's own liveness is
-            // proven by the established-view input check downstream.
-            (
-                view_type,
-                target_operations::TargetStructuralArgumentSource::EstablishedElementView {
-                    psi_operation: producer,
                 },
             )
         } else {
@@ -313,52 +300,4 @@ pub(super) fn view_arrival<'caller>(
             &declaration.projected_qualifications,
         ))
     .then_some((block, declaration))
-}
-
-/// The caller place's exact element-view producer: an establishment writes
-/// `destination`, a subslice writes `result.place`. A mutable view's affine
-/// result still answers here — the argument loans the projected element, not
-/// the descriptor's own custody.
-fn element_view_producer(
-    caller: &PsiOptimizationFunction,
-    place: semantic_vocabulary::PlaceId,
-    structural_types: &[terminal_psi::StructuralTypeDeclaration],
-) -> Option<(
-    semantic_vocabulary::OperationId,
-    semantic_vocabulary::StructuralTypeId,
-)> {
-    caller.block_nodes().find_map(|node| match &node.operation {
-        AbstractOperation::EstablishElementView {
-            psi_operation,
-            result,
-            destination,
-            ..
-        } if *destination == place
-            && result.qualifications.is_empty()
-            && terminal_semantics::view_descriptor_projected_qualifications(
-                structural_types.iter(),
-                result.structural_type,
-                &result.projected_qualifications,
-            )
-            && result.claims.is_empty() =>
-        {
-            Some((*psi_operation, result.structural_type))
-        }
-        AbstractOperation::ElementViewSubslice {
-            psi_operation,
-            result,
-            ..
-        } if result.place == place
-            && result.qualifications.is_empty()
-            && terminal_semantics::view_descriptor_projected_qualifications(
-                structural_types.iter(),
-                result.structural_type,
-                &result.projected_qualifications,
-            )
-            && result.claims.is_empty() =>
-        {
-            Some((*psi_operation, result.structural_type))
-        }
-        _ => None,
-    })
 }

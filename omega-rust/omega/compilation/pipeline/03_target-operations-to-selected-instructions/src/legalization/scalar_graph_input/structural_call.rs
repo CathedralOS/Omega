@@ -1,6 +1,6 @@
 //! Source and target joins for borrowed arguments in ordinary helper calls.
 use crate::LegalizationError;
-use abstract_operations::{AbstractOperation, AbstractOperationPlan};
+use abstract_operations::AbstractOperationPlan;
 use calling_conventions::{CallPlan, ValueShape};
 use optimization_unit::PsiOptimizationFunction;
 use target_operations::{TargetOperationPlan, TargetStructuralArgument};
@@ -322,13 +322,9 @@ fn stored_mutable_view_field(
     let terminal_psi::StructuralPathSegment::Field(identity) = semantic.path[0] else {
         return Err(LegalizationError::custody());
     };
-    let _child = established_record_field_place(
-        caller,
-        &plan.structural_types,
-        semantic.place,
-        identity,
-    )
-    .ok_or(LegalizationError::custody())?;
+    let _child =
+        established_record_field_place(caller, &plan.structural_types, semantic.place, identity)
+            .ok_or(LegalizationError::custody())?;
     let declaration = caller
         .structural_place(semantic.place)
         .ok_or(LegalizationError::custody())?;
@@ -406,8 +402,10 @@ fn established_record_field_place(
     else {
         return None;
     };
-    let terminal_psi::StructuralTypeShape::Record { fields: record_fields, .. } =
-        &find_structural_type(types, structural_type)?.shape
+    let terminal_psi::StructuralTypeShape::Record {
+        fields: record_fields,
+        ..
+    } = &find_structural_type(types, structural_type)?.shape
     else {
         return None;
     };
@@ -449,7 +447,9 @@ fn view_argument(
     structural_types: &[terminal_psi::StructuralTypeDeclaration],
 ) -> Result<TargetStructuralArgument, LegalizationError> {
     use target_operations::TargetStructuralArgumentSource;
-    let completed = super::byte_views::descriptor_result(caller, semantic.place, structural_types);
+    let completed =
+        super::byte_views::completed_descriptor(caller, semantic.place, structural_types)
+            .map(|(producer, result)| (producer, result.structural_type));
     // Descriptor storage ownership does not grant its referent's access.
     // Reconstruct the backing ceiling through the same source-chain query
     // used by ordinary byte and element operations.
@@ -495,23 +495,21 @@ fn view_argument(
             },
         )
     } else if let Some((producer, structural_type)) =
-        established_view(caller, call_operation, semantic.place, structural_types)
+        super::literals::producer(caller, call_operation, semantic.place)
     {
-        let shape = &find_structural_type(structural_types, structural_type)
-            .ok_or(LegalizationError::custody())?
-            .shape;
-        let source = if matches!(shape, terminal_psi::StructuralTypeShape::ElementView { .. }) {
-            TargetStructuralArgumentSource::EstablishedElementView {
-                psi_operation: producer,
-            }
-        } else if shape.is_borrowed_byte_carrier() {
+        // A literal has no structural operation-result declaration. Its
+        // immutable descriptor retains the literal's own establishment.
+        if !find_structural_type(structural_types, structural_type)
+            .is_some_and(|declaration| declaration.shape.is_borrowed_byte_carrier())
+        {
+            return Err(LegalizationError::custody());
+        }
+        (
+            structural_type,
             TargetStructuralArgumentSource::EstablishedByteView {
                 psi_operation: producer,
-            }
-        } else {
-            return Err(LegalizationError::custody());
-        };
-        (structural_type, source)
+            },
+        )
     } else if let Some((block, parameter)) = caller.blocks.iter().find_map(|block| {
         block
             .structural_parameter(semantic.place)
@@ -672,54 +670,4 @@ pub(super) fn primitive_argument(
         native,
         plan,
     )
-}
-
-/// Whole-unit custody has already checked exact CFG dominance and producer
-/// metadata. Rejoin that producer, not a declaration or flattened predecessor.
-fn established_view(
-    caller: &PsiOptimizationFunction,
-    call: semantic_vocabulary::OperationId,
-    place: semantic_vocabulary::PlaceId,
-    structural_types: &[terminal_psi::StructuralTypeDeclaration],
-) -> Option<(
-    semantic_vocabulary::OperationId,
-    semantic_vocabulary::StructuralTypeId,
-)> {
-    if let Some(producer) = super::literals::producer(caller, call, place) {
-        return Some(producer);
-    }
-    if !matches!(
-        optimization_unit_semantics::structural_place_access(caller, place),
-        Some(terminal_psi::reading_borrow_pair_pattern!())
-    ) || !caller.block_nodes().any(|node| {
-        matches!(&node.operation, abstract_operations::boundary_or_structural_call_pair_pattern!(psi_operation,structural_arguments, ..)
-            if *psi_operation == call && structural_arguments.iter().any(|argument| argument.place == place))
-    }) {
-        return None;
-    }
-    caller.block_nodes().find_map(|node| {
-        let (producer, result) = match &node.operation {
-            abstract_operations::element_view_or_byte_subslice_pattern!(
-                psi_operation,
-                result,
-                ..
-            ) => (*psi_operation, result),
-            AbstractOperation::EstablishElementView {
-                psi_operation,
-                result,
-                destination,
-                ..
-            } if *destination == place => (*psi_operation, result),
-            _ => return None,
-        };
-        (result.place == place
-            && result.qualifications.is_empty()
-            && terminal_semantics::view_descriptor_projected_qualifications(
-                structural_types.iter(),
-                result.structural_type,
-                &result.projected_qualifications,
-            )
-            && result.claims.is_empty())
-        .then_some((producer, result.structural_type))
-    })
 }

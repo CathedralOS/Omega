@@ -300,10 +300,7 @@ fn referent_pointer(
     let pointer = if let Some(address) = &reference {
         structural::reference::borrowed_argument(builder, operation, semantic.place, address)?
     } else if (!semantic.path.is_empty() || target.fixed_array_length.is_some())
-        && (matches!(
-            target.source,
-            target_operations::TargetStructuralArgumentSource::EstablishedElementView { .. }
-        ) || crate::selection::established_view_input::element_view_type(source, pointer_place)
+        && (crate::selection::established_view_input::element_view_type(source, pointer_place)
             .is_some()
             || crate::selection::established_view_input::view_type(source, pointer_place).is_some())
     {
