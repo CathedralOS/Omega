@@ -1,0 +1,21 @@
+// Deposit index 4 is outside the case where bound 0 <= index && index < 4.
+
+data Account [copy] {
+    balance: i32 in Wrapping;
+    frozen: i32 in Wrapping;
+}
+
+data Post {
+    case Deposit(index: i32, amount: i32 in Wrapping) where 0 <= index && index < 4;
+    case Withdraw(index: i32, amount: i32 in Wrapping) where 0 <= index && index < 4;
+    case Freeze(index: i32) where 0 <= index && index < 4;
+}
+
+data Main {
+    accounts: [Account; 4];
+}
+
+machine Main::main(main: &mut Main) {
+    let post: Post = Post::Deposit { index: 4, amount: 1 };
+    main.accounts[0].balance = 0;
+}

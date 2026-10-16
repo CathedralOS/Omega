@@ -1,0 +1,130 @@
+// indexed_account_post: a case payload's bounded account index updates that
+// slot of a fixed record array inside the selected value-returning arm.
+//
+// account_ledger unrolls `[Account; 4]` into equality chains. This program
+// posts Deposit, Withdraw, and Freeze through the payload index directly.
+// The case `where` proves `0 <= index && index < 4`; the arm counts the post,
+// then reads and writes `accounts[index]` afterward.
+//
+// Script:
+//   Deposit(0, 100)  -> 100, hits 1,  balance[0] = 100
+//   Deposit(1, 40)   -> 40,  hits 2,  balance[1] = 40
+//   Freeze(0)        -> 0,   hits 12, frozen[0] = 1
+//   Deposit(0, 5)    -> 100, hits 13, balance[0] stays 100
+//   Withdraw(1, 10)  -> 30,  hits 14, balance[1] = 30
+//
+// Expected exit: 70.
+//   71 first deposit result
+//   72 second deposit result or tally
+//   73 freeze result, frozen flag, or tally
+//   74 frozen deposit changed the balance or the tally
+//   75 withdraw result
+//   76 final balances
+
+use omega_language_std::console;
+
+data Account [copy] {
+    balance: i32 in Wrapping;
+    frozen: i32 in Wrapping;
+}
+
+data Post {
+    case Deposit(index: i32, amount: i32 in Wrapping) where 0 <= index && index < 4;
+    case Withdraw(index: i32, amount: i32 in Wrapping) where 0 <= index && index < 4;
+    case Freeze(index: i32) where 0 <= index && index < 4;
+}
+
+data Main {
+    accounts: [Account; 4];
+    hits: i32 in Wrapping;
+}
+
+machine Main::apply(main: &mut Main, post: Post) -> i32 in Wrapping {
+    transition post {
+        Post::Deposit { index, amount } -> deposit(main, index, amount)
+        Post::Withdraw { index, amount } -> withdraw(main, index, amount)
+        Post::Freeze { index } -> freeze(main, index)
+    }
+    state deposit(main: &mut Main, index: i32, amount: i32 in Wrapping) -> i32 in Wrapping
+    requires 0 <= index && index < 4
+    {
+        main.hits = main.hits + 1;
+        transition main.accounts[index].frozen == 0 {
+            true -> credit(main, index, amount)
+            _ -> (main.accounts[index].balance)
+        }
+    }
+    state credit(main: &mut Main, index: i32, amount: i32 in Wrapping) -> i32 in Wrapping
+    requires 0 <= index && index < 4
+    {
+        main.accounts[index].balance = main.accounts[index].balance + amount;
+        main.accounts[index].balance
+    }
+    state withdraw(main: &mut Main, index: i32, amount: i32 in Wrapping) -> i32 in Wrapping
+    requires 0 <= index && index < 4
+    {
+        main.hits = main.hits + 1;
+        transition main.accounts[index].frozen == 0 {
+            true -> debit(main, index, amount)
+            _ -> (main.accounts[index].balance)
+        }
+    }
+    state debit(main: &mut Main, index: i32, amount: i32 in Wrapping) -> i32 in Wrapping
+    requires 0 <= index && index < 4
+    {
+        main.accounts[index].balance = main.accounts[index].balance - amount;
+        main.accounts[index].balance
+    }
+    state freeze(main: &mut Main, index: i32) -> i32 in Wrapping
+    requires 0 <= index && index < 4
+    {
+        main.hits = main.hits + 10;
+        main.accounts[index].frozen = 1;
+        0
+    }
+}
+
+machine Main::main(main: &mut Main) reaches Console {
+    let first: i32 in Wrapping = Main::apply(main, Post::Deposit { index: 0, amount: 100 });
+    transition first == 100 && main.hits == 1 && main.accounts[0].balance == 100 {
+        true -> second(main)
+        _ -> bad(main, 71)
+    }
+    state second(main: &mut Main) {
+        let value: i32 in Wrapping = Main::apply(main, Post::Deposit { index: 1, amount: 40 });
+        transition value == 40 && main.hits == 2 && main.accounts[1].balance == 40 {
+            true -> frozen(main)
+            _ -> bad(main, 72)
+        }
+    }
+    state frozen(main: &mut Main) {
+        let value: i32 in Wrapping = Main::apply(main, Post::Freeze { index: 0 });
+        transition value == 0 && main.hits == 12 && main.accounts[0].frozen == 1 {
+            true -> skipped(main)
+            _ -> bad(main, 73)
+        }
+    }
+    state skipped(main: &mut Main) {
+        let value: i32 in Wrapping = Main::apply(main, Post::Deposit { index: 0, amount: 5 });
+        transition value == 100 && main.hits == 13 && main.accounts[0].balance == 100 {
+            true -> withdrawn(main)
+            _ -> bad(main, 74)
+        }
+    }
+    state withdrawn(main: &mut Main) {
+        let value: i32 in Wrapping = Main::apply(main, Post::Withdraw { index: 1, amount: 10 });
+        transition value == 30 && main.hits == 14 {
+            true -> finals(main)
+            _ -> bad(main, 75)
+        }
+    }
+    state finals(main: &mut Main) {
+        transition main.accounts[0].balance == 100 && main.accounts[1].balance == 30
+            && main.accounts[2].balance == 0 && main.accounts[3].balance == 0 {
+            true -> good(main)
+            _ -> bad(main, 76)
+        }
+    }
+    state good(main: &mut Main) { Console::exit_process(70); }
+    state bad(main: &mut Main, code: i32) { Console::exit_process(code); }
+}
