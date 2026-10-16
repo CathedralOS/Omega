@@ -6,6 +6,15 @@ use psi::resolution::resolution;
 use psi::syntax::syntax;
 use psi::types::types;
 
+// Alias metadata follows the same branch lifetime as its zone. At a join
+// only associations valid on both reachable paths survive.
+pub data AliasTable [copy] {
+    places: [u64; 16];
+    conditions: [u64; 16];
+    limits: [u64; 16];
+    count: u64;
+}
+
 // Boolean aliases. A Boolean place bound from a condition (`let valid: bool
 // = count < 64u32;`, `guard.valid = guard.count < 64u32;`), or from another
 // aliased Boolean place, stands for that condition while no place that
@@ -127,7 +136,7 @@ crashes Trap
     }
 
     state next(checker: &Checker, place: u64 in Trapping, index: u64 in Trapping) -> u64 in Trapping {
-        transition index < checker.alias_count && index < 16 {
+        transition index < checker.aliases.count && index < 16 {
             true -> entry(checker, place, index)
             _ -> answer(0)
         }
@@ -136,8 +145,8 @@ crashes Trap
     state entry(checker: &Checker, place: u64 in Trapping, index: u64 in Trapping) -> u64 in Trapping
     requires index < 16
     {
-        let aliased: u64 = checker.alias_places[index];
-        let condition: u64 = checker.alias_conditions[index];
+        let aliased: u64 = checker.aliases.places[index];
+        let condition: u64 = checker.aliases.conditions[index];
         let found: u64 in Trapping = (condition as u64 in Trapping) + 1;
         transition aliased == place {
             true -> answer(found)
@@ -156,18 +165,18 @@ machine Checker::add_alias(checker: &mut Checker, place: u64 in Trapping, condit
 crashes Trap
 {
     Checker::drop_aliases(checker, place, 0);
-    transition checker.alias_count < 16 {
-        true -> write(checker, place, condition, checker.alias_count)
+    transition checker.aliases.count < 16 {
+        true -> write(checker, place, condition, checker.aliases.count)
         _ -> done()
     }
 
     state write(checker: &mut Checker, place: u64 in Trapping, condition: u64 in Trapping, index: u64)
     requires index < 16
     {
-        checker.alias_places[index] = place as u64;
-        checker.alias_conditions[index] = condition as u64;
-        checker.alias_limits[index] = checker.place_count;
-        checker.alias_count = index + 1;
+        checker.aliases.places[index] = place as u64;
+        checker.aliases.conditions[index] = condition as u64;
+        checker.aliases.limits[index] = checker.place_count;
+        checker.aliases.count = index + 1;
     }
 
     state done() {}
@@ -189,7 +198,7 @@ crashes Trap
     transition { _ -> next(checker, place, older, 0) }
 
     state next(checker: &mut Checker, place: u64 in Trapping, older: u64 in Trapping, index: u64 in Trapping) {
-        transition index < checker.alias_count && index < 16 {
+        transition index < checker.aliases.count && index < 16 {
             true -> entry(checker, place, older, index)
             _ -> done()
         }
@@ -198,8 +207,8 @@ crashes Trap
     state entry(checker: &mut Checker, place: u64 in Trapping, older: u64 in Trapping, index: u64 in Trapping)
     requires index < 16
     {
-        let aliased: u64 = checker.alias_places[index];
-        let limit: u64 = checker.alias_limits[index];
+        let aliased: u64 = checker.aliases.places[index];
+        let limit: u64 = checker.aliases.limits[index];
         let stale: bool = aliased == place || (older > 0 && older <= limit);
         transition stale {
             true -> removed(checker, place, older, index)
@@ -209,8 +218,8 @@ crashes Trap
 
     // The last alias takes the removed one's slot and is examined next.
     state removed(checker: &mut Checker, place: u64 in Trapping, older: u64 in Trapping, index: u64 in Trapping) {
-        transition checker.alias_count > 0 && checker.alias_count <= 16 && index < 16 {
-            true -> moved(checker, place, older, index, checker.alias_count - 1)
+        transition checker.aliases.count > 0 && checker.aliases.count <= 16 && index < 16 {
+            true -> moved(checker, place, older, index, checker.aliases.count - 1)
             _ -> done()
         }
     }
@@ -218,15 +227,115 @@ crashes Trap
     state moved(checker: &mut Checker, place: u64 in Trapping, older: u64 in Trapping, index: u64 in Trapping, last: u64)
     requires index < 16, last < 16
     {
-        let last_place: u64 = checker.alias_places[last];
-        let last_condition: u64 = checker.alias_conditions[last];
-        let last_limit: u64 = checker.alias_limits[last];
-        checker.alias_places[index] = last_place;
-        checker.alias_conditions[index] = last_condition;
-        checker.alias_limits[index] = last_limit;
-        checker.alias_count = last;
+        let last_place: u64 = checker.aliases.places[last];
+        let last_condition: u64 = checker.aliases.conditions[last];
+        let last_limit: u64 = checker.aliases.limits[last];
+        checker.aliases.places[index] = last_place;
+        checker.aliases.conditions[index] = last_condition;
+        checker.aliases.limits[index] = last_limit;
+        checker.aliases.count = last;
         transition { _ -> next(checker, place, older, index) }
     }
 
+    state done() {}
+}
+
+// Copy only an existing, still-valid predicate association. This does not
+// turn an effectful expression into a replayable condition. Ordinary writes
+// retire the copied alias through its original live-place dependencies.
+pub machine Checker::copy_alias(checker: &mut Checker, source: u64 in Trapping, target: u64 in Trapping)
+crashes Trap
+{
+    let condition: u64 in Trapping = Checker::alias_condition(checker, source);
+    transition source != target && target > 0 && condition > 0 {
+        true -> copied(checker, target, condition - 1)
+        _ -> done()
+    }
+    state copied(checker: &mut Checker, target: u64 in Trapping, condition: u64 in Trapping) {
+        Checker::add_alias(checker, target, condition);
+    }
+    state done() {}
+}
+
+// Intersect associations by identity; an unreachable predecessor contributes
+// no constraint. Taking the larger limit remains conservative for later writes.
+pub machine AliasTable::join(table: &mut AliasTable, other: &AliasTable, current_live: bool, other_live: bool)
+crashes Trap
+{
+    transition other_live {
+        true -> reachable(table, other, current_live)
+        _ -> done()
+    }
+    state reachable(table: &mut AliasTable, other: &AliasTable, current_live: bool) {
+        transition current_live {
+            true -> next(table, other, 0)
+            _ -> copied(table, other)
+        }
+    }
+    state copied(table: &mut AliasTable, other: &AliasTable) {
+        let saved: AliasTable = AliasTable {
+            places: other.places, conditions: other.conditions,
+            limits: other.limits, count: other.count
+        };
+        table = saved;
+    }
+    state next(table: &mut AliasTable, other: &AliasTable, index: u64 in Trapping) {
+        transition index < table.count && index < 16 {
+            true -> candidate(table, other, index)
+            _ -> done()
+        }
+    }
+    state candidate(table: &mut AliasTable, other: &AliasTable, index: u64 in Trapping)
+    requires index < 16
+    {
+        let place: u64 = table.places[index];
+        let condition: u64 = table.conditions[index];
+        transition { _ -> find(table, other, index, place, condition, 0) }
+    }
+    state find(table: &mut AliasTable, other: &AliasTable, index: u64 in Trapping, place: u64, condition: u64, offset: u64 in Trapping) {
+        transition offset < other.count && offset < 16 {
+            true -> compare(table, other, index, place, condition, offset)
+            _ -> removed(table, other, index)
+        }
+    }
+    state compare(table: &mut AliasTable, other: &AliasTable, index: u64 in Trapping, place: u64, condition: u64, offset: u64 in Trapping)
+    requires offset < 16, index < 16
+    {
+        let same: bool = other.places[offset] == place && other.conditions[offset] == condition;
+        transition same {
+            true -> kept(table, other, index, offset)
+            _ -> find(table, other, index, place, condition, offset + 1)
+        }
+    }
+    state kept(table: &mut AliasTable, other: &AliasTable, index: u64 in Trapping, offset: u64 in Trapping)
+    requires index < 16, offset < 16
+    {
+        let limit: u64 = other.limits[offset];
+        transition limit > table.limits[index] {
+            true -> limited(table, other, index, limit)
+            _ -> next(table, other, index + 1)
+        }
+    }
+    state limited(table: &mut AliasTable, other: &AliasTable, index: u64 in Trapping, limit: u64)
+    requires index < 16
+    {
+        table.limits[index] = limit;
+        transition { _ -> next(table, other, index + 1) }
+    }
+    state removed(table: &mut AliasTable, other: &AliasTable, index: u64 in Trapping) {
+        transition table.count > 0 && table.count <= 16 && index < 16 {
+            true -> moved(table, other, index, table.count - 1)
+            _ -> done()
+        }
+    }
+    state moved(table: &mut AliasTable, other: &AliasTable, index: u64 in Trapping, last: u64)
+    requires index < 16, last < 16
+    {
+        table.places[index] = table.places[last];
+        table.conditions[index] = table.conditions[last];
+        table.limits[index] = table.limits[last];
+        table.count = last;
+        transition { _ -> next(table, other, index) }
+    }
     state done() {}
 }

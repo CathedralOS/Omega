@@ -312,6 +312,10 @@ pub data ArmTargetKind [copy] {
 }
 
 pub data TransitionArm [copy] {
+    // A braced structural pattern checks field completeness unless it
+    // explicitly ends in `..`; a bare case path tests only its tag.
+    has_fields: bool;
+    has_rest: bool;
     kind: ArmPatternKind;
     pattern: u64 in Trapping;
     first_field: u64 in Trapping;

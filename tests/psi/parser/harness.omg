@@ -92,8 +92,8 @@ blocks;
 }
 
 // Versioned canonical structural parse observation. Every scalar coordinate
-// and count is little-endian u64. The stream begins with `OMGPAR13`, version
-// 13, acceptance and diagnostic fields, followed by ordered root, use-item,
+// and count is little-endian u64. The stream begins with `OMGPAR14`, version
+// 14, acceptance and diagnostic fields, followed by ordered root, use-item,
 // path-member, data-item, authored data-member, direct data-field, case-payload
 // field, data-case, type-reference, and generic-parameter tables. Field and
 // case rows carry their stable-identity flag and literal span.
@@ -115,8 +115,8 @@ machine ParserHarness::write_parse_observation(
     ParserHarness::write_byte(parser_harness, 65);
     ParserHarness::write_byte(parser_harness, 82);
     ParserHarness::write_byte(parser_harness, 49);
-    ParserHarness::write_byte(parser_harness, 51);
-    ParserHarness::write_u64(parser_harness, 13);
+    ParserHarness::write_byte(parser_harness, 52);
+    ParserHarness::write_u64(parser_harness, 14);
     transition output.accepted {
         true -> parse_accepted_header(parser_harness, output)
         _ -> parse_rejected_header(parser_harness, output)
@@ -1394,6 +1394,8 @@ crashes Trap
         ParserHarness::write_byte(parser_harness, tag);
         ParserHarness::write_u64(parser_harness, arm.target);
         ParserHarness::write_source_span(parser_harness, arm.source_span);
+        ParserHarness::write_flag(parser_harness, arm.has_fields);
+        ParserHarness::write_flag(parser_harness, arm.has_rest);
         transition { _ -> arm_row(parser_harness, output, index + 1) }
     }
 

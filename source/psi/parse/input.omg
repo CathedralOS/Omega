@@ -102,7 +102,7 @@ crashes Trap
     state loaded(parser: &mut Parser, input: &TokenStream, expected: PunctuationKind) {
         let token: Token = input.tokens[parser.current_index];
         transition token {
-            Token::Punctuation { punctuation } -> compare(punctuation, expected)
+            Token::Punctuation { punctuation, .. } -> compare(punctuation, expected)
             _ -> absent()
         }
     }
@@ -128,7 +128,7 @@ crashes Trap
     state loaded(parser: &mut Parser, input: &TokenStream, expected: KeywordKind) {
         let token: Token = input.tokens[parser.current_index];
         transition token {
-            Token::Keyword { keyword } -> compare(keyword, expected)
+            Token::Keyword { keyword, .. } -> compare(keyword, expected)
             _ -> absent()
         }
     }
@@ -155,8 +155,8 @@ crashes Trap
         let token: Token = input.tokens[parser.current_index];
         transition token {
             Token::Identifier -> present()
-            Token::Keyword { keyword: KeywordKind::SelfValue } -> absent()
-            Token::Keyword { keyword } -> present()
+            Token::Keyword { keyword: KeywordKind::SelfValue, .. } -> absent()
+            Token::Keyword { keyword, .. } -> present()
             _ -> absent()
         }
     }
@@ -312,7 +312,7 @@ crashes Trap
     state loaded(parser: &mut Parser, input: &TokenStream) {
         let token: Token = input.tokens[parser.current_index];
         transition token {
-            Token::Integer { base, empty_digits, has_suffix } -> present()
+            Token::Integer { base, empty_digits, has_suffix, .. } -> present()
             _ -> absent()
         }
     }
@@ -469,7 +469,7 @@ crashes Trap
     state opened(input: &TokenStream, index: u64 in Trapping) {
         let token: Token = input.tokens[index];
         transition token {
-            Token::Punctuation { punctuation: PunctuationKind::Less } -> scan(input, index + 1, 1)
+            Token::Punctuation { punctuation: PunctuationKind::Less, .. } -> scan(input, index + 1, 1)
             _ -> absent()
         }
     }
@@ -484,19 +484,19 @@ crashes Trap
     state token(input: &TokenStream, index: u64 in Trapping, depth: u64 in Trapping) {
         let token: Token = input.tokens[index];
         transition token {
-            Token::Punctuation { punctuation: PunctuationKind::Less } -> scan(input, index + 1, depth + 1)
-            Token::Punctuation { punctuation: PunctuationKind::Greater } -> close(input, index, depth)
-            Token::Punctuation { punctuation: PunctuationKind::ColonColon } -> scan(input, index + 1, depth)
-            Token::Punctuation { punctuation: PunctuationKind::Colon } -> scan(input, index + 1, depth)
-            Token::Punctuation { punctuation: PunctuationKind::Comma } -> scan(input, index + 1, depth)
-            Token::Punctuation { punctuation: PunctuationKind::Apostrophe } -> scan(input, index + 1, depth)
-            Token::Punctuation { punctuation: PunctuationKind::Ampersand } -> scan(input, index + 1, depth)
-            Token::Punctuation { punctuation: PunctuationKind::LeftBracket } -> scan(input, index + 1, depth)
-            Token::Punctuation { punctuation: PunctuationKind::RightBracket } -> scan(input, index + 1, depth)
-            Token::Punctuation { punctuation: PunctuationKind::Semicolon } -> scan(input, index + 1, depth)
+            Token::Punctuation { punctuation: PunctuationKind::Less, .. } -> scan(input, index + 1, depth + 1)
+            Token::Punctuation { punctuation: PunctuationKind::Greater, .. } -> close(input, index, depth)
+            Token::Punctuation { punctuation: PunctuationKind::ColonColon, .. } -> scan(input, index + 1, depth)
+            Token::Punctuation { punctuation: PunctuationKind::Colon, .. } -> scan(input, index + 1, depth)
+            Token::Punctuation { punctuation: PunctuationKind::Comma, .. } -> scan(input, index + 1, depth)
+            Token::Punctuation { punctuation: PunctuationKind::Apostrophe, .. } -> scan(input, index + 1, depth)
+            Token::Punctuation { punctuation: PunctuationKind::Ampersand, .. } -> scan(input, index + 1, depth)
+            Token::Punctuation { punctuation: PunctuationKind::LeftBracket, .. } -> scan(input, index + 1, depth)
+            Token::Punctuation { punctuation: PunctuationKind::RightBracket, .. } -> scan(input, index + 1, depth)
+            Token::Punctuation { punctuation: PunctuationKind::Semicolon, .. } -> scan(input, index + 1, depth)
             Token::Identifier -> scan(input, index + 1, depth)
-            Token::Keyword { keyword } -> scan(input, index + 1, depth)
-            Token::Integer { base, empty_digits, has_suffix } -> scan(input, index + 1, depth)
+            Token::Keyword { keyword, .. } -> scan(input, index + 1, depth)
+            Token::Integer { base, empty_digits, has_suffix, .. } -> scan(input, index + 1, depth)
             _ -> absent()
         }
     }

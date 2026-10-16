@@ -757,6 +757,8 @@ machine TypingHarness::diagnostic_tag(value: TypeDiagnosticCode) -> u8 {
         TypeDiagnosticCode::UncoveredDispatch -> tag(38)
         TypeDiagnosticCode::ImmutablePlace -> tag(39)
         TypeDiagnosticCode::ImplicitAttenuation -> tag(40)
+        TypeDiagnosticCode::MissingPatternField -> tag(41)
+        TypeDiagnosticCode::DuplicatePatternField -> tag(42)
     }
 
     state tag(number: u8) -> u8 {

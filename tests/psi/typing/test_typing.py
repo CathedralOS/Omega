@@ -34,6 +34,7 @@ DIAGNOSTICS = (
     "UnsupportedExpression", "TargetArgumentCount", "UninferredGenericArgument",
     "SatisfierMismatch", "SilentDiscard", "DiscardsNoCall", "PropositionArgumentCount",
     "UncoveredDispatch", "ImmutablePlace", "ImplicitAttenuation",
+    "MissingPatternField", "DuplicatePatternField",
 )
 SELECTIONS = ("none", "machine", "state", "field", "length", "binder")
 ADAPTATIONS = ("", "landed", "lent", "qualified", "read")
@@ -925,6 +926,21 @@ def main() -> None:
         "TargetArgumentCount",
         b"g(1)",
     )
+
+    # Explicit structural omission, exhaustive common/payload fields, and
+    # duplicate waivers all obey the same field-roster rule.
+    packet = (
+        b"data Packet [copy] { version: u8; case Data(value: u8); case Empty; }\n"
+        b"machine f(packet: Packet) -> u8 { transition packet { "
+        b"Packet::Data { FIELDS } -> 0 Packet::Empty -> 0 } }"
+    )
+    accepted(program, "case-rest-omits-common-and-payload-fields", packet.replace(b"FIELDS", b".."), ((b"packet!2", "D0"),))
+    accepted(program, "case-rest-before-a-field", packet.replace(b"FIELDS", b".., value as _"), ((b"packet!2", "D0"),))
+    accepted(program, "complete-case-roster", packet.replace(b"FIELDS", b"version as _, value as _"), ((b"packet!2", "D0"),))
+    rejected(program, "case-roster-needs-common-fields", packet.replace(b"FIELDS", b"value as _"), "MissingPatternField", b"Packet::Data")
+    rejected(program, "case-roster-needs-payload-fields", packet.replace(b"FIELDS", b"version as _"), "MissingPatternField", b"Packet::Data")
+    rejected(program, "empty-braces-are-not-a-tag-only-pattern", packet.replace(b"FIELDS", b""), "MissingPatternField", b"Packet::Data")
+    rejected(program, "rest-does-not-admit-duplicate-waivers", packet.replace(b"FIELDS", b"value as _, value as _, .."), "DuplicatePatternField", b"value as _!2")
 
     # A value-position match (wiki/spec/language/patterns.md): its patterns
     # meet its subject, its arms' values meet one type and its arms cover the

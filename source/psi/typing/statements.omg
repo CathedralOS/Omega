@@ -6,6 +6,7 @@ use psi::typing::admission;
 use psi::typing::calls;
 use psi::typing::coverage;
 use psi::typing::expressions;
+use psi::typing::patterns;
 use psi::typing::typer;
 
 // One body's statements in authored order. A `let` initializer meets its
@@ -361,8 +362,14 @@ crashes Trap
     ) {
         transition offset < arm.field_count && typer.output.accepted {
             true -> field(typer, sources, syntax, resolution, arm, subject_row, declared, data_case, offset)
-            _ -> done()
+            _ -> complete_pattern(typer, sources, syntax, arm, declared, data_case)
         }
+    }
+
+    state complete_pattern(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, arm: TransitionArm, declared: DataItem, data_case: u64 in Trapping) {
+        let selected: DataCase = SyntaxTrees::data_case(syntax, data_case);
+        let expected: u64 in Trapping = (declared.field_count as u64 in Trapping) + (selected.payload_field_count as u64 in Trapping);
+        Typer::validate_pattern_fields(typer, sources, syntax, arm, expected);
     }
 
     state field(
@@ -520,7 +527,7 @@ crashes Trap
     // A path or name denoting no case is a value pattern; binders belong
     // only to a case.
     state valued(typer: &mut Typer, syntax: &SyntaxTrees, arm: TransitionArm, base: u64 in Trapping) -> u64 in Trapping {
-        transition arm.field_count == 0 {
+        transition !arm.has_fields {
             true -> value(typer, syntax, arm, base)
             _ -> other_data(typer, syntax, arm)
         }

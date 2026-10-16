@@ -1725,6 +1725,89 @@ def main() -> None:
         b"machine f(cells: &mut [Cell]) requires cells.len == 2 {\n"
         b"    let second: &mut Cell = &mut cells[1];\n    let nested: &mut u32 = &mut second.value;\n    nested = 17;\n}",
     )
+    # A transition subject that calls a writing machine cannot be replayed,
+    # but its parts evaluated after the call read storage as the call left
+    # it: a Boolean literal arm assumes those, never the parts read before.
+    guarded = (
+        b"data Context { count: u64; }\n"
+        b"machine set(context: &mut Context) -> bool { context.count = 5; true }\n"
+        b"machine check(context: &Context) requires context.count < 6 {}\n"
+        b"machine main(context: &mut Context) {\n    transition SUBJECT { true -> check(context) false -> {} }\n}"
+    )
+    accepted(program, "a-fact-read-after-a-writing-subject-call-holds", guarded.replace(b"SUBJECT", b"set(context) && context.count < 6"))
+    rejected(
+        program,
+        "a-fact-read-before-a-writing-subject-call-is-stale",
+        guarded.replace(b"SUBJECT", b"context.count < 6 && set(context)"),
+        "RequirementUnproven",
+        b"check(context)",
+    )
+    accepted(
+        program,
+        "a-writing-subject-call-keeps-a-state-arrival's-fact",
+        b"data Context { count: u64; }\n"
+        b"machine set(context: &mut Context) -> bool { context.count = 5; true }\n"
+        b"machine main(context: &mut Context) {\n"
+        b"    transition set(context) && context.count < 6 { true -> bounded(context) false -> done() }\n"
+        b"    state bounded(context: &mut Context) requires context.count < 6 { context.count = context.count + 1; }\n"
+        b"    state done() {}\n}",
+    )
+    # A source-order cutoff cannot decide whether a captured read is stale:
+    # a disjoint write preserves the read, while a failed earlier guard may
+    # invalidate a subject that was initially pure.
+    accepted(
+        program,
+        "a-writing-subject-keeps-a-disjoint-earlier-field-fact",
+        b"data Context { left: u64; right: u64; }\n"
+        b"machine set_right(context: &mut Context) -> bool { context.right = 5; true }\n"
+        b"machine bounded(context: &Context) requires context.left < 6 {}\n"
+        b"machine main(context: &mut Context) { transition context.left < 6 && set_right(context) { true -> bounded(context) false -> {} } }",
+    )
+    rejected(
+        program,
+        "a-comparison-keeps-its-read-before-a-later-writing-operand",
+        b"data Context { count: u64; }\n"
+        b"machine set(context: &mut Context) -> u64 { context.count = 9; 5 }\n"
+        b"machine bounded(context: &Context) requires context.count < 5 {}\n"
+        b"machine main(context: &mut Context) { transition context.count < set(context) { true -> bounded(context) false -> {} } }",
+        "RequirementUnproven",
+        b"bounded(context)",
+    )
+    rejected(
+        program,
+        "a-failed-writing-guard-cannot-replay-a-pure-subject",
+        b"data Context { count: u64; }\n"
+        b"machine clear_false(context: &mut Context) -> bool { context.count = 0; false }\n"
+        b"machine one(context: &Context) requires context.count == 1 {}\n"
+        b"machine main(context: &mut Context) { transition context.count { _ if clear_false(context) -> {} 1 -> one(context) _ -> {} } }",
+        "RequirementUnproven",
+        b"one(context)",
+    )
+    accepted(
+        program,
+        "a-retained-Boolean-subject-keeps-its-live-alias-condition",
+        b"data Context { count: u64; }\n"
+        b"machine bounded(context: &Context) requires context.count < 6 {}\n"
+        b"machine main(context: &Context) { let valid: bool = context.count < 6; transition valid { true -> bounded(context) false -> {} } }",
+    )
+    accepted(
+        program,
+        "a-writing-chosen-target-does-not-erase-an-alternative's-alias-fact",
+        b"data Context { count: u64; }\n"
+        b"machine mutate(context: &mut Context) { context.count = 9; }\n"
+        b"machine at_least_six(context: &Context) requires context.count >= 6 {}\n"
+        b"machine main(context: &mut Context) { let valid: bool = context.count < 6; transition valid { true -> mutate(context) false -> at_least_six(context) } }",
+    )
+    rejected(
+        program,
+        "an-alias-invalidated-on-a-reachable-short-circuit-path-does-not-survive-the-join",
+        b"data Context { count: u64; }\n"
+        b"machine mutate(context: &mut Context) -> bool { context.count = 9; true }\n"
+        b"machine bounded(context: &Context) requires context.count < 6 {}\n"
+        b"machine main(context: &mut Context, flag: bool) { let valid: bool = context.count < 6; let effect: bool = flag && mutate(context); transition valid { true -> bounded(context) false -> {} } }",
+        "RequirementUnproven",
+        b"bounded(context)",
+    )
     # A declared measure ranks its subject by its body, or lexicographically
     # by the subject's named fields (wiki/spec/language/termination.md#ranking).
     measured = (
@@ -1958,7 +2041,7 @@ def main() -> None:
         b"data Tally { n: u64; case Some(v: u64) where v < n; case None; }\n"
         b"machine room(t: &Tally) -> u64 {\n"
         b"    transition t {\n"
-        b"        Tally::Some { v } -> (t.n - v)\n"
+        b"        Tally::Some { v, .. } -> (t.n - v)\n"
         b"        _ -> (0)\n"
         b"    }\n"
         b"}",
@@ -2692,6 +2775,44 @@ def main() -> None:
         b"machine same(left: Pair, done: bool)\nrequires left.first == 1\n{}\n"
         b"machine run() {\n    let mut pair: Pair = Pair { first: 0, second: 0 };\n    pair.first = 1;\n"
         b"    same(pair, reset(&mut pair));\n}",
+    )
+
+    # The write need not have a represented field yet. A constructed or
+    # copied record still denotes its old contents; a callee's postcondition
+    # must never turn an earlier value into a read of the changed storage.
+    context = (
+        b"data Context [copy] { left: u64; right: u64; }\n"
+        b"machine set_left(context: &mut Context) -> bool\n"
+        b"ensures context.left == 9\n{ context.left = 9; true }\n"
+    )
+    call = b"compare(context, set_left(&mut context))"
+    record_paths = (
+        ("constructed", b"machine run() { let mut context: Context = Context { left: 1, right: 2 }; " + call + b"; }", call),
+        ("copied", b"machine run() { let original: Context = Context { left: 1, right: 2 }; let mut context: Context = original; " + call + b"; }", call),
+        ("field", b"data Holder { context: Context; }\nmachine run() { let mut holder: Holder = Holder { context: Context { left: 1, right: 2 } }; compare(holder.context, set_left(&mut holder.context)); }", b"compare(holder.context, set_left(&mut holder.context))"),
+        ("state", b"machine run() { transition { _ -> next(Context { left: 1, right: 2 }) } state next(context: Context) { " + call + b"; } }", call),
+        ("parameter", b"machine run(context: Context)\nrequires context.left == 1\n{ " + call + b"; }", call),
+    )
+    for path, body, spelling in record_paths:
+        accepted(
+            program,
+            path + "-record-operand-keeps-the-old-field",
+            context + b"machine compare(before: Context, done: bool)\nrequires before.left == 1\n{}\n" + body,
+        )
+        rejected(
+            program,
+            path + "-record-operand-cannot-acquire-the-new-field",
+            context + b"machine compare(before: Context, done: bool)\nrequires before.left == 9\n{}\n" + body,
+            "RequirementUnproven",
+            spelling,
+        )
+    rejected(
+        program,
+        "an-unrepresented-copied-field-cannot-acquire-a-later-value",
+        context + b"machine compare(before: Context, done: bool)\nrequires before.left == 9\n{}\n"
+        b"machine run(context: Context) { " + call + b"; }",
+        "RequirementUnproven",
+        call,
     )
 
     # A construction's fields hold the values it wrote, read through its

@@ -34,14 +34,14 @@ crashes Trap
         let token: Token = input.tokens[parser.current_index];
         parser.statement_start = token.start;
         transition token {
-            Token::Punctuation { punctuation: PunctuationKind::RightBrace } -> done()
-            Token::Keyword { keyword: KeywordKind::State } -> done()
-            Token::Keyword { keyword: KeywordKind::Let } -> let_statement(parser, input, unsupported)
-            Token::Keyword { keyword: KeywordKind::Transition } -> transition_statement(parser, input, unsupported)
-            Token::Keyword { keyword: KeywordKind::If } -> reject(parser, input, unsupported)
-            Token::Keyword { keyword: KeywordKind::Loop } -> reject(parser, input, unsupported)
-            Token::Keyword { keyword: KeywordKind::While } -> reject(parser, input, unsupported)
-            Token::Keyword { keyword: KeywordKind::Return } -> reject(parser, input, unsupported)
+            Token::Punctuation { punctuation: PunctuationKind::RightBrace, .. } -> done()
+            Token::Keyword { keyword: KeywordKind::State, .. } -> done()
+            Token::Keyword { keyword: KeywordKind::Let, .. } -> let_statement(parser, input, unsupported)
+            Token::Keyword { keyword: KeywordKind::Transition, .. } -> transition_statement(parser, input, unsupported)
+            Token::Keyword { keyword: KeywordKind::If, .. } -> reject(parser, input, unsupported)
+            Token::Keyword { keyword: KeywordKind::Loop, .. } -> reject(parser, input, unsupported)
+            Token::Keyword { keyword: KeywordKind::While, .. } -> reject(parser, input, unsupported)
+            Token::Keyword { keyword: KeywordKind::Return, .. } -> reject(parser, input, unsupported)
             Token::Identifier -> word(parser, input, unsupported)
             _ -> expression_statement(parser, input, unsupported)
         }
@@ -289,9 +289,9 @@ crashes Trap
     state statement_end(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode, value: u64 in Trapping) {
         let token: Token = input.tokens[parser.current_index];
         transition token {
-            Token::Punctuation { punctuation: PunctuationKind::Equal } -> assignment(parser, input, unsupported, value)
-            Token::Punctuation { punctuation: PunctuationKind::Semicolon } -> terminated(parser, input, unsupported, value)
-            Token::Punctuation { punctuation: PunctuationKind::RightBrace } -> tail(parser, input, unsupported, value)
+            Token::Punctuation { punctuation: PunctuationKind::Equal, .. } -> assignment(parser, input, unsupported, value)
+            Token::Punctuation { punctuation: PunctuationKind::Semicolon, .. } -> terminated(parser, input, unsupported, value)
+            Token::Punctuation { punctuation: PunctuationKind::RightBrace, .. } -> tail(parser, input, unsupported, value)
             _ -> reject(parser, input, ParseDiagnosticCode::ExpectedStatementEnd)
         }
     }
@@ -471,6 +471,8 @@ crashes Trap
     ) {
         let token: Token = input.tokens[parser.current_index];
         parser.arm_start = token.start;
+        parser.arm_has_fields = false;
+        parser.arm_has_rest = false;
         parser.arm_has_guard = false;
         parser.arm_guard = 0;
         let wildcard: bool = Parser::at_word(parser, input, "_");
@@ -546,6 +548,7 @@ crashes Trap
     ) {
         parser.pattern_first_field = parser.output.pattern_field_count as u64 in Trapping;
         let braced: bool = Parser::at_punctuation(parser, input, PunctuationKind::LeftBrace);
+        parser.arm_has_fields = braced;
         transition braced {
             true -> pattern_fields_open(parser, input, unsupported, subject, pattern)
             _ -> arm_guard(parser, input, unsupported, true, subject, ArmPatternKind::Case, pattern,
@@ -572,9 +575,29 @@ crashes Trap
         pattern: u64 in Trapping
     ) {
         let closing: bool = Parser::at_punctuation(parser, input, PunctuationKind::RightBrace);
+        let rest: bool = Parser::at_punctuation(parser, input, PunctuationKind::DotDot);
         transition closing {
             true -> pattern_fields_close(parser, input, unsupported, subject, pattern)
+            _ -> pattern_field_or_rest(parser, input, unsupported, subject, pattern, rest)
+        }
+    }
+
+    state pattern_field_or_rest(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode, subject: u64 in Trapping, pattern: u64 in Trapping, rest: bool) {
+        transition rest {
+            true -> pattern_rest(parser, input, unsupported, subject, pattern)
             _ -> pattern_field(parser, input, unsupported, subject, pattern)
+        }
+    }
+
+    // Rest opts out of drift checking without creating a field or binder.
+    // It uses the same separator path as fields, including a trailing comma.
+    state pattern_rest(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode, subject: u64 in Trapping, pattern: u64 in Trapping) {
+        parser.arm_has_rest = true;
+        Parser::take_current(parser, input);
+        let separator: bool = Parser::at_punctuation(parser, input, PunctuationKind::Comma);
+        transition separator {
+            true -> pattern_field_separator(parser, input, unsupported, subject, pattern)
+            _ -> pattern_field_end(parser, input, unsupported, subject, pattern)
         }
     }
 
@@ -840,6 +863,8 @@ crashes Trap
         );
         transition parser.output.accepted {
             true -> store_arm(parser, input, unsupported, has_subject, subject, TransitionArm {
+                has_fields: parser.arm_has_fields,
+                has_rest: parser.arm_has_rest,
                 kind: kind,
                 pattern: pattern,
                 first_field: first_field,
@@ -937,6 +962,8 @@ crashes Trap
     ) {
         transition {
             _ -> store_arm(parser, input, unsupported, has_subject, subject, TransitionArm {
+                has_fields: parser.arm_has_fields,
+                has_rest: parser.arm_has_rest,
                 kind: kind,
                 pattern: pattern,
                 first_field: first_field,
@@ -990,6 +1017,8 @@ crashes Trap
     ) {
         let callee: Expression = SyntaxTrees::expression(&parser.output, call.left);
         let arm: TransitionArm = TransitionArm {
+            has_fields: parser.arm_has_fields,
+            has_rest: parser.arm_has_rest,
             kind: kind,
             pattern: pattern,
             first_field: first_field,

@@ -1,0 +1,62 @@
+use psi::source::source;
+use psi::syntax::syntax;
+use psi::types::types;
+use psi::typing::typer;
+
+// Braces name a structural field roster, unlike a bare case-tag test.
+// Every field resolves before this check. Distinct field names must cover
+// the common fields and selected payload unless `..` opts out of drift
+// checking (wiki/spec/language/patterns.md#pattern-subjects-and-bindings).
+pub machine Typer::validate_pattern_fields(
+    typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees,
+    arm: TransitionArm, expected: u64 in Trapping
+)
+crashes Trap
+{
+    transition typer.output.accepted && arm.has_fields {
+        true -> field(typer, sources, syntax, arm, expected, 0)
+        _ -> done()
+    }
+
+    state field(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, arm: TransitionArm, expected: u64 in Trapping, offset: u64 in Trapping) {
+        transition offset < arm.field_count {
+            true -> prior(typer, sources, syntax, arm, expected, offset, 0)
+            _ -> complete(typer, syntax, arm, expected)
+        }
+    }
+
+    state prior(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, arm: TransitionArm, expected: u64 in Trapping, offset: u64 in Trapping, earlier: u64 in Trapping) {
+        transition earlier < offset {
+            true -> compare(typer, sources, syntax, arm, expected, offset, earlier)
+            _ -> field(typer, sources, syntax, arm, expected, offset + 1)
+        }
+    }
+
+    state compare(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, arm: TransitionArm, expected: u64 in Trapping, offset: u64 in Trapping, earlier: u64 in Trapping) {
+        let written: PatternField = SyntaxTrees::pattern_field(syntax, arm.first_field + offset);
+        let before: PatternField = SyntaxTrees::pattern_field(syntax, arm.first_field + earlier);
+        let repeated: bool = SourceSet::spans_equal(sources, before.name.source_span, written.name.source_span);
+        transition repeated {
+            true -> duplicate(typer, written)
+            _ -> prior(typer, sources, syntax, arm, expected, offset, earlier + 1)
+        }
+    }
+
+    state complete(typer: &mut Typer, syntax: &SyntaxTrees, arm: TransitionArm, expected: u64 in Trapping) {
+        transition !arm.has_rest && arm.field_count != expected {
+            true -> missing(typer, syntax, arm)
+            _ -> done()
+        }
+    }
+
+    state duplicate(typer: &mut Typer, written: PatternField) {
+        Typing::reject(&mut typer.output, TypeDiagnosticCode::DuplicatePatternField, written.source_span);
+    }
+
+    state missing(typer: &mut Typer, syntax: &SyntaxTrees, arm: TransitionArm) {
+        let head: Expression = SyntaxTrees::expression(syntax, arm.pattern);
+        Typing::reject(&mut typer.output, TypeDiagnosticCode::MissingPatternField, head.source_span);
+    }
+
+    state done() {}
+}

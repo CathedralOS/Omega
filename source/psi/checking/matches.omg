@@ -1,3 +1,4 @@
+use psi::checking::aliases;
 use psi::checking::checker;
 use psi::checking::evaluation;
 use psi::checking::flow;
@@ -477,6 +478,12 @@ crashes Trap
     requires index < 8
     {
         checker.merged = checker.saved[index];
+        let current_live: bool = !checker.merged.infeasible;
+        let other_live: bool = !checker.zone.infeasible;
+        let mut aliases: AliasTable = checker.saved_aliases[index];
+        let other: AliasTable = checker.aliases;
+        AliasTable::join(&mut aliases, &other, current_live, other_live);
+        checker.saved_aliases[index] = aliases;
         let changed: bool = Zone::join(&mut checker.merged, &checker.zone);
         checker.saved[index] = checker.merged;
     }
@@ -499,6 +506,7 @@ crashes Trap
     requires index < 8
     {
         checker.zone = checker.saved[index];
+        checker.aliases = checker.saved_aliases[index];
         checker.saved_count = index;
     }
 

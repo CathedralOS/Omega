@@ -177,6 +177,8 @@ where
     transition_first_arm: u64 in Trapping;
     arm_start: u64 in Trapping;
     // The arm being parsed's `if` guard, read where its row is stored.
+    arm_has_fields: bool;
+    arm_has_rest: bool;
     arm_has_guard: bool;
     arm_guard: u64 in Trapping;
     pattern_first_field: u64 in Trapping;
@@ -298,7 +300,7 @@ crashes Trap
         let token: Token = input.tokens[parser.current_index];
         parser.item_start = token.start;
         transition token {
-            Token::Keyword { keyword } -> classify_root_keyword(parser, input,
+            Token::Keyword { keyword, .. } -> classify_root_keyword(parser, input,
                 keyword,
                 token.start,
                 token.end
@@ -340,9 +342,9 @@ crashes Trap
         let token: Token = input.tokens[parser.current_index];
         let head: MachineHead = Parser::root_machine_head(parser.item_start, true);
         transition token {
-            Token::Keyword { keyword: KeywordKind::Data } -> dispatch_data(parser, input, true, false)
-            Token::Keyword { keyword: KeywordKind::Machine } -> dispatch_machine(parser, input, head)
-            Token::Keyword { keyword: KeywordKind::Let } -> dispatch_definition(parser, input, true, false)
+            Token::Keyword { keyword: KeywordKind::Data, .. } -> dispatch_data(parser, input, true, false)
+            Token::Keyword { keyword: KeywordKind::Machine, .. } -> dispatch_machine(parser, input, head)
+            Token::Keyword { keyword: KeywordKind::Let, .. } -> dispatch_definition(parser, input, true, false)
             Token::Identifier -> named_root(parser, input, true)
             _ -> expected_item_after_public(parser, token.start,
                 token.end
@@ -644,7 +646,7 @@ crashes Trap
                 token.start,
                 token.end
             )
-            Token::Keyword { keyword } -> member_keyword(parser, input,
+            Token::Keyword { keyword, .. } -> member_keyword(parser, input,
                 keyword,
                 token.start,
                 token.end
@@ -696,8 +698,8 @@ crashes Trap
         Parser::load_current(parser, input);
         let token: Token = input.tokens[parser.current_index];
         transition token {
-            Token::Punctuation { punctuation: PunctuationKind::ColonColon } -> separator(parser, input)
-            Token::Punctuation { punctuation: PunctuationKind::Semicolon } -> retain_use(parser, input,
+            Token::Punctuation { punctuation: PunctuationKind::ColonColon, .. } -> separator(parser, input)
+            Token::Punctuation { punctuation: PunctuationKind::Semicolon, .. } -> retain_use(parser, input,
                 token.end
             )
             _ -> expected_separator(parser, token.start,
@@ -723,7 +725,7 @@ crashes Trap
                 token.start,
                 token.end
             )
-            Token::Keyword { keyword } -> member_keyword(parser, input,
+            Token::Keyword { keyword, .. } -> member_keyword(parser, input,
                 keyword,
                 token.start,
                 token.end

@@ -1,3 +1,4 @@
+use psi::checking::arrivals;
 use psi::checking::checker;
 use psi::checking::evaluation;
 use psi::checking::facts;
@@ -359,7 +360,9 @@ crashes Trap
     state done() {}
 }
 
-// A copy of `source` into `target` takes the fields pending below `source`.
+// A copy takes pending fields along the same projected paths as represented
+// fields. Keeping only immediate children loses a nested construction's
+// values when the enclosing record is copied or captured.
 pub machine Checker::copy_pending(checker: &mut Checker, typing: &Typing, target: u64 in Trapping, source: u64 in Trapping)
 crashes Trap
 {
@@ -380,14 +383,23 @@ crashes Trap
     requires index < 32
     {
         let pending: PendingField = checker.pending[index];
-        transition pending.parent == source {
-            true -> copied(checker, typing, target, source, index, end, pending)
+        let path: ArrivalPath = Checker::path_below(checker, source, pending.parent, 0);
+        transition pending.parent == source || path.depth > 0 {
+            true -> copied(checker, typing, target, source, index, end, pending, path)
             _ -> next(checker, typing, target, source, index + 1, end)
         }
     }
 
-    state copied(checker: &mut Checker, typing: &Typing, target: u64 in Trapping, source: u64 in Trapping, index: u64 in Trapping, end: u64, pending: PendingField) {
-        Checker::write_pending(checker, typing, target, pending.field, pending.type_handle, pending.value);
+    state copied(checker: &mut Checker, typing: &Typing, target: u64 in Trapping, source: u64 in Trapping, index: u64 in Trapping, end: u64, pending: PendingField, path: ArrivalPath) {
+        let parent: u64 in Trapping = Checker::enter_path(checker, typing, target, path);
+        transition parent > 0 {
+            true -> written(checker, typing, target, source, index, end, pending, parent)
+            _ -> next(checker, typing, target, source, index + 1, end)
+        }
+    }
+
+    state written(checker: &mut Checker, typing: &Typing, target: u64 in Trapping, source: u64 in Trapping, index: u64 in Trapping, end: u64, pending: PendingField, parent: u64 in Trapping) {
+        Checker::write_pending(checker, typing, parent, pending.field, pending.type_handle, pending.value);
         transition { _ -> next(checker, typing, target, source, index + 1, end) }
     }
 

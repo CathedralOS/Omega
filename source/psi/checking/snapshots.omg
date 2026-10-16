@@ -1,6 +1,9 @@
+use psi::checking::aliases;
 use psi::checking::checker;
+use psi::checking::flow;
 use psi::checking::evaluation;
 use psi::checking::facts;
+use psi::checking::frames;
 use psi::checking::obligations;
 use psi::checking::places;
 use psi::checking::zone;
@@ -22,49 +25,96 @@ use psi::types::types;
 // keeps its place; a Read adaptation instead consumes a scalar snapshot.
 // Every exclusive operand the call writes through keeps its live place.
 
+// A call's write footprint. Named frames apply to field identities along
+// a scalar's path; whole/unknown frames apply to the entire referent.
+pub data WriteFootprint [copy] {
+    place: u64 in Trapping;
+    callee: u64 in Trapping;
+    whole: bool;
+}
+
+// Whether a represented scalar lies under a written field. Aggregate
+// operands are captured separately: their written fields can still be
+// pending, or completely unrepresented until a later contract reads them.
+machine Checker::written_subject(checker: &Checker, subject: u64 in Trapping, write: WriteFootprint) -> bool
+crashes Trap
+{
+    let inside: bool = Checker::within(checker, subject, write.place);
+    transition inside {
+        true -> step(checker, subject, write)
+        _ -> no()
+    }
+
+    state step(checker: &Checker, current: u64 in Trapping, write: WriteFootprint) -> bool {
+        transition write.whole {
+            true -> yes()
+            _ -> narrow(checker, current, write)
+        }
+    }
+
+    state narrow(checker: &Checker, current: u64 in Trapping, write: WriteFootprint) -> bool {
+        transition current > 0 && current != write.place {
+            true -> inspect(checker, current, write)
+            _ -> no()
+        }
+    }
+
+    state inspect(checker: &Checker, current: u64 in Trapping, write: WriteFootprint) -> bool {
+        let entry: Place = Checker::place_at(checker, current - 1);
+        let written: bool = entry.kind == PlaceKind::Field && Checker::writes_field(checker, write.callee, entry.handle);
+        transition written {
+            true -> yes()
+            _ -> step(checker, entry.parent, write)
+        }
+    }
+
+    state yes() -> bool { true }
+    state no() -> bool { false }
+}
+
 // Snapshot every operand evaluated before the call `expression` whose value
-// reads `place`, which the call's operand `lender` lends exclusively.
+// reads the storage in `write`, lent exclusively by operand `lender`.
 pub machine Checker::snapshot_operands(
     checker: &mut Checker,
     syntax: &SyntaxTrees,
     typing: &Typing,
     expression: Expression,
     lender: u64 in Trapping,
-    place: u64 in Trapping
+    write: WriteFootprint
 )
 crashes Trap
 {
-    transition { _ -> own(checker, syntax, typing, expression, lender, place, 0) }
+    transition { _ -> own(checker, syntax, typing, expression, lender, write, 0) }
 
-    state own(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, expression: Expression, lender: u64 in Trapping, place: u64 in Trapping, offset: u64 in Trapping) {
+    state own(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, expression: Expression, lender: u64 in Trapping, write: WriteFootprint, offset: u64 in Trapping) {
         let count: u64 in Trapping = Checker::operand_count(expression);
         transition offset < count {
-            true -> operand(checker, syntax, typing, expression, lender, place, offset)
-            _ -> earlier(checker, syntax, typing, expression, lender, place)
+            true -> operand(checker, syntax, typing, expression, lender, write, offset)
+            _ -> earlier(checker, syntax, typing, expression, lender, write)
         }
     }
 
-    state operand(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, expression: Expression, lender: u64 in Trapping, place: u64 in Trapping, offset: u64 in Trapping) {
+    state operand(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, expression: Expression, lender: u64 in Trapping, write: WriteFootprint, offset: u64 in Trapping) {
         let handle: u64 in Trapping = Checker::operand(syntax, expression, offset);
-        Checker::snapshot_tree(checker, syntax, typing, handle, lender, place);
-        transition { _ -> own(checker, syntax, typing, expression, lender, place, offset + 1) }
+        Checker::snapshot_tree(checker, syntax, typing, handle, lender, write);
+        transition { _ -> own(checker, syntax, typing, expression, lender, write, offset + 1) }
     }
 
     // The operands before the call's subtree that no node evaluated since
     // has taken: walking back, each is the root of the subtree that ends
     // just before the previous one starts.
-    state earlier(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, expression: Expression, lender: u64 in Trapping, place: u64 in Trapping) {
+    state earlier(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, expression: Expression, lender: u64 in Trapping, write: WriteFootprint) {
         transition expression.first_row > checker.tree_low {
-            true -> pending(checker, syntax, typing, lender, place, expression.first_row - 1)
+            true -> pending(checker, syntax, typing, lender, write, expression.first_row - 1)
             _ -> done()
         }
     }
 
-    state pending(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, lender: u64 in Trapping, place: u64 in Trapping, root: u64 in Trapping) {
+    state pending(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, lender: u64 in Trapping, write: WriteFootprint, root: u64 in Trapping) {
         let tree: Expression = SyntaxTrees::expression(syntax, root);
-        Checker::snapshot_tree(checker, syntax, typing, root, lender, place);
+        Checker::snapshot_tree(checker, syntax, typing, root, lender, write);
         transition tree.first_row > checker.tree_low {
-            true -> pending(checker, syntax, typing, lender, place, tree.first_row - 1)
+            true -> pending(checker, syntax, typing, lender, write, tree.first_row - 1)
             _ -> done()
         }
     }
@@ -76,59 +126,63 @@ crashes Trap
 // comparison uses its two reads, even after the comparison itself became a
 // Boolean. Capture every evaluated descendant, not just the operand root.
 // The caller supplies completed subtrees only; later nodes have no values.
-machine Checker::snapshot_tree(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, root: u64 in Trapping, lender: u64 in Trapping, place: u64 in Trapping)
+machine Checker::snapshot_tree(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, root: u64 in Trapping, lender: u64 in Trapping, write: WriteFootprint)
 crashes Trap
 {
     let tree: Expression = SyntaxTrees::expression(syntax, root);
-    transition { _ -> node(checker, typing, root, lender, place, tree.first_row) }
+    transition { _ -> node(checker, typing, root, lender, write, tree.first_row) }
 
-    state node(checker: &mut Checker, typing: &Typing, root: u64 in Trapping, lender: u64 in Trapping, place: u64 in Trapping, handle: u64 in Trapping) {
+    state node(checker: &mut Checker, typing: &Typing, root: u64 in Trapping, lender: u64 in Trapping, write: WriteFootprint, handle: u64 in Trapping) {
         transition handle <= root {
-            true -> captured(checker, typing, root, lender, place, handle)
+            true -> captured(checker, typing, root, lender, write, handle)
             _ -> done()
         }
     }
 
-    state captured(checker: &mut Checker, typing: &Typing, root: u64 in Trapping, lender: u64 in Trapping, place: u64 in Trapping, handle: u64 in Trapping) {
-        Checker::snapshot_node(checker, typing, handle, lender, place);
-        transition { _ -> node(checker, typing, root, lender, place, handle + 1) }
+    state captured(checker: &mut Checker, typing: &Typing, root: u64 in Trapping, lender: u64 in Trapping, write: WriteFootprint, handle: u64 in Trapping) {
+        Checker::snapshot_node(checker, typing, handle, lender, write);
+        transition { _ -> node(checker, typing, root, lender, write, handle + 1) }
     }
 
     state done() {}
 }
 
-// Move one node's value off `place` when it reads it.
-machine Checker::snapshot_node(checker: &mut Checker, typing: &Typing, handle: u64 in Trapping, lender: u64 in Trapping, place: u64 in Trapping)
+// Capture one completed node before a write overlaps its value. Records
+// retain the complete known/pending field tree even when the written field
+// has no place yet. Scalar reads use the frame along their existing path;
+// snapshotting a disjoint scalar on one short-circuit path loses its live
+// equality at the join, despite the call preserving that scalar.
+machine Checker::snapshot_node(checker: &mut Checker, typing: &Typing, handle: u64 in Trapping, lender: u64 in Trapping, write: WriteFootprint)
 crashes Trap
 {
     transition handle >= checker.tree_low {
-        true -> evaluated(checker, typing, handle, lender, place, handle - checker.tree_low)
+        true -> evaluated(checker, typing, handle, lender, write, handle - checker.tree_low)
         _ -> done()
     }
 
     // Only a node of the open tree has a value.
-    state evaluated(checker: &mut Checker, typing: &Typing, handle: u64 in Trapping, lender: u64 in Trapping, place: u64 in Trapping, offset: u64 in Trapping) {
+    state evaluated(checker: &mut Checker, typing: &Typing, handle: u64 in Trapping, lender: u64 in Trapping, write: WriteFootprint, offset: u64 in Trapping) {
         let type_handle: u64 in Trapping = Typing::expression_type(typing, handle);
         let row: TypeRow = TypeTable::row(&typing.types, type_handle);
         let adaptation: Adaptation = Typing::adaptation(typing, handle);
         let read: bool = row.kind != TypeKind::Reference || adaptation == Adaptation::Read;
         transition offset < checker.tree_size && read {
-            true -> valued(checker, typing, handle, lender, place, type_handle, row)
+            true -> valued(checker, typing, handle, lender, write, type_handle, row)
             _ -> done()
         }
     }
 
-    state valued(checker: &mut Checker, typing: &Typing, handle: u64 in Trapping, lender: u64 in Trapping, place: u64 in Trapping, type_handle: u64 in Trapping, row: TypeRow) {
+    state valued(checker: &mut Checker, typing: &Typing, handle: u64 in Trapping, lender: u64 in Trapping, write: WriteFootprint, type_handle: u64 in Trapping, row: TypeRow) {
         let value: Value = Checker::value_at(checker, handle);
         transition value.known && value.subject > 0 {
-            true -> term(checker, typing, handle, lender, place, value)
-            _ -> placed(checker, typing, handle, lender, place, type_handle, row, value)
+            true -> term(checker, typing, handle, lender, write, value)
+            _ -> placed(checker, typing, handle, lender, write, type_handle, row, value)
         }
     }
 
-    state term(checker: &mut Checker, typing: &Typing, handle: u64 in Trapping, lender: u64 in Trapping, place: u64 in Trapping, value: Value) {
+    state term(checker: &mut Checker, typing: &Typing, handle: u64 in Trapping, lender: u64 in Trapping, write: WriteFootprint, value: Value) {
         let owner: u64 in Trapping = Checker::subject_place(checker, value.subject);
-        let reads: bool = owner > 0 && Checker::within(checker, owner, place);
+        let reads: bool = owner > 0 && Checker::written_subject(checker, owner, write);
         transition reads {
             true -> integer(checker, typing, handle, lender, value, owner)
             _ -> done()
@@ -174,8 +228,8 @@ crashes Trap
         Checker::set_value(checker, handle, Value { place: snapshot, known: true, subject: subject, offset: value.offset, ceiling: value.ceiling, floor: value.floor });
     }
 
-    state placed(checker: &mut Checker, typing: &Typing, handle: u64 in Trapping, lender: u64 in Trapping, place: u64 in Trapping, type_handle: u64 in Trapping, row: TypeRow, value: Value) {
-        let reads: bool = value.place > 0 && (Checker::within(checker, value.place, place) || Checker::within(checker, place, value.place));
+    state placed(checker: &mut Checker, typing: &Typing, handle: u64 in Trapping, lender: u64 in Trapping, write: WriteFootprint, type_handle: u64 in Trapping, row: TypeRow, value: Value) {
+        let reads: bool = value.place > 0 && (Checker::within(checker, value.place, write.place) || Checker::within(checker, write.place, value.place));
         transition reads {
             true -> shaped(checker, typing, handle, lender, type_handle, row, value)
             _ -> done()
@@ -209,4 +263,61 @@ crashes Trap
     }
 
     state done() {}
+}
+
+// Retain the evaluated dispatch subject before exploring either arm. Its
+// scratch window is separate from later guards/targets; value facts use the
+// same snapshots as call operands, so writes cannot reinterpret old reads.
+// Snapshotting is performed once before the arm zone is saved.
+pub machine Checker::capture_subject(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, root: u64 in Trapping, present: bool) -> CapturedSubject
+crashes Trap
+{
+    let frame: TreeFrame = Checker::tree_frame(checker);
+    let captured: CapturedSubject = CapturedSubject { frame: frame, floor: checker.retained_values };
+    transition present && checker.output.machine_accepted {
+        true -> retain(checker, syntax, typing, root, captured)
+        _ -> done(captured)
+    }
+
+    state retain(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, root: u64 in Trapping, captured: CapturedSubject) -> CapturedSubject {
+        checker.retained_values = captured.frame.base + captured.frame.size;
+        transition { _ -> node(checker, syntax, typing, root, captured, captured.frame.low) }
+    }
+
+    state node(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, root: u64 in Trapping, captured: CapturedSubject, handle: u64 in Trapping) -> CapturedSubject {
+        transition handle <= root {
+            true -> valued(checker, syntax, typing, root, captured, handle)
+            _ -> done(captured)
+        }
+    }
+
+    state valued(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, root: u64 in Trapping, captured: CapturedSubject, handle: u64 in Trapping) -> CapturedSubject {
+        let value: Value = Checker::value_at(checker, handle);
+        transition value.known && value.subject > 0 {
+            true -> term(checker, syntax, typing, root, captured, handle, value)
+            _ -> placed(checker, syntax, typing, root, captured, handle, value, value.place)
+        }
+    }
+
+    state term(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, root: u64 in Trapping, captured: CapturedSubject, handle: u64 in Trapping, value: Value) -> CapturedSubject {
+        let place: u64 in Trapping = Checker::subject_place(checker, value.subject);
+        transition { _ -> placed(checker, syntax, typing, root, captured, handle, value, place) }
+    }
+
+    state placed(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, root: u64 in Trapping, captured: CapturedSubject, handle: u64 in Trapping, value: Value, place: u64 in Trapping) -> CapturedSubject {
+        transition place > 0 {
+            true -> snapshotted(checker, syntax, typing, root, captured, handle, value, place)
+            _ -> node(checker, syntax, typing, root, captured, handle + 1)
+        }
+    }
+
+    state snapshotted(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, root: u64 in Trapping, captured: CapturedSubject, handle: u64 in Trapping, value: Value, place: u64 in Trapping) -> CapturedSubject {
+        let write: WriteFootprint = WriteFootprint { place: place, callee: 0, whole: true };
+        Checker::snapshot_node(checker, typing, handle, root, write);
+        let saved: Value = Checker::value_at(checker, handle);
+        Checker::copy_alias(checker, value.place, saved.place);
+        transition { _ -> node(checker, syntax, typing, root, captured, handle + 1) }
+    }
+
+    state done(captured: CapturedSubject) -> CapturedSubject { captured }
 }

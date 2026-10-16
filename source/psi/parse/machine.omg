@@ -570,18 +570,18 @@ crashes Trap
     state token(parser: &mut Parser, input: &TokenStream) {
         let token: Token = input.tokens[parser.current_index];
         transition token {
-            Token::Punctuation { punctuation: PunctuationKind::Plus } -> single(parser, input, OperatorToken::Add)
-            Token::Punctuation { punctuation: PunctuationKind::Minus } -> single(parser, input, OperatorToken::Subtract)
-            Token::Punctuation { punctuation: PunctuationKind::Asterisk } -> single(parser, input, OperatorToken::Multiply)
-            Token::Punctuation { punctuation: PunctuationKind::Slash } -> single(parser, input, OperatorToken::Divide)
-            Token::Punctuation { punctuation: PunctuationKind::Percent } -> single(parser, input, OperatorToken::Modulo)
-            Token::Punctuation { punctuation: PunctuationKind::EqualEqual } -> single(parser, input, OperatorToken::Equal)
-            Token::Punctuation { punctuation: PunctuationKind::ExclamationEqual } -> single(parser, input, OperatorToken::NotEqual)
-            Token::Punctuation { punctuation: PunctuationKind::Less } -> single(parser, input, OperatorToken::Less)
-            Token::Punctuation { punctuation: PunctuationKind::LessEqual } -> single(parser, input, OperatorToken::LessEqual)
-            Token::Punctuation { punctuation: PunctuationKind::Greater } -> single(parser, input, OperatorToken::Greater)
-            Token::Punctuation { punctuation: PunctuationKind::GreaterEqual } -> single(parser, input, OperatorToken::GreaterEqual)
-            Token::Punctuation { punctuation: PunctuationKind::LeftBracket } -> bracket(parser, input)
+            Token::Punctuation { punctuation: PunctuationKind::Plus, .. } -> single(parser, input, OperatorToken::Add)
+            Token::Punctuation { punctuation: PunctuationKind::Minus, .. } -> single(parser, input, OperatorToken::Subtract)
+            Token::Punctuation { punctuation: PunctuationKind::Asterisk, .. } -> single(parser, input, OperatorToken::Multiply)
+            Token::Punctuation { punctuation: PunctuationKind::Slash, .. } -> single(parser, input, OperatorToken::Divide)
+            Token::Punctuation { punctuation: PunctuationKind::Percent, .. } -> single(parser, input, OperatorToken::Modulo)
+            Token::Punctuation { punctuation: PunctuationKind::EqualEqual, .. } -> single(parser, input, OperatorToken::Equal)
+            Token::Punctuation { punctuation: PunctuationKind::ExclamationEqual, .. } -> single(parser, input, OperatorToken::NotEqual)
+            Token::Punctuation { punctuation: PunctuationKind::Less, .. } -> single(parser, input, OperatorToken::Less)
+            Token::Punctuation { punctuation: PunctuationKind::LessEqual, .. } -> single(parser, input, OperatorToken::LessEqual)
+            Token::Punctuation { punctuation: PunctuationKind::Greater, .. } -> single(parser, input, OperatorToken::Greater)
+            Token::Punctuation { punctuation: PunctuationKind::GreaterEqual, .. } -> single(parser, input, OperatorToken::GreaterEqual)
+            Token::Punctuation { punctuation: PunctuationKind::LeftBracket, .. } -> bracket(parser, input)
             _ -> done()
         }
     }

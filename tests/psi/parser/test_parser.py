@@ -53,6 +53,7 @@ class Observation:
     match_arms: tuple[tuple[int, ...], ...] = ()
     definitions: tuple[tuple[int, ...], ...] = ()
     erased_bindings: tuple[tuple[int, ...], ...] = ()
+    arm_pattern_modes: tuple[tuple[bool, bool], ...] = ()
 
 
 class Reader:
@@ -77,8 +78,8 @@ class Reader:
 
 def decode(payload: bytes) -> Observation:
     reader = Reader(payload)
-    assert reader.bytes(8) == b"OMGPAR13"
-    assert reader.u64() == 13
+    assert reader.bytes(8) == b"OMGPAR14"
+    assert reader.u64() == 14
     accepted = reader.byte() == 1
     diagnostic = reader.byte()
     diagnostic_span = (reader.u64(), reader.u64(), reader.u64())
@@ -362,8 +363,10 @@ def decode(payload: bytes) -> Observation:
     # Arm rows: pattern kind, pattern handle, pattern-field range, guard
     # flag and handle, target kind (1 call, 2 value, 3 unit), target handle,
     # span.
-    arms = tuple(
-        (
+    arm_pattern_modes: list[tuple[bool, bool]] = []
+
+    def read_arm() -> tuple[int, ...]:
+        row = (
             reader.byte(),
             reader.u64(),
             reader.u64(),
@@ -376,8 +379,10 @@ def decode(payload: bytes) -> Observation:
             reader.u64(),
             reader.u64(),
         )
-        for _ in range(reader.u64())
-    )
+        arm_pattern_modes.append((reader.byte() == 1, reader.byte() == 1))
+        return row
+
+    arms = tuple(read_arm() for _ in range(reader.u64()))
     # Pattern-field rows: name span, value flag and handle, span, rename flag
     # and span, waived flag.
     pattern_fields = tuple(
@@ -574,6 +579,7 @@ def decode(payload: bytes) -> Observation:
         match_arms,
         definitions,
         erased_bindings,
+        tuple(arm_pattern_modes),
     )
 
 
@@ -1858,6 +1864,27 @@ def expression_form_cases(program: str) -> None:
     rejected(program, "inclusive-range-without-end", b"machine f(a: &[u8]) { g(a[1..=]); }", 191,
              (len(b"machine f(a: &[u8]) { g(a[1..="), len(b"machine f(a: &[u8]) { g(a[1..=]")),
              type_reference_count=3, parameter_count=1, expression_count=3)
+
+    # Braces retain their drift-check mode; rest never creates a binder.
+    for name, pattern, mode, count in (
+        ("bare-case-tag", b"Header::Ready", (False, False), 0),
+        ("complete-field-pattern", b"Header { ok }", (True, False), 1),
+        ("rest-only-pattern", b"Header { .. }", (True, True), 0),
+        ("rest-after-field", b"Header { ok, .. }", (True, True), 1),
+        ("rest-before-field", b"Header { .., ok }", (True, True), 1),
+        ("rest-with-trailing-comma", b"Header { ok as _, .., }", (True, True), 1),
+    ):
+        source = b"machine f(h: Header) { transition h { " + pattern + b" -> {} } }"
+        status, payload = run(program, source)
+        observation = decode(payload)
+        assert status == 0 and observation.accepted, name
+        assert observation.arm_pattern_modes == (mode,), name
+        assert len(observation.pattern_fields) == count, name
+    source = b"machine f(h: Header) { transition h { Header { .. ok } -> {} } }"
+    status, payload = run(program, source)
+    observation = decode(payload)
+    assert status == 250 and observation.diagnostic == 89, "rest-needs-field-separator"
+    assert observation.diagnostic_span == span(source, b"ok"), "rest-needs-field-separator"
 
     # `field as name` renames a pattern binder; `field as _` waives it.
     source = b"machine f(n: Nat) { transition n { Nat::Succ { prev as w } -> g(w) _ -> h() } }"

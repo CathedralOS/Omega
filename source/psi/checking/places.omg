@@ -107,7 +107,7 @@ crashes Trap
     checker.place_count = 0;
     checker.subject_count = 1;
     checker.domains_pending = false;
-    checker.alias_count = 0;
+    checker.aliases.count = 0;
     checker.pending_count = 0;
     Checker::clear_reference_origins(checker);
     Zone::open(&mut checker.zone, 64);

@@ -71,6 +71,9 @@ pub data Checker {
     frames: [TreeFrame; 8];
     frame_count: u64;
     replay: bool;
+    // Statement trees use scratch above every retained dispatch subject.
+    // Their evaluated values survive guards and targets without replay.
+    retained_values: u64 in Trapping;
     // Monotone through one machine's walks, including branch restoration.
     // A nonempty call write frame advances it; proof-only nested trees and
     // bookkeeping copies do not. Replay requires unchanged storage.
@@ -190,10 +193,8 @@ pub data Checker {
     ownership: Ownership;
     // Boolean aliases (aliases.omg): each aliased place, the condition it
     // stands for and how many places existed when it was bound.
-    alias_places: [u64; 16];
-    alias_conditions: [u64; 16];
-    alias_limits: [u64; 16];
-    alias_count: u64;
+    aliases: AliasTable;
+    saved_aliases: [AliasTable; 8];
     // Fields constructions wrote that no place holds yet (constructions.omg).
     pending: [PendingField; 32];
     pending_count: u64;
@@ -323,6 +324,7 @@ crashes Trap
     checker.match_count = 0;
     checker.replay = false;
     checker.write_epoch = 0;
+    checker.retained_values = 0;
     checker.substituting = false;
     checker.returning = false;
     checker.subjecting = false;
@@ -1163,7 +1165,8 @@ crashes Trap
 
     state changed(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, expression: Expression, callee: u64 in Trapping, first_parameter: u64 in Trapping, parameter_count: u64 in Trapping, unknown: bool, offset: u64 in Trapping, lender: u64 in Trapping, place: u64 in Trapping, whole: bool) {
         checker.write_epoch = checker.write_epoch + 1;
-        Checker::snapshot_operands(checker, syntax, typing, expression, lender, place);
+        let write: WriteFootprint = WriteFootprint { place: place, callee: callee, whole: whole };
+        Checker::snapshot_operands(checker, syntax, typing, expression, lender, write);
         transition whole {
             true -> released(checker, syntax, typing, expression, callee, first_parameter, parameter_count, unknown, offset, place)
             _ -> narrowed(checker, syntax, typing, expression, callee, first_parameter, parameter_count, unknown, offset, place)

@@ -155,6 +155,8 @@ pub data TypeDiagnosticCode [copy] {
     // write-only attenuation is spelled where the loan forms
     // (wiki/spec/language/expressions.md#calls-places-and-temporaries).
     case ImplicitAttenuation;
+    case MissingPatternField;
+    case DuplicatePatternField;
 }
 
 pub data TypeDiagnostic [copy] {
