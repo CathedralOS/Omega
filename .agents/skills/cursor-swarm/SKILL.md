@@ -77,6 +77,25 @@ creating the slot again.
 A capacity error leaves the remaining slots pending; do not retry in a loop
 or nest coordinators to multiply slots.
 
+## Cloud VM size
+
+`environment` `cloud` starts a separate VM and git branch. The spawn receipt
+is an agent id. It does not include a VM id, hostname, vCPU count, or memory
+size. There is no `Task` field that requests a larger or smaller machine.
+Omit `cloud_requested_environment_build_id` and the worker boots the same
+environment build as the coordinator.
+
+Read the current environment with the `cursor-cloud` `environment-info` tool
+before describing a wave's machines. That record names the environment, its
+public id, and the build the pod booted from. It does not record vCPU or
+memory. Measure the pod you are on with `nproc`, `free -h`, and `df -h`.
+
+On 2026-10-16 the coordinator for the Omega personal environment, build
+`bld-20261016-387208bb-7e97-436d-9c52-c104977f6347`, reported 4 vCPUs, 15 GiB
+of RAM, and a 254 GB disk. That measurement is that coordinator pod. Worker
+receipts from the same launch did not repeat those numbers. A later build is
+unknown until a pod that booted it is measured.
+
 ## Select outcomes
 
 Complete the [mandatory main preflight](../../../AGENTS.md#sessions-and-subagents)
