@@ -22,10 +22,10 @@ pub(crate) fn checked_boolean_contains_short_circuit(
         | checked_trees::CheckedBooleanExpression::IntegerComparison { .. }
         | checked_trees::CheckedBooleanExpression::IntegerMathComparison { .. }
         | checked_trees::CheckedBooleanExpression::IeeeFloatComparison { .. }
+        | checked_trees::CheckedBooleanExpression::StructuralIdentity { .. }
         | checked_trees::CheckedBooleanExpression::ScalarIeeeFloatComparison { .. }
         | checked_trees::CheckedBooleanExpression::ByteSequenceEqual { .. }
         | checked_trees::CheckedBooleanExpression::ByteSequencePredicate { .. }
-        | checked_trees::CheckedBooleanExpression::PayloadlessSumEqual { .. }
         | checked_trees::CheckedBooleanExpression::StructuralCaseMembership { .. } => false,
     }
 }

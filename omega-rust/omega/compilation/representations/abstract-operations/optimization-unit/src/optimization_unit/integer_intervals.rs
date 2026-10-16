@@ -98,6 +98,7 @@ fn extract_integer_interval_conjunct(
         | Proposition::IeeeFloatComparison { .. }
         | Proposition::ScalarIeeeFloatComparison { .. }
         | Proposition::ByteSequenceEqual { .. }
+        | Proposition::StructuralIdentity { .. }
         | Proposition::StructuralCaseMembership { .. }
         | Proposition::Disjunction(_)
         | Proposition::Implication { .. }

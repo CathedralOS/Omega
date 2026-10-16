@@ -1,0 +1,4 @@
+data Packet { values: [f64; 1]; }
+machine inspect(left: &Packet, right: &Packet)
+crashes Abort left == right { crash Abort; }
+machine main() {}

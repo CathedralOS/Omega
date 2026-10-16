@@ -21,5 +21,5 @@ pub use propositions::{Proposition, PropositionContext, PropositionError};
 pub use scalar_terms::{
     ByteSequenceStructuralField, CanonicalStructuralPathSegment, IeeeFloatComparisonKind,
     IeeeFloatFormat, IeeeFloatStructuralField, IeeeFloatValue, ScalarReadProjection, ScalarTerm,
-    ScalarType, StructuralCaseSubject,
+    ScalarType, StructuralCaseSubject, StructuralIdentitySubject,
 };

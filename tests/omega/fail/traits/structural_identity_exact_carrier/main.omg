@@ -1,0 +1,7 @@
+data Left { value: u64; }
+data Right { value: u64; }
+machine different_nominal(left: &Left, right: &Right)
+crashes Abort left == right {}
+machine different_extent(left: &[u8; 2], right: &[u8; 3])
+crashes Abort left == right {}
+machine main() {}

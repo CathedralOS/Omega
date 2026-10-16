@@ -6,6 +6,19 @@ use super::{entry_operand_symbol_at, field_entry_name};
 use checked_trees::{CheckedStructuralPredicatePathSegment, CrashPredicateExpression};
 use symbols::SymbolHandle;
 
+/// Entry identity for a captured place. The caller has authenticated the
+/// evaluated operand prefix separately, so only preceding statements belong
+/// to this provenance window, not the receiving invocation's future writes.
+pub(crate) fn entry_place_before_statement(
+    program: &dyn ::validation::CheckingInput,
+    machine: SymbolHandle,
+    state: SymbolHandle,
+    statement: usize,
+    place: &validation::CanonicalPlace,
+) -> Option<CrashPredicateExpression> {
+    entry_place_at_write_boundary(program, machine, state, statement, statement, place)
+}
+
 fn entry_place_at_write_boundary(
     program: &dyn ::validation::CheckingInput,
     machine_symbol: SymbolHandle,

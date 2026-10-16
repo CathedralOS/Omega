@@ -64,6 +64,10 @@ impl Budget {
             Proposition::StructuralCaseMembership { subject, .. } => {
                 self.count(subject.path().len())?
             }
+            Proposition::StructuralIdentity { left, right } => {
+                self.count(left.path().len())?;
+                self.count(right.path().len())?;
+            }
             Proposition::ContentConservation(value) => {
                 self.content(value.left(), depth + 1)?;
                 self.content(value.right(), depth + 1)?;

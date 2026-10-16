@@ -4,7 +4,7 @@
 use crate::proposition::{
     ByteSequenceStructuralField, IeeeFloatComparisonKind, IeeeFloatFormat,
     IeeeFloatStructuralField, IntegerMathTerm, IntegerType, IntegerValue, ScalarTerm, ScalarType,
-    StructuralCaseSubject,
+    StructuralCaseSubject, StructuralIdentitySubject,
 };
 use crate::{
     ContentConservation, ContentPlaceVersion, ContentTerm, PlaceId, PropositionId,
@@ -52,6 +52,13 @@ pub enum Proposition {
     ByteSequenceEqual {
         left: ByteSequenceStructuralField,
         right: ByteSequenceStructuralField,
+    },
+    /// Contextual `Id T left right` of complete values. This is opaque to
+    /// executable equality and physical layout: exact subject reflexivity
+    /// and authenticated identity evidence do not imply fieldwise IEEE laws.
+    StructuralIdentity {
+        left: StructuralIdentitySubject,
+        right: StructuralIdentitySubject,
     },
     /// Exact membership in one declared case of a structural sum.
     StructuralCaseMembership {
@@ -136,6 +143,14 @@ impl Proposition {
                     }
                     if left > right {
                         return Err(PropositionError::NonCanonicalByteSequenceEqualOperands);
+                    }
+                }
+                Self::StructuralIdentity { left, right } => {
+                    if left.structural_type() != right.structural_type() {
+                        return Err(PropositionError::StructuralIdentityTypeMismatch);
+                    }
+                    if left > right {
+                        return Err(PropositionError::NonCanonicalStructuralIdentityOperands);
                     }
                 }
                 Self::StructuralCaseMembership { .. } => {}
@@ -257,6 +272,13 @@ impl PropositionContext {
                     for field in [left, right] {
                         if !self.structural_places.contains_key(&field.root) {
                             return Err(PropositionError::UnknownStructuralPlace(field.root));
+                        }
+                    }
+                }
+                Proposition::StructuralIdentity { left, right } => {
+                    for subject in [left, right] {
+                        if !self.structural_places.contains_key(&subject.root()) {
+                            return Err(PropositionError::UnknownStructuralPlace(subject.root()));
                         }
                     }
                 }
@@ -476,6 +498,8 @@ macro_rules! integer_math_comparison_operands {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PropositionError {
+    StructuralIdentityTypeMismatch,
+    NonCanonicalStructuralIdentityOperands,
     EmptyStructuralReadPath,
     StructuralReadIndexType(ScalarType),
     InvalidIntegerWidth(u16),

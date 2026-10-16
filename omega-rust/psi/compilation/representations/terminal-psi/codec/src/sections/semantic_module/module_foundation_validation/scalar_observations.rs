@@ -207,6 +207,36 @@ fn validate(
     let mut scalars = Vec::new();
     while let Some(proposition) = propositions.pop() {
         match proposition {
+            Proposition::StructuralIdentity { left, right } => {
+                if left.structural_type() != right.structural_type() {
+                    return malformed("structural identity operands have different declared types");
+                }
+                for subject in [left, right] {
+                    let Some(root) = root_type(subject.root()) else {
+                        return malformed("structural identity has no readable declared root");
+                    };
+                    let Some(endpoint) = terminal_semantics::canonical_structural_path_tip(
+                        module.structural_types.iter(),
+                        root,
+                        subject.path(),
+                    ) else {
+                        return malformed("structural identity has no exact declared endpoint");
+                    };
+                    if endpoint.id != subject.structural_type()
+                        || !matches!(
+                            endpoint.shape,
+                            terminal_psi::StructuralTypeShape::Record { .. }
+                                | terminal_psi::StructuralTypeShape::Sum { .. }
+                                | terminal_psi::StructuralTypeShape::Mixed { .. }
+                                | terminal_psi::StructuralTypeShape::FixedArray { .. }
+                        )
+                    {
+                        return malformed(
+                            "structural identity disagrees with its exact data carrier",
+                        );
+                    }
+                }
+            }
             Proposition::Equal(a, b)
             | Proposition::LessThan(a, b)
             | Proposition::LessOrEqual(a, b)

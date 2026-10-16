@@ -1882,10 +1882,9 @@ defines the complete product bar.
   executes entry guards across structural inputs and mutual calls; preserve
   signed-zero equality, NaN unordered outcomes and stale-write refusals.
 
-  - Selected-use joins beyond IEEE/integer comparisons: structural telescopes
-    and call carriers need exact operand mapping and provider commitment;
-    other intrinsic spellings and structural signatures still hit the custody
-    gate's refusals. Extend remaining generic/structural-formal routes through
+  - Selected-use joins for remaining intrinsic spellings, generic telescopes
+    and provider-backed structural calls need exact operand mapping and provider
+    commitment. Extend these remaining generic/structural-formal routes through
     portable predicates and execution, keeping the original guard.
     Preserve authored public ceilings independently of executable applications;
     `pass/providers/finite_requirement_boolean_const_exit` and

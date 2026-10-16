@@ -89,6 +89,7 @@ fn walk(
                 Proposition::Atom(_)
                 | Proposition::IeeeFloatComparison { .. }
                 | Proposition::ByteSequenceEqual { .. }
+                | Proposition::StructuralIdentity { .. }
                 | Proposition::StructuralCaseMembership { .. }
                 | Proposition::ContentConservation(_) => complete = false,
                 crate::scalar_comparison_operands!(left, right) => {

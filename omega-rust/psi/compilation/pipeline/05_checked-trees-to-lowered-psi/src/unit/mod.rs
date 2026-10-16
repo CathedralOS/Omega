@@ -63,7 +63,7 @@ use crate::proofs::content_conservation;
 use crate::proofs::content_conservation::lower_boundary_content_guarantees;
 use crate::proofs::crash_routes::{
     lower_boundary_crash_routes, lower_checked_crash_route_buckets,
-    lower_structural_crash_route_buckets, structural_crash_route_argument_prefix,
+    lower_structural_crash_route_buckets, structural_crash_argument_type,
     substitute_structural_crash_route_roots,
 };
 use crate::retention::placed_view_inputs::lower_placed_view_input;

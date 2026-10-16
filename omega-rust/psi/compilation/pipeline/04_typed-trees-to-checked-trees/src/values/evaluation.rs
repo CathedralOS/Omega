@@ -270,7 +270,7 @@ fn binary(
     }
 }
 
-fn boolean(
+pub(crate) fn boolean(
     expression: &CheckedBooleanExpression,
     resolve_binding: &mut impl ScalarValueSource,
 ) -> Option<bool> {
@@ -289,6 +289,12 @@ fn boolean(
             }
         }
         CheckedBooleanExpression::Constant(value) => Some(*value),
+        // This checked node is a proposition, not executable equality. Only
+        // the same complete subject supplies reflexivity; distinct subjects
+        // remain unknown even when their scalar projections happen to agree.
+        CheckedBooleanExpression::StructuralIdentity { left, right } => {
+            (left == right).then_some(true)
+        }
         CheckedBooleanExpression::Parameter { position }
         | CheckedBooleanExpression::Local { position } => {
             binding_boolean(*position, resolve_binding)
@@ -336,7 +342,6 @@ fn boolean(
         | CheckedBooleanExpression::ScalarIeeeFloatComparison { .. }
         | CheckedBooleanExpression::ByteSequenceEqual { .. }
         | CheckedBooleanExpression::ByteSequencePredicate { .. }
-        | CheckedBooleanExpression::PayloadlessSumEqual { .. }
         | CheckedBooleanExpression::StructuralCaseMembership { .. } => None,
     }
 }

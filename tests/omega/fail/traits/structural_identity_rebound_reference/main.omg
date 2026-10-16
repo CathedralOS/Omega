@@ -1,0 +1,17 @@
+data Packet { value: u64; }
+
+machine leaf(left: &Packet, right: &Packet)
+crashes Abort left == right {}
+
+machine inspect(left: &Packet, right: &Packet, replacement: &Packet)
+crashes Abort left == right {
+    let mut selected: &Packet = left;
+    let retained: &Packet = selected;
+    leaf(selected, right);
+    selected = replacement;
+    leaf(retained, right);
+    // The old descriptor's proof does not describe this newly selected value.
+    leaf(selected, right);
+}
+
+machine main() {}

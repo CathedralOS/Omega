@@ -66,6 +66,6 @@ pub use proposition::{
     IeeeFloatFormat, IeeeFloatStructuralField, IeeeFloatValue, IntegerCarrier, IntegerMathLiteral,
     IntegerMathTerm, IntegerSign, IntegerType, IntegerValue, ProofTerm, ProofTermField,
     Proposition, PropositionContext, PropositionError, ScalarReadProjection, ScalarTerm,
-    ScalarType, StructuralCaseSubject,
+    ScalarType, StructuralCaseSubject, StructuralIdentitySubject,
 };
 pub use structural_places::{AffineConstructionElement, StructuralPlaceKind};

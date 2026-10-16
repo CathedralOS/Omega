@@ -137,7 +137,7 @@ use language_semantics::{
     CarryPolicy, MachineSupplyMode, Multiplicity, PermissionAccess, PermissionClaimIdentity,
     PermissionEventKind, PermissionEventSource, PermissionProvenance, SemanticDomainId,
 };
-use symbols::{BuiltinFunction, SymbolHandle};
+use symbols::SymbolHandle;
 use typed_trees::{
     data::{DataMember, DataShapeKind},
     domain::ProofFact,

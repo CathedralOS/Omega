@@ -42,7 +42,9 @@ mod checked_projection;
 mod literal_projection;
 mod places;
 pub(super) use checked_projection::entry_value as checked_projected_entry_value;
-pub(crate) use places::{entry_parameter_place, entry_parameter_place_before_statement};
+pub(crate) use places::{
+    entry_parameter_place, entry_parameter_place_before_statement, entry_place_before_statement,
+};
 mod mutable;
 pub(super) use mutable::statement_may_overwrite_place;
 use mutable::{PlaceSegment, fixed_index_segment, storage_holds_bound_value};
@@ -483,6 +485,24 @@ pub(super) fn formal_member_projection(
         type_reference = field.type_reference;
     }
     projection
+}
+
+/// Resolve a canonical predicate's member names through the formal telescope.
+/// Opaque spelling cannot authenticate a place or its entry provenance.
+pub(super) fn formal_member_place_projection(
+    program: &dyn ::validation::CheckingInput,
+    reference: typed_trees::types::TypeReferenceHandle,
+    members: &[String],
+) -> Option<Vec<facts::PlaceSegment>> {
+    formal_member_projection(program, reference, members)
+        .into_iter()
+        .map(|segment| match segment {
+            PlaceSegment::Field(symbol) => Some(facts::PlaceSegment::Field { symbol }),
+            PlaceSegment::Case(variant) => Some(facts::PlaceSegment::Case { variant }),
+            PlaceSegment::FixedIndex(index) => Some(facts::PlaceSegment::FixedIndex { index }),
+            PlaceSegment::FixedRange { .. } | PlaceSegment::Opaque => None,
+        })
+        .collect()
 }
 
 fn entry_operand_at(
@@ -1115,6 +1135,22 @@ pub(super) fn substitute_entry(
         | CrashPredicateExpression::Integer(_)
         | CrashPredicateExpression::Float(_)
         | CrashPredicateExpression::Name(_) => expression.clone(),
+        CrashPredicateExpression::StructuralIdentity {
+            type_commitment,
+            left,
+            right,
+        } => {
+            let mut left = substitute_entry(left, operands)?;
+            let mut right = substitute_entry(right, operands)?;
+            if left > right {
+                std::mem::swap(&mut left, &mut right);
+            }
+            CrashPredicateExpression::StructuralIdentity {
+                type_commitment: *type_commitment,
+                left: Box::new(left),
+                right: Box::new(right),
+            }
+        }
         CrashPredicateExpression::Binary {
             operator,
             left,
@@ -1232,6 +1268,22 @@ pub(super) fn substitute_entry_projected(
         | CrashPredicateExpression::Integer(_)
         | CrashPredicateExpression::Float(_)
         | CrashPredicateExpression::Name(_) => expression.clone(),
+        CrashPredicateExpression::StructuralIdentity {
+            type_commitment,
+            left,
+            right,
+        } => {
+            let mut left = substitute_entry_projected(left, resolve)?;
+            let mut right = substitute_entry_projected(right, resolve)?;
+            if left > right {
+                std::mem::swap(&mut left, &mut right);
+            }
+            CrashPredicateExpression::StructuralIdentity {
+                type_commitment: *type_commitment,
+                left: Box::new(left),
+                right: Box::new(right),
+            }
+        }
         CrashPredicateExpression::Binary {
             operator,
             left,

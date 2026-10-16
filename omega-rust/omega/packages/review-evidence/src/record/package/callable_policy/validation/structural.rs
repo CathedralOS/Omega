@@ -47,23 +47,10 @@ pub(super) fn validate(
             field(left.parameter_position, &left.path, parameters, depth + 1)?;
             field(right.parameter_position, &right.path, parameters, depth + 1)
         }
-        Expression::ByteSequenceEqual { left, right } => {
+        Expression::ByteSequenceEqual { left, right }
+        | Expression::StructuralIdentity { left, right } => {
             field(left.parameter_position, &left.path, parameters, depth + 1)?;
             field(right.parameter_position, &right.path, parameters, depth + 1)
-        }
-        Expression::PayloadlessSumEqual { left, right, cases } => {
-            field(left.parameter_position, &left.path, parameters, depth + 1)?;
-            field(right.parameter_position, &right.path, parameters, depth + 1)?;
-            if cases.is_empty()
-                || cases.iter().any(String::is_empty)
-                || cases
-                    .iter()
-                    .enumerate()
-                    .any(|(position, case)| cases[..position].contains(case))
-            {
-                return Err("sum equality has empty or duplicate cases");
-            }
-            Ok(())
         }
         Expression::StructuralCaseMembership { subject, case } => {
             field(

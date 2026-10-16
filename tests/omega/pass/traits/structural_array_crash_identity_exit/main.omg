@@ -1,0 +1,81 @@
+// Expected exit: 70
+use omega::language::core::float_operations;
+use omega_language_std::console;
+
+data Floats { value: f64; }
+data Main {
+    left: [u8; 128];
+    right: [u8; 128];
+    nested_left: [[u8; 2]; 2];
+    nested_right: [[u8; 2]; 2];
+    empty_left: [u8; 0];
+    empty_right: [u8; 0];
+    floating: Floats;
+    take_crash: bool;
+}
+
+machine Main::direct(left: &[u8; 128], right: &[u8; 128])
+crashes Abort left == right {}
+
+machine Main::with_flag(left: &[u8; 128], right: &[u8; 128], ignored: bool)
+crashes Abort left == right {}
+
+machine Main::computed(left: &[u8; 128], right: &[u8; 128]) -> bool
+crashes Abort left == right { false }
+
+machine clear(flag: &mut bool) -> bool { flag = false; true }
+
+machine Main::projected(main: &Main)
+crashes Abort main.left == main.right {}
+
+machine Main::nested(main: &Main)
+crashes Abort main.nested_left == main.nested_right {}
+
+machine Main::empty(main: &Main)
+crashes Abort main.empty_left != main.empty_right {}
+
+machine Main::forward(main: &mut Main)
+crashes Abort main.left == main.right {
+    Main::with_flag(&main.left, &main.right, clear(&mut main.take_crash));
+    let packet: &Main = main;
+    Main::direct(&packet.left, &packet.right);
+    let left: &[u8; 128] = &main.left;
+    let copied: &[u8; 128] = left;
+    Main::direct(copied, &main.right);
+    main.take_crash = Main::computed(copied, &main.right);
+    let mut selected: &[u8; 128] = &main.left;
+    let retained: &[u8; 128] = selected;
+    selected = &main.right;
+    Main::direct(retained, &main.right);
+    Main::direct(selected, &main.left);
+    relay(main);
+}
+
+machine relay_inner(main: &Main) { Main::projected(main); }
+machine relay(main: &mut Main) {
+    main.take_crash = false;
+    relay_inner(main);
+}
+
+machine reflexive(packet: &Floats)
+crashes Abort packet == packet && true { crash Abort; }
+
+machine Main::main(main: &mut Main) reaches Console
+crashes Abort {
+    Main::direct(&main.left, &main.right);
+    Main::projected(main);
+    Main::nested(main);
+    Main::empty(main);
+    Main::forward(main);
+    main.floating.value = 0.0f64 / 0.0f64;
+    // The proof identity above is reflexive; this executable IEEE comparison
+    // must still be false for the actual NaN stored in the record.
+    transition main.take_crash || main.floating.value == main.floating.value {
+        true -> failed(main)
+        false -> passed(main)
+    }
+    state failed(main: &mut Main) {
+        reflexive(&main.floating);
+    }
+    state passed(main: &mut Main) { Console::exit_process(70); }
+}

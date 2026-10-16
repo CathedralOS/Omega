@@ -22,6 +22,7 @@ impl Proposition {
                     | Self::Atom(_)
                     | Self::IeeeFloatComparison { .. }
                     | Self::ByteSequenceEqual { .. }
+                    | Self::StructuralIdentity { .. }
                     | Self::StructuralCaseMembership { .. }
                     | Self::ContentConservation(_) => {}
                     Self::Equal(left, right)

@@ -1,0 +1,17 @@
+data Packet { left: [u8; 2]; right: [u8; 2]; }
+
+machine inspect(packet: &Packet)
+crashes Abort packet.left == packet.right {}
+
+machine relay_inner(packet: &Packet) { inspect(packet); }
+machine relay(packet: &mut Packet) {
+    packet.left[0] = 1;
+    relay_inner(packet);
+}
+
+// A private summary cannot retain the caller-entry identity after writing one
+// of its observed operands. It must expose the widened crash ceiling here.
+machine forward(packet: &mut Packet)
+crashes Abort packet.left == packet.right { relay(packet); }
+
+machine main() {}

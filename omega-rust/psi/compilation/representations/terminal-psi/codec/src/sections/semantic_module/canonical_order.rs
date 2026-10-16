@@ -1048,6 +1048,13 @@ fn validate_canonical_proposition(
                         }
                     }
                     Proposition::StructuralCaseMembership { .. } => {}
+                    Proposition::StructuralIdentity { left, right } => {
+                        if left > right {
+                            return Err(CodecError::NonCanonicalOrder(
+                                "structural identity operands",
+                            ));
+                        }
+                    }
                     Proposition::Conjunction(conjuncts) => {
                         if conjuncts
                             .iter()

@@ -1,0 +1,24 @@
+// Proof identity remains compact and reflexive regardless of field geometry.
+// It does not execute an equality algorithm for floats or nested fixed arrays.
+data Empty {}
+data Packet { elements: [[Empty; 1000000]; 1000000]; }
+data Floats { values: [f64; 1]; }
+
+machine compact(left: &Packet, right: &Packet)
+crashes Abort left == right {}
+
+machine reflexive(packet: &Floats)
+crashes Abort packet == packet { crash Abort; }
+
+machine reflexive_composition(packet: &Floats)
+crashes Abort packet == packet && true { crash Abort; }
+
+machine assumed(left: &Floats, right: &Floats)
+requires left == right
+crashes Abort right == left { crash Abort; }
+
+machine main() {}
+
+machine wrapped(left: &Floats, right: &Floats, condition: bool)
+requires (left == right) == condition
+crashes Abort (right == left) == condition { crash Abort; }

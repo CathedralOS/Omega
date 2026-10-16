@@ -1,0 +1,9 @@
+data Packet { value: u64; }
+machine leaf(left: &Packet, right: &Packet)
+requires left == right {}
+machine inspect(left: &mut Packet, right: &Packet)
+requires left == right {
+    left.value = 9;
+    leaf(left, right);
+}
+machine main() {}

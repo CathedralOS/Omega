@@ -452,27 +452,6 @@ pub(crate) fn lower_byte_sequence_field(
     ByteSequenceStructuralField::new(root, path).map_err(LoweringError::InvalidCrashPredicate)
 }
 
-pub(crate) fn lower_structural_sum_subject(
-    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
-    subject: &checked_trees::CheckedStructuralParameterField,
-    parameters: &[StructuralParameterDeclaration],
-    structural_types: &[StructuralTypeDeclaration],
-) -> Result<(StructuralCaseSubject, StructuralTypeId), LoweringError> {
-    let parameter = parameters
-        .iter()
-        .find(|parameter| parameter.position == subject.parameter_position)
-        .ok_or(LoweringError::Unsupported(
-            "structural sum predicate names a non-structural parameter",
-        ))?;
-    lower_sum_path(
-        identities,
-        parameter.place,
-        parameter.structural_type,
-        &subject.path,
-        structural_types,
-    )
-}
-
 fn lower_sum_path(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     root: PlaceId,

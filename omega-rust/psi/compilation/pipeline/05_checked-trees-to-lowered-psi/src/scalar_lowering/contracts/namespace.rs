@@ -40,8 +40,8 @@ pub(super) fn validate(predicate: &CheckedBooleanExpression) -> Result<(), Lower
         // projected leaf against the declared formal's exact type and access.
         CheckedBooleanExpression::StructuralParameterField { .. } => Ok(()),
         CheckedBooleanExpression::IeeeFloatComparison { .. }
-        | CheckedBooleanExpression::ByteSequenceEqual { .. }
-        | CheckedBooleanExpression::PayloadlessSumEqual { .. } => Err(LoweringError::Unsupported(
+        | CheckedBooleanExpression::StructuralIdentity { .. }
+        | CheckedBooleanExpression::ByteSequenceEqual { .. } => Err(LoweringError::Unsupported(
             "closed scalar contract predicate requires a scalar namespace",
         )),
     }

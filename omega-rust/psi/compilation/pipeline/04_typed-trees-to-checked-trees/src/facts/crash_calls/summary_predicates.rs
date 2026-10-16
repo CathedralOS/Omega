@@ -38,18 +38,13 @@ impl Ord for SummaryCrashPredicate {
     }
 }
 
-#[derive(Debug, Clone)]
-pub(crate) struct CallArgumentSubstitution {
+#[derive(Clone)]
+pub(crate) struct CallArgumentSubstitution<'program> {
     pub(crate) identity: Vec<Option<CrashPredicateExpression>>,
     pub(crate) scalar: Vec<Option<checked_trees::CheckedScalarExpression>>,
-    /// One caller structural root per target parameter, in the callee's
-    /// telescope order: `self` rows and actuals that do not resolve to a
-    /// frozen parameter-rooted caller place keep `None`. A
-    /// `StructuralParameterField` leaf names the authored telescope, not the
-    /// dense scalar namespace, so it re-roots through this channel — the
-    /// surviving leaf keeps the caller position and prepends the actual's own
-    /// member path.
-    pub(crate) fields: Vec<Option<checked_trees::CheckedStructuralParameterField>>,
+    /// Complete projected subjects are authenticated at the invocation's
+    /// write boundary, including when an actual is mutable or local-bound.
+    pub(crate) fields: super::route_substitution::StructuralArgumentSubstitution<'program>,
     /// One literal operand per target parameter: the exact value this call's
     /// own entry contexts prove for its actual, `None` where the flow proves
     /// no single value. These decide a retained guard under its own fold
@@ -203,18 +198,11 @@ impl SummaryCrashBucket {
         }
     }
 
-    /// `substitute` with an optional per-projection operand resolver. When
-    /// `resolve` is present it answers each referenced formal's entry operand
-    /// at the member projection the guard reads — a caller written only in a
-    /// sibling field keeps the read field's caller name instead of widening
-    /// to `Truth`. Callers without live invocation context (the private
-    /// fixed point, hand-built test substitutions) pass `None` and keep the
-    /// whole-operand `arguments.identity` boundary.
-    pub(crate) fn substitute(
-        &self,
-        arguments: &CallArgumentSubstitution,
-        mut resolve: Option<&mut dyn FnMut(u32, &[String]) -> Option<CrashPredicateExpression>>,
-    ) -> Self {
+    /// Transport each referenced projection through the retained invocation.
+    /// Private fixed-point propagation uses the same custody boundary as a
+    /// direct call: a sibling write does not erase an untouched field, and an
+    /// annotation cannot manufacture a missing canonical identity.
+    pub(crate) fn substitute(&self, arguments: &CallArgumentSubstitution<'_>) -> Self {
         let mut guards = self
             .alternative_guards
             .iter()
@@ -240,18 +228,14 @@ impl SummaryCrashBucket {
                     }) {
                         return value.then_some(SummaryCrashRouteGuard::Truth);
                     }
-                    let identity = match resolve.as_deref_mut() {
-                        Some(resolve) => {
-                            crate::facts::crash_entry_values::substitute_entry_projected(
-                                &predicate.identity,
-                                resolve,
-                            )
-                        }
-                        None => crate::facts::crash_entry_values::substitute_entry(
-                            &predicate.identity,
-                            &arguments.identity,
-                        ),
-                    };
+                    let identity = crate::facts::crash_entry_values::substitute_entry_projected(
+                        &predicate.identity,
+                        &mut |ordinal, members| {
+                            arguments
+                                .fields
+                                .entry_operand(&arguments.identity, ordinal, members)
+                        },
+                    );
                     let scalar = predicate.scalar.as_ref().and_then(|scalar| {
                         substitute_checked_boolean_expression(
                             scalar,

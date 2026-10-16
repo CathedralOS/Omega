@@ -59,6 +59,19 @@ pub(super) fn reference_local_borrow_loans(
         super::returned_carriers::attenuate(&mut loans, &local_access);
         return loans;
     }
+    if let Some(mut loans) = super::aggregate_loans::stored_reference_loans(
+        program,
+        state.symbol,
+        statement_index,
+        machine_symbol,
+        local_data,
+        local_data.initial_value,
+        &[],
+        loan_trackers,
+    ) {
+        super::returned_carriers::attenuate(&mut loans, &local_access);
+        return loans;
+    }
     // A match joining borrowed arms lends every arm's exact target for the
     // result's whole live range: the run-time edge decides which source
     // carried the borrow, so each source stays constrained as if that edge

@@ -1,7 +1,6 @@
 //! Private body and target-family crash summaries share one fixed point.
 //! Family membership is a summary dependency, never an executable call site.
 
-use crate::facts::crash_calls::crash_predicate_from_expression;
 use crate::facts::crash_calls::route_substitution::{
     call_argument_substitution, refine_published_crash_routes,
 };
@@ -398,22 +397,22 @@ pub(super) struct SummaryInvocationSite {
     pub(super) target_state: SymbolHandle,
 }
 
-pub(crate) struct PrivateSummaryEquation {
+pub(crate) struct PrivateSummaryEquation<'program> {
     pub(crate) machine: SymbolHandle,
     pub(crate) direct: Vec<SummaryCrashBucket>,
-    pub(crate) private_dependencies: Vec<PrivateSummaryDependency>,
+    pub(crate) private_dependencies: Vec<PrivateSummaryDependency<'program>>,
     pub(crate) published_dependencies: Vec<SummaryCrashBucket>,
 }
 
-pub(crate) struct PrivateSummaryDependency {
+pub(crate) struct PrivateSummaryDependency<'program> {
     pub(crate) machine: SymbolHandle,
     /// None is the positional identity of a family membership dependency.
-    pub(crate) substitution: Option<CallArgumentSubstitution>,
+    pub(crate) substitution: Option<CallArgumentSubstitution<'program>>,
     pub(crate) recursive: bool,
 }
 
 pub(crate) fn solve_private_summary_fixed_point(
-    equations: &[PrivateSummaryEquation],
+    equations: &[PrivateSummaryEquation<'_>],
 ) -> Vec<(SymbolHandle, Vec<SummaryCrashBucket>)> {
     let mut resolved = equations
         .iter()
@@ -438,7 +437,7 @@ pub(crate) fn solve_private_summary_fixed_point(
                         // edges to their cause bucket.
                         SummaryCrashBucket::unconditional(bucket.cause)
                     } else if let Some(substitution) = &dependency.substitution {
-                        bucket.substitute(substitution, None)
+                        bucket.substitute(substitution)
                     } else {
                         bucket.clone()
                     }
@@ -836,6 +835,7 @@ pub(crate) fn requirement_signature(
 pub(crate) fn crash_route_expressions_by_identity(
     program: &dyn ::validation::CheckingInput,
     contracts: &[typed_trees::signature::SignatureContract],
+    parameters: &[typed_trees::signature::StateParameter],
     parameter_names: &[String],
     content_conservation: &[validation::ContentConservationSourcePlan],
 ) -> std::collections::BTreeMap<
@@ -857,9 +857,10 @@ pub(crate) fn crash_route_expressions_by_identity(
             if is_true_crash_route(program, fact) {
                 continue;
             }
-            let structured = crash_predicate_from_expression(
+            let structured = super::proof_crash_predicate_from_expression(
                 program,
                 *expression,
+                parameters,
                 parameter_names,
                 Some(content_conservation),
             );

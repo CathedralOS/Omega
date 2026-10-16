@@ -431,6 +431,14 @@ pub enum CheckedBooleanExpression {
         left: CheckedStructuralParameterField,
         right: CheckedStructuralParameterField,
     },
+    /// Proof-relevant identity of two complete data values in the surrounding
+    /// invocation frame. Both paths retain their parameter's exact type, and
+    /// Terminal production resolves and checks both endpoint types.
+    /// This has no executable comparison and does not enumerate payload fields.
+    StructuralIdentity {
+        left: CheckedStructuralParameterField,
+        right: CheckedStructuralParameterField,
+    },
     /// Content equality between exact byte-sequence structural leaves.
     ByteSequenceEqual {
         left: CheckedByteSequenceOperand,
@@ -443,13 +451,6 @@ pub enum CheckedBooleanExpression {
         predicate: language_semantics::byte_predicates::ByteSequencePredicate,
         root: CheckedStorageRoot,
         path: Vec<CheckedStructuralPredicatePathSegment>,
-    },
-    /// Equality of two structural sums. Terminal lowering expands
-    /// this closed case roster into canonical per-case membership equivalence.
-    PayloadlessSumEqual {
-        left: CheckedStructuralParameterField,
-        right: CheckedStructuralParameterField,
-        cases: Vec<typed_trees::data::DataMemberIdentity>,
     },
     /// Exact active-case test over a structural sum subject. The path reaches
     /// the sum itself; payload paths use an explicit following Case segment.
@@ -490,9 +491,9 @@ impl CheckedBooleanExpression {
             | Self::Local { .. }
             | Self::StructuralParameterField { .. }
             | Self::IeeeFloatComparison { .. }
+            | Self::StructuralIdentity { .. }
             | Self::ByteSequenceEqual { .. }
             | Self::ByteSequencePredicate { .. }
-            | Self::PayloadlessSumEqual { .. }
             | Self::StructuralCaseMembership { .. } => false,
         }
     }

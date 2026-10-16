@@ -122,11 +122,10 @@ pub(in crate::capture::behavior) fn project_boolean_expression(
                 right: project_structural_field(&right.parameter_field()?)?,
             }
         }
-        CheckedBooleanExpression::PayloadlessSumEqual { left, right, cases } => {
-            PackageReviewBooleanExpression::PayloadlessSumEqual {
+        CheckedBooleanExpression::StructuralIdentity { left, right } => {
+            PackageReviewBooleanExpression::StructuralIdentity {
                 left: project_structural_field(left)?,
                 right: project_structural_field(right)?,
-                cases: cases.iter().map(|case| case.spelling()).collect(),
             }
         }
         CheckedBooleanExpression::StructuralCaseMembership { subject, case } => {

@@ -13,6 +13,53 @@ fn boolean(identity: u64) -> ScalarTerm {
 }
 
 #[test]
+fn data_identity_is_reflexive_but_distinct_subjects_need_a_premise() {
+    use semantic_vocabulary::{StructuralIdentitySubject, StructuralTypeId};
+    let left_root = PlaceId::new(1).unwrap();
+    let right_root = PlaceId::new(2).unwrap();
+    let context = PropositionContext::from_value_types_and_places(
+        [],
+        [
+            (left_root, StructuralPlaceKind::Parameter { position: 0 }),
+            (right_root, StructuralPlaceKind::Parameter { position: 1 }),
+        ],
+    )
+    .unwrap();
+    let carrier = StructuralTypeId::new(1).unwrap();
+    let left = StructuralIdentitySubject::new(left_root, Vec::new(), carrier);
+    let right = StructuralIdentitySubject::new(right_root, Vec::new(), carrier);
+    let reflexive = Proposition::StructuralIdentity {
+        left: left.clone(),
+        right: left.clone(),
+    };
+    let checked = check_predicate_denotations(&context, &reflexive, &[], &[]).unwrap();
+    assert_eq!(checked.goal(), &Proposition::Truth);
+    checked
+        .check_certificate(
+            &context,
+            &ProofNode {
+                conclusion: Proposition::Truth,
+                rule: ProofRule::Primitive(PrimitiveJudgment::Truth),
+            },
+        )
+        .unwrap();
+
+    let distinct = Proposition::StructuralIdentity { left, right };
+    let checked = check_predicate_denotations(&context, &distinct, &[], &[]).unwrap();
+    assert_eq!(checked.goal(), &distinct);
+    assert!(
+        checked
+            .check_certificate(&context, &citation(&distinct, false))
+            .is_err()
+    );
+    let premises = [distinct.clone()];
+    let checked = check_predicate_denotations(&context, &distinct, &premises, &[]).unwrap();
+    checked
+        .check_certificate(&context, &citation(&distinct, false))
+        .unwrap();
+}
+
+#[test]
 fn closed_ieee_order_preserves_nan_signed_zero_and_format() {
     use semantic_vocabulary::{IeeeFloatComparisonKind as Kind, IeeeFloatValue};
     for (left_binary32, right_binary32, left_binary64, right_binary64, equal, less, less_equal) in [

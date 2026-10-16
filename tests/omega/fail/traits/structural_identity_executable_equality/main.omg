@@ -1,0 +1,19 @@
+data Packet { value: u64; }
+trait Equatable<T> { machine equals(left: &T, right: &T) -> bool; }
+Always satisfies Equatable<Packet> {
+    machine equals(left: &Packet, right: &Packet) -> bool { true }
+}
+machine inspect(left: &Packet, right: &Packet)
+crashes Abort left == right {
+    transition left == right {
+        true -> failed()
+        false -> done()
+    }
+    state failed() { crash Abort; }
+    state done() {}
+}
+machine main() {
+    let left: Packet;
+    let right: Packet;
+    inspect(&left, &right);
+}

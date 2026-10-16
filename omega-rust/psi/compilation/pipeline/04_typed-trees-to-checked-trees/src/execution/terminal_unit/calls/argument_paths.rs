@@ -1171,25 +1171,11 @@ pub(crate) fn target_contract_mentions_projected_parameter(
                 bucket.alternative_guards().iter().any(|guard| match guard {
                     checked_trees::CrashRouteGuard::Truth => false,
                     checked_trees::CrashRouteGuard::Predicate(predicate) => {
-                        if matches!(
-                            predicate.scalar_expression(),
-                            Some(
-                                checked_trees::CheckedBooleanExpression::StructuralParameterField {
-                                    parameter_position: 0,
-                                    path,
-                                }
-                            ) if !path.is_empty()
-                        ) {
-                            return false;
-                        }
-                        if predicate.expression().is_some_and(|expression| {
-                            crash_expression_is_nonempty_member_path_from_parameter(expression, 0)
-                        }) {
-                            return false;
-                        }
-                        predicate.expression().is_none_or(|expression| {
-                            crash_expression_mentions_parameter_outside_member_path(expression, 0)
-                        })
+                        // Checked predicates retain every formal and typed
+                        // projection. Terminal substitution rebases those
+                        // roots onto the actuals; source member spelling and
+                        // a hard-coded first parameter supply no extra proof.
+                        predicate.scalar_expression().is_none()
                     }
                 })
             })
@@ -1240,73 +1226,6 @@ fn parameter_qualification_carries_membership(
             }
             _ => return false,
         }
-    }
-}
-
-pub(crate) fn crash_expression_is_nonempty_member_path_from_parameter(
-    expression: &checked_trees::CrashPredicateExpression,
-    parameter: u32,
-) -> bool {
-    use checked_trees::CrashPredicateExpression;
-
-    let mut expression = expression;
-    let mut nonempty = false;
-    while let CrashPredicateExpression::Member { receiver, .. } = expression {
-        nonempty = true;
-        expression = receiver;
-    }
-    nonempty
-        && matches!(expression, CrashPredicateExpression::Parameter(index) if *index == parameter)
-}
-
-pub(crate) fn crash_expression_mentions_parameter_outside_member_path(
-    expression: &checked_trees::CrashPredicateExpression,
-    parameter: u32,
-) -> bool {
-    use checked_trees::CrashPredicateExpression;
-
-    match expression {
-        CrashPredicateExpression::Parameter(index) => *index == parameter,
-        CrashPredicateExpression::Binary { left, right, .. } => {
-            crash_expression_mentions_parameter_outside_member_path(left, parameter)
-                || crash_expression_mentions_parameter_outside_member_path(right, parameter)
-        }
-        CrashPredicateExpression::Unary { operand, .. }
-        | CrashPredicateExpression::IntegerWiden { operand, .. } => {
-            crash_expression_mentions_parameter_outside_member_path(operand, parameter)
-        }
-        CrashPredicateExpression::Member { receiver, .. } => {
-            if crash_expression_is_nonempty_member_path_from_parameter(expression, parameter) {
-                false
-            } else {
-                crash_expression_mentions_parameter_outside_member_path(receiver, parameter)
-            }
-        }
-        CrashPredicateExpression::Indexed { collection, index } => {
-            crash_expression_mentions_parameter_outside_member_path(collection, parameter)
-                || crash_expression_mentions_parameter_outside_member_path(index, parameter)
-        }
-        CrashPredicateExpression::Range { start, end, .. } => {
-            crash_expression_mentions_parameter_outside_member_path(start, parameter)
-                || crash_expression_mentions_parameter_outside_member_path(end, parameter)
-        }
-        CrashPredicateExpression::Call {
-            receiver,
-            arguments,
-            ..
-        } => {
-            crash_expression_mentions_parameter_outside_member_path(receiver, parameter)
-                || arguments.iter().any(|argument| {
-                    crash_expression_mentions_parameter_outside_member_path(argument, parameter)
-                })
-        }
-        CrashPredicateExpression::Invalid
-        | CrashPredicateExpression::Opaque(_)
-        | CrashPredicateExpression::ContentConservation(_) => true,
-        CrashPredicateExpression::Integer(_)
-        | CrashPredicateExpression::Float(_)
-        | CrashPredicateExpression::Boolean(_)
-        | CrashPredicateExpression::Name(_) => false,
     }
 }
 

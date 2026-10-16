@@ -463,9 +463,9 @@ fn boolean_expression_needs_no_bindings(
         | CheckedBooleanExpression::ScalarIeeeFloatComparison { .. }
         | CheckedBooleanExpression::IntegerMathComparison { .. }
         | CheckedBooleanExpression::IeeeFloatComparison { .. }
+        | CheckedBooleanExpression::StructuralIdentity { .. }
         | CheckedBooleanExpression::ByteSequenceEqual { .. }
         | CheckedBooleanExpression::ByteSequencePredicate { .. }
-        | CheckedBooleanExpression::PayloadlessSumEqual { .. }
         | CheckedBooleanExpression::StructuralCaseMembership { .. } => false,
     }
 }

@@ -7,6 +7,7 @@ use super::{
 };
 pub(super) struct Consequences<'a> {
     program: &'a dyn ::validation::CheckingInput,
+    parameters: &'a [typed_trees::signature::StateParameter],
     parameter_names: &'a [String],
     content_conservation: &'a [validation::ContentConservationSourcePlan],
     integer_types: &'a super::super::IntegerTypeClassification,
@@ -22,12 +23,14 @@ enum Structure {
 impl<'a> Consequences<'a> {
     pub(super) fn new(
         program: &'a dyn ::validation::CheckingInput,
+        parameters: &'a [typed_trees::signature::StateParameter],
         parameter_names: &'a [String],
         content_conservation: &'a [validation::ContentConservationSourcePlan],
         integer_types: &'a super::super::IntegerTypeClassification,
     ) -> Self {
         Self {
             program,
+            parameters,
             parameter_names,
             content_conservation,
             integer_types,
@@ -49,10 +52,11 @@ impl<'a> Consequences<'a> {
     }
 
     fn identity(&self, expression: ExpressionHandle, negated: bool) -> CrashPredicateIdentity {
-        crate::facts::canonical_crash_path_predicate(
+        crate::facts::canonical_crash_contract_predicate(
             self.program,
             expression,
             negated,
+            self.parameters,
             self.parameter_names,
             self.content_conservation,
         )
@@ -87,8 +91,15 @@ impl<'a> Consequences<'a> {
                 output.extend(left);
             }
             Structure::Atom => {
+                // A proof identity is already operand-canonical. Do not add
+                // executable-equality spellings as consequences of this fact.
+                if output[0].expression().is_some_and(
+                    checked_trees::CrashPredicateExpression::contains_structural_identity,
+                ) {
+                    return Some(output);
+                }
                 // Preserve the existing exact equality/reversed-operand atom
-                // forms. Strict entry preflight excludes numeric operands and
+                // forms. Strict entry preflight checks numeric operands and
                 // selected authored operations before this reader is called.
                 super::super::collect_structural_guard_consequences(
                     self.program,

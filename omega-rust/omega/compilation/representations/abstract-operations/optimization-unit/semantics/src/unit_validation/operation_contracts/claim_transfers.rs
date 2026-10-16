@@ -232,6 +232,10 @@ pub(crate) fn proposition_structural_roots(proposition: &Proposition) -> BTreeSe
             Proposition::StructuralCaseMembership { subject, .. } => {
                 roots.insert(subject.root());
             }
+            Proposition::StructuralIdentity { left, right } => {
+                roots.insert(left.root());
+                roots.insert(right.root());
+            }
             Proposition::ContentConservation(conservation) => {
                 content_term_roots(conservation.left(), roots);
                 content_term_roots(conservation.right(), roots);

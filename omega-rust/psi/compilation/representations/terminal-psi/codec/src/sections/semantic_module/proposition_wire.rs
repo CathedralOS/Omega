@@ -4,7 +4,10 @@
 //! tags. Scalar terms, content terms, and structural-field payloads remain
 //! encoded by their respective sibling wire modules.
 
-use semantic_vocabulary::{ContentConservation, Proposition, PropositionId, StructuralCaseSubject};
+use semantic_vocabulary::{
+    ContentConservation, Proposition, PropositionId, StructuralCaseSubject,
+    StructuralIdentitySubject,
+};
 
 use super::content_wire::{
     decode_content_algebra, decode_content_term, encode_content_algebra, encode_content_term,
@@ -126,6 +129,18 @@ pub(crate) fn encode_proposition(
             )?;
             writer.id(*case);
         }
+        Proposition::StructuralIdentity { left, right } => {
+            writer.u8(18);
+            for subject in [left, right] {
+                writer.id(subject.structural_type());
+                encode_canonical_structural_field(
+                    writer,
+                    subject.root(),
+                    subject.path(),
+                    "structural identity subject path",
+                )?;
+            }
+        }
     }
     Ok(())
 }
@@ -214,6 +229,17 @@ pub(crate) fn decode_proposition(
             left: decode_scalar_term(reader, 0)?,
             right: decode_scalar_term(reader, 0)?,
         },
+        18 => {
+            let mut subject = || {
+                let structural_type = reader.id("StructuralTypeId")?;
+                let (root, path) = decode_canonical_structural_field(reader)?;
+                Ok::<_, CodecError>(StructuralIdentitySubject::new(root, path, structural_type))
+            };
+            Proposition::StructuralIdentity {
+                left: subject()?,
+                right: subject()?,
+            }
+        }
         tag => return Err(CodecError::InvalidTag("Proposition", tag)),
     })
 }

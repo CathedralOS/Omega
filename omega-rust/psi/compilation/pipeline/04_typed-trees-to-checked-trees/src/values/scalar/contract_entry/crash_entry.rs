@@ -28,17 +28,10 @@ pub(crate) fn lower_machine_entry_crash_contract_expression(
         parameters,
         remaining: 4096,
         subjects: None,
+        proof_context: true,
     }
     .boolean(expression, 0)?;
-    // All operands were checked in the exact entry namespace. This separate
-    // selected-meaning owner prevents authored operations from becoming logic.
-    validation::has_builtin_bound_expression_meaning(
-        program,
-        machine,
-        program.machine_states(machine).first(),
-        expression,
-    )
-    .then_some(predicate)
+    Some(predicate)
 }
 
 type EntrySubjectResolver<'program> = dyn FnMut(ExpressionHandle) -> Option<(u32, Vec<CheckedStructuralPredicatePathSegment>)>
@@ -63,6 +56,7 @@ pub(crate) fn lower_entry_predicate(
         parameters,
         remaining: 4096,
         subjects: Some(subjects),
+        proof_context: false,
     }
     .boolean(expression, 0)?;
     validation::has_builtin_bound_expression_meaning(program, machine, Some(state), expression)
@@ -115,6 +109,7 @@ pub(crate) fn lower_entry_scalar(
         parameters: super::authored_entry_parameters(program, machine)?,
         remaining: 4096,
         subjects: None,
+        proof_context: true,
     };
     crate::values::lower_unit_scalar_argument_for_places(
         program,
@@ -169,6 +164,7 @@ struct Reader<'program> {
     parameters: &'program [StateParameter],
     remaining: usize,
     subjects: Option<&'program mut EntrySubjectResolver<'program>>,
+    proof_context: bool,
 }
 
 /// Bodyless requirements have an exact signature namespace, not a synthetic
@@ -205,6 +201,7 @@ pub(crate) fn lower_signature_crash_contract_expression(
         parameters,
         remaining: 4096,
         subjects: None,
+        proof_context: true,
     }
     .boolean(expression, 0)
 }
@@ -245,6 +242,7 @@ pub(crate) fn lower_operator_crash_contract_expression(
         parameters,
         remaining: 4096,
         subjects: None,
+        proof_context: true,
     }
     .boolean(expression, 0)
 }
@@ -277,6 +275,22 @@ impl<'program> Reader<'program> {
             .expression_is_valid(expression)
         {
             return None;
+        }
+        // Proof context selects Id on complete data. Runtime guards never
+        // enter this branch, even when their operands have entry provenance.
+        if self.proof_context
+            && let Some(binary) = self.program.expression_table.binary_node(expression)
+            && matches!(
+                binary.operator,
+                BinaryOperator::Equal | BinaryOperator::NotEqual
+            )
+            && let Some(identity) = self.data_identity(binary.left, binary.right, depth + 1)
+        {
+            return Some(if binary.operator == BinaryOperator::NotEqual {
+                CheckedBooleanExpression::Not(Box::new(identity))
+            } else {
+                identity
+            });
         }
         match self.program.expression_table.expression(expression) {
             ExpressionNode::Boolean(value) => Some(CheckedBooleanExpression::Constant(*value)),
@@ -317,7 +331,15 @@ impl<'program> Reader<'program> {
                         | BinaryOperator::LessOrEqual
                         | BinaryOperator::Greater
                         | BinaryOperator::GreaterOrEqual
-                ) && operator_is_builtin(self.operators, expression) =>
+                ) && operator_is_builtin(self.operators, expression)
+                    && self.machine.is_none_or(|machine| {
+                        validation::has_builtin_binary_expression_meaning(
+                            self.program,
+                            machine,
+                            self.program.machine_states(machine).first(),
+                            expression,
+                        )
+                    }) =>
             {
                 if !matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or)
                     && self.has_float_operand([binary.left, binary.right], depth + 1)?
@@ -382,6 +404,32 @@ impl<'program> Reader<'program> {
             }
             _ => None,
         }
+    }
+
+    fn data_identity(
+        &mut self,
+        left: ExpressionHandle,
+        right: ExpressionHandle,
+        depth: usize,
+    ) -> Option<CheckedBooleanExpression> {
+        use super::super::machine_parameter_booleans::structural_equality::subject_type;
+        let left = self.subject(left, depth)?;
+        let right = self.subject(right, depth)?;
+        let left_type = subject_type(self.program, left.type_reference, left.path.is_empty())?;
+        let right_type = subject_type(self.program, right.type_reference, right.path.is_empty())?;
+        if left_type != right_type {
+            return None;
+        }
+        let subject = |field: FieldPath| {
+            Some(checked_trees::CheckedStructuralParameterField {
+                parameter_position: u32::try_from(field.parameter_position).ok()?,
+                path: field.path,
+            })
+        };
+        Some(CheckedBooleanExpression::StructuralIdentity {
+            left: subject(left)?,
+            right: subject(right)?,
+        })
     }
 
     fn has_integer_operand(

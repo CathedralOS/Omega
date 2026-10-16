@@ -238,8 +238,25 @@ pub(crate) fn infer_path_conditioned_guard_coverage(
                 path_predicates.dedup();
 
                 for (bucket_id, bucket) in crash_plan.published_with_ids() {
-                    if bucket.cause() != site.cause()
-                        || covering.contains(&bucket_id)
+                    if bucket.cause() != site.cause() {
+                        continue;
+                    }
+                    // A closed proof truth is a consequence at every site,
+                    // not merely a reason to mark its bucket covered. Retain
+                    // that predicate for ordinary lowering of the crash exit;
+                    // downstream consumers must not repeat this proof judgment.
+                    for route in bucket.alternative_guards() {
+                        if let CrashRouteGuard::Predicate(predicate) = route
+                            && predicate.scalar_expression().is_some_and(|expression| {
+                                crate::values::evaluate_checked_boolean(expression, &mut |_| None)
+                                    == Some(true)
+                            })
+                            && !path_predicates.contains(predicate)
+                        {
+                            path_predicates.push(predicate.clone());
+                        }
+                    }
+                    if covering.contains(&bucket_id)
                         || !bucket.alternative_guards().iter().any(|route| {
                             matches!(route, CrashRouteGuard::Predicate(predicate)
                                 if path_predicates.contains(predicate))
@@ -607,6 +624,9 @@ fn call_route_guard_covers(
         CrashRouteGuard::Predicate(published) => {
             matches!(surviving, CrashRouteGuard::Predicate(surviving) if surviving == published)
                 || path_guard_consequences.contains(published)
+                || published.scalar_expression().is_some_and(|expression| {
+                    crate::values::evaluate_checked_boolean(expression, &mut |_| None) == Some(true)
+                })
         }
     }
 }

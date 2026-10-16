@@ -130,8 +130,8 @@ fn contract_scoped(expression: &CheckedBooleanExpression) -> bool {
         | CheckedBooleanExpression::ErasedParameter { .. }
         | CheckedBooleanExpression::StructuralParameterField { .. }
         | CheckedBooleanExpression::IeeeFloatComparison { .. }
+        | CheckedBooleanExpression::StructuralIdentity { .. }
         | CheckedBooleanExpression::ByteSequenceEqual { .. }
-        | CheckedBooleanExpression::PayloadlessSumEqual { .. }
         | CheckedBooleanExpression::StructuralCaseMembership { .. } => true,
         CheckedBooleanExpression::Not(operand) => contract_scoped(operand),
         facts::checked_boolean_triple_pattern!(left, right, ..) => {

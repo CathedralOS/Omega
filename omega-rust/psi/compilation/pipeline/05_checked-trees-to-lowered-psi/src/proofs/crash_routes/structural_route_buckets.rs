@@ -6,14 +6,14 @@ use crate::proofs::crash_routes::crash_predicates::{
 };
 use crate::proofs::crash_routes::scalar_terms::{checked_boolean_scalar_term, checked_scalar_term};
 use crate::proofs::crash_routes::structural_members::{
-    lower_byte_sequence_field, lower_ieee_float_field, lower_structural_member_term,
-    lower_structural_sum_subject,
+    lower_byte_sequence_field, lower_ieee_float_field, lower_structural_member_path,
+    lower_structural_member_term,
 };
 use crate::proofs::{
     CanonicalStructuralPathSegment, CheckedBooleanExpression, CheckedScalarExpression,
     IeeeFloatFormat, LoweringError, PlaceId, PrimitiveType, Proposition, ScalarTerm, ScalarType,
-    StructuralParameterDeclaration, StructuralTypeDeclaration, StructuralTypeShape,
-    TerminalCrashCause, ValueDeclaration, unsupported,
+    StructuralParameterDeclaration, StructuralTypeDeclaration, TerminalCrashCause,
+    ValueDeclaration, unsupported,
 };
 
 pub(crate) fn lower_structural_crash_route_buckets(
@@ -181,6 +181,9 @@ impl RouteTerms<'_> {
             CheckedBooleanExpression::IeeeFloatComparison { .. } => {
                 unsupported("IEEE equality lowers as an atomic proposition")
             }
+            CheckedBooleanExpression::StructuralIdentity { .. } => {
+                unsupported("structural identity is a proof proposition, not a scalar term")
+            }
             CheckedBooleanExpression::ScalarIeeeFloatComparison { .. } => {
                 unsupported("scalar IEEE equality lowers as an atomic proposition")
             }
@@ -189,9 +192,6 @@ impl RouteTerms<'_> {
             }
             CheckedBooleanExpression::ByteSequencePredicate { .. } => {
                 unsupported("byte-sequence predicate evaluation lowers as an atomic proposition")
-            }
-            CheckedBooleanExpression::PayloadlessSumEqual { .. } => {
-                unsupported("payload-less sum equality lowers through case-membership propositions")
             }
             CheckedBooleanExpression::StructuralCaseMembership { .. } => {
                 unsupported("sum membership lowers as an atomic proposition")
@@ -379,6 +379,35 @@ impl RouteTerms<'_> {
                 conclusion: Box::new(Proposition::Falsehood),
             });
         }
+        if let CheckedBooleanExpression::StructuralIdentity { left, right } = expression {
+            let mut subject = |field: &checked_trees::CheckedStructuralParameterField| {
+                let (root, path, endpoint) = lower_structural_member_path(
+                    identities,
+                    field.parameter_position,
+                    &field.path,
+                    self.parameters,
+                    self.structural_types,
+                )?;
+                let terminal_psi::StructuralFieldType::Structural(structural_type) = endpoint
+                else {
+                    return unsupported("structural identity requires a complete data endpoint");
+                };
+                Ok(semantic_vocabulary::StructuralIdentitySubject::new(
+                    root,
+                    path,
+                    structural_type,
+                ))
+            };
+            let mut left = subject(left)?;
+            let mut right = subject(right)?;
+            if left.structural_type() != right.structural_type() {
+                return unsupported("structural identity operands have different exact types");
+            }
+            if left > right {
+                std::mem::swap(&mut left, &mut right);
+            }
+            return Ok(Proposition::StructuralIdentity { left, right });
+        }
         if let CheckedBooleanExpression::IeeeFloatComparison {
             kind,
             primitive_type,
@@ -448,83 +477,6 @@ impl RouteTerms<'_> {
                 None,
                 self.structural_types,
             );
-        }
-        if let CheckedBooleanExpression::PayloadlessSumEqual { left, right, cases } = expression {
-            let (left, left_type) = lower_structural_sum_subject(
-                identities,
-                left,
-                self.parameters,
-                self.structural_types,
-            )?;
-            let (right, right_type) = lower_structural_sum_subject(
-                identities,
-                right,
-                self.parameters,
-                self.structural_types,
-            )?;
-            if left_type != right_type {
-                return unsupported("payload-less sum equality operands have different types");
-            }
-            if left == right {
-                return Ok(Proposition::Truth);
-            }
-            let StructuralTypeShape::Sum {
-                cases: declared_cases,
-            } = &terminal_psi::find_structural_type(self.structural_types, left_type)
-                .expect("sum subject type was resolved")
-                .shape
-            else {
-                unreachable!("sum subject resolver returned a sum")
-            };
-            if cases.len() != declared_cases.len()
-                || cases.iter().zip(declared_cases).any(|(checked, declared)| {
-                    checked.spelling() != identities.text(declared.identity).unwrap_or_default()
-                })
-            {
-                return unsupported("payload-less sum equality case roster was redirected");
-            }
-            let mut propositions = Vec::with_capacity(cases.len().saturating_mul(2));
-            for declared in declared_cases {
-                let left_membership = Proposition::StructuralCaseMembership {
-                    subject: left.clone(),
-                    case: declared.id,
-                };
-                let right_membership = Proposition::StructuralCaseMembership {
-                    subject: right.clone(),
-                    case: declared.id,
-                };
-                propositions.push(Proposition::Implication {
-                    premise: Box::new(left_membership.clone()),
-                    conclusion: Box::new(right_membership.clone()),
-                });
-                propositions.push(Proposition::Implication {
-                    premise: Box::new(right_membership),
-                    conclusion: Box::new(left_membership),
-                });
-            }
-            let mut keyed = propositions
-                .into_iter()
-                .map(|proposition| {
-                    terminal_codec::canonical_proposition_order_key(&proposition)
-                        .map(|key| (key, proposition))
-                        .map_err(|_| {
-                            LoweringError::Unsupported(
-                                "payload-less sum equality is not canonically encodable",
-                            )
-                        })
-                })
-                .collect::<Result<Vec<_>, _>>()?;
-            keyed.sort_by(|left, right| left.0.cmp(&right.0));
-            keyed.dedup_by(|left, right| left.0 == right.0);
-            let mut propositions = keyed
-                .into_iter()
-                .map(|(_, proposition)| proposition)
-                .collect::<Vec<_>>();
-            return Ok(match propositions.len() {
-                0 => Proposition::Truth,
-                1 => propositions.pop().expect("one proposition"),
-                _ => Proposition::Conjunction(propositions),
-            });
         }
         if let CheckedBooleanExpression::And { left, right }
         | CheckedBooleanExpression::Or { left, right } = expression
@@ -633,10 +585,10 @@ fn checked_member_path(
 fn contains_structural_atomic_proposition(expression: &CheckedBooleanExpression) -> bool {
     match expression {
         CheckedBooleanExpression::IeeeFloatComparison { .. }
+        | CheckedBooleanExpression::StructuralIdentity { .. }
         | CheckedBooleanExpression::ScalarIeeeFloatComparison { .. }
         | CheckedBooleanExpression::ByteSequenceEqual { .. }
         | CheckedBooleanExpression::ByteSequencePredicate { .. }
-        | CheckedBooleanExpression::PayloadlessSumEqual { .. }
         | CheckedBooleanExpression::StructuralCaseMembership { .. } => true,
         CheckedBooleanExpression::Not(operand) => contains_structural_atomic_proposition(operand),
         facts::checked_boolean_triple_pattern!(left, right, ..) => {
@@ -724,7 +676,7 @@ pub(crate) fn substitute_structural_crash_route_roots(
         >,
     ) -> Result<(), LoweringError> {
         match proposition {
-            Proposition::Equal(left, right) => {
+            semantic_vocabulary::ordered_comparison_operands!(left, right) => {
                 substitute_term(left, substitutions)?;
                 substitute_term(right, substitutions)?;
             }
@@ -754,18 +706,26 @@ pub(crate) fn substitute_structural_crash_route_roots(
                 substitute_proposition(premise, substitutions)?;
                 substitute_proposition(conclusion, substitutions)?;
             }
-            Proposition::IeeeFloatComparison { left, right, .. } => {
-                for field in [left, right] {
+            Proposition::IeeeFloatComparison {
+                kind, left, right, ..
+            } => {
+                for field in [&mut *left, &mut *right] {
                     if let Some((root, prefix)) = substitutions(field.root())? {
                         *field = field.rebase(root, &prefix);
                     }
                 }
+                if kind.is_symmetric() && *left > *right {
+                    std::mem::swap(left, right);
+                }
             }
             Proposition::ByteSequenceEqual { left, right } => {
-                for field in [left, right] {
+                for field in [&mut *left, &mut *right] {
                     if let Some((root, prefix)) = substitutions(field.root())? {
                         *field = field.rebase(root, &prefix);
                     }
+                }
+                if *left > *right {
+                    std::mem::swap(left, right);
                 }
             }
             Proposition::StructuralCaseMembership { subject, .. } => {
@@ -773,7 +733,25 @@ pub(crate) fn substitute_structural_crash_route_roots(
                     *subject = subject.rebase(root, &prefix);
                 }
             }
-            _ => {}
+            Proposition::StructuralIdentity { left, right } => {
+                for subject in [&mut *left, &mut *right] {
+                    if let Some((root, prefix)) = substitutions(subject.root())? {
+                        *subject = subject.rebase(root, &prefix);
+                    }
+                }
+                if *left > *right {
+                    std::mem::swap(left, right);
+                }
+            }
+            Proposition::ContentConservation(_) => {
+                return unsupported("content conservation requires its own call correspondence");
+            }
+            Proposition::Truth
+            | Proposition::Falsehood
+            | Proposition::Atom(_)
+            | Proposition::IntegerMathEqual(..)
+            | Proposition::IntegerMathLessThan(..)
+            | Proposition::IntegerMathLessOrEqual(..) => {}
         }
         Ok(())
     }

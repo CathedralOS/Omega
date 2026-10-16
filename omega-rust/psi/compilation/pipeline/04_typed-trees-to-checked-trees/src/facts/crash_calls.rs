@@ -30,12 +30,48 @@ pub(crate) use private_summaries::{
     PreparedCrashSummaryGraph, prepare_crash_summary_graph, selected_invocation_target,
 };
 use symbols::SymbolHandle;
+use typed_trees::signature::StateParameter;
 
 pub(super) fn crash_predicate_from_expression(
     program: &dyn ::validation::CheckingInput,
     expression: typed_trees::expression::ExpressionHandle,
     parameter_names: &[String],
     content_conservation: Option<&[validation::ContentConservationSourcePlan]>,
+) -> CrashPredicateExpression {
+    predicate_expression(
+        program,
+        expression,
+        parameter_names,
+        content_conservation,
+        None,
+    )
+}
+
+/// Proof clauses retain contextual identity in the canonical key itself.
+/// Runtime guards use the executable producer above; provenance of their
+/// operands cannot change the meaning of a selected equality operation.
+pub(super) fn proof_crash_predicate_from_expression(
+    program: &dyn ::validation::CheckingInput,
+    expression: typed_trees::expression::ExpressionHandle,
+    parameters: &[StateParameter],
+    parameter_names: &[String],
+    content_conservation: Option<&[validation::ContentConservationSourcePlan]>,
+) -> CrashPredicateExpression {
+    predicate_expression(
+        program,
+        expression,
+        parameter_names,
+        content_conservation,
+        Some(parameters),
+    )
+}
+
+fn predicate_expression(
+    program: &dyn ::validation::CheckingInput,
+    expression: typed_trees::expression::ExpressionHandle,
+    parameter_names: &[String],
+    content_conservation: Option<&[validation::ContentConservationSourcePlan]>,
+    proof_parameters: Option<&[StateParameter]>,
 ) -> CrashPredicateExpression {
     use typed_trees::expression::ExpressionNode;
 
@@ -51,30 +87,57 @@ pub(super) fn crash_predicate_from_expression(
     if !expression.is_valid() {
         return CrashPredicateExpression::Invalid;
     }
+    let proposition_children = validation::contextual_proposition_children(program, expression);
+    let lower = |operand| {
+        predicate_expression(
+            program,
+            operand,
+            parameter_names,
+            content_conservation,
+            proof_parameters.filter(|_| proposition_children.contains(&Some(operand))),
+        )
+    };
+    if let Some(parameters) = proof_parameters
+        && let Some(binary) = program.expression_table.binary_node(expression)
+        && matches!(
+            binary.operator,
+            typed_trees::expression::BinaryOperator::Equal
+                | typed_trees::expression::BinaryOperator::NotEqual
+        )
+        && let Some((_, _, type_identity)) =
+            crate::values::scalar::machine_parameter_booleans::structural_equality::subjects(
+                program,
+                parameters,
+                binary.left,
+                binary.right,
+            )
+    {
+        let left = lower(binary.left);
+        let right = lower(binary.right);
+        let identity = program
+            .type_identities
+            .with(|types| {
+                CrashPredicateExpression::structural_identity(type_identity, types, left, right)
+            })
+            .unwrap_or(CrashPredicateExpression::Invalid);
+        return if binary.operator == typed_trees::expression::BinaryOperator::NotEqual {
+            CrashPredicateExpression::Unary {
+                operator: typed_trees::expression::UnaryOperator::LogicalNot as u8,
+                operand: Box::new(identity),
+            }
+        } else {
+            identity
+        };
+    }
     match program.expression_table.expression(expression) {
         ExpressionNode::Binary(binary) => CrashPredicateExpression::Binary {
             operator: binary.operator as u8,
-            left: Box::new(crash_predicate_from_expression(
-                program,
-                binary.left,
-                parameter_names,
-                content_conservation,
-            )),
-            right: Box::new(crash_predicate_from_expression(
-                program,
-                binary.right,
-                parameter_names,
-                content_conservation,
-            )),
+            left: Box::new(lower(binary.left)),
+            right: Box::new(lower(binary.right)),
         },
         ExpressionNode::Unary(unary) => CrashPredicateExpression::Unary {
             operator: unary.operator as u8,
-            operand: Box::new(crash_predicate_from_expression(
-                program,
-                unary.operand,
-                parameter_names,
-                content_conservation,
-            )),
+            operand: Box::new(lower(unary.operand)),
         },
         ExpressionNode::Integer(value) => {
             CrashPredicateExpression::Integer(value.text().to_owned())
@@ -103,12 +166,7 @@ pub(super) fn crash_predicate_from_expression(
             )
         }
         ExpressionNode::Member(member) => CrashPredicateExpression::Member {
-            receiver: Box::new(crash_predicate_from_expression(
-                program,
-                member.receiver,
-                parameter_names,
-                content_conservation,
-            )),
+            receiver: Box::new(lower(member.receiver)),
             member: member_entry_name(
                 program,
                 member,
@@ -119,57 +177,25 @@ pub(super) fn crash_predicate_from_expression(
         // may carry a formal, and substitution must reach each rather than
         // hide it inside a flattened `Opaque` display.
         ExpressionNode::Indexed(indexed) => CrashPredicateExpression::Indexed {
-            collection: Box::new(crash_predicate_from_expression(
-                program,
-                indexed.collection,
-                parameter_names,
-                content_conservation,
-            )),
-            index: Box::new(crash_predicate_from_expression(
-                program,
-                indexed.index,
-                parameter_names,
-                content_conservation,
-            )),
+            collection: Box::new(lower(indexed.collection)),
+            index: Box::new(lower(indexed.index)),
         },
         // A `start..end` operand keeps both bounds structured for the same
         // reason: either bound may carry a formal, and substitution must
         // reach it. The inclusivity flag is part of the identity.
         ExpressionNode::Range(range) => CrashPredicateExpression::Range {
-            start: Box::new(crash_predicate_from_expression(
-                program,
-                range.start,
-                parameter_names,
-                content_conservation,
-            )),
-            end: Box::new(crash_predicate_from_expression(
-                program,
-                range.end,
-                parameter_names,
-                content_conservation,
-            )),
+            start: Box::new(lower(range.start)),
+            end: Box::new(lower(range.end)),
             end_inclusive: range.end_inclusive,
         },
         ExpressionNode::Call(call) => CrashPredicateExpression::Call {
             target: call.target.as_str().to_owned(),
-            receiver: Box::new(crash_predicate_from_expression(
-                program,
-                call.receiver,
-                parameter_names,
-                content_conservation,
-            )),
+            receiver: Box::new(lower(call.receiver)),
             arguments: program
                 .expression_table
                 .expression_handles(call.arguments)
                 .iter()
-                .map(|argument| {
-                    crash_predicate_from_expression(
-                        program,
-                        *argument,
-                        parameter_names,
-                        content_conservation,
-                    )
-                })
+                .map(|argument| lower(*argument))
                 .collect(),
         },
         other => {
@@ -374,29 +400,10 @@ pub(super) fn attach_checked_crash_calls(
                         arguments,
                         exact_integer_casts,
                     );
-                    // This call still has its invocation context, so a
-                    // member-projected leaf resolves the argument's entry
-                    // operand at the read projection instead of widening the
-                    // route to `Truth` when a sibling field was written.
-                    let mut resolve_entry = |ordinal: u32, members: &[String]| {
-                        crate::facts::crash_calls::route_substitution::call_argument_entry_operand(
-                            program,
-                            state_flow.machine_symbol,
-                            state_flow.state_symbol,
-                            call_flow.statement_index,
-                            target_parameters,
-                            arguments,
-                            &substitution.identity,
-                            ordinal,
-                            members,
-                        )
-                    };
                     normalize_summary_buckets(
                         summary
                             .iter()
-                            .map(|bucket| {
-                                bucket.substitute(&substitution, Some(&mut resolve_entry))
-                            })
+                            .map(|bucket| bucket.substitute(&substitution))
                             .collect(),
                     )
                 }

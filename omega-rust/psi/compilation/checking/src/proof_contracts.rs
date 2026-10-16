@@ -5,6 +5,7 @@
 pub(crate) mod arithmetic_domains;
 pub(crate) mod bound_expression_meaning;
 pub(crate) mod collection_predicates;
+pub(crate) mod contextual_identity;
 pub(crate) mod contract_entailment;
 pub(crate) mod contract_results;
 pub mod contract_structure;

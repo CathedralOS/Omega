@@ -23,6 +23,7 @@ pub(crate) mod float_predicates;
 mod place_intervals;
 pub(crate) mod reference_sources;
 mod snapshots;
+pub(crate) use evaluation::boolean as evaluate_checked_boolean;
 pub(crate) use evaluation::evaluate as evaluate_checked_scalar;
 pub(crate) use evaluation::{
     BoundScalarValues, ScalarValueSource, admitted_integer, integer_magnitude, integer_type,

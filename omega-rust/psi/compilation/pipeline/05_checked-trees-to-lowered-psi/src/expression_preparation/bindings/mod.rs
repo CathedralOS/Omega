@@ -1571,8 +1571,8 @@ impl ScalarBindings {
             CheckedBooleanExpression::Constant(_)
             | CheckedBooleanExpression::StructuralParameterField { .. }
             | CheckedBooleanExpression::IeeeFloatComparison { .. }
+            | CheckedBooleanExpression::StructuralIdentity { .. }
             | CheckedBooleanExpression::ByteSequenceEqual { .. }
-            | CheckedBooleanExpression::PayloadlessSumEqual { .. }
             | CheckedBooleanExpression::ErasedParameter { .. }
             | CheckedBooleanExpression::StructuralCaseMembership { .. } => {}
         }

@@ -90,42 +90,6 @@ pub(crate) fn observation_actual<'program>(
     )
 }
 
-fn captured_operands<'facts>(
-    program: &dyn ::validation::CheckingInput,
-    facts: &'facts CheckFacts,
-    state: &FlowStateFact,
-    call: &FlowCallFact,
-) -> Option<(&'facts [checked_trees::FlowOperandFact], usize)> {
-    let site = validation::find_call_site(
-        program,
-        state.machine_symbol,
-        state.state_symbol,
-        call.statement_index,
-        call.call_ordinal,
-    )?;
-    let receiver = match &site {
-        validation::CallSite::Expression { call, .. } if call.receiver.is_valid() => {
-            Some(call.receiver)
-        }
-        _ => None,
-    };
-    let receiver_offset = usize::from(receiver.is_some());
-    let expected = receiver.into_iter().chain(
-        validation::call_site_argument_expressions(program, &site)
-            .iter()
-            .copied(),
-    );
-    let operands = facts.flow.control.operands.span(call.operands)?;
-    if !operands
-        .iter()
-        .map(|operand| operand.expression)
-        .eq(expected)
-    {
-        return None;
-    }
-    Some((operands, receiver_offset))
-}
-
 fn captured_operand<'facts>(
     program: &dyn ::validation::CheckingInput,
     facts: &'facts CheckFacts,
@@ -133,7 +97,7 @@ fn captured_operand<'facts>(
     call: &FlowCallFact,
     actual: &Actual<'_>,
 ) -> Option<&'facts checked_trees::FlowOperandFact> {
-    captured_operands(program, facts, state, call)?
+    crate::flow::captured_call_operands(program, &facts.flow, state, call)?
         .0
         .get(actual.operand_position)
 }
@@ -150,7 +114,8 @@ pub(crate) fn captured_argument_expressions(
     if !call.authored_source_custody_valid {
         return None;
     }
-    let (operands, receiver_offset) = captured_operands(program, facts, state, call)?;
+    let (operands, receiver_offset) =
+        crate::flow::captured_call_operands(program, &facts.flow, state, call)?;
     Some(
         operands[receiver_offset..]
             .iter()
@@ -221,7 +186,7 @@ pub(crate) fn proves_captured_arithmetic_requirement(
 }
 
 /// A requirement observes only its demanded formal coordinate. The complete
-/// ordered call roster remains authenticated by `captured_operands`; this
+/// ordered call roster remains authenticated by `captured_call_operands`; this
 /// projection does not suppress evaluation or availability of another actual.
 /// Scalar values use the established copy/live-referent epoch. Descriptor
 /// geometry closes in its own completed operand epoch, not in later invocation

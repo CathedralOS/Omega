@@ -500,6 +500,15 @@ fn build_published_crash_buckets(
     }
 
     let mut buckets = BTreeMap::<checked_trees::CrashCause, Bucket>::new();
+    let parameters = match &owner {
+        CrashContractOwner::Machine(machine) => program
+            .machine_states(machine)
+            .first()
+            .map(|entry| program.state_parameters(entry))
+            .unwrap_or(&[]),
+        CrashContractOwner::Signature(signature) => program.state_signature_parameters(signature),
+        CrashContractOwner::Operator(operator) => program.operator_parameters(operator),
+    };
     let binders = match &owner {
         CrashContractOwner::Machine(machine) => {
             let generics = generic_binders(program.machine_type_parameters(machine));
@@ -533,9 +542,10 @@ fn build_published_crash_buckets(
         for fact in facts {
             let identity = match fact {
                 typed_trees::domain::ProofFact::Expression(expression) => {
-                    let structured = crash_calls::crash_predicate_from_expression(
+                    let structured = crash_calls::proof_crash_predicate_from_expression(
                         program,
                         *expression,
+                        parameters,
                         parameter_names,
                         Some(content_conservation),
                     );
@@ -709,6 +719,34 @@ pub(crate) fn canonical_crash_binary_path_predicate(
             right: Box::new(right),
         },
     )
+}
+
+/// Proof assumptions and published ceilings use the same typed identity
+/// producer; executable guard keys remain in their independent namespace.
+pub(crate) fn canonical_crash_contract_predicate(
+    program: &dyn ::validation::CheckingInput,
+    expression: typed_trees::expression::ExpressionHandle,
+    negated: bool,
+    parameters: &[typed_trees::signature::StateParameter],
+    parameter_names: &[String],
+    content_conservation: &[validation::ContentConservationSourcePlan],
+) -> checked_trees::CrashPredicateIdentity {
+    let expression = crash_calls::proof_crash_predicate_from_expression(
+        program,
+        expression,
+        parameters,
+        parameter_names,
+        Some(content_conservation),
+    );
+    let expression = if negated {
+        checked_trees::CrashPredicateExpression::Unary {
+            operator: typed_trees::expression::UnaryOperator::LogicalNot as u8,
+            operand: Box::new(expression),
+        }
+    } else {
+        expression
+    };
+    checked_trees::CrashPredicateIdentity::from_expression(expression)
 }
 
 /// Canonical source-handle-free identity for one operand participating in a

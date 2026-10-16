@@ -2,7 +2,7 @@
 use super::super::{
     BTreeMap, MachineId, ObligationId, Proposition, StructuralArgument,
     StructuralParameterDeclaration, StructuralTypeDeclaration, ValueId,
-    structural_crash_route_argument_prefix, substitute_structural_crash_route_roots,
+    structural_crash_argument_type, substitute_structural_crash_route_roots,
 };
 use super::parameters::call_index_selectors;
 use super::{
@@ -86,6 +86,7 @@ impl PreparedCall {
 pub(super) fn prepare(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
+    state: symbols::SymbolHandle,
     operation: &CheckedUnitEffectOperationPlan,
     target: Target<'_>,
     evaluated_scalar_arguments: Option<&[ValueDeclaration]>,
@@ -208,22 +209,29 @@ pub(super) fn prepare(
 
     let crash_continuations = prepare_crash_continuations(
         identities,
+        checked,
+        SourceCallCoordinate {
+            state,
+            statement_index: call.coordinate.statement_index as usize,
+            call_ordinal: call.coordinate.call_ordinal as usize,
+        },
+        &operations.loan_captures,
         Target { ..target },
         &crate::unit::effective_crash_routes(checked, *target_machine)?,
         &terminal_scalar_values,
         &terminal_arguments,
         structural_types,
-        |argument, _| {
+        |argument, index| {
             if call_byte_places.contains(&argument.place) {
-                Ok(Vec::new())
+                Ok(target.parameters[index].structural_type)
             } else {
-                structural_crash_route_argument_prefix(
+                structural_crash_argument_type(
                     argument,
                     parameters,
                     local_places,
                     structural_result_places,
-                    structural_types,
                     primitive_local_places,
+                    &operations.operations,
                 )
             }
         },
@@ -255,6 +263,7 @@ pub(super) fn prepare(
 pub(crate) fn prepare_computed_module_call(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
+    coordinate: SourceCallCoordinate,
     target_machine: symbols::SymbolHandle,
     arguments: &[ValueDeclaration],
     erased_arguments: Vec<semantic_vocabulary::ScalarTerm>,
@@ -304,26 +313,42 @@ pub(crate) fn prepare_computed_module_call(
     let crash_continuations = match signature {
         Some(signature) => prepare_crash_continuations(
             identities,
+            checked,
+            coordinate,
+            &operations.loan_captures,
             signature.call_target(),
             crash_routes,
             arguments,
             &emitted_structural_arguments,
             calls.structural_types,
             |argument, index| {
-                if argument.path.is_empty() {
-                    return Ok(Vec::new());
+                if argument.place == emitted_structural_arguments[index].place {
+                    structural_arguments[index].root_type.or_else(|| {
+                        argument
+                            .path
+                            .is_empty()
+                            .then_some(signature.parameters[index].structural_type)
+                    })
+                } else {
+                    calls
+                        .signatures
+                        .iter()
+                        .flat_map(|signature| &signature.parameters)
+                        .find(|parameter| parameter.place == argument.place)
+                        .map(|parameter| parameter.structural_type)
+                        .or_else(|| {
+                            operations.operations.iter().find_map(|operation| {
+                                operation
+                                    .result
+                                    .structural()
+                                    .filter(|result| result.place == argument.place)
+                                    .map(|result| result.structural_type)
+                            })
+                        })
                 }
-                let root_type =
-                    structural_arguments[index]
-                        .root_type
-                        .ok_or(LoweringError::Unsupported(
-                            "computed call crash argument has no physical root carrier",
-                        ))?;
-                crate::proofs::crash_routes::structural_crash_route_prefix_from_type(
-                    argument,
-                    root_type,
-                    calls.structural_types,
-                )
+                .ok_or(LoweringError::Unsupported(
+                    "computed call crash argument has no physical root carrier",
+                ))
             },
         )?,
         None if structural_arguments.is_empty() => {
@@ -378,18 +403,15 @@ pub(crate) fn prepare_requirement_obligations(
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn prepare_crash_continuations(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+    checked: &CheckedTrees,
+    coordinate: SourceCallCoordinate,
+    captures: &[lowered_psi::LoweredSourceLoanCapture],
     target: Target<'_>,
     routes: &[checked_trees::CrashRouteBucket],
     terminal_scalar_values: &[ValueDeclaration],
     terminal_arguments: &[StructuralArgument],
     structural_types: &[StructuralTypeDeclaration],
-    mut prefix: impl FnMut(
-        &StructuralArgument,
-        usize,
-    ) -> Result<
-        Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
-        LoweringError,
-    >,
+    mut root_type: impl FnMut(&StructuralArgument, usize) -> Result<StructuralTypeId, LoweringError>,
 ) -> Result<Vec<terminal_psi::CrashRouteBucket>, LoweringError> {
     if target.parameters.len() != terminal_arguments.len() {
         return unsupported("ordinary call has an unsupported structural operand arity");
@@ -446,7 +468,7 @@ pub(crate) fn prepare_crash_continuations(
         // unrelated actual may legitimately contain a runtime selector or a
         // reference projection that the crash predicate never reads.
         substitute_structural_crash_route_roots(&mut crash_continuations, &mut |root| {
-            let Some((index, _)) = target
+            let Some((index, parameter)) = target
                 .parameters
                 .iter()
                 .enumerate()
@@ -454,8 +476,28 @@ pub(crate) fn prepare_crash_continuations(
             else {
                 return Ok(None);
             };
-            let argument = &terminal_arguments[index];
-            Ok(Some((argument.place, prefix(argument, index)?)))
+            let argument = crate::proofs::crash_routes::captured_crash_argument(
+                checked,
+                coordinate,
+                target
+                    .predicate_parameters
+                    .iter()
+                    .find(|predicate_parameter| predicate_parameter.place == parameter.place)
+                    .ok_or(LoweringError::Unsupported(
+                        "crash observation lost its authored formal position",
+                    ))?
+                    .position,
+                &terminal_arguments[index],
+                captures,
+                structural_types,
+                &mut |argument| root_type(argument, index),
+            )?;
+            let prefix = crate::proofs::crash_routes::structural_crash_route_prefix_from_type(
+                &argument,
+                root_type(&argument, index)?,
+                structural_types,
+            )?;
+            Ok(Some((argument.place, prefix)))
         })?;
     }
     Ok(crash_continuations)

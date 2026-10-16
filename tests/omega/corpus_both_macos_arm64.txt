@@ -791,6 +791,8 @@ pass/traits/runtime_dyn_two_impl_dispatch_exit built 1046ms exit:70 interpreter-
 pass/traits/runtime_selected_case_reference_exit built 4218ms exit:0 interpreter-exit:0 interpreter:agrees @dd6871ed0476
 pass/traits/runtime_selected_reference_region built 4194ms exit:0 interpreter-exit:0 interpreter:agrees @dd6871ed0476
 pass/traits/runtime_selected_slice_reference_exit built 4449ms exit:0 interpreter-exit:0 interpreter:agrees @dd6871ed0476
+pass/traits/structural_array_crash_identity_exit built 10843ms exit:70 interpreter-exit:70 interpreter:agrees @6d0b8da07bdd+wt
+pass/traits/structural_identity_crash_contract checked 890ms @6d0b8da07bdd+wt
 pass/types/runtime_addr_conversion_trap_exit built 2731ms exit:signal signal:5 interpreter:trapped @cba4ef8c9ab1
 pass/types/runtime_addr_field_exit built 2703ms exit:88 interpreter-exit:88 interpreter:agrees @cba4ef8c9ab1
 pass/wire/runtime_wire_decode_byte_slice_exit built 3339ms exit:70 interpreter-exit:70 interpreter:agrees @cba4ef8c9ab1
@@ -1070,7 +1072,7 @@ pass/build/entry_schema_same_leaf_exit built 3580ms exit:0 interpreter-exit:0 in
 pass/entry/nested_where_record_binding_field_exit built 4394ms exit:70 interpreter-exit:70 interpreter:agrees @92558d90488a+wt
 pass/dependent/zero_case_predicate_entry_exit built 5876ms exit:65 interpreter-exit:65 interpreter:agrees @2b888a3f0e32
 pass/providers/calling_application_region_scopes_exit built 4804ms exit:0 interpreter-exit:0 interpreter:agrees @c03720bf6cb3
-pass/traits/runtime_qualified_byte_crash_equality_exit built 5628ms exit:70 interpreter-exit:70 interpreter:agrees @c03720bf6cb3
+pass/traits/runtime_qualified_byte_crash_equality_exit built 6310ms exit:70 interpreter-exit:70 interpreter:agrees @6d0b8da07bdd+wt
 pass/contracts/runtime_float_case_crash_guard_exit built 7188ms exit:0 interpreter-exit:0 interpreter:agrees @c294657097ec+wt
 pass/contracts/runtime_float_entry_relations_exit built 7101ms exit:0 interpreter-exit:0 interpreter:agrees @c294657097ec+wt
 pass/contracts/runtime_float_field_crash_guard_exit built 6915ms exit:0 interpreter-exit:0 interpreter:agrees @c294657097ec+wt

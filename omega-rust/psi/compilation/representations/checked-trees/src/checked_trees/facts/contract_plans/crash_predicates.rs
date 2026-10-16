@@ -35,6 +35,13 @@ pub enum CrashInterface {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum CrashPredicateExpression {
     Invalid,
+    /// Contextual proof identity, distinct from an executable equality token.
+    /// The portable commitment names the complete normalized operand type.
+    StructuralIdentity {
+        type_commitment: super::MachineContractCommitment,
+        left: Box<Self>,
+        right: Box<Self>,
+    },
     Binary {
         operator: u8,
         left: Box<Self>,
@@ -95,6 +102,62 @@ pub enum CrashPredicateExpression {
 }
 
 impl CrashPredicateExpression {
+    /// Contextual data identity cannot be evaluated by an executable Boolean
+    /// operator, including when it occurs below a logical connective.
+    pub fn contains_structural_identity(&self) -> bool {
+        let mut pending = vec![self];
+        while let Some(expression) = pending.pop() {
+            match expression {
+                Self::StructuralIdentity { .. } => return true,
+                Self::Binary { left, right, .. } => pending.extend([left.as_ref(), right.as_ref()]),
+                Self::Unary { operand, .. } | Self::IntegerWiden { operand, .. } => {
+                    pending.push(operand)
+                }
+                Self::Member { receiver, .. } => pending.push(receiver),
+                Self::Indexed { collection, index } => {
+                    pending.extend([collection.as_ref(), index.as_ref()])
+                }
+                Self::Range { start, end, .. } => pending.extend([start.as_ref(), end.as_ref()]),
+                Self::Call {
+                    receiver,
+                    arguments,
+                    ..
+                } => {
+                    pending.push(receiver);
+                    pending.extend(arguments);
+                }
+                Self::Invalid
+                | Self::Integer(_)
+                | Self::Float(_)
+                | Self::Boolean(_)
+                | Self::Name(_)
+                | Self::Opaque(_)
+                | Self::Parameter(_)
+                | Self::ContentConservation(_) => {}
+            }
+        }
+        false
+    }
+
+    pub fn structural_identity(
+        type_identity: typed_trees::type_identity::NormalizedTypeIdentity,
+        types: &typed_trees::type_identity::TypeIdentityTable,
+        mut left: Self,
+        mut right: Self,
+    ) -> Option<Self> {
+        let mut identity =
+            super::contract_identity::ContractHasher::new(b"omega.crash-data-identity-type.v1\0");
+        types.text(type_identity)?.hash(&mut identity);
+        if left > right {
+            std::mem::swap(&mut left, &mut right);
+        }
+        Some(Self::StructuralIdentity {
+            type_commitment: identity.complete().commitment,
+            left: Box::new(left),
+            right: Box::new(right),
+        })
+    }
+
     pub fn substitute(&self, arguments: &[Option<Self>]) -> Self {
         // An explicit worklist keeps deep predicates off the call stack,
         // matching the sibling validators in semantic-vocabulary and
@@ -121,7 +184,8 @@ impl CrashPredicateExpression {
                             .and_then(Clone::clone)
                             .unwrap_or_else(|| term.clone()),
                     ),
-                    Self::Binary { left, right, .. } => {
+                    Self::Binary { left, right, .. }
+                    | Self::StructuralIdentity { left, right, .. } => {
                         pending.push(Step::Finalize(term));
                         pending.push(Step::Visit(right));
                         pending.push(Step::Visit(left));
@@ -165,6 +229,22 @@ impl CrashPredicateExpression {
                 },
                 Step::Finalize(term) => {
                     let rebuilt = match term {
+                        Self::StructuralIdentity {
+                            type_commitment, ..
+                        } => {
+                            let mut right =
+                                built.pop().expect("right child rebuilt before its parent");
+                            let mut left =
+                                built.pop().expect("left child rebuilt before its parent");
+                            if left > right {
+                                std::mem::swap(&mut left, &mut right);
+                            }
+                            Self::StructuralIdentity {
+                                type_commitment: *type_commitment,
+                                left: Box::new(left),
+                                right: Box::new(right),
+                            }
+                        }
                         Self::Binary { operator, .. } => {
                             let right = built.pop().expect("right child rebuilt before its parent");
                             let left = built.pop().expect("left child rebuilt before its parent");
@@ -342,6 +422,16 @@ impl CrashPredicateExpression {
             match step {
                 Step::Node(term) => match term {
                     Self::Invalid => out.push(0),
+                    Self::StructuralIdentity {
+                        type_commitment,
+                        left,
+                        right,
+                    } => {
+                        out.push(0x0f);
+                        out.extend(type_commitment.as_bytes());
+                        pending.push(Step::Node(right));
+                        pending.push(Step::Node(left));
+                    }
                     Self::Binary {
                         operator,
                         left,

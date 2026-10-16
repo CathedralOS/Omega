@@ -853,9 +853,9 @@ fn lower_checked_boolean_expression_with_parameters(
             LoweredBooleanReturnExpression::StructuralCaseMembership { source, path, case }
         }
         CheckedBooleanExpression::IeeeFloatComparison { .. }
+        | CheckedBooleanExpression::StructuralIdentity { .. }
         | CheckedBooleanExpression::ScalarIeeeFloatComparison { .. }
-        | CheckedBooleanExpression::ErasedParameter { .. }
-        | CheckedBooleanExpression::PayloadlessSumEqual { .. } => {
+        | CheckedBooleanExpression::ErasedParameter { .. } => {
             return unsupported("structural equality is contract-only terminal vocabulary");
         }
         CheckedBooleanExpression::And { left, right } => LoweredBooleanReturnExpression::And {

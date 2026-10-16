@@ -76,9 +76,9 @@ pub(crate) fn checked_boolean_scalar_term(
             return unsupported("scalar IEEE equality is an atomic proposition, not a scalar term");
         }
         CheckedBooleanExpression::IeeeFloatComparison { .. }
+        | CheckedBooleanExpression::StructuralIdentity { .. }
         | CheckedBooleanExpression::ByteSequenceEqual { .. }
         | CheckedBooleanExpression::ByteSequencePredicate { .. }
-        | CheckedBooleanExpression::PayloadlessSumEqual { .. }
         | CheckedBooleanExpression::StructuralCaseMembership { .. } => {
             return unsupported("structural equality requires structural signature lowering");
         }

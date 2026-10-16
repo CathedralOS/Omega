@@ -757,9 +757,9 @@ pub(crate) fn map_observations(
         // scalar read. Their owner must supply that relation before seeding.
         Boolean::ErasedParameter { .. }
         | Boolean::IeeeFloatComparison { .. }
+        | Boolean::StructuralIdentity { .. }
         | Boolean::ByteSequenceEqual { .. }
         | Boolean::ByteSequencePredicate { .. }
-        | Boolean::PayloadlessSumEqual { .. }
         | Boolean::StructuralCaseMembership { .. } => return None,
     }
     Some(())

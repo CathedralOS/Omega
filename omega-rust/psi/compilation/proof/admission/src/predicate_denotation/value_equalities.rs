@@ -153,6 +153,7 @@ impl<'input> ValueEqualities<'input> {
             // Structural places remain independently named observations.
             Proposition::IeeeFloatComparison { .. }
             | Proposition::ByteSequenceEqual { .. }
+            | Proposition::StructuralIdentity { .. }
             | Proposition::StructuralCaseMembership { .. }
             | Proposition::ContentConservation(_)
             | Proposition::Truth

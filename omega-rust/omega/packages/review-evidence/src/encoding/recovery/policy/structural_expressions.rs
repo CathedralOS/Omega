@@ -53,11 +53,6 @@ pub(in crate::encoding::recovery) fn boolean_expression(
                 left: structural_field(reader)?,
                 right: structural_field(reader)?,
             },
-            9 => Expression::PayloadlessSumEqual {
-                left: structural_field(reader)?,
-                right: structural_field(reader)?,
-                cases: reader.sequence(8, |reader| reader.string())?,
-            },
             10 => Expression::StructuralCaseMembership {
                 subject: structural_field(reader)?,
                 case: reader.string()?,
@@ -74,6 +69,10 @@ pub(in crate::encoding::recovery) fn boolean_expression(
                 kind: ieee_float_comparison_kind(reader)?,
                 left: reader.boxed(scalar_expression)?,
                 right: reader.boxed(scalar_expression)?,
+            },
+            14 => Expression::StructuralIdentity {
+                left: structural_field(reader)?,
+                right: structural_field(reader)?,
             },
         }))
     })

@@ -1,6 +1,5 @@
 //! Call argument substitution into published crash routes.
 
-use crate::facts::crash_calls::crash_predicate_from_expression;
 use crate::facts::crash_calls::private_summaries::crash_route_expressions_by_identity;
 use crate::facts::crash_calls::summary_predicates::{
     CallArgumentSubstitution, SummaryCrashBucket, SummaryCrashPredicate, SummaryCrashRouteGuard,
@@ -11,17 +10,6 @@ use checked_trees::CrashPredicateExpression;
 use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::signature::StateParameter;
-
-/// One call argument's entry operand under the projection a surviving guard
-/// reads. `ordinal` indexes the callee parameter telescope; `members` is the
-/// contiguous member spine above its `Parameter` leaf. A bare leaf keeps the
-/// precomputed whole-operand substitution (`whole`), while a projected leaf
-/// asks `entry_operand_projected` for exactly that field path — a mutable
-/// actual written only in a sibling field still supplies the read field's
-/// saved actual instead of widening the route to `Truth`. `is_self`
-/// parameters keep no substitution: receiver-entry identity needs retained
-/// referent custody a bare argument cannot supply.
-#[allow(clippy::too_many_arguments)]
 
 /// `owner`'s machine and state once `argument` clears the builtin-bound
 /// meaning gate: checked scalar evidence folds and annotates under builtin
@@ -43,41 +31,6 @@ fn builtin_bound_owner<'o>(
         .then_some((machine, state))
 }
 
-pub(crate) fn call_argument_entry_operand(
-    program: &dyn ::validation::CheckingInput,
-    machine_symbol: SymbolHandle,
-    state_symbol: SymbolHandle,
-    before_statement: usize,
-    parameters: &[StateParameter],
-    arguments: &[ExpressionHandle],
-    whole: &[Option<CrashPredicateExpression>],
-    ordinal: u32,
-    members: &[String],
-) -> Option<CrashPredicateExpression> {
-    let ordinal = ordinal as usize;
-    let parameter = parameters.get(ordinal)?;
-    if members.is_empty() {
-        return whole.get(ordinal)?.clone();
-    }
-
-    // Transition/call arguments bind only the non-self parameters, in order.
-    let argument_index = parameters[..ordinal].iter().count();
-    let argument = arguments.get(argument_index).copied()?;
-    let projection = crate::facts::crash_entry_values::formal_member_projection(
-        program,
-        parameter.type_reference,
-        members,
-    );
-    crate::facts::crash_entry_values::entry_operand_projected(
-        program,
-        machine_symbol,
-        state_symbol,
-        before_statement,
-        argument,
-        &projection,
-    )
-}
-
 pub(crate) enum SelectedTargetCrashRoutes<'a> {
     Published {
         buckets: &'a [checked_trees::CrashRouteBucket],
@@ -88,17 +41,17 @@ pub(crate) enum SelectedTargetCrashRoutes<'a> {
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn call_argument_substitution(
-    program: &dyn ::validation::CheckingInput,
+pub(crate) fn call_argument_substitution<'program>(
+    program: &'program dyn ::validation::CheckingInput,
     operators: &checked_trees::CheckedOperatorFacts,
     semantic: &facts::FactPlan,
-    flow: &checked_trees::FlowFacts,
+    flow: &'program checked_trees::FlowFacts,
     state_flow: &checked_trees::FlowStateFact,
     call_flow: &checked_trees::FlowCallFact,
-    target_parameters: &[typed_trees::signature::StateParameter],
+    target_parameters: &'program [typed_trees::signature::StateParameter],
     arguments: &[typed_trees::expression::ExpressionHandle],
     exact_integer_casts: &[validation::ExactIntegerCastFact],
-) -> CallArgumentSubstitution {
+) -> CallArgumentSubstitution<'program> {
     // Both direct published routes and private/transitive summaries cross the
     // same namespace boundary. Source spelling and statement position cannot
     // prove that a current actual still denotes the caller's entry value.
@@ -129,13 +82,6 @@ pub(crate) fn call_argument_substitution(
             .statement_table
             .statement_at(state, before_statement)
     });
-    // Structural guard leaves name the authored parameter telescope. Each
-    // actual's root is the frozen caller parameter (plus its member spine)
-    // whose storage it reads, so a callee leaf can re-root into the caller's
-    // contract namespace. A mutable or exclusively borrowed root keeps
-    // `None`: the surviving annotation is an entry snapshot and could not
-    // speak for the bound operand.
-    let caller_parameters = owner.map(|(_, state)| program.state_parameters(state));
     // The dense binding namespace of `lower_unit_scalar_argument`: primitive
     // parameters, then immutable primitive locals in declaration order.
     // Mutable storage resolves through named StorageRead leaves instead.
@@ -176,14 +122,10 @@ pub(crate) fn call_argument_substitution(
     let mut argument_index = 0usize;
     let mut identity = Vec::with_capacity(target_parameters.len());
     let mut scalar = Vec::with_capacity(target_parameters.len());
-    let mut fields = Vec::with_capacity(target_parameters.len());
     let mut values = Vec::with_capacity(target_parameters.len());
     for parameter in target_parameters {
         let argument = arguments.get(argument_index).copied();
         argument_index = argument_index.saturating_add(1);
-        fields.push(argument.and_then(|argument| {
-            structural_actual_root(program, caller_parameters.unwrap_or(&[]), argument)
-        }));
         let entry_identity = argument.and_then(|argument| {
             let (machine, state) = owner?;
             crate::facts::crash_entry_values::entry_operand(
@@ -303,66 +245,154 @@ pub(crate) fn call_argument_substitution(
     CallArgumentSubstitution {
         identity,
         scalar,
-        fields,
+        fields: StructuralArgumentSubstitution {
+            program,
+            target_parameters,
+            flow,
+            operands: crate::flow::captured_call_operands(program, flow, state_flow, call_flow),
+            machine: state_flow.machine_symbol,
+            state: caller_state,
+            before_statement,
+        },
         values,
     }
 }
 
-/// The caller structural root one actual binds: the frozen caller parameter
-/// whose storage the actual reads, plus the actual's own member spine below
-/// it. A surviving `StructuralParameterField` leaf keeps that root and
-/// appends the callee leaf's path — `inner(pair.cell)` under a `left.narrow`
-/// guard reads `pair.cell.narrow`. The same field-identity spelling
-/// `structural_parameter_place` produces keeps the checked path exact, and
-/// the `resolve_structural_parameter_path` round trip proves the converted
-/// spine resolves to the canonical place the actual occupies. Only `frozen`
-/// roots qualify: a mutable parameter or an exclusive borrow can hold
-/// storage newer than the entry snapshot the contract namespace names, so
-/// their rows stay `None` rather than naming stale storage.
-fn structural_actual_root(
-    program: &dyn ::validation::CheckingInput,
-    caller_parameters: &[StateParameter],
-    actual: ExpressionHandle,
-) -> Option<checked_trees::CheckedStructuralParameterField> {
-    let place = validation::canonical_place_from_expression(program, actual)?;
-    let root = place.root;
-    if !matches!(root, facts::PlaceRoot::Symbol(_)) {
-        return None;
-    }
-    let parameter_position = caller_parameters
-        .iter()
-        .position(|parameter| (facts::PlaceRoot::Symbol(parameter.symbol)) == root)?;
-    let mut path = Vec::with_capacity(place.segments.len());
-    for segment in &place.segments {
-        path.push(match *segment {
-            facts::PlaceSegment::Field { symbol } => {
-                checked_trees::CheckedStructuralPredicatePathSegment::Field(
-                    validation::structural_member_identity(program, symbol)?,
-                )
+/// Invocation-owned structural actuals. Each predicate leaf authenticates its
+/// complete projected observation, not the whole actual or a frozen-root flag.
+/// A sibling write therefore preserves an unaffected field, while an overlapping
+/// write (including another argument's effects) cannot donate caller-entry facts.
+/// Copies use their completion epoch; view contents use the final operand's
+/// prefix, before the receiving call runs. Both canonical keys and annotations
+/// consume this same retained provenance, not a scan of the enclosing statement.
+#[derive(Clone)]
+pub(crate) struct StructuralArgumentSubstitution<'program> {
+    program: &'program dyn ::validation::CheckingInput,
+    target_parameters: &'program [StateParameter],
+    flow: &'program checked_trees::FlowFacts,
+    operands: Option<(&'program [checked_trees::FlowOperandFact], usize)>,
+    machine: SymbolHandle,
+    state: SymbolHandle,
+    before_statement: usize,
+}
+
+impl StructuralArgumentSubstitution<'_> {
+    pub(crate) fn entry_operand(
+        &self,
+        whole: &[Option<CrashPredicateExpression>],
+        ordinal: u32,
+        members: &[String],
+    ) -> Option<CrashPredicateExpression> {
+        let ordinal = ordinal as usize;
+        let parameter = self.target_parameters.get(ordinal)?;
+        let projection = crate::facts::crash_entry_values::formal_member_place_projection(
+            self.program,
+            parameter.type_reference,
+            members,
+        )?;
+        let Some(place) = self.observation_place(ordinal, &projection) else {
+            // Non-place literals and arithmetic retain the existing exact
+            // whole-value channel; it never invents a projected identity.
+            return members
+                .is_empty()
+                .then(|| whole.get(ordinal).cloned().flatten())
+                .flatten();
+        };
+        let mut expression = crate::facts::crash_entry_values::entry_place_before_statement(
+            self.program,
+            self.machine,
+            self.state,
+            self.before_statement,
+            &place,
+        )?;
+        // The canonical substitution reapplies its own formal member spine.
+        // Provenance authenticated that complete projection above; return only
+        // the actual's root spelling so the spine is not appended twice.
+        for expected in members.iter().rev() {
+            let CrashPredicateExpression::Member { receiver, member } = expression else {
+                return None;
+            };
+            if member != *expected {
+                return None;
             }
-            facts::PlaceSegment::Case { variant } => {
-                checked_trees::CheckedStructuralPredicatePathSegment::Case(
-                    validation::structural_member_identity(program, variant)?,
-                )
-            }
-            facts::PlaceSegment::FixedIndex { .. }
-            | facts::PlaceSegment::FixedRange { .. }
-            | facts::PlaceSegment::OpaqueRange
-            | facts::PlaceSegment::Index { .. } => return None,
-        });
+            expression = *receiver;
+        }
+        Some(expression)
     }
-    let parameter_position = u32::try_from(parameter_position).ok()?;
-    let (resolved_root, segments, _, frozen) = crate::values::resolve_structural_parameter_path(
-        program,
-        caller_parameters,
-        parameter_position,
-        &path,
-    )?;
-    (frozen && (facts::PlaceRoot::Symbol(resolved_root)) == root && segments == place.segments)
-        .then_some(checked_trees::CheckedStructuralParameterField {
+
+    fn observation_place(
+        &self,
+        ordinal: usize,
+        suffix: &[facts::PlaceSegment],
+    ) -> Option<validation::CanonicalPlace> {
+        let parameter = self.target_parameters.get(ordinal)?;
+        let (operands, receiver_offset) = self.operands?;
+        let operand = operands.get(ordinal.checked_add(receiver_offset)?)?;
+        let (mut place, epoch) =
+            if crate::flow::operand_binds_live_view(self.program, parameter.type_reference) {
+                let [referent] = self
+                    .flow
+                    .control
+                    .operand_referents
+                    .span(operand.referents)?
+                else {
+                    return None;
+                };
+                (
+                    validation::CanonicalPlace {
+                        root: referent.root,
+                        segments: self
+                            .flow
+                            .control
+                            .operand_referent_segments
+                            .span(referent.segments)?
+                            .to_vec(),
+                    },
+                    operands.last()?,
+                )
+            } else if crate::flow::operand_binds_stable_copy(self.program, parameter.type_reference)
+            {
+                (
+                    validation::canonical_place_from_expression_in_state(
+                        self.program,
+                        operand.state_symbol,
+                        operand.statement_index,
+                        operand.expression,
+                    )?,
+                    operand,
+                )
+            } else {
+                return None;
+            };
+        place.segments.extend_from_slice(suffix);
+        crate::flow::operand_entry_origin_is_stable(self.program, self.flow, epoch, &place)
+            .then_some(place)
+    }
+
+    fn subject(
+        &self,
+        leaf: &checked_trees::CheckedStructuralParameterField,
+    ) -> Option<checked_trees::CheckedStructuralParameterField> {
+        let (_, suffix, _, _) = crate::values::resolve_structural_parameter_path(
+            self.program,
+            self.target_parameters,
+            leaf.parameter_position,
+            &leaf.path,
+        )?;
+        let place = self.observation_place(leaf.parameter_position as usize, &suffix)?;
+        let (parameter_position, path) =
+            crate::facts::crash_entry_values::entry_parameter_place_before_statement(
+                self.program,
+                self.machine,
+                self.state,
+                self.before_statement,
+                &place,
+            )?;
+        Some(checked_trees::CheckedStructuralParameterField {
             parameter_position,
             path,
         })
+    }
 }
 
 /// A scalar annotation crossing the call boundary may only carry terms a
@@ -440,9 +470,9 @@ fn boolean_evidence_is_crash_lane_lowerable(
         | CheckedBooleanExpression::StorageRead { .. }
         | CheckedBooleanExpression::StructuralParameterField { .. }
         | CheckedBooleanExpression::IeeeFloatComparison { .. }
+        | CheckedBooleanExpression::StructuralIdentity { .. }
         | CheckedBooleanExpression::ByteSequenceEqual { .. }
         | CheckedBooleanExpression::ByteSequencePredicate { .. }
-        | CheckedBooleanExpression::PayloadlessSumEqual { .. }
         | CheckedBooleanExpression::StructuralCaseMembership { .. } => true,
     }
 }
@@ -450,7 +480,7 @@ fn boolean_evidence_is_crash_lane_lowerable(
 pub(crate) fn substitute_checked_boolean_expression(
     expression: &checked_trees::CheckedBooleanExpression,
     arguments: &[Option<checked_trees::CheckedScalarExpression>],
-    fields: &[Option<checked_trees::CheckedStructuralParameterField>],
+    fields: &StructuralArgumentSubstitution<'_>,
 ) -> Option<checked_trees::CheckedBooleanExpression> {
     use checked_trees::{CheckedBooleanExpression, CheckedScalarExpression};
 
@@ -500,11 +530,9 @@ pub(crate) fn substitute_checked_boolean_expression(
             return None;
         }
         // An IEEE float comparison is atomic over structural field leaves.
-        // Each leaf re-roots through the caller's frozen structural channel:
-        // the callee position binds the actual's own caller parameter and
-        // member spine, and the leaf path appends below it. The remaining
-        // structural terms still refuse — the standalone field leaf keeps
-        // its own transport gap.
+        // Each leaf re-roots through the invocation's projected entry custody:
+        // the callee position binds the actual's caller parameter and member
+        // spine only when the complete observation survives intervening writes.
         CheckedBooleanExpression::IeeeFloatComparison {
             kind,
             primitive_type,
@@ -516,21 +544,15 @@ pub(crate) fn substitute_checked_boolean_expression(
             left: substitute_structural_parameter_field(left, fields)?,
             right: substitute_structural_parameter_field(right, fields)?,
         },
-        // A payload-less sum equality is atomic over the same structural
-        // leaves: both subjects re-root through the caller channel while the
-        // closed case roster names the sum's declared cases — a type-level
-        // identity the re-root cannot change, and one the lowering rechecks
-        // against the resolved subject before expanding the roster.
-        CheckedBooleanExpression::PayloadlessSumEqual { left, right, cases } => {
-            CheckedBooleanExpression::PayloadlessSumEqual {
+        CheckedBooleanExpression::StructuralIdentity { left, right } => {
+            CheckedBooleanExpression::StructuralIdentity {
                 left: substitute_structural_parameter_field(left, fields)?,
                 right: substitute_structural_parameter_field(right, fields)?,
-                cases: cases.clone(),
             }
         }
         // A byte-sequence content equality is atomic over the same
         // structural leaves: both subjects re-root through the caller's
-        // frozen structural channel. The leaf carries no roster or case
+        // projected entry custody. The leaf carries no roster or case
         // identity to transport — content equality compares the bytes the
         // resolved subjects hold — so the re-rooted leaves are the whole
         // term, and the lowering rechecks each against the caller
@@ -545,8 +567,8 @@ pub(crate) fn substitute_checked_boolean_expression(
             }
         }
         // A sum case-membership test is atomic over the same structural
-        // leaves: the subject re-roots through the caller's frozen
-        // structural channel while the case identity names the resolved
+        // leaves: the subject re-roots through the caller's projected
+        // entry custody while the case identity names the resolved
         // sum's declared case — a type-level fact the re-root cannot
         // change, and one the lowering rechecks against the resolved
         // subject's declared cases before emitting the atomic
@@ -563,7 +585,7 @@ pub(crate) fn substitute_checked_boolean_expression(
         }
         // A byte-predicate evaluation is atomic over the same structural
         // operand: a parameter-rooted subject re-roots through the caller's
-        // frozen structural channel and its path appends below the bound
+        // projected entry custody and its path appends below the bound
         // member spine. A predicate rooted at local storage cannot be rebound
         // by the outer call and loses portable structure like a local read.
         CheckedBooleanExpression::ByteSequencePredicate {
@@ -589,7 +611,7 @@ pub(crate) fn substitute_checked_boolean_expression(
                 path: leaf.path,
             }
         }
-        // A standalone Boolean field read is the same frozen structural leaf
+        // A standalone Boolean field read uses the same projected entry custody
         // the atomic propositions carry: the callee position binds the
         // actual's caller parameter and member spine, and the leaf path
         // appends below it. The lowering rechecks the re-rooted path ends at
@@ -671,21 +693,15 @@ pub(crate) fn substitute_checked_boolean_expression(
 /// describe.
 fn substitute_structural_parameter_field(
     leaf: &checked_trees::CheckedStructuralParameterField,
-    fields: &[Option<checked_trees::CheckedStructuralParameterField>],
+    fields: &StructuralArgumentSubstitution<'_>,
 ) -> Option<checked_trees::CheckedStructuralParameterField> {
-    let root = fields.get(leaf.parameter_position as usize)?.as_ref()?;
-    let mut path = root.path.clone();
-    path.extend_from_slice(&leaf.path);
-    Some(checked_trees::CheckedStructuralParameterField {
-        parameter_position: root.parameter_position,
-        path,
-    })
+    fields.subject(leaf)
 }
 
 fn substitute_checked_scalar_expression(
     expression: &checked_trees::CheckedScalarExpression,
     arguments: &[Option<checked_trees::CheckedScalarExpression>],
-    fields: &[Option<checked_trees::CheckedStructuralParameterField>],
+    fields: &StructuralArgumentSubstitution<'_>,
 ) -> Option<checked_trees::CheckedScalarExpression> {
     use checked_trees::CheckedScalarExpression;
 
@@ -704,7 +720,7 @@ fn substitute_checked_scalar_expression(
         | CheckedScalarExpression::StructuralSequenceLength { .. }
         | CheckedScalarExpression::RepresentationView { .. }
         | CheckedScalarExpression::StructuralParameterIndexedRead { .. } => return None,
-        // A standalone integer field leaf is the same frozen structural leaf
+        // A standalone integer field leaf uses the same projected entry custody
         // the Boolean channel carries: the callee position binds the actual's
         // caller parameter and member spine, and the leaf path appends below
         // it. The lowering rechecks the re-rooted path ends at a retained
@@ -813,6 +829,7 @@ pub(crate) fn refine_published_crash_routes(
     let route_expressions = crash_route_expressions_by_identity(
         program,
         contracts,
+        target_parameters,
         target_parameter_names,
         content_conservation,
     );
@@ -850,22 +867,25 @@ pub(crate) fn refine_published_crash_routes(
                     );
                     // The token-only predicate identity does not select operator
                     // meaning. Retain authority only from this exact local owner.
-                    let builtin_meaning = program
-                        .machines()
-                        .iter()
-                        .find_map(|machine| {
-                            program
-                                .state_in_machine(machine, target_state_symbol)
-                                .map(|state| {
-                                    validation::has_builtin_bound_expression_meaning(
-                                        program,
-                                        machine,
-                                        Some(state),
-                                        expression,
-                                    )
-                                })
-                        })
-                        .unwrap_or(false);
+                    let builtin_meaning = !identity
+                        .expression()
+                        .is_some_and(CrashPredicateExpression::contains_structural_identity)
+                        && program
+                            .machines()
+                            .iter()
+                            .find_map(|machine| {
+                                program.state_in_machine(machine, target_state_symbol).map(
+                                    |state| {
+                                        validation::has_builtin_bound_expression_meaning(
+                                            program,
+                                            machine,
+                                            Some(state),
+                                            expression,
+                                        )
+                                    },
+                                )
+                            })
+                            .unwrap_or(false);
                     if builtin_meaning
                         && crate::facts::operator_crashes::statement_entry_route_is_false(
                             program,
@@ -881,12 +901,10 @@ pub(crate) fn refine_published_crash_routes(
                     {
                         continue;
                     }
-                    let predicate = crash_predicate_from_expression(
-                        program,
-                        expression,
-                        target_parameter_names,
-                        Some(content_conservation),
-                    );
+                    let Some(predicate) = identity.expression() else {
+                        guards.push(SummaryCrashRouteGuard::Truth);
+                        continue;
+                    };
                     // The direct evaluator follows actuals and local initializers.
                     // Only referenced formals with retained immutable entry origins
                     // may enter it; callee meaning cannot authorize caller operators.
@@ -894,15 +912,9 @@ pub(crate) fn refine_published_crash_routes(
                     // read projection stayed pristine across sibling writes.
                     let entry_predicate =
                         crate::facts::crash_entry_values::substitute_entry_projected(
-                            &predicate,
+                            predicate,
                             &mut |ordinal, members| {
-                                call_argument_entry_operand(
-                                    program,
-                                    state_flow.machine_symbol,
-                                    state_flow.state_symbol,
-                                    call_flow.statement_index,
-                                    target_parameters,
-                                    arguments,
+                                substitution.fields.entry_operand(
                                     &substitution.identity,
                                     ordinal,
                                     members,
@@ -935,7 +947,7 @@ pub(crate) fn refine_published_crash_routes(
                             // missing value leaves the substitution missing
                             // rather than inventing an origin.
                             if let Some(value) = crate::facts::crash_entry_values::substitute_entry(
-                                &predicate,
+                                predicate,
                                 &substitution.values,
                             )
                             .and_then(|substituted| {

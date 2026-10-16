@@ -348,6 +348,7 @@ pub(crate) fn emit(
                             crate::unit::attached_unit::ordinary_calls::prepare_computed_module_call(
                                 identities,
                                 checked,
+                                call.source_coordinate,
                                 call.target_machine,
                                 &arguments,
                                 Vec::new(),

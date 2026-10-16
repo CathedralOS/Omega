@@ -109,13 +109,10 @@ fn encode_boolean_node(
             encoder.field("left", |encoder| encode_structural_field(encoder, left))?;
             encoder.field("right", |encoder| encode_structural_field(encoder, right))?;
         }
-        PackageReviewBooleanExpression::PayloadlessSumEqual { left, right, cases } => {
-            encoder.tag("payloadless_sum_equal", 9);
+        PackageReviewBooleanExpression::StructuralIdentity { left, right } => {
+            encoder.tag("structural_identity", 14);
             encoder.field("left", |encoder| encode_structural_field(encoder, left))?;
             encoder.field("right", |encoder| encode_structural_field(encoder, right))?;
-            encoder.field("cases", |encoder| {
-                encoder.sequence(cases, |encoder, case| encoder.string(case))
-            })?;
         }
         PackageReviewBooleanExpression::StructuralCaseMembership { subject, case } => {
             encoder.tag("structural_case_membership", 10);

@@ -234,6 +234,7 @@ fn normalize(
         return Ok(denotation);
     }
     match proposition {
+        Proposition::StructuralIdentity { left, right } if left == right => Ok(Proposition::Truth),
         Proposition::Equal(left, right) if left.scalar_type() == ScalarType::Boolean => {
             boolean_equality(left, right, true, budget, depth + 1)
         }

@@ -5346,6 +5346,21 @@ fail/traits/satisfies_bound_conformance_wrong_trait rejected 1350ms expected @77
 	implementation `HostService` cannot bind implementation `Policy`: `RegistrarChooser` must select a complete `Decider` implementation with the instantiated trait arguments
 fail/traits/self_type_retired rejected 938ms expected @a9ae30e1c334+wt
 	trait `Area` state `area` parameter `shape` references unknown data type `Self`
+fail/traits/structural_array_crash_unproved_tail rejected 752ms expected @6d0b8da07bdd+wt
+	machine `inspect` has an uncovered Abort crash at statement 0; publish a same-cause `crashes` route whose guard covers this site
+fail/traits/structural_identity_distinct_values rejected 730ms expected @6d0b8da07bdd+wt
+	machine `inspect` has an uncovered Abort crash at statement 0; publish a same-cause `crashes` route whose guard covers this site
+fail/traits/structural_identity_exact_carrier rejected 192ms expected @6d0b8da07bdd+wt
+	machine `different_nominal` crashes contract data identity requires the same complete operand type, found `&Left` and `&Right`
+	machine `different_extent` crashes contract data identity requires the same complete operand type, found `&[u8; 2]` and `&[u8; 3]`
+fail/traits/structural_identity_executable_equality rejected 778ms expected @6d0b8da07bdd+wt
+	machine `inspect` has an uncovered Abort crash at statement 0; publish a same-cause `crashes` route whose guard covers this site
+fail/traits/structural_identity_private_overwrite rejected 783ms expected @6d0b8da07bdd+wt
+	call from `forward` to `relay` at statement 0 call 0 has an uncovered Abort crash route; publish a same-cause route whose guard covers this invocation
+fail/traits/structural_identity_rebound_reference rejected 750ms expected @6d0b8da07bdd+wt
+	call from `inspect` to `leaf` at statement 5 call 0 has an uncovered Abort crash route; publish a same-cause route whose guard covers this invocation
+fail/traits/structural_identity_stale_requirement rejected 643ms expected @6d0b8da07bdd+wt
+	cannot prove requires contract for call leaf from inspect: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/traits/trait_contract_undeclared_parameter_member rejected 1583ms expected @a9ae30e1c334+wt
 	authored MemberAccess declaration selection occurrence 0 (`value` in tests/omega/fail/traits/trait_contract_undeclared_parameter_member/main.omg) remained unresolved after successful checking (CheckedMember)
 fail/traits/trait_default_outside_requirement_call rejected 45ms expected @a9ae30e1c334+wt
@@ -8597,12 +8612,14 @@ pass/traits/runtime_finite_family_structural_result_exit checked 3366ms check-ta
 pass/traits/runtime_generic_exact_application_exit checked 10978ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/traits/runtime_inherited_trait_default_exit checked 11830ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/traits/runtime_named_implementation_selection_exit checked 12231ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/traits/runtime_qualified_byte_crash_equality_exit checked 11440ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/traits/runtime_qualified_byte_crash_equality_exit checked 6395ms check-target:macos_arm64 @6d0b8da07bdd+wt
 pass/traits/runtime_selected_case_reference_exit checked 4259ms check-target:macos_arm64 @dd6871ed0476
 pass/traits/runtime_selected_reference_region checked 4258ms check-target:macos_arm64 @dd6871ed0476
 pass/traits/runtime_selected_slice_reference_exit checked 4486ms check-target:macos_arm64 @dd6871ed0476
 pass/traits/runtime_trait_default_requirement_scope_exit checked 11676ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/traits/satisfies_bound_trait_parameter_exit checked 7309ms check-target:macos_arm64 @7795541dfbb7+wt
+pass/traits/structural_array_crash_identity_exit checked 10604ms check-target:macos_arm64 @6d0b8da07bdd+wt
+pass/traits/structural_identity_crash_contract checked 826ms @6d0b8da07bdd+wt
 pass/traits/trait_generic_bound_static_dispatch checked 11766ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/traits/trait_member_effects checked 9242ms @5041ef1af684+wt
 pass/traits/trait_operator_token checked 8832ms @5041ef1af684+wt

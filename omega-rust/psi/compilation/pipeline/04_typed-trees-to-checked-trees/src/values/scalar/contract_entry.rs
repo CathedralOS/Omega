@@ -268,9 +268,9 @@ impl EntryOperands<'_> {
             | CheckedBooleanExpression::Constant(_)
             | CheckedBooleanExpression::StructuralParameterField { .. }
             | CheckedBooleanExpression::IeeeFloatComparison { .. }
+            | CheckedBooleanExpression::StructuralIdentity { .. }
             | CheckedBooleanExpression::ByteSequenceEqual { .. }
             | CheckedBooleanExpression::ByteSequencePredicate { .. }
-            | CheckedBooleanExpression::PayloadlessSumEqual { .. }
             | CheckedBooleanExpression::StructuralCaseMembership { .. } => {}
         }
         Some(())

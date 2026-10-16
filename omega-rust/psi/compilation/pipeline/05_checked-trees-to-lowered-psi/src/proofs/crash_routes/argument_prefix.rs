@@ -10,15 +10,148 @@ use terminal_psi::{
     StructuralTypeDeclaration, StructuralTypeShape, find_structural_type,
 };
 
-pub(crate) fn structural_crash_route_argument_prefix(
+/// A reference operand's physical descriptor is not its observed backing.
+/// The checked call resource selects the loan at operand completion; the
+/// emitter's exact formation row supplies its already-evaluated address.
+/// Content writes do not retarget that address, and a later descriptor write
+/// cannot replace the selected occurrence with a newer loan.
+pub(crate) fn captured_crash_argument(
+    checked: &checked_trees::CheckedTrees,
+    coordinate: crate::emission::operation_emission::buffer::SourceCallCoordinate,
+    formal_position: u32,
+    argument: &StructuralArgument,
+    captures: &[lowered_psi::LoweredSourceLoanCapture],
+    structural_types: &[StructuralTypeDeclaration],
+    root_type: &mut impl FnMut(
+        &StructuralArgument,
+    ) -> Result<semantic_vocabulary::StructuralTypeId, LoweringError>,
+) -> Result<StructuralArgument, LoweringError> {
+    let Some((StructuralPathSegment::Referent, suffix)) = argument.path.split_first() else {
+        return Ok(argument.clone());
+    };
+    let flow = &checked.facts.flow;
+    let state = flow
+        .control
+        .states
+        .iter()
+        .find_map(|(_, state)| (state.state_symbol == coordinate.state).then_some(state))
+        .ok_or(LoweringError::Unsupported(
+            "crash observation has no checked caller state",
+        ))?;
+    let call_handle = state
+        .calls
+        .handles()
+        .find(|handle| {
+            let call = flow.control.calls.get(*handle);
+            call.statement_index == coordinate.statement_index
+                && call.call_ordinal == coordinate.call_ordinal
+        })
+        .ok_or(LoweringError::Unsupported(
+            "crash observation has no exact checked invocation",
+        ))?;
+    let call = flow.control.calls.get(call_handle);
+    let receiver_offset = usize::from(call.authored_receiver.is_valid());
+    let owner_operand = call
+        .operands
+        .handles()
+        .nth(formal_position as usize + receiver_offset)
+        .ok_or(LoweringError::Unsupported(
+            "crash observation has no captured actual",
+        ))?;
+    let borrow = &checked.facts.borrow;
+    let mut resources = borrow
+        .call_loan_resources
+        .iter()
+        .filter_map(|(_, resource)| {
+            (resource.call == call_handle
+                && resource.owner_operand == owner_operand
+                && resource.capture_path.is_empty())
+            .then_some(resource)
+        });
+    let resource = resources.next().ok_or(LoweringError::Unsupported(
+        "reference crash observation has no captured loan resource",
+    ))?;
+    if resources.next().is_some() {
+        return unsupported("reference crash observation has ambiguous loan resources");
+    }
+    let loan = match resource.source {
+        checked_trees::CheckedCallBorrowLoanSource::StoredLoan { loan } => loan,
+        checked_trees::CheckedCallBorrowLoanSource::CallAccess { parents, .. } => *borrow
+            .call_loan_parents
+            .span(parents)
+            .and_then(|parents| parents.first())
+            .ok_or(LoweringError::Unsupported(
+                "reference crash observation has no retained formation lineage",
+            ))?,
+    };
+    // Descriptor copies preserve a formation without emitting another one.
+    // Follow their checked supplier DAG, not a convenient ancestor in the
+    // call-access lineage. Every alternative must select the same capture.
+    let mut pending = vec![loan];
+    let mut visited = Vec::new();
+    let mut captured = None;
+    while let Some(loan) = pending.pop() {
+        if visited.contains(&loan) {
+            continue;
+        }
+        visited.push(loan);
+        let mut selected = captures.iter().filter(|capture| capture.loan == loan);
+        if let Some(capture) = selected.next() {
+            if selected.any(|other| other != capture)
+                || captured.is_some_and(|previous| previous != capture)
+            {
+                return unsupported(
+                    "reference crash observation has conflicting formation captures",
+                );
+            }
+            captured = Some(capture);
+            continue;
+        }
+        let occurrence = borrow.loans.get(loan);
+        let suppliers = borrow
+            .loan_suppliers
+            .span_or_empty(occurrence.supplying_loans);
+        if suppliers.is_empty() {
+            return unsupported("reference crash observation has no emitted formation capture");
+        }
+        for supplier in suppliers {
+            let supplying = borrow.loans.get(*supplier);
+            if occurrence.incoming_reference != supplying.incoming_reference
+                || occurrence.root != supplying.root
+                || borrow.access_segments.span_or_empty(occurrence.segments)
+                    != borrow.access_segments.span_or_empty(supplying.segments)
+            {
+                return unsupported("reference crash transport changes its captured endpoint");
+            }
+            pending.push(*supplier);
+        }
+    }
+    let mut observed = captured
+        .ok_or(LoweringError::Unsupported(
+            "reference crash observation has no resolved formation capture",
+        ))?
+        .source
+        .clone();
+    observed.path = terminal_semantics::reference_source_storage_path(
+        structural_types.iter(),
+        root_type(&observed)?,
+        &observed.path,
+    )
+    .to_vec();
+    observed.path.extend_from_slice(suffix);
+    observed.access = argument.access;
+    Ok(observed)
+}
+
+pub(crate) fn structural_crash_argument_type(
     argument: &StructuralArgument,
     parameters: &[StructuralParameterDeclaration],
     trivial_affine_locals: &[StructuralPlaceDeclaration],
     structural_results: &[(Option<StructuralPlaceDeclaration>, bool)],
-    structural_types: &[StructuralTypeDeclaration],
     primitive_locals: &[PrimitiveLocal],
-) -> Result<Vec<CanonicalStructuralPathSegment>, LoweringError> {
-    let structural_type = parameters
+    operations: &[terminal_psi::Operation],
+) -> Result<semantic_vocabulary::StructuralTypeId, LoweringError> {
+    parameters
         .iter()
         .find(|parameter| parameter.place == argument.place)
         .map(|parameter| parameter.structural_type)
@@ -51,10 +184,18 @@ pub(crate) fn structural_crash_route_argument_prefix(
                         .flatten()
                 })
         })
+        .or_else(|| {
+            operations.iter().find_map(|operation| {
+                operation
+                    .result
+                    .structural()
+                    .filter(|result| result.place == argument.place)
+                    .map(|result| result.structural_type)
+            })
+        })
         .ok_or(LoweringError::Unsupported(
             "structural crash route argument has no caller structural source",
-        ))?;
-    structural_crash_route_prefix_from_type(argument, structural_type, structural_types)
+        ))
 }
 
 pub(crate) fn structural_crash_route_prefix_from_type(

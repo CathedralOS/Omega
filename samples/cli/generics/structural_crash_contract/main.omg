@@ -1,0 +1,22 @@
+// Expected exit: 70
+// A borrowed invocation keeps a record-equality crash ceiling, including
+// all eight elements of each domain-qualified fixed array.
+use omega_language_std::console;
+
+domain [u8; 8]::Utf8(bytes)
+requires valid_utf8(bytes);
+
+data Message { active: bool; text: [u8; 8] in Utf8; }
+data Main { left: Message; right: Message; }
+
+machine Main::inspect(main: &Main)
+crashes Abort
+    main.left == main.right
+{}
+
+machine Main::main(main: &mut Main) reaches Console
+crashes Abort
+{
+    Main::inspect(main);
+    Console::exit_process(70);
+}

@@ -156,6 +156,13 @@ impl super::IdentityMap {
             Proposition::StructuralCaseMembership { subject, .. } => {
                 *subject = subject.rebase(self.place(subject.root()), &[]);
             }
+            Proposition::StructuralIdentity { left, right } => {
+                *left = left.rebase(self.place(left.root()), &[]);
+                *right = right.rebase(self.place(right.root()), &[]);
+                if left > right {
+                    std::mem::swap(left, right);
+                }
+            }
             Proposition::Conjunction(children) | Proposition::Disjunction(children) => {
                 for child in children.iter_mut() {
                     self.proposition(child)?;

@@ -1,0 +1,10 @@
+machine inspect(left: &[u8; 2], right: &[u8; 2])
+crashes Abort left == right {
+    transition left[0] == right[0] {
+        true -> incomplete()
+        false -> done()
+    }
+    state incomplete() { crash Abort; }
+    state done() {}
+}
+machine main() {}

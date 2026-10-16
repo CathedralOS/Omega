@@ -6,6 +6,42 @@ use checked_trees::{FlowConstraintRef, FlowFacts, FlowOperandFact};
 use facts::{FactContextHandle, FactPlan};
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
+/// Authenticate the completed operand roster against this exact invocation.
+/// An expression receiver occupies an evaluation position but not an explicit
+/// argument slot. Consumers share this binding before choosing a value epoch.
+pub(crate) fn captured_call_operands<'facts>(
+    program: &dyn ::validation::CheckingInput,
+    flow: &'facts FlowFacts,
+    state: &checked_trees::FlowStateFact,
+    call: &checked_trees::FlowCallFact,
+) -> Option<(&'facts [FlowOperandFact], usize)> {
+    let site = validation::find_call_site(
+        program,
+        state.machine_symbol,
+        state.state_symbol,
+        call.statement_index,
+        call.call_ordinal,
+    )?;
+    let receiver = match &site {
+        validation::CallSite::Expression { call, .. } if call.receiver.is_valid() => {
+            Some(call.receiver)
+        }
+        _ => None,
+    };
+    let receiver_offset = usize::from(receiver.is_some());
+    let expected = receiver.into_iter().chain(
+        validation::call_site_argument_expressions(program, &site)
+            .iter()
+            .copied(),
+    );
+    let operands = flow.control.operands.span(call.operands)?;
+    operands
+        .iter()
+        .map(|operand| operand.expression)
+        .eq(expected)
+        .then_some((operands, receiver_offset))
+}
+
 pub(crate) fn operand_contexts(
     program: &dyn ::validation::CheckingInput,
     flow: &FlowFacts,

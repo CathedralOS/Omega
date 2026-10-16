@@ -27,6 +27,7 @@ pub(super) fn collect(
     };
     let mut common = consequences::Consequences::new(
         program,
+        program.state_parameters(entry),
         parameter_names,
         content_conservation,
         integer_types,
@@ -46,22 +47,14 @@ pub(super) fn collect(
             }
             result
                 .conjuncts
-                .push(crate::facts::canonical_crash_path_predicate(
+                .push(crate::facts::canonical_crash_contract_predicate(
                     program,
                     *expression,
                     false,
+                    program.state_parameters(entry),
                     parameter_names,
                     content_conservation,
                 ));
-            super::collect_structural_guard_consequences(
-                program,
-                *expression,
-                false,
-                parameter_names,
-                content_conservation,
-                integer_types,
-                &mut result.consequences,
-            );
             if let Some(consequences) = common.collect(*expression, false, 0) {
                 result.consequences.extend(consequences);
             }
@@ -95,10 +88,11 @@ pub(super) fn collect(
             if common.establishes(*expression, false, &result.consequences, 0) == Some(true) {
                 result
                     .consequences
-                    .push(crate::facts::canonical_crash_path_predicate(
+                    .push(crate::facts::canonical_crash_contract_predicate(
                         program,
                         *expression,
                         false,
+                        program.state_parameters(entry),
                         parameter_names,
                         content_conservation,
                     ));

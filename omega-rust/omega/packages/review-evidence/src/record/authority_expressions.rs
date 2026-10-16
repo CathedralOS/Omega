@@ -169,10 +169,11 @@ pub enum PackageReviewBooleanExpression {
         left: PackageReviewStructuralParameterField,
         right: PackageReviewStructuralParameterField,
     },
-    PayloadlessSumEqual {
+    /// Proof identity of whole values, typed by the enclosing entry telescope.
+    /// This is not a request to execute a field or element comparison.
+    StructuralIdentity {
         left: PackageReviewStructuralParameterField,
         right: PackageReviewStructuralParameterField,
-        cases: Vec<String>,
     },
     StructuralCaseMembership {
         subject: PackageReviewStructuralParameterField,

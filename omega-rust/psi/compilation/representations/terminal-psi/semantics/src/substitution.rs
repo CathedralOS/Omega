@@ -75,6 +75,10 @@ pub fn substitute_proposition_values(
             left: left.clone(),
             right: right.clone(),
         },
+        Proposition::StructuralIdentity { left, right } => Proposition::StructuralIdentity {
+            left: left.clone(),
+            right: right.clone(),
+        },
         Proposition::StructuralCaseMembership { subject, case } => {
             Proposition::StructuralCaseMembership {
                 subject: subject.clone(),
@@ -192,6 +196,20 @@ pub fn substitute_proposition_structural_places(
                     .unwrap_or_else(|| subject.clone()),
                 case: *case,
             }
+        }
+        Proposition::StructuralIdentity { left, right } => {
+            let rebase = |subject: &semantic_vocabulary::StructuralIdentitySubject| {
+                substitutions
+                    .get(&subject.root())
+                    .map(|(root, prefix)| subject.rebase(*root, prefix))
+                    .unwrap_or_else(|| subject.clone())
+            };
+            let mut left = rebase(left);
+            let mut right = rebase(right);
+            if left > right {
+                std::mem::swap(&mut left, &mut right);
+            }
+            Proposition::StructuralIdentity { left, right }
         }
         Proposition::Conjunction(conjuncts) => Proposition::Conjunction(
             conjuncts

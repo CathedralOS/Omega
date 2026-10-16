@@ -393,6 +393,13 @@ A proposition is a `u8` form tag followed by its fields.
 | 15 | IntegerMathLessThan | integer math term + integer math term |
 | 16 | IntegerMathLessOrEqual | integer math term + integer math term |
 | 17 | ScalarIeeeFloatComparison | IEEE float comparison kind + IEEE float format + scalar term + scalar term |
+| 18 | StructuralIdentity | structural type id + canonical structural field + structural type id + canonical structural field |
+
+Each `StructuralIdentity` subject denotes the complete value at its path in
+the enclosing predicate's invocation frame. The two endpoint types must match
+exactly; operands use canonical subject order. This encoding retains contextual
+data identity without enumerating fields or array elements and does not encode
+an executable equality operation.
 
 ## Operation rows
 

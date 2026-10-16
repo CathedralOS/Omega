@@ -6,7 +6,7 @@
 //! dense scalar parameters.
 
 mod structural;
-mod structural_equality;
+pub(crate) mod structural_equality;
 mod structural_paths;
 
 use crate::values::scalar::boolean_lowering::lower_boolean_expression;

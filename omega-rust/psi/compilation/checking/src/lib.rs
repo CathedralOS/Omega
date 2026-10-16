@@ -167,6 +167,9 @@ pub use proof_contracts::bound_expression_meaning::{
     has_exact_parameter_case_membership_meaning, sealed_float_comparison,
     sealed_float_comparison_declaration,
 };
+pub use proof_contracts::contextual_identity::{
+    contextual_identity_subject_type, contextual_proposition_children,
+};
 pub use value_custody::intrinsic_boundaries::boundary_requirement_completion;
 pub use value_custody::intrinsic_boundaries::checked_shape_data_declaration;
 pub use value_custody::intrinsic_boundaries::exact_byte_read_result_type;

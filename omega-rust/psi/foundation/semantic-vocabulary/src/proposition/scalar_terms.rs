@@ -6,7 +6,9 @@
 use crate::proposition::{
     IntegerMathTerm, IntegerType, IntegerValue, Proposition, PropositionError,
 };
-use crate::{ByteSequencePredicate, PlaceId, StructuralCaseId, StructuralFieldId, ValueId};
+use crate::{
+    ByteSequencePredicate, PlaceId, StructuralCaseId, StructuralFieldId, StructuralTypeId, ValueId,
+};
 
 mod validation;
 mod value_queries;
@@ -172,6 +174,53 @@ pub struct ByteSequenceStructuralField {
 pub struct StructuralCaseSubject {
     pub(crate) root: PlaceId,
     path: Vec<CanonicalStructuralPathSegment>,
+}
+
+/// A complete typed value observed in the surrounding predicate's invocation
+/// frame, not a storage address or an executable comparison operand. Transport
+/// must establish correspondence to that frame; a surviving path alone never
+/// carries an identity assumption across a mutation.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct StructuralIdentitySubject {
+    pub(crate) root: PlaceId,
+    path: Vec<CanonicalStructuralPathSegment>,
+    structural_type: StructuralTypeId,
+}
+
+impl StructuralIdentitySubject {
+    pub fn new(
+        root: PlaceId,
+        path: Vec<CanonicalStructuralPathSegment>,
+        structural_type: StructuralTypeId,
+    ) -> Self {
+        Self {
+            root,
+            path,
+            structural_type,
+        }
+    }
+
+    pub fn root(&self) -> PlaceId {
+        self.root
+    }
+    pub fn path(&self) -> &[CanonicalStructuralPathSegment] {
+        &self.path
+    }
+    pub fn structural_type(&self) -> StructuralTypeId {
+        self.structural_type
+    }
+
+    /// Rebase an authenticated actual, preserving the exact endpoint type.
+    pub fn rebase(&self, root: PlaceId, prefix: &[CanonicalStructuralPathSegment]) -> Self {
+        let mut path = Vec::with_capacity(prefix.len() + self.path.len());
+        path.extend_from_slice(prefix);
+        path.extend_from_slice(&self.path);
+        Self {
+            root,
+            path,
+            structural_type: self.structural_type,
+        }
+    }
 }
 
 impl StructuralCaseSubject {

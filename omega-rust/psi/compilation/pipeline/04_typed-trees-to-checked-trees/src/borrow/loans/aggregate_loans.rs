@@ -83,6 +83,19 @@ pub(in crate::borrow) fn borrowed_initializer_loans(
                 super::returned_carriers::attenuate(&mut loans, &super::borrow_access_kind(access));
                 return loans;
             }
+            if let Some(mut loans) = stored_reference_loans(
+                program,
+                state_symbol,
+                statement_index,
+                machine_symbol,
+                local_data,
+                initializer.expression,
+                &initializer.owner_path,
+                loan_trackers,
+            ) {
+                super::returned_carriers::attenuate(&mut loans, &super::borrow_access_kind(access));
+                return loans;
+            }
             // Aggregate leaves obey the same source-selection law as call
             // arguments. A leaf may itself be a view-producing helper call;
             // routing it through the call-aware resolver keeps the selected
@@ -132,6 +145,50 @@ pub(in crate::borrow) fn borrowed_initializer_loans(
             loan_trackers,
         ),
     }
+}
+
+/// Transporting a stored descriptor keeps its exact historical suppliers.
+/// A borrow, recast or returned view instead establishes its own relation;
+/// equal backing alone cannot identify descriptor transport.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn stored_reference_loans(
+    program: &dyn ::validation::CheckingInput,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    machine_symbol: SymbolHandle,
+    local_data: &checked_trees::statement::TableLocalData,
+    expression: ExpressionHandle,
+    owner_path: &[BorrowOwnerSegment],
+    loan_trackers: &[StateLoanTracker],
+) -> Option<Vec<StatementBorrowLoan>> {
+    if validation::reference_formation_source(program, expression).is_some() {
+        return None;
+    }
+    let reference = validation::expression_type_reference_in_state(
+        program,
+        state_symbol,
+        statement_index,
+        expression,
+    )?;
+    validation::reference_shell(program, reference)?;
+    let source = borrow_access_place(
+        program,
+        state_symbol,
+        statement_index,
+        expression,
+        machine_symbol,
+    )?;
+    // Only the selected descriptor leaf supplies this value. An enclosing
+    // reference's loan does not describe a descriptor stored in its referent.
+    let selected = loan_trackers.iter().filter(|loan| {
+        loan.storage_owner == source.root
+            && loan.owner_path.len() == source.segments.len()
+            && owner_path_matches(program, &loan.owner_path, &source.segments)
+    });
+    let loans = transferred_aggregate_loans(
+        program, local_data, expression, &source, owner_path, selected,
+    );
+    (!loans.is_empty()).then_some(loans)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -223,7 +280,7 @@ pub(super) fn aggregate_expression_borrow_loans(
                 expression,
                 &source,
                 owner_path_prefix,
-                loan_trackers,
+                loan_trackers.iter(),
             )
         }
         checked_trees::expression::ExpressionNode::Cast(cast) if !cast.form.is_recast() => {
@@ -386,16 +443,15 @@ pub(super) fn result_source_loans(
         .collect()
 }
 
-pub(super) fn transferred_aggregate_loans(
+fn transferred_aggregate_loans<'loan>(
     program: &dyn ::validation::CheckingInput,
     local_data: &checked_trees::statement::TableLocalData,
     expression: ExpressionHandle,
     source: &accesses::BorrowAccessPlace,
     owner_path_prefix: &[BorrowOwnerSegment],
-    loan_trackers: &[StateLoanTracker],
+    loan_trackers: impl DoubleEndedIterator<Item = &'loan StateLoanTracker>,
 ) -> Vec<StatementBorrowLoan> {
     loan_trackers
-        .iter()
         .rev()
         .filter_map(|loan| {
             if loan.storage_owner != source.root {

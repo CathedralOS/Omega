@@ -88,6 +88,14 @@ pub(super) fn encode_proposition(bytes: &mut CanonicalBytes, proposition: &Propo
             encode_case_subject(bytes, subject);
             bytes.id(*case);
         }
+        Proposition::StructuralIdentity { left, right } => {
+            bytes.u8(18);
+            for subject in [left, right] {
+                bytes.id(subject.structural_type());
+                bytes.id(subject.root());
+                encode_canonical_path(bytes, subject.path());
+            }
+        }
         Proposition::ScalarIeeeFloatComparison {
             kind,
             format,

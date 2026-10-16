@@ -611,6 +611,7 @@ impl OperationFrame<'_, '_> {
         let prepared = ordinary_calls::prepare(
             identities,
             checked,
+            self.state,
             operation,
             signatures::find(self.callees.signatures, *target_machine)?.call_target(),
             inputs.evaluated_scalar_arguments,
@@ -971,6 +972,7 @@ impl OperationFrame<'_, '_> {
         let prepared = ordinary_calls::prepare(
             identities,
             checked,
+            self.state,
             operation,
             signature.call_target(),
             inputs.evaluated_scalar_arguments,
