@@ -137,23 +137,24 @@ not a Devin manifest and it is not fed to `launch.py`.
 
 ## The worker's goal
 
-The session has two finishes. Keep modifying the compiler until a run that
-failed now passes, and land that repair with the witness. Or leave the
-program that already runs and write another useful sample: one that fails
-on the first `omega run`, then modify the compiler until that one passes.
-A sample that runs on the first try is a wasted session.
+The session has two finishes when the assigned program already runs. Keep
+modifying that program until its first run fails, then repair the compiler
+only far enough that the failing run passes. Or leave it and write another
+useful sample, one whose first `omega run` fails, and repair only what that
+failure requires. A sample that runs on the first try is a wasted session.
+Do not hunt the compiler for something to change.
 
 Copy this into every worker prompt:
 
-> Run `omega run` on the assigned program. When it fails, keep modifying
-> the compiler until that run passes, including through a local, a field,
-> a parameter, and a call result, and land the repair with the program
-> through `landing.py`. When it already passes, stop spending the session
-> on it. Either find a construct in it that the compiler still rejects and
-> keep modifying until that run passes, or go write another useful sample
-> whose first `omega run` fails, then keep modifying until that sample
-> passes. Land the repair and the failing witness together. A sample, input
-> file, or fixture that passed on the first try is unfinished.
+> Run `omega run` on the assigned program. When it fails, repair the
+> compiler only far enough that this run passes, including through a local,
+> a field, a parameter, and a call result, and land that repair with the
+> program through `landing.py`. When it already passes, stop. Either keep
+> modifying this program until a run fails and then repair that failure, or
+> go write another useful sample whose first `omega run` fails and repair
+> that failure. Land the repair with the witness that failed. A sample,
+> input file, or fixture that passed on the first try is unfinished. Do not
+> search the compiler for an edit.
 
 A host this VM cannot execute, or an owner decision in `OWNER_QUESTIONS.md`,
 ends as `blocked` with the failure named. Publishing the original program
@@ -201,8 +202,8 @@ On notification, drain that slot before starting a replacement. Read the
 verdict, fetch `origin/main`, and accept `landed` only when the repair
 commit is an ancestor of fetched main and the witness failed before that
 commit. A sample that passed on the first try is unfinished: resume the
-same agent and tell it to keep modifying the compiler or write another
-useful sample whose first run fails. Do not merge the worker branch into
+same agent and tell it to keep modifying the program until a run fails, or
+write another useful sample whose first run fails. Do not merge the worker branch into
 the coordinator branch. Resume the same agent id for the next step of the
 same unfinished outcome. A new Task call is a new VM; use it when the
 returned id is gone and the outcome still has an owner. Choose another
