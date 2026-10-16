@@ -10,7 +10,7 @@ use super::{
 };
 use symbols::SymbolHandle;
 use typed_trees::expression::{
-    BinaryOperator, ExpressionHandle, ExpressionNode, TableMatchExpression,
+    BinaryOperator, ExpressionHandle, ExpressionNode, MatchPattern, TableMatchExpression,
 };
 use typed_trees::types::TypeReferenceHandle;
 use validation::{
@@ -290,8 +290,10 @@ impl CurrentScalarValues<'_> {
     /// Every arm contributes its own length. One shared observation is the
     /// result. Arms that are not identical still agree when each folds to the
     /// same integer, so `row[0..2]` and `row[2..4]` both publish length 2.
-    /// An arm without a length, or two arms with different lengths, publishes
-    /// nothing.
+    /// A value arm may use the subject: `match which { 0 -> row[0..which + 2] }`
+    /// is length 2 because that arm's subject is 0. The failed-pattern path
+    /// does not receive that value. An arm without a length, or two arms with
+    /// different lengths, publishes nothing.
     fn matched_length(
         &self,
         dispatch: &TableMatchExpression,
@@ -301,9 +303,19 @@ impl CurrentScalarValues<'_> {
         if arms.is_empty() {
             return None;
         }
+        let subject = self.capture(self.program, self.machine, self.state, dispatch.subject);
         let mut lengths = Vec::new();
         for arm in arms {
-            lengths.push(self.collection_length(arm.value, depth + 1)?);
+            let replacement = match arm.pattern {
+                MatchPattern::Value(pattern) => self.pattern_integer(pattern),
+                MatchPattern::Wildcard => None,
+            };
+            lengths.push(self.arm_length(
+                arm.value,
+                depth + 1,
+                subject.as_ref(),
+                replacement.as_ref(),
+            )?);
         }
         if lengths.iter().skip(1).all(|length| length == &lengths[0]) {
             return Some(lengths[0].clone());
@@ -317,6 +329,19 @@ impl CurrentScalarValues<'_> {
             .iter()
             .all(|length| length == first)
             .then(|| ScopedArithmeticValue::Integer(first.clone()))
+    }
+
+    fn pattern_integer(&self, pattern: ExpressionHandle) -> Option<ScopedArithmeticValue> {
+        if let ExpressionNode::Integer(literal) = self.program.expression_table.expression(pattern)
+        {
+            return Some(ScopedArithmeticValue::Integer(
+                numerics::bignum::BigInt::from_i64(literal.value_i64()?),
+            ));
+        }
+        let captured = self.capture(self.program, self.machine, self.state, pattern)?;
+        Some(ScopedArithmeticValue::Integer(
+            self.exact_length(&captured)?,
+        ))
     }
 
     fn exact_length(&self, value: &ScopedArithmeticValue) -> Option<numerics::bignum::BigInt> {
@@ -436,6 +461,110 @@ impl CurrentScalarValues<'_> {
             )
     }
 
+    /// Length of one match arm. A window whose endpoint mentions the subject
+    /// is measured after that arm's pattern replaces the subject, then checked
+    /// for a non-negative ordered span. Other arms keep `collection_length`.
+    fn arm_length(
+        &self,
+        expression: ExpressionHandle,
+        depth: usize,
+        subject: Option<&ScopedArithmeticValue>,
+        replacement: Option<&ScopedArithmeticValue>,
+    ) -> Option<ScopedArithmeticValue> {
+        if depth >= 64 || !expression.is_valid() {
+            return None;
+        }
+        if let ExpressionNode::Borrow(borrow) = self.program.expression_table.expression(expression)
+        {
+            return self.arm_length(borrow.target, depth + 1, subject, replacement);
+        }
+        if let ExpressionNode::Match(dispatch) =
+            self.program.expression_table.expression(expression)
+        {
+            return self.matched_length(dispatch, depth);
+        }
+        let Some(indexed) = self.program.expression_table.indexed_node(expression) else {
+            return self.collection_length(expression, depth);
+        };
+        if !validation::has_builtin_subslice_meaning(
+            self.program,
+            self.machine,
+            Some(self.state),
+            expression,
+        ) {
+            return self.collection_length(expression, depth);
+        }
+        let range = self.program.expression_table.range_node(indexed.index)?;
+        let source = self.collection_length(indexed.collection, depth + 1)?;
+        let zero = ScopedArithmeticValue::Integer(numerics::bignum::BigInt::zero());
+        let start = self.replaced_endpoint(range.start, &zero, subject, replacement)?;
+        let authored_end = if range.end.is_valid() {
+            self.replaced_endpoint(range.end, &source, subject, replacement)?
+        } else {
+            source.clone()
+        };
+        let end = if range.end_inclusive {
+            if !range.end.is_valid() {
+                return None;
+            }
+            ScopedArithmeticValue::IntegerOperation {
+                operator: BinaryOperator::Add,
+                left: Box::new(authored_end.clone()),
+                right: Box::new(ScopedArithmeticValue::Integer(
+                    numerics::bignum::BigInt::from_u64(1),
+                )),
+            }
+        } else {
+            authored_end.clone()
+        };
+        for (left, right) in [
+            (&zero, &start),
+            (&start, &end),
+            (&end, &source),
+            (&zero, &authored_end),
+        ] {
+            if !self.proves_values_relation(
+                self.program,
+                self.machine,
+                BinaryOperator::LessOrEqual,
+                left,
+                right,
+            ) {
+                return None;
+            }
+        }
+        Some(ScopedArithmeticValue::IntegerOperation {
+            operator: BinaryOperator::Subtract,
+            left: Box::new(end),
+            right: Box::new(start),
+        })
+    }
+
+    fn replaced_endpoint(
+        &self,
+        endpoint: ExpressionHandle,
+        omitted: &ScopedArithmeticValue,
+        subject: Option<&ScopedArithmeticValue>,
+        replacement: Option<&ScopedArithmeticValue>,
+    ) -> Option<ScopedArithmeticValue> {
+        let captured = if endpoint.is_valid() {
+            self.capture(self.program, self.machine, self.state, endpoint)?
+        } else {
+            omitted.clone()
+        };
+        // A call in the endpoint may store the field before a later read.
+        // The pattern still describes the match subject, not that later value.
+        let call_may_store_field = matches!(subject, Some(ScopedArithmeticValue::Atom { .. }))
+            && endpoint.is_valid()
+            && expression_contains_call(self.program, endpoint);
+        Some(match (subject, replacement) {
+            (Some(subject), Some(replacement)) if !call_may_store_field => {
+                substitute_matched_subject(&captured, subject, replacement)
+            }
+            _ => captured,
+        })
+    }
+
     /// The length captured when this field was filled by a record literal.
     /// A missing or retired observation is not a length.
     fn saved_field_length(
@@ -541,4 +670,89 @@ impl CurrentScalarValues<'_> {
             numerics::bignum::BigInt::from_u64(u64::try_from(extent).ok()?),
         ))
     }
+}
+
+/// Replace the matched subject with the arm's pattern value. Only the
+/// selected arm's copy is rewritten; the subject's other occurrences stay.
+fn substitute_matched_subject(
+    value: &ScopedArithmeticValue,
+    subject: &ScopedArithmeticValue,
+    replacement: &ScopedArithmeticValue,
+) -> ScopedArithmeticValue {
+    if value == subject || same_symbol_term(value, subject) {
+        return replacement.clone();
+    }
+    match value {
+        ScopedArithmeticValue::IntegerOperation {
+            operator,
+            left,
+            right,
+        } => ScopedArithmeticValue::IntegerOperation {
+            operator: *operator,
+            left: Box::new(substitute_matched_subject(left, subject, replacement)),
+            right: Box::new(substitute_matched_subject(right, subject, replacement)),
+        },
+        ScopedArithmeticValue::BoundedInteger {
+            value,
+            minimum,
+            maximum,
+        } => ScopedArithmeticValue::BoundedInteger {
+            value: Box::new(substitute_matched_subject(value, subject, replacement)),
+            minimum: minimum.clone(),
+            maximum: maximum.clone(),
+        },
+        other => other.clone(),
+    }
+}
+
+/// Two name occurrences of one parameter are different expression handles.
+/// They are the same subject when each term binds that parameter and nothing else.
+fn same_symbol_term(value: &ScopedArithmeticValue, subject: &ScopedArithmeticValue) -> bool {
+    let (ScopedArithmeticValue::Term(value), ScopedArithmeticValue::Term(subject)) =
+        (value, subject)
+    else {
+        return false;
+    };
+    let value_symbols = symbol_binders(value);
+    let subject_symbols = symbol_binders(subject);
+    !subject_symbols.is_empty() && value_symbols == subject_symbols
+}
+
+fn expression_contains_call(
+    program: &dyn ::validation::CheckingInput,
+    expression: ExpressionHandle,
+) -> bool {
+    if !expression.is_valid() {
+        return false;
+    }
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Call(_) => true,
+        ExpressionNode::Binary(binary) => {
+            expression_contains_call(program, binary.left)
+                || expression_contains_call(program, binary.right)
+        }
+        ExpressionNode::Unary(unary) => expression_contains_call(program, unary.operand),
+        ExpressionNode::Member(member) => expression_contains_call(program, member.receiver),
+        ExpressionNode::Borrow(borrow) => expression_contains_call(program, borrow.target),
+        ExpressionNode::Indexed(indexed) => {
+            expression_contains_call(program, indexed.collection)
+                || expression_contains_call(program, indexed.index)
+        }
+        ExpressionNode::Range(range) => {
+            expression_contains_call(program, range.start)
+                || expression_contains_call(program, range.end)
+        }
+        _ => false,
+    }
+}
+
+fn symbol_binders(expression: &ScopedArithmeticExpression) -> Vec<symbols::SymbolHandle> {
+    expression
+        .bindings
+        .iter()
+        .filter_map(|binding| match binding.binder {
+            ScopedArithmeticBinder::Symbol(symbol) => Some(symbol),
+            _ => None,
+        })
+        .collect()
 }

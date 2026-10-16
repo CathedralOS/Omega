@@ -63,6 +63,15 @@ pub(in crate::checks::ranges) fn expression_integer_value(
             folded_integer_binary(left, binary.operator, right)
         }
         ExpressionNode::Integer(value) => value.value_i64(),
+        // An exact ensured result is that integer. A proper interval is not:
+        // `0 <= result < 26` does not pick one endpoint.
+        ExpressionNode::Call(_) => {
+            let (low, high) = super::ensured_call_result_bounds(program, expression)?;
+            match (low, high) {
+                (Some(low), Some(high)) if low == high => Some(low),
+                _ => None,
+            }
+        }
         ExpressionNode::Name(_) => {
             let (symbol, name) = expression_name(program, expression)?;
             facts.local_integer(symbol, name)

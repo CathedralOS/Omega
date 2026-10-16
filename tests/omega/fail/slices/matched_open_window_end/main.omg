@@ -1,0 +1,11 @@
+// The wildcard arm does not learn that `which` is 0, so `which + 2` is not
+// a proven length-2 window.
+machine open_end(items: &mut [u8; 4], which: i64) -> &mut [u8]
+    ensures result.len == 2
+{
+    match which {
+        _ -> &mut items[0..which + 2]
+    }
+}
+
+machine main() {}

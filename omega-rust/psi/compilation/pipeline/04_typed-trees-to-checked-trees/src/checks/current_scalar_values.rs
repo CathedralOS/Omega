@@ -488,10 +488,11 @@ impl<'program> CurrentScalarValues<'program> {
     }
 
     /// Capture an executed primitive's normal value, not a specification term.
-    /// Trapping addition/subtraction/multiplication have their mathematical
-    /// result on this continuation; their crash path never reaches the use.
-    /// Selection and the result carrier are checked independently. Wrapping
-    /// and Saturating remain source terms with the engine's policy checks.
+    /// Exact and Trapping addition/subtraction/multiplication have their
+    /// mathematical result on this continuation; a trap or an unproved exact
+    /// overflow never reaches the use. Selection and the result carrier are
+    /// checked independently. Wrapping and Saturating remain source terms
+    /// with the engine's policy checks.
     fn capture_at_depth(
         &self,
         program: &dyn ::validation::CheckingInput,
@@ -502,6 +503,36 @@ impl<'program> CurrentScalarValues<'program> {
     ) -> Option<ScopedArithmeticValue> {
         if depth >= 64 {
             return None;
+        }
+        if let ExpressionNode::Integer(literal) = program.expression_table.expression(expression)
+            && let Some(value) = literal.value_i64()
+        {
+            return Some(ScopedArithmeticValue::Integer(
+                numerics::bignum::BigInt::from_i64(value),
+            ));
+        }
+        // An exact ensured result is that integer at every use. A proper
+        // interval stays a term: `0 <= result < 26` does not select one end.
+        if let Some(call) = program.expression_table.call_node(expression)
+            && let Some((Some(low), Some(high))) =
+                validation::normal_return_integer_bounds(program, call)
+            && low == high
+        {
+            return Some(ScopedArithmeticValue::Integer(
+                numerics::bignum::BigInt::from_i64(low),
+            ));
+        }
+        if let ExpressionNode::Member(_) = program.expression_table.expression(expression) {
+            if let Some(value) = field_occurrence(program, machine, state, expression) {
+                return Some(value);
+            }
+            // A mutable parameter field is not frozen: a later store can change
+            // it. Two reads still name one field, so a match arm can replace
+            // that field with the pattern until a call in the same endpoint
+            // might have written it.
+            if let Some(value) = mutable_integer_field(program, machine, state, expression) {
+                return Some(value);
+            }
         }
         if let Some(binary) = program.expression_table.binary_node(expression)
             && matches!(
@@ -517,7 +548,10 @@ impl<'program> CurrentScalarValues<'program> {
             && let Some(reference) =
                 validation::expression_result_type_reference(program, machine, state, expression)
             && integer_carrier(program, reference).is_some()
-            && program.arithmetic_domain_for_type_reference(reference) == ArithmeticDomain::Trapping
+            && matches!(
+                program.arithmetic_domain_for_type_reference(reference),
+                ArithmeticDomain::Exact | ArithmeticDomain::Trapping
+            )
         {
             return Some(ScopedArithmeticValue::IntegerOperation {
                 operator: binary.operator,
@@ -978,6 +1012,38 @@ fn frozen_field(
             state.symbol, parameter.symbol
         ),
     ))
+}
+
+/// Identity of an integer field of a parameter that `frozen_field` will not
+/// freeze, including a mutable record. The identity is the field, not the
+/// expression handle, so both reads in one arm compare equal.
+fn mutable_integer_field(
+    program: &dyn ::validation::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    expression: ExpressionHandle,
+) -> Option<ScopedArithmeticValue> {
+    let member = program.expression_table.member_node(expression)?;
+    let name = program.expression_table.name_path_node(member.receiver)?;
+    if name.symbol != name.head_symbol
+        || program
+            .expression_table
+            .name_path_members(name.members)
+            .len()
+            != 1
+    {
+        return None;
+    }
+    let reference =
+        validation::expression_result_type_reference(program, machine, state, expression)?;
+    let primitive = integer_carrier(program, reference)?;
+    Some(ScopedArithmeticValue::Atom {
+        identity: format!(
+            "state:{:?}:parameter:{:?}:member:{:?}",
+            state.symbol, name.symbol, member.member_symbol
+        ),
+        unsigned: unsigned(primitive),
+    })
 }
 
 fn field_collection_length(

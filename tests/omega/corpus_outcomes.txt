@@ -4775,6 +4775,8 @@ fail/slices/invalid_subslice_end_bounds_unchecked rejected 1563ms expected @a9ae
 	cannot prove subslice range end bound `..9` is within slice length 4
 fail/slices/match_index_guard_does_not_escape rejected 1510ms expected @a9ae30e1c334+wt
 	cannot prove index `0` is within unknown slice length of `values` in observe::entry
+fail/slices/matched_open_window_end rejected 317ms expected @a4e565996e72+wt
+	exact arithmetic in machine `open_end` state `entry` terminal expression may overflow `i64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i64 in Wrapping`/`Saturating`/`Trapping`).
 fail/slices/matched_window_lengths_disagree rejected 981ms expected @0e7ef4cb2ac8+wt
 	cannot prove ensures contract for exit from half at statement 0: result.len == 2
 fail/slices/mutable_matched_window_lengths_disagree rejected 975ms expected @efe2909d9732
@@ -8987,6 +8989,7 @@ run/proofs/quotient_copy_paths checked 19698ms check-target:macos_arm64 @73e466d
 run/providers/module_named_float_conversion_family_exit checked 16353ms check-target:macos_arm64 @77cde1c51efd+wt
 run/slices/call_result_mutable_window_exit checked 13049ms check-target:macos_arm64 @73e11f08dcbb+wt
 run/slices/disjoint_local_state_windows checked 9595ms check-target:macos_arm64 @1810e541fd15+wt
+run/slices/matched_computed_window_end checked 5636ms check-target:macos_arm64 @a4e565996e72+wt
 run/slices/mutable_window_call_argument checked 5974ms check-target:macos_arm64 @218cc4d211aa
 run/stores/runtime_float_indexed_call_result_exit checked 16446ms check-target:macos_arm64 @77cde1c51efd+wt
 run/stores/runtime_float_store_selector_snapshot_exit checked 16333ms check-target:macos_arm64 @77cde1c51efd+wt

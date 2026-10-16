@@ -5,6 +5,12 @@
 //! two consumers differ only at an indexed read or a completed call's entry.
 //! Keeping separate walkers previously lost match guards in both consumers
 //! and short-circuit guards in call-argument collection.
+//!
+//! A boolean pattern seeds the subject's truth. An integer value pattern
+//! seeds the same stable subject as that integer for the selected arm only.
+//! `match which { 0 -> items[0..which + 2] }` is then the window `items[0..2]`.
+//! Later arms keep the facts from patterns that already failed; they do not
+//! inherit the selected value.
 
 use typed_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, MatchPattern, TableCallExpression,
@@ -14,6 +20,7 @@ use typed_trees::machine::Machine;
 use typed_trees::state::State;
 use validation::CallFrameResolver;
 
+use super::expressions::{expression_integer_value, expression_name};
 use super::facts::RangeFacts;
 use super::guards::{seed_guard_facts, seed_negated_guard_facts, seed_value_vs_value_endpoints};
 
@@ -44,6 +51,33 @@ impl ExpressionTransfer<'_, '_> {
                 .into_complete_paths()
                 .is_some_and(|paths| paths.is_empty())
         })
+    }
+
+    /// Record `subject == pattern` when the pattern folds to an integer.
+    /// Names and fields are the carriers range proofs already fold; a call
+    /// subject has no binding to update, and its own `ensures` supplies the
+    /// value when that contract is exact.
+    fn seed_matched_integer(
+        &self,
+        facts: &mut RangeFacts<'_>,
+        subject: ExpressionHandle,
+        pattern: ExpressionHandle,
+    ) {
+        let Some(value) = expression_integer_value(self.program, facts, pattern) else {
+            return;
+        };
+        match self.program.expression_table.expression(subject) {
+            ExpressionNode::Name(_) => {
+                let Some((symbol, name)) = expression_name(self.program, subject) else {
+                    return;
+                };
+                facts.define_local(symbol, name.unwrap_or_default(), None, Some(value));
+            }
+            ExpressionNode::Member(member) => {
+                facts.define_field_integer(member.member_symbol, member.member.as_str(), value);
+            }
+            _ => {}
+        }
     }
 
     fn seed_outcome(&self, facts: &mut RangeFacts<'_>, subject: ExpressionHandle, truth: bool) {
@@ -114,6 +148,14 @@ impl ExpressionTransfer<'_, '_> {
                     if stable_subject && let Some(truth) = outcome {
                         self.seed_outcome(&mut selected, dispatch.subject, truth);
                         self.seed_outcome(&mut remaining, dispatch.subject, !truth);
+                    }
+                    if stable_subject
+                        && builtin_comparison
+                        && let MatchPattern::Value(pattern) = arm.pattern
+                    {
+                        // Equality is arm-local. `remaining` is the path that
+                        // failed this pattern, so it must not take the value.
+                        self.seed_matched_integer(&mut selected, dispatch.subject, pattern);
                     }
                     self.transfer(&mut selected, arm.value, sink);
                     if matches!(arm.pattern, MatchPattern::Wildcard)

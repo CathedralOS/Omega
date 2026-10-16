@@ -1,0 +1,89 @@
+// A match arm's integer pattern is that arm's value of the subject. The
+// window `items[0..which + 2]` in the arm `which == 0` has length 2, the
+// same as the other arm, so the result publishes length 2.
+//
+// The subject is a parameter, a local, a field, and the end itself is a
+// call whose ensured result is 2. Each window is written through
+// `write_pair`, which requires length at least 2.
+//
+// Expected exit: 0
+
+data Holder {
+    which: i64;
+    bytes: [u8; 4];
+}
+
+machine endpoint() -> i64
+    ensures result == 2
+{
+    2
+}
+
+machine from_parameter<'row>(items: &'row mut [u8; 4], which: i64) -> &'row mut [u8]
+    ensures result.len == 2
+{
+    match which {
+        0 -> &mut items[0..which + 2]
+        _ -> &mut items[2..4]
+    }
+}
+
+machine from_local<'row>(items: &'row mut [u8; 4], which: i64) -> &'row mut [u8]
+    ensures result.len == 2
+{
+    let index: i64 = which;
+    match index {
+        0 -> &mut items[0..index + 2]
+        _ -> &mut items[2..4]
+    }
+}
+
+machine from_field<'row>(holder: &'row mut Holder) -> &'row mut [u8]
+    ensures result.len == 2
+{
+    match holder.which {
+        0 -> &mut holder.bytes[0..holder.which + 2]
+        _ -> &mut holder.bytes[2..4]
+    }
+}
+
+machine from_call<'row>(items: &'row mut [u8; 4], which: i64) -> &'row mut [u8]
+    ensures result.len == 2
+{
+    match which {
+        0 -> &mut items[0..endpoint()]
+        _ -> &mut items[2..4]
+    }
+}
+
+machine write_pair(window: &mut [u8])
+    requires window.len >= 2
+{
+    window[0] = 9;
+    window[1] = 8;
+}
+
+machine main() crashes Trap {
+    let mut parameter_bytes: [u8; 4] = [1, 2, 3, 4];
+    let mut local_bytes: [u8; 4] = [1, 2, 3, 4];
+    let mut call_bytes: [u8; 4] = [1, 2, 3, 4];
+    let mut holder: Holder = Holder { which: 0, bytes: [1, 2, 3, 4] };
+    let parameter_window: &mut [u8] = from_parameter(&mut parameter_bytes, 0);
+    let local_window: &mut [u8] = from_local(&mut local_bytes, 0);
+    let field_window: &mut [u8] = from_field(&mut holder);
+    let call_window: &mut [u8] = from_call(&mut call_bytes, 0);
+    write_pair(parameter_window);
+    write_pair(local_window);
+    write_pair(field_window);
+    write_pair(call_window);
+    transition parameter_bytes[0] == 9 && parameter_bytes[1] == 8
+        && parameter_bytes[2] == 3
+        && local_bytes[0] == 9 && local_bytes[1] == 8
+        && holder.bytes[0] == 9 && holder.bytes[1] == 8
+        && call_bytes[0] == 9 && call_bytes[1] == 8 && call_bytes[2] == 3 {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
