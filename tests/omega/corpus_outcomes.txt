@@ -2603,6 +2603,8 @@ fail/effects/nominal_callback_console_const_reach rejected 105ms expected @a9ae3
 	fixed-array length `[u8; length()]`: const evaluation of `length` failed: machine `length` is not build-time admissible: service reach [Console]; build-time evaluation requires empty service reach, no possible suspension or blocking, ordinary checked termination, no unadmitted linear runtime carrier, and admitted declaration-selection authority across the complete call closure
 fail/effects/provider_authored_reach_beyond_invocation rejected 920ms expected @7e6c0ae564d2+wt
 	machine `Provider::measure` state `measure` does not satisfy trait `Measure` machine `measure`: service `Length` is not allowed by the trait requirement
+fail/effects/reviewed_service_rows_missing_capability rejected 2676ms expected @088321186835+wt
+	machine `omitted` publishes service reach `<none>` but its checked body reaches undeclared service `ReadCapability`
 fail/effects/synchronous_callback_block_required rejected 337ms expected @c5a7c1ce1957+wt
 	call to `execute` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
 fail/effects/synchronous_callback_reach_required rejected 473ms expected @fef885d565a2+wt
@@ -6857,6 +6859,7 @@ pass/effects/nominal_callback_const_reach checked 1718ms @a9ae30e1c334+wt
 pass/effects/nominal_callback_dependency checked 1598ms @a9ae30e1c334+wt
 pass/effects/reach_inferred_wrapper checked 9161ms @5041ef1af684+wt
 pass/effects/reach_through_machine_param checked 9378ms @5041ef1af684+wt
+pass/effects/reviewed_service_rows_exit checked 13265ms check-target:macos_arm64 @088321186835+wt
 pass/effects/runtime_empty_boundary_reach_exit checked 5103ms check-target:macos_arm64 @c5a7c1ce1957+wt
 pass/effects/structural_callback_reach checked 1685ms @a9ae30e1c334+wt
 pass/effects/top_level_callback_provider_ceiling checked 1241ms @c5a7c1ce1957+wt

@@ -1,0 +1,19 @@
+// Expected exit: 0.
+// The package boundary retains read capability for one method, an empty reach
+// for the other, and the separately declared synchronous interface for both.
+use reviewed_service::operations;
+use omega_language_std::console;
+Reader satisfies Operations {
+    Operations::read = read_value_provider;
+    Operations::identity = identity_provider;
+}
+machine read_value_provider(value: i32) -> i32 { value }
+machine identity_provider(value: i32) -> i32 { value }
+data Main { }
+machine Main::main(main: &mut Main) reaches Console {
+    let read: i32 = read_value(17);
+    let pure: i32 = pure_value(39);
+    transition read == 17 && pure == 39 { true -> good() false -> bad() }
+    state good() { Console::exit_process(0); }
+    state bad() { Console::exit_process(1); }
+}

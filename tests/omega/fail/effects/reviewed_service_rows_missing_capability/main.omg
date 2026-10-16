@@ -1,0 +1,7 @@
+use reviewed_service::operations;
+// An invoked interface does not grant its read method's capability.
+pub machine omitted(value: i32) -> i32
+invokes Operations;
+{
+    Operations::read(value)
+}

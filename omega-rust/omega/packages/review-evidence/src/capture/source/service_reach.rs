@@ -26,25 +26,14 @@ fn checked_machine_service_reach<'a>(
         machine.name.as_str(),
         machine.service_reach_is_installation_bound,
     )?;
-    let parameters = compilation
-        .machine_states(machine)
-        .first()
-        .map(|state| compilation.state_parameters(state))
-        .unwrap_or_default();
-    let declared = derive_declared_service_reach(
-        compilation,
-        authored,
-        &validation::declared_machine_invocations(compilation.checking_input, machine),
-        parameters,
-        machine.name.as_str(),
-    )?;
+    let declared = derive_declared_service_reach(compilation, authored, machine.name.as_str())?;
     if compilation
         .service_reach_rows
         .services(machine.service_reach_row)
         != declared
     {
         return Err(vec![Diagnostic::error(format!(
-            "reviewed callable `{}` authored reaches/invokes targets do not equal its exact normalized service-reach row",
+            "reviewed callable `{}` authored reaches targets do not equal its exact normalized service-reach row",
             machine.name,
         ))]);
     }
@@ -59,10 +48,6 @@ fn checked_machine_service_reach<'a>(
         machine.name.as_str(),
         "service-reach",
     )?;
-    let should_publish = machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
-        || machine.is_public
-        || authored.is_some()
-        || !declared.is_empty();
     let expected = exactly_one(
         inferred
             .machines()
@@ -71,10 +56,16 @@ fn checked_machine_service_reach<'a>(
         machine.name.as_str(),
         "reconstructed service-reach",
     )?;
-    let expected_interface = if should_publish {
-        language_semantics::ServiceReachInterface::PublishedCeiling(checked.published_ceiling)
-    } else {
-        language_semantics::ServiceReachInterface::InternalInferred
+    // Publication policy belongs to the reconstructed inference plan. Its row
+    // handles use a different table, so compare the category here and contents
+    // below rather than copying an inference handle into checked custody.
+    let expected_interface = match expected.interface {
+        language_semantics::ServiceReachInterface::PublishedCeiling(_) => {
+            language_semantics::ServiceReachInterface::PublishedCeiling(checked.published_ceiling)
+        }
+        language_semantics::ServiceReachInterface::InternalInferred => {
+            language_semantics::ServiceReachInterface::InternalInferred
+        }
     };
     // Authored custody remains exact above; publication additionally includes
     // ordinary checked callees, reconstructed once for this capture request.
@@ -141,11 +132,11 @@ fn exact_authored_service_reach_row<'a>(
 fn derive_declared_service_reach(
     compilation: &PackageReviewInput<'_>,
     authored: Option<&typed_trees::signature::AuthoredServiceReachRow>,
-    invocations: &[flow_effects::InvocationTarget],
-    parameters: &[typed_trees::signature::StateParameter],
     owner_name: &str,
 ) -> Result<Vec<language_semantics::ServiceReachId>, Vec<Diagnostic>> {
-    let mut direct = authored
+    // Invoked interface identity is checked separately in invocations.rs; only
+    // authored capability reach and its parents belong to this source row.
+    let direct = authored
         .into_iter()
         .flat_map(|row| &row.targets)
         .map(|target| {
@@ -159,40 +150,6 @@ fn derive_declared_service_reach(
                 })
         })
         .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
-    let non_self_parameters = parameters.iter().collect::<Vec<_>>();
-    for invocation in invocations {
-        let symbol = match invocation {
-            flow_effects::InvocationTarget::Parameter(ordinal) => non_self_parameters
-                .get(*ordinal as usize)
-                .map(|parameter| {
-                    typed_trees::service::inspect_service_parameter_contract(
-                        compilation,
-                        parameter.type_reference,
-                    )
-                    .ok()
-                    .flatten()
-                    .map(|parameter| parameter.carrier.requirement)
-                    .unwrap_or_else(|| {
-                        compilation
-                            .type_reference_table
-                            .type_reference(parameter.type_reference)
-                            .type_symbol(&compilation.type_reference_table)
-                    })
-                })
-                .unwrap_or_else(SymbolHandle::invalid),
-            flow_effects::InvocationTarget::Service(symbol) => *symbol,
-        };
-        let service = compilation
-            .service_reaches
-            .id_for_symbol(symbol)
-            .ok_or_else(|| {
-                vec![Diagnostic::error(format!(
-                    "reviewed callable `{owner_name}` has an invocation target without an exact boundary-service identity",
-                ))]
-            })?;
-        direct.push(service);
-    }
-
     let mut closure = Vec::new();
     for service in direct {
         compilation

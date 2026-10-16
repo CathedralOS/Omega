@@ -1,0 +1,17 @@
+// Selection identity and capability identity remain separate in publication.
+pub boundary trait ReadCapability { }
+pub boundary trait Operations {
+    machine read(value: i32) -> i32 reaches ReadCapability;
+    machine identity(value: i32) -> i32;
+}
+pub machine read_value(value: i32) -> i32
+reaches ReadCapability
+invokes Operations;
+{
+    Operations::read(value)
+}
+pub machine pure_value(value: i32) -> i32
+invokes Operations;
+{
+    Operations::identity(value)
+}

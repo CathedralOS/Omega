@@ -1,0 +1,10 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "reviewed_service_rows_exit");
+    Build::depend_as(builder, "reviewed_service", Source::Path { location: "library" });
+    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
+    Build::select_provider<reviewed_service::Operations, Reader>(builder);
+    Build::bind(builder, linux_x86_64::ProgramEntry, Main::main);
+    Build::bind(builder, linux_arm64::ProgramEntry, Main::main);
+    Build::bind(builder, macos_arm64::ProgramEntry, Main::main);
+    Build::bind(builder, windows_x86_64::ProgramEntry, Main::main);
+}

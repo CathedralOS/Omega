@@ -1,0 +1,6 @@
+machine build(builder: &mut Build) {
+    Build::package(builder, "reviewed_service_rows_missing_capability");
+    Build::depend_as(builder, "reviewed_service", Source::Path {
+        location: "../../../pass/effects/reviewed_service_rows_exit/library"
+    });
+}
