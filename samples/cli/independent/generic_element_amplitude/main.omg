@@ -1,0 +1,78 @@
+// Const-generic element amplitude. antenna_array_pattern sums four concrete
+// weights; this walk uses the same absolute-value sum at a runtime index
+// proved against the array's const extent, through a field and a parameter.
+//
+// Expected exit: 0.
+// Expected output contains: generic element amplitude 6 4
+use omega_language_std::console;
+use omega_language_std::math;
+use omega::language::core::float_operations;
+
+data Elements<const Count: u64> {
+    weights: [f64; Count];
+}
+
+machine amplitude<const Count: u64>(elements: &Elements<Count>) -> f64 {
+    transition { _ -> walk(elements, 0, 0.0) }
+    state walk(elements: &Elements<Count>, index: u64, total: f64) -> f64 {
+        transition index < Count {
+            true -> step(elements, index, total)
+            _ -> done(total)
+        }
+    }
+    state step(elements: &Elements<Count>, index: u64, total: f64) -> f64 {
+        let next: f64 = total + abs_f64(elements.weights[index]);
+        transition { _ -> walk(elements, index + 1, next) }
+    }
+    state done(total: f64) -> f64 { total }
+}
+
+machine parameter_amplitude<const Count: u64>(weights: &[f64; Count]) -> f64 {
+    transition { _ -> walk(weights, 0, 0.0) }
+    state walk(weights: &[f64; Count], index: u64, total: f64) -> f64 {
+        transition Count > index {
+            true -> step(weights, index, total)
+            _ -> done(total)
+        }
+    }
+    state step(weights: &[f64; Count], index: u64, total: f64) -> f64 {
+        let weight: f64 = weights[index];
+        let next: f64 = total + abs_f64(weight);
+        transition { _ -> walk(weights, index + 1, next) }
+    }
+    state done(total: f64) -> f64 { total }
+}
+
+data Main {
+    broadside: Elements<4>;
+    taper: Elements<3>;
+    local: [f64; 3];
+}
+
+machine Main::main(main: &mut Main) reaches Console {
+    main.broadside.weights[0] = 1.0;
+    main.broadside.weights[1] = 2.0;
+    main.broadside.weights[2] = 2.0;
+    main.broadside.weights[3] = 1.0;
+    main.taper.weights[0] = -1.5;
+    main.taper.weights[1] = 0.5;
+    main.taper.weights[2] = 2.0;
+    main.local[0] = -1.5;
+    main.local[1] = 0.5;
+    main.local[2] = 2.0;
+    let broadside: f64 = amplitude<4>(&main.broadside);
+    let taper: f64 = amplitude<3>(&main.taper);
+    let echoed: f64 = parameter_amplitude<3>(&main.local);
+    transition broadside == 6.0 && taper == 4.0 && echoed == taper {
+        true -> pass(main)
+        _ -> fail(main)
+    }
+    state pass(main: &mut Main) {
+        Console::write_line("generic element amplitude 6 4");
+        Console::exit_process(0);
+    }
+    state fail(main: &mut Main) {
+        Console::write_line("generic element amplitude mismatch");
+        Console::exit_process(1);
+    }
+}
