@@ -2024,13 +2024,13 @@ pass/machines/write_state_forward checked 17226ms @6c49683ce714
 pass/math/extent_no_wrap_requires_denotation checked 3476ms @6c49683ce714
 pass/memory/address_translation_canary checked 3725ms @6c49683ce714
 pass/memory/bump_allocator_canary built 23893ms @6c49683ce714
-pass/memory/interrupt_table_canary rejected 2725ms regressed-from:checked @8665e38f912c
-	selected whole provider maps `<selected target>::TimerProviderRoot::satisfies::TimerRoot` and `<selected target>::FatalExceptionProviderRoot::satisfies::FatalExceptionRoot` supply the same exact receiver application; inherited rows cannot be mixed across choosing owners
+pass/memory/interrupt_table_canary rejected 3435ms regressed-from:checked @fa48d7bba308+wt
+	selected overload `named-callable(path(InterruptAcknowledgement::complete),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(nominal\\\\\\(toolchain-owner\\\\\\,path\\\\\\(InterruptAcknowledgement\\\\\\)\\\\\\)\\)\\)\\)),result-dispatch())` has no compiler-known intrinsic realization
 pass/memory/runtime_large_entry_record_field_exit built 14674ms exit:70 @6c49683ce714
 pass/memory/runtime_large_frame_console_byte_homes_exit built 15568ms exit:70 stdout:match @6c49683ce714
 pass/memory/runtime_large_local_record_exit built 15341ms exit:70 @6c49683ce714
-pass/memory/secondary_processor_canary rejected 2193ms regressed-from:built @8665e38f912c
-	selected whole provider maps `<selected target>::SecondSecondaryProcessorConformance::satisfies::SecondSecondaryProcessorRoot` and `<selected target>::FirstSecondaryProcessorConformance::satisfies::FirstSecondaryProcessorRoot` supply the same exact receiver application; inherited rows cannot be mixed across choosing owners
+pass/memory/secondary_processor_canary rejected 7894ms regressed-from:built @fa48d7bba308+wt
+	selected overload `named-callable(path(StartupEnvelope::confirm),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(nominal\\\\\\(package-owner\\\\\\(32:0101010101010101010101010101010101010101010101010101010101010101\\\\\\)\\\\\\,path\\\\\\(StartupEnvelope\\\\\\)\\\\\\)\\)\\)\\)),result-dispatch())` has no compiler-known intrinsic realization
 pass/memory/weak_vacant_qualifier_satisfied checked 3425ms @6c49683ce714
 pass/modules/aggregate_machine_indices checked 3462ms @6c49683ce714
 pass/modules/boolean_equality_indices checked 3556ms @6c49683ce714
@@ -2390,7 +2390,7 @@ pass/proofs/selected_specification_requires_state checked 3400ms @6c49683ce714
 pass/proofs/short_circuit_rhs_entry_bound built 17915ms @6c49683ce714
 pass/proofs/static_machine_result_projection checked 1404ms @fedeee648fc7+wt
 pass/proofs/stride_pair_telescope checked 18313ms @6c49683ce714
-pass/providers/applied_binding_field_telescopes_exit built 5450ms exit:0 @f523463c7783+wt
+pass/providers/applied_binding_field_telescopes_exit built 6691ms exit:0 @fa48d7bba308+wt
 pass/providers/applied_entry_nested_binding_context_exit built 11734ms exit:0 @326ed531359e+wt
 pass/providers/bare_byte_array_boundary_argument built 10563ms exit:0 @326ed531359e+wt
 pass/providers/binding_formal_type_const_operands checked 3384ms @6c49683ce714
@@ -2409,7 +2409,7 @@ pass/providers/boundary_primitive_array_argument_exit built 15196ms exit:70 @6c4
 pass/providers/boundary_req_inherit checked 17377ms @6c49683ce714
 pass/providers/boundary_scalar_field_store built 15004ms exit:70 @6c49683ce714
 pass/providers/build_product_adapter_frontiers_exit built 22337ms exit:0 @6c49683ce714
-pass/providers/calling_application_region_scopes_exit built 5421ms exit:0 @f523463c7783+wt
+pass/providers/calling_application_region_scopes_exit built 6720ms exit:0 @fa48d7bba308+wt
 pass/providers/checked_boundary_operator_const_application_alternate_exit built 14225ms exit:70 @6c49683ce714
 pass/providers/checked_boundary_operator_physical_custody built 14817ms exit:70 @6c49683ce714
 pass/providers/checked_boundary_requirement_dispatch_exit built 15845ms exit:70 @6c49683ce714
@@ -2437,11 +2437,12 @@ pass/providers/foreign_packed_record_reuse_exit built 18032ms exit:70 @6c49683ce
 pass/providers/foreign_record_result_exit built 11857ms exit:70 @326ed531359e+wt
 pass/providers/foreign_register_record_reuse_exit built 17873ms exit:70 @6c49683ce714
 pass/providers/generic_provider_structural_result_composition_exit built 18326ms exit:0 @6c49683ce714
-pass/providers/inherited_applied_binding_borrowed_result_exit built 11534ms exit:0 @326ed531359e+wt
-pass/providers/inherited_applied_binding_dispatch_exit built 9961ms exit:0 @326ed531359e+wt
-pass/providers/inherited_applied_binding_finite_family_exit built 10582ms exit:0 @326ed531359e+wt
-pass/providers/inherited_applied_binding_forwarded_value_exit built 9172ms exit:0 @326ed531359e+wt
-pass/providers/inherited_boundary_field_postcondition_exit built 9490ms exit:0 @326ed531359e+wt
+pass/providers/inherited_applied_binding_borrowed_result_exit built 6934ms exit:0 @fa48d7bba308+wt
+pass/providers/inherited_applied_binding_dispatch_exit built 7125ms exit:0 @fa48d7bba308+wt
+pass/providers/inherited_applied_binding_finite_family_exit built 7124ms exit:0 @fa48d7bba308+wt
+pass/providers/inherited_applied_binding_forwarded_value_exit built 7000ms exit:0 @fa48d7bba308+wt
+pass/providers/inherited_boundary_field_postcondition_exit built 7071ms exit:0 @fa48d7bba308+wt
+pass/providers/inherited_receiver_calling_contracts_exit built 5083ms exit:0 @fa48d7bba308+wt
 pass/providers/kernel_import_result_chain_exit built 17846ms exit:70 @6c49683ce714
 pass/providers/lifetime_boundary_requirement_dispatch_exit built 15091ms exit:41 @6c49683ce714
 pass/providers/linear_structural_provider_pure_exit built 12695ms exit:0 @6c49683ce714

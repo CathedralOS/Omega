@@ -1,0 +1,5 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "inherited_receiver_same_calling_owner_conflict");
+    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
+    Build::bind(builder, linux_x86_64::ProgramEntry, Main::main);
+}

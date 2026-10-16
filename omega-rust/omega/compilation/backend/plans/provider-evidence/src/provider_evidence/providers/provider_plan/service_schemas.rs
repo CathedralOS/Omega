@@ -512,7 +512,7 @@ impl ServiceSchema {
         let root = demanded.receiver_applications.first()?;
         self.receiver_applications
             .iter()
-            .position(|application| application.eq_in(&self.identities, root, &demanded.identities))
+            .position(|application| self.receiver_contract_matches(application, demanded, root))
     }
 
     /// Distinct whole choices cannot install the same exact receiver view.
@@ -522,8 +522,33 @@ impl ServiceSchema {
             other
                 .receiver_applications
                 .iter()
-                .any(|right| left.eq_in(&self.identities, right, &other.identities))
+                .any(|right| self.receiver_contract_matches(left, other, right))
         })
+    }
+
+    /// An inherited receiver retains the descendant's evaluated calling
+    /// contract. Identical declaring requirements under distinct entry plans
+    /// do not compete for one installed receiver; equal complete contracts
+    /// still cannot mix their choosing owners.
+    fn receiver_contract_matches(
+        &self,
+        application: &ServiceReceiverApplication,
+        other: &Self,
+        other_application: &ServiceReceiverApplication,
+    ) -> bool {
+        application.eq_in(&self.identities, other_application, &other.identities)
+            && application.requirement_identities.iter().all(|identity| {
+                let Some(method) = self
+                    .methods
+                    .iter()
+                    .find(|method| method.requirement_identity == *identity)
+                else {
+                    return false;
+                };
+                other.methods.iter().any(|other_method| {
+                    method.eq_in(&self.identities, other_method, &other.identities)
+                })
+            })
     }
 
     /// Match a provider row to one exact requirement. The readable method name
@@ -554,3 +579,6 @@ impl ServiceSchema {
             .find(|method| self.row_binds_method(row, method, row_identities))
     }
 }
+
+#[cfg(test)]
+mod tests;

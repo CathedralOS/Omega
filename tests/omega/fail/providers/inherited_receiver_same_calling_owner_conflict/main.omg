@@ -1,0 +1,65 @@
+// Different policy implementations publishing the same normalized promise
+// cannot suppress the competing owners of their inherited receiver.
+use omega_language_std::calling;
+pub boundary trait Parent { machine value() -> u64; }
+pub boundary trait FirstRoot: Parent + Calling<FirstCalling> { machine selected() -> u64; }
+pub boundary trait SecondRoot: Parent + Calling<SecondCalling> { machine selected() -> u64; }
+pub FirstCalling satisfies CallingPolicy { CallingPolicy::plan = first_plan; }
+pub SecondCalling satisfies CallingPolicy { CallingPolicy::plan = second_plan; }
+FirstMap satisfies FirstRoot { Parent::value = first_value; FirstRoot::selected = first_value; }
+SecondMap satisfies SecondRoot { Parent::value = second_value; SecondRoot::selected = second_value; }
+machine first_value() -> u64 { 17 }
+machine second_value() -> u64 { 29 }
+
+machine first_plan(signature: BoundarySignature) -> BoundaryPlanResult { value_plan(signature, false) }
+machine second_plan(signature: BoundarySignature) -> BoundaryPlanResult { value_plan(signature, false) }
+machine value_plan(signature: BoundarySignature, allow_vectors: bool) -> BoundaryPlanResult {
+    transition signature.parameter_count == 0 && signature.has_result {
+        true -> select_result(signature, signature.result, allow_vectors)
+        _ -> reject()
+    }
+    state select_result(signature: BoundarySignature, result: u64, allow_vectors: bool) -> BoundaryPlanResult {
+        transition result < 256 { true -> accept(signature, result, allow_vectors) _ -> reject() }
+    }
+    state accept(signature: BoundarySignature, result: u64, allow_vectors: bool) -> BoundaryPlanResult {
+        let mut plan: BoundaryEntryPlan;
+        plan.call.convention = CallingConvention::SystemVAMD64;
+        plan.call.has_result = true;
+        plan.call.result.shape.class = AbiValueClass::Integer;
+        plan.call.result.shape.byte_size = signature.shapes[result].byte_size;
+        plan.call.result.shape.alignment = signature.shapes[result].alignment;
+        plan.call.result.location_count = 1;
+        plan.call.result.locations[0] = ValueLocation::Register {
+            register: MachineRegister::X86Rax, value_byte_offset: 0, byte_size: 8
+        };
+        plan.call.stack_alignment = 16;
+        plan.call.entry_control = EntryControl::CallReturn;
+        plan.state.initial_regime = MachineRegime::X86Long64;
+        plan.state.permitted_transitive_use.general_registers = true;
+        plan.state.permitted_transitive_use.flags = true;
+        plan.state.permitted_transitive_use.vector_registers = allow_vectors;
+        plan.state.stack = EntryStack::ProviderSelected;
+        plan.state.preemption = Preemption::NotApplicable;
+        BoundaryPlanResult::Accepted { plan: plan }
+    }
+    state reject() -> BoundaryPlanResult {
+        BoundaryPlanResult::Rejected { reason: CallingPolicyRejection { reason: "one scalar result" } }
+    }
+}
+data Providers { }
+linux_x86_64 machine Providers::provider_defaults(defaults: &mut Providers) {
+    Providers::select_provider<FirstRoot, FirstMap>(defaults);
+    Providers::select_provider<SecondRoot, SecondMap>(defaults);
+}
+machine first_observation() -> u64 reaches FirstRoot { FirstRoot::selected() }
+data Main { first: u64; }
+machine Main::main(main: &mut Main) reaches FirstRoot + SecondRoot crashes Trap {
+    main.first = first_observation();
+    let second: u64 = SecondRoot::selected();
+    transition { _ -> check(main, second) }
+    state check(main: &mut Main, second: u64) {
+        transition main.first == 17 && second == 29 { true -> done() _ -> bad() }
+    }
+    state done() { }
+    state bad() { crash Trap; }
+}

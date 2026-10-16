@@ -4122,18 +4122,22 @@ fail/providers/finite_requirement_forwarded_const_without_predicate rejected 331
 	cannot prove declared where facts for static application of requirement `Service::echo` under its complete applied telescope
 fail/providers/foreign_address_fixed_carrier_mismatch rejected 1324ms expected @a9ae30e1c334+wt
 	provider machine `Imports::release` for top-level boundary requirement `AddressProbe::release` parameter 0 expects `pointer: addr`, got `pointer: u64`
-fail/providers/inherited_applied_binding_ambiguous_ancestors rejected 55ms expected @a9ae30e1c334+wt
+fail/providers/inherited_applied_binding_ambiguous_ancestors rejected 61ms expected @fa48d7bba308+wt
 	dynamic call `Child::read` is ambiguous across inherited requirements: First::read, Second::read
 fail/providers/applied_requirement_unselected_ancestor_application rejected 22809ms expected @a9ae30e1c334+wt
 	selected ProgramEntry Binding field `Main::parent` requires a selected Fused provider for boundary `Parent`
-fail/providers/inherited_boundary_private_field_postcondition rejected 1027ms expected @2430f497a77c+wt
+fail/providers/inherited_boundary_private_field_postcondition rejected 3340ms expected @fa48d7bba308+wt
 	cannot prove index `main.counter.count` is within length 4 in Main::main::main
-fail/providers/inherited_provider_competing_authored_maps rejected 14537ms expected @a9ae30e1c334+wt
+fail/providers/inherited_provider_competing_authored_maps rejected 3507ms expected @fa48d7bba308+wt
 	selected whole provider maps `<selected target>::ParentMap::satisfies::Parent` and `<selected target>::ChildMap::satisfies::Child` supply the same exact receiver application; inherited rows cannot be mixed across choosing owners
-fail/providers/inherited_provider_erased_regions rejected 2845ms expected @a9ae30e1c334+wt
+fail/providers/inherited_provider_erased_regions rejected 3522ms expected @fa48d7bba308+wt
 	slot `Parent` has two covering provider plans for the selected target: `<selected target>::FirstParentMap::satisfies::Parent` [<fingerprint>], `<selected target>::SecondParentMap::satisfies::Parent` [<fingerprint>] -- choose one in build.omg with `Build::select_provider<Parent, ProviderType>(b);`
-fail/providers/inherited_provider_phantom_arguments rejected 2873ms expected @a9ae30e1c334+wt
+fail/providers/inherited_provider_phantom_arguments rejected 3474ms expected @fa48d7bba308+wt
 	slot `Parent` has two covering provider plans for the selected target: `<selected target>::FirstBoolMap::satisfies::Parent` [<fingerprint>], `<selected target>::SecondBoolMap::satisfies::Parent` [<fingerprint>] -- choose one in build.omg with `Build::select_provider<Parent, ProviderType>(b);`
+fail/providers/inherited_receiver_same_calling_owner_conflict rejected 2578ms expected @fa48d7bba308+wt
+	selected whole provider maps `<selected target>::SecondMap::satisfies::SecondRoot` and `<selected target>::FirstMap::satisfies::FirstRoot` supply the same exact receiver application; inherited rows cannot be mixed across choosing owners
+fail/providers/inherited_receiver_unscoped_parent rejected 5190ms expected @fa48d7bba308+wt
+	native artifact execution scope failed: native execution scope has competing selected checked providers for BoundaryMachineId(1)
 fail/providers/linear_provider_carry_forgetting rejected 890ms expected @3e583b96cb82
 	call to `park` may suspend while `forgotten` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
 fail/providers/linear_provider_result_second_use rejected 365ms expected @83314997c2b2
@@ -7560,7 +7564,7 @@ pass/proofs/selected_specification_requires_state checked 4678ms @4ce1ff349782+w
 pass/proofs/short_circuit_rhs_entry_bound checked 30697ms check-target:macos_arm64 @5b35eda9b8d6
 pass/proofs/static_machine_result_projection checked 1379ms @fedeee648fc7+wt
 pass/proofs/stride_pair_telescope checked 9821ms @5041ef1af684+wt
-pass/providers/applied_binding_field_telescopes_exit checked 5887ms check-target:macos_arm64 @f523463c7783+wt
+pass/providers/applied_binding_field_telescopes_exit checked 6307ms check-target:macos_arm64 @fa48d7bba308+wt
 pass/providers/applied_entry_nested_binding_context_exit checked 2785ms check-target:macos_arm64 @c61d64ccecc5+wt
 pass/providers/bare_byte_array_boundary_argument checked 11588ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/providers/binding_formal_type_const_operands checked 477ms @a8cedb3946d5+wt
@@ -7579,7 +7583,7 @@ pass/providers/boundary_primitive_array_argument_exit checked 12398ms check-targ
 pass/providers/boundary_req_inherit checked 9971ms @5041ef1af684+wt
 pass/providers/boundary_scalar_field_store checked 11793ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/providers/build_product_adapter_frontiers_exit checked 10791ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/providers/calling_application_region_scopes_exit checked 5780ms check-target:macos_arm64 @f523463c7783+wt
+pass/providers/calling_application_region_scopes_exit checked 6235ms check-target:macos_arm64 @fa48d7bba308+wt
 pass/providers/checked_boundary_operator_const_application_alternate_exit checked 7461ms check-target:macos_arm64 @4ffd613e37f1
 pass/providers/checked_boundary_operator_physical_custody checked 12039ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/providers/checked_boundary_requirement_dispatch_exit checked 8590ms check-target:macos_arm64 @4ffd613e37f1
@@ -7607,11 +7611,12 @@ pass/providers/foreign_packed_record_reuse_exit checked 6220ms check-target:linu
 pass/providers/foreign_record_result_exit checked 6025ms check-target:macos_arm64 @589aedee8ebc+wt
 pass/providers/foreign_register_record_reuse_exit checked 6773ms check-target:linux_x86_64 @589aedee8ebc+wt
 pass/providers/generic_provider_structural_result_composition_exit checked 11133ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/providers/inherited_applied_binding_borrowed_result_exit checked 12259ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/providers/inherited_applied_binding_dispatch_exit checked 11707ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/providers/inherited_applied_binding_finite_family_exit checked 17338ms check-target:macos_arm64 @4730b1ac8a84
-pass/providers/inherited_applied_binding_forwarded_value_exit checked 11056ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/providers/inherited_boundary_field_postcondition_exit checked 3376ms check-target:macos_arm64 @2430f497a77c+wt
+pass/providers/inherited_applied_binding_borrowed_result_exit checked 6704ms check-target:macos_arm64 @fa48d7bba308+wt
+pass/providers/inherited_applied_binding_dispatch_exit checked 6704ms check-target:macos_arm64 @fa48d7bba308+wt
+pass/providers/inherited_applied_binding_finite_family_exit checked 6650ms check-target:macos_arm64 @fa48d7bba308+wt
+pass/providers/inherited_applied_binding_forwarded_value_exit checked 6593ms check-target:macos_arm64 @fa48d7bba308+wt
+pass/providers/inherited_boundary_field_postcondition_exit checked 6992ms check-target:macos_arm64 @fa48d7bba308+wt
+pass/providers/inherited_receiver_calling_contracts_exit checked 10514ms check-target:linux_x86_64 @fa48d7bba308+wt
 pass/providers/kernel_import_result_chain_exit checked 11433ms check-target:linux_x86_64 @a9ae30e1c334+wt
 pass/providers/lifetime_boundary_requirement_dispatch_exit checked 11424ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/providers/linear_structural_provider_pure_exit checked 9151ms check-target:macos_arm64 @e5140c7a7be2+wt

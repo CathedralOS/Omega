@@ -112,13 +112,24 @@ fn project_complete_adapters(
             }
         }
     }
-    adapters.sort_by(|left, right| left.requirement_identity.cmp(&right.requirement_identity));
-    if let Some(duplicate) = adapters
-        .windows(2)
-        .find(|rows| rows[0].requirement_identity == rows[1].requirement_identity)
-    {
+    // A declaring requirement may occur beneath independent inherited calling
+    // contracts. Its whole-plan custody remains the disambiguating coordinate;
+    // executable scope and installation select exact candidates at real uses.
+    adapters.sort_by(|left, right| {
+        left.requirement_identity
+            .cmp(&right.requirement_identity)
+            .then_with(|| {
+                left.provider_plan_digest
+                    .as_bytes()
+                    .cmp(right.provider_plan_digest.as_bytes())
+            })
+    });
+    if let Some(duplicate) = adapters.windows(2).find(|rows| {
+        rows[0].requirement_identity == rows[1].requirement_identity
+            && rows[0].provider_plan_digest == rows[1].provider_plan_digest
+    }) {
         return Err(format!(
-            "selected provider closure projects more than one checked adapter for exact requirement `{}`",
+            "one selected whole provider plan projects repeated checked adapters for exact requirement `{}`",
             duplicate[0].requirement_identity
         ));
     }
