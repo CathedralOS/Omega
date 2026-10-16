@@ -941,7 +941,7 @@ impl ProviderPlan {
                 | ProviderBinding::TableFunction { table, field } => {
                     if table.is_empty() {
                         errors.push(format!(
-                            "external leaf for `{}::{}` uses a table field without an attached provider data type; declare it as `machine TableType::leaf(...) satisfies {}::{} via Binding::...`",
+                            "external leaf for `{}::{}` uses a table field without a table data owner; declare it as `machine TableType::leaf(...) satisfies {}::{} via ForeignBinding::...`",
                             self.schema.identity_text(self.schema.trait_name),
                             row.method,
                             self.schema.identity_text(self.schema.trait_name),
@@ -952,12 +952,11 @@ impl ProviderPlan {
                             "plan `{}` row `{}` table binding has no nominal provider type",
                             self.name, row.method,
                         ));
-                    } else if table != &self.provider_type {
-                        errors.push(format!(
-                            "plan `{}` row `{}` table owner `{table}` does not match nominal provider type `{}`",
-                            self.name, row.method, self.provider_type,
-                        ));
                     }
+                    // A named implementation maps requirements to machines;
+                    // it is not the table data type. Layout comes from each
+                    // selected leaf's exact declaration provenance, not equality
+                    // between the implementation's name and the table's name.
                     if field.is_empty() {
                         errors.push(format!(
                             "plan `{}` row `{}` table binding has no exact field identity",

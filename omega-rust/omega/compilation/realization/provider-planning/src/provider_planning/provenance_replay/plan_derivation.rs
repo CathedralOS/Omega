@@ -322,13 +322,16 @@ fn derive_named_provider_plans(
                         None,
                     )
                 } else {
+                    // Foreign candidates belong to the selected target member,
+                    // while the authored map can name its portable family head.
+                    // Join the resolved identity, just as checked adapters do.
                     let mut matched = Vec::new();
                     for candidate in candidates {
                         for (index, binding) in candidate.plan.rows.iter().enumerate() {
                             if candidate.provenance.row_requirements.get(index)
                                 == Some(&row.requirement)
                                 && candidate.provenance.row_realizations.get(index)
-                                    == Some(&row.realization_machine)
+                                    == Some(&machine.symbol)
                                 && candidate.plan.identities.text(binding.requirement_identity)
                                     == identity.as_str()
                             {

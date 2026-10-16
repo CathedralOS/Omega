@@ -320,6 +320,7 @@ pass/borrows/view_field_record_exit_disposal checked 3721ms @91bbf3e29aa9
 pass/borrows/write_projection_loan checked 12085ms @91bbf3e29aa9
 pass/borrows/writeonly_record_field_store built 11668ms exit:181 @91bbf3e29aa9
 pass/borrows/writeonly_record_field_store_variants built 11447ms exit:181 @91bbf3e29aa9
+pass/boundary/named_target_foreign_provider_exit built 5535ms exit:0 @14e1e1dd1503+wt
 pass/build/artifact_only_output checked 12422ms @91bbf3e29aa9
 pass/build/artifact_only_required_output_completion checked 24385ms published:files/manifest.txt @91bbf3e29aa9
 pass/build/build_domain_context checked 12617ms @91bbf3e29aa9

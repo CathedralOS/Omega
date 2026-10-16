@@ -1,0 +1,8 @@
+// Naming a provider independently does not relax exact table-borrow identity.
+data ActualTable { call: addr; }
+data SameShapeTable { call: addr; }
+boundary trait Probe { machine read(table: &SameShapeTable) -> u64; }
+machine ActualTable::read(table: &SameShapeTable) -> u64
+    satisfies Probe::read via ForeignBinding::TableFunction(call);
+ProbeProvider satisfies Probe { Probe::read = ActualTable::read; }
+machine main() {}

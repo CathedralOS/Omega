@@ -1098,6 +1098,10 @@ fail/borrows/whole_referent_store_type_mismatch rejected 970ms expected @a9ae30e
 	machine `settle` state `entry` assignment expects the `Verdict` data type but got `Outcome` in the `place` position; these are incompatible data types (a place is accepted structurally, but its declared type must match)
 fail/boundary/bare_field_value_rejected rejected 300ms expected @39847127e2cd+wt
 	data `Main` field `console` uses boundary trait `Console` as a value type; use `Binding<Console>` or a borrow of that carrier
+fail/boundary/named_foreign_provider_wrong_table rejected 2581ms expected @14e1e1dd1503+wt
+	cannot realize table field `call` for `read`: first table parameter does not borrow the exact attached table type
+fail/boundary/named_target_foreign_provider_missing_member rejected 2907ms expected @14e1e1dd1503+wt
+	build selects provider `ProbeProvider` for slot `Probe`, but no candidate exists in the loaded dependency closure
 fail/build/artifact_only_rollback_overlay_refused rejected 35259ms expected published:none @a9ae30e1c334+wt
 	artifact-only builds execute no product optimization stages to roll back
 fail/build/artifact_only_unsealed_output_refused rejected 5741ms expected published:none @a9ae30e1c334+wt
@@ -5896,6 +5900,7 @@ pass/borrows/writeonly_record_field_store checked 5039ms check-target:macos_arm6
 pass/borrows/writeonly_record_field_store_variants checked 4946ms check-target:macos_arm64 @af6b0f221559+wt
 pass/boundary/interleaved_structural_crash_formal_exit checked 10426ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/boundary/later_state_requirement_scalar_result_exit checked 11882ms check-target:macos_arm64 @b1d84da832b5+wt
+pass/boundary/named_target_foreign_provider_exit checked 5482ms check-target:macos_arm64 @14e1e1dd1503+wt
 pass/boundary/nested_projected_structural_crash_formal_exit checked 10388ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/boundary/static_foreign_scalar_result_locals_exit checked 11852ms check-target:macos_arm64 @b1d84da832b5+wt
 pass/build/artifact_only_output checked 9755ms @5041ef1af684+wt

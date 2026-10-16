@@ -1,0 +1,10 @@
+// A map naming a family cannot borrow another target's realization.
+boundary trait Probe { machine read() -> u64; }
+data NativeProbe {}
+uefi_x86_64 machine NativeProbe::read() -> u64
+    satisfies Probe::read via ForeignBinding::Syscall(39);
+ProbeProvider satisfies Probe { Probe::read = NativeProbe::read; }
+// Another valid candidate keeps the slot available. It must not substitute
+// for the explicitly selected implementation's absent target member.
+machine alternative() -> u64 satisfies Probe::read { 1 }
+machine main() {}

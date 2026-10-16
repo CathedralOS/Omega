@@ -1,0 +1,59 @@
+// Expected exit: 0. A named map selects the target member of a foreign family.
+use omega::language::core::external_binding;
+
+boundary trait ProcessProbe { machine identity() -> u32; }
+data NativeProcess {}
+machine windows_process_binding() -> ForeignBinding<12, 19, 0> {
+    ForeignBinding::DllImport { import: DllImport::PeByName {
+        library: "kernel32.dll", export: "GetCurrentProcessId"
+    } }
+}
+windows_x86_64 machine NativeProcess::identity() -> u32
+    satisfies ProcessProbe::identity via windows_process_binding();
+linux_x86_64 machine NativeProcess::identity() -> u32
+    satisfies ProcessProbe::identity via ForeignBinding::Syscall(39);
+machine macos_process_binding() -> ForeignBinding<26, 7, 0> {
+    ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+        install_name: "/usr/lib/libSystem.B.dylib", symbol: "_getpid"
+    } }
+}
+macos_arm64 machine NativeProcess::identity() -> u32
+    satisfies ProcessProbe::identity via macos_process_binding();
+ProcessProvider satisfies ProcessProbe {
+    ProcessProbe::identity = NativeProcess::identity;
+}
+
+// Table locators use the same exact member join even when not invoked here.
+// This tests plan derivation, not permission to dereference arbitrary tables.
+data FunctionTable { direct: addr; virtual_call: addr; }
+data OtherTable { padding: u64; virtual_call: addr; }
+boundary trait TableProbe {
+    machine direct(table: &FunctionTable) -> u64;
+    machine virtual_call(table: &OtherTable) -> u64;
+}
+windows_x86_64 machine FunctionTable::direct(table: &FunctionTable) -> u64
+    satisfies TableProbe::direct via ForeignBinding::TableFunction(direct);
+windows_x86_64 machine OtherTable::virtual_call(table: &OtherTable) -> u64
+    satisfies TableProbe::virtual_call via ForeignBinding::VtableField(virtual_call);
+linux_x86_64 machine FunctionTable::direct(table: &FunctionTable) -> u64
+    satisfies TableProbe::direct via ForeignBinding::TableFunction(direct);
+linux_x86_64 machine OtherTable::virtual_call(table: &OtherTable) -> u64
+    satisfies TableProbe::virtual_call via ForeignBinding::VtableField(virtual_call);
+macos_arm64 machine FunctionTable::direct(table: &FunctionTable) -> u64
+    satisfies TableProbe::direct via ForeignBinding::TableFunction(direct);
+macos_arm64 machine OtherTable::virtual_call(table: &OtherTable) -> u64
+    satisfies TableProbe::virtual_call via ForeignBinding::VtableField(virtual_call);
+TableProvider satisfies TableProbe {
+    TableProbe::direct = FunctionTable::direct;
+    TableProbe::virtual_call = OtherTable::virtual_call;
+}
+
+machine main() reaches ProcessProbe crashes Trap {
+    let process: u32 = ProcessProbe::identity();
+    transition process > 0 {
+        true -> accepted()
+        _ -> rejected()
+    }
+    state accepted() {}
+    state rejected() { crash Trap; }
+}
