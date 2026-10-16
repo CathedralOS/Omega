@@ -1,0 +1,24 @@
+// Expected exit: 0
+// A runtime byte index retains both the receiving restriction and one evaluation.
+domain [u8; 4]::NoNul(bytes) requires no_nul(bytes);
+data Counter { calls: u64 in Wrapping; }
+machine select(counter: &mut Counter) -> u64
+ensures result < 4 {
+    counter.calls = counter.calls + 1;
+    2u64
+}
+machine replace(bytes: &mut [u8; 4] in NoNul, counter: &mut Counter) {
+    bytes[select(counter)] = 255u8;
+}
+machine main() crashes Trap {
+    let mut bytes: [u8; 4] in NoNul = "abcd";
+    let mut counter: Counter;
+    replace(&mut bytes, &mut counter);
+    transition counter.calls == 1 && bytes.len == 4 && bytes[0] == 97
+        && bytes[1] == 98 && bytes[2] == 255 && bytes[3] == 100 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

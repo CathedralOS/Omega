@@ -2407,6 +2407,8 @@ fail/domains/qualified_fixed_byte_array_nested_zero_no_nul rejected 262ms expect
 	construction of `Inner` omits gated field `bytes`: its zero-filled representation is not an established value -- initialize it explicitly
 fail/domains/qualified_fixed_byte_array_nested_zero_route rejected 251ms expected @ef7962801508
 	construction of `Inner` omits gated field `bytes`: its zero-filled representation is not an established value -- initialize it explicitly
+fail/domains/qualified_fixed_byte_array_no_nul_store rejected 593ms expected @75cbf5dc1d21
+	cannot prove default-domain field requirement for return from mutate at statement 1: bytes requires [u8; N]::NoNul
 fail/domains/qualified_fixed_byte_array_nul_default rejected 245ms expected @ef7962801508
 	reading `bytes` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `[u8; 2][in NoNul]`
 fail/domains/qualified_fixed_byte_array_shared_local_write rejected 886ms expected @ef7962801508
@@ -8908,6 +8910,7 @@ run/domains/qualified_fixed_byte_array_optimized_exit checked 5236ms check-targe
 run/domains/qualified_fixed_byte_array_owned_parameter_exit checked 5462ms check-target:macos_arm64 @ef7962801508
 run/domains/qualified_fixed_byte_array_plain_copy_exit checked 5070ms check-target:macos_arm64 @ef7962801508
 run/domains/qualified_fixed_byte_array_record_loan_exit checked 5571ms check-target:macos_arm64 @ef7962801508
+run/domains/qualified_fixed_byte_array_runtime_store_exit checked 3594ms check-target:macos_arm64 @75cbf5dc1d21
 run/domains/qualified_fixed_byte_array_selected_view_return_exit checked 7128ms check-target:macos_arm64 @8a2c1f68d503
 run/domains/qualified_fixed_byte_array_utf8_mutation_exit checked 5977ms check-target:macos_arm64 @ef7962801508
 run/domains/qualified_fixed_byte_array_utf8_optimized_exit checked 5429ms check-target:macos_arm64 @ef7962801508

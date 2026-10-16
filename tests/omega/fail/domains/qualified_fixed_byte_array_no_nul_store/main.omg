@@ -1,0 +1,2 @@
+domain [u8; 4]::NoNul(bytes) requires no_nul(bytes);
+machine mutate(bytes: &mut [u8; 4] in NoNul) { bytes[0] = 0u8; }
