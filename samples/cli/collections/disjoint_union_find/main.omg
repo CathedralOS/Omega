@@ -1,0 +1,250 @@
+// Disjoint-set union over 64 elements in fixed arrays with union-by-rank and
+// iterative two-pass path compression.
+//
+// Runs four waves of unions (pairs, quads, octets, and unequal-rank/redundant
+// merges), then queries representatives across all 64 elements and verifies
+// agreement within merged groups, component count (8), and representative table
+// checksum (12229357013220123104).
+//
+// Expected output contains: PASS
+// Expected exit: 0
+
+use omega_language_std::console;
+
+data DisjointSet {
+    parent: [u64 [0..=63]; 64];
+    rank: [u64 in Wrapping; 64];
+    components: u64 in Wrapping;
+}
+
+data Main {
+    sets: DisjointSet;
+}
+
+machine DisjointSet::init(sets: &mut DisjointSet) {
+    sets.components = 64;
+    transition { _ -> loop_init(sets, 0) }
+
+    state loop_init(sets: &mut DisjointSet, index: u64) {
+        transition index < 64 {
+            true -> body(sets, index)
+            _ -> done()
+        }
+    }
+
+    state body(sets: &mut DisjointSet, index: u64)
+    requires index < 64 {
+        sets.parent[index] = index;
+        sets.rank[index] = 0;
+        transition { _ -> loop_init(sets, index + 1) }
+    }
+
+    state done() {}
+}
+
+machine DisjointSet::find(sets: &mut DisjointSet, element: u64 [0..=63]) -> u64 [0..=63] {
+    transition { _ -> chase(sets, element, element) }
+
+    state chase(sets: &mut DisjointSet, element: u64 [0..=63], cursor: u64 [0..=63]) -> u64 [0..=63] {
+        let next: u64 [0..=63] = sets.parent[cursor];
+        transition next == cursor {
+            true -> compress(sets, element, cursor)
+            _ -> chase(sets, element, next)
+        }
+    }
+
+    state compress(sets: &mut DisjointSet, cursor: u64 [0..=63], root: u64 [0..=63]) -> u64 [0..=63] {
+        transition cursor == root {
+            true -> done(root)
+            _ -> compress_step(sets, cursor, root)
+        }
+    }
+
+    state compress_step(sets: &mut DisjointSet, cursor: u64 [0..=63], root: u64 [0..=63]) -> u64 [0..=63] {
+        let next: u64 [0..=63] = sets.parent[cursor];
+        sets.parent[cursor] = root;
+        transition { _ -> compress(sets, next, root) }
+    }
+
+    state done(root: u64 [0..=63]) -> u64 [0..=63] {
+        root
+    }
+}
+
+machine DisjointSet::union_sets(sets: &mut DisjointSet, left: u64 [0..=63], right: u64 [0..=63]) -> bool {
+    let root_left: u64 [0..=63] = DisjointSet::find(sets, left);
+    let root_right: u64 [0..=63] = DisjointSet::find(sets, right);
+    transition root_left == root_right {
+        true -> unchanged()
+        _ -> link(sets, root_left, root_right)
+    }
+
+    state unchanged() -> bool {
+        false
+    }
+
+    state link(sets: &mut DisjointSet, root_left: u64 [0..=63], root_right: u64 [0..=63]) -> bool {
+        let rank_left: u64 in Wrapping = sets.rank[root_left];
+        let rank_right: u64 in Wrapping = sets.rank[root_right];
+        sets.components = sets.components - 1;
+        transition rank_left < rank_right {
+            true -> attach_left(sets, root_left, root_right)
+            _ -> compare_greater(sets, root_left, root_right, rank_left, rank_right)
+        }
+    }
+
+    state attach_left(sets: &mut DisjointSet, root_left: u64 [0..=63], root_right: u64 [0..=63]) -> bool {
+        sets.parent[root_left] = root_right;
+        true
+    }
+
+    state compare_greater(
+        sets: &mut DisjointSet,
+        root_left: u64 [0..=63],
+        root_right: u64 [0..=63],
+        rank_left: u64 in Wrapping,
+        rank_right: u64 in Wrapping
+    ) -> bool {
+        sets.parent[root_right] = root_left;
+        transition rank_left == rank_right {
+            true -> bump_rank(sets, root_left, rank_left)
+            _ -> merged()
+        }
+    }
+
+    state bump_rank(sets: &mut DisjointSet, root_left: u64 [0..=63], rank_left: u64 in Wrapping) -> bool {
+        sets.rank[root_left] = rank_left + 1;
+        true
+    }
+
+    state merged() -> bool {
+        true
+    }
+}
+
+machine run_waves(sets: &mut DisjointSet) {
+    transition { _ -> wave1(sets, 0) }
+
+    state wave1(sets: &mut DisjointSet, group: u64) {
+        transition group < 32 {
+            true -> wave1_step(sets, group)
+            _ -> wave2(sets, 0)
+        }
+    }
+
+    state wave1_step(sets: &mut DisjointSet, group: u64)
+    requires group < 32 {
+        let first: u64 [0..=63] = group * 2;
+        let second: u64 [0..=63] = group * 2 + 1;
+        _ = DisjointSet::union_sets(sets, first, second);
+        transition { _ -> wave1(sets, group + 1) }
+    }
+
+    state wave2(sets: &mut DisjointSet, group: u64) {
+        transition group < 16 {
+            true -> wave2_step(sets, group)
+            _ -> wave3(sets, 0)
+        }
+    }
+
+    state wave2_step(sets: &mut DisjointSet, group: u64)
+    requires group < 16 {
+        let first: u64 [0..=63] = group * 4;
+        let second: u64 [0..=63] = group * 4 + 2;
+        _ = DisjointSet::union_sets(sets, first, second);
+        transition { _ -> wave2(sets, group + 1) }
+    }
+
+    state wave3(sets: &mut DisjointSet, group: u64) {
+        transition group < 4 {
+            true -> wave3_step(sets, group)
+            _ -> wave4(sets)
+        }
+    }
+
+    state wave3_step(sets: &mut DisjointSet, group: u64)
+    requires group < 4 {
+        let first: u64 [0..=63] = group * 8;
+        let second: u64 [0..=63] = group * 8 + 4;
+        _ = DisjointSet::union_sets(sets, first, second);
+        transition { _ -> wave3(sets, group + 1) }
+    }
+
+    state wave4(sets: &mut DisjointSet) {
+        _ = DisjointSet::union_sets(sets, 32, 0);
+        _ = DisjointSet::union_sets(sets, 8, 36);
+        _ = DisjointSet::union_sets(sets, 16, 24);
+        _ = DisjointSet::union_sets(sets, 48, 52);
+        _ = DisjointSet::union_sets(sets, 1, 35);
+        _ = DisjointSet::union_sets(sets, 9, 39);
+    }
+}
+
+machine verify_workload(sets: &mut DisjointSet) -> bool {
+    let rep_0: u64 [0..=63] = DisjointSet::find(sets, 0);
+    let rep_7: u64 [0..=63] = DisjointSet::find(sets, 7);
+    let rep_35: u64 [0..=63] = DisjointSet::find(sets, 35);
+    let rep_8: u64 [0..=63] = DisjointSet::find(sets, 8);
+    let rep_39: u64 [0..=63] = DisjointSet::find(sets, 39);
+    let rep_16: u64 [0..=63] = DisjointSet::find(sets, 16);
+    let rep_31: u64 [0..=63] = DisjointSet::find(sets, 31);
+    let rep_48: u64 [0..=63] = DisjointSet::find(sets, 48);
+    let rep_55: u64 [0..=63] = DisjointSet::find(sets, 55);
+    let rep_63: u64 [0..=63] = DisjointSet::find(sets, 63);
+    let agreed: bool = rep_0 == rep_7
+        && rep_0 == rep_35
+        && rep_8 == rep_39
+        && rep_16 == rep_31
+        && rep_48 == rep_55
+        && rep_0 != rep_8
+        && rep_16 != rep_48
+        && rep_48 != rep_63;
+    transition agreed && sets.components == 8 {
+        true -> checksum_loop(sets, 0, 0)
+        _ -> failed()
+    }
+
+    state checksum_loop(sets: &mut DisjointSet, index: u64, acc: u64 in Wrapping) -> bool {
+        transition index < 64 {
+            true -> checksum_step(sets, index, acc)
+            _ -> check_done(acc)
+        }
+    }
+
+    state checksum_step(sets: &mut DisjointSet, index: u64, acc: u64 in Wrapping) -> bool
+    requires index < 64 {
+        let rep: u64 [0..=63] = DisjointSet::find(sets, index);
+        let rep_wrapping: u64 in Wrapping = (rep as u64) as u64 in Wrapping;
+        let idx_wrapping: u64 in Wrapping = index as u64 in Wrapping;
+        let next_acc: u64 in Wrapping = acc * 131 + rep_wrapping + idx_wrapping * 7;
+        transition { _ -> checksum_loop(sets, index + 1, next_acc) }
+    }
+
+    state check_done(acc: u64 in Wrapping) -> bool {
+        acc == 12229357013220123104
+    }
+
+    state failed() -> bool {
+        false
+    }
+}
+
+machine Main::main(main: &mut Main) reaches Console {
+    DisjointSet::init(&mut main.sets);
+    run_waves(&mut main.sets);
+    let ok: bool = verify_workload(&mut main.sets);
+    transition ok {
+        true -> pass()
+        _ -> fail()
+    }
+
+    state pass() {
+        Console::write_line("PASS");
+        Console::exit_process(0);
+    }
+
+    state fail() {
+        Console::write_line("FAIL");
+        Console::exit_process(1);
+    }
+}
