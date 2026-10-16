@@ -194,6 +194,7 @@ pub(super) fn place_spelling(
                 spelling.push_str(&format!("[{index}]"));
             }
             facts::PlaceSegment::Index { .. } => spelling.push_str("[index]"),
+            facts::PlaceSegment::OpaqueRange => spelling.push_str("[?..?]"),
             facts::PlaceSegment::FixedRange { start, end } => {
                 spelling.push_str(&format!("[{start}..{end}]"));
             }

@@ -1,0 +1,26 @@
+use omega::language::core::option;
+machine select<'input>(bytes: &'input [u8], start: u64) -> Optional<&'input u32>
+requires start <= bytes.len && 4 <= bytes.len - start {
+    transition { _ -> capture(bytes, start) }
+    state capture(bytes: &'input [u8], start: u64) -> Optional<&'input u32>
+    requires start <= bytes.len && 4 <= bytes.len - start {
+        let window: &[u8] = &bytes[start..start + 4];
+        transition window.len >= 4 {
+            true -> reinterpret(window)
+            false -> Optional::None
+        }
+    }
+    state reinterpret(window: &'input [u8]) -> Optional<&'input u32>
+    requires window.len >= 4 {
+        Optional::Some { value: &window[0] as &u32 }
+    }
+}
+machine observe(word: Optional<&u32>) -> u32 {
+    transition word { Optional::Some { value } -> (value) Optional::None -> 0u32 }
+}
+machine main() -> u32 {
+    let mut bytes: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 0];
+    let word: Optional<&u32> = select(&bytes[..], 1);
+    bytes[2] = 1;
+    observe(word)
+}

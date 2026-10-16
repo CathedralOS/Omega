@@ -671,13 +671,17 @@ pub(super) fn member_position_after_segments(
                     MemberPosition::Declaration(_) => return None,
                 }
             }
-            facts::PlaceSegment::FixedRange { .. } => match position {
-                MemberPosition::Reference(reference) => MemberPosition::Sliced(
-                    super::projection_types::collection_element_type_reference(program, reference)?,
-                ),
-                MemberPosition::Sliced(element) => MemberPosition::Sliced(element),
-                MemberPosition::Declaration(_) => return None,
-            },
+            facts::PlaceSegment::FixedRange { .. } | facts::PlaceSegment::OpaqueRange => {
+                match position {
+                    MemberPosition::Reference(reference) => MemberPosition::Sliced(
+                        super::projection_types::collection_element_type_reference(
+                            program, reference,
+                        )?,
+                    ),
+                    MemberPosition::Sliced(element) => MemberPosition::Sliced(element),
+                    MemberPosition::Declaration(_) => return None,
+                }
+            }
         };
     }
     Some(position)

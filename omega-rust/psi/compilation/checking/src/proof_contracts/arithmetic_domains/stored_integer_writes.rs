@@ -404,6 +404,11 @@ fn typed_storage_projection(
                     return Err(());
                 }
             }
+            PlaceSegment::OpaqueRange => match program.type_reference_table.type_reference(carrier)
+            {
+                TypeReferenceNode::FixedArray { .. } | TypeReferenceNode::Slice { .. } => {}
+                _ => return Err(()),
+            },
             PlaceSegment::FixedRange { start, end } => {
                 if start > end {
                     return Err(());

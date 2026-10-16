@@ -74,7 +74,9 @@ pub(crate) fn owner_path_from_place_segments(
             facts::PlaceSegment::Field { symbol } => BorrowOwnerSegment::Field(*symbol),
             facts::PlaceSegment::Case { variant } => BorrowOwnerSegment::Case(*variant),
             facts::PlaceSegment::FixedIndex { index } => BorrowOwnerSegment::FixedIndex(*index),
-            facts::PlaceSegment::FixedRange { .. } => BorrowOwnerSegment::DynamicIndex,
+            facts::PlaceSegment::FixedRange { .. } | facts::PlaceSegment::OpaqueRange => {
+                BorrowOwnerSegment::DynamicIndex
+            }
             facts::PlaceSegment::Index { expression } => program
                 .expression_table
                 .constant_integer_value(*expression)
@@ -150,6 +152,7 @@ pub(super) fn owner_path_matches(
                         BorrowOwnerSegment::DynamicIndex,
                         facts::PlaceSegment::FixedIndex { .. }
                             | facts::PlaceSegment::FixedRange { .. }
+                            | facts::PlaceSegment::OpaqueRange
                             | facts::PlaceSegment::Index { .. }
                     )
                 )

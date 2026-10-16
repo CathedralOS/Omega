@@ -247,13 +247,18 @@ pub(crate) fn prepare_value(
     let argument = preparation
         .operand(identities, value, reference, &[])
         .map_err(|error| {
-            let LoweringError::Unsupported(reason) = error else {
-                return error;
+            let (reason, detail) = match error {
+                LoweringError::Unsupported(reason) => (reason, reason.to_owned()),
+                LoweringError::MissingUnitStructuralType(identity) => (
+                    "structural value lost its declared carrier",
+                    format!("structural value lost its declared carrier `{identity}`"),
+                ),
+                error => return error,
             };
             let node = checked.facts.values.structural_values.nodes.get(value);
             let diagnostic = diagnostics::Diagnostic::error(format!(
                 "machine `{}` state `{}` statement {} cannot lower structural value: {}",
-                machine.name, state_declaration.name, statement, reason,
+                machine.name, state_declaration.name, statement, detail,
             ))
             .with_source_span(node.source_span);
             LoweringError::InvalidUnitMachinePlan {
@@ -329,9 +334,9 @@ fn carrier_declaration<'types>(
     let mut declarations = types
         .iter()
         .filter(|declaration| declaration.identity == identities.intern(&identity));
-    let declaration = declarations.next().ok_or(LoweringError::Unsupported(
-        "structural value lost its declared carrier",
-    ))?;
+    let declaration = declarations
+        .next()
+        .ok_or_else(|| LoweringError::MissingUnitStructuralType(identity.clone()))?;
     if declarations.next().is_some() {
         return unsupported("structural value carrier is ambiguous");
     }

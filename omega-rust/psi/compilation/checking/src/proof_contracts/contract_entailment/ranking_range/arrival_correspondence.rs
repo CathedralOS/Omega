@@ -430,7 +430,7 @@ fn completed_coordinates(
             // ordinary capture owner supplies that selector value, no reusable
             // coordinate is available. Fixed indices remain exact coordinates.
             if !place.segments.iter().all(|segment| match segment {
-                PlaceSegment::Index { .. } => false,
+                PlaceSegment::Index { .. } | PlaceSegment::OpaqueRange => false,
                 PlaceSegment::Field { symbol } => {
                     symbol.is_valid() && program.any_field_owner(*symbol).is_some()
                 }
@@ -871,6 +871,7 @@ fn declared_receiving_projection_type(
             }
             PlaceSegment::Field { .. }
             | PlaceSegment::Index { .. }
+            | PlaceSegment::OpaqueRange
             | PlaceSegment::FixedRange { .. } => return None,
         }
         reference = crate::value_custody::places::project_type_reference_from_segments(

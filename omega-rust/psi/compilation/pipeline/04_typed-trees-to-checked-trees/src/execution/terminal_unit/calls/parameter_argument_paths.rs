@@ -104,7 +104,7 @@ enum ArgumentPathShape {
 
 impl ArgumentPathShape {
     fn of(segments: &[facts::PlaceSegment]) -> Self {
-        use facts::PlaceSegment::{Case, Field, FixedIndex, FixedRange, Index};
+        use facts::PlaceSegment::{Case, Field, FixedIndex, FixedRange, Index, OpaqueRange};
         match segments.last() {
             None => return Self::Whole,
             Some(FixedRange { .. }) => return Self::FixedRange,
@@ -118,7 +118,7 @@ impl ArgumentPathShape {
                 FixedIndex { .. } => fixed_indexes += 1,
                 Index { .. } => runtime_indexed = true,
                 Case { .. } => case_qualified = true,
-                FixedRange { .. } => return Self::Unsupported,
+                FixedRange { .. } | OpaqueRange => return Self::Unsupported,
             }
         }
         if runtime_indexed && case_qualified {

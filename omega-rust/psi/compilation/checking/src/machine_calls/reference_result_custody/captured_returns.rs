@@ -4,6 +4,10 @@
 //! Missing rows are not an empty result. Only the retained value/store graph
 //! can establish an inactive descriptor slot. Source admission keeps its
 //! independent declaration-level lifetime analysis and does not call this query.
+//! Cross-invocation summaries erase executable selectors, not their dimensions:
+//! a runtime window remains a region of the input collection, whereas an index
+//! selects one element. Region provenance never establishes an exact descriptor
+//! extent or equality between independently captured windows.
 
 use super::{
     StoredCarrierSource, is_mutable_structural_parameter, loan_owner_path, loan_place_segments,
@@ -14,6 +18,7 @@ use checked_trees::{
     CheckedReferenceResultSourcePlan, CheckedReturnedReferencePlan, CheckedStructuralValueKind,
     CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralPathSegment,
 };
+use semantic_vocabulary::ReferenceOriginExtent;
 use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::statement::{StatementNode, TransitionExit, TransitionTargetNode};
@@ -571,14 +576,14 @@ impl Captures<'_> {
         // A retained interpretation still needs its codec, even if its target
         // type equals the original endpoint. Type equality cannot erase a view.
         if !has_presentation
-            && let Some((suffix, endpoint)) = self.origin_path(selected, &segments)
+            && let Some((suffix, endpoint, extent)) = self.origin_path(selected, &segments)
             && self.program.normalized_type_identity(endpoint) == leaf.source.type_identity
         {
             path.extend(suffix);
             return Some(vec![CheckedReferenceOriginSourcePlan {
                 parameter_index,
                 path,
-                extent: semantic_vocabulary::ReferenceOriginExtent::Projected,
+                extent,
                 type_identity: leaf.source.type_identity,
                 access: leaf.source.access,
             }]);
@@ -625,7 +630,7 @@ impl Captures<'_> {
             if !matching.is_empty() {
                 let mut output = Vec::new();
                 for origin in matching {
-                    let (suffix, presented) =
+                    let (suffix, presented, extent) =
                         self.frame_origin_path(selected, &incoming_segments, &origin.source)?;
                     if self.program.normalized_type_identity(presented) != leaf.source.type_identity
                     {
@@ -636,7 +641,7 @@ impl Captures<'_> {
                     let source = CheckedReferenceOriginSourcePlan {
                         parameter_index,
                         path: complete,
-                        extent: semantic_vocabulary::ReferenceOriginExtent::Projected,
+                        extent,
                         type_identity: leaf.source.type_identity,
                         access: leaf.source.access,
                     };
@@ -653,7 +658,7 @@ impl Captures<'_> {
         // here would pretend the public signature selected a private address.
         // The original loan/root/access joins above remain mandatory, and
         // completion must check the actual returned footprint's containment.
-        let (suffix, mut endpoint) = self.origin_path(selected, &segments)?;
+        let (suffix, mut endpoint, _) = self.origin_path(selected, &segments)?;
         path.extend(suffix);
         if path.is_empty()
             && stored_loan_parts(self.program, parameter.type_reference).is_none()
@@ -683,7 +688,11 @@ impl Captures<'_> {
         mut selected: TypeReferenceHandle,
         incoming: &[facts::PlaceSegment],
         origin: &crate::LocalWriteSource,
-    ) -> Option<(Vec<CheckedReferenceOriginProjection>, TypeReferenceHandle)> {
+    ) -> Option<(
+        Vec<CheckedReferenceOriginProjection>,
+        TypeReferenceHandle,
+        ReferenceOriginExtent,
+    )> {
         if origin.recasts.is_empty() {
             if origin.representation.is_some() {
                 return None;
@@ -691,6 +700,7 @@ impl Captures<'_> {
             return self.origin_path(selected, origin.segments.strip_prefix(incoming)?);
         }
         let mut path = Vec::new();
+        let mut extent = ReferenceOriginExtent::Projected;
         for (ordinal, recast) in origin.recasts.iter().enumerate() {
             if recast.root != origin.root {
                 return None;
@@ -706,7 +716,10 @@ impl Captures<'_> {
                 }
                 selectors
             };
-            let (projection, endpoint) = self.origin_path(selected, selectors)?;
+            let (projection, endpoint, selection_extent) = self.origin_path(selected, selectors)?;
+            if selection_extent == ReferenceOriginExtent::WithinRegion {
+                extent = ReferenceOriginExtent::WithinRegion;
+            }
             path.extend(projection);
             selected = endpoint;
             if let Some(shell) = crate::reference_shell(self.program, selected) {
@@ -764,9 +777,12 @@ impl Captures<'_> {
         {
             return None;
         }
-        let (suffix, endpoint) = self.origin_path(selected, selectors)?;
+        let (suffix, endpoint, selection_extent) = self.origin_path(selected, selectors)?;
+        if selection_extent == ReferenceOriginExtent::WithinRegion {
+            extent = ReferenceOriginExtent::WithinRegion;
+        }
         path.extend(suffix);
-        Some((path, endpoint))
+        Some((path, endpoint, extent))
     }
 
     fn call_paths(
@@ -1087,18 +1103,22 @@ impl Captures<'_> {
         .then_some(true)
     }
 
-    /// Runtime selections describe one typed element, not a finite list of
-    /// possible addresses. Exact formation and bounds remain in the loan rows.
+    /// Runtime element selections describe one typed element; erased windows
+    /// describe a region of the collection. Neither enumerates addresses.
+    /// Exact formation and bounds remain in the invocation's captured loan.
     fn origin_path(
         &self,
         mut selected: TypeReferenceHandle,
         mut segments: &[facts::PlaceSegment],
-    ) -> Option<(Vec<CheckedReferenceOriginProjection>, TypeReferenceHandle)> {
+    ) -> Option<(
+        Vec<CheckedReferenceOriginProjection>,
+        TypeReferenceHandle,
+        ReferenceOriginExtent,
+    )> {
         let mut output = Vec::new();
-        // Cross-call loan summaries erase callee-local selectors. The absent
-        // coordinate still denotes one typed element; it is not a dangling
-        // expression or a surviving range expression. Bounds and the evaluated
-        // address remain with the invocation's captured descriptor.
+        // An erased Index still denotes one element. Erased range expressions
+        // have their own OpaqueRange kind, so an invalid handle cannot collapse
+        // a window into its element type.
         let is_element_selection = |expression: ExpressionHandle| {
             !expression.is_valid()
                 || self
@@ -1118,6 +1138,7 @@ impl Captures<'_> {
                     facts::PlaceSegment::Index { .. }
                         | facts::PlaceSegment::FixedIndex { .. }
                         | facts::PlaceSegment::FixedRange { .. }
+                        | facts::PlaceSegment::OpaqueRange
                 )
             });
             let prefix_length = selection.unwrap_or(segments.len());
@@ -1129,7 +1150,7 @@ impl Captures<'_> {
             );
             selected = endpoint;
             let Some(position) = selection else {
-                return Some((output, selected));
+                return Some((output, selected, ReferenceOriginExtent::Projected));
             };
             selected = crate::peel_declared_constraints(self.program, selected);
             // A window that ends the path narrows a slice without selecting an
@@ -1140,7 +1161,9 @@ impl Captures<'_> {
             // a different type and stays unexpressed here.
             let trailing_window = position + 1 == segments.len()
                 && match segments[position] {
-                    facts::PlaceSegment::FixedRange { .. } => true,
+                    facts::PlaceSegment::FixedRange { .. } | facts::PlaceSegment::OpaqueRange => {
+                        true
+                    }
                     facts::PlaceSegment::Index { expression } => !is_element_selection(expression),
                     _ => false,
                 };
@@ -1153,7 +1176,15 @@ impl Captures<'_> {
                     self.program.type_reference_table.type_reference(collection),
                     TypeReferenceNode::Slice { .. }
                 )
-                .then_some((output, selected));
+                .then_some((
+                    output,
+                    selected,
+                    if segments[position] == facts::PlaceSegment::OpaqueRange {
+                        ReferenceOriginExtent::WithinRegion
+                    } else {
+                        ReferenceOriginExtent::Projected
+                    },
+                ));
             }
             if let Some(shell) = crate::reference_shell(self.program, selected) {
                 output.push(CheckedReferenceOriginProjection::Exact(
@@ -1201,6 +1232,15 @@ impl Captures<'_> {
                         _ => return None,
                     };
                     (projection, 2)
+                }
+                facts::PlaceSegment::OpaqueRange => {
+                    match segments.get(position.checked_add(1)?)? {
+                        facts::PlaceSegment::Index { expression }
+                            if is_element_selection(*expression) => {}
+                        facts::PlaceSegment::FixedIndex { .. } => {}
+                        _ => return None,
+                    }
+                    (CheckedReferenceOriginProjection::Element, 2)
                 }
                 _ => return None,
             };
@@ -1341,7 +1381,12 @@ fn captured_address_refines(
                 PlaceSegment::FixedIndex { index },
             ) if *start <= index && index < *end => suffix,
             ([PlaceSegment::Index { .. }, suffix @ ..], PlaceSegment::FixedIndex { .. }) => suffix,
-            ([expected, suffix @ ..], actual) if *expected == actual => suffix,
+            // Equal summary kinds do not identify equal evaluated windows.
+            ([expected, suffix @ ..], actual)
+                if *expected == actual && actual != PlaceSegment::OpaqueRange =>
+            {
+                suffix
+            }
             _ => return false,
         };
     }
@@ -1368,4 +1413,22 @@ fn paths_overlap(left: &[facts::PlaceSegment], right: &[facts::PlaceSegment]) ->
         );
     }
     true
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{captured_address_refines, paths_overlap};
+    use facts::PlaceSegment;
+
+    #[test]
+    fn opaque_windows_overlap_without_exact_address_identity() {
+        let unknown = [PlaceSegment::OpaqueRange];
+        let fixed = [PlaceSegment::FixedRange { start: 1, end: 4 }];
+        assert!(paths_overlap(&unknown, &unknown));
+        assert!(paths_overlap(&unknown, &fixed));
+        assert!(!captured_address_refines(&unknown, &unknown));
+        assert!(!captured_address_refines(&unknown, &fixed));
+        assert!(!captured_address_refines(&fixed, &unknown));
+        assert!(captured_address_refines(&fixed, &fixed));
+    }
 }

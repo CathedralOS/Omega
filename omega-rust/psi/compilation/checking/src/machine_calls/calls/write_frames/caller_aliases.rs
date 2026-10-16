@@ -143,7 +143,11 @@ pub struct ReferenceResultLeafOrigin {
 impl LocalWriteSource {
     /// Substitute relative storage using the frame owner's coordinate algebra.
     /// Text paths are only display/footprint payload; they never select fields.
-    pub fn substitute_storage(&self, relative: &Self) -> Option<Self> {
+    pub fn substitute_storage(
+        &self,
+        program: &dyn crate::CheckingInput,
+        relative: &Self,
+    ) -> Option<Self> {
         if !self.root.is_valid() || !relative.root.is_valid() {
             return None;
         }
@@ -155,7 +159,7 @@ impl LocalWriteSource {
             builtin_coordinates: true,
             ..Default::default()
         };
-        let source = coordinate(self).append_relative(&coordinate(relative));
+        let source = coordinate(self).append_relative(program, &coordinate(relative));
         Some(Self {
             is_image_storage: self.is_image_storage,
             recasts: source.recasts,

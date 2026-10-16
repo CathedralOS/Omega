@@ -1,0 +1,16 @@
+data Window<'input> { bytes: &'input [u8]; }
+machine select<'input>(bytes: &'input [u8], start: u64) -> Window<'input>
+requires start <= bytes.len {
+    transition { _ -> capture(bytes, start) }
+    state capture(bytes: &'input [u8], start: u64) -> Window<'input>
+    requires start <= bytes.len {
+        Window { bytes: &bytes[start..] }
+    }
+}
+machine observe(window: Window) -> u64 { window.bytes.len }
+machine main() -> u64 {
+    let mut bytes: [u8; 4] = [11, 22, 33, 44];
+    let window: Window = select(&bytes[..], 1);
+    bytes[2] = 99;
+    observe(window)
+}

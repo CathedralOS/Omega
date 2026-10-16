@@ -508,6 +508,7 @@ pub(super) fn validate_backing_projection(
             PlaceSegment::Index { .. }
                 | PlaceSegment::FixedIndex { .. }
                 | PlaceSegment::FixedRange { .. }
+                | PlaceSegment::OpaqueRange
         )
     }) {
         prefix.segments.truncate(position);

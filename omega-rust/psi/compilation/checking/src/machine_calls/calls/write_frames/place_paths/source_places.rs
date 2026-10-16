@@ -179,16 +179,16 @@ impl FrameSourcePlace {
 
     /// Substitute a proven relative source beneath this caller source.
     /// Runtime indexes belong to the callee's expression namespace, so retain
-    /// their possible-element meaning without retaining executable handles.
+    /// their element/window meaning without retaining executable handles.
     pub(in crate::machine_calls::calls::write_frames) fn append_relative(
         &self,
+        program: &dyn crate::CheckingInput,
         relative: &Self,
     ) -> Self {
-        self.substitute_source(relative, |segment| match segment {
-            PlaceSegment::Index { .. } => PlaceSegment::Index {
-                expression: ExpressionHandle::invalid(),
-            },
-            _ => segment,
+        self.substitute_source(relative, |segment| {
+            segment.erase_runtime_selector(|expression| {
+                program.expression_table.range_node(expression).is_some()
+            })
         })
     }
 
@@ -197,7 +197,7 @@ impl FrameSourcePlace {
     fn substitute_source(
         &self,
         relative: &Self,
-        map_selector: fn(PlaceSegment) -> PlaceSegment,
+        map_selector: impl Fn(PlaceSegment) -> PlaceSegment + Copy,
     ) -> Self {
         if (!self.root.is_valid() && !self.is_static()) || !relative.root.is_valid() {
             return Self::default();
@@ -252,6 +252,7 @@ fn segments_have_index_geometry(segments: &[PlaceSegment]) -> bool {
             segment,
             PlaceSegment::FixedIndex { .. }
                 | PlaceSegment::FixedRange { .. }
+                | PlaceSegment::OpaqueRange
                 | PlaceSegment::Index { .. }
         )
     })

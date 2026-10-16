@@ -406,7 +406,7 @@ fn transport_storage(
             .map(|parent| {
                 parent
                     .as_ref()
-                    .and_then(|parent| parent.substitute_storage(source))
+                    .and_then(|parent| parent.substitute_storage(program, source))
             })
             .collect();
     }

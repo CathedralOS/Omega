@@ -665,7 +665,7 @@ fn static_persistent_segment(
         facts::PlaceSegment::FixedIndex { index } => {
             Some(StaticPersistentSegment::FixedIndex(index))
         }
-        facts::PlaceSegment::FixedRange { .. } => None,
+        facts::PlaceSegment::FixedRange { .. } | facts::PlaceSegment::OpaqueRange => None,
         facts::PlaceSegment::Index { expression } => {
             immutable_state_index_symbol(program, state, expression)
                 .map(StaticPersistentSegment::StableIndex)
@@ -797,7 +797,9 @@ fn add_static_borrow_frontier(
             facts::PlaceSegment::Field { symbol } => StaticPersistentSegment::Field(symbol),
             facts::PlaceSegment::Case { variant } => StaticPersistentSegment::Case(variant),
             facts::PlaceSegment::FixedIndex { index } => StaticPersistentSegment::FixedIndex(index),
-            facts::PlaceSegment::FixedRange { .. } | facts::PlaceSegment::Index { .. } => {
+            facts::PlaceSegment::FixedRange { .. }
+            | facts::PlaceSegment::OpaqueRange
+            | facts::PlaceSegment::Index { .. } => {
                 unreachable!(
                     "range/dynamic borrow-owner paths are rejected before persistent propagation"
                 )

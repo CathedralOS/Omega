@@ -626,6 +626,19 @@ fail/borrows/dynamic_store_retains_old_backing rejected 629ms expected @f6a40abe
 	statement 5 mutates `original.value` while local borrow `slots` is still active (borrowed at statement 3; its last use is at statement 6 and it is released at state exit)
 fail/borrows/dynamic_store_then_fixed_retains_replacement rejected 592ms expected @f6a40abe6bc9+wt
 	statement 6 mutates `replacement.value` while local borrow `slots` is still active (borrowed at statement 4; its last use is at statement 7 and it is released at state exit)
+fail/borrows/dynamic_window_result_cannot_escape_local rejected 605ms expected @ea7b63644a0a+wt
+	machine `capture` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+fail/borrows/dynamic_window_result_exclusive_conflict rejected 605ms expected @ea7b63644a0a+wt
+	state `select` receives `bytes` while local borrow `first` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
+	statement 2 creates local borrow `second` while local borrow `first` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
+fail/borrows/dynamic_window_result_independent_bounds rejected 628ms expected @ea7b63644a0a+wt
+	cannot prove index `0` is within unknown slice length of `second.bytes` in read::entry
+fail/borrows/dynamic_window_result_keeps_backing_loan rejected 652ms expected @ea7b63644a0a+wt
+	statement 2 mutates `bytes[2]` while local borrow `window` is still active (borrowed at statement 1; its last use is at statement 3)
+fail/borrows/dynamic_window_result_recast_backing rejected 627ms expected @ea7b63644a0a+wt
+	statement 2 mutates `bytes[2]` while local borrow `word` is still active (borrowed at statement 1; its last use is at statement 3)
+fail/borrows/dynamic_window_result_requires_bounds rejected 610ms expected @ea7b63644a0a+wt
+	cannot prove subslice range end bound `start..end` is within unknown slice length
 fail/borrows/evidence_bound_record_result_keeps_loan rejected 1543ms expected @a9ae30e1c334+wt
 	statement 3 mutates `source` while local borrow `forwarded` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
 fail/borrows/expression_stored_carrier_requires_complete_relation rejected 440ms expected @dd6871ed0476
@@ -5288,6 +5301,7 @@ pass/borrows/collection_element_loans_exit checked 5787ms check-target:macos_arm
 pass/borrows/constructor_reference_access checked 1653ms @a9ae30e1c334+wt
 pass/borrows/data_copy_property checked 9605ms @5041ef1af684+wt
 pass/borrows/disjoint_branch_closure_with_grandchild checked 10342ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/borrows/dynamic_window_return_custody_exit checked 3476ms check-target:macos_arm64 @ea7b63644a0a+wt
 pass/borrows/enum_selected_view_reference_exit checked 11141ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/exclusive_array_parameter_shared_lend_exit checked 11022ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/explicit_lifetime_select checked 9442ms @5041ef1af684+wt
@@ -5498,6 +5512,7 @@ pass/borrows/static_record_reference_return_exit checked 10291ms check-target:ma
 pass/borrows/stored_primitive_reference_observations_exit checked 11205ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/stored_reference_projection_exit checked 11240ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/stored_view_return_consumers checked 1799ms @f329f97f57f7+wt
+pass/borrows/structural_operand_view_catalog_exit checked 3433ms check-target:macos_arm64 @ea7b63644a0a+wt
 pass/borrows/transition_shared_borrow_result checked 11028ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/view_field_record_exit_disposal checked 1549ms @a9ae30e1c334+wt
 pass/borrows/write_projection_loan checked 9836ms @5041ef1af684+wt

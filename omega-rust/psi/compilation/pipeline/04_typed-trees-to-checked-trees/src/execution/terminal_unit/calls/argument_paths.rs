@@ -516,6 +516,7 @@ pub(crate) fn projected_argument_path(
                     })?;
                 path.push(runtime_index);
             }
+            facts::PlaceSegment::OpaqueRange => return None,
             facts::PlaceSegment::FixedRange { start, end } => {
                 // A borrowed byte view's window is itself part of the place:
                 // `self.source[0..2]` lends the fixed byte range the view

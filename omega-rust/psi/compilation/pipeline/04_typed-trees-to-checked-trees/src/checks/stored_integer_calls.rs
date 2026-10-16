@@ -567,7 +567,7 @@ impl<'a> Admission<'a> {
             }
             for actual in actuals {
                 let substituted = actual
-                    .substitute_storage(&source)
+                    .substitute_storage(self.program, &source)
                     .ok_or("write projection cannot cross its captured source geometry")?;
                 result.extend(self.destinations(caller, caller_state, &substituted, depth - 1)?);
             }

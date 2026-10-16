@@ -261,7 +261,7 @@ fn transferred_slots(
                 builtin_coordinates: true,
             };
             let mut projected = captured.clone();
-            projected.source = captured.source.append_relative(&slot);
+            projected.source = captured.source.append_relative(program, &slot);
             projected.path = if projected.source.is_static() {
                 String::new()
             } else {

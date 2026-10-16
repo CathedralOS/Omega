@@ -79,7 +79,7 @@ pub(crate) fn transparent_call_result_origins(
         )? {
             let source = argument_origin
                 .source
-                .append_relative(&result_origin.place.source);
+                .append_relative(program, &result_origin.place.source);
             push_unique_origin(
                 &mut origins,
                 match argument_origin.precision {

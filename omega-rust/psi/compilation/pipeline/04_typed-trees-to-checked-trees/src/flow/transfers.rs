@@ -669,7 +669,9 @@ fn exact_structural_symbol_place(
                     _ => return false,
                 }
             }
-            facts::PlaceSegment::FixedRange { .. } | facts::PlaceSegment::Index { .. } => {
+            facts::PlaceSegment::FixedRange { .. }
+            | facts::PlaceSegment::OpaqueRange
+            | facts::PlaceSegment::Index { .. } => {
                 return false;
             }
         }

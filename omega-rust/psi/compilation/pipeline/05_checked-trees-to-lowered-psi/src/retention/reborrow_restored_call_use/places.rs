@@ -192,6 +192,9 @@ pub(crate) fn place_segments(
                         identities.intern(&capture.selector_identity(checked, *expression)?),
                     )
                 }
+                facts::PlaceSegment::OpaqueRange => {
+                    return unsupported("reborrow custody window has no captured occurrence");
+                }
             })
         })
         .collect()

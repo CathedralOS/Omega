@@ -835,7 +835,9 @@ fn segment_order(
                 None
             })?
         }
-        PlaceSegment::FixedRange { .. } | PlaceSegment::Index { .. } => return None,
+        PlaceSegment::FixedRange { .. }
+        | PlaceSegment::OpaqueRange
+        | PlaceSegment::Index { .. } => return None,
     };
     Some(usize::MAX - ordinal)
 }

@@ -190,27 +190,17 @@ fn completed_field_sources(
         )?;
         let kind = reference_borrow_access_kind(program, result_leaf)?;
         let projection = if is_reference_type(program, parameter.type_reference) {
-            // A dynamic selector describes one element family below borrowed
-            // storage, not one loan per possible array slot. Its expression
-            // belongs to the callee, so erase that coordinate before transport:
-            // only the actual invocation supplies an evaluated selector.
+            // Selector expressions belong to the callee. Erase their executable
+            // coordinates but preserve whether they select an element or a
+            // window; only the invocation supplies the evaluated address/extent.
             source
                 .source
                 .segments
                 .iter()
-                .map(|segment| match segment {
-                    facts::PlaceSegment::Index { expression }
-                        if program.expression_table.expression_is_valid(*expression)
-                            && program.expression_table.range_node(*expression).is_none() =>
-                    {
-                        facts::PlaceSegment::Index {
-                            expression: ExpressionHandle::invalid(),
-                        }
-                    }
-                    // A window is not one element. Keep its kind visible
-                    // to conservative origin reconstruction rather than
-                    // laundering it through an erased element coordinate.
-                    segment => *segment,
+                .map(|segment| {
+                    segment.erase_runtime_selector(|expression| {
+                        program.expression_table.range_node(expression).is_some()
+                    })
                 })
                 .collect()
         } else {

@@ -1,0 +1,1 @@
+while local borrow `window` is still active

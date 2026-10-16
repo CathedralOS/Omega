@@ -69,6 +69,7 @@ pub(super) fn canonical_place_segment(
             end: *end,
         },
         facts::PlaceSegment::Index { expression } => fixed_index_segment(program, *expression),
+        facts::PlaceSegment::OpaqueRange => PlaceSegment::Opaque,
     }
 }
 

@@ -469,7 +469,7 @@ fn parameter_relative_call_result_origins(
             let source = actual_origin
                 .place
                 .source
-                .append_relative(&callee_origin.place.source);
+                .append_relative(program, &callee_origin.place.source);
             push_unique_parameter_relative(
                 &mut origins,
                 match actual_origin.place.precision {

@@ -1,0 +1,17 @@
+data Window<'input> { bytes: &'input mut [u8]; }
+data Envelope<'input> { window: Window<'input>; }
+machine select<'input>(bytes: &'input mut [u8], start: u64) -> Envelope<'input>
+requires start <= bytes.len {
+    transition { _ -> capture(bytes, start) }
+    state capture(bytes: &'input mut [u8], start: u64) -> Envelope<'input>
+    requires start <= bytes.len {
+        Envelope { window: Window { bytes: &mut bytes[start..] } }
+    }
+}
+machine observe(envelope: Envelope) -> u64 { envelope.window.bytes.len }
+machine main() -> bool {
+    let mut bytes: [u8; 4] = [11, 22, 33, 44];
+    let first: Envelope = select(&mut bytes[..], 1);
+    let second: Envelope = select(&mut bytes[..], 2);
+    observe(first) == 3 && observe(second) == 2
+}

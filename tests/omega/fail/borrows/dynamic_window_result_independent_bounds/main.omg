@@ -1,0 +1,6 @@
+data Window<'input> { bytes: &'input [u8]; }
+machine read(first: Window, second: Window) -> u8
+requires first.bytes.len > 0 {
+    second.bytes[0]
+}
+machine main() {}

@@ -1,0 +1,65 @@
+// Expected exit: 0.
+use omega::language::core::option;
+data Window<'input> { bytes: &'input [u8]; }
+data Envelope<'input> { found: Optional<Window<'input>>; }
+
+machine select<'input>(bytes: &'input [u8], start: u64, length: u64)
+    -> Optional<Window<'input>> {
+    transition start <= bytes.len {
+        true -> sized(bytes, start, length)
+        false -> Optional::None
+    }
+    state sized(bytes: &'input [u8], start: u64, length: u64)
+        -> Optional<Window<'input>>
+    requires start <= bytes.len {
+        transition length <= bytes.len - start {
+            true -> capture(bytes, start, length)
+            false -> Optional::None
+        }
+    }
+    state capture(bytes: &'input [u8], start: u64, length: u64)
+        -> Optional<Window<'input>>
+    requires start <= bytes.len && length <= bytes.len - start {
+        let window: &[u8] = &bytes[start..start + length];
+        Optional::Some { value: Window { bytes: window } }
+    }
+}
+
+machine relay<'input>(bytes: &'input [u8], start: u64, length: u64)
+    -> Optional<Window<'input>> { select(bytes, start, length) }
+
+machine inspect(found: Optional<Window>, length: u64, first: u8, last: u8) -> bool {
+    transition found {
+        Optional::Some { value } -> sized(value, length, first, last)
+        Optional::None -> false
+    }
+    state sized(window: Window, length: u64, first: u8, last: u8) -> bool {
+        transition window.bytes.len == length && length > 0 {
+            true -> contents(window, length, first, last)
+            false -> false
+        }
+    }
+    state contents(window: Window, length: u64, first: u8, last: u8) -> bool
+    requires window.bytes.len == length && length > 0 {
+        window.bytes[0] == first && window.bytes[length - 1] == last
+    }
+}
+machine unpack(envelope: Envelope) -> bool { inspect(envelope.found, 2, 33, 44) }
+
+machine main() crashes Trap {
+    let bytes: [u8; 6] = [9, 11, 22, 33, 44, 8];
+    let input: &[u8] = &bytes[1..5];
+    let local: Optional<Window> = select(input, 1, 3);
+    let named: bool = inspect(local, 3, 22, 44);
+    let nested: bool = inspect(select(input, 0, 2), 2, 11, 22);
+    let helper: bool = inspect(relay(input, 1, 2), 2, 22, 33);
+    let envelope: Envelope = Envelope { found: select(input, 2, 2) };
+    let field: bool = unpack(envelope);
+    transition named && nested && helper && field && bytes[0] == 9 && bytes[5] == 8 {
+        true -> done()
+        false -> wrong()
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}
+

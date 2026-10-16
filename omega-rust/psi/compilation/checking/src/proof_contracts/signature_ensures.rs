@@ -144,7 +144,7 @@ pub fn collect_parameter_bound_comparisons(
     let mut coordinate: Option<crate::ScalarStorageCoordinate> = None;
     for source in sources {
         let Some(projected) = source
-            .substitute_storage(&relative)
+            .substitute_storage(program, &relative)
             .and_then(|source| source.scalar_storage_coordinate(program, state))
             .filter(|coordinate| {
                 coordinate.preserves_scalar_value

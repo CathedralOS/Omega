@@ -392,7 +392,14 @@ pub(super) fn lower_unit_structural_types_including(
                 roots.push(construction.root_type_identity);
             }
         }
-        for operation in body.operations() {
+        // Scalar computations can own structural producers and their operand
+        // temporaries. Their operation dependencies need the same catalog walk
+        // as statement-owned operations, not just their call signatures.
+        let value_operations =
+            crate::expression_preparation::computation_graph::value_call_operations(
+                checked, *symbol, None,
+            )?;
+        for operation in body.operations().chain(value_operations) {
             collect_operation_type_roots(checked, plans, operation, &mut roots)?;
             match operation {
                 // An ordinary structural call into a Unit body roots its

@@ -151,7 +151,9 @@ pub fn canonical_place_source_type_application(
             facts::PlaceSegment::FixedIndex { .. } | facts::PlaceSegment::Index { .. } => {
                 reference = collection_element_type_reference(program, reference)?;
             }
-            facts::PlaceSegment::FixedRange { .. } => return None,
+            facts::PlaceSegment::FixedRange { .. } | facts::PlaceSegment::OpaqueRange => {
+                return None;
+            }
         }
     }
     let (reference, frames) =
@@ -240,7 +242,9 @@ fn project_type_reference_from_segment_iter<'segment>(
             facts::PlaceSegment::FixedIndex { .. } | facts::PlaceSegment::Index { .. } => {
                 current = indexed_element_type_reference(program, current, &substitutions)?;
             }
-            facts::PlaceSegment::FixedRange { .. } => return None,
+            facts::PlaceSegment::FixedRange { .. } | facts::PlaceSegment::OpaqueRange => {
+                return None;
+            }
         }
     }
 

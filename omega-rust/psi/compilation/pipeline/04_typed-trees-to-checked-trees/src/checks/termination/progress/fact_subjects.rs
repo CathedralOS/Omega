@@ -58,6 +58,7 @@ pub(crate) fn subject_from_place(
             PlaceSegment::Case { .. } => {}
             PlaceSegment::FixedIndex { .. }
             | PlaceSegment::FixedRange { .. }
+            | PlaceSegment::OpaqueRange
             | PlaceSegment::Index { .. } => return None,
         }
     }

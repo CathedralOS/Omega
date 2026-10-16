@@ -1,0 +1,11 @@
+data Window<'input> { bytes: &'input [u8]; }
+machine select<'input>(bytes: &'input [u8], start: u64) -> Window<'input>
+requires start <= 4 {
+    transition { _ -> capture(bytes, start) }
+    state capture(bytes: &'input [u8], start: u64) -> Window<'input>
+    requires start <= 4 {
+        let local: [u8; 4] = [11, 22, 33, 44];
+        Window { bytes: &local[start..] }
+    }
+}
+machine main() {}

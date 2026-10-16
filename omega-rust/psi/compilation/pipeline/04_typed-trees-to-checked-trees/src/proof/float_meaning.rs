@@ -274,6 +274,7 @@ fn direct_structural_float_leaf_source(
             }
             facts::PlaceSegment::FixedIndex { .. }
             | facts::PlaceSegment::FixedRange { .. }
+            | facts::PlaceSegment::OpaqueRange
             | facts::PlaceSegment::Index { .. } => None,
         })
         .collect::<Option<Vec<_>>>()?;

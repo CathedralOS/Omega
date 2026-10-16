@@ -343,7 +343,7 @@ fn collect_read_coordinates(
                 facts::PlaceSegment::FixedIndex { .. } | facts::PlaceSegment::FixedRange { .. } => {
                     true
                 }
-                facts::PlaceSegment::Index { .. } => false,
+                facts::PlaceSegment::Index { .. } | facts::PlaceSegment::OpaqueRange => false,
             }) {
                 return None;
             }

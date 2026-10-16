@@ -5,7 +5,7 @@ pub(crate) fn place_segment_has_static_identity(segment: &facts::PlaceSegment) -
         facts::PlaceSegment::Field { symbol } => symbol.is_valid(),
         facts::PlaceSegment::Case { variant } => variant.is_valid(),
         facts::PlaceSegment::FixedIndex { .. } | facts::PlaceSegment::FixedRange { .. } => true,
-        facts::PlaceSegment::Index { .. } => false,
+        facts::PlaceSegment::Index { .. } | facts::PlaceSegment::OpaqueRange => false,
     }
 }
 
@@ -155,6 +155,7 @@ fn canonical_place_segment_pair_may_overlap(
     right: facts::PlaceSegment,
 ) -> bool {
     static_place_segment_pair_equal(left, right).unwrap_or_else(|| match (left, right) {
+        (facts::PlaceSegment::OpaqueRange, _) | (_, facts::PlaceSegment::OpaqueRange) => true,
         (
             facts::PlaceSegment::FixedRange {
                 start: left_start,

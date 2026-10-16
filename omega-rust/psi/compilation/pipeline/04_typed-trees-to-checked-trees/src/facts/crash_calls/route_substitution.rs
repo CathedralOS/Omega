@@ -347,6 +347,7 @@ fn structural_actual_root(
             }
             facts::PlaceSegment::FixedIndex { .. }
             | facts::PlaceSegment::FixedRange { .. }
+            | facts::PlaceSegment::OpaqueRange
             | facts::PlaceSegment::Index { .. } => return None,
         });
     }

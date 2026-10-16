@@ -162,6 +162,7 @@ pass/borrows/case_payload_shared_transition_exit built 1109ms exit:70 @ecff27281
 pass/borrows/case_payload_state_loan_exit built 1589ms exit:70 @b9ead894da43+wt
 pass/borrows/constructor_reference_access checked 780ms @9beb2be72f2d+wt
 pass/borrows/data_copy_property checked 9250ms @5041ef1af684+wt
+pass/borrows/dynamic_window_return_custody_exit built 3410ms exit:0 @ea7b63644a0a+wt
 pass/borrows/enum_selected_view_reference_exit built 1258ms exit:70 @011fd400e8c1+wt
 pass/borrows/exclusive_array_parameter_shared_lend_exit built 1452ms exit:70 @74a78aefec94+wt
 pass/borrows/explicit_lifetime_select checked 9974ms @5041ef1af684+wt
@@ -315,6 +316,7 @@ pass/borrows/static_carrier_reference_read_exit built 1134ms exit:70 @104c2da310
 pass/borrows/static_projected_local_reference_exit built 2254ms exit:0 @9beb2be72f2d+wt
 pass/borrows/static_record_reference_return_exit built 1143ms exit:0 @2816825e8941
 pass/borrows/stored_reference_projection_exit built 1133ms exit:70 @104c2da31081
+pass/borrows/structural_operand_view_catalog_exit built 3340ms exit:0 @ea7b63644a0a+wt
 pass/borrows/transition_shared_borrow_result built 1120ms exit:181 @4eef5b6cc89f
 pass/borrows/view_field_record_exit_disposal checked 246ms @48008365d839
 pass/borrows/write_projection_loan checked 9143ms @5041ef1af684+wt

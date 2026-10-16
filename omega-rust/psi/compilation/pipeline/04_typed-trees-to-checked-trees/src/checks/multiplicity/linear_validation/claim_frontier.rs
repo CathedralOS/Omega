@@ -296,6 +296,7 @@ fn claim_place_name(
                 name.push(']');
             }
             facts::PlaceSegment::Index { .. } => name.push_str("[<index>]"),
+            facts::PlaceSegment::OpaqueRange => name.push_str("[?..?]"),
         }
     }
     name

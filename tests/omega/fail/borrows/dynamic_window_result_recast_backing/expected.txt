@@ -1,0 +1,1 @@
+mutates `bytes[2]` while local borrow `word` is still active

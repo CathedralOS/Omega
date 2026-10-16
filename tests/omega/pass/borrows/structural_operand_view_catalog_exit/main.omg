@@ -1,0 +1,15 @@
+// Expected exit: 0.
+data Entry [copy] { value: u64; }
+data Selected { value: u64; }
+machine head(entries: &[Entry]) -> Selected requires entries.len > 0 {
+    Selected { value: entries[0].value }
+}
+machine consume(result: Selected, expected: u64) -> bool { result.value == expected }
+machine main() crashes Trap {
+    let entries: [Entry; 2] = [Entry { value: 19 }, Entry { value: 37 }];
+    let whole: bool = consume(head(&entries[..]), 19);
+    let result: bool = whole && consume(head(&entries[1..2]), 37);
+    transition result { true -> done() false -> wrong() }
+    state done() {}
+    state wrong() { crash Trap; }
+}

@@ -315,7 +315,9 @@ pub(crate) fn content_path(
             facts::PlaceSegment::FixedIndex { index } => Some(ContentPlaceSegment::FixedIndex(
                 u64::try_from(*index).expect("fixed index fits u64"),
             )),
-            facts::PlaceSegment::FixedRange { .. } | facts::PlaceSegment::Index { .. } => None,
+            facts::PlaceSegment::FixedRange { .. }
+            | facts::PlaceSegment::OpaqueRange
+            | facts::PlaceSegment::Index { .. } => None,
         })
         .collect()
 }

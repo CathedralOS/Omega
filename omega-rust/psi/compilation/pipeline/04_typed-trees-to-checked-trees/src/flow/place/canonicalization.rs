@@ -146,7 +146,9 @@ pub(crate) fn source_independent_place(
             facts::PlaceSegment::Field { symbol } => symbol.is_valid(),
             facts::PlaceSegment::Case { variant } => variant.is_valid(),
             facts::PlaceSegment::FixedIndex { .. } => true,
-            facts::PlaceSegment::FixedRange { .. } | facts::PlaceSegment::Index { .. } => false,
+            facts::PlaceSegment::FixedRange { .. }
+            | facts::PlaceSegment::OpaqueRange
+            | facts::PlaceSegment::Index { .. } => false,
         })
     {
         return None;

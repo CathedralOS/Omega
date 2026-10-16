@@ -47,7 +47,15 @@ pub(in crate::machine_calls::calls::write_frames) fn instantiate_source(
         return Some(
             origins
                 .into_iter()
-                .map(|origin| compose_source(origin, suffix, relative.precision, &relative.source))
+                .map(|origin| {
+                    compose_source(
+                        program,
+                        origin,
+                        suffix,
+                        relative.precision,
+                        &relative.source,
+                    )
+                })
                 .collect(),
         );
     }
@@ -62,7 +70,15 @@ pub(in crate::machine_calls::calls::write_frames) fn instantiate_source(
         return Some(
             origins
                 .into_iter()
-                .map(|origin| compose_source(origin, suffix, relative.precision, &relative.source))
+                .map(|origin| {
+                    compose_source(
+                        program,
+                        origin,
+                        suffix,
+                        relative.precision,
+                        &relative.source,
+                    )
+                })
                 .collect(),
         );
     }
@@ -115,7 +131,13 @@ pub(in crate::machine_calls::calls::write_frames) fn instantiate_source(
             segments: relative.source.segments[leaf.local_segments.len()..].to_vec(),
             builtin_coordinates: relative.source.builtin_coordinates,
         };
-        let source = compose_source(leaf.origin?, suffix, relative.precision, &remaining);
+        let source = compose_source(
+            program,
+            leaf.origin?,
+            suffix,
+            relative.precision,
+            &remaining,
+        );
         if !sources.contains(&source) {
             sources.push(source);
         }
@@ -161,6 +183,7 @@ fn application_source_reaches_leaf(
 }
 
 fn compose_source(
+    program: &dyn crate::CheckingInput,
     mut origin: FramePlaceOrigin,
     suffix: &str,
     precision: FramePathPrecision,
@@ -170,6 +193,6 @@ fn compose_source(
         origin.path = append_place_suffix(&origin.path, suffix);
         origin.precision = precision;
     }
-    origin.source = origin.source.append_relative(relative);
+    origin.source = origin.source.append_relative(program, relative);
     origin
 }

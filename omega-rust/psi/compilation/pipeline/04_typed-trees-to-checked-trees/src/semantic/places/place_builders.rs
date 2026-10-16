@@ -79,6 +79,7 @@ fn fact_place_type_symbol(
             }
             facts::PlaceSegment::FixedIndex { .. }
             | facts::PlaceSegment::FixedRange { .. }
+            | facts::PlaceSegment::OpaqueRange
             | facts::PlaceSegment::Index { .. } => {
                 return None;
             }

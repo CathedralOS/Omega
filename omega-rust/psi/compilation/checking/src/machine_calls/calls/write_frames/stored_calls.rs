@@ -800,7 +800,7 @@ fn instantiate(
                 if !actual.root.is_valid() || !actual.builtin_coordinates {
                     return None;
                 }
-                actual.append_relative(&supplied.carrier)
+                actual.append_relative(program, &supplied.carrier)
             };
             let candidates = if source.source.is_static() {
                 vec![Some(source.clone())]
@@ -820,7 +820,7 @@ fn instantiate(
                     inference,
                 )?;
                 let mut projected = captured.clone();
-                projected.source = captured.source.append_relative(&source.source);
+                projected.source = captured.source.append_relative(program, &source.source);
                 if source.precision == FramePathPrecision::CollectionCoarse {
                     projected.precision = FramePathPrecision::CollectionCoarse;
                 }

@@ -48,6 +48,10 @@ pub(in crate::unit::attached_unit) fn collect_operation_type_roots(
         CheckedUnitEffectOperationPlan::EstablishLocal(
             checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { result, value, .. },
         ) => {
+            // A temporary owns its declared carrier even when the value graph
+            // names only borrowed backing. A formal's ingress type cannot
+            // substitute for this stored descriptor's type.
+            roots.push(result.type_identity);
             collect_value_roots(checked, *value, roots)?;
             if establishes_byte_element_view(checked, plans, result.type_identity, *value)? {
                 if let Some(identity) =

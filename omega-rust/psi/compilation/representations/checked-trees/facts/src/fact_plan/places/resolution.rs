@@ -125,6 +125,7 @@ pub(crate) fn write_canonical_place_label(
             PlaceSegment::FixedRange { start, end } => {
                 let _ = write!(label, "[{start}..{end}]");
             }
+            PlaceSegment::OpaqueRange => label.push_str("[?..?]"),
             PlaceSegment::Index { expression } => {
                 label.push('[');
                 program
@@ -426,7 +427,7 @@ fn fact_place_type_symbol(
                 current = type_reference_base_symbol(program, reference);
             }
             // A window remains a collection, not an element receiver.
-            PlaceSegment::FixedRange { .. } => return None,
+            PlaceSegment::FixedRange { .. } | PlaceSegment::OpaqueRange => return None,
         }
     }
 

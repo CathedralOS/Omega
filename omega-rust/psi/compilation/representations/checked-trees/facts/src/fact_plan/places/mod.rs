@@ -82,12 +82,34 @@ pub enum PlaceSegment {
         start: usize,
         end: usize,
     },
+    /// A captured collection window whose bounds belong to another invocation.
+    /// This preserves the collection dimension, unlike an unknown element.
+    /// It supplies neither exact extent nor executable coordinates; overlap
+    /// remains conservative and access still requires the captured loan.
+    OpaqueRange,
     /// A runtime or otherwise non-normalized index expression. Ownership
     /// decomposition treats this conservatively as potentially selecting any
     /// element.
     Index {
         expression: ExpressionHandle,
     },
+}
+
+impl PlaceSegment {
+    /// Erase an executable selector without erasing whether it selected a
+    /// collection window or one element. The owning typed-expression catalog
+    /// classifies a live range before its callee-local handle is discarded.
+    pub fn erase_runtime_selector(self, is_range: impl FnOnce(ExpressionHandle) -> bool) -> Self {
+        match self {
+            Self::Index { expression } if expression.is_valid() && is_range(expression) => {
+                Self::OpaqueRange
+            }
+            Self::Index { .. } => Self::Index {
+                expression: ExpressionHandle::invalid(),
+            },
+            _ => self,
+        }
+    }
 }
 
 impl Default for PlaceSegment {

@@ -503,6 +503,7 @@ fn place_segment_pair_may_overlap<'p>(
         segment_index,
     };
     static_place_segment_pair_equal(left, right).unwrap_or_else(|| match (left, right) {
+        (facts::PlaceSegment::OpaqueRange, _) | (_, facts::PlaceSegment::OpaqueRange) => true,
         (
             facts::PlaceSegment::FixedRange {
                 start: left_start,

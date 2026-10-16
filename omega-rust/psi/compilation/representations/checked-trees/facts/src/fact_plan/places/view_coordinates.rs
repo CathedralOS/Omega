@@ -61,6 +61,16 @@ pub fn project_captured_view_segments(
 
 fn compose_boundary(previous: PlaceSegment, next: PlaceSegment) -> Option<Option<PlaceSegment>> {
     Some(match (previous, next) {
+        (
+            PlaceSegment::OpaqueRange,
+            PlaceSegment::OpaqueRange | PlaceSegment::FixedRange { .. },
+        )
+        | (PlaceSegment::FixedRange { .. }, PlaceSegment::OpaqueRange) => {
+            Some(PlaceSegment::OpaqueRange)
+        }
+        (PlaceSegment::OpaqueRange, PlaceSegment::FixedIndex { .. }) => Some(PlaceSegment::Index {
+            expression: typed_trees::expression::ExpressionHandle::invalid(),
+        }),
         (PlaceSegment::FixedRange { start, end }, PlaceSegment::FixedIndex { index }) => {
             if index >= end.checked_sub(start)? {
                 return None;
@@ -86,4 +96,29 @@ fn compose_boundary(previous: PlaceSegment, next: PlaceSegment) -> Option<Option
         }
         _ => None,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{PlaceSegment, compose_captured_view_segments};
+
+    #[test]
+    fn opaque_window_composition_preserves_dimensions_not_bounds() {
+        let mut windows = vec![
+            PlaceSegment::FixedRange { start: 1, end: 8 },
+            PlaceSegment::OpaqueRange,
+            PlaceSegment::FixedRange { start: 0, end: 3 },
+        ];
+        assert_eq!(compose_captured_view_segments(&mut windows), Some(()));
+        assert_eq!(windows, [PlaceSegment::OpaqueRange]);
+
+        let mut element = vec![
+            PlaceSegment::OpaqueRange,
+            PlaceSegment::FixedIndex { index: 2 },
+        ];
+        assert_eq!(compose_captured_view_segments(&mut element), Some(()));
+        assert!(
+            matches!(element.as_slice(), [PlaceSegment::Index { expression }] if !expression.is_valid())
+        );
+    }
 }
