@@ -106,6 +106,7 @@ pub(super) fn public_effects(effects: Vec<SlotEffect>) -> Vec<StoredReferenceEff
 pub(super) fn call_effects(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
+    caller_state: &State,
     call: &TableCall,
     context: &CollectedStatementPrefix,
     symbols: &TopLevelSymbols<'_>,
@@ -114,6 +115,7 @@ pub(super) fn call_effects(
     invocation_effects(
         program,
         machine,
+        caller_state,
         call.target_symbol,
         program.statement_table.expression_handles(call.arguments),
         call.machine_arguments.is_empty(),
@@ -126,6 +128,7 @@ pub(super) fn call_effects(
 fn invocation_effects(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
+    caller_state: &State,
     target: SymbolHandle,
     arguments: &[ExpressionHandle],
     machine_arguments_empty: bool,
@@ -133,7 +136,16 @@ fn invocation_effects(
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
 ) -> Option<Vec<SlotEffect>> {
-    let (callee, state) = super::machine_state_by_symbol(program, target)?;
+    let Some((callee, state)) = super::machine_state_by_symbol(program, target) else {
+        // A requirement or intrinsic operation has no checked body to replay.
+        // It can still install a reference slot only through an argument that
+        // lends exclusive storage; value and shared arguments leave every
+        // stored slot as it was. An argument of unknown type may lend.
+        return arguments
+            .iter()
+            .all(|argument| !lends_exclusive_storage(program, machine, caller_state, *argument))
+            .then(Vec::new);
+    };
     let parameters = program.state_parameters(state);
     if (parameters.len() != arguments.len())
         || !machine_arguments_empty
@@ -149,6 +161,25 @@ fn invocation_effects(
     let relative = state_effects(program, callee, state, symbols, inference)?;
     instantiate(
         program, machine, parameters, arguments, &relative, context, symbols, inference,
+    )
+}
+
+fn lends_exclusive_storage(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    argument: ExpressionHandle,
+) -> bool {
+    if let typed_trees::expression::ExpressionNode::Borrow(borrow) =
+        program.expression_table.expression(argument)
+    {
+        return borrow.access.is_exclusive();
+    }
+    crate::expression_result_type_reference(program, machine, state, argument).is_none_or(
+        |reference| {
+            crate::reference_shell(program, reference)
+                .is_some_and(|shell| shell.access.is_exclusive())
+        },
     )
 }
 

@@ -60,7 +60,8 @@ pub(in super::super) fn statement_effects(
             query.expression(expression, &mut context, &mut effects, inference)?;
         }
         if let Some(call) = statement.as_call() {
-            let called = super::call_effects(program, machine, call, &context, symbols, inference)?;
+            let called =
+                super::call_effects(program, machine, state, call, &context, symbols, inference)?;
             install(program, &mut context, &mut effects, called);
         }
     }
@@ -168,6 +169,7 @@ impl Evaluation<'_, '_> {
             let called = super::invocation_effects(
                 self.program,
                 self.machine,
+                self.state,
                 call.target_symbol,
                 self.program
                     .expression_table
