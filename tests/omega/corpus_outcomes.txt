@@ -444,6 +444,10 @@ fail/borrow/scalar_reference_result_does_not_preserve_mutated_bound rejected 566
 	cannot prove index `change(&mut position)` is within length 2 in test::entry
 fail/borrow/scalar_reference_result_uses_returned_argument rejected 535ms expected @5b32c4eb36ff+wt
 	cannot prove index `select(&position, &other)` is within length 2 in test::entry
+fail/borrow/shared_boundary_presentation_cannot_read_write_only rejected 372ms expected @cba2c837a83b+wt
+	argument `bytes` for state `read` supplies `&write` to a parameter that may read; write-only authority cannot widen to shared or mutable access
+fail/borrow/shared_boundary_presentation_preserves_exclusive_conflict rejected 1102ms expected @cba2c837a83b+wt
+	state `read` receives `bytes` as mutable more than once
 fail/borrow/signed_window_missing_lower_bound rejected 3798ms expected @5acf32321f42+wt
 	cannot prove every subslice range endpoint of `context.offset..context.count` is non-negative
 fail/borrow/signed_window_missing_upper_bound rejected 3430ms expected @5acf32321f42+wt
@@ -5351,6 +5355,7 @@ pass/borrow/runtime_dispatch_call_payload_snapshot_exit checked 11203ms check-ta
 pass/borrow/runtime_exclusive_loan_local_write_exit checked 11011ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrow/runtime_indexed_write_only_local_receiver_exit checked 10278ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrow/runtime_method_view_write_after_last_use_exit checked 11063ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/borrow/runtime_mutable_argument_shared_boundary_exit checked 10911ms check-target:macos_arm64 @cba2c837a83b+wt
 pass/borrow/runtime_relational_scalar_handback_exit checked 6548ms check-target:macos_arm64 @08e282377686+wt
 pass/borrow/runtime_signed_element_call_exit checked 19301ms check-target:linux_x86_64 @5acf32321f42+wt
 pass/borrow/runtime_signed_element_empty_exit checked 19250ms check-target:linux_x86_64 @5acf32321f42+wt

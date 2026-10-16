@@ -151,6 +151,7 @@ pass/borrow/runtime_dispatch_call_payload_snapshot_exit built 15917ms exit:70 @6
 pass/borrow/runtime_exclusive_loan_local_write_exit built 15548ms exit:70 @6c49683ce714
 pass/borrow/runtime_indexed_write_only_local_receiver_exit built 17469ms exit:0 @6c49683ce714
 pass/borrow/runtime_method_view_write_after_last_use_exit built 15002ms exit:70 @6c49683ce714
+pass/borrow/runtime_mutable_argument_shared_boundary_exit built 10852ms exit:0 @cba2c837a83b+wt
 pass/borrow/runtime_relational_scalar_handback_exit built 6561ms exit:0 @08e282377686+wt
 pass/borrow/runtime_signed_element_call_exit built 35837ms exit:0 @6c49683ce714
 pass/borrow/runtime_signed_element_empty_exit built 35689ms exit:0 @6c49683ce714

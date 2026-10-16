@@ -4,8 +4,8 @@ pub(crate) mod dispatch_subjects;
 mod parameter_domains;
 pub(crate) use parameter_domains::call_parameter_domains;
 
-/// Identify the value a shared formal lends, whether `&` was explicit or
-/// implicit. This only classifies the operand: callers still establish its
+/// Identify the value a shared formal lends, whether the source explicitly
+/// lends shared or mutable access, or the shared loan was implicit. This only classifies the operand: callers still establish its
 /// type, storage, loan validity and any temporary-owner cleanup. In particular,
 /// a reference formal must never turn a value constructor into a reference
 /// carrier, and this rule grants no implicit mutable or write-only lending.
@@ -33,7 +33,11 @@ pub(crate) fn shared_argument_referent(
     }
     let value = match program.expression_table.expression(argument) {
         typed_trees::expression::ExpressionNode::Borrow(borrow)
-            if borrow.access == language_semantics::ReferenceAccess::Shared =>
+            if matches!(
+                borrow.access,
+                language_semantics::ReferenceAccess::Shared
+                    | language_semantics::ReferenceAccess::Mutable
+            ) =>
         {
             borrow.target
         }

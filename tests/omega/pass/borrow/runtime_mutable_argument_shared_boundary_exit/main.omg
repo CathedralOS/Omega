@@ -1,0 +1,44 @@
+// Expected exit: 0.
+// A callee's shared parameter receives a shared presentation of a checked
+// mutable source loan. Exercise boundary and ordinary calls through fields,
+// parameters and local backing, then write again after every call completes.
+use omega_language_std::console;
+
+pub boundary trait Observe { machine read(bytes: &[u8]) -> u8; }
+data Observer { }
+machine Observer::read(bytes: &[u8]) -> u8 satisfies Observe::read {
+    transition bytes.len > 0 { true -> first(bytes) false -> (0) }
+    state first(bytes: &[u8]) -> u8 requires bytes.len > 0; { bytes[0] }
+}
+machine ordinary(bytes: &[u8]) -> u8 { Observer::read(bytes) }
+machine forwarded(bytes: &mut [u8]) -> bool {
+    let boundary: u8 = Observe::read(&mut bytes);
+    let direct: u8 = ordinary(&mut bytes);
+    transition bytes.len > 0 {
+        true -> write(bytes, boundary, direct)
+        false -> (false)
+    }
+    state write(bytes: &mut [u8], boundary: u8, direct: u8) -> bool
+    requires bytes.len > 0;
+    {
+        bytes[0] = 29;
+        boundary == 17 && direct == 17 && bytes[0] == 29
+    }
+}
+data Main { bytes: [u8; 32]; }
+machine Main::main(main: &mut Main) reaches Console {
+    main.bytes[0] = 17;
+    let field: u8 = Observe::read(&mut main.bytes);
+    let field_direct: u8 = ordinary(&mut main.bytes);
+    let passed: bool = forwarded(&mut main.bytes);
+    let mut local: [u8; 2];
+    local[0] = 41;
+    let local_observed: u8 = Observe::read(&mut local);
+    local[0] = 43;
+    transition field == 17 && field_direct == 17 && passed && main.bytes[0] == 29 && local_observed == 41 && local[0] == 43 {
+        true -> good()
+        false -> bad()
+    }
+    state good() { Console::exit_process(0); }
+    state bad() { Console::exit_process(1); }
+}

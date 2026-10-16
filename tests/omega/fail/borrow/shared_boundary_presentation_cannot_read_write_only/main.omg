@@ -1,0 +1,4 @@
+pub boundary trait Observe { machine read(bytes: &[u8]); }
+machine cannot_observe(bytes: &write [u8]) {
+    Observe::read(&write bytes);
+}

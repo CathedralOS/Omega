@@ -1,0 +1,6 @@
+pub boundary trait Observe {
+    machine read(bytes: &[u8], destination: &mut [u8]);
+}
+machine conflict(bytes: &mut [u8]) {
+    Observe::read(&mut bytes, &mut bytes);
+}

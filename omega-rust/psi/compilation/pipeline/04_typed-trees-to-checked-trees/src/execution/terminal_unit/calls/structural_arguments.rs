@@ -426,13 +426,6 @@ pub(crate) fn structural_call_arguments(
                 )?;
                 if authored_access == target_access {
                     authored_access
-                } else if authored_access == CheckedStructuralAccess::MutableBorrow
-                    && target_access == CheckedStructuralAccess::SharedBorrow
-                {
-                    // A `&mut` reborrow weakens to the callee's shared loan:
-                    // the caller's mutable custody already covers the read
-                    // the callee performs.
-                    target_access
                 } else {
                     // A borrow carrier passed bare moves its reference: the
                     // call records only a Read of that value, while the erased
@@ -840,6 +833,15 @@ pub(crate) fn exact_structural_borrow_access(
     }
     Some(match *first {
         checked_trees::BorrowAccessKind::Read => CheckedStructuralAccess::SharedBorrow,
+        // The checked source loan is exclusive, but the entered callable can
+        // only observe it through its declared shared formal. Publish that
+        // shared presentation for every call kind, while the borrow roster
+        // retains the original exclusive access and its conflict checks.
+        checked_trees::BorrowAccessKind::Mutable
+            if target_access == CheckedStructuralAccess::SharedBorrow =>
+        {
+            CheckedStructuralAccess::SharedBorrow
+        }
         checked_trees::BorrowAccessKind::Mutable => CheckedStructuralAccess::MutableBorrow,
         checked_trees::BorrowAccessKind::WriteOnly => CheckedStructuralAccess::WriteOnlyBorrow,
     })
