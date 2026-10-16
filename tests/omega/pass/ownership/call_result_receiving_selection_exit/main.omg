@@ -1,0 +1,18 @@
+data Value { code: u64; }
+machine issue(code: u64) -> Value { Value { code: code } }
+machine choose(second: bool) -> u64 {
+    let first: Value = issue(17);
+    let last: Value = issue(31);
+    let selected: Value = match second { true -> last, false -> first };
+    selected.code
+}
+machine main() crashes Trap {
+    let first: u64 = choose(false);
+    let second: u64 = choose(true);
+    transition first == 17 && second == 31 {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

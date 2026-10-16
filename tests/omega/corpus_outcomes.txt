@@ -5737,10 +5737,12 @@ pass/borrows/retained_envelope_refs checked 9757ms @5041ef1af684+wt
 pass/borrows/returned_owned_byte_field_snapshot_exit checked 10942ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/returned_primitive_reference_assignment_capture_exit checked 3004ms check-target:macos_arm64 @c69e20ea61aa+wt
 pass/borrows/returned_record_byte_field_store_exit checked 11135ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/borrows/returned_record_call_binding_state_exit checked 3665ms check-target:macos_arm64 @27f6b04f2658
 pass/borrows/returned_record_case_field_store_exit checked 11260ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/returned_record_field_read_exit checked 11204ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/returned_record_method_receiver_exit checked 11062ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/returned_record_projected_call_exit checked 11044ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/borrows/returned_record_scalar_call_exit checked 3664ms check-target:macos_arm64 @27f6b04f2658
 pass/borrows/returned_slice_record_reference_custody_exit checked 17190ms check-target:macos_arm64 @761f5fae99a7+wt
 pass/borrows/runtime_affine_local_case_return_exit checked 11337ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_affine_local_scalar_exit checked 11079ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -7680,6 +7682,7 @@ pass/optimizer/xor_zero_materialization_selected checked 28850ms check-target:li
 pass/ownership/aliased_shared_views_compile checked 1794ms @a9ae30e1c334+wt
 pass/ownership/borrowed_claim_repair_roundtrip_compile checked 1761ms @a9ae30e1c334+wt
 pass/ownership/boundary_requirement_loan_compile checked 1788ms @a9ae30e1c334+wt
+pass/ownership/call_result_receiving_selection_exit checked 3334ms check-target:macos_arm64 @27f6b04f2658
 pass/ownership/conditional_callee_write_compile checked 1661ms @a9ae30e1c334+wt
 pass/ownership/conditional_linear_sum checked 1728ms @a9ae30e1c334+wt
 pass/ownership/conditional_linear_sum_with_drop checked 9722ms @5041ef1af684+wt
