@@ -11,10 +11,7 @@ use crate::preparation::generic_data::ConstScalarSpelling;
 use crate::preparation::generic_data::GenericData;
 use crate::preparation::generic_data::discovery::ClosedApplication;
 
-use crate::preparation::generic_data::canonicalize_const_definition;
 use crate::preparation::generic_data::canonicalize_monomorphizable_argument_handles;
-use crate::preparation::generic_data::canonicalize_selected_const_definition;
-use crate::preparation::generic_data::canonicalize_selected_index_expression;
 use crate::preparation::generic_data::closed_argument_identity;
 use crate::preparation::generic_data::const_evaluation::validate_anonymous_remainder;
 use crate::preparation::generic_data::const_integer_in_envelope;
@@ -82,6 +79,16 @@ pub(in crate::preparation::generic_data) fn prepare_closed_application(
     {
         return Ok(None);
     }
+    // Carrier admission precedes erasing a named argument. Its declared type
+    // belongs to the caller, while a carrier such as `[Value; Count]` belongs
+    // to this exact receiving telescope. The existing evaluator keeps those
+    // scopes distinct while descending the original carrier structure.
+    let application_scope = base_info
+        .parameter_names
+        .iter()
+        .zip(&argument_handles)
+        .map(|(parameter, argument)| (parameter.clone(), *argument))
+        .collect::<crate::preparation::declaration_selection::GenericApplicationSubstitution>();
     for ((parameter_name, parameter_type), argument) in base_info
         .parameter_names
         .iter()
@@ -115,7 +122,9 @@ pub(in crate::preparation::generic_data) fn prepare_closed_application(
                             syntax
                                 .tables
                                 .type_references
-                                .type_reference(parameter_type),
+                                .type_reference(syntax.type_references.type_reference(parameter_type).as_named()
+                                    .and_then(|name| application_scope.get(name.as_str()).copied())
+                                    .unwrap_or(parameter_type)),
                             TypeReferenceNode::Named(type_name) if type_name.as_str() == "bool"
                         ) =>
                     {
@@ -137,7 +146,7 @@ pub(in crate::preparation::generic_data) fn prepare_closed_application(
                     let Some(definition) = selection.select(syntax, &name)? else {
                         continue;
                     };
-                    let value = canonicalize_selected_const_definition(syntax, &definition, parameter_type, Some(selection))
+                    let value = super::values::canonicalize_selected_const_definition_in_application(syntax, &definition, parameter_type, Some(selection), &application_scope)
                         .map_err(|reason| {
                             Diagnostic::error(format!(
                                 "const argument for `{base}::{parameter_name}` is invalid at this index site: {reason}"
@@ -189,7 +198,7 @@ pub(in crate::preparation::generic_data) fn prepare_closed_application(
                 let Some(definition) = const_definitions.get(name.as_str()) else {
                     continue;
                 };
-                let value = canonicalize_const_definition(syntax, definition, parameter_type)
+                let value = super::values::canonicalize_selected_const_definition_in_application(syntax, definition, parameter_type, None, &application_scope)
                     .map_err(|reason| {
                         Diagnostic::error(format!(
                             "const argument for `{base}::{parameter_name}` is invalid at this index site: {reason}"
@@ -206,17 +215,18 @@ pub(in crate::preparation::generic_data) fn prepare_closed_application(
                     syntax_trees::expression::ExpressionNode::StructLiteral(_)
                         | syntax_trees::expression::ExpressionNode::ArrayLiteral(_)
                 ) {
-                    let value = canonicalize_selected_index_expression(
-                        syntax,
-                        parameter_type,
-                        parameter_type,
-                        expression,
-                        selection,
-                    )
-                    .map_err(|reason| {
-                        Diagnostic::error(reason)
-                            .with_source_span(syntax.expressions.source_span(expression))
-                    })?;
+                    let value =
+                        super::values::canonicalize_selected_index_expression_in_application(
+                            syntax,
+                            parameter_type,
+                            expression,
+                            selection,
+                            &application_scope,
+                        )
+                        .map_err(|reason| {
+                            Diagnostic::error(reason)
+                                .with_source_span(syntax.expressions.source_span(expression))
+                        })?;
                     let reference = syntax.expressions.source_span(expression);
                     syntax.type_references.retain_const_argument_normalization(
                         *argument,

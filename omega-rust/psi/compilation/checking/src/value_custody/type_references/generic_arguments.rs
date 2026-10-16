@@ -1,7 +1,4 @@
-use super::{
-    TopLevelSymbols, TypeParameterScope, TypeReferenceOwner, type_reference_label,
-    type_references_match,
-};
+use super::{TopLevelSymbols, TypeParameterScope, TypeReferenceOwner, type_reference_label};
 use diagnostics::Diagnostic;
 use language_semantics::const_value::{
     CanonicalConstIdentity, CanonicalConstValue, DecodedCanonicalConstValue,
@@ -262,7 +259,7 @@ pub fn validate_closed_const_argument(
         program,
         owner,
         parameter,
-        type_reference,
+        AppliedValueCarrier::ordinary(type_reference),
         argument,
         TypeParameterScope {
             operand_lifetime_owner: symbols::SymbolHandle::invalid(),
@@ -304,7 +301,7 @@ pub(crate) fn const_argument_matches_parameter(
         program,
         "call",
         parameter,
-        type_reference,
+        AppliedValueCarrier::ordinary(type_reference),
         argument,
         TypeParameterScope {
             operand_lifetime_owner: symbols::SymbolHandle::invalid(),
@@ -317,15 +314,144 @@ pub(crate) fn const_argument_matches_parameter(
     !diagnostics.iter().any(Diagnostic::is_error)
 }
 
+/// A declared carrier and its one simultaneous application scope.
+///
+/// A selected type belongs to the caller. Once a named formal is replaced,
+/// descendants of that actual must never see the receiving telescope again.
+/// Original compound children retain the scope, so nested arrays use the same
+/// exact carrier admission as a bare type binder without materializing rows in
+/// the frozen program.
+#[derive(Clone, Copy)]
+pub(crate) struct AppliedValueCarrier<'application> {
+    reference: TypeReferenceHandle,
+    parameters: &'application [TypeParameter],
+    arguments: &'application [TypeReferenceHandle],
+}
+
+impl<'application> AppliedValueCarrier<'application> {
+    pub(crate) fn ordinary(reference: TypeReferenceHandle) -> Self {
+        Self {
+            reference,
+            parameters: &[],
+            arguments: &[],
+        }
+    }
+
+    pub(crate) fn applied(
+        reference: TypeReferenceHandle,
+        parameters: &'application [TypeParameter],
+        arguments: &'application [TypeReferenceHandle],
+    ) -> Self {
+        Self {
+            reference,
+            parameters,
+            arguments,
+        }
+    }
+
+    fn resolved(self, program: &dyn crate::CheckingInput) -> Self {
+        if !self.reference.is_valid() {
+            return self;
+        }
+        let TypeReferenceNode::Named { symbol, .. } =
+            program.type_reference_table.type_reference(self.reference)
+        else {
+            return self;
+        };
+        self.parameters
+            .iter()
+            .zip(self.arguments)
+            .find_map(|(parameter, argument)| {
+                (symbol.is_valid()
+                    && parameter.symbol == *symbol
+                    && matches!(parameter.kind, TypeParameterKind::Type))
+                .then_some(Self::ordinary(*argument))
+            })
+            .unwrap_or(self)
+    }
+
+    fn child(self, reference: TypeReferenceHandle) -> Self {
+        Self { reference, ..self }
+    }
+
+    fn matches(self, program: &dyn crate::CheckingInput, actual: TypeReferenceHandle) -> bool {
+        let substitutions = self
+            .parameters
+            .iter()
+            .zip(self.arguments)
+            .filter(|(parameter, _)| {
+                matches!(
+                    parameter.kind,
+                    TypeParameterKind::Type
+                        | TypeParameterKind::Const { .. }
+                        | TypeParameterKind::Value { .. }
+                )
+            })
+            .map(|(parameter, argument)| (parameter.symbol, *argument))
+            .collect::<Vec<_>>();
+        program.type_identity_with_simultaneous_substitutions(
+            typed_trees::type_identity::TypeIdentityRequest {
+                substitutions: &substitutions,
+                ..typed_trees::type_identity::TypeIdentityRequest::ordinary(self.reference)
+            },
+        ) == program.normalized_type_identity(actual)
+    }
+
+    fn array_length(
+        self,
+        program: &dyn crate::CheckingInput,
+        length: &FixedArrayLength,
+    ) -> Option<usize> {
+        match length {
+            FixedArrayLength::Literal(length) => Some(*length),
+            FixedArrayLength::ConstParameter { symbol, .. } => {
+                let argument = self.parameters.iter().zip(self.arguments).find_map(
+                    |(parameter, argument)| (parameter.symbol == *symbol).then_some(*argument),
+                )?;
+                let TypeReferenceNode::Named { symbol, name } =
+                    program.type_reference_table.type_reference(argument)
+                else {
+                    return None;
+                };
+                if let Some(declaration) = program.const_declaration_by_symbol(*symbol) {
+                    let encoding = declaration.evaluated_value.as_ref()?.encoding()?;
+                    return match CanonicalConstValue::new("", encoding, "").decode_encoding()? {
+                        DecodedCanonicalConstValue::Integer { value, .. } => {
+                            usize::try_from(value).ok()
+                        }
+                        _ => None,
+                    };
+                }
+                if symbol.is_valid() {
+                    return None;
+                }
+                name.as_str().parse().ok().or_else(|| {
+                    match CanonicalConstValue::from_atom(name.as_str())?.decode_encoding()? {
+                        DecodedCanonicalConstValue::Integer { value, .. } => {
+                            usize::try_from(value).ok()
+                        }
+                        _ => None,
+                    }
+                })
+            }
+            FixedArrayLength::Expression(_) | FixedArrayLength::ConstCall { .. } => {
+                program.closed_fixed_array_length(self.reference)
+            }
+        }
+    }
+}
+
 pub(crate) fn validate_const_data_argument(
     program: &dyn crate::CheckingInput,
     base_name: &str,
     parameter: &TypeParameter,
-    parameter_type: TypeReferenceHandle,
+    carrier: AppliedValueCarrier<'_>,
     argument: TypeReferenceHandle,
     type_parameter_scope: TypeParameterScope<'_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    let carrier = carrier.resolved(program);
+    let parameter_type = carrier.reference;
     // Ordinary value binders retain a runtime subject, independently of its
     // carrier. Const binders continue through static admission below.
     if matches!(parameter.kind, TypeParameterKind::Value { .. })
@@ -338,10 +464,10 @@ pub(crate) fn validate_const_data_argument(
         )
     {
         let actual = crate::value_custody::places::declaration_type_reference(program, *symbol);
-        if !actual.is_some_and(|actual| type_references_match(program, actual, parameter_type)) {
+        if !actual.is_some_and(|actual| carrier.matches(program, actual)) {
             diagnostics.push(Diagnostic::error(format!(
                 "value parameter `{}` of `{base_name}` requires `{}`, but runtime subject `{name}` has a different carrier",
-                parameter.name, type_reference_label(program, parameter_type),
+                parameter.name, canonical_carrier_label(program, carrier),
             )));
         }
         return;
@@ -382,24 +508,23 @@ pub(crate) fn validate_const_data_argument(
     if symbol.is_valid()
         && let Some(declaration) = program.const_declaration_by_symbol(*symbol)
     {
-        let admission =
-            if !type_references_match(program, declaration.declared_type, parameter_type) {
-                Err(format!(
-                    "named constant `{name}` has type `{}`, expected `{}`",
-                    type_reference_label(program, declaration.declared_type),
-                    type_reference_label(program, parameter_type)
-                ))
-            } else if let Some(encoding) = declaration
-                .evaluated_value
-                .as_ref()
-                .and_then(|value| value.encoding())
-            {
-                validate_exact_const_value_encoding(program, parameter_type, encoding)
-            } else {
-                Err(format!(
-                    "named constant `{name}` has no evaluated const value"
-                ))
-            };
+        let admission = if !carrier.matches(program, declaration.declared_type) {
+            Err(format!(
+                "named constant `{name}` has type `{}`, expected `{}`",
+                type_reference_label(program, declaration.declared_type),
+                canonical_carrier_label(program, carrier)
+            ))
+        } else if let Some(encoding) = declaration
+            .evaluated_value
+            .as_ref()
+            .and_then(|value| value.encoding())
+        {
+            validate_exact_const_value_encoding_in_carrier(program, carrier, encoding)
+        } else {
+            Err(format!(
+                "named constant `{name}` has no evaluated const value"
+            ))
+        };
         if let Err(reason) = admission {
             diagnostics.push(Diagnostic::error(format!(
                 "const parameter `{}` of `{base_name}` has an invalid named value: {reason}",
@@ -410,9 +535,9 @@ pub(crate) fn validate_const_data_argument(
     }
 
     if let Some(value) = CanonicalConstValue::from_atom(name.as_str()) {
-        if exact_structured_const_carrier_is_eligible(program, parameter_type, &mut Vec::new()) {
+        if exact_structured_const_carrier_is_eligible(program, carrier, &mut Vec::new()) {
             if let Err(reason) =
-                validate_exact_const_identity(program, parameter_type, &value.identity())
+                validate_exact_const_identity_in_carrier(program, carrier, &value.identity())
             {
                 diagnostics.push(Diagnostic::error(format!(
                     "const parameter `{}` of `{base_name}` has an invalid canonical value: {reason}",
@@ -430,7 +555,7 @@ pub(crate) fn validate_const_data_argument(
             )));
             return;
         }
-        let required_type = type_reference_label(program, parameter_type);
+        let required_type = canonical_carrier_label(program, carrier);
         if value.type_name != required_type {
             diagnostics.push(Diagnostic::error(format!(
                 "const parameter `{}` of `{base_name}` has type `{required_type}`, but its canonical value has type `{}`",
@@ -446,7 +571,7 @@ pub(crate) fn validate_const_data_argument(
             diagnostics.push(Diagnostic::error(format!(
                 "const parameter `{}` of `{base_name}` requires a `{}` value, not integer `{value}`",
                 parameter.name,
-                type_reference_label(program, parameter_type),
+                canonical_carrier_label(program, carrier),
             )));
             return;
         };
@@ -499,11 +624,11 @@ pub(crate) fn validate_const_data_argument(
         )));
         return;
     };
-    if !type_references_match(program, forwarded_type, parameter_type) {
+    if !carrier.matches(program, forwarded_type) {
         diagnostics.push(Diagnostic::error(format!(
             "const parameter `{}` of `{base_name}` has type `{}`, but forwarded const parameter `{}` has type `{}`",
             parameter.name,
-            type_reference_label(program, parameter_type),
+            canonical_carrier_label(program, carrier),
             forwarded.name,
             type_reference_label(program, forwarded_type),
         )));
@@ -532,7 +657,8 @@ pub(crate) fn validate_exact_typed_structured_const_argument(
             type_reference_label(program, expected_type)
         ));
     }
-    let expected_name = canonical_carrier_label(program, expected_type);
+    let expected_name =
+        canonical_carrier_label(program, AppliedValueCarrier::ordinary(expected_type));
     if value.type_name != expected_name {
         return Err(format!(
             "expected carrier `{expected_name}`, but the canonical atom names `{}`",
@@ -542,7 +668,12 @@ pub(crate) fn validate_exact_typed_structured_const_argument(
     let decoded = value
         .decode_encoding()
         .ok_or_else(|| "the canonical const encoding is malformed".to_owned())?;
-    validate_decoded_structured_const(program, expected_type, &decoded, &mut Vec::new())
+    validate_decoded_structured_const(
+        program,
+        AppliedValueCarrier::ordinary(expected_type),
+        &decoded,
+        &mut Vec::new(),
+    )
 }
 
 pub(crate) fn validate_exact_const_identity(
@@ -550,17 +681,28 @@ pub(crate) fn validate_exact_const_identity(
     expected_type: TypeReferenceHandle,
     identity: &CanonicalConstIdentity,
 ) -> Result<(), String> {
+    validate_exact_const_identity_in_carrier(
+        program,
+        AppliedValueCarrier::ordinary(expected_type),
+        identity,
+    )
+}
+
+fn validate_exact_const_identity_in_carrier(
+    program: &dyn crate::CheckingInput,
+    carrier: AppliedValueCarrier<'_>,
+    identity: &CanonicalConstIdentity,
+) -> Result<(), String> {
+    let carrier = carrier.resolved(program);
+    let expected_type = carrier.reference;
     let expected_name = if let Some(primitive) = exact_const_primitive(program, expected_type) {
         primitive.name().to_owned()
     } else if matches!(
         program.type_reference_table.type_reference(expected_type),
         TypeReferenceNode::FixedArray { .. }
-    ) && exact_structured_const_carrier_is_eligible(
-        program,
-        expected_type,
-        &mut Vec::new(),
-    ) {
-        canonical_carrier_label(program, expected_type)
+    ) && exact_structured_const_carrier_is_eligible(program, carrier, &mut Vec::new())
+    {
+        canonical_carrier_label(program, carrier)
     } else {
         let value = CanonicalConstValue::new(
             identity.type_name.clone(),
@@ -578,7 +720,7 @@ pub(crate) fn validate_exact_const_identity(
     let decoded = identity
         .decode_encoding()
         .ok_or_else(|| "the canonical const encoding is malformed".to_owned())?;
-    validate_decoded_structured_const(program, expected_type, &decoded, &mut Vec::new())
+    validate_decoded_structured_const(program, carrier, &decoded, &mut Vec::new())
 }
 
 /// Replay a retained canonical const encoding against one exact resolved
@@ -587,6 +729,18 @@ pub(crate) fn validate_exact_const_identity(
 pub fn validate_exact_const_value_encoding(
     program: &dyn crate::CheckingInput,
     expected_type: TypeReferenceHandle,
+    encoding: &str,
+) -> Result<(), String> {
+    validate_exact_const_value_encoding_in_carrier(
+        program,
+        AppliedValueCarrier::ordinary(expected_type),
+        encoding,
+    )
+}
+
+fn validate_exact_const_value_encoding_in_carrier(
+    program: &dyn crate::CheckingInput,
+    carrier: AppliedValueCarrier<'_>,
     encoding: &str,
 ) -> Result<(), String> {
     let decoded = CanonicalConstValue::new("", encoding, "")
@@ -602,9 +756,9 @@ pub fn validate_exact_const_value_encoding(
         | DecodedCanonicalConstValue::Variant { type_name, .. } => type_name,
         DecodedCanonicalConstValue::Boolean(_) => "bool".to_owned(),
     };
-    validate_exact_const_identity(
+    validate_exact_const_identity_in_carrier(
         program,
-        expected_type,
+        carrier,
         &CanonicalConstIdentity {
             type_name,
             encoding: encoding.to_owned(),
@@ -617,8 +771,10 @@ pub fn validate_exact_const_value_encoding(
 /// the label still supplies no nominal authority without the exact typed slot.
 fn canonical_carrier_label(
     program: &dyn crate::CheckingInput,
-    reference: TypeReferenceHandle,
+    carrier: AppliedValueCarrier<'_>,
 ) -> String {
+    let carrier = carrier.resolved(program);
+    let reference = carrier.reference;
     match program.type_reference_table.type_reference(reference) {
         TypeReferenceNode::Named { symbol, .. } => {
             crate::declarations::data_queries::data_definition_by_symbol(program, *symbol)
@@ -629,10 +785,13 @@ fn canonical_carrier_label(
         }
         TypeReferenceNode::FixedArray {
             element_type,
-            length: FixedArrayLength::Literal(length),
+            length,
         } => format!(
-            "[{}; {length}]",
-            canonical_carrier_label(program, *element_type)
+            "[{}; {}]",
+            canonical_carrier_label(program, carrier.child(*element_type)),
+            carrier
+                .array_length(program, length)
+                .map_or_else(|| "unclosed".to_owned(), |length| length.to_string())
         ),
         _ => type_reference_label(program, reference),
     }
@@ -649,22 +808,35 @@ fn exact_structured_const_data_carrier_is_eligible(
     };
     symbol.is_valid()
         && crate::declarations::data_queries::data_definition_by_symbol(program, *symbol).is_some()
-        && exact_structured_const_carrier_is_eligible(program, type_reference, &mut Vec::new())
+        && exact_structured_const_carrier_is_eligible(
+            program,
+            AppliedValueCarrier::ordinary(type_reference),
+            &mut Vec::new(),
+        )
 }
 
 fn exact_structured_const_carrier_is_eligible(
     program: &dyn crate::CheckingInput,
-    type_reference: TypeReferenceHandle,
+    carrier: AppliedValueCarrier<'_>,
     visiting: &mut Vec<symbols::SymbolHandle>,
 ) -> bool {
+    let carrier = carrier.resolved(program);
+    let type_reference = carrier.reference;
     if let Some(primitive) = exact_const_primitive(program, type_reference) {
         return primitive == PrimitiveType::Bool || primitive.accepts_integer_literal();
     }
     match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::FixedArray {
             element_type,
-            length: FixedArrayLength::Literal(_),
-        } => exact_structured_const_carrier_is_eligible(program, *element_type, visiting),
+            length,
+        } => {
+            carrier.array_length(program, length).is_some()
+                && exact_structured_const_carrier_is_eligible(
+                    program,
+                    carrier.child(*element_type),
+                    visiting,
+                )
+        }
         TypeReferenceNode::Named { symbol, .. } => {
             if !symbol.is_valid() || visiting.contains(symbol) {
                 return false;
@@ -693,7 +865,7 @@ fn exact_structured_const_carrier_is_eligible(
                                         !field.relevance.is_erased()
                                             && exact_structured_const_carrier_is_eligible(
                                                 program,
-                                                field.type_reference,
+                                                AppliedValueCarrier::ordinary(field.type_reference),
                                                 visiting,
                                             )
                                     })
@@ -707,7 +879,9 @@ fn exact_structured_const_carrier_is_eligible(
                                             !field.relevance.is_erased()
                                                 && exact_structured_const_carrier_is_eligible(
                                                     program,
-                                                    field.type_reference,
+                                                    AppliedValueCarrier::ordinary(
+                                                        field.type_reference,
+                                                    ),
                                                     visiting,
                                                 )
                                         })
@@ -750,10 +924,12 @@ fn structured_const_carrier_definition<'p>(
 
 fn validate_decoded_structured_const(
     program: &dyn crate::CheckingInput,
-    expected_type: TypeReferenceHandle,
+    carrier: AppliedValueCarrier<'_>,
     value: &DecodedCanonicalConstValue,
     visiting: &mut Vec<symbols::SymbolHandle>,
 ) -> Result<(), String> {
+    let carrier = carrier.resolved(program);
+    let expected_type = carrier.reference;
     if let Some(primitive) = exact_const_primitive(program, expected_type) {
         return match (primitive, value) {
             (PrimitiveType::Bool, DecodedCanonicalConstValue::Boolean(_)) => Ok(()),
@@ -787,24 +963,32 @@ fn validate_decoded_structured_const(
         (
             TypeReferenceNode::FixedArray {
                 element_type,
-                length: FixedArrayLength::Literal(length),
+                length,
             },
             DecodedCanonicalConstValue::Array { type_name, values },
         ) => {
-            let expected_name = canonical_carrier_label(program, expected_type);
+            let length = carrier
+                .array_length(program, length)
+                .ok_or("const carrier array extent is not closed")?;
+            let expected_name = canonical_carrier_label(program, carrier);
             if type_name != &expected_name {
                 return Err(format!(
                     "array node names `{type_name}`, expected `{expected_name}`"
                 ));
             }
-            if values.len() != *length {
+            if values.len() != length {
                 return Err(format!(
                     "array node has {} elements, expected {length}",
                     values.len()
                 ));
             }
             for value in values {
-                validate_decoded_structured_const(program, *element_type, value, visiting)?;
+                validate_decoded_structured_const(
+                    program,
+                    carrier.child(*element_type),
+                    value,
+                    visiting,
+                )?;
             }
             Ok(())
         }
@@ -936,7 +1120,12 @@ fn validate_named_field_value(
             field.name
         ));
     }
-    validate_decoded_structured_const(program, field.type_reference, encoded_value, visiting)
+    validate_decoded_structured_const(
+        program,
+        AppliedValueCarrier::ordinary(field.type_reference),
+        encoded_value,
+        visiting,
+    )
 }
 
 fn exact_const_primitive(

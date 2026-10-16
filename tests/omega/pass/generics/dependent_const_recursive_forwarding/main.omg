@@ -1,0 +1,10 @@
+// Each forwarded value keeps the carrier of its caller-side binder.
+data Token<'storage, A, B, const First: A, const Second: B> {
+    next: &'storage Token<'storage, B, A, Second, First>;
+}
+
+const Fixed: [u64; 2] = [1, 2];
+// Substituting A inserts caller-side [B; 2], whose B must stay untouched.
+data ArrayToken<'storage, A, B, const First: A, const Other: [B; 2]> {
+    next: &'storage ArrayToken<'storage, [B; 2], u64, Other, Fixed>;
+}

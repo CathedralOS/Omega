@@ -139,6 +139,40 @@ pub fn applied_index_identity(
     lexical_owner: SymbolHandle,
     scopes: &[AppliedTypeIdentityScope<'_>],
 ) -> Option<NormalizedTypeIdentity> {
+    qualified_applied_index_identity(
+        program,
+        argument,
+        lexical_owner,
+        scopes,
+        TypeIdentityQualification::Ordinary,
+    )
+}
+
+/// Publish the same value-role operand identity with exact package ownership.
+/// Carrier admission remains separate; a const symbol is a value occurrence,
+/// never a nominal type merely because it has retained source metadata.
+pub fn portable_applied_index_identity(
+    program: &TypedTrees,
+    argument: IndexIdentityArgument<'_>,
+    lexical_owner: SymbolHandle,
+    scopes: &[AppliedTypeIdentityScope<'_>],
+) -> Option<NormalizedTypeIdentity> {
+    qualified_applied_index_identity(
+        program,
+        argument,
+        lexical_owner,
+        scopes,
+        TypeIdentityQualification::PackageQualified,
+    )
+}
+
+fn qualified_applied_index_identity(
+    program: &TypedTrees,
+    argument: IndexIdentityArgument<'_>,
+    lexical_owner: SymbolHandle,
+    scopes: &[AppliedTypeIdentityScope<'_>],
+    qualification: TypeIdentityQualification,
+) -> Option<NormalizedTypeIdentity> {
     let invalid = Cell::new(false);
     let identity = substitution::index_argument(
         program,
@@ -146,6 +180,7 @@ pub fn applied_index_identity(
         &TypeIdentityContext {
             application_scopes: scopes,
             application_owner: lexical_owner,
+            qualification,
             invalid_application: Some(&invalid),
             invalid_index_argument: Some(&invalid),
             ..TypeIdentityContext::default()

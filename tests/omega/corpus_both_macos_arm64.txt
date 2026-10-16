@@ -640,6 +640,7 @@ pass/proofs/runtime_byte_predicate_state_contract_exit built 1191ms exit:70 inte
 pass/proofs/runtime_indexed_field_relations_exit built 3048ms exit:0 interpreter-exit:0 interpreter:agrees @7ba26861e79c+wt
 pass/proofs/runtime_inductive_gauss_sum_exit built 2792ms exit:70 interpreter-exit:70 interpreter:agrees @cba4ef8c9ab1
 pass/providers/applied_binding_field_telescopes_exit built 2885ms exit:0 interpreter-exit:0 interpreter:agrees @a8cedb3946d5+wt
+pass/providers/applied_header_dependent_const_carrier_exit built 12581ms exit:0 interpreter-exit:0 interpreter:agrees @37afc401493b+wt
 pass/providers/borrowed_service_field_forward_exit built 8241ms exit:70 stdout:match interpreter-exit:70 interpreter-stdout:match interpreter:agrees @9be6967d04c3+wt
 pass/providers/boundary_declaration_structural_result_return_exit built 6570ms exit:0 interpreter-exit:0 interpreter:agrees @7084889a08d8+wt
 pass/providers/checked_boundary_operator_const_application_alternate_exit built 2780ms exit:70 interpreter-exit:70 interpreter:agrees @c8e8e86a6e1b

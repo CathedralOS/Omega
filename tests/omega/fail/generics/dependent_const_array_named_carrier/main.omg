@@ -1,0 +1,3 @@
+const Pair: [u16; 2] = [1, 2];
+trait Pick<Value, const Selected: [Value; 2]> {}
+Wrong satisfies Pick<u8, Pair> {}

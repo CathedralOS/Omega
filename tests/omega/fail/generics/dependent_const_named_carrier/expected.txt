@@ -1,0 +1,1 @@
+named constant `Upper` has type `u32`, expected `u64`

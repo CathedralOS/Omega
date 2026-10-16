@@ -1,0 +1,5 @@
+// In this recursive application, caller B remains an arbitrary type.
+// Receiving A maps to caller B once; receiving B maps to u64 separately.
+data Token<'storage, A, B, const Count: A> {
+    next: &'storage Token<'storage, B, u64, 4>;
+}

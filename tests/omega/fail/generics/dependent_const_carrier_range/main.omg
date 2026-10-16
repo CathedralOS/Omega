@@ -1,0 +1,2 @@
+pub boundary trait Parent<Value, const Count: Value> { machine read() -> i32; }
+pub boundary trait Child: Parent<u8, 256> {}

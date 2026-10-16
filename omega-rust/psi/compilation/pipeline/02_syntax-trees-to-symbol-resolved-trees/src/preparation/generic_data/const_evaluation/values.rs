@@ -176,30 +176,89 @@ pub(in crate::preparation) fn canonicalize_selected_const_definition(
     parameter_type: TypeReferenceHandle,
     selection: Option<&ConstantSelection>,
 ) -> Result<CanonicalConstValue, String> {
+    canonicalize_selected_const_definition_in_application(
+        syntax,
+        definition,
+        parameter_type,
+        selection,
+        &GenericApplicationSubstitution::new(),
+    )
+}
+
+pub(in crate::preparation::generic_data) fn canonicalize_selected_const_definition_in_application(
+    syntax: &SyntaxTrees,
+    definition: &ConstDefinition,
+    parameter_type: TypeReferenceHandle,
+    selection: Option<&ConstantSelection>,
+    substitution: &GenericApplicationSubstitution,
+) -> Result<CanonicalConstValue, String> {
     let declared = syntax_type_identity(syntax, definition.type_reference)?;
-    let required = syntax_type_identity(syntax, parameter_type)?;
-    if !same_carrier(syntax, definition.type_reference, parameter_type, selection)? {
+    let required = substituted_type_label(syntax, parameter_type, substitution, selection)?;
+    if !same_carrier_in_application(
+        syntax,
+        definition.type_reference,
+        parameter_type,
+        selection,
+        substitution,
+    )? {
         return Err(format!(
             "const `{}` declares type `{declared}`, but the parameter requires `{required}`",
             qualified_const_name(definition)
         ));
     }
-    canonicalize_selected_index_expression(
+    canonicalize_scoped_index_expression(
         syntax,
         definition.type_reference,
+        &GenericApplicationSubstitution::new(),
         parameter_type,
+        substitution,
         definition.value,
         selection,
     )
 }
 
-/// Direct structural atoms and named constants share index admissibility and
-/// canonical representation. Only the named route additionally owns a const
-/// declaration's copy/cleanup eligibility and declared-carrier equality.
 pub(in crate::preparation::generic_data) fn canonicalize_selected_index_expression(
     syntax: &SyntaxTrees,
     value_type: TypeReferenceHandle,
     parameter_type: TypeReferenceHandle,
+    expression: ExpressionHandle,
+    selection: Option<&ConstantSelection>,
+) -> Result<CanonicalConstValue, String> {
+    canonicalize_scoped_index_expression(
+        syntax,
+        value_type,
+        &GenericApplicationSubstitution::new(),
+        parameter_type,
+        &GenericApplicationSubstitution::new(),
+        expression,
+        selection,
+    )
+}
+
+pub(in crate::preparation::generic_data) fn canonicalize_selected_index_expression_in_application(
+    syntax: &SyntaxTrees,
+    parameter_type: TypeReferenceHandle,
+    expression: ExpressionHandle,
+    selection: Option<&ConstantSelection>,
+    substitution: &GenericApplicationSubstitution,
+) -> Result<CanonicalConstValue, String> {
+    canonicalize_scoped_index_expression(
+        syntax,
+        parameter_type,
+        substitution,
+        parameter_type,
+        substitution,
+        expression,
+        selection,
+    )
+}
+
+fn canonicalize_scoped_index_expression(
+    syntax: &SyntaxTrees,
+    value_type: TypeReferenceHandle,
+    value_scope: &GenericApplicationSubstitution,
+    parameter_type: TypeReferenceHandle,
+    parameter_scope: &GenericApplicationSubstitution,
     expression: ExpressionHandle,
     selection: Option<&ConstantSelection>,
 ) -> Result<CanonicalConstValue, String> {
@@ -208,16 +267,11 @@ pub(in crate::preparation::generic_data) fn canonicalize_selected_index_expressi
         parameter_type,
         &mut Vec::new(),
         selection,
-        &GenericApplicationSubstitution::new(),
+        parameter_scope,
     )?;
-    let node = canonicalize_const_expression(
-        syntax,
-        value_type,
-        expression,
-        selection,
-        &GenericApplicationSubstitution::new(),
-    )?;
-    canonical_const_result(syntax, parameter_type, node, selection)
+    let node =
+        canonicalize_const_expression(syntax, value_type, expression, selection, value_scope)?;
+    canonical_const_result_in_application(syntax, parameter_type, node, selection, parameter_scope)
 }
 
 pub(in crate::preparation::generic_data) fn syntax_type_identity(
@@ -356,12 +410,23 @@ fn canonical_const_result(
     node: CanonicalConstNode,
     selection: Option<&ConstantSelection>,
 ) -> Result<CanonicalConstValue, String> {
-    let required = substituted_type_label(
+    canonical_const_result_in_application(
         syntax,
         type_reference,
-        &GenericApplicationSubstitution::new(),
+        node,
         selection,
-    )?;
+        &GenericApplicationSubstitution::new(),
+    )
+}
+
+fn canonical_const_result_in_application(
+    syntax: &SyntaxTrees,
+    type_reference: TypeReferenceHandle,
+    node: CanonicalConstNode,
+    selection: Option<&ConstantSelection>,
+    substitution: &GenericApplicationSubstitution,
+) -> Result<CanonicalConstValue, String> {
+    let required = substituted_type_label(syntax, type_reference, substitution, selection)?;
     if required == "Rat" {
         validate_canonical_rat(&node)?;
     }
@@ -539,6 +604,50 @@ fn synthesized_instance<'syntax>(
         }
         _ => None,
     })
+}
+
+/// Receiving formals substitute once. Inserted caller types are then compared
+/// outside this telescope; original array children keep the receiving scope.
+fn same_carrier_in_application(
+    syntax: &SyntaxTrees,
+    declared: TypeReferenceHandle,
+    required: TypeReferenceHandle,
+    selection: Option<&ConstantSelection>,
+    substitution: &GenericApplicationSubstitution,
+) -> Result<bool, String> {
+    if let TypeReferenceNode::Named(name) = syntax.type_references.type_reference(required)
+        && let Some(actual) = substitution.get(name.as_str())
+    {
+        return same_carrier(syntax, declared, *actual, selection);
+    }
+    match (
+        syntax.type_references.type_reference(declared),
+        syntax.type_references.type_reference(required),
+    ) {
+        (
+            TypeReferenceNode::FixedArray {
+                element_type: actual,
+                length: actual_length,
+            },
+            TypeReferenceNode::FixedArray {
+                element_type: demanded,
+                length: demanded_length,
+            },
+        ) => Ok(closed_fixed_array_length(
+            syntax,
+            actual_length,
+            &GenericApplicationSubstitution::new(),
+            selection,
+        )? == closed_fixed_array_length(syntax, demanded_length, substitution, selection)?
+            && same_carrier_in_application(syntax, *actual, *demanded, selection, substitution)?),
+        (TypeReferenceNode::Constrained { base_type, .. }, _) => {
+            same_carrier_in_application(syntax, *base_type, required, selection, substitution)
+        }
+        (_, TypeReferenceNode::Constrained { base_type, .. }) => {
+            same_carrier_in_application(syntax, declared, *base_type, selection, substitution)
+        }
+        _ => same_carrier(syntax, declared, required, selection),
+    }
 }
 
 fn same_carrier(
@@ -797,7 +906,7 @@ fn validate_selected_const_type(
             *argument,
             visiting,
             selection,
-            substitution,
+            &GenericApplicationSubstitution::new(),
             purpose,
         );
     }
@@ -1021,7 +1130,7 @@ pub(in crate::preparation::generic_data) fn canonicalize_const_expression(
             *argument,
             expression,
             selection,
-            substitution,
+            &GenericApplicationSubstitution::new(),
         );
     }
     // A rewritten `Named` instance spelling canonicalizes through its

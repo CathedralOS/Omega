@@ -115,6 +115,20 @@ pub(super) fn index_name(
     if let Some(value) = boolean(program, symbol, spelling) {
         return atom("boolean", &value.to_string());
     }
+    if let Some(encoding) = program
+        .const_declaration_by_symbol(symbol)
+        .and_then(|declaration| declaration.evaluated_value.as_ref())
+        .and_then(|value| value.encoding())
+        && let Some(value) = CanonicalConstValue::new("", encoding, "").decode_encoding()
+        && let DecodedCanonicalConstValue::Array { type_name, .. }
+        | DecodedCanonicalConstValue::Record { type_name, .. }
+        | DecodedCanonicalConstValue::Variant { type_name, .. } = value
+    {
+        return compound(
+            "canonical-const",
+            [atom("type", &type_name), atom("encoding", encoding)],
+        );
+    }
     normalize_const_or_nominal_name(program, symbol, spelling, "const-name", context)
 }
 

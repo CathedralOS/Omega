@@ -1,0 +1,12 @@
+const Two: u32 = 2;
+// Const carriers retain their selected type and extent through nested arrays.
+const Pair: [u8; 2] = [1, 2];
+const Matrix: [[u8; 2]; 1] = [[1, 2]];
+data Token<Value, const Extent: u32, const Selected: [Value; Extent]> {}
+data Nested<Value, const Selected: [[Value; 2]; 1]> {}
+trait Pick<Value, const Extent: u32, const Selected: [Value; Extent]> {}
+Chosen satisfies Pick<u8, Two, Pair> {}
+data Uses {
+    token: Token<u8, Two, Pair>;
+    nested: Nested<u8, Matrix>;
+}

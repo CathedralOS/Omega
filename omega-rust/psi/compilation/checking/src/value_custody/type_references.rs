@@ -43,7 +43,7 @@ mod open_index_expressions;
 
 use constraint_validation::validate_type_constraints_node;
 pub(crate) use generic_arguments::{
-    const_argument_matches_parameter, const_integer_value_fits_primitive,
+    AppliedValueCarrier, const_argument_matches_parameter, const_integer_value_fits_primitive,
     validate_const_binder_carriers, validate_exact_const_identity,
     validate_exact_typed_structured_const_argument,
 };
@@ -894,7 +894,11 @@ fn validate_type_reference_node(
                                 program,
                                 base_name,
                                 parameter,
-                                *type_reference,
+                                AppliedValueCarrier::applied(
+                                    *type_reference,
+                                    parameters,
+                                    argument_handles,
+                                ),
                                 *argument,
                                 type_parameter_scope,
                                 diagnostics,

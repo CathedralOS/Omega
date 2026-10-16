@@ -1,0 +1,7 @@
+// Each const argument is checked under this application's selected carrier.
+data Value {}
+data Token<Value, const Count: Value> {}
+data Uses {
+    small: Token<u8, 4>;
+    wide: Token<u64, 4>;
+}

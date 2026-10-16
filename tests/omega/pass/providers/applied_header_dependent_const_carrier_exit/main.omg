@@ -1,0 +1,42 @@
+// Expected exit: 0. The inherited u64 Type operand completes Count's declared
+// carrier before its original signature predicate is copied. Static requirement
+// calls preserve the authored Child provider selection.
+
+const Four: u64 = 4;
+
+pub boundary trait Parent<Value, const Count: Value> {
+    machine read() -> i32 requires Count == Count;
+}
+pub boundary trait Child: Parent<u64, 4> { machine choose() -> i32; }
+
+ChildMap satisfies Child {
+    Parent::read = read;
+    Child::choose = choose;
+}
+machine read() -> i32 { 37 }
+machine choose() -> i32 { 19 }
+
+data TargetProviders {}
+macos_arm64 machine TargetProviders::provider_defaults(defaults: &mut TargetProviders) {
+    TargetProviders::select_provider<Child, ChildMap>(defaults);
+}
+
+data Main {}
+
+machine observed() -> i32 reaches Parent {
+    Parent<u64, 4>::read()
+}
+machine nested_observation() -> i32 reaches Parent {
+    observed()
+}
+machine Main::main(main: &mut Main) reaches Child + Parent crashes Trap {
+    let direct: i32 = observed();
+    let nested: i32 = nested_observation();
+    let named: i32 = Parent<u64, Four>::read();
+    let chosen: i32 = Child::choose();
+    transition direct == 37 && nested == 37 && named == 37 && chosen == 19 {
+        true -> done() _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

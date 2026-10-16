@@ -9,7 +9,8 @@ use crate::data::TypeParameterKind;
 use crate::name::Identifier;
 use crate::type_identity::{
     AppliedTypeIdentityScope, IndexIdentityArgument, NormalizedTypeIdentity,
-    applied_lifetime_identity, applied_type_identity, local_trait_application_identity,
+    applied_index_identity, applied_lifetime_identity, applied_type_identity,
+    local_trait_application_identity, portable_applied_index_identity,
     portable_applied_lifetime_identity, portable_applied_type_identity,
 };
 use symbols::SymbolHandle;
@@ -119,12 +120,28 @@ impl AppliedTraitScope<'_> {
     ) -> Option<NormalizedTypeIdentity> {
         let (reference, outer) = self.parameter_application(parameter)?;
         self.with_identity_scopes(program, |scopes| {
-            portable_applied_type_identity(
-                program,
-                reference,
-                self.argument_owner,
-                &scopes[..outer],
-            )
+            let binder = program
+                .trait_type_parameters(self.declaration)
+                .iter()
+                .find(|binder| binder.symbol == parameter)?;
+            if matches!(
+                binder.kind,
+                TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. }
+            ) {
+                portable_applied_index_identity(
+                    program,
+                    IndexIdentityArgument::TypeReference(reference),
+                    self.argument_owner,
+                    &scopes[..outer],
+                )
+            } else {
+                portable_applied_type_identity(
+                    program,
+                    reference,
+                    self.argument_owner,
+                    &scopes[..outer],
+                )
+            }
         })
     }
 
@@ -244,7 +261,27 @@ impl AppliedTraitScope<'_> {
                     else {
                         return program.normalized_nominal_type_identity(parameter.symbol);
                     };
-                    applied_type_identity(program, reference, self.argument_owner, &scopes[..scope])
+                    // The declared slot fixes the operand role before identity:
+                    // a named const and its literal share one value key, while
+                    // type operands retain nominal and region ownership.
+                    if matches!(
+                        parameter.kind,
+                        TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. }
+                    ) {
+                        applied_index_identity(
+                            program,
+                            IndexIdentityArgument::TypeReference(reference),
+                            self.argument_owner,
+                            &scopes[..scope],
+                        )
+                    } else {
+                        applied_type_identity(
+                            program,
+                            reference,
+                            self.argument_owner,
+                            &scopes[..scope],
+                        )
+                    }
                 })
                 .collect::<Option<Vec<_>>>()?;
             let lifetimes = self

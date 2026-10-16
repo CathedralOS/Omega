@@ -1,0 +1,1 @@
+named constant `Pair` has type `[u16; 2]`, expected `[u8; 2]`

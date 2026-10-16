@@ -1,0 +1,4 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "applied_header_dependent_const_carrier_exit");
+    Build::bind(builder, macos_arm64::ProgramEntry, Main::main);
+}

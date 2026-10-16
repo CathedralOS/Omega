@@ -1,7 +1,7 @@
 //! Trait application obligations: machine declaration identity arguments,
 //! proposition family arguments and indexed carrier parameters. Every source
-//! use, including unused stored Binding applications, shares kind, property
-//! and callable admission; closed representation is not that judgment.
+//! use, including inherited headers and unused type applications, shares kind,
+//! property and callable admission; closed representation is not that judgment.
 
 use crate::declarations::traits::conformance::signature_matching::{
     carrier_data_definition_for_argument, required_trait_type_parameter, trait_type_bindings,
@@ -38,7 +38,7 @@ pub(crate) fn validate_trait_application_obligations(
     }
 
     use crate::value_custody::type_references::{
-        TypeReferenceOwner, validate_const_application_argument,
+        AppliedValueCarrier, TypeReferenceOwner, validate_const_application_argument,
         validate_machine_application_argument, validate_parameter_bounds,
         validate_type_reference_handle,
     };
@@ -69,7 +69,7 @@ pub(crate) fn validate_trait_application_obligations(
                 program,
                 applied_trait.name.as_str(),
                 parameter,
-                *type_reference,
+                AppliedValueCarrier::applied(*type_reference, parameters, applied_arguments),
                 *argument,
                 caller_scope,
                 diagnostics,

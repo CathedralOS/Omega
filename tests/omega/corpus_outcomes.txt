@@ -3155,6 +3155,18 @@ fail/generics/contextual_static_machine_wrong_lifetime_result_source rejected 34
 	machine argument `choose` for `apply` does not refine `Callback`: callable returned view has a different input-source relation
 fail/generics/data_equation_constructor_binder_carrier_domain rejected 30ms expected @a9ae30e1c334+wt
 	generic data `Box` where type equation constructor const binder has a different declared carrier
+fail/generics/dependent_const_array_extent rejected 1015ms expected @37afc401493b+wt
+	const parameter `Selected` of `Pick` has an invalid named value: named constant `Short` has type `[u8; 1]`, expected `[u8; 2]`
+fail/generics/dependent_const_array_named_carrier rejected 935ms expected @37afc401493b+wt
+	const parameter `Selected` of `Pick` has an invalid named value: named constant `Pair` has type `[u16; 2]`, expected `[u8; 2]`
+fail/generics/dependent_const_carrier_range rejected 530ms expected @37afc401493b+wt
+	const argument `256` for `Parent::Count` does not fit `u8`
+fail/generics/dependent_const_data_named_carrier rejected 43ms expected @37afc401493b+wt
+	const argument for `Token::Count` is invalid at this index site: const `Upper` declares type `u32`, but the parameter requires `u64`
+fail/generics/dependent_const_named_carrier rejected 551ms expected @37afc401493b+wt
+	const parameter `Count` of `Parent` has an invalid named value: named constant `Upper` has type `u32`, expected `u64`
+fail/generics/dependent_const_recursive_caller_carrier rejected 475ms expected @37afc401493b+wt
+	const parameter `Count` of `Token` requires a `B` value, not integer `4`
 fail/generics/empty_attached_value_body rejected 873ms expected @a9ae30e1c334+wt
 	machine `Box::read` state `read` declares a return type but its body is empty -- it can never produce the value (callers would silently bind 0). Return a value or drop the `-> T`.
 	machine `Box<i32>::read` state `read` declares a return type but its body is empty -- it can never produce the value (callers would silently bind 0). Return a value or drop the `-> T`.
@@ -7237,6 +7249,9 @@ pass/generics/contextual_static_machine_open_const_exit checked 12711ms check-ta
 pass/generics/contextual_static_machine_returned_view_local_exit checked 12160ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/generics/contextual_static_machine_universal_lifetime_application_exit checked 13923ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/generics/declared_range_endpoint_inference checked 9805ms check-target:macos_arm64 @1727c70d2f7e+wt
+pass/generics/dependent_const_array_carrier checked 2575ms @37afc401493b+wt
+pass/generics/dependent_const_carrier_arguments checked 2495ms @37afc401493b+wt
+pass/generics/dependent_const_recursive_forwarding checked 2446ms @37afc401493b+wt
 pass/generics/erased_static_arguments_keep_lexical_scope_exit checked 15185ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/generics/folded_range_endpoint_selection_custody checked 9382ms check-target:macos_arm64 @1727c70d2f7e+wt
 pass/generics/foreign_case_membership_dispatch_exit checked 13819ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -7903,6 +7918,7 @@ pass/proofs/static_machine_result_projection checked 1379ms @fedeee648fc7+wt
 pass/proofs/stride_pair_telescope checked 9821ms @5041ef1af684+wt
 pass/providers/applied_binding_field_telescopes_exit checked 6307ms check-target:macos_arm64 @fa48d7bba308+wt
 pass/providers/applied_entry_nested_binding_context_exit checked 2785ms check-target:macos_arm64 @c61d64ccecc5+wt
+pass/providers/applied_header_dependent_const_carrier_exit checked 12536ms check-target:macos_arm64 @37afc401493b+wt
 pass/providers/applied_requirement_calls_exit checked 6806ms check-target:macos_arm64 @308fbdc54ba0
 pass/providers/bare_byte_array_boundary_argument checked 11588ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/providers/binding_formal_type_const_operands checked 477ms @a8cedb3946d5+wt
