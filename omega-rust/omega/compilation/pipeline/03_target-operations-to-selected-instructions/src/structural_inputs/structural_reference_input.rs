@@ -262,6 +262,17 @@ pub(crate) fn reference_source_geometry(
     )
 }
 
+/// A bounded byte owner lent through a field keeps its owned carrier as the
+/// endpoint; a canonical referent leaf deliberately declines inline byte
+/// storage. Predicates stay on the field and its loan's declaration.
+pub(crate) fn owner_loan_geometry(
+    root: StructuralTypeId,
+    path: &[StructuralPathSegment],
+    declarations: &[StructuralTypeDeclaration],
+) -> Option<ReferenceSourceGeometry> {
+    reference_source_geometry_with_leaf_type(root, path, declarations, descriptor_leaf_type)
+}
+
 /// Snapshot endpoint geometry retains byte-field copy shapes while sharing
 /// the ordered pointer regions used by ordinary reference observations.
 pub(crate) fn leaf_copy_geometry(

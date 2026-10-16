@@ -129,12 +129,25 @@ pub(crate) fn projection(
     {
         return None;
     }
-    let mut geometry =
+    // An owner loan lends the bounded byte owner itself, whether it is the
+    // whole root or a field beneath it; every other join lends a referent.
+    let owner_loan = abstract_operations::control_flow::owner_loans::is_bounded_owner_loan_in(
+        parameter,
+        &signature.structural_types,
+    );
+    let mut geometry = if owner_loan {
+        crate::structural_inputs::structural_reference_input::owner_loan_geometry(
+            root,
+            &argument.path,
+            &signature.structural_types,
+        )
+    } else {
         crate::structural_inputs::structural_reference_input::reference_source_geometry(
             root,
             &argument.path,
             &signature.structural_types,
-        )?;
+        )
+    }?;
     if !crate::structural_inputs::structural_reference_input::runtime_indices_match(
         indices,
         &geometry.elements,
