@@ -1,5 +1,8 @@
 // Expected exit: 0 with input.txt (one byte 0). Empty stdin exits 64.
 // Expected output contains: CONVERGED
+// A transition dispatch covers its subject. The converged residual takes the
+// true arm; the false arm continues to the iteration limit. The next statement
+// is not a fallback.
 // SCI04: bounded 2D finite-volume diffusion/Poisson with explicit CSR and CG.
 use omega_language_std::console;
 use omega::language::core::float_operations;

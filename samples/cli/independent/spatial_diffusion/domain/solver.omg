@@ -85,7 +85,12 @@ pub machine solve(grid:&mut domain::grid::Grid) -> i32 {
   transition { _ -> convergence(grid) }
  }
  state convergence(grid:&mut domain::grid::Grid) -> i32 {
-  transition domain::grid::finite(grid.norm) && grid.norm <= grid.threshold { true -> 0 }
+  transition domain::grid::finite(grid.norm) && grid.norm <= grid.threshold {
+   true -> 0
+   false -> limit(grid)
+  }
+ }
+ state limit(grid:&mut domain::grid::Grid) -> i32 {
   transition grid.iterations >= grid.maximum { true -> 2 false -> image(grid) }
  }
  state image(grid:&mut domain::grid::Grid) -> i32 {
