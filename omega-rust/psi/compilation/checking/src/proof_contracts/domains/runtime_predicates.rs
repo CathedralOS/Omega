@@ -103,6 +103,9 @@ impl Predicate<'_> {
         {
             return None;
         }
+        if matches!(self.primitive, PrimitiveType::F32 | PrimitiveType::F64) {
+            return self.float_boolean(expression, depth);
+        }
         match self.program.expression_table.expression(expression) {
             ExpressionNode::Boolean(value) => Some(Boolean::Constant(*value)),
             ExpressionNode::Name(_)
@@ -197,6 +200,128 @@ impl Predicate<'_> {
             }
             _ => None,
         }
+    }
+
+    /// A predicate on `f32` or `f64` is an IEEE comparison, not an integer
+    /// relation. The subject is the parameter; the other operand is a landed
+    /// literal in that format. Token-lowered comparisons are calls whose
+    /// machine binding is the sealed float operator.
+    fn float_boolean(&self, expression: ExpressionHandle, depth: usize) -> Option<Boolean> {
+        if depth >= 128 {
+            return None;
+        }
+        if let Some(binary) = self.program.expression_table.binary_node(expression)
+            && matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or)
+        {
+            let left = Box::new(self.float_boolean(binary.left, depth + 1)?);
+            let right = Box::new(self.float_boolean(binary.right, depth + 1)?);
+            return Some(if binary.operator == BinaryOperator::And {
+                Boolean::And { left, right }
+            } else {
+                Boolean::Or { left, right }
+            });
+        }
+        let (operator, left, right) = self.float_comparison(expression)?;
+        let (kind, left, right) = match operator {
+            BinaryOperator::Equal => (
+                checked_trees::CheckedIeeeFloatComparisonKind::Equal,
+                left,
+                right,
+            ),
+            BinaryOperator::NotEqual => (
+                checked_trees::CheckedIeeeFloatComparisonKind::NotEqual,
+                left,
+                right,
+            ),
+            BinaryOperator::Less => (
+                checked_trees::CheckedIeeeFloatComparisonKind::LessThan,
+                left,
+                right,
+            ),
+            BinaryOperator::LessOrEqual => (
+                checked_trees::CheckedIeeeFloatComparisonKind::LessOrEqual,
+                left,
+                right,
+            ),
+            BinaryOperator::Greater => (
+                checked_trees::CheckedIeeeFloatComparisonKind::LessThan,
+                right,
+                left,
+            ),
+            BinaryOperator::GreaterOrEqual => (
+                checked_trees::CheckedIeeeFloatComparisonKind::LessOrEqual,
+                right,
+                left,
+            ),
+            _ => return None,
+        };
+        Some(Boolean::ScalarIeeeFloatComparison {
+            kind,
+            left: Box::new(self.float_scalar(left)?),
+            right: Box::new(self.float_scalar(right)?),
+        })
+    }
+
+    fn float_comparison(
+        &self,
+        expression: ExpressionHandle,
+    ) -> Option<(BinaryOperator, ExpressionHandle, ExpressionHandle)> {
+        if let Some(binary) = self.program.expression_table.binary_node(expression)
+            && matches!(
+                binary.operator,
+                BinaryOperator::Equal
+                    | BinaryOperator::NotEqual
+                    | BinaryOperator::Less
+                    | BinaryOperator::LessOrEqual
+                    | BinaryOperator::Greater
+                    | BinaryOperator::GreaterOrEqual
+            )
+        {
+            return Some((binary.operator, binary.left, binary.right));
+        }
+        let call = self.program.expression_table.call_node(expression)?;
+        let (machine, _) = crate::find_machine_by_entry_state(self.program, call.target_symbol)?;
+        let binding = self
+            .program
+            .machine_token_binding_by_symbol(machine.symbol)?;
+        let (operator, format) =
+            typed_trees::operator::primitive_float_binary_semantics(self.program, binding)?;
+        let expected = match self.primitive {
+            PrimitiveType::F32 => numerics::literals::FloatFormat::F32,
+            PrimitiveType::F64 => numerics::literals::FloatFormat::F64,
+            _ => return None,
+        };
+        if format != expected {
+            return None;
+        }
+        let [left, right] = self
+            .program
+            .expression_table
+            .expression_handles(call.arguments)
+        else {
+            return None;
+        };
+        Some((operator, *left, *right))
+    }
+
+    fn float_scalar(&self, expression: ExpressionHandle) -> Option<Scalar> {
+        if crate::exact_domain_subject_type(self.program, self.domain, expression).is_some() {
+            return Some(self.subject.clone());
+        }
+        let literal = self.program.expression_table.expression(expression);
+        let bits = match literal {
+            ExpressionNode::Float(literal) => match self.primitive {
+                PrimitiveType::F32 => {
+                    semantic_vocabulary::IeeeFloatValue::Binary32(literal.value_f32().to_bits())
+                }
+                PrimitiveType::F64 => {
+                    semantic_vocabulary::IeeeFloatValue::Binary64(literal.value_f64().to_bits())
+                }
+                _ => return None,
+            },
+            _ => return None,
+        };
+        Some(Scalar::IeeeFloatLiteral { value: bits })
     }
 
     fn scalar(&self, expression: ExpressionHandle, depth: usize) -> Option<Scalar> {

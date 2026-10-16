@@ -57,6 +57,7 @@ pub(crate) mod call_values;
 mod content_preservation;
 mod current_values;
 mod entailment;
+mod float_predicate_domains;
 mod guard_operands;
 mod integer_embeddings;
 mod intervals;

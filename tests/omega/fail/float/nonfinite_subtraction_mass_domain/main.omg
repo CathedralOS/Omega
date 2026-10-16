@@ -1,0 +1,16 @@
+// Ordered subtraction without finiteness does not establish a nonnegative
+// mass: +infinity - +infinity is NaN.
+use omega::language::core::float_operations;
+
+domain f64::NonnegativeMass(value)
+requires value >= 0.0;
+
+machine corrected(gross: f64, tare: f64) -> f64 in NonnegativeMass
+requires gross >= tare
+{
+    gross - tare
+}
+
+machine main() -> f64 {
+    corrected(1.0, 0.0)
+}

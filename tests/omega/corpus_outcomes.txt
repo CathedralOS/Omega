@@ -2711,6 +2711,8 @@ fail/float/named_trapping_index_operand_requires_site_coverage rejected 1632ms e
 fail/float/negated_ordered_guard_cast rejected 429ms expected @9c4d1c444502
 	machine `Guarded::convert` state `bounded` cannot prove Exact float-to-`i32` cast operand `guarded.value` preserves its denotation; prove an integral representable value for an integer target, or exact format representability; use a named conversion to round or truncate
 	machine `Guarded::convert` state `bounded` cannot prove unqualified `I32::from_f64` operand `guarded.value` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
+fail/float/nonfinite_subtraction_mass_domain rejected 4151ms @abbaf3aaa059+wt
+	cannot prove scalar result domain for return from corrected at statement 0: f64::NonnegativeMass
 fail/float/normal_call_guarantee_inactive_match_arm rejected 1573ms expected @9c4d1c444502
 	cannot prove ensures contract for exit from invalid at statement 1: result == F32.is_finite(value)
 fail/float/normal_call_guarantee_skipped_short_circuit rejected 1585ms expected @9c4d1c444502
@@ -6893,6 +6895,7 @@ pass/float/runtime_finite_record_invariant_window_exit checked 25261ms check-tar
 pass/float/runtime_float_call_same_carrier_cast_exit checked 25094ms check-target:macos_arm64 @9c4d1c444502
 pass/float/runtime_float_digit_separators_exit checked 25286ms check-target:macos_arm64 @9c4d1c444502
 pass/float/runtime_float_integer_conversion_boundaries_exit checked 25128ms check-target:macos_arm64 @9c4d1c444502
+pass/float/runtime_float_predicate_domain_exit checked 15064ms check-target:macos_arm64 @abbaf3aaa059+wt
 pass/float/runtime_format_conversion_result_bounds_exit checked 24869ms check-target:macos_arm64 @9c4d1c444502
 pass/float/runtime_generic_constructor_literal_landing_exit checked 14705ms check-target:macos_arm64 @1b12798e27f4
 pass/float/runtime_named_boundary_transition_exit checked 11907ms check-target:macos_arm64 @0755e2c06ec1

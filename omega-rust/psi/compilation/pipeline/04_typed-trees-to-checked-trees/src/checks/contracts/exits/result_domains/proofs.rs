@@ -154,6 +154,20 @@ pub(super) fn establishes_scalar_predicates(
                 // arithmetic proof of its neighbors cannot discard it.
                 return false;
             };
+            let returned = exit_return_expression(program, exit);
+            if super::super::super::float_predicate_domains::expression_establishes_domain_predicate(
+                program,
+                facts,
+                contexts,
+                proof.machine,
+                proof.state,
+                exit.statement_index,
+                returned,
+                domain,
+                *expression,
+            ) {
+                return true;
+            }
             let mut subjects = Vec::new();
             if domain_predicate_meaning(program, domain, *expression, &mut subjects, 0).is_none() {
                 return false;

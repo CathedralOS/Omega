@@ -162,6 +162,22 @@ fn predicate_expression_holds_on_value(
     capture: Option<&checked_trees::FlowOperandFact>,
     frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> bool {
+    if let (Some(machine), Some(state_declaration)) = (
+        program.machine_by_symbol(state.machine_symbol),
+        program.state_by_symbol(state.state_symbol),
+    ) && super::super::float_predicate_domains::expression_establishes_domain_predicate(
+        program,
+        facts,
+        contexts,
+        machine,
+        state_declaration,
+        statement_index,
+        value,
+        domain,
+        expression,
+    ) {
+        return true;
+    }
     if matches!(
         program.expression_table.expression(expression),
         ExpressionNode::Binary(_)
@@ -578,8 +594,21 @@ fn member_comparison_holds_on_value(
     for (member, constant, operator) in
         [(left, right, operator), (right, left, operator.mirrored())]
     {
-        if crate::flow::relative_place_segments_from_expression(program, member, domain).is_none() {
+        let Some(segments) =
+            crate::flow::relative_place_segments_from_expression(program, member, domain)
+        else {
             continue;
+        };
+        if let Some(member_value) = literal_member_value(program, value, &segments)
+            && let Some(holds) = super::super::float_predicate_domains::literal_comparison_holds(
+                program,
+                member_value,
+                operator,
+                constant,
+                domain,
+            )
+        {
+            return holds;
         }
         let Some(expected) = expression_constant_scalar(program, constant, domain.symbol) else {
             continue;
