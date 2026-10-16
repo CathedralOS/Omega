@@ -713,7 +713,7 @@ fail/borrows/cyclic_arrival_duplicates_exclusive_reference rejected 789ms expect
 	state `spin` receives `sibling` as mutable more than once
 fail/borrows/direct_mutable_reference_from_immutable_bytes rejected 871ms expected @a9ae30e1c334+wt
 	argument `bytes` for state `entry` is declared `&mut` (`&mut [u8]`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
-fail/borrows/direct_reference_array_duplicate_mutable rejected 5779ms expected @a9ae30e1c334+wt
+fail/borrows/direct_reference_array_duplicate_mutable rejected 4016ms expected @c4c0ab7a5d11
 	`messages` holds `main.first` as mutable more than once
 fail/borrows/direct_reference_array_live_source_move rejected 1701ms expected @a9ae30e1c334+wt
 	statement 1 moves `main.inventory` while local borrow `loans` is still active (borrowed at statement 0; its last use is at statement 2)
@@ -888,7 +888,7 @@ fail/borrows/nested_array_shared_view_write rejected 845ms expected @a9ae30e1c33
 	machine `store` state `entry` assignment cannot write `slots` because it is not mutable in this state (if `slots` is undeclared -- a typo -- no such field or local exists)
 fail/borrows/nested_reference_live_source_write rejected 1573ms expected @a9ae30e1c334+wt
 	statement 2 mutates `cell.value` while local borrow `message` is still active (borrowed at statement 0; its last use is at statement 3)
-fail/borrows/nested_result_retains_operand_loan rejected 1582ms expected @a9ae30e1c334+wt
+fail/borrows/nested_result_retains_operand_loan rejected 568ms expected @c4c0ab7a5d11
 	state `observe` receives `value` as mutable more than once
 fail/borrows/nested_retained_mutable_loan_shared_argument rejected 5381ms expected @a9ae30e1c334+wt
 	state `observe_hold` receives `counter` as both mutable and read-only
@@ -898,6 +898,25 @@ fail/borrows/opaque_region_call_keeps_view_origin rejected 616ms expected @641c9
 	machine `replace` stores a borrowed value without a complete normal-exit backing relation
 fail/borrows/opaque_sibling_stored_view_local_escape rejected 1550ms expected @a9ae30e1c334+wt
 	machine `replace` stores a borrowed value without a complete normal-exit backing relation
+fail/borrows/owned_carrier_descriptor_parameter_replacement rejected 148ms expected @c4c0ab7a5d11
+	machine `replace` state `entry` assignment cannot write `slot` because it is not mutable in this state (if `slot` is undeclared -- a typo -- no such field or local exists)
+fail/borrows/owned_carrier_immutable_parameter_field rejected 149ms expected @c4c0ab7a5d11
+	machine `replace` state `entry` assignment cannot write `slot` because it is not mutable in this state (if `slot` is undeclared -- a typo -- no such field or local exists)
+fail/borrows/owned_carrier_result_retains_whole_operand rejected 564ms expected @c4c0ab7a5d11
+	statement 4 mutates `pair.marker` while local borrow `bundle` is still active (borrowed at statement 3; its last use is at statement 5)
+	statement 4 mutates `pair.marker` while local borrow `bundle` is still active (borrowed at statement 3; its last use is at statement 5)
+	statement 4 mutates `pair.marker` while local borrow `bundle` is still active (borrowed at statement 3; its last use is at statement 5)
+	statement 4 mutates `pair.marker` while local borrow `bundle` is still active (borrowed at statement 3; its last use is at statement 5)
+fail/borrows/owned_carrier_shared_array_referent_write rejected 146ms expected @c4c0ab7a5d11
+	machine `update` state `entry` assignment cannot write `slots` because it is not mutable in this state (if `slots` is undeclared -- a typo -- no such field or local exists)
+fail/borrows/owned_carrier_shared_outer_referent_write rejected 145ms expected @c4c0ab7a5d11
+	machine `update` state `entry` assignment cannot write `slot` because it is not mutable in this state (if `slot` is undeclared -- a typo -- no such field or local exists)
+fail/borrows/owned_carrier_stored_writeonly_field_unsupported rejected 146ms expected @c4c0ab7a5d11
+	machine `update` state `entry` observes write-only referent through a selected value; `&write` permits replacement or exact `&write` forwarding, never observation
+	machine `prepare` state `entry` reads write-only parameter `cell`; `&write` permits replacement or exact `&write` forwarding, never observation
+	data `Slot` field `target` uses `&write` outside the checked direct callable and local view surface; write-only stored fields and nested generic arguments are not implemented yet
+fail/borrows/owned_carrier_writeonly_outer_pointer_read rejected 146ms expected @c4c0ab7a5d11
+	machine `update` state `entry` writes through an unsupported write-only projection; accepted partial stores are a content-independent common-field path through closed invariant-free records when every field is relevant and unconstrained and the displaced leaf is an unrestricted primitive, a closed literal-ranged integer primitive proven in range at the store, an integer primitive carrying only an arithmetic-policy constraint, or a carrier qualified only by plain declared domains whose membership is proven on the stored value, a whole eligible statically discardable record or closed statically discardable material sum, or a recursively literal fixed array whose ultimate elements are unrestricted primitive scalars or statically discardable material records or sums, one relevant primitive field beneath a literal fixed-array record element, a proven-in-bounds element or statically normalized closed range of such a fixed array, or a proven-in-bounds byte element whose predicate-only fixed carrier membership is independently preserved, or a proven-in-bounds element of a direct byte slice; nested array projection, sum case/payload projection, named or non-plain domain qualification, range stores into a domain-qualified carrier, invariant-dependent, symbolic or open range, take, swap, and read-modify-write operations remain rejected
 fail/borrows/owned_input_reference_escape rejected 1771ms expected @a9ae30e1c334+wt
 	machine `escape` returns a view borrowing the owned input `owned`, which does not outlive the call; return a view of storage that outlives the invocation instead
 fail/borrows/owned_mutable_float_live_shared_loan rejected 1601ms expected @6bb9c1b51558
@@ -1061,7 +1080,7 @@ fail/borrows/shared_observation_does_not_discharge_linear_owner rejected 5989ms 
 	linear value `receipt` reaches scope exit without being consumed or transferred
 fail/borrows/shared_record_byte_write_before_last_observation rejected 5775ms expected @a9ae30e1c334+wt
 	statement 2 mutates `row.text` while local borrow `view` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
-fail/borrows/shared_reference_carrier_writable_call rejected 3961ms expected @a9ae30e1c334+wt
+fail/borrows/shared_reference_carrier_writable_call rejected 968ms expected @c4c0ab7a5d11
 	mutable argument `messages` for state `entry` is not writable in this state; the source cannot lend the requested exclusive access
 	mutable argument `selection` for state `entry` is not writable in this state; the source cannot lend the requested exclusive access
 fail/borrows/state_argument_borrows_forwarded_reference rejected 2484ms expected @00748f0a5289+wt
@@ -1088,7 +1107,7 @@ fail/borrows/static_whole_record_field_overlap rejected 1676ms expected @a9ae30e
 	state `write_other` receives `store` while local borrow `field` is still active
 fail/borrows/stored_fixed_array_shared_write rejected 688ms expected @eb99d04ef2f5+wt
 	mutable argument `buffer` for state `entry` is not writable in this state; the source cannot lend the requested exclusive access
-fail/borrows/stored_fixed_array_write_only_read rejected 110ms expected @eb99d04ef2f5+wt
+fail/borrows/stored_fixed_array_write_only_read rejected 147ms expected @c4c0ab7a5d11
 	machine `invalid` state `entry` reads through index projection of write-only parameter `buffer`; `&write` permits admitted fixed-array element replacement but never observation
 fail/borrows/stored_primitive_reference_backing_write rejected 1748ms expected @a9ae30e1c334+wt
 	statement 2 mutates `backing` while local borrow `bundle` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
@@ -3790,7 +3809,7 @@ fail/optimizer/unexecutable_post_allocation_rule_rejected rejected 28691ms expec
 	selected optimization `Aarch64ElideSameViewCopyI64BeforeReturnV1` failed in the complete verified optimizer pipeline during selected/physical validation: common physical staging failed: PostAllocationMachine(Optimization(NoExecutor { optimization: Aarch64ElideSameViewCopyI64BeforeReturnV1 })); no alternate compiler route was run and no output was installed
 fail/optimizer/xor_zero_materialization_requires_x86_64 rejected 29325ms expected @e5140c7a7be2+wt
 	selected optimization `X86SelectXorZeroI64MaterializationV1` failed in the complete verified optimizer pipeline during selected/physical validation: common physical staging failed: PostAllocationMachine(Optimization(TargetMismatch { optimization: X86SelectXorZeroI64MaterializationV1, required: X86_64, actual: Aarch64 })); no alternate compiler route was run and no output was installed
-fail/ownership/assign_immutable_parameter rejected 889ms expected @a9ae30e1c334+wt
+fail/ownership/assign_immutable_parameter rejected 150ms expected @c4c0ab7a5d11
 	machine `Main::main` state `overwrite` assignment cannot write `input_value` because it is not mutable in this state (if `input_value` is undeclared -- a typo -- no such field or local exists)
 fail/ownership/borrowed_carrier_transform_keeps_backing_loan rejected 1648ms expected @a9ae30e1c334+wt
 	statement 3 mutates `backing` while local borrow `holder` is still active (borrowed at statement 1; its last use is at statement 5)
@@ -5773,7 +5792,7 @@ pass/borrows/dynamic_window_return_custody_exit checked 3476ms check-target:maco
 pass/borrows/enum_selected_view_reference_exit checked 11141ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/exclusive_array_parameter_shared_lend_exit checked 11022ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/explicit_lifetime_select checked 9442ms @5041ef1af684+wt
-pass/borrows/fixed_array_reference_backing_exit checked 2365ms check-target:macos_arm64 @eb99d04ef2f5+wt
+pass/borrows/fixed_array_reference_backing_exit checked 3328ms check-target:macos_arm64 @c4c0ab7a5d11
 pass/borrows/fixed_array_reference_results_exit checked 9558ms check-target:macos_arm64 @b7c17b88b59d
 pass/borrows/indexed_record_field_replacement_exit checked 11018ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/interleaved_parameter_field_replacement_exit checked 11225ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -5889,7 +5908,9 @@ pass/borrows/runtime_nested_carrier_reference_read_exit checked 11084ms check-ta
 pass/borrows/runtime_nested_reference_array_bounded_read_exit checked 10949ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_nested_reference_partition_exit checked 2973ms check-target:macos_arm64 @b5b743bb02aa+wt
 pass/borrows/runtime_nested_reference_record_direct_payload_restoration_exit checked 11079ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/borrows/runtime_owned_reference_carrier_scalar_operand_exit checked 4208ms check-target:macos_arm64 @dd6871ed0476
+pass/borrows/runtime_owned_carrier_indexed_referent_store_exit checked 3312ms check-target:macos_arm64 @c4c0ab7a5d11
+pass/borrows/runtime_owned_generic_carrier_reborrow_exit checked 3267ms check-target:macos_arm64 @c4c0ab7a5d11
+pass/borrows/runtime_owned_reference_carrier_scalar_operand_exit checked 3270ms check-target:macos_arm64 @c4c0ab7a5d11
 pass/borrows/runtime_partial_reference_partition_exit checked 7334ms check-target:macos_arm64 @8a2c1f68d503
 pass/borrows/runtime_projected_call_loan_custody_exit checked 2981ms check-target:macos_arm64 @b5b743bb02aa+wt
 pass/borrows/runtime_projected_fixed_byte_array_local_exit checked 4988ms check-target:macos_arm64 @77acc22653d9

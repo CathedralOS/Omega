@@ -18,7 +18,7 @@ pass/atomics/runtime_atomic_computed_operands_exit built 5756ms exit:0 interpret
 pass/atomics/runtime_atomic_computed_updates_exit built 5756ms exit:0 interpreter-exit:0 interpreter:agrees @e460ea1df091+wt
 pass/atomics/runtime_atomic_operand_order_exit built 5756ms exit:0 interpreter-exit:0 interpreter:agrees @e460ea1df091+wt
 pass/borrows/dynamic_window_return_custody_exit built 3403ms exit:0 interpreter-exit:0 interpreter:agrees @ea7b63644a0a+wt
-pass/borrows/fixed_array_reference_backing_exit built 2447ms exit:0 interpreter-exit:0 interpreter:agrees @eb99d04ef2f5+wt
+pass/borrows/fixed_array_reference_backing_exit built 3555ms exit:0 interpreter-exit:0 interpreter:agrees @c4c0ab7a5d11
 pass/borrows/fixed_array_reference_results_exit built 5592ms exit:0 interpreter-exit:0 interpreter:agrees @c772928b87e3+wt
 pass/borrows/owned_reference_arrival_projection_exit built 4953ms exit:0 interpreter-exit:0 interpreter:agrees @ea7b63644a0a+wt
 pass/borrows/returned_primitive_reference_assignment_capture_exit built 3039ms exit:0 interpreter-exit:0 interpreter:agrees @c69e20ea61aa+wt
@@ -30,7 +30,9 @@ pass/borrows/runtime_case_descriptor_retirement_exit built 3668ms exit:0 interpr
 pass/borrows/runtime_indexed_carrier_conditional_exit built 5551ms exit:0 interpreter-exit:0 interpreter:agrees @e02a3fd5278f+wt
 pass/borrows/runtime_indexed_carrier_repeated_exit built 5551ms exit:0 interpreter-exit:0 interpreter:agrees @e02a3fd5278f+wt
 pass/borrows/runtime_nested_reference_partition_exit built 2667ms exit:0 interpreter-exit:0 interpreter:agrees @b5b743bb02aa+wt
-pass/borrows/runtime_owned_reference_carrier_scalar_operand_exit built 4328ms exit:0 interpreter-exit:0 interpreter:agrees @dd6871ed0476
+pass/borrows/runtime_owned_carrier_indexed_referent_store_exit built 3467ms exit:0 interpreter-exit:0 interpreter:agrees @c4c0ab7a5d11
+pass/borrows/runtime_owned_generic_carrier_reborrow_exit built 3396ms exit:0 interpreter-exit:0 interpreter:agrees @c4c0ab7a5d11
+pass/borrows/runtime_owned_reference_carrier_scalar_operand_exit built 3395ms exit:0 interpreter-exit:0 interpreter:agrees @c4c0ab7a5d11
 pass/borrows/runtime_partial_reference_partition_exit built 5676ms exit:0 interpreter-exit:0 interpreter:agrees @c1d3bd9711c2+wt
 pass/borrows/runtime_projected_call_loan_custody_exit built 2710ms exit:0 interpreter-exit:0 interpreter:agrees @b5b743bb02aa+wt
 pass/borrows/runtime_projected_reference_partition_exit built 5742ms exit:0 interpreter-exit:0 interpreter:agrees @c1d3bd9711c2+wt
