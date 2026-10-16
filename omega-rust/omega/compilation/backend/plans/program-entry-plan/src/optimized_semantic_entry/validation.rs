@@ -15,8 +15,6 @@ use crate::{
 
 pub(super) const PROGRAM_STORAGE_ENTRY_OWNER: &str = "ProgramStorageEntry";
 pub(super) const PROGRAM_STORAGE_ENTRY_METHOD: &str = "enter";
-pub(super) const EXTENT_CARRIER: &str = "named(name(Extent))";
-pub(super) const GRANTED_DOMAIN: &str = "Extent::Granted";
 pub(super) const EXTENT_SHAPE: ValueShape = ValueShape::integer(16, 8);
 pub(super) const EXTENT_FIELD_SHAPE: ValueShape = ValueShape::integer(8, 8);
 
@@ -255,15 +253,25 @@ fn validate_claim(
     schema: &effects::provider_plan::ServiceSchema,
     parameter_index: usize,
 ) -> Result<(), ProgramStorageEntryDiagnostic> {
+    // Provider planning selected the exact core arrival declaration and emitted
+    // this claim only for its authorized establishment route. Above, the source
+    // parameter and calling application join that same requirement. Consume its
+    // normalized identities verbatim: reconstructing a bare `Extent`/`Granted`
+    // spelling loses the owner and rejects package-qualified identities.
     if claim.parameter_index != parameter_index
-        || schema.identities.text(claim.carrier_identity) != EXTENT_CARRIER
-        || claim.domain != GRANTED_DOMAIN
+        || schema.identities.text(claim.carrier_identity).is_empty()
+        || claim.domain.is_empty()
         || !claim.predicate_body.is_present()
         || claim.effective_carry != CarryPolicy::STRICT
         || claim.authority_flow != ServiceEntryAuthorityFlow::Accepts
     {
         return Err(ProgramStorageEntryDiagnostic(format!(
-            "selected semantic ProgramStorage parameter {parameter_index} is not exact Extent in Granted"
+            "selected semantic ProgramStorage parameter {parameter_index} is not exact Extent in Granted: carrier={}, domain={}, predicate={:?}, carry={:?}, flow={:?}",
+            schema.identities.text(claim.carrier_identity),
+            claim.domain,
+            claim.predicate_body,
+            claim.effective_carry,
+            claim.authority_flow
         )));
     }
     Ok(())

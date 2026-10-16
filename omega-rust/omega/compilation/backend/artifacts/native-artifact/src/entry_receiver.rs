@@ -1,4 +1,4 @@
-//! Executable entry receiver admission before physical construction.
+//! Executable entry admission before physical construction.
 
 use diagnostics::Diagnostic;
 use terminal_psi_to_abstract_operations::{
@@ -7,15 +7,16 @@ use terminal_psi_to_abstract_operations::{
     validate_native_program_entry_settlement,
 };
 
-/// Admit the receiver boundary required by an executable image. The complete
+/// Admit the entry boundary required by an executable image. The complete
 /// native input keeps the lowered entry, verified Terminal declaration, and
 /// placed-view loans together; none can be supplied as an unrelated sidecar.
 ///
 /// A source receiver erased from the executable still needs initialization
 /// and cleanup custody. A retained receiver also needs a supported target
-/// bridge. Success permits construction, not publication: the emitted object
+/// bridge. A semantic storage entry retains its physical bridge obligation
+/// even without a receiver. Success permits construction, not publication: the emitted object
 /// and image must independently replay the returned settlement.
-pub fn admit_executable_entry_receiver(
+pub fn admit_executable_entry(
     input: &VerifiedNativeArtifactInput,
     artifact: &terminal_codec::CanonicalTerminalArtifact,
     program_entry: NativeProgramEntrySettlement<'_>,
@@ -98,7 +99,12 @@ pub fn admit_executable_entry_receiver(
             "lowered entry does not preserve the source-selected receiver identity",
         ));
     }
-    if !source_provisions_receiver {
+    // Semantic root delivery is an entry obligation, not receiver storage.
+    // A free UEFI continuation still needs the physical-to-semantic bridge;
+    // dropping its settlement would expose Extent inputs to firmware's ABI.
+    let requires_semantic_bridge = program_entry.source().target_slot().schema
+        == target::ProgramEntrySchema::ProgramStorageApplication;
+    if !source_provisions_receiver && !requires_semantic_bridge {
         return entry_boundary_without_receiver(placed_view_establishments);
     }
     let supported_receiver_bridge = native_target == target::NativeTarget::macos_arm64()
@@ -114,7 +120,7 @@ pub fn admit_executable_entry_receiver(
     let checked_entry = program_entry.checked_entry.ok_or_else(|| {
         crate::native_artifact_error(
             "ProgramEntry receiver provisioning",
-            "hosted receiver requires exact checked initialization and cleanup custody",
+            "executable entry bridge requires exact checked entry custody",
         )
     })?;
     let settled = validate_native_program_entry_settlement(
@@ -124,23 +130,27 @@ pub fn admit_executable_entry_receiver(
         native_target,
     )
     .map_err(|error| crate::native_artifact_error("ProgramEntry receiver custody", error))?;
-    let eligibility = settled.checked_entry().receiver_eligibility().ok_or_else(|| {
-        crate::native_artifact_error(
-            "ProgramEntry receiver provisioning",
-            "hosted receiver requires a checked ZII-valid value with no executable nominal cleanup",
+    let has_receiver = if source_provisions_receiver {
+        let eligibility = settled.checked_entry().receiver_eligibility().ok_or_else(|| {
+            crate::native_artifact_error(
+                "ProgramEntry receiver provisioning",
+                "hosted receiver requires a checked ZII-valid value with no executable nominal cleanup",
+            )
+        })?;
+        matches!(
+            eligibility.projection(),
+            terminal_psi::CheckedProgramEntryReceiverProjection::Retained { .. }
         )
-    })?;
-    let has_receiver = matches!(
-        eligibility.projection(),
-        terminal_psi::CheckedProgramEntryReceiverProjection::Retained { .. }
-    );
+    } else {
+        false
+    };
     if has_receiver && !supported_receiver_bridge {
         return Err(crate::native_artifact_error(
             "ProgramEntry receiver provisioning",
             "the executable entry retains a context parameter, but no root-backed bridge constructs and lends its context; source-entry settlement alone does not provision context storage",
         ));
     }
-    if !has_receiver {
+    if !has_receiver && !requires_semantic_bridge {
         // Source ZII/no-code disposal and the exact erased projection have
         // been replayed. No physical receiver argument or storage is needed;
         // Fused establishment is still checked independently before this call.

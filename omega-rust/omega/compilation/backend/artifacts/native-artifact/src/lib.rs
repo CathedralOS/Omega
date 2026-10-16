@@ -31,7 +31,7 @@ mod publication;
 mod runtime_provisions;
 mod semantic_wrapper_object;
 
-pub use entry_receiver::admit_executable_entry_receiver;
+pub use entry_receiver::admit_executable_entry;
 pub use fragment_object_publication::{
     FragmentObjectProjection, FragmentObjectPublicationRequest, PublishedFragmentObject,
     emit_fragment_object, publish_fragment_object,

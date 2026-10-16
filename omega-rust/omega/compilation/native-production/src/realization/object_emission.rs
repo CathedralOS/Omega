@@ -27,7 +27,7 @@ pub(crate) fn emit_realization_object(
     provider_installation: Option<AdmittedProviderInstallation>,
     settlements: &[AdmittedBoundarySettlement<'_>],
     boundary_application_coverage: Option<&TerminalBoundaryApplicationCoverage>,
-    hosted_receiver: Option<
+    program_entry: Option<
         &terminal_psi_to_abstract_operations::ValidatedNativeProgramEntrySettlement,
     >,
     terminal: &terminal_codec::CanonicalTerminalArtifact,
@@ -72,7 +72,7 @@ pub(crate) fn emit_realization_object(
         FragmentObjectPublicationRequest {
             terminal,
             boundary_application_coverage,
-            hosted_receiver,
+            program_entry,
             private_functions: &private_functions,
         },
     )?;

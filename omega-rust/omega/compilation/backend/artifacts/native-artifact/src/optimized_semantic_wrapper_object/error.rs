@@ -4,7 +4,7 @@ use isa_x86_64::X86_64SemanticUnitWrapperResolutionError;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum OptimizedProgramStorageSemanticWrapperObjectError {
     MissingPairedCallingPlans,
-    SemanticContract,
+    SemanticContract(String),
     TargetMismatch,
     TerminalEntryShapeMismatch,
     SourceObjectMismatch,

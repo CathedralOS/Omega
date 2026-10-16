@@ -20,7 +20,7 @@ pub struct FragmentObjectPublicationRequest<'request> {
     /// is the replayed settlement, not the caller-supplied declaration: its
     /// source signature, storage contract, and Fused establishment roster were
     /// already joined against the canonical artifact before reaching emission.
-    pub hosted_receiver: Option<&'request ValidatedNativeProgramEntrySettlement>,
+    pub program_entry: Option<&'request ValidatedNativeProgramEntrySettlement>,
     pub boundary_application_coverage:
         Option<&'request boundary_applications::TerminalBoundaryApplicationCoverage>,
     /// The materialized compiler-private callback functions, in placement
@@ -79,7 +79,7 @@ pub struct PublishedFragmentObject {
     pub object: image_emission::ObjectArtifact,
     pub physical_evidence_scope: NativePhysicalEvidenceScope,
     /// The validated semantic-entry object custody when the admitted entry is
-    /// a source-authored semantic shell (the UEFI receiver route). Retained
+    /// a source-authored semantic shell (with or without a context). Retained
     /// for the settlement's caller; absent on every ordinary fragment object.
     pub semantic_wrapper_object:
         Option<StagedValidatedOptimizedProgramStorageSemanticWrapperObject>,
@@ -112,7 +112,7 @@ pub fn publish_fragment_object(
     // entry metadata. Bind before capture; later equality must still reject
     // any replacement, omission or mutation of that checked binding.
     let mut semantic_wrapper_object = None;
-    if let Some(entry) = request.hosted_receiver {
+    if let Some(entry) = request.program_entry {
         // The settlement is the boundary that would lend each bound
         // placed-view referent; neither the hosted receiver bridge nor the
         // semantic wrapper carries that custody yet, so a nonempty bound set
@@ -139,7 +139,7 @@ pub fn publish_fragment_object(
         }
         if entry.source().target_slot().owner == target::TargetProfile::UefiX64 {
             // The UEFI entry is the authored semantic-entry route: the
-            // compiler-owned wrapper provisions `self` inside its own frame
+            // compiler-owned wrapper provisions any context inside its own frame
             // and calls the semantic child by private symbol. Stage the whole
             // evidence chain over the same relocation-free container this
             // object publishes — authored contract, semantic wrapper plan,
@@ -274,7 +274,7 @@ pub fn publish_fragment_object(
     validate_emitted_receiver_binding(
         &object,
         semantic_wrapper_object.is_some(),
-        request.hosted_receiver,
+        request.program_entry,
     )?;
     Ok(PublishedFragmentObject {
         object,

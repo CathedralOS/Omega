@@ -3,7 +3,7 @@
 use calling_conventions::ValuePlacement;
 use effects::provider_plan::ServiceEntryClaim;
 
-use crate::ProgramEntryVisibleParameterSignature;
+use crate::{ProgramEntryVisibleParameterSignature, ProgramStorageEntryDiagnostic};
 
 use super::validation::ValidatedSemanticEntryInputs;
 use super::{
@@ -15,7 +15,7 @@ pub(super) fn construct(
     validated: ValidatedSemanticEntryInputs,
     schema: &effects::provider_plan::ServiceSchema,
     identities: &terminal_psi::TerminalIdentityTable,
-) -> OptimizedProgramStorageSemanticEntryContract {
+) -> Result<OptimizedProgramStorageSemanticEntryContract, ProgramStorageEntryDiagnostic> {
     let ValidatedSemanticEntryInputs {
         target,
         slot,
@@ -38,7 +38,7 @@ pub(super) fn construct(
             source.identities(),
             &schema.identities,
             identities,
-        ),
+        )?,
         semantic_root(
             storage_source,
             &method.entry_claims[1],
@@ -46,15 +46,15 @@ pub(super) fn construct(
             source.identities(),
             &schema.identities,
             identities,
-        ),
+        )?,
     ];
 
-    OptimizedProgramStorageSemanticEntryContract {
+    Ok(OptimizedProgramStorageSemanticEntryContract {
         target,
         target_slot: slot,
         requirement_identity: identities
             .index_of(&requirement_identity)
-            .unwrap_or(terminal_psi::TerminalIdentityIndex::ABSENT),
+            .ok_or_else(|| missing_identity("requirement"))?,
         source_signature_identity: source.identity(),
         source_signature: source,
         semantic_boundary_entry_plan: boundary.plan().clone(),
@@ -64,7 +64,7 @@ pub(super) fn construct(
         roots,
         physical_contract,
         physical_disposition: OptimizedProgramStoragePhysicalEntryDisposition::PlannedNotInvokedV1,
-    }
+    })
 }
 
 fn semantic_root(
@@ -74,20 +74,26 @@ fn semantic_root(
     plan_identities: &terminal_psi::TerminalIdentityTable,
     claim_identities: &effects::provider_plan::ProviderIdentityTable,
     identities: &terminal_psi::TerminalIdentityTable,
-) -> OptimizedProgramStorageSemanticRoot {
-    OptimizedProgramStorageSemanticRoot {
+) -> Result<OptimizedProgramStorageSemanticRoot, ProgramStorageEntryDiagnostic> {
+    Ok(OptimizedProgramStorageSemanticRoot {
         role: source.role(),
         parameter_index: source.visible_parameter_index(),
         carrier_identity: identities
             .index_of(claim_identities.text(claim.carrier_identity))
-            .unwrap_or(terminal_psi::TerminalIdentityIndex::ABSENT),
+            .ok_or_else(|| missing_identity("root carrier"))?,
         parameter_type_identity: plan_identities
             .text(source.normalized_type_identity())
             .and_then(|text| identities.index_of(text))
-            .unwrap_or(terminal_psi::TerminalIdentityIndex::ABSENT),
+            .ok_or_else(|| missing_identity("root parameter"))?,
         domain: claim.domain.clone(),
         effective_carry: claim.effective_carry,
         shape: source.value_shape(),
         placement: placement.clone(),
-    }
+    })
+}
+
+fn missing_identity(role: &str) -> ProgramStorageEntryDiagnostic {
+    ProgramStorageEntryDiagnostic(format!(
+        "selected semantic ProgramStorage {role} identity is missing from Terminal Psi"
+    ))
 }

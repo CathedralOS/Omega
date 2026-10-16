@@ -1,0 +1,13 @@
+// Matching names and geometry do not confer the core declaration's authority.
+data Extent [linear] {
+    base: addr;
+    length: u64;
+}
+domain Extent::Granted;
+
+machine launch(image: Extent in Granted, storage: Extent in Granted) {
+    transition { _ -> retain(image as Extent, storage as Extent) }
+    state retain(image: Extent, storage: Extent) {
+        transition { _ -> retain(image, storage) }
+    }
+}

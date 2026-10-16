@@ -45,7 +45,7 @@ pub(crate) fn realize_native_artifact(
         mut providers,
         boundary_application_coverage,
     } = admit_native_realization(&artifact, &admission)?;
-    let receiver_settlement = native_artifact::admit_executable_entry_receiver(
+    let entry_settlement = native_artifact::admit_executable_entry(
         &input,
         &artifact,
         request.program_entry,
@@ -88,7 +88,7 @@ pub(crate) fn realize_native_artifact(
         providers.installation.take(),
         &providers.settlements,
         boundary_application_coverage.as_ref(),
-        receiver_settlement.as_ref(),
+        entry_settlement.as_ref(),
         &artifact,
         &request,
     )?;

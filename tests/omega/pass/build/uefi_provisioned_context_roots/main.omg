@@ -1,0 +1,16 @@
+use omega::language::core::extent;
+
+data BootContext {
+    entered: bool;
+}
+
+// Provisioning the ordinary context does not supply firmware arrival or
+// establish either root. The physical bridge must precede this continuation.
+machine launch(context: &mut BootContext, image: Extent in Granted,
+               storage: Extent in Granted) {
+    context.entered = true;
+    transition { _ -> retain(context, image as Extent, storage as Extent) }
+    state retain(context: &mut BootContext, image: Extent, storage: Extent) {
+        transition { _ -> retain(context, image, storage) }
+    }
+}

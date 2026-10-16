@@ -34,7 +34,7 @@ pub use entry_signature::{
 pub(crate) use entry_signature::{
     ProgramEntrySignatureIdentity, ProgramEntryVisibleParameterSignature,
 };
-pub(crate) use optimized_semantic_entry::OptimizedProgramStoragePhysicalEntryDisposition;
+pub use optimized_semantic_entry::OptimizedProgramStoragePhysicalEntryDisposition;
 pub use optimized_semantic_entry::{
     OptimizedProgramStorageSemanticCallingApplication,
     OptimizedProgramStorageSemanticEntryContract,

@@ -33,11 +33,7 @@ pub fn bind_optimized_program_storage_semantic_entry_contract(
     identities: &terminal_psi::TerminalIdentityTable,
 ) -> Result<OptimizedProgramStorageSemanticEntryContract, ProgramStorageEntryDiagnostic> {
     let validated = validation::validate(target, selected, source, semantic_application)?;
-    Ok(construction::construct(
-        validated,
-        selected.schema(),
-        identities,
-    ))
+    construction::construct(validated, selected.schema(), identities)
 }
 
 /// Exact semantic calling-plan application custody carried through the native

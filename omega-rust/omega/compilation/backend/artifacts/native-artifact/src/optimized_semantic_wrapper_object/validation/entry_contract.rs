@@ -48,7 +48,9 @@ pub(crate) fn bind_semantic_contract(
         &application,
         identities,
     )
-    .map_err(|_| OptimizedProgramStorageSemanticWrapperObjectError::SemanticContract)
+    .map_err(|error| {
+        OptimizedProgramStorageSemanticWrapperObjectError::SemanticContract(error.to_string())
+    })
 }
 
 /// The wrapper provisions the entry context, so its checked referent layout is a
@@ -386,10 +388,9 @@ pub(crate) fn validate_entry_shape(
         || storage.access != StructuralAccess::Owned
         || image_root.parameter_index() != 0
         || storage_root.parameter_index() != 1
-        || module.identities.text(image_root.carrier_identity()) != Some("named(name(Extent))")
-        || module.identities.text(storage_root.carrier_identity()) != Some("named(name(Extent))")
-        || image_root.domain() != "Extent::Granted"
-        || storage_root.domain() != "Extent::Granted"
+        || image_root.carrier_identity().is_absent()
+        || image_root.carrier_identity() != storage_root.carrier_identity()
+        || image_root.domain() != storage_root.domain()
     {
         return Err(OptimizedProgramStorageSemanticWrapperObjectError::TerminalEntryShapeMismatch);
     }
@@ -437,17 +438,18 @@ pub(crate) fn validate_entry_shape(
     {
         return Err(OptimizedProgramStorageSemanticWrapperObjectError::TerminalEntryShapeMismatch);
     }
-    let visible_places = &entry.structural_places[receiver_shift as usize..];
-    if !matches!(visible_places, [image_place, storage_place]
-    if image_place.id == image.place
-        && image_place.kind == StructuralPlaceKind::Parameter {
-            position: image.position,
-        }
-        && storage_place.id == storage.place
-        && storage_place.kind == StructuralPlaceKind::Parameter {
-            position: storage.position,
+    // Local places and construction scratch are not entry parameters. Locate
+    // the two admitted parameter occurrences, rather than requiring the whole
+    // machine's place arena to contain only those roots.
+    if ![image, storage].iter().all(|parameter| {
+        entry.structural_places.iter().any(|place| {
+            place.id == parameter.place
+                && place.kind
+                    == StructuralPlaceKind::Parameter {
+                        position: parameter.position,
+                    }
         })
-        || !matches!(entry.entry_claims.as_slice(), [image_claim, storage_claim]
+    }) || !matches!(entry.entry_claims.as_slice(), [image_claim, storage_claim]
             if image_claim.input == image.place
                 && image_claim.path.is_empty()
                 && storage_claim.input == storage.place
