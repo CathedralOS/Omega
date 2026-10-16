@@ -1,0 +1,5 @@
+data Cell { value: i32; }
+data Slot<'storage> { target: &'storage mut Cell; marker: i32; }
+machine update<'carrier, 'storage>(slot: &'carrier write Slot<'storage>) {
+    slot.target.value = 42;
+}

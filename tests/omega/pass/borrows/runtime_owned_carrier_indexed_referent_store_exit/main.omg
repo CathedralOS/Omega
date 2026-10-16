@@ -1,0 +1,28 @@
+// The immutable owned carrier parameter retains each stored mutable loan.
+data Cell { value: i32; }
+data Slot<'storage> { target: &'storage mut Cell; }
+data Rows<'storage> { slots: [Slot<'storage>; 2]; }
+machine set(value: &mut i32) { value = 47; }
+machine update<'storage>(rows: Rows<'storage>, index: u64 [0..=1]) -> bool {
+    transition { _ -> write(rows, index) }
+    state write(rows: Rows<'storage>, index: u64 [0..=1]) -> bool {
+        rows.slots[index].target.value = 31;
+        set(&mut rows.slots[1].target.value);
+        rows.slots[0].target.value == 31 && rows.slots[1].target.value == 47
+    }
+}
+machine prepare<'storage>(first: &'storage mut Cell, second: &'storage mut Cell) -> bool {
+    let rows: Rows<'storage> = Rows { slots: [Slot { target: first }, Slot { target: second }] };
+    update(rows, 0)
+}
+machine main() crashes Trap {
+    let mut first: Cell;
+    let mut second: Cell;
+    let written: bool = prepare(&mut first, &mut second);
+    transition written && first.value == 31 && second.value == 47 {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

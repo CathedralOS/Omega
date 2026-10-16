@@ -1,0 +1,1 @@
+mutates `pair.marker` while local borrow `bundle` is still active

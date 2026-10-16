@@ -1,0 +1,1 @@
+write-only stored fields and nested generic arguments are not implemented yet

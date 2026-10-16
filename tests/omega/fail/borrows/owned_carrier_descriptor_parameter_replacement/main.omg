@@ -1,0 +1,5 @@
+data Cell { value: i32; }
+data Slot<'storage> { target: &'storage mut Cell; marker: i32; }
+machine replace<'storage>(slot: Slot<'storage>, incoming: &'storage mut Cell) {
+    slot.target = incoming;
+}

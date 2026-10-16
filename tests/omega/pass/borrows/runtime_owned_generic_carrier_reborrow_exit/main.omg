@@ -1,0 +1,22 @@
+// Reborrow a scalar below an exclusive reference in an applied owned carrier.
+data Cell { value: i32; }
+data Slot<'storage, T> { target: &'storage mut T; }
+machine set(value: &mut i32) { value = 53; }
+machine update<'storage>(slot: Slot<'storage, Cell>) -> bool {
+    set(&mut slot.target.value);
+    slot.target.value == 53
+}
+machine prepare<'storage>(cell: &'storage mut Cell) -> bool {
+    let slot: Slot<'storage, Cell> = Slot { target: cell };
+    update(slot)
+}
+machine main() crashes Trap {
+    let mut cell: Cell;
+    let written: bool = prepare(&mut cell);
+    transition written && cell.value == 53 {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

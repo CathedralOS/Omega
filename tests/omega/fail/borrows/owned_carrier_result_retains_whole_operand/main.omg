@@ -1,0 +1,46 @@
+// The whole input remains held while its returned carrier is still live.
+// Returned record fields retain separate borrowed backing across construction,
+// nested forwarding, field permutation and a consuming helper call.
+data Cell { value: i32; }
+data Pair { first: Cell; second: Cell; marker: i32; }
+data Bundle<'storage> { first: &'storage mut Cell; second: &'storage mut Cell; marker: i32; }
+
+machine forward(cell: &mut Cell) -> &mut Cell { cell }
+
+machine gather<'storage>(pair: &'storage mut Pair) -> Bundle<'storage> {
+    Bundle {
+        first: forward(forward(&mut pair.first)),
+        second: forward(&mut pair.second),
+        marker: pair.marker
+    }
+}
+
+machine reverse<'storage>(bundle: Bundle<'storage>) -> Bundle<'storage> {
+    Bundle { first: bundle.second, second: bundle.first, marker: bundle.marker }
+}
+
+machine apply<'storage>(bundle: Bundle<'storage>) -> bool {
+    bundle.first.value = 31;
+    bundle.second.value = 47;
+    bundle.marker == 9
+}
+
+machine exercise<'storage>(pair: &'storage mut Pair) -> bool {
+    pair.first.value = 11;
+    pair.second.value = 23;
+    pair.marker = 9;
+    let bundle: Bundle<'storage> = reverse(gather(pair));
+    pair.marker = 42;
+    let captured: bool = apply(bundle);
+    captured && pair.first.value == 47 && pair.second.value == 31 && pair.marker == 42
+}
+
+machine main() crashes Trap {
+    let mut pair: Pair;
+    transition exercise(&mut pair) {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
