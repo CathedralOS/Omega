@@ -5,6 +5,9 @@
 //! over its referent. Declared reference forwarding preserves every enclosing
 //! access, while lifetime, exclusivity, element/domain correspondence and
 //! storage admission remain independent checks at their existing owners.
+//! An owned aggregate rvalue forwards a reference leaf the same way a named
+//! binding does: `helper(..).window` lends the field's declared access, and a
+//! shared shell around that aggregate still cannot recover it.
 //!
 //! A loan's access is spelled where the loan is formed: `&mut place` or
 //! `&write place`. A bare window `coll[a..b]` carries no spelling of its own,
@@ -91,6 +94,11 @@ pub(crate) fn receiving_reference_access_refusal(
                 state,
                 prior_statements,
                 value,
+            )
+        })
+        .or_else(|| {
+            crate::value_custody::expression_types::owned_rvalue_exclusive_reference_access(
+                program, value,
             )
         });
     if let Some(borrow) = &completed_borrow

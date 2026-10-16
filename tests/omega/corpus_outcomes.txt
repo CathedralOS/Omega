@@ -4857,6 +4857,8 @@ fail/slices/scalar_dynamic_store_missing_range rejected 3927ms expected @a9ae30e
 	cannot prove assignment value `value` satisfies bounded target `items[__hoist_14]` in `write.entry`; expected 0..=100
 fail/slices/scalar_store_does_not_establish_sibling rejected 1694ms expected @a9ae30e1c334+wt
 	reading `values[1]` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `u64[in Positive]`
+fail/slices/shared_call_result_window_mutable_call rejected 342ms expected @73e11f08dcbb+wt
+	argument `window` for state `entry` is declared `&mut` (`&mut [f64]`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
 fail/slices/shared_subslice_state_cannot_lend_mutable rejected 178ms expected @9c4d1c444502+wt
 	argument `items` for state `forwarded` is declared `&mut` (`&mut [i32]`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
 fail/slices/shared_view_arrival_cannot_mutate rejected 146ms expected @096f2ecfd243+wt
@@ -8960,6 +8962,7 @@ run/ownership/temporary_projected_copy_argument checked 5449ms check-target:maco
 run/ownership/temporary_projected_value_residual checked 11846ms check-target:macos_arm64 @93ba1f664f65+wt
 run/proofs/quotient_copy_paths checked 19698ms check-target:macos_arm64 @73e466d6222f+wt
 run/providers/module_named_float_conversion_family_exit checked 16353ms check-target:macos_arm64 @77cde1c51efd+wt
+run/slices/call_result_mutable_window_exit checked 13049ms check-target:macos_arm64 @73e11f08dcbb+wt
 run/slices/disjoint_local_state_windows checked 9595ms check-target:macos_arm64 @1810e541fd15+wt
 run/slices/mutable_window_call_argument checked 5974ms check-target:macos_arm64 @218cc4d211aa
 run/stores/runtime_float_indexed_call_result_exit checked 16446ms check-target:macos_arm64 @77cde1c51efd+wt

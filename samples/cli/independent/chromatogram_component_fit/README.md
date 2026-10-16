@@ -21,7 +21,10 @@ profiles must be nonnegative and each must have nonzero norm. Observations may
 be negative after baseline correction. Input uses fixed storage and a byte
 budget of 512 bytes (one lookahead detects exhaustion). Malformed, truncated, extra, oversized, negative
 profile and exhausted-budget input exits 2; a zero profile exits 3. Successful
-fits exit 0. No interactive pause or hidden fixture selector is used.
+fits exit 0. Before parsing, the program writes a two-sample baseline and a
+two-sample peak through mutable windows of one four-sample scratch. The peak
+window is the field of the record the selector returns. A failed window check
+exits 5. No interactive pause or hidden fixture selector is used.
 
 The private algorithm enumerates {}, {A}, {B}, {A,B}. Single-component solutions
 use projection, the full solution uses a 2x2 normal equation, and infeasible

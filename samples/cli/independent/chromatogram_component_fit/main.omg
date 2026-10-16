@@ -6,16 +6,24 @@ use domain::model;
 use domain::input;
 use domain::fit;
 use domain::report;
+use domain::baseline_window;
 
 data Main { reader: InputReader; }
 machine Main::main(main: &mut Main) reaches Console {
     main.reader.remaining = 512;
     main.reader.exhausted = false;
-    let mut chromatogram: Chromatogram;
-    let valid: bool = block read_input(&mut main.reader, &mut chromatogram);
-    transition valid {
-        true -> fit(main, &chromatogram)
-        _ -> invalid(main)
+    let ready: bool = baseline_ready();
+    transition ready {
+        true -> parse(main)
+        _ -> window_failed(main)
+    }
+    state parse(main: &mut Main) {
+        let mut chromatogram: Chromatogram;
+        let valid: bool = block read_input(&mut main.reader, &mut chromatogram);
+        transition valid {
+            true -> fit(main, &chromatogram)
+            _ -> invalid(main)
+        }
     }
     state fit(main: &mut Main, chromatogram: &Chromatogram) {
         let mut result: Fit;
@@ -36,5 +44,9 @@ machine Main::main(main: &mut Main) reaches Console {
     state invalid_profile(main: &mut Main) {
         Console::write_line("error=profile: each supplied component must have nonzero norm");
         Console::exit_process(3);
+    }
+    state window_failed(main: &mut Main) {
+        Console::write_line("error=window: baseline and peak windows must both have length 2");
+        Console::exit_process(5);
     }
 }

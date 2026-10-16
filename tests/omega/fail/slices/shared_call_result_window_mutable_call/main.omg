@@ -1,0 +1,20 @@
+// A shared shell around an owned record cannot recover the mutable window
+// stored in that record, even when the shell is a call result.
+data Held<'samples> { values: &'samples mut [f64]; }
+
+machine hold<'samples>(samples: &'samples mut [f64; 4]) -> Held<'samples> {
+    Held { values: &mut samples[0..2] }
+}
+
+machine expose<'samples>(held: &'samples Held) -> &'samples Held { held }
+
+machine write(window: &mut [f64])
+requires window.len >= 1 {
+    window[0] = 0.0;
+}
+
+machine main() crashes Trap {
+    let mut trace: [f64; 4] = [1.0, 2.0, 3.0, 4.0];
+    let owned: Held = hold(&mut trace);
+    write(expose(&owned).values);
+}

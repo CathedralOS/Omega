@@ -79,8 +79,9 @@ pub use result_type::{
 
 pub(crate) use delivered_types::report_delivered_type_mismatch;
 pub(crate) use reference_values::{
-    declared_reference_access, place_forwarded_exclusive_reference_access,
-    place_permits_reference_borrow, place_permits_storage_write,
+    declared_reference_access, owned_rvalue_exclusive_reference_access,
+    place_forwarded_exclusive_reference_access, place_permits_reference_borrow,
+    place_permits_storage_write,
 };
 pub(crate) use result_type::declaration_expression_result_type_reference;
 pub(crate) use result_type::domain_expression_result_type_reference;

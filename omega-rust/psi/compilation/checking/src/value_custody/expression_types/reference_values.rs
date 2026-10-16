@@ -696,6 +696,63 @@ pub(super) fn declared_value_type(
     selected_value_type(program, expression, substitutions, None, None)
 }
 
+/// A projection off an owned rvalue forwards the leaf's declared exclusive
+/// access. `helper(..).window` and `Record { window: &mut items[..] }.window`
+/// name that leaf inside fresh result storage; they are not a new loan of a
+/// binding slot. Every enclosing reference still limits the projection, so a
+/// shared shell cannot recover a mutable field. A named place keeps the
+/// binding-sensitive judgment instead of this query.
+pub(crate) fn owned_rvalue_exclusive_reference_access(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+) -> Option<ReferenceAccess> {
+    if !projection_ends_at_owned_rvalue(program, expression) {
+        return None;
+    }
+    let mut substitutions = Vec::new();
+    let selected = selected_value_type(
+        program,
+        expression,
+        &mut substitutions,
+        None,
+        Some(ReferenceAccess::Mutable),
+    )?;
+    let mut selected = substituted_reference(program, selected, &substitutions)?;
+    selected = program
+        .type_reference_table
+        .unconstrained_type_reference(selected);
+    declared_reference_access(program, selected).filter(|access| access.is_exclusive())
+}
+
+/// Member and index chains that start at a call, a literal aggregate, or a
+/// match of those values. A bare name stays with place forwarding.
+fn projection_ends_at_owned_rvalue(
+    program: &dyn crate::CheckingInput,
+    mut expression: ExpressionHandle,
+) -> bool {
+    loop {
+        match program.expression_table.expression(expression) {
+            ExpressionNode::Member(member) => expression = member.receiver,
+            ExpressionNode::Indexed(indexed)
+                if !program.expression_table.indexed_on_range(indexed) =>
+            {
+                expression = indexed.collection;
+            }
+            ExpressionNode::Match(dispatch) => {
+                return program
+                    .expression_table
+                    .match_arms(dispatch.arms)
+                    .iter()
+                    .all(|arm| projection_ends_at_owned_rvalue(program, arm.value));
+            }
+            ExpressionNode::Call(_)
+            | ExpressionNode::StructLiteral(_)
+            | ExpressionNode::ArrayLiteral(_) => return true,
+            _ => return false,
+        }
+    }
+}
+
 /// A known current-state root supplies identity, not a new loan. Intermediate
 /// reference permissions constrain forwarding independently of the leaf type.
 pub(crate) fn place_forwarded_exclusive_reference_access(
@@ -883,6 +940,31 @@ fn selected_value_type(
         }
         ExpressionNode::Call(_) if forwarding_root.is_none() => {
             crate::machine_calls::calls::call_result_type(program, expression)
+        }
+        // Each arm already carries its applied type. The join keeps one
+        // identity so a later field projection sees the same leaf on every
+        // arm; divergent arms stay unresolved rather than picking one.
+        ExpressionNode::Match(dispatch) if forwarding_root.is_none() => {
+            let mut joined = None;
+            for arm in program.expression_table.match_arms(dispatch.arms) {
+                let mut arm_substitutions = substitutions.clone();
+                let arm_type = selected_value_type(
+                    program,
+                    arm.value,
+                    &mut arm_substitutions,
+                    None,
+                    required_projection_access,
+                )?;
+                let arm_type = substituted_reference(program, arm_type, &arm_substitutions)?;
+                match joined {
+                    None => joined = Some(arm_type),
+                    Some(existing)
+                        if program.type_identity(TypeIdentityRequest::ordinary(existing))
+                            == program.type_identity(TypeIdentityRequest::ordinary(arm_type)) => {}
+                    Some(_) => return None,
+                }
+            }
+            joined
         }
         ExpressionNode::Member(member) => {
             if forwarding_root.is_none()

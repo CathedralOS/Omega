@@ -18,6 +18,13 @@ use validation::{
     ScopedArithmeticValue,
 };
 
+struct ReturnedSliceField {
+    field: SymbolHandle,
+    name: String,
+    type_reference: TypeReferenceHandle,
+    value: ScopedArithmeticValue,
+}
+
 impl CurrentScalarValues<'_> {
     pub(crate) fn postcondition(
         &mut self,
@@ -35,6 +42,7 @@ impl CurrentScalarValues<'_> {
                 value: Some(value),
             });
         }
+        self.record_returned_field_lengths(returned);
         // The declaration's postcondition names invocation parameters, while
         // the live hypotheses name the exit state's parameters. Bind those
         // namespaces through the independently established incoming origins;
@@ -44,7 +52,12 @@ impl CurrentScalarValues<'_> {
         let mut lengths = self.lengths.clone();
         if entry.symbol != self.state.symbol {
             bindings.clear();
-            lengths.retain(|length| matches!(length.subject, LengthSubject::Result(_)));
+            lengths.retain(|length| {
+                matches!(
+                    length.subject,
+                    LengthSubject::Result(_) | LengthSubject::ResultField { .. }
+                )
+            });
             for (entry_parameter, state_parameter) in origins {
                 if let Some(current) = self
                     .current
@@ -316,6 +329,111 @@ impl CurrentScalarValues<'_> {
         let low = interval.low?;
         let high = interval.high?;
         (low == high).then_some(low)
+    }
+
+    /// Slice fields of the returned record. A match publishes a field only
+    /// when every arm builds that same field with one shared length.
+    fn record_returned_field_lengths(&mut self, returned: ExpressionHandle) {
+        for field in self.returned_slice_fields(returned, 0) {
+            self.lengths.push(Length {
+                subject: LengthSubject::ResultField {
+                    owner: self.machine.symbol,
+                    field: field.field,
+                },
+                name: format!("result.{}", field.name),
+                stable: true,
+                type_reference: field.type_reference,
+                value: Some(field.value),
+            });
+        }
+    }
+
+    fn returned_slice_fields(
+        &self,
+        expression: ExpressionHandle,
+        depth: usize,
+    ) -> Vec<ReturnedSliceField> {
+        if depth >= 64 {
+            return Vec::new();
+        }
+        match self.program.expression_table.expression(expression) {
+            ExpressionNode::StructLiteral(literal) if literal.case_symbol.is_none() => {
+                self.literal_slice_fields(literal)
+            }
+            ExpressionNode::Match(dispatch) => {
+                let arms = self.program.expression_table.match_arms(dispatch.arms);
+                let mut joined: Option<Vec<ReturnedSliceField>> = None;
+                for arm in arms {
+                    let fields = self.returned_slice_fields(arm.value, depth + 1);
+                    joined = Some(match joined {
+                        None => fields,
+                        Some(existing) => existing
+                            .into_iter()
+                            .filter(|field| {
+                                fields.iter().any(|candidate| {
+                                    candidate.field == field.field
+                                        && self.slice_lengths_agree(&candidate.value, &field.value)
+                                })
+                            })
+                            .map(|mut field| {
+                                if let Some(length) = self.exact_length(&field.value) {
+                                    field.value = ScopedArithmeticValue::Integer(length);
+                                }
+                                field
+                            })
+                            .collect(),
+                    });
+                }
+                joined.unwrap_or_default()
+            }
+            _ => Vec::new(),
+        }
+    }
+
+    fn literal_slice_fields(
+        &self,
+        literal: &typed_trees::expression::TableStructLiteral,
+    ) -> Vec<ReturnedSliceField> {
+        let mut fields = Vec::new();
+        for field in self.program.expression_table.struct_fields(literal.fields) {
+            if !field.field_symbol.is_valid() {
+                continue;
+            }
+            let Some(value) = self.collection_length(field.value, 0) else {
+                continue;
+            };
+            let Some(type_reference) = validation::expression_result_type_reference(
+                self.program,
+                self.machine,
+                self.state,
+                field.value,
+            ) else {
+                continue;
+            };
+            let value = self
+                .exact_length(&value)
+                .map(ScopedArithmeticValue::Integer)
+                .unwrap_or(value);
+            fields.push(ReturnedSliceField {
+                field: field.field_symbol,
+                name: field.name.as_str().to_owned(),
+                type_reference,
+                value,
+            });
+        }
+        fields
+    }
+
+    fn slice_lengths_agree(
+        &self,
+        left: &ScopedArithmeticValue,
+        right: &ScopedArithmeticValue,
+    ) -> bool {
+        left == right
+            || matches!(
+                (self.exact_length(left), self.exact_length(right)),
+                (Some(left), Some(right)) if left == right
+            )
     }
 
     /// The length captured when this field was filled by a record literal.

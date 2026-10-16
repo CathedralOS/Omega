@@ -18,7 +18,9 @@
 //! stay unknown rather than publishing one arm's extent. A plain record
 //! literal captures each slice field's length from that field's initializer
 //! at the binding; a later write of the record retires those field
-//! observations together with the record.
+//! observations together with the record. A returned record publishes the
+//! same field lengths on `result.field`, including when every match arm
+//! builds that field from an equal window.
 use crate::checks::unsigned;
 use crate::values::scalar::structural_fields;
 use numerics::arithmetic::ArithmeticDomain;
@@ -48,6 +50,12 @@ enum LengthSubject {
     /// One slice field of a record local, captured from the literal that
     /// initialized that field. The owner is the record binding.
     Field {
+        owner: SymbolHandle,
+        field: SymbolHandle,
+    },
+    /// One slice field of the value returned from this machine. The owner is
+    /// the machine, and `result.field.len` reads this observation.
+    ResultField {
         owner: SymbolHandle,
         field: SymbolHandle,
     },
@@ -813,6 +821,31 @@ fn length_occurrence<'lengths>(
     lengths: &'lengths [Length],
 ) -> Option<&'lengths Length> {
     let member = program.expression_table.member_node(expression)?;
+    // Contract text spells `result.field` before the field symbol is bound.
+    // The returned literal records that field by name.
+    if let Some(field) = program.expression_table.member_node(member.receiver)
+        && let Some((owner, _)) = validation::reserved_result_owner(program, field.receiver)
+        && let Some(length) = lengths.iter().find(|length| {
+            let LengthSubject::ResultField {
+                owner: existing,
+                field: stored,
+            } = length.subject
+            else {
+                return false;
+            };
+            existing == owner
+                && length.value.is_some()
+                && ((field.member_symbol.is_valid() && stored == field.member_symbol)
+                    || length.name == format!("result.{}", field.member.as_str()))
+        })
+    {
+        return (validation::collection_operations::collection_measure_member(
+            program,
+            member,
+            validation::collection_operations::MeasureReceiver::Declared(length.type_reference),
+        ) == Some(language_semantics::declaration_selection::CollectionMeasure::Length))
+        .then_some(length);
+    }
     let subject =
         if let Some((owner, _)) = validation::reserved_result_owner(program, member.receiver) {
             LengthSubject::Result(owner)

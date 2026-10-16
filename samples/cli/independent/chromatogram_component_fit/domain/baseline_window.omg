@@ -1,0 +1,62 @@
+use omega::language::core::float_operations;
+use omega::language::core::numeric_conversion;
+
+// A four-sample detector scratch splits into a leading baseline window and a
+// trailing peak window. Both arms have length 2. The record carries that
+// window back to the caller.
+data Held<'samples> { values: &'samples mut [f64]; }
+
+machine window<'samples>(samples: &'samples mut [f64; 4], which: i64) -> &'samples mut [f64]
+ensures result.len == 2
+{
+    match which {
+        0 -> &mut samples[0..2]
+        _ -> &mut samples[2..4]
+    }
+}
+
+machine hold<'samples>(samples: &'samples mut [f64]) -> Held<'samples>
+requires samples.len == 2
+ensures result.values.len == 2
+{
+    Held { values: samples }
+}
+
+machine write_baseline(window: &mut [f64])
+requires window.len >= 2 {
+    window[0] = 0.0;
+    window[1] = 0.0;
+}
+
+machine scale_peak(window: &mut [f64])
+requires window.len >= 2 {
+    window[0] = window[0] + 1.0;
+    window[1] = window[1] + 1.0;
+}
+
+// The caller binds the returned record, writes through its field, and passes
+// that field onward. The peak record is the call result of the same hold.
+pub machine baseline_ready() -> bool {
+    let mut trace: [f64; 4] = [1.0, 2.0, 3.0, 4.0];
+    let view: &mut [f64] = window(&mut trace, 0);
+    let leading: Held = hold(view);
+    write_baseline(leading.values);
+    let span: u64 = leading.values.len;
+    transition span == 2 {
+        true -> peak(&mut trace)
+        _ -> false
+    }
+    state peak(trace: &mut [f64; 4]) -> bool {
+        let selected: &mut [f64] = window(trace, 1);
+        let trailing: Held = hold(selected);
+        scale_peak(trailing.values);
+        let baseline: i32 in Saturating = I32::from_f64(trace[0]);
+        let neighbor: i32 in Saturating = I32::from_f64(trace[1]);
+        let peak_value: i32 in Saturating = I32::from_f64(trace[2]);
+        let tail: i32 in Saturating = I32::from_f64(trace[3]);
+        transition baseline == 0 && neighbor == 0 && peak_value == 4 && tail == 5 {
+            true -> true
+            _ -> false
+        }
+    }
+}
