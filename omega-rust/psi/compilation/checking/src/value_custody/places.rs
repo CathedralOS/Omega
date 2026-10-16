@@ -709,8 +709,12 @@ pub fn zeroed_structural_parts(
                 element_type,
                 length: typed_trees::types::FixedArrayLength::Literal(_),
             } => pending.push(*element_type),
-            TypeReferenceNode::Named { symbol, .. } => {
-                let Some(data) = program.data_definition_by_symbol(*symbol) else {
+            TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. } => {
+                // Zero storage follows the same closed declaration as ordinary
+                // construction. Region arguments do not change layout, and a
+                // type application must use its substituted fields rather than
+                // the unspecialized declaration's parameter types.
+                let Some(data) = program.closed_data_definition(reference) else {
                     return false;
                 };
                 let members = program.data_members(data);

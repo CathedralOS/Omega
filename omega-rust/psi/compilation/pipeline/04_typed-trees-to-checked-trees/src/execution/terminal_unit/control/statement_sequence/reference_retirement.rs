@@ -12,6 +12,149 @@ use checked_trees::{BorrowLoanFact, CheckedUnitStructuralPathSegment};
 
 type Results = [(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)];
 
+/// Death timing comes from the loan schedule; payload availability comes from
+/// facts at that exact boundary. Do not reread a selected, partially consumed
+/// sum merely because a later descriptor in its payload now expires.
+pub(super) fn prepare_case_conditions(
+    program: &dyn validation::CheckingInput,
+    facts: &CheckFacts,
+    shapes: &mut crate::execution::terminal_unit::types::ShapeCollector<'_>,
+    machine: SymbolHandle,
+    state: SymbolHandle,
+    parameters: &[checked_trees::CheckedUnitStructuralParameterPlan],
+    results: &Results,
+    operations: &mut [CheckedUnitEffectOperationPlan],
+) -> Option<()> {
+    use crate::execution::terminal_unit::{cleanup::checked_path_segments, types::machine_binders};
+    let authored = program.state_by_symbol(state)?;
+    let binders = machine_binders(program, program.machine_by_symbol(machine)?);
+    for operation in operations {
+        let CheckedUnitEffectOperationPlan::ReleaseReference {
+            source,
+            path,
+            statement_index,
+            defer_to_exit,
+            case_conditions,
+            ..
+        } = operation
+        else {
+            continue;
+        };
+        if !path
+            .iter()
+            .any(|segment| matches!(segment, CheckedUnitStructuralPathSegment::Case(_)))
+        {
+            continue;
+        }
+        let root = match source {
+            CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal } => {
+                results
+                    .iter()
+                    .find(|(result, _)| result.binding_ordinal == *binding_ordinal)?
+                    .1
+            }
+            CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } => {
+                facts::PlaceRoot::Symbol(*symbol)
+            }
+            CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression } => {
+                facts::PlaceRoot::Expression(*expression)
+            }
+            CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => {
+                let parameter = parameters.get(*parameter_index as usize)?;
+                facts::PlaceRoot::Symbol(
+                    program
+                        .state_parameters(authored)
+                        .get(parameter.position as usize)?
+                        .symbol,
+                )
+            }
+            _ => return None,
+        };
+        let boundary = *statement_index as usize;
+        let reference = validation::canonical_place_type_reference(
+            program,
+            state,
+            boundary,
+            &validation::CanonicalPlace {
+                root,
+                segments: Vec::new(),
+            },
+        )?;
+        let flow = facts.flow.control.state(machine, state)?;
+        let points: Vec<(usize, Vec<facts::FactContextHandle>)> = if *defer_to_exit {
+            facts
+                .flow
+                .control
+                .outgoing
+                .span_or_empty(flow.outgoing)
+                .iter()
+                .map(|exit| {
+                    (
+                        exit.statement_index,
+                        facts
+                            .flow
+                            .semantic_constraint_contexts(exit.constraints)
+                            .collect(),
+                    )
+                })
+                .collect()
+        } else {
+            facts
+                .flow
+                .state_statement(flow, boundary)
+                .map(|statement| {
+                    vec![(
+                        boundary,
+                        facts
+                            .flow
+                            .semantic_constraint_contexts(statement.entry_constraints)
+                            .collect(),
+                    )]
+                })
+                .unwrap_or_default()
+        };
+        let mut conditions = Vec::new();
+        for (position, segment) in path.iter().enumerate() {
+            let CheckedUnitStructuralPathSegment::Case(case_identity) = segment else {
+                continue;
+            };
+            let segments =
+                checked_path_segments(program, state, boundary, reference, &path[..=position])?;
+            let subject = validation::CanonicalPlace { root, segments };
+            if !points.is_empty()
+                && points.iter().all(|(statement, contexts)| {
+                    crate::flow::place_cases_are_selected(
+                        program,
+                        &facts.semantic,
+                        contexts,
+                        machine,
+                        state,
+                        *statement,
+                        &subject,
+                    )
+                })
+            {
+                continue;
+            }
+            let mut carrier = subject;
+            carrier.segments.pop();
+            let carrier_reference =
+                validation::canonical_place_type_reference(program, state, boundary, &carrier)?;
+            let type_identity = shapes.add_type(carrier_reference, &binders, &[])?;
+            conditions.push(checked_trees::CheckedCleanupCaseCondition {
+                path: shapes
+                    .cleanup_control
+                    .paths
+                    .insert_many(path[..position].iter().cloned()),
+                type_identity,
+                case_identity: case_identity.clone(),
+            });
+        }
+        *case_conditions = shapes.cleanup_control.conditions.insert_many(conditions);
+    }
+    Some(())
+}
+
 /// Missing borrow rows mean no recorded holders; duplicate rows cannot name
 /// one retirement schedule. Keep these outcomes distinct while consulting
 /// the ledger's existing revision-checked index instead of scanning all states
@@ -209,6 +352,7 @@ impl Retirement<'_> {
                         defer_to_exit: self.at_exit,
                         loans,
                         selection_complements: Vec::new(),
+                        case_conditions: Default::default(),
                     });
                 }
             }

@@ -181,25 +181,27 @@ fn collect_field_residuals(
     selected: &dyn Fn(&[StructuralPathSegment], StructuralCaseId) -> bool,
     residuals: &mut Vec<(Vec<StructuralPathSegment>, StructuralTypeId)>,
 ) -> Option<()> {
-    if fields.iter().any(|field| {
-        field.relevance.is_erased()
-            || !matches!(
-                field.field_type,
-                StructuralFieldType::Structural(_)
-                    | StructuralFieldType::Scalar(_)
-                    | StructuralFieldType::Atomic(_)
-                    | StructuralFieldType::IeeeFloat(_)
-                    | StructuralFieldType::BoundedInteger(_)
-                    | StructuralFieldType::RefinedScalar(_)
-                    | StructuralFieldType::ByteSequence(
-                        terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
-                    )
-            )
-    }) {
-        return None;
-    }
+    // Reconstruct inline descriptor debt as well as structural children.
+    // Scalar restrictions and bounded owned bytes carry no disposal action.
     for field in fields.iter().rev() {
-        if let Some(child_type) = field.field_type.as_structural() {
+        if field.relevance.is_erased() {
+            return None;
+        }
+        let child_type = match &field.field_type {
+            StructuralFieldType::Structural(child) => Some(*child),
+            scalar if scalar.scalar_type().is_some() => None,
+            bytes => match bytes.byte_sequence_carrier()? {
+                terminal_psi::ByteSequenceCarrier::BoundedOwned { .. } => None,
+                carrier => Some(
+                    terminal_semantics::byte_carrier_field_declaration(
+                        structural_types.values().copied(),
+                        carrier,
+                    )?
+                    .id,
+                ),
+            },
+        };
+        if let Some(child_type) = child_type {
             collect_child_residuals(
                 structural_types,
                 child_type,

@@ -263,6 +263,7 @@ pub(crate) fn for_exit_regions(
     )?;
     let mut regions = crate::unit::unit_cleanup::lower_reference_completion_regions(
         identities,
+        checked,
         source.operations,
         rows,
         parameters,

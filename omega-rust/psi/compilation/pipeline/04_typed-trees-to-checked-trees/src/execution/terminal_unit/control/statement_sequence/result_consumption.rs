@@ -261,6 +261,8 @@ pub(in crate::execution::terminal_unit) fn captured_reference_result<'operation>
 pub(in crate::execution::terminal_unit) fn append_reference_releases(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
+    shapes: &mut crate::execution::terminal_unit::types::ShapeCollector<'_>,
+    parameters: &[checked_trees::CheckedUnitStructuralParameterPlan],
     machine: SymbolHandle,
     state: SymbolHandle,
     statement_index: u32,
@@ -387,6 +389,7 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
                     defer_to_exit: false,
                     loans,
                     selection_complements: Vec::new(),
+                    case_conditions: Default::default(),
                 });
                 // Explicit retirement consumes the descriptor now. Its
                 // producer cannot also discard that carrier at state exit.
@@ -578,6 +581,7 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
                     defer_to_exit: false,
                     loans: group,
                     selection_complements: Vec::new(),
+                    case_conditions: Default::default(),
                 });
             }
             continue;
@@ -630,6 +634,16 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
         })?;
         *discard_on_return = false;
     }
+    super::reference_retirement::prepare_case_conditions(
+        program,
+        facts,
+        shapes,
+        machine,
+        state,
+        parameters,
+        results,
+        &mut pending,
+    )?;
     operations.extend(pending);
     Some(())
 }
@@ -641,6 +655,8 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
 pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
+    shapes: &mut crate::execution::terminal_unit::types::ShapeCollector<'_>,
+    parameters: &[checked_trees::CheckedUnitStructuralParameterPlan],
     machine: SymbolHandle,
     state: SymbolHandle,
     returned: Option<&CheckedUnitStructuralReturnPlan>,
@@ -717,6 +733,7 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
                         defer_to_exit: true,
                         loans,
                         selection_complements: Vec::new(),
+                        case_conditions: Default::default(),
                     },
                     captured.storage_loans,
                 ));
@@ -811,6 +828,16 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
             *discard = false;
         }
     }
+    super::reference_retirement::prepare_case_conditions(
+        program,
+        facts,
+        shapes,
+        machine,
+        state,
+        parameters,
+        results,
+        &mut scheduled,
+    )?;
     operations.extend(scheduled);
     Some(())
 }

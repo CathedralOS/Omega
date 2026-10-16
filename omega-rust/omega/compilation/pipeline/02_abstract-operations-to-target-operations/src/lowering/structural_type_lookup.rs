@@ -5,9 +5,7 @@ use std::ops::Deref;
 
 use abstract_operations::StructuralTypeCatalog;
 use semantic_vocabulary::StructuralTypeId;
-use terminal_psi::{
-    StructuralFieldType, StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape,
-};
+use terminal_psi::{StructuralPathSegment, StructuralTypeDeclaration};
 
 pub(crate) struct StructuralTypeLookup<'a> {
     declarations: BTreeMap<StructuralTypeId, &'a StructuralTypeDeclaration>,
@@ -43,69 +41,28 @@ impl<'a> StructuralTypeLookup<'a> {
         &self.catalog
     }
 
-    /// Resolve a verified projection path to its structural type. Field
-    /// segments admit named structural children and the canonical standalone
-    /// declaration of a plain leaf field; fixed-index segments stay inside
-    /// declared array bounds. Every other segment or missing declaration
-    /// fails closed.
+    /// Resolve storage geometry, not canonical ownership. Inline descriptors
+    /// retain their owning field and access; a case namespace does not change
+    /// their geometry into owned backing. Bounds and disposal authority belong
+    /// to the consuming operation. Reference crossings remain excluded here.
     pub(super) fn subtree(
         &self,
         root: StructuralTypeId,
         path: &[StructuralPathSegment],
     ) -> Option<StructuralTypeId> {
-        if path
-            .iter()
-            .any(|segment| matches!(segment, StructuralPathSegment::Case(_)))
-        {
-            return terminal_semantics::canonical_static_projection(
-                self.values().copied(),
-                root,
-                path,
+        if path.iter().any(|segment| {
+            !matches!(
+                segment,
+                StructuralPathSegment::Field(_)
+                    | StructuralPathSegment::FixedIndex(_)
+                    | StructuralPathSegment::RuntimeIndex { .. }
+                    | StructuralPathSegment::Case(_)
             )
-            .map(|(_, declaration)| declaration.id);
+        }) {
+            return None;
         }
-        let mut current = root;
-        self.get(&current)?;
-        for segment in path {
-            let declaration = self.get(&current)?;
-            current = match (segment, &declaration.shape) {
-                (
-                    StructuralPathSegment::Field(identity),
-                    StructuralTypeShape::Record { fields, .. },
-                ) => {
-                    let field = terminal_psi::live_field_by_identity(fields, *identity)?;
-                    match &field.field_type {
-                        StructuralFieldType::Structural(child) => *child,
-                        leaf => {
-                            let shape = leaf.leaf_copy_shape()?;
-                            *self
-                                .iter()
-                                .find(|(_, declaration)| declaration.shape == shape)
-                                .map(|(id, _)| id)?
-                        }
-                    }
-                }
-                (
-                    StructuralPathSegment::FixedIndex(index),
-                    StructuralTypeShape::FixedArray { element, length },
-                ) if index < length => *element,
-                // A runtime selector's bound is its own obligation; the
-                // resolved member type is the array's element.
-                (
-                    StructuralPathSegment::RuntimeIndex { .. },
-                    StructuralTypeShape::FixedArray { element, .. },
-                ) => *element,
-                // Element views carry no declared length: the producer's live
-                // extent witnesses the bound, and the member is the element.
-                (
-                    StructuralPathSegment::FixedIndex(_)
-                    | StructuralPathSegment::RuntimeIndex { .. },
-                    StructuralTypeShape::ElementView { element, .. },
-                ) => *element,
-                _ => return None,
-            };
-        }
-        Some(current)
+        terminal_semantics::runtime_structural_path_tip(self.values().copied(), root, path)
+            .map(|declaration| declaration.id)
     }
 }
 

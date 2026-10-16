@@ -1052,6 +1052,26 @@ pub(crate) fn consume_affine_projection(
     )
 }
 
+/// Inline view fields own descriptors even though their backing is borrowed.
+/// Resolve their disposal geometry without assigning debt to scalar fields or
+/// bounded owned bytes, and never silently omit an unresolved descriptor.
+fn cleanup_field_type(
+    structural_types: &crate::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
+    field: &terminal_psi::StructuralFieldType,
+) -> Result<Option<StructuralTypeId>, TerminalInterpretError> {
+    if let Some(structural) = field.as_structural() {
+        return Ok(Some(structural));
+    }
+    match field.byte_sequence_carrier() {
+        Some(terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }) | None => Ok(None),
+        Some(carrier) => {
+            terminal_semantics::byte_carrier_field_declaration(structural_types.values(), carrier)
+                .map(|declaration| Some(declaration.id))
+                .ok_or(TerminalInterpretError::AffineProjectionNotRepresentable)
+        }
+    }
+}
+
 pub(crate) fn split_affine_frontier_at_projection(
     structural_types: &crate::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
     frontier: &mut BTreeSet<StructuralAffineDiscard>,
@@ -1072,7 +1092,7 @@ pub(crate) fn split_affine_frontier_at_projection(
         StructuralTypeShape::Record { fields, .. } => {
             let mut selected = None;
             for field in fields.iter().filter(|field| !field.relevance.is_erased()) {
-                let Some(field_type) = field.field_type.as_structural() else {
+                let Some(field_type) = cleanup_field_type(structural_types, &field.field_type)? else {
                     continue;
                 };
                 let segment = StructuralPathSegment::Field(field.identity.clone());
@@ -1126,7 +1146,7 @@ pub(crate) fn split_affine_frontier_at_projection(
                 .into_iter().chain(std::iter::once((Some(selected_case.id), selected_case.fields.as_slice())))
             {
                 for field in fields.iter().filter(|field| !field.relevance.is_erased()) {
-                    let Some(field_type) = field.field_type.as_structural() else {
+                    let Some(field_type) = cleanup_field_type(structural_types, &field.field_type)? else {
                         continue;
                     };
                     let segment = StructuralPathSegment::Field(field.identity.clone());

@@ -11,6 +11,7 @@
 //! target catalog exists. Neither caller reconstructs a separate cleanup policy.
 
 mod actions;
+pub(in crate::execution::terminal_unit) use actions::checked_path_segments;
 pub(super) mod anonymous;
 pub(crate) use anonymous::projected_temporary_cleanup;
 mod cleanup_evidence;

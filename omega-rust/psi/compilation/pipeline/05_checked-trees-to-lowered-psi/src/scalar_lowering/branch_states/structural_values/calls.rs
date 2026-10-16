@@ -22,7 +22,19 @@ impl Storage {
         {
             let node = checked.facts.values.structural_values.nodes.get(value);
             if !self.places.iter().any(|(candidate, _)| *candidate == value) {
-                let place = if let CheckedStructuralValueKind::Place(checked_trees::CheckedUnitStructuralArgumentPlan {
+                let range_source = match &node.kind {
+                    CheckedStructuralValueKind::BorrowedSliceView { source, .. }
+                    | CheckedStructuralValueKind::MutableSliceView { source, .. }
+                        if computations::subslices::range(source).is_some() =>
+                    {
+                        Some(source)
+                    }
+                    _ => None,
+                };
+                let place = if let Some(source) = range_source {
+                    let declaration = carrier_declaration(identities, checked, types, node.type_reference)?;
+                    self.reserve_range(identities, checked, node.state, node.statement_index, source, declaration.id, types, next_place)?
+                } else if let CheckedStructuralValueKind::Place(checked_trees::CheckedUnitStructuralArgumentPlan {
                     source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral { bytes }, ..
                 }) = &node.kind {
                     let declaration = carrier_declaration(identities, checked, types, node.type_reference)?;
@@ -62,6 +74,48 @@ impl Storage {
         )
     }
 
+    /// A range occurrence has one completed descriptor home, whether it is a
+    /// constructor leaf or a direct call operand. Reserving its backing alone
+    /// loses the narrowing operation when the value schedule later consumes it.
+    fn reserve_range(
+        &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        checked: &CheckedTrees,
+        state: symbols::SymbolHandle,
+        statement: u32,
+        argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
+        structural_type: StructuralTypeId,
+        types: &[StructuralTypeDeclaration],
+        next_place: &mut u64,
+    ) -> Result<PlaceId, LoweringError> {
+        let range = computations::subslices::range(argument).ok_or(LoweringError::Unsupported(
+            "structural range reservation lost its source",
+        ))?;
+        if let Some(slot) = self
+            .ranges
+            .iter()
+            .find(|slot| slot.expression == range.expression)
+        {
+            if slot.structural_type != structural_type {
+                return unsupported("structural range occurrence has conflicting result carriers");
+            }
+            return Ok(slot.place);
+        }
+        let slot = computations::subslices::reserve(
+            identities,
+            checked,
+            state,
+            statement,
+            argument,
+            structural_type,
+            types,
+            next_place,
+        )?;
+        let place = slot.place;
+        self.ranges.push(slot);
+        Ok(place)
+    }
+
     fn reserve_calls(
         &mut self,
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
@@ -86,24 +140,27 @@ impl Storage {
             {
                 if let Some(planned_call) = operation.call() {
                     for argument in &planned_call.structural_arguments {
-                        let Some(range) = computations::subslices::range(argument) else {
+                        if computations::subslices::range(argument).is_none() {
                             continue;
-                        };
-                        if !self
-                            .ranges
-                            .iter()
-                            .any(|slot| slot.expression == range.expression)
-                        {
-                            self.ranges.push(computations::subslices::reserve(
+                        }
+                        let declaration =
+                            crate::terminal_identities::structural_declaration_by_identity(
+                                types,
                                 identities,
                                 checked,
-                                state,
-                                planned_call.coordinate.statement_index,
-                                argument,
-                                types,
-                                next_place,
-                            )?);
-                        }
+                                argument.type_identity,
+                                "computed range has no structural type namespace",
+                            )?;
+                        self.reserve_range(
+                            identities,
+                            checked,
+                            state,
+                            planned_call.coordinate.statement_index,
+                            argument,
+                            declaration.id,
+                            types,
+                            next_place,
+                        )?;
                     }
                 }
                 let result =

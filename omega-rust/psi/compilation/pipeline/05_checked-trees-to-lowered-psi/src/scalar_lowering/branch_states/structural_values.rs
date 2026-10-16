@@ -536,6 +536,20 @@ impl Preparation<'_> {
         | CheckedStructuralValueKind::MutableSliceView { source, region } = &node.kind
         {
             use crate::unit::attached_unit::view_ranges;
+            let place = self.reserved.place(value)?;
+            if let Some(slot) = self.reserved.ranges.iter().find(|slot| slot.place == place) {
+                // WholeCollection describes the retained range result here,
+                // not its backing array. Execute its ordinary range schedule
+                // before handing the completed descriptor to the constructor.
+                self.steps.push(Step::Range {
+                    argument: source.clone(),
+                    slot: slot.clone(),
+                    bindings: self.bindings.clone(),
+                    statement: node.statement_index,
+                    prefix: self.prefix.clone(),
+                });
+                return Ok(place);
+            }
             let (_, state) = crate::declarations::state_declaration(self.checked, self.state)?;
             let argument = self.bindings.borrowed_structural_argument(
                 identities,
@@ -579,7 +593,6 @@ impl Preparation<'_> {
                     ))
                 }
             };
-            let place = self.reserved.place(value)?;
             self.steps.push(Step::Establish {
                 effect: LoweredScalarEffect::EstablishElementView(view_ranges::CollectionView {
                     source: argument.place,

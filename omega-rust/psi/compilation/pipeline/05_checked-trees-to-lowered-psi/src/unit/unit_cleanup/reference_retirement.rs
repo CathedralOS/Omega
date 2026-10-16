@@ -1,6 +1,8 @@
 //! Final descriptor dispositions belong to the selected completion edge.
 //! Retain the checked dependency order after capturing return operands; the
 //! ordinary and composed emitters resolve their own result namespaces here.
+//! Resolve a projected disposition against its selected declaration before
+//! appending it to the captured storage path; case identities require that type.
 
 use super::{CleanupRegion, LoweringError};
 use crate::emission::operation_emission::buffer::OperationBuffer;
@@ -10,6 +12,7 @@ use terminal_psi::{StructuralParameterDeclaration, TerminalAffineCleanupAction};
 
 pub(crate) fn lower_reference_completion_regions(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+    checked: &checked_trees::CheckedTrees,
     planned_operations: &[CheckedUnitEffectOperationPlan],
     mut authored_regions: Vec<CleanupRegion>,
     parameters: &[StructuralParameterDeclaration],
@@ -24,6 +27,7 @@ pub(crate) fn lower_reference_completion_regions(
         let CheckedUnitEffectOperationPlan::ReleaseReference {
             source,
             path,
+            case_conditions,
             select_evaluated_storage,
             defer_to_exit: true,
             ..
@@ -33,9 +37,26 @@ pub(crate) fn lower_reference_completion_regions(
         };
         let storage = evaluation.cleanup_storage(source, parameters, &mut result_storage)?;
         let suffix =
-            crate::expression_preparation::bindings::structural_paths::lower_structural_path(
-                identities, path,
+            crate::expression_preparation::bindings::structural_paths::lower_static_argument_path(
+                identities,
+                path,
+                storage.selected_type,
+                &evaluation.structural_types,
             )?;
+        let conditions = super::lower_cleanup_conditions(
+            identities,
+            checked,
+            &checked.facts.flow.terminal_unit_effects.cleanup_control,
+            *case_conditions,
+            &evaluation.structural_types,
+            |identities, selected_path| {
+                let mut selected = storage.path.clone();
+                selected.extend(crate::expression_preparation::bindings::structural_paths::lower_static_argument_path(
+                    identities, selected_path, storage.selected_type, &evaluation.structural_types,
+                )?);
+                Ok((storage.place, selected))
+            },
+        )?;
         let mut path = storage.path;
         path.extend(suffix.clone());
         let place = storage.place;
@@ -68,7 +89,7 @@ pub(crate) fn lower_reference_completion_regions(
                         access: terminal_psi::StructuralAccess::Owned,
                     }
                 }),
-                conditions: Vec::new(),
+                conditions,
                 action,
             });
         }

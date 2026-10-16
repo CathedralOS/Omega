@@ -222,6 +222,7 @@ pass/borrows/runtime_captured_primitive_reference_exit built 2519ms exit:70 @9be
 pass/borrows/runtime_captured_record_nested_field_snapshot_exit built 3466ms exit:70 @681c48c0cebc+wt
 pass/borrows/runtime_carrier_reference_reselection_exit built 1618ms exit:70 @104c2da31081
 pass/borrows/runtime_carrier_reference_store_exit built 2625ms exit:70 @9beb2be72f2d+wt
+pass/borrows/runtime_case_descriptor_retirement_exit built 3415ms exit:0 @4f0f34f3cbb6+wt
 pass/borrows/runtime_case_payload_partial_transfer_exit built 1438ms exit:0 @53e6e3215d6a
 pass/borrows/runtime_case_return_parameter_order_exit built 3682ms exit:0 @9beb2be72f2d+wt
 pass/borrows/runtime_computed_shared_view_reborrow_exit built 3721ms exit:0 @0dc6368bf7c8

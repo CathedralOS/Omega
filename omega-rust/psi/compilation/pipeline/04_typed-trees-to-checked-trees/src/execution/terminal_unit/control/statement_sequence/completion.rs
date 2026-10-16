@@ -362,6 +362,8 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
         append_reference_releases(
             program,
             facts,
+            shapes,
+            structural_parameters,
             machine.symbol,
             state.symbol,
             u32::try_from(statement_index).ok()?,
@@ -434,6 +436,8 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
     append_exit_reference_releases(
         program,
         facts,
+        shapes,
+        structural_parameters,
         machine.symbol,
         state.symbol,
         structural_result.as_ref(),

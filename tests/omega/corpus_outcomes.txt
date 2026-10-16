@@ -565,6 +565,8 @@ fail/borrows/byte_view_shared_element_mutable_reference rejected 898ms expected 
 	mutable argument `bytes` for state `entry` is not writable in this state; the source cannot lend the requested exclusive access
 fail/borrows/call_transfer_scalar_observation rejected 1264ms @fa10277fce92
 	state `receive` receives `control` as both mutable and read-only
+fail/borrows/case_descriptor_scalar_sibling_keeps_live_loan rejected 694ms expected @4f0f34f3cbb6+wt
+	statement 2 mutates `storage[0]` while local borrow `packet` is still active (borrowed at statement 0; its last use is at statement 3)
 fail/borrows/case_payload_borrowed_affine_copy rejected 1111ms expected @a9ae30e1c334+wt
 	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `inspect`, state `entry` (statement 1)
 fail/borrows/case_payload_duplicate_transfer rejected 23101ms expected @a9ae30e1c334+wt
@@ -5395,6 +5397,7 @@ pass/borrows/runtime_captured_primitive_reference_exit checked 11029ms check-tar
 pass/borrows/runtime_captured_record_nested_field_snapshot_exit checked 11089ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_carrier_reference_reselection_exit checked 11173ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_carrier_reference_store_exit checked 11057ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/borrows/runtime_case_descriptor_retirement_exit checked 3590ms check-target:macos_arm64 @4f0f34f3cbb6+wt
 pass/borrows/runtime_case_payload_partial_transfer_exit checked 10506ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_case_return_parameter_order_exit checked 10245ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_computed_backing_reference_copy_exit checked 10544ms check-target:macos_arm64 @a9ae30e1c334+wt

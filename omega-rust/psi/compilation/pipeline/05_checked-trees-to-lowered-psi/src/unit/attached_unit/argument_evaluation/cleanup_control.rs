@@ -125,55 +125,6 @@ impl Evaluation {
         }
     }
 
-    /// Computed backing retirement is a source-authorized candidate, not an
-    /// unconditional use of every alternative's reserved home. The same
-    /// continuation selection as affine cleanup keeps only births on this path.
-    /// The selected branch still emits the exact descriptor release operation.
-    pub(crate) fn continue_selected_reference_release(
-        &mut self,
-        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
-        checked: &checked_trees::CheckedTrees,
-        region: terminal_psi::StructuralArgument,
-        values: &mut Vec<ValueDeclaration>,
-        next_value: &mut u64,
-        next_block: &mut u64,
-        next_edge: &mut u64,
-        operations: &mut OperationBuffer,
-    ) -> Result<(), LoweringError> {
-        let mut erased_scalar_formals = Vec::new();
-        let mut emission = CleanupEmission {
-            checked,
-            current: &mut self.current,
-            parameters: &mut self.parameters,
-            structural_parameters: &mut self.block_structural_parameters,
-            block_erased_scalar_formals: &mut erased_scalar_formals,
-            erased_proof_formals: &self.erased_proof_formals,
-            operation_start: &mut self.operation_start,
-            blocks: &mut self.blocks,
-        };
-        let (bypass, parameters) = emission.select_storage(
-            identities, &region, values, next_value, next_block, next_edge, operations,
-        )?;
-        operations.push_leaf(
-            OperationResult::Unit,
-            OperationKind::ReleaseReference {
-                source: region.place,
-                path: region.path,
-            },
-        );
-        emission.cleanup_jump(
-            identities,
-            bypass,
-            &parameters,
-            Vec::new(),
-            Vec::new(),
-            values,
-            next_edge,
-            operations,
-        )?;
-        Ok(())
-    }
-
     /// Normal death disposes only the remaining partition of a selected
     /// complement. Early descriptor retirement does not retire its home or
     /// authorize a second whole-root disposal of the absent leaf.

@@ -1,0 +1,133 @@
+// Partial descriptor retirement preserves a scalar sibling through local,
+// owned-parameter, state-arrival and call-result storage.
+data Segment<'input> {
+    case Missing;
+    case Bytes(values: &'input [u8]);
+}
+data Packet<'input> { sequence: u64; segments: [Segment<'input>; 2]; }
+
+machine count(segment: &Segment) -> u64 {
+    transition segment {
+        Segment::Missing -> 0
+        Segment::Bytes { values } -> values.len
+    }
+}
+
+machine packet<'input>(values: &'input [u8]) -> Packet<'input> {
+    Packet { sequence: 41, segments: [Segment::Bytes { values: values }, Segment::Missing] }
+}
+
+machine owned(value: Packet) -> bool {
+    let length: u64 = count(&value.segments[0]);
+    length == 2 && value.sequence == 41
+}
+
+machine forwarded(value: Packet) -> bool {
+    transition { _ -> arrived(value) }
+    state arrived(received: Packet) -> bool {
+        let length: u64 = count(&received.segments[0]);
+        length == 2 && received.sequence == 41
+    }
+}
+
+machine first(calls: &mut u64 in Wrapping) -> u64[1..=1] {
+    calls = calls * 10 + 1;
+    1
+}
+machine last(calls: &mut u64 in Wrapping) -> u64[3..=3] {
+    calls = calls * 10 + 2;
+    3
+}
+
+data Window<'input> { values: &'input [u32]; stamp: u64; }
+machine inspect_window(window: Window) -> bool {
+    window.values.len == 2 && window.stamp == 41
+}
+
+data Cell { value: u64; }
+data ReferencePair<'input> {
+    case Missing;
+    case Held(first: &'input Cell, second: &'input Cell);
+}
+data ReferenceEnvelope<'input> { stamp: u64; pair: ReferencePair<'input>; }
+data SelectedPair<'input> {
+    stamp: u64;
+    case Held(first: &'input Cell, second: &'input Cell);
+}
+
+machine read_cell(cell: &Cell) -> u64 { cell.value }
+machine read_pair(pair: &ReferencePair) -> u64 {
+    transition pair {
+        ReferencePair::Missing -> 0
+        ReferencePair::Held { first, .. } -> first.value
+    }
+}
+
+machine choose_pair<'input>(first: &'input Cell, second: &'input Cell, present: bool) -> ReferenceEnvelope<'input> {
+    transition present {
+        true -> ReferenceEnvelope { stamp: 41, pair: ReferencePair::Held { first: first, second: second } }
+        false -> ReferenceEnvelope { stamp: 41, pair: ReferencePair::Missing }
+    }
+}
+
+// A returned case is unknown at the retirement boundary. End only its active
+// descriptors, then retain the common scalar without reading inactive payloads.
+machine conditional_pair(present: bool) -> bool {
+    let mut first: Cell = Cell { value: 19 };
+    let mut second: Cell = Cell { value: 29 };
+    let pair: ReferenceEnvelope = choose_pair(&first, &second, present);
+    let observed: u64 = read_pair(&pair.pair);
+    let stamp: u64 = pair.stamp;
+    first.value = 23;
+    second.value = 31;
+    transition present {
+        true -> (observed == 19 && stamp == 41 && first.value == 23 && second.value == 31)
+        false -> (observed == 0 && stamp == 41 && first.value == 23 && second.value == 31)
+    }
+}
+
+// A known case must not be reread whole after its first descriptor is consumed.
+machine staggered_pair() -> bool {
+    let mut first: Cell = Cell { value: 19 };
+    let mut second: Cell = Cell { value: 29 };
+    let pair: SelectedPair = SelectedPair::Held { stamp: 41, first: &first, second: &second };
+    let observed_first: u64 = read_cell(pair.first);
+    first.value = 23;
+    let observed_second: u64 = read_cell(pair.second);
+    second.value = 31;
+    observed_first == 19 && observed_second == 29 && pair.stamp == 41
+        && first.value == 23 && second.value == 31
+}
+
+machine main() crashes Trap {
+    let storage: [u8; 4] = [99, 1, 2, 77];
+    let local: Packet = Packet {
+        sequence: 41,
+        segments: [Segment::Bytes { values: &storage[1..3] }, Segment::Missing]
+    };
+    let length: u64 = count(&local.segments[0]);
+    let local_valid: bool = length == 2 && local.sequence == 41;
+    let mut calls: u64 in Wrapping = 0;
+    let owned_valid: bool = owned(Packet {
+        sequence: 41,
+        segments: [Segment::Bytes { values: &storage[first(&mut calls)..last(&mut calls)] }, Segment::Missing]
+    });
+    let state_valid: bool = forwarded(Packet {
+        sequence: 41,
+        segments: [Segment::Bytes { values: &storage[first(&mut calls)..last(&mut calls)] }, Segment::Missing]
+    });
+    let returned_valid: bool = owned(packet(&storage[1..3]));
+    let empty: Packet;
+    let empty_valid: bool = count(&empty.segments[0]) == 0 && empty.sequence == 0;
+    let elements: [u32; 4] = [99, 1, 2, 77];
+    let element_valid: bool = inspect_window(Window { values: &elements[1..3], stamp: 41 });
+    transition local_valid && owned_valid && state_valid && returned_valid
+        && calls == 1212 && element_valid
+        && empty_valid && conditional_pair(true) && conditional_pair(false) && staggered_pair()
+        && storage[0] == 99 && storage[3] == 77 {
+        true -> done()
+        false -> wrong()
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}

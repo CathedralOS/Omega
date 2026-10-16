@@ -195,36 +195,23 @@ fn fields_residuals(
     residuals: &mut Vec<(Vec<StructuralPathSegment>, StructuralTypeId)>,
     emit: bool,
 ) -> Option<usize> {
-    // Keep the same field eligibility as the record complement. A virtual
-    // case namespace must not relax cleanup-free storage requirements. Atomic
-    // scalar residency has no disposal action; retiring its containing owned
-    // allocation neither observes the cell nor copies its value.
-    if fields.iter().any(|field| {
-        field.relevance.is_erased()
-            || !matches!(
-                field.field_type,
-                StructuralFieldType::Structural(_)
-                    | StructuralFieldType::Scalar(_)
-                    | StructuralFieldType::Atomic(_)
-                    | StructuralFieldType::IeeeFloat(_)
-                    | StructuralFieldType::ByteSequence(
-                        terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
-                    )
-                    | StructuralFieldType::PredicateByteSequence {
-                        carrier: terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
-                        ..
-                    }
-            )
-    }) {
-        return None;
-    }
+    // Inline descriptors carry disposal just like structural children. Their
+    // declaration describes the descriptor, never the borrowed backing. Scalar
+    // restrictions and inline owned bytes introduce no disposal row.
     let mut count = 0_usize;
-    for field in fields
-        .iter()
-        .rev()
-        .filter(|field| !field.relevance.is_erased())
-    {
-        if let Some(child_type) = field.field_type.as_structural() {
+    for field in fields.iter().rev() {
+        if field.relevance.is_erased() {
+            return None;
+        }
+        let child_type = match &field.field_type {
+            StructuralFieldType::Structural(child) => Some(*child),
+            scalar if scalar.scalar_type().is_some() => None,
+            bytes => match bytes.byte_sequence_carrier()? {
+                terminal_psi::ByteSequenceCarrier::BoundedOwned { .. } => None,
+                carrier => Some(crate::byte_carrier_field_declaration(types.iter(), carrier)?.id),
+            },
+        };
+        if let Some(child_type) = child_type {
             count = count.checked_add(child(
                 types,
                 child_type,

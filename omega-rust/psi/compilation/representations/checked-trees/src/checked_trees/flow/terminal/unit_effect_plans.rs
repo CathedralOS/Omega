@@ -291,6 +291,9 @@ pub enum CheckedUnitEffectOperationPlan {
         source: CheckedUnitStructuralArgumentSourcePlan,
         /// Exact stored descriptor; an empty path releases the result itself.
         path: Vec<CheckedUnitStructuralPathSegment>,
+        /// Enclosing cases not established at this death boundary. The normal
+        /// cleanup controller selects them before touching their payload.
+        case_conditions: arena::HandleSpan<super::CheckedCleanupCaseCondition>,
         /// A candidate death for computed backing whose producer can belong to
         /// an unevaluated alternative. Select its actual storage occurrence in
         /// the existing ownership continuation graph before Terminal publication.

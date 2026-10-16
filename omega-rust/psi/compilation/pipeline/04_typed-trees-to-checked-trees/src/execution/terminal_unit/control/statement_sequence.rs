@@ -335,6 +335,8 @@ pub(in crate::execution::terminal_unit) fn build(
         append_reference_releases(
             program,
             facts,
+            shapes,
+            structural_parameters,
             machine.symbol,
             state.symbol,
             statement_index,

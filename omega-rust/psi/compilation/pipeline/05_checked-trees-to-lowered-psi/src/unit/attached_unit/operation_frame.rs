@@ -74,7 +74,7 @@ use super::{parameters, reference_results};
 use crate::emission::borrowed_window::BorrowedWindowLedger;
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::calls::CallEmissionContext;
-use crate::expression_preparation::bindings::structural_paths::lower_structural_path;
+use crate::expression_preparation::bindings::structural_paths::lower_static_argument_path;
 use crate::unit::{
     BoundaryMachineId, CheckedTrees, CheckedUnitEffectOperationPlan, LoweringError, Operation,
     OperationKind, OperationResult, PlaceId, ScalarType, ServiceId, ServiceReachId,
@@ -505,6 +505,7 @@ impl OperationFrame<'_, '_> {
         let CheckedUnitEffectOperationPlan::ReleaseReference {
             source,
             path,
+            case_conditions,
             select_evaluated_storage,
             selection_complements,
             ..
@@ -517,8 +518,10 @@ impl OperationFrame<'_, '_> {
             .cleanup_storage(source, &self.parameters, |binding| {
                 self.results.cleanup_value(binding, self.operations)
             })?;
-        let suffix = lower_structural_path(identities, path)?;
         let types = self.structural_types.declarations();
+        // Case identities belong to the selected declaration, not the physical
+        // home's type. Resolve the suffix before restoring its captured prefix.
+        let suffix = lower_static_argument_path(identities, path, storage.selected_type, types)?;
         let leaf = terminal_semantics::runtime_structural_path_tip(
             types.iter(),
             storage.selected_type,
@@ -528,72 +531,71 @@ impl OperationFrame<'_, '_> {
             "loan retirement lost its carrier",
         ))?;
         let source = storage.place;
+        let conditions = crate::unit::unit_cleanup::lower_cleanup_conditions(
+            identities,
+            self.checked,
+            &self
+                .checked
+                .facts
+                .flow
+                .terminal_unit_effects
+                .cleanup_control,
+            *case_conditions,
+            types,
+            |identities, selected_path| {
+                let mut selected = storage.path.clone();
+                selected.extend(lower_static_argument_path(
+                    identities,
+                    selected_path,
+                    storage.selected_type,
+                    types,
+                )?);
+                Ok((source, selected))
+            },
+        )?;
         let mut path = storage.path;
         path.extend(suffix);
-        match &leaf.shape {
-            terminal_psi::StructuralTypeShape::Reference { .. } => {
-                if *select_evaluated_storage {
-                    self.evaluation.continue_selected_reference_release(
-                        identities,
-                        self.checked,
-                        terminal_psi::StructuralArgument {
+        if !matches!(
+            leaf.shape,
+            terminal_psi::StructuralTypeShape::Reference { .. }
+        ) && !leaf.descriptor_cleanup
+        {
+            return unsupported("loan retirement requires a descriptor carrier");
+        }
+        // Every checked descriptor death uses ordinary regional disposal.
+        // A reference leaf is not a second path vocabulary: its selected region
+        // ends the descriptor without disposing its referent or scalar siblings.
+        self.evaluation.continue_cleanup_regions(
+            identities,
+            self.checked,
+            vec![crate::unit::unit_cleanup::CleanupRegion {
+                selected_region: select_evaluated_storage.then(|| {
+                    terminal_psi::StructuralArgument {
+                        place: source,
+                        path: path.clone(),
+                        access: StructuralAccess::Owned,
+                    }
+                }),
+                conditions,
+                action: if path.is_empty() {
+                    self.evaluation
+                        .descriptor_retirement(source, self.operations)?
+                } else {
+                    terminal_psi::TerminalAffineCleanupAction::DiscardResidual(
+                        terminal_psi::StructuralAffineDiscard {
                             place: source,
                             path: path.clone(),
-                            access: StructuralAccess::Owned,
+                            structural_type: leaf.id,
                         },
-                        self.values,
-                        self.next_value,
-                        self.next_block,
-                        self.next_edge,
-                        self.operations,
-                    )?;
-                } else {
-                    self.push_unit(OperationKind::ReleaseReference {
-                        source: self.evaluation.current_structural_place(source),
-                        path: path.clone(),
-                    });
-                }
-            }
-            _ if leaf.descriptor_cleanup => {
-                // The checked whole-carrier roster also covers stored arrays
-                // and records. Retire their remaining descriptor frontier
-                // through ordinary cleanup, without inventing a pointer shape
-                // or disposing borrowed backing. Nominal hooks and conserved
-                // claims are excluded by the produced descriptor-cleanup fact.
-                self.evaluation.continue_cleanup_regions(
-                    identities,
-                    self.checked,
-                    vec![crate::unit::unit_cleanup::CleanupRegion {
-                        selected_region: select_evaluated_storage.then(|| {
-                            terminal_psi::StructuralArgument {
-                                place: source,
-                                path: path.clone(),
-                                access: StructuralAccess::Owned,
-                            }
-                        }),
-                        conditions: Vec::new(),
-                        action: if path.is_empty() {
-                            self.evaluation
-                                .descriptor_retirement(source, self.operations)?
-                        } else {
-                            terminal_psi::TerminalAffineCleanupAction::DiscardResidual(
-                                terminal_psi::StructuralAffineDiscard {
-                                    place: source,
-                                    path: path.clone(),
-                                    structural_type: leaf.id,
-                                },
-                            )
-                        },
-                    }],
-                    self.values,
-                    self.next_value,
-                    self.next_block,
-                    self.next_edge,
-                    self.operations,
-                )?;
-            }
-            _ => return unsupported("loan retirement requires a descriptor carrier"),
-        }
+                    )
+                },
+            }],
+            self.values,
+            self.next_value,
+            self.next_block,
+            self.next_edge,
+            self.operations,
+        )?;
         self.retire_selection_complements(identities, selection_complements)?;
         if path.is_empty() {
             // A whole descriptor release ends this physical owner. Keeping it

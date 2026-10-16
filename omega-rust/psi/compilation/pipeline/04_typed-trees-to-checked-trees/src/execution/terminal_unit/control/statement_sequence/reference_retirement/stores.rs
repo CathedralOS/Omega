@@ -149,6 +149,7 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn releases
             defer_to_exit: false,
             loans: group,
             selection_complements: Vec::new(),
+            case_conditions: Default::default(),
         });
     }
     Some(output)

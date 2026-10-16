@@ -474,7 +474,7 @@ fn checked_case_segments(
     )
 }
 
-pub(super) fn checked_path_segments<'a>(
+pub(in crate::execution::terminal_unit) fn checked_path_segments<'a>(
     program: &dyn validation::CheckingInput,
     state: symbols::SymbolHandle,
     statement_index: usize,

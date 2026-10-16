@@ -1,0 +1,74 @@
+// Expected exit: 0.
+// A rolling packet checksum reads borrowed fragments without flattening them.
+// Missing segments and empty windows contribute no bytes. Original offsets and
+// order survive a case payload, fixed-array storage and nested state loops.
+data Segment<'input> {
+    case Missing;
+    case Bytes(values: &'input [u8]);
+}
+
+data Packet<'input> { sequence: u64; segments: [Segment<'input>; 4]; }
+
+machine fold_bytes(values: &[u8], checksum: u32 in Wrapping) -> u32 in Wrapping {
+    transition { _ -> scan(values, 0, checksum) }
+    state scan(values: &[u8], cursor: u64, checksum: u32 in Wrapping) -> u32 in Wrapping
+    requires cursor <= values.len {
+        transition cursor < values.len {
+            true -> read(values, cursor, checksum)
+            false -> checksum
+        }
+    }
+    state read(values: &[u8], cursor: u64, checksum: u32 in Wrapping) -> u32 in Wrapping
+    requires cursor < values.len {
+        let next: u32 in Wrapping = checksum * 31 + (values[cursor] as u32 in Wrapping);
+        transition { _ -> scan(values, cursor + 1, next) }
+    }
+}
+
+machine fold_segment(segment: &Segment, checksum: u32 in Wrapping) -> u32 in Wrapping {
+    transition segment {
+        Segment::Missing -> checksum
+        Segment::Bytes { values } -> fold_bytes(values, checksum)
+    }
+}
+
+machine checksum(packet: &Packet) -> u32 in Wrapping {
+    transition { _ -> scan(packet, 0, 0) }
+    state scan(packet: &Packet, cursor: u64, accumulated: u32 in Wrapping) -> u32 in Wrapping
+    requires cursor <= 4 {
+        transition cursor < 4 {
+            true -> read(packet, cursor, accumulated)
+            false -> accumulated
+        }
+    }
+    state read(packet: &Packet, cursor: u64, accumulated: u32 in Wrapping) -> u32 in Wrapping
+    requires cursor < 4 {
+        let next: u32 in Wrapping = fold_segment(&packet.segments[cursor], accumulated);
+        transition { _ -> scan(packet, cursor + 1, next) }
+    }
+}
+
+machine main() crashes Trap {
+    let storage: [u8; 7] = [99, 1, 2, 3, 4, 5, 77];
+    let packet: Packet = Packet {
+        sequence: 18446744073709551615,
+        segments: [
+            Segment::Bytes { values: &storage[1..3] },
+            Segment::Missing,
+            Segment::Bytes { values: &storage[3..3] },
+            Segment::Bytes { values: &storage[3..6] }
+        ]
+    };
+    let empty: Packet;
+    let first: u32 in Wrapping = checksum(&packet);
+    let repeated: u32 in Wrapping = checksum(&packet);
+    let empty_result: u32 in Wrapping = checksum(&empty);
+    transition first == 986115 && repeated == first && empty_result == 0
+        && packet.sequence == 18446744073709551615
+        && storage[0] == 99 && storage[6] == 77 {
+        true -> done()
+        false -> wrong()
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}

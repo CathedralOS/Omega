@@ -60,15 +60,14 @@ pub(crate) fn prepare(
                 let expression = range.expression;
                 let bytes = range.family
                     == crate::emission::operation_emission::view_subslice::ViewFamily::Bytes;
+                let declaration = crate::terminal_identities::structural_declaration_by_identity(
+                    types,
+                    identities,
+                    checked,
+                    argument.type_identity,
+                    "computed range has no structural type namespace",
+                )?;
                 if let Some(existing) = slots.iter().find(|slot| slot.expression == expression) {
-                    let declaration =
-                        crate::terminal_identities::structural_declaration_by_identity(
-                            types,
-                            identities,
-                            checked,
-                            argument.type_identity,
-                            "computed range has no structural type namespace",
-                        )?;
                     if existing.structural_type != declaration.id || existing.bytes != bytes {
                         return unsupported("computed range occurrence has conflicting types");
                     }
@@ -80,6 +79,7 @@ pub(crate) fn prepare(
                     root.state,
                     root.statement_ordinal,
                     argument,
+                    declaration.id,
                     types,
                     next_place,
                 )?);
@@ -95,6 +95,7 @@ pub(crate) fn reserve(
     state: symbols::SymbolHandle,
     statement: u32,
     argument: &CheckedUnitStructuralArgumentPlan,
+    structural_type: StructuralTypeId,
     types: &[StructuralTypeDeclaration],
     next_place: &mut u64,
 ) -> Result<Slot, LoweringError> {
@@ -102,13 +103,9 @@ pub(crate) fn reserve(
         range(argument).ok_or(LoweringError::Unsupported("computed range lost its source"))?;
     let bytes =
         range.family == crate::emission::operation_emission::view_subslice::ViewFamily::Bytes;
-    let declaration = crate::terminal_identities::structural_declaration_by_identity(
-        types,
-        identities,
-        checked,
-        argument.type_identity,
-        "computed range has no structural type namespace",
-    )?;
+    // The consumer supplies the exact result carrier: a stored field can retain
+    // its reference shell where a call presents the underlying view. Both use
+    // this range evaluator; backing geometry cannot replace the receiving type.
     let storage = view_ranges::storage(identities, checked, state, statement, argument, types)?;
     let whole_view = storage
         .requires_establishment()
@@ -117,7 +114,7 @@ pub(crate) fn reserve(
     Ok(Slot {
         expression: range.expression,
         place: super::super::place_id(super::super::allocate_dense(next_place)?),
-        structural_type: declaration.id,
+        structural_type,
         bytes,
         storage,
         whole_view,

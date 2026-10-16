@@ -1,0 +1,20 @@
+// Reading a scalar sibling does not retire a case payload that is used later.
+data Segment<'input> { case Missing; case Bytes(values: &'input [u8]); }
+data Packet<'input> { sequence: u64; segments: [Segment<'input>; 2]; }
+
+machine count(segment: &Segment) -> u64 {
+    transition segment {
+        Segment::Missing -> 0
+        Segment::Bytes { values } -> values.len
+    }
+}
+
+machine invalid(storage: &mut [u8]) -> u64 requires storage.len > 0 {
+    let packet: Packet = Packet {
+        sequence: 41,
+        segments: [Segment::Bytes { values: &storage[..] }, Segment::Missing]
+    };
+    let sequence: u64 = packet.sequence;
+    storage[0] = 7;
+    count(&packet.segments[0])
+}
