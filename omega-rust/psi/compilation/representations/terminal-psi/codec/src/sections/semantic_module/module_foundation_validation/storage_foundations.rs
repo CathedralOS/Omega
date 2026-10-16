@@ -471,11 +471,17 @@ fn field_store_carrier<'path>(
         // original producer does not make the containing storage immutable.
         result.structural_type
     };
+    // Content claims and the full write path name the original storage root.
+    // The referent carrier below is only the scalar emission geometry; using
+    // it here would cross a retained Referent segment a second time.
+    let Some(content_root) = structural_place_type(machine, destination) else {
+        return malformed("structural field store has no declared content root");
+    };
     if !terminal_semantics::scalar_field_store_preserves_content(
         module.structural_types.iter(),
         module.structural_domains.iter(),
         &module.identities,
-        destination_type,
+        content_root,
         destination,
         machine.content_entry_claims.iter(),
         path,
