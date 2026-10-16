@@ -364,6 +364,7 @@ pub(super) fn check_suspension_carry(
 
             collect_call_carried_values(
                 program,
+                machine,
                 call,
                 call_site.as_ref(),
                 &claim_carry,
@@ -508,6 +509,7 @@ fn derive_claim_carry_policies(
 
 fn collect_call_carried_values(
     program: &dyn ::validation::CheckingInput,
+    machine: &typed_trees::machine::Machine,
     call: &checked_trees::BorrowCallFact,
     call_site: Option<&validation::CallSite<'_>>,
     claim_carry: &ClaimCarryContext<'_>,
@@ -519,12 +521,25 @@ fn collect_call_carried_values(
     let Some(parameters) = validation::call_target_parameters(program, call.target_symbol) else {
         return;
     };
+    // An applied public signature may retain the caller's symbolic operands.
+    // Its own telescope is closed, but those operands still have the caller's
+    // checked structural bounds. Keep both exact binder scopes; neither an
+    // unrelated same-shaped type nor a value qualification supplies a floor.
+    let mut type_parameters = program.machine_type_parameters(machine).to_vec();
+    for parameter in validation::call_target_type_parameters(program, call.target_symbol) {
+        if !type_parameters
+            .iter()
+            .any(|existing| existing.symbol == parameter.symbol)
+        {
+            type_parameters.push(parameter.clone());
+        }
+    }
     let arguments = validation::call_site_argument_expressions(program, call_site);
     for (position, (parameter, argument)) in parameters.iter().zip(arguments).enumerate() {
         let display_name = program.expression_table.display_name(*argument);
         collect_value_carry_obligation(
             program,
-            validation::call_target_type_parameters(program, call.target_symbol),
+            &type_parameters,
             parameter.type_reference,
             &display_name,
             claim_carry,

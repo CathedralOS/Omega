@@ -44,10 +44,10 @@ pub(crate) fn build_checked_terminal_machine_selections(
                         && crate::execution::terminal_unit::state_graph::natural_rank_plans(
                             program, machine, rank_arrivals,
                         ).is_none())
-                    // Blocking retains the ordinary stack and call ABI.
-                    // Its ceiling and acknowledgements are checked separately;
-                    // unlike suspension it needs no continuation representation.
-                    || machine.suspends
+                    // Operational ceilings do not change the value ABI.
+                    // Checked suspension crossings retain their exact call,
+                    // live storage and preservation demands during emission;
+                    // every selected callee still needs a complete body plan.
                     // A bodied `boundary machine` adapter is an ordinary
                     // checked root: the Unit roster already builds its plan,
                     // so a narrower `is_checked_body()` here left its callers

@@ -39,7 +39,9 @@ mod applications;
 mod candidate;
 mod captured_rows;
 mod contextual_calls;
+mod explicit_arguments;
 mod provider_tuple_closure;
+mod requirement_providers;
 mod selection;
 pub(crate) use selection::infer_static_bindings;
 
@@ -54,6 +56,7 @@ mod dynamic_slots;
 pub(crate) use dynamic_slots::instantiate_dynamic_slots;
 mod requirement_applications;
 pub(crate) use requirement_applications::instantiate_requirement_applications;
+pub(crate) use requirement_providers::generate_requirement_provider_specializations;
 pub(crate) use type_reference_walk::{for_each_type_reference, type_reference_endpoints};
 mod const_values;
 pub(crate) use const_values::value as materialize_static_value;

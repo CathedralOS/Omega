@@ -2,7 +2,6 @@
 //! Reuse the ordinary clone, cache identity and retained tuple. Generic expected
 //! telescopes are universal schemas, never permission to choose one instance.
 
-mod explicit_arguments;
 mod lifetime_arguments;
 
 use super::super::{
@@ -69,7 +68,7 @@ pub(super) fn close(
     let lifetimes =
         lifetime_arguments::bind(program, source_selected, &source_selection, application)?;
     if let Some(explicit) = &source_selection.application {
-        explicit_arguments::bind(
+        super::super::explicit_arguments::bind(
             program,
             &mut provider,
             &state,

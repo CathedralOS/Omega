@@ -245,6 +245,9 @@ pub fn prepare_typed_trees(
         };
         materialized +=
             crate::monomorphization::generate_dynamic_family_specializations(&mut program)?;
+        crate::monomorphization::instantiate_requirement_applications(&mut program)?;
+        materialized +=
+            crate::monomorphization::generate_requirement_provider_specializations(&mut program)?;
         // Bind only complete producer outputs: newly cloned bodies and callers
         // whose calls or inferred results changed. The ordinary fixed point
         // settles targets and dependent temporaries before binding reads them;

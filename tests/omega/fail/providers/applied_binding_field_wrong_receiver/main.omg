@@ -1,6 +1,5 @@
 // A bool provider cannot settle the same field declaration applied to u8.
 // The consumer demands that u8 application; no argument-type mismatch masks it.
-use omega::language::core::binding;
 
 pub boundary trait Reading<Value> { machine read() -> i32; }
 pub boundary trait UnsignedReading: Reading<u64> { machine choose_unsigned() -> i32; }
@@ -23,24 +22,24 @@ macos_arm64 machine TargetProviders::provider_defaults(defaults: &mut TargetProv
     TargetProviders::select_provider<UnsignedReading, UnsignedMap>(defaults);
     TargetProviders::select_provider<BooleanReading, BooleanMap>(defaults);
 }
-data Session<Value> { reading: Binding<Reading<Value>>; }
+data Session<Value> { value: Value; }
 data Wrapper<Value> { value: Value; }
-data Main<'record, Value> {
+data Main<Value> {
     unsigned: Session<Value>;
     boolean: Session<u8>;
     nested: Wrapper<Wrapper<Session<Value>>>;
 }
-machine unsigned_observed(reading: &Binding<Reading<u64>>) -> i32 reaches Reading {
-    reading.read()
+machine unsigned_observed(session: &Session<u64>) -> i32 reaches Reading {
+    Reading<u64>::read()
 }
-machine boolean_observed(reading: &Binding<Reading<u8>>) -> i32 reaches Reading {
-    reading.read()
+machine boolean_observed(session: &Session<u8>) -> i32 reaches Reading {
+    Reading<u8>::read()
 }
-machine Main::main<'activation>(main: &'activation mut Main<'activation, u64>)
+machine Main::main<'activation>(main: &'activation mut Main<u64>)
 reaches Reading + UnsignedReading + BooleanReading crashes Trap {
-    let first: i32 = unsigned_observed(&main.unsigned.reading);
-    let second: i32 = boolean_observed(&main.boolean.reading);
-    let nested: i32 = unsigned_observed(&main.nested.value.value.reading);
+    let first: i32 = unsigned_observed(&main.unsigned);
+    let second: i32 = boolean_observed(&main.boolean);
+    let nested: i32 = unsigned_observed(&main.nested.value.value);
     let unsigned: i32 = UnsignedReading::choose_unsigned();
     let boolean: i32 = BooleanReading::choose_boolean();
     transition first == 37 && second == 53 && nested == 37 && unsigned == 19 && boolean == 29 {

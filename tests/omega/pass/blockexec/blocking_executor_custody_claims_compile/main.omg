@@ -44,19 +44,23 @@ data Token {
 // worker body is a compile-time machine selection, never a runtime function
 // value. Build composition picks the concrete provider.
 pub boundary trait WorkerProvider {
-    machine execute<T, Arguments, machine Target>(
+    machine execute<T, Arguments [carry(suspension: allowed, cpu: same, thread: same, address: stable)], machine Target>(
         arguments: Arguments
     ) -> T
     where machine Target(arguments: Arguments) -> T suspends; blocks;
-    ensures true;
+    ensures true
+    suspends; blocks;
 }
 
 data CanaryWorkerProvider { }
 
-machine CanaryWorkerProvider::execute<T, Arguments, machine Target>(arguments: Arguments) -> T
+machine CanaryWorkerProvider::execute<T, Arguments [carry(suspension: allowed, cpu: same, thread: same, address: stable)], machine Target>(arguments: Arguments) -> T
 where machine Target(arguments: Arguments) -> T suspends; blocks;
 satisfies WorkerProvider::execute
-via ForeignBinding::CompilerIntrinsic;
+suspends; blocks;
+{
+    suspend block Target(arguments)
+}
 
 // The shared wait substrate: a small word/value wait plus wake boundary.
 // `park` suspends the calling activation at a canonical crossing; wake
@@ -242,4 +246,17 @@ machine Main::probe(main: &mut Main) reaches WorkerProvider suspends; blocks; {
     SubmitOutcome::release(submitted);
 }
 
-machine Main::main() { }
+machine worker(arguments: Token) -> Token { arguments }
+
+// Close the selected provider with an actual authored worker invocation. The
+// custody/claim probes above remain checked contract controls, not a fabricated
+// executor implementation.
+machine Main::main() reaches WorkerProvider suspends; blocks; crashes Trap {
+    let result: Token = suspend block WorkerProvider::execute<Token, Token, worker>(Token { id: 7 });
+    transition result.id == 7 {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

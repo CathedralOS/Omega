@@ -168,7 +168,7 @@ pub(crate) fn instantiate_call_contract_expression_label(
                 program,
                 call_site_target_symbol(call_site),
             );
-            for (position, parameter) in type_parameters.iter().enumerate() {
+            for (position, parameter) in type_parameters.enumerate() {
                 let binder_matches = matches!(
                     &parameter.kind,
                     typed_trees::data::TypeParameterKind::Const { .. }

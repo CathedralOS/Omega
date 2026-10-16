@@ -1,0 +1,1 @@
+may suspend while `arguments` remains live

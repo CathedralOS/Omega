@@ -136,8 +136,8 @@ pass/atomics/runtime_nested_case_payload_atomic_event_exit built 18436ms exit:0 
 pass/atomics/runtime_shared_case_waived_atomic_exit built 15263ms exit:70 @6c49683ce714
 pass/atomics/runtime_stored_reference_atomic_events_exit built 17795ms exit:0 @6c49683ce714
 pass/atomics/shared_receiver_atomic_store built 14881ms exit:70 @6c49683ce714
-pass/blockexec/blocking_executor_custody_claims_compile rejected 5166ms regressed-from:built @8665e38f912c
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "execute", reason: "attached Unit closure is missing a checked boundary machine plan", gap: None })
+pass/blockexec/blocking_executor_custody_claims_compile built 8062ms exit:0 @23c57bab5d6a+wt
+pass/blockexec/runtime_selected_worker_body_exit built 8084ms exit:0 @23c57bab5d6a+wt
 pass/borrow/copyable_array_view_survives_owner_pass_compile checked 3402ms @6c49683ce714
 pass/borrow/explicit_aggregate_lifetime_selects_source checked 3489ms @6c49683ce714
 pass/borrow/runtime_boundary_receiver_disjoint_loan_exit built 31916ms exit:70 stdout:match @326ed531359e+wt

@@ -351,8 +351,12 @@ fail/atomics/shared_receiver_plain_field_write rejected 874ms expected @a9ae30e1
 	machine `Counter::bump` state `bump` assignment cannot write `counter` because it is not mutable in this state (if `counter` is undeclared -- a typo -- no such field or local exists)
 fail/atomics/stored_reference_non_atomic_shared_store rejected 863ms expected @a9ae30e1c334+wt
 	machine `reject` state `entry` assignment cannot write `packet` because it is not mutable in this state (if `packet` is undeclared -- a typo -- no such field or local exists)
-fail/blockexec/blocking_executor_ticket_scope_loss rejected 1679ms expected @a9ae30e1c334+wt
+fail/blockexec/blocking_executor_ticket_scope_loss rejected 1375ms expected @23c57bab5d6a+wt
 	linear value `ticket` reaches scope exit without being consumed or transferred
+fail/blockexec/worker_body_requires_suspend_safe_arguments rejected 1363ms expected @23c57bab5d6a+wt
+	call to `Target` may suspend while `arguments` remains live, but its effective policy is `carry(suspension: forbidden, cpu: same, thread: same, address: stable)`; consume the value before the call or use a suspension-safe carrier; missing retained-loan obligation: the stored loan-leaf frontier is incomplete
+fail/blockexec/worker_body_selected_machine_type_mismatch rejected 290ms expected @23c57bab5d6a+wt
+	machine argument `mix` for `execute` does not refine `Target`: parameter 0 expects `Token`, got `Request`
 fail/borrow/affine_array_move_under_live_view rejected 1168ms expected @a9ae30e1c334+wt
 	cannot use `main.entries[0]` while `main.entries` is absent from borrowed storage: the value moved out at statement 2 must be restored first
 	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `Main::main`, state `main` (statement 3)
@@ -4006,8 +4010,8 @@ fail/proofs/zero_value_gated_home_rejected rejected 840ms expected @a9ae30e1c334
 	machine `zero_is_none` cannot establish zero-value representation obligation `zero_value<type>() == Gated::None` for `Gated`: all-zero storage is gated, has no payload-free authored home case, or is not a cased data representation
 fail/providers/applied_binding_borrowed_result_wrong_source rejected 1597ms expected @a9ae30e1c334+wt
 	machine `invalid` returns a view borrowing input `other`, which is not permitted by the declared result lifetime relation
-fail/providers/applied_binding_field_wrong_receiver rejected 5567ms expected @a8cedb3946d5+wt
-	selected ProgramEntry Binding field `Main<u64>::boolean::reading` requires a selected Fused provider for boundary `Reading`
+fail/providers/applied_binding_field_wrong_receiver rejected 7284ms expected @23c57bab5d6a+wt
+	no provider is selected for boundary requirement `Reading::read`, which the program entry reaches on target `macos_arm64`
 fail/providers/applied_binding_mutable_result_live_source_write rejected 1577ms expected @a9ae30e1c334+wt
 	statement 1 mutates `value` while local borrow `borrowed` is still active (borrowed at statement 0; its last use is at statement 2 and it is released at state exit)
 fail/providers/applied_requirement_mutable_result_shared_source rejected 919ms expected @a9ae30e1c334+wt
@@ -5198,8 +5202,8 @@ pass/atomics/runtime_nested_case_payload_atomic_event_exit checked 4666ms check-
 pass/atomics/runtime_shared_case_waived_atomic_exit checked 11071ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/atomics/runtime_stored_reference_atomic_events_exit checked 10420ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/atomics/shared_receiver_atomic_store checked 11103ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/blockexec/blocking_executor_custody_claims_compile rejected 10616ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a9ae30e1c334+wt
-	terminal-artifact production failed: Lowering(Unsupported("attached Unit closure is missing a checked boundary machine plan"))
+pass/blockexec/blocking_executor_custody_claims_compile checked 7985ms check-target:macos_arm64 @23c57bab5d6a+wt
+pass/blockexec/runtime_selected_worker_body_exit checked 7992ms check-target:macos_arm64 @23c57bab5d6a+wt
 pass/borrow/copyable_array_view_survives_owner_pass_compile checked 1576ms @a9ae30e1c334+wt
 pass/borrow/explicit_aggregate_lifetime_selects_source checked 1563ms @a9ae30e1c334+wt
 pass/borrow/runtime_boundary_receiver_disjoint_loan_exit checked 6398ms check-target:macos_arm64 @9dd545defbc0

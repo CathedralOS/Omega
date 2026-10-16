@@ -104,9 +104,9 @@ impl TypedTrees {
             == Some(application.trait_application_identity)
     }
 
-    /// Join a finite requirement coordinate to the exact realization receipt.
-    /// These canonical tuple identities are retained by specialization; equal
-    /// ABI types and readable const spellings cannot donate another tuple.
+    /// Join the complete public invocation to its exact realization receipt.
+    /// Declaration-ordered typed bindings retain every type, const and machine
+    /// operand; equal ABI carriers cannot donate another tuple.
     pub fn requirement_realization_specialization(
         &self,
         requirement: SymbolHandle,
@@ -114,17 +114,60 @@ impl TypedTrees {
         provider: SymbolHandle,
     ) -> Option<&crate::typed_trees::commitments::MachineSpecialization> {
         let application = self.closed_requirement_application(requirement)?;
-        let tuple = self
+        let arguments = self
             .expression_table
-            .static_machine_application_arguments(application.application)
-            .iter()
-            .map(|argument| self.static_const_argument_identity(argument))
-            .collect::<Option<Vec<_>>>()?;
+            .static_machine_application_arguments(application.application);
+        let source_owner = self
+            .expression_table
+            .static_machine_application(application.application)
+            .lexical_owner;
         let mut matches = self.machine_specializations.iter().filter(|receipt| {
-            receipt.template == realization
-                && receipt.instance == provider
-                && receipt.is_const_only()
-                && receipt.const_argument_identities == tuple
+            if receipt.template != realization
+                || receipt.instance != provider
+                || !receipt.binding_application.is_valid()
+            {
+                return false;
+            }
+            let parameters = self
+                .data_type_parameters
+                .span_or_empty(receipt.template_parameters);
+            let bindings = self
+                .expression_table
+                .static_machine_application_bindings(receipt.binding_application);
+            let binding_owner = self
+                .expression_table
+                .static_machine_application(receipt.binding_application)
+                .lexical_owner;
+            let lifetimes = self
+                .expression_table
+                .static_machine_application_lifetimes(application.application);
+            let same_regions = lifetimes
+                == self
+                    .expression_table
+                    .static_machine_application_lifetimes(receipt.binding_application)
+                && (lifetimes.is_empty() || source_owner == binding_owner);
+            same_regions
+                && parameters.len() == arguments.len()
+                && bindings.len() == parameters.len()
+                && parameters
+                    .iter()
+                    .zip(arguments)
+                    .all(|(parameter, argument)| {
+                        let mut actual = bindings
+                            .iter()
+                            .filter(|binding| binding.parameter == parameter.symbol);
+                        let Some(binding) = actual.next() else {
+                            return false;
+                        };
+                        actual.next().is_none()
+                            && self.static_binding_matches_argument(
+                                &parameter.kind,
+                                &binding.value,
+                                argument,
+                                source_owner,
+                                binding_owner,
+                            )
+                    })
         });
         let receipt = matches.next()?;
         matches.next().is_none().then_some(receipt)

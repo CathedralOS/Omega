@@ -1,0 +1,25 @@
+// Expected exit: 0. A selected worker provider invokes the supplied body.
+pub boundary trait WorkerProvider {
+    machine execute<T, Arguments [carry(suspension: allowed, cpu: same, thread: same, address: stable)], machine Target>(arguments: Arguments) -> T
+    where machine Target(arguments: Arguments) -> T suspends; blocks;
+    ensures true
+    suspends; blocks;
+}
+data CheckedWorkerProvider {}
+machine CheckedWorkerProvider::execute<T, Arguments [carry(suspension: allowed, cpu: same, thread: same, address: stable)], machine Target>(arguments: Arguments) -> T
+where machine Target(arguments: Arguments) -> T suspends; blocks;
+satisfies WorkerProvider::execute
+suspends; blocks;
+{
+    suspend block Target(arguments)
+}
+data Token { id: u64; }
+data Request { token: Token; salt: u64; }
+machine identity(arguments: Token) -> Token { arguments }
+machine flip(arguments: Token) -> Token { Token { id: arguments.id ^ 1 } }
+machine mix(arguments: Request) -> Token {
+    Token { id: arguments.token.id ^ arguments.salt }
+}
+machine main() reaches WorkerProvider suspends; blocks; {
+    let result: Token = suspend block WorkerProvider::execute<Token, Token, mix>(Token { id: 7 });
+}

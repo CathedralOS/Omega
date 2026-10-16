@@ -19,13 +19,16 @@ use queue;
 // argument shape as `TaskRuntime::start`: the worker body is a compile-time
 // machine selection, never a runtime function value. Concrete providers are
 // picked by ordinary build `select_provider` on this trait — that selection
-// is the "provider selection" leg of the item.
+// is the "provider selection" leg of the item. Arguments have a structural
+// suspension-safe bound because the selected body may park while owning them.
+// The current activation retains its CPU/thread and fixed storage demands.
 pub boundary trait WorkerProvider {
-    machine execute<T, Arguments, machine Target>(
+    machine execute<T, Arguments [carry(suspension: allowed, cpu: same, thread: same, address: stable)], machine Target>(
         arguments: Arguments
     ) -> T
     where machine Target(arguments: Arguments) -> T suspends; blocks;
-    ensures true;
+    ensures true
+    suspends; blocks;
 }
 
 // Hung-worker recovery boundary — the declared isolation contract the board

@@ -178,34 +178,33 @@ pub fn call_target_parameters(
 pub fn call_target_type_parameters(
     program: &dyn crate::CheckingInput,
     target_state_symbol: SymbolHandle,
-) -> &[typed_trees::data::TypeParameter] {
-    if target_state_symbol.is_valid()
+) -> impl Iterator<Item = &typed_trees::data::TypeParameter> {
+    let empty: &[typed_trees::data::TypeParameter] = &[];
+    let (local, enclosing) = if target_state_symbol.is_valid()
         && let Some(machine) = program.machine_by_own_or_state_symbol(target_state_symbol)
     {
-        return program.machine_type_parameters(machine);
-    }
-
-    if let Some((machine, _)) = program.machine_parameter_signature(target_state_symbol) {
-        return program.machine_type_parameters(machine);
-    }
-
-    if let Some(operator) = program
+        (program.machine_type_parameters(machine), empty)
+    } else if let Some((machine, _)) = program.machine_parameter_signature(target_state_symbol) {
+        (program.machine_type_parameters(machine), empty)
+    } else if let Some(operator) = program
         .operators()
         .iter()
         .find(|operator| operator.symbol == target_state_symbol)
     {
-        return program.operator_type_parameters(operator);
-    }
-
-    if let Some(trait_definition) = program.traits().iter().find(|trait_definition| {
-        program
-            .trait_machine_signature_by_symbol(trait_definition, target_state_symbol)
-            .is_some()
-    }) {
-        return program.trait_type_parameters(trait_definition);
-    }
-
-    &[]
+        (program.operator_type_parameters(operator), empty)
+    } else if let Some((definition, signature)) =
+        super::selected_requirement_signature(program, target_state_symbol)
+    {
+        // A generic method owns a local telescope independently of its trait's
+        // outer arguments. Both scopes define structural floors of its formals.
+        (
+            program.state_signature_type_parameters(signature),
+            program.trait_type_parameters(definition),
+        )
+    } else {
+        (empty, empty)
+    };
+    local.iter().chain(enclosing)
 }
 
 pub fn machine_state_count(program: &dyn crate::CheckingInput) -> usize {
