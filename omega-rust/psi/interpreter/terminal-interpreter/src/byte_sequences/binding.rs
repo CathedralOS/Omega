@@ -644,6 +644,15 @@ impl TerminalExecution<'_> {
         {
             return Ok(None);
         }
+        // An affine mutable window is a descriptor loan, not an unrestricted
+        // copy. The staged array arrival lends the owner's bytes; rejecting
+        // the multiplicity here drops a match result the checker already
+        // admitted.
+        if parameter.multiplicity == StructuralMultiplicity::Affine
+            && parameter.access == StructuralAccess::MutableBorrow
+        {
+            return Ok(None);
+        }
         // A loan captures the actual descriptor, whether frame-local or in a
         // field. Declared geometry grants no read/write permission: authenticate
         // every source crossing before retaining or attenuating its binding.

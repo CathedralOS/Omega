@@ -1,8 +1,10 @@
-// Both mutable windows of a four-byte row have length 2. The match publishes
-// that shared length, and the caller uses it through a local, a record field,
-// a parameter, and the call itself.
+// Both arms of a mutable window match publish one length. The caller uses
+// that window through a local, a record field, a parameter, and the call
+// itself. The source array is a local parameter, a record field, or a
+// six-byte row whose windows have length 3.
 // Expected native exit: 0
 data Held<'row> { values: &'row mut [u8]; }
+data Row { bytes: [u8; 4]; }
 
 machine half<'row>(items: &'row mut [u8; 4], which: i64) -> &'row mut [u8]
 ensures result.len == 2
@@ -13,10 +15,35 @@ ensures result.len == 2
     }
 }
 
+machine field_half<'row>(row: &'row mut Row, which: i64) -> &'row mut [u8]
+ensures result.len == 2
+{
+    match which {
+        0 -> &mut row.bytes[0..2]
+        _ -> &mut row.bytes[2..4]
+    }
+}
+
+machine third<'row>(items: &'row mut [u8; 6], which: i64) -> &'row mut [u8]
+ensures result.len == 3
+{
+    match which {
+        0 -> &mut items[0..3]
+        _ -> &mut items[3..6]
+    }
+}
+
 machine write_pair(window: &mut [u8])
 requires window.len >= 2 {
     window[0] = 9;
     window[1] = 8;
+}
+
+machine write_triple(window: &mut [u8])
+requires window.len >= 3 {
+    window[0] = 7;
+    window[1] = 6;
+    window[2] = 5;
 }
 
 machine main() crashes Trap {
@@ -24,7 +51,21 @@ machine main() crashes Trap {
     let view: &mut [u8] = half(&mut bytes, 0);
     let held: Held = Held { values: view };
     write_pair(held.values);
-    transition bytes[0] == 9 && bytes[1] == 8 && bytes[2] == 3 && bytes[3] == 4 {
+    let mut high: [u8; 4] = [1, 2, 3, 4];
+    let high_view: &mut [u8] = half(&mut high, 1);
+    write_pair(high_view);
+    let mut row: Row = Row { bytes: [1, 2, 3, 4] };
+    let field_view: &mut [u8] = field_half(&mut row, 0);
+    let held_field: Held = Held { values: field_view };
+    write_pair(held_field.values);
+    let mut wide: [u8; 6] = [1, 2, 3, 4, 5, 6];
+    let wide_view: &mut [u8] = third(&mut wide, 0);
+    write_triple(wide_view);
+    transition bytes[0] == 9 && bytes[1] == 8 && bytes[2] == 3 && bytes[3] == 4
+        && high[0] == 1 && high[1] == 2 && high[2] == 9 && high[3] == 8
+        && row.bytes[0] == 9 && row.bytes[1] == 8 && row.bytes[2] == 3 && row.bytes[3] == 4
+        && wide[0] == 7 && wide[1] == 6 && wide[2] == 5
+        && wide[3] == 4 && wide[4] == 5 && wide[5] == 6 {
         true -> done()
         false -> bad()
     }

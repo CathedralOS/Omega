@@ -302,6 +302,29 @@ impl ElementView {
         self.window.end - self.window.start
     }
 
+    /// A loan of a whole scalar array, addressed at its owner's activation.
+    /// A nonzero window or a field path is a different selection and does not
+    /// present the owner's full payload.
+    pub(crate) fn whole_scalar_array_frame(
+        &self,
+    ) -> Option<(
+        usize,
+        semantic_vocabulary::PlaceId,
+        semantic_vocabulary::StructuralTypeId,
+    )> {
+        if self.window.start != 0 {
+            return None;
+        }
+        let home = self.home.as_ref()?;
+        if !home.path.is_empty() {
+            return None;
+        }
+        if !matches!(self.backing, ElementViewBacking::Structural { .. }) {
+            return None;
+        }
+        Some(home.storage.scalar_array_frame())
+    }
+
     pub(crate) fn access(&self) -> StructuralAccess {
         self.access
     }

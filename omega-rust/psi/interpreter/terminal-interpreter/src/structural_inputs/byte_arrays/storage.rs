@@ -36,7 +36,11 @@ impl From<StructuralRuntimePlace> for ArrayStorage {
 }
 
 impl TerminalExecution<'_> {
-    fn frame_array(&self, depth: usize, place: PlaceId) -> Option<&TerminalScalarArrayValue> {
+    pub(crate) fn frame_array(
+        &self,
+        depth: usize,
+        place: PlaceId,
+    ) -> Option<&TerminalScalarArrayValue> {
         if depth == self.call_stack.len() {
             self.scalar_array_values.get(&place)
         } else {

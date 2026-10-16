@@ -243,6 +243,18 @@ impl TerminalExecution<'_> {
                     structural_type: array.structural_type,
                 },
             )
+        } else if let Some(home) = self.loaned_byte_array_frame(place) {
+            // The formal is an element-view loan of the caller's `[u8; N]`.
+            // A matched byte window must write that array. The runtime byte
+            // store never received a copy, and manufacturing one would leave
+            // the caller's elements unchanged.
+            (
+                self.structural_values
+                    .get(&place)
+                    .ok_or_else(malformed)?
+                    .clone(),
+                home,
+            )
         } else {
             (
                 self.structural_values
@@ -253,6 +265,25 @@ impl TerminalExecution<'_> {
             )
         };
         Ok(root)
+    }
+
+    /// Whole-array loan whose payload still lives in the owner's scalar array.
+    fn loaned_byte_array_frame(
+        &self,
+        place: semantic_vocabulary::PlaceId,
+    ) -> Option<ArrayStorageHome> {
+        let loan = self.element_view_values.get(&place)?;
+        let (depth, frame_place, structural_type) = loan.whole_scalar_array_frame()?;
+        let array = self.frame_array(depth, frame_place)?;
+        if array.structural_type != structural_type || loan.len() != array.elements.len() {
+            return None;
+        }
+        byte_array_length(&self.program.structural_types(), structural_type)?;
+        Some(ArrayStorageHome::Frame {
+            depth,
+            place: frame_place,
+            structural_type,
+        })
     }
 
     pub(crate) fn establish_byte_array_binding(

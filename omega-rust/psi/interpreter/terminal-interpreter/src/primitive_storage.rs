@@ -78,6 +78,14 @@ pub(crate) struct PrimitiveStorageHome {
     structural_type: StructuralTypeId,
 }
 
+impl PrimitiveStorageHome {
+    /// The activation that owns the lent scalar array. Byte windows reuse this
+    /// home; they do not allocate a second payload.
+    pub(crate) fn scalar_array_frame(self) -> (usize, PlaceId, StructuralTypeId) {
+        (self.depth, self.place, self.structural_type)
+    }
+}
+
 #[derive(Clone, PartialEq, Eq)]
 pub(crate) enum PrimitiveStorageEndpoint {
     Scalar(StructuralRuntimePlace),
