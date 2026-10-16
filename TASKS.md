@@ -3157,25 +3157,21 @@ crash and native exit behavior.
   failures as in **PROVIDER-SELECTION-AFTER-TERMINAL**. Prefix consumers stop at
   their checkpoint; stage counters distinguish execution from reused reports.
 
-- **GUI-CANARY-HAS-NO-PROVIDER.** (new-scope)
-  Supply providers for `pass/host/runtime_gui_window_lifecycle_exit` and
-  `pass/host/runtime_gui_foreground_window_exit`. Their local `Gui`
-  traits declare `window_create`, `msg_peek`, `is_window` and
-  `window_destroy` without satisfiers; provider admission rejects their
-  direct calls ("no provider is selected for boundary requirement
-  `Gui::window_create`").
+- **GUI-CANARY-WINDOWS-EXECUTION.** (new-scope)
+  Execute `pass/host/runtime_gui_window_lifecycle_exit` and
+  `pass/host/runtime_gui_foreground_window_exit` with exit 70 on Windows.
+  Both now build Windows artifacts through `std/windows_gui_host.omg` and
+  its genuine user32 provider. Create/query/destroy checks and the bounded
+  message drain remain; the MSG allocation is borrowed mutably from the
+  caller, and each foreign message operation borrows its complete 48 bytes.
+  The Win32 canaries bind only `windows_x86_64`; a separate Linux control
+  rejects WindowsGuiHost without a provider. Argument controls refuse empty
+  or unterminated names and check NULL-window liveness/destruction.
 
-  The old checked interpreter's bare-name virtual-window dispatch hid this
-  omission. It is not a provider and must not be reproduced in the Terminal
-  engine. Coordinate that legacy deletion with the universal interpreter
-  cutover; interpretation uses exact selected host adapters.
-
-  Follow `pass/capabilities/windows_provides_import_exit` for authored
-  `ForeignBinding::DllImport` leaves. Bind these user32 customers only to
-  `windows_x86_64`; narrowing targets alone does not supply their provider.
-  Acceptance: both unchanged test bodies check with genuine user32 providers
-  and execute exit 70 on Windows. Other hosts may validate production but
-  must report native execution as unverified.
+  Matching-host native execution remains unverified on this Linux session.
+  Keep the explicit Windows exit-70 oracles. The former bare-name virtual
+  desktop is not a provider; Terminal execution requires exact selected host
+  adapters and must not reproduce that dispatch.
 
 - **MACOS-NATIVE-LOST-SUCCESSES.** (new-scope)
   Restore the macOS ARM64 corpus rows that met their authored check, build or

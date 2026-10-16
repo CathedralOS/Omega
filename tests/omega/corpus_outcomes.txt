@@ -4145,6 +4145,8 @@ fail/providers/via_with_body_rejected rejected 801ms expected @a9ae30e1c334+wt
 	machine `exit_composite` carries a `via` binding but is not an external leaf: `satisfies Requirement via <Binding>;` belongs on a BODYLESS external realization (a composite lowering is an ordinary checked body; an accepted axiom carries no realization)
 fail/providers/windows_filesystem_host_unprovided_on_linux rejected 8682ms expected @91d9836f544f+wt
 	no provider is selected for boundary requirement `WindowsFilesystemHost::last_error`, which the program entry reaches on target `linux_x86_64`
+fail/providers/windows_gui_host_unprovided_on_linux rejected 6085ms expected @6050c1c112ee+wt
+	no provider is selected for boundary requirement `WindowsGuiHost::foreground_window`, which the program entry reaches on target `linux_x86_64`
 fail/range/element_view_field_domain_occurrence rejected 863ms expected @a9ae30e1c334+wt
 	machine `store` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
 fail/range/funnel_guard_one_edge_unguarded rejected 5560ms expected @a9ae30e1c334+wt
@@ -6998,11 +7000,10 @@ pass/host/runtime_descriptor_scalar_input_exit checked 11138ms check-target:maco
 pass/host/runtime_encoded_record_view_observation_exit checked 3867ms check-target:macos_arm64 @61ba1df9375e+wt
 pass/host/runtime_fixed_arithmetic_across_console_exit checked 11481ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/host/runtime_foreign_scalar_loan_writeback_exit checked 7606ms check-target:windows_x86_64 @d041496df109
-pass/host/runtime_gui_foreground_window_exit rejected 11838ms check-target:macos_arm64 @a9ae30e1c334+wt
-	selected ProgramEntry Binding field `Main::gui` requires a selected Fused provider for boundary `Gui`
-pass/host/runtime_gui_window_lifecycle_exit rejected 11646ms check-target:macos_arm64 @a9ae30e1c334+wt
-	selected ProgramEntry Binding field `Main::gui` requires a selected Fused provider for boundary `Gui`
+pass/host/runtime_gui_foreground_window_exit checked 11376ms check-target:windows_x86_64 @6050c1c112ee+wt
+pass/host/runtime_gui_window_lifecycle_exit checked 11396ms check-target:windows_x86_64 @6050c1c112ee+wt
 pass/host/runtime_stored_scalar_reference_foreign_export_exit checked 3861ms check-target:macos_arm64 @61ba1df9375e+wt
+pass/host/runtime_windows_gui_argument_failures_exit checked 5913ms check-target:windows_x86_64 @6050c1c112ee+wt
 pass/host/std_clock_sleep_exit checked 12935ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/inline_asm/asm_aarch64_system_registers_compile incomplete 10935ms check-target:macos_arm64 @a9ae30e1c334+wt
 	`Main::main` has no executable body: this compiler does not lower a statement of it yet (call operation: target state)

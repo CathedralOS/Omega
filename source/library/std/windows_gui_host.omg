@@ -1,0 +1,20 @@
+// The Windows window and thread-message service. Handles and message storage
+// belong to the caller; the provider keeps no virtual desktop or hidden state.
+// Class and title use the Windows ANSI API encoding and include a terminating
+// NUL byte. Empty or unterminated views refuse creation before entering user32.
+use targets::windows_x86_64::windows_gui_impl;
+
+// Win64 MSG has 48 bytes with pointer alignment. The exact native layout stays
+// opaque to callers; PeekMessage fills it and Translate/Dispatch consume it.
+pub data WindowsMessage { words: [u64; 6]; }
+
+pub boundary trait WindowsGuiHost {
+    machine window_create(class_name: &[u8], title: &[u8], style: u32,
+        x: i32, y: i32, width: i32, height: i32) -> u64 reaches WindowsGuiHost;
+    machine foreground_window() -> u64 reaches WindowsGuiHost;
+    machine is_window(window: u64) -> bool reaches WindowsGuiHost;
+    machine window_destroy(window: u64) -> bool reaches WindowsGuiHost;
+    // Remove at most one message from this thread, translate and dispatch it.
+    // A false result means the queue had no message; this operation never waits.
+    machine pump_message(message: &mut WindowsMessage) -> bool reaches WindowsGuiHost;
+}

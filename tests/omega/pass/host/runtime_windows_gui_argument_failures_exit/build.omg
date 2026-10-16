@@ -1,0 +1,5 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "runtime_windows_gui_argument_failures_exit");
+    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
+    Build::bind(builder, windows_x86_64::ProgramEntry, Main::main);
+}

@@ -1,0 +1,6 @@
+// Windows user32 calls have no Linux provider, even when the result is ignored.
+use omega_language_std::windows_gui_host;
+data Main { }
+machine Main::main(main: &mut Main) reaches WindowsGuiHost {
+    let foreground: u64 = WindowsGuiHost::foreground_window();
+}

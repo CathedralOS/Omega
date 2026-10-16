@@ -1,0 +1,127 @@
+// Stateless Win64 user32 adapters. CreateWindowExA receives the caller's
+// NUL-terminated class/title and ordinary geometry; optional owner, menu,
+// instance and creation-data pointers are NULL for these standalone windows.
+// The source caller retains the native HWND and the aligned MSG allocation.
+use windows_gui_host;
+use omega::language::core::external_binding;
+
+data WindowsGuiIo { }
+data WindowsGuiImports { }
+data WindowsGuiNativeProvider { }
+
+boundary requirement WindowsGuiIo::create_window(extended_style: u32, class_name: &u8, title: &u8, style: u32, x: i32, y: i32, width: i32, height: i32, parent: u64, menu: u64, instance: u64, creation_data: u64) -> u64
+reaches WindowsGuiHost;
+windows_x86_64 machine windows_gui_create_window_binding() -> ForeignBinding<10, 15, 0> {
+    ForeignBinding::DllImport { import: DllImport::PeByName { library: "user32.dll", export: "CreateWindowExA" } }
+}
+windows_x86_64 machine WindowsGuiImports::create_window(extended_style: u32, class_name: &u8, title: &u8, style: u32, x: i32, y: i32, width: i32, height: i32, parent: u64, menu: u64, instance: u64, creation_data: u64) -> u64
+satisfies WindowsGuiIo::create_window
+via windows_gui_create_window_binding();
+
+boundary requirement WindowsGuiIo::foreground_window() -> u64
+reaches WindowsGuiHost;
+windows_x86_64 machine windows_gui_foreground_window_binding() -> ForeignBinding<10, 19, 0> {
+    ForeignBinding::DllImport { import: DllImport::PeByName { library: "user32.dll", export: "GetForegroundWindow" } }
+}
+windows_x86_64 machine WindowsGuiImports::foreground_window() -> u64
+satisfies WindowsGuiIo::foreground_window
+via windows_gui_foreground_window_binding();
+
+boundary requirement WindowsGuiIo::is_window(window: u64) -> i32
+reaches WindowsGuiHost;
+windows_x86_64 machine windows_gui_is_window_binding() -> ForeignBinding<10, 8, 0> {
+    ForeignBinding::DllImport { import: DllImport::PeByName { library: "user32.dll", export: "IsWindow" } }
+}
+windows_x86_64 machine WindowsGuiImports::is_window(window: u64) -> i32
+satisfies WindowsGuiIo::is_window
+via windows_gui_is_window_binding();
+
+boundary requirement WindowsGuiIo::destroy_window(window: u64) -> i32
+reaches WindowsGuiHost;
+windows_x86_64 machine windows_gui_destroy_window_binding() -> ForeignBinding<10, 13, 0> {
+    ForeignBinding::DllImport { import: DllImport::PeByName { library: "user32.dll", export: "DestroyWindow" } }
+}
+windows_x86_64 machine WindowsGuiImports::destroy_window(window: u64) -> i32
+satisfies WindowsGuiIo::destroy_window
+via windows_gui_destroy_window_binding();
+
+boundary requirement WindowsGuiIo::peek_message(message: &mut WindowsMessage, window: u64, minimum: u32, maximum: u32, remove: u32) -> i32
+reaches WindowsGuiHost;
+windows_x86_64 machine windows_gui_peek_message_binding() -> ForeignBinding<10, 12, 0> {
+    ForeignBinding::DllImport { import: DllImport::PeByName { library: "user32.dll", export: "PeekMessageA" } }
+}
+windows_x86_64 machine WindowsGuiImports::peek_message(message: &mut WindowsMessage, window: u64, minimum: u32, maximum: u32, remove: u32) -> i32
+satisfies WindowsGuiIo::peek_message
+via windows_gui_peek_message_binding();
+
+boundary requirement WindowsGuiIo::translate_message(message: &WindowsMessage) -> i32
+reaches WindowsGuiHost;
+windows_x86_64 machine windows_gui_translate_message_binding() -> ForeignBinding<10, 16, 0> {
+    ForeignBinding::DllImport { import: DllImport::PeByName { library: "user32.dll", export: "TranslateMessage" } }
+}
+windows_x86_64 machine WindowsGuiImports::translate_message(message: &WindowsMessage) -> i32
+satisfies WindowsGuiIo::translate_message
+via windows_gui_translate_message_binding();
+
+boundary requirement WindowsGuiIo::dispatch_message(message: &WindowsMessage) -> i64
+reaches WindowsGuiHost;
+windows_x86_64 machine windows_gui_dispatch_message_binding() -> ForeignBinding<10, 16, 0> {
+    ForeignBinding::DllImport { import: DllImport::PeByName { library: "user32.dll", export: "DispatchMessageA" } }
+}
+windows_x86_64 machine WindowsGuiImports::dispatch_message(message: &WindowsMessage) -> i64
+satisfies WindowsGuiIo::dispatch_message
+via windows_gui_dispatch_message_binding();
+
+windows_x86_64 machine WindowsGuiNativeProvider::window_create(class_name: &[u8], title: &[u8], style: u32, x: i32, y: i32, width: i32, height: i32) -> u64
+satisfies WindowsGuiHost::window_create
+reaches WindowsGuiHost {
+    transition class_name.len > 0 && title.len > 0 {
+        true -> terminated(class_name, title, style, x, y, width, height)
+        _ -> (0)
+    }
+    state terminated(class_name: &[u8], title: &[u8], style: u32, x: i32, y: i32, width: i32, height: i32) -> u64
+    requires class_name.len > 0 && title.len > 0 {
+        transition class_name[class_name.len - 1] == 0 && title[title.len - 1] == 0 {
+            true -> (WindowsGuiIo::create_window(0, &class_name[0], &title[0], style, x, y, width, height, 0, 0, 0, 0))
+            _ -> (0)
+        }
+    }
+}
+windows_x86_64 machine WindowsGuiNativeProvider::foreground_window() -> u64
+satisfies WindowsGuiHost::foreground_window
+reaches WindowsGuiHost {
+    WindowsGuiIo::foreground_window()
+}
+windows_x86_64 machine WindowsGuiNativeProvider::is_window(window: u64) -> bool
+satisfies WindowsGuiHost::is_window
+reaches WindowsGuiHost {
+    let answer: i32 = WindowsGuiIo::is_window(window);
+    answer != 0
+}
+windows_x86_64 machine WindowsGuiNativeProvider::window_destroy(window: u64) -> bool
+satisfies WindowsGuiHost::window_destroy
+reaches WindowsGuiHost {
+    let answer: i32 = WindowsGuiIo::destroy_window(window);
+    answer != 0
+}
+windows_x86_64 machine WindowsGuiNativeProvider::pump_message(message: &mut WindowsMessage) -> bool
+satisfies WindowsGuiHost::pump_message
+reaches WindowsGuiHost {
+    let answer: i32 = WindowsGuiIo::peek_message(message, 0, 0, 0, 1);
+    transition answer != 0 { true -> dispatch(message) _ -> (false) }
+    state dispatch(message: &WindowsMessage) -> bool {
+        let translated: i32 = WindowsGuiIo::translate_message(message);
+        let result: i64 = WindowsGuiIo::dispatch_message(message);
+        true
+    }
+}
+windows_x86_64 machine WindowsGuiNativeProvider::provider_defaults(defaults: &mut WindowsGuiNativeProvider) {
+    WindowsGuiNativeProvider::select_provider<WindowsGuiHost, WindowsGuiNativeProvider>(defaults);
+    WindowsGuiNativeProvider::select_provider<WindowsGuiIo::create_window, WindowsGuiImports>(defaults);
+    WindowsGuiNativeProvider::select_provider<WindowsGuiIo::foreground_window, WindowsGuiImports>(defaults);
+    WindowsGuiNativeProvider::select_provider<WindowsGuiIo::is_window, WindowsGuiImports>(defaults);
+    WindowsGuiNativeProvider::select_provider<WindowsGuiIo::destroy_window, WindowsGuiImports>(defaults);
+    WindowsGuiNativeProvider::select_provider<WindowsGuiIo::peek_message, WindowsGuiImports>(defaults);
+    WindowsGuiNativeProvider::select_provider<WindowsGuiIo::translate_message, WindowsGuiImports>(defaults);
+    WindowsGuiNativeProvider::select_provider<WindowsGuiIo::dispatch_message, WindowsGuiImports>(defaults);
+}
