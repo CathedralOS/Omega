@@ -4,7 +4,7 @@ This sample explores Omega as a console program rather than a windowed game.
 
 What it is trying to prove:
 
-- an attached entry machine with one `&mut self` receiver can drive a stateful
+- an attached entry machine with an explicit mutable `Main` data argument can drive a stateful
   terminal application
 - console input/output goes through the standard library `Console` boundary
 - room entry is explicit and visible in the state graph
@@ -36,14 +36,14 @@ printf 'help\nexit\n\n' | omega run samples/cli/games/dungeon_crawler_cli/main.o
 Both cases should exit 0 after the initial room and goodbye output; the second
 also prints command help.
 
-Verified again on 2026-10-11 on macOS ARM64 with the optimized Rust reference
-compiler (`CARGO_PROFILE_DEV_OPT_LEVEL=1`). Both commands printed
-`A bottomless dark room near the dungeon heart.`, paths, command help and the
-goodbye message, then exited 0. The input route repeated help in response to
-the authored command. Compilation plus execution took 28.44 seconds for EOF
-and 23.14 seconds for help/exit; normal offline package refresh completed first.
-These measurements establish those two routes on this host, not every gameplay
-path or another host, and are not a controlled comparison with older compilers.
+Verified on 2026-10-16 on macOS ARM64 through `omega run --both` with the
+optimized Rust reference compiler (`CARGO_PROFILE_DEV_OPT_LEVEL=1`). Closed
+stdin and scripted `help\nexit\n\n` each returned 0 natively and in the Terminal
+interpreter with identical output. Both printed the authored opening room and
+goodbye; the scripted route repeated command help. Compilation plus execution
+took 18.42 seconds for EOF and 19.68 seconds for help/exit after package review.
+These observations cover those two routes, not every gameplay path or another
+host, and are not a controlled performance comparison.
 
 Verified on 2026-10-16 on Windows x86_64 with the optimized Rust reference
 compiler (`CARGO_PROFILE_DEV_OPT_LEVEL=1`). Closed stdin printed the authored

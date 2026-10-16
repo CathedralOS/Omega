@@ -2572,6 +2572,8 @@ fail/domains/view_field_store_literal_outside_domain rejected 1611ms expected @a
 	cannot prove the value assigned to `main.name` in Main::main is in domain `[u8]::Utf8`; a place declared `in [u8]::Utf8` requires every write to be established in that domain (pass a value already proven in the domain, or a literal its byte-predicate fact accepts)
 fail/domains/view_local_qualified_store_unproven rejected 5197ms expected @a9ae30e1c334+wt
 	cannot prove the value assigned to `out_line` in Main::main is in domain `[u8]::Utf8`; a place declared `in [u8]::Utf8` requires every write to be established in that domain (pass a value already proven in the domain, or a literal its byte-predicate fact accepts)
+fail/domains/zero_field_call_requires_establishment rejected 217ms expected @4eedaeefe771+wt
+	reading `value.<whole value>` crosses an open default-domain invariant window before data `Envelope` is established: the zeroed representation is not yet a `Envelope` (ch12's access gate) -- construct it on every path first (the cross-state must-analysis carries establishment)
 fail/drops/authored_cleanup_static_argument_rejected rejected 733ms expected @a9ae30e1c334+wt
 	reserved cleanup machine `Resource::drop` is compiler-selected and cannot be selected by source; consume the value with `omega::core::drop(value)` or call an ordinary owner-published protocol operation
 	cleanup machine `Resource::drop` must take exactly one exclusive loan of its own data and no other parameters, as `drop(value: &mut Resource)`
@@ -5803,7 +5805,7 @@ pass/borrows/reference_parameter_field_store_exit checked 15020ms check-target:m
 pass/borrows/retained_envelope_refs checked 9757ms @5041ef1af684+wt
 pass/borrows/returned_owned_byte_field_snapshot_exit checked 10942ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/returned_primitive_reference_assignment_capture_exit checked 3004ms check-target:macos_arm64 @c69e20ea61aa+wt
-pass/borrows/returned_record_byte_field_store_exit checked 11135ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/borrows/returned_record_byte_field_store_exit checked 5854ms check-target:macos_arm64 @4eedaeefe771+wt
 pass/borrows/returned_record_call_binding_state_exit checked 3665ms check-target:macos_arm64 @27f6b04f2658
 pass/borrows/returned_record_case_field_store_exit checked 11260ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/returned_record_field_read_exit checked 11204ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -8929,6 +8931,7 @@ run/domains/structural_qualification_cast_transitions checked 12461ms check-targ
 run/domains/structural_qualification_cast_values checked 11150ms check-target:macos_arm64 @0bb0340f378d+wt
 run/domains/structural_qualification_nested_values checked 11004ms check-target:macos_arm64 @73e466d6222f+wt
 run/domains/vacuous_tag_call_arguments checked 12451ms check-target:macos_arm64 @2012446ad74a+wt
+run/domains/zero_field_call_formation_exit checked 3531ms check-target:macos_arm64 @4eedaeefe771+wt
 run/dyn_finite_family_correlated checked 49536ms check-target:linux_x86_64 @4730b1ac8a84
 run/dyn_finite_family_owned_carrier checked 34492ms check-target:linux_x86_64 @4730b1ac8a84
 run/dyn_finite_family_runtime_dispatch checked 12276ms check-target:macos_arm64 @55ccf9be57c4

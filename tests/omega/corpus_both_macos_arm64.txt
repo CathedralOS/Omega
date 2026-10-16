@@ -116,7 +116,7 @@ pass/borrows/projected_reference_record_argument_exit built 10962ms exit:29 inte
 pass/borrows/projected_reference_record_residual_exit built 10890ms exit:29 interpreter-exit:29 interpreter:agrees @2001bffe7901+wt
 pass/borrows/qualified_byte_owner_exclusive_call_exit built 1835ms exit:70 interpreter-exit:70 interpreter:agrees @006fa124be2c
 pass/borrows/returned_owned_byte_field_snapshot_exit built 1779ms exit:70 interpreter-exit:70 interpreter:agrees @d633d9554974+wt
-pass/borrows/returned_record_byte_field_store_exit built 1835ms exit:70 interpreter-exit:70 interpreter:agrees @006fa124be2c
+pass/borrows/returned_record_byte_field_store_exit built 5929ms exit:70 interpreter-exit:70 interpreter:agrees @4eedaeefe771+wt
 pass/borrows/returned_record_case_field_store_exit built 4581ms exit:70 interpreter-exit:70 interpreter:agrees @edb462c792f9
 pass/borrows/returned_record_field_read_exit built 1319ms exit:70 interpreter-exit:70 interpreter:agrees @2816825e8941
 pass/borrows/returned_record_projected_call_exit built 1835ms exit:70 interpreter-exit:70 interpreter:agrees @006fa124be2c
@@ -873,6 +873,7 @@ run/domains/qualified_fixed_byte_array_owned_parameter_exit built 4792ms exit:0 
 run/domains/qualified_fixed_byte_array_runtime_store_exit built 4841ms exit:0 interpreter-exit:0 interpreter:agrees @75cbf5dc1d21
 run/domains/qualified_fixed_byte_array_utf8_mutation_exit built 4726ms exit:0 interpreter-exit:0 interpreter:agrees @75cbf5dc1d21
 run/domains/qualified_fixed_byte_array_utf8_optimized_exit built 4453ms exit:0 interpreter-exit:0 interpreter:agrees @75cbf5dc1d21
+run/domains/zero_field_call_formation_exit built 3655ms exit:0 interpreter-exit:0 interpreter:agrees @4eedaeefe771+wt
 run/nested_mut_alias_assignment_return built 2526ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @cba4ef8c9ab1
 pass/ownership/runtime_replacement_call_child_snapshot_exit built 3512ms exit:0 interpreter-exit:0 interpreter:agrees @3c27bc9c6110
 pass/borrow/runtime_write_only_call_result_observation_exit built 3502ms exit:0 interpreter-exit:0 interpreter:agrees @820be24a59a0+wt

@@ -3812,9 +3812,7 @@ and `mapped` need matching-host measurements, including the full-i32 status.
   compile-time locator. Checked boundary calls demand exact static slots and no
   authored qualification, source-created routing value or provider lookup may
   stand in for missing/ambiguous supply.
-  - Former borrowed-service customers: migrate
-    `samples/cli/games/dungeon_crawler_cli`'s Console fields/parameters
-    (**NOMINAL-FIELD-FLOW**) to static `Console::operation` calls. Make
+  - Former borrowed-service customers: make
     `tests/omega/pass/capabilities/uses_caller_folder` call the exact `Folder`
     slot and carry only folder protocol data. Migrate the nested
     binding/helper-return chain of
