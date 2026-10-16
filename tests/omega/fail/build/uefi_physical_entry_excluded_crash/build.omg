@@ -1,0 +1,9 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "uefi_physical_entry_excluded_crash");
+    Build::depend(builder, Source::Path { location: "vendor" });
+    Build::select_provider<vendor::UefiPhysicalEntry, FirmwareBootstrap>(builder);
+    Build::bind(builder, uefi_x86_64::ProgramEntry, kernel_entry);
+    Build::exclude_crash(builder, CrashCause::Trap);
+    builder.subsystem = Subsystem::EfiApplication;
+    builder.freestanding = true;
+}

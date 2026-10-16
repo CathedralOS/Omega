@@ -14,6 +14,10 @@ use object_file::{
 
 #[derive(Clone, Copy)]
 pub(super) enum EntryShim {
+    Physical {
+        symbol: ObjectSymbolHandle,
+        offset: usize,
+    },
     DarwinReceiver {
         symbol: ObjectSymbolHandle,
         offset: usize,
@@ -175,6 +179,9 @@ fn unit_entry_form(target: target::NativeTarget) -> Option<UnitEntryForm> {
 pub(super) fn prepare(
     artifact: &crate::ObjectArtifact,
 ) -> Result<Option<PreparedEntry>, Diagnostic> {
+    if artifact.physical_entry_binding().is_some() {
+        return crate::physical_entry::prepare(artifact).map(Some);
+    }
     if artifact.hosted_receiver_binding().is_some() {
         return crate::hosted_receiver::prepare(artifact).map(Some);
     }

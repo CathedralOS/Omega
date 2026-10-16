@@ -3,10 +3,6 @@
 use diagnostics::Diagnostic;
 
 use crate::NativePhysicalEvidenceScope;
-use crate::optimized_semantic_wrapper_object::{
-    StagedValidatedOptimizedProgramStorageSemanticWrapperObject, bind_semantic_contract,
-    receiver_layout, stage_validated_optimized_program_storage_semantic_wrapper_object,
-};
 use terminal_psi_to_abstract_operations::ValidatedNativeProgramEntrySettlement;
 
 /// Entry custody and companion functions for one emitted object.
@@ -78,11 +74,6 @@ impl FragmentObjectProjection {
 pub struct PublishedFragmentObject {
     pub object: image_emission::ObjectArtifact,
     pub physical_evidence_scope: NativePhysicalEvidenceScope,
-    /// The validated semantic-entry object custody when the admitted entry is
-    /// a source-authored semantic shell (with or without a context). Retained
-    /// for the settlement's caller; absent on every ordinary fragment object.
-    pub semantic_wrapper_object:
-        Option<StagedValidatedOptimizedProgramStorageSemanticWrapperObject>,
 }
 
 /// Compose the already emitted modules and bind the admitted entry before
@@ -111,7 +102,6 @@ pub fn publish_fragment_object(
     // The publication receipt retains the complete immutable object, including
     // entry metadata. Bind before capture; later equality must still reject
     // any replacement, omission or mutation of that checked binding.
-    let mut semantic_wrapper_object = None;
     if let Some(entry) = request.program_entry {
         // The settlement is the boundary that would lend each bound
         // placed-view referent; neither the hosted receiver bridge nor the
@@ -138,79 +128,49 @@ pub fn publish_fragment_object(
             ));
         }
         if entry.source().target_slot().owner == target::TargetProfile::UefiX64 {
-            // The UEFI entry is the authored semantic-entry route: the
-            // compiler-owned wrapper provisions any context inside its own frame
-            // and calls the semantic child by private symbol. Stage the whole
-            // evidence chain over the same relocation-free container this
-            // object publishes — authored contract, semantic wrapper plan,
-            // x86-64 template, joined object, manifest and custody receipt —
-            // and retain it for the settlement's caller.
-            let terminal = request.terminal;
-            // Staging owns its Terminal artifact, and this publication only
-            // borrows one, so it hands over a clone of the same bytes. It
-            // previously reproduced the artifact through
-            // `from_bytes(&terminal.to_bytes())`, which reached the identical
-            // value by re-running the whole envelope admission — four module
-            // validations, a canonical re-encode, proof, debug and manifest
-            // replay — purely to obtain ownership.
-            let source_artifact = object_file::stage_validated_optimized_object_artifact_shared(
-                terminal.clone(),
-                std::sync::Arc::clone(&source),
-            )
-            .map_err(|error| {
+            let adapter = entry.physical_adapter().ok_or_else(|| {
                 crate::native_artifact_error(
-                    "semantic entry object staging",
-                    format!("emitted object artifact replay failed: {error:?}"),
+                    "physical program entry",
+                    "semantic entry requires an explicitly selected checked physical adapter",
                 )
             })?;
-            let contract = bind_semantic_contract(entry, &terminal.semantic_module().identities)
-                .map_err(|error| {
-                    crate::native_artifact_error(
-                        "semantic entry contract",
-                        format!(
-                            "settlement did not bind its retained semantic contract: {error:?}"
-                        ),
-                    )
-                })?;
-            let receiver =
-                receiver_layout(&source_artifact, entry, &contract).map_err(|error| {
-                    crate::native_artifact_error(
-                        "semantic entry receiver",
-                        format!("selected receiver shape is not wrapper-provisionable: {error:?}"),
-                    )
-                })?;
-            let plan = program_entry_plan::plan_optimized_program_storage_semantic_wrapper(
-                contract, receiver,
-            )
-            .map_err(|error| {
+            if object.entry() != adapter.machine() {
+                return Err(crate::native_artifact_error(
+                    "physical program entry",
+                    "emitted root is not the selected physical adapter",
+                ));
+            }
+            let physical = entry.physical_calling_plan().ok_or_else(|| {
                 crate::native_artifact_error(
-                    "semantic entry wrapper plan",
-                    format!("semantic wrapper recipe rejected: {error:?}"),
+                    "physical program entry",
+                    "missing physical calling plan",
                 )
             })?;
-            let encoding =
-                program_entry_plan::select_optimized_program_storage_semantic_wrapper_encoding(
-                    plan,
-                )
-                .map_err(|error| {
+            image_emission::bind_physical_entry(
+                &mut object,
+                physical.plan(),
+                adapter.parameter_formals(),
+            )
+            .map_err(|diagnostic| vec![diagnostic])?;
+            let guarantee = entry
+                .storage_entry()
+                .and_then(|storage| storage.physical_contract())
+                .and_then(|contract| contract.guaranteed_entry_stack())
+                .ok_or_else(|| {
                     crate::native_artifact_error(
-                        "semantic entry wrapper encoding",
-                        format!("target encoding replay rejected: {error:?}"),
+                        "physical program entry",
+                        "missing target entry stack guarantee",
                     )
                 })?;
-            semantic_wrapper_object = Some(
-                stage_validated_optimized_program_storage_semantic_wrapper_object(
-                    entry.clone(),
-                    source_artifact,
-                    encoding,
-                )
-                .map_err(|error| {
-                    crate::native_artifact_error(
-                        "semantic entry object staging",
-                        format!("wrapper object join rejected: {error:?}"),
-                    )
-                })?,
-            );
+            let demand = image_emission::derive_stack_demand(&object, object.entry())
+                .map_err(|error| crate::native_artifact_error("physical entry stack", error))?;
+            if !guarantee.admits_demand(demand.ceiling_bytes(), u64::from(demand.stack_alignment()))
+            {
+                return Err(crate::native_artifact_error(
+                    "physical entry stack",
+                    "source bootstrap exceeds the target's arrival stack guarantee",
+                ));
+            }
         } else {
             let contract = entry
                 .storage_entry()
@@ -271,15 +231,10 @@ pub fn publish_fragment_object(
         })?,
         None => NativePhysicalEvidenceScope::Unavailable,
     };
-    validate_emitted_receiver_binding(
-        &object,
-        semantic_wrapper_object.is_some(),
-        request.program_entry,
-    )?;
+    validate_emitted_receiver_binding(&object, request.program_entry)?;
     Ok(PublishedFragmentObject {
         object,
         physical_evidence_scope,
-        semantic_wrapper_object,
     })
 }
 
@@ -323,12 +278,11 @@ pub fn emit_fragment_object(
 /// source selected.
 fn validate_emitted_receiver_binding(
     object: &image_emission::ObjectArtifact,
-    semantic_wrapper_object: bool,
     admitted: Option<&ValidatedNativeProgramEntrySettlement>,
 ) -> Result<(), Vec<Diagnostic>> {
     let binding = object.hosted_receiver_binding();
     let Some(settlement) = admitted else {
-        return if binding.is_none() && !semantic_wrapper_object {
+        return if binding.is_none() && object.physical_entry_binding().is_none() {
             Ok(())
         } else {
             Err(crate::native_artifact_error(
@@ -338,15 +292,21 @@ fn validate_emitted_receiver_binding(
         };
     };
     if settlement.source().target_slot().owner == target::TargetProfile::UefiX64 {
-        // The authored semantic entry binds through the staged wrapper object's
-        // custody, not a hosted shim: the emitted object must stay
-        // receiver-binding-free and the wrapper object must have been staged.
-        return if binding.is_none() && semantic_wrapper_object {
+        // Source owns firmware bootstrap and calls the semantic continuation
+        // with already established arguments. The image owns only ABI transport.
+        return if binding.is_none()
+            && object.physical_entry_binding().is_some_and(|binding| {
+                settlement.physical_calling_plan().map(|plan| plan.plan()) == Some(binding.plan())
+            })
+            && settlement
+                .physical_adapter()
+                .is_some_and(|adapter| adapter.machine() == object.entry())
+        {
             Ok(())
         } else {
             Err(crate::native_artifact_error(
                 "ProgramEntry receiver provisioning",
-                "admitted UEFI semantic entry did not reach a staged wrapper object",
+                "admitted UEFI physical adapter did not reach the emitted entry",
             ))
         };
     }

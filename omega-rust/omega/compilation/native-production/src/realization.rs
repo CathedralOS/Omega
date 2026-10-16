@@ -37,6 +37,12 @@ pub(crate) fn realize_native_artifact(
         .receiving_provider_roots(&artifact)
         .map_err(|message| vec![Diagnostic::error(message)])?;
     let admission = terminal_psi_to_abstract_operations::NativeAdmissionRequest {
+        entry: request
+            .program_entry
+            .physical_adapter()
+            .map_or(request.admission.entry, |adapter| {
+                terminal_psi::TargetMachineCallable::Machine(adapter.machine())
+            }),
         receiving_provider_roots: &receiving_provider_roots,
         ..request.admission
     };

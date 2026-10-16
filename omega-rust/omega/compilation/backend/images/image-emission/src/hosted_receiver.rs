@@ -787,7 +787,7 @@ pub fn bind_hosted_receiver(
     cleanup_occupancy: bool,
     private_entry_ram: &[terminal_installation::CheckedPrivateEntryRamRecipe],
 ) -> Result<(), Diagnostic> {
-    if artifact.hosted_receiver.is_some() {
+    if artifact.hosted_receiver.is_some() || artifact.physical_entry.is_some() {
         return Err(invalid(artifact.target));
     }
     let (receiver_byte_count, receiver_alignment) = receiver_layout(

@@ -85,6 +85,27 @@ pub struct TerminalNativeRealizationProposal {
 }
 
 impl TerminalNativeRealizationProposal {
+    /// Close an explicitly selected physical provider over this same Terminal
+    /// program. This is a producing join, not discovery or another compilation.
+    pub fn bind_physical_adapter(
+        &mut self,
+        artifact: &terminal_codec::CanonicalTerminalArtifact,
+        machine: semantic_vocabulary::MachineId,
+    ) -> Result<(), &'static str> {
+        let application = self
+            .program_entry
+            .physical_calling_application()
+            .ok_or("physical adapter selected without a physical arrival contract")?;
+        let physical = crate::entry_settlement::PhysicalProgramEntry::bind(
+            artifact,
+            application,
+            &self.providers.checked_adapters,
+            machine,
+        )?;
+        self.program_entry.physical_adapter = Some(physical);
+        Ok(())
+    }
+
     /// Retain complete producer units and canonicalize permission order.
     /// Neither permissions nor exclusions are derived from the provider
     /// selection. Every unit arrives from its derivation in this compile, so

@@ -58,7 +58,10 @@ pub fn admit_executable_entry(
                 .is_none()
                 || program_entry.checked_entry.is_none())
         || program_entry.checked_entry.is_some_and(|receipt| {
-            receipt.terminal_entry() != selected_entry
+            program_entry
+                .physical_adapter()
+                .map_or(receipt.terminal_entry(), |adapter| adapter.machine())
+                != selected_entry
                 || receipt.source_signature_identity() != program_entry.source().identity().bytes()
                 || receipt.terminal_psi_identity() != artifact.view().identity()
         })

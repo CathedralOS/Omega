@@ -19,6 +19,27 @@ pub fn create_private_function_object(
     inbound: &CallPlan,
     inbound_ordinals: &[u32],
 ) -> Result<PrivateFunctionObject, Error> {
+    let request = native_entry_request(&body, inbound, inbound_ordinals)?;
+    let entry_bridge = if identity_transport(&request) {
+        None
+    } else {
+        Some(emit_native_entry_bridge(request).map_err(Error::NativeEntryBridge)?)
+    };
+    Ok(PrivateFunctionObject {
+        identity,
+        body,
+        entry_bridge,
+    })
+}
+
+/// Resolve the native transport against the unchanged ordinary body. Image
+/// roots and callback entries share this join without sharing their identity
+/// or installation authority.
+pub(crate) fn native_entry_request(
+    body: &ObjectArtifact,
+    inbound: &CallPlan,
+    inbound_ordinals: &[u32],
+) -> Result<NativeEntryBridgeRequest, Error> {
     let replay = body
         .fragment_replay
         .as_ref()
@@ -101,9 +122,20 @@ pub fn create_private_function_object(
             scalar_codec,
         });
     }
+    Ok(NativeEntryBridgeRequest {
+        target: body.target,
+        internal: internal.clone(),
+        inbound: inbound.clone(),
+        parameters,
+    })
+}
+
+fn identity_transport(request: &NativeEntryBridgeRequest) -> bool {
+    let internal = &request.internal;
+    let inbound = &request.inbound;
     // An identity transport can alias the ordinary entry. This is an optional
     // zero-work optimization; differing transport is emitted, never relabeled.
-    let identical = internal.policy == inbound.policy
+    internal.policy == inbound.policy
         && internal.entry_control == inbound.entry_control
         && internal.result == inbound.result
         && internal.callback_materializations == inbound.callback_materializations
@@ -113,31 +145,13 @@ pub fn create_private_function_object(
         && internal
             .parameters
             .iter()
-            .zip(&used)
-            .all(|(placement, ordinal)| {
+            .zip(request.parameters.iter())
+            .all(|(placement, (_, parameter))| {
                 inbound
                     .parameters
-                    .get(*ordinal)
+                    .get(parameter.inbound_ordinal as usize)
                     .is_some_and(|native| placement.has_same_parameter_transport(native))
-            });
-    let entry_bridge = if identical {
-        None
-    } else {
-        Some(
-            emit_native_entry_bridge(NativeEntryBridgeRequest {
-                target: body.target,
-                internal: internal.clone(),
-                inbound: inbound.clone(),
-                parameters,
             })
-            .map_err(Error::NativeEntryBridge)?,
-        )
-    };
-    Ok(PrivateFunctionObject {
-        identity,
-        body,
-        entry_bridge,
-    })
 }
 
 pub(crate) fn validate_entry_transport(

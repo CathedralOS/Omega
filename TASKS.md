@@ -4791,16 +4791,15 @@ wait for Cathedral's instruction coverage. The interpreter is
   [two-surface bootstrap](wiki/spec/build/uefi_entry.md#authored-firmware-definitions-and-adapters).
   The target package owns firmware layouts, integrity, calling policies and
   bootstrap bodies; the compiler supplies the physical shell and generic
-  ABI/entry primitives. Connect `source/library/std/targets/uefi_x86_64/tables.omg`,
-  the program-entry physical/semantic plans and
-  [native-artifact's receiver wrapper](omega-rust/omega/compilation/backend/artifacts/native-artifact/src/fragment_object_publication.rs)
-  to actual arrival and scoped providers through ordinary program-entry,
-  calling, installed-root and provider contracts.
-  Native publication retains the unfulfilled physical-entry obligation for
-  both free and context-bearing semantic continuations. Supply and consume
-  that bridge before publishing an image; the staged semantic wrapper alone
-  is not firmware entry. The two variants are `pass/build/uefi_entry_schema_same_leaf`
-  and `pass/build/uefi_provisioned_context_roots`.
+  ABI/entry primitives. The selected checked physical adapter now receives
+  firmware arguments and returns its authored status; selection alone grants
+  neither semantic root. Connect source-owned LoadedImage discovery, initial
+  storage/stack custody and scoped providers to the selected semantic
+  continuation through ordinary calling and installed-root contracts.
+  Preserve the distinction pinned by `pass/build/uefi_selected_physical_entry`:
+  a returning rejection path works without fabricating semantic arguments.
+  Free and context-bearing semantic success paths must both establish their
+  complete roots before entering the continuation.
   Cathedral's `source/kernel/boot/uefi` is the source customer;
   `tools/boot-harness/run.py` there builds a fresh image and checks the greeting
   followed by the owned-memory report under QEMU/OVMF. Its ordinary boot

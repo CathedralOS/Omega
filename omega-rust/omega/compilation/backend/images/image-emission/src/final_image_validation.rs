@@ -280,6 +280,11 @@ fn validate_terminal_image_with_import_count(
     }
     if let Some(shim) = entry_shim {
         match shim {
+            super::hosted_unit_entry::EntryShim::Physical { symbol, offset } => {
+                super::physical_entry::validate_image(
+                    artifact, object, text_bytes, symbol, offset, output,
+                )?;
+            }
             shim @ (super::hosted_unit_entry::EntryShim::DarwinReceiver { .. }
             | super::hosted_unit_entry::EntryShim::LinuxReceiver { .. }
             | super::hosted_unit_entry::EntryShim::LinuxArm64Receiver { .. }

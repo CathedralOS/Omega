@@ -1,3 +1,4 @@
+use super::PhysicalProgramEntry;
 use super::calling_plans::validate_paired_calling_plans;
 use crate::TerminalPlacedViewEstablishment;
 use calling_conventions::BoundaryCallingApplication;
@@ -9,6 +10,7 @@ use terminal_psi::CheckedProgramEntryTerminalReceipt;
 #[derive(Debug, Clone, Copy)]
 pub struct NativeProgramEntrySettlement<'entry> {
     pub checked_entry: Option<&'entry CheckedProgramEntryTerminalReceipt>,
+    pub(crate) physical_adapter: Option<&'entry PhysicalProgramEntry>,
     pub(crate) source: &'entry program_entry_plan::SelectedProgramEntrySignature,
     pub(crate) semantic_calling_application: Option<&'entry BoundaryCallingApplication>,
     pub(crate) physical_calling_application: Option<&'entry BoundaryCallingApplication>,
@@ -38,6 +40,7 @@ impl<'entry> NativeProgramEntrySettlement<'entry> {
             };
         Self {
             checked_entry: None,
+            physical_adapter: None,
             source,
             semantic_calling_application,
             physical_calling_application,
@@ -58,6 +61,10 @@ impl<'entry> NativeProgramEntrySettlement<'entry> {
 
     pub const fn source(self) -> &'entry program_entry_plan::SelectedProgramEntrySignature {
         self.source
+    }
+
+    pub const fn physical_adapter(self) -> Option<&'entry PhysicalProgramEntry> {
+        self.physical_adapter
     }
 
     pub const fn semantic_boundary_entry_plan(
@@ -215,6 +222,7 @@ pub(crate) struct ValidatedNativeProgramEntryCallingPlans {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValidatedNativeProgramEntrySettlement {
     pub(crate) checked_entry: CheckedProgramEntryTerminalReceipt,
+    pub(crate) physical_adapter: Option<PhysicalProgramEntry>,
     pub(crate) target: target::NativeTarget,
     pub(crate) source: program_entry_plan::SelectedProgramEntrySignature,
     pub(crate) semantic_calling_application: Option<BoundaryCallingApplication>,
@@ -242,6 +250,7 @@ impl ValidatedNativeProgramEntrySettlement {
     pub fn as_settlement(&self) -> NativeProgramEntrySettlement<'_> {
         NativeProgramEntrySettlement {
             checked_entry: Some(&self.checked_entry),
+            physical_adapter: self.physical_adapter.as_ref(),
             source: &self.source,
             semantic_calling_application: self.semantic_calling_application.as_ref(),
             physical_calling_application: self.physical_calling_application.as_ref(),
@@ -252,6 +261,10 @@ impl ValidatedNativeProgramEntrySettlement {
 
     pub const fn checked_entry(&self) -> &CheckedProgramEntryTerminalReceipt {
         &self.checked_entry
+    }
+
+    pub const fn physical_adapter(&self) -> Option<&PhysicalProgramEntry> {
+        self.physical_adapter.as_ref()
     }
 
     pub const fn target(&self) -> target::NativeTarget {

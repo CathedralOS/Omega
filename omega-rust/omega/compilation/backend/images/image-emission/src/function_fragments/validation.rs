@@ -13,6 +13,7 @@ pub(crate) fn validate_function_fragment_object_artifact(
     source: &StagedOptimizedRelocationFreeObjectContainer,
     artifact: &ObjectArtifact,
 ) -> Result<(), Error> {
+    crate::physical_entry::validate_binding(artifact).map_err(Error::PhysicalEntry)?;
     if artifact.composition_source.is_some() {
         let root = artifact
             .composition_source

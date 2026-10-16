@@ -15,6 +15,7 @@ use terminal_psi::TerminalPsiIdentity;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ObjectArtifact {
     pub(crate) hosted_receiver: Option<HostedReceiverBinding>,
+    pub(crate) physical_entry: Option<crate::PhysicalEntryBinding>,
     /// Primitive storage operations require retained initialization and access
     /// evidence even when no borrowed call exposes their local residence.
     pub(crate) requires_graph_storage_replay: bool,
@@ -74,6 +75,10 @@ pub struct ObjectByteLiteralAddress {
 }
 
 impl ObjectArtifact {
+    pub const fn physical_entry_binding(&self) -> Option<&crate::PhysicalEntryBinding> {
+        self.physical_entry.as_ref()
+    }
+
     pub const fn byte_literal_pool(&self) -> Option<&ObjectByteLiteralPool> {
         self.byte_literal_pool.as_ref()
     }

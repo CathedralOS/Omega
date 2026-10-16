@@ -3,23 +3,23 @@ use calling;
 
 // Target-owned UEFI x86-64 physical contract. The bounded target-runtime
 // HandleProtocol executor can now obtain validated Loaded Image geometry, but
-// this complete physical entry remains a planned, non-invoked surface until
-// the settled bootstrap adapter and generated shell are built. That adapter
+// an application must explicitly select its checked physical adapter. The
+// generated shell invokes that adapter under this calling policy. The adapter
 // validates physical arrival, composes the scoped image correspondence and
 // independent initial storage through scoped firmware providers, accounts for
 // its stack, and crosses ProgramStorageEntry::enter; this ABI alone establishes
 // no root or firmware-service authority.
-data EfiImageHandle {
+pub data EfiImageHandle {
     raw: addr;
 }
 
-boundary data EfiSystemTable;
+pub boundary data EfiSystemTable;
 
-data EfiStatus {
+pub data EfiStatus {
     code: u64;
 }
 
-boundary trait UefiPhysicalEntry {
+pub boundary trait UefiPhysicalEntry {
     machine enter(
         image_handle: EfiImageHandle,
         system_table: &EfiSystemTable

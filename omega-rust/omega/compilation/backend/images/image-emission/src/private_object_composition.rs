@@ -67,6 +67,7 @@ pub fn compose_private_function_objects(
             || private.identity.callback_thunk_placement_index().is_none()
             || private.body.target != linked.target
             || private.body.hosted_receiver.is_some()
+            || private.body.physical_entry.is_some()
             || private.body.composition_source.is_some()
             || !private.body.private_functions.is_empty()
         {
@@ -477,6 +478,7 @@ pub(crate) fn validate_composition(artifact: &ObjectArtifact) -> Result<(), Erro
     let expected = compose_private_function_objects(source.as_ref().clone(), &inputs)?;
     let mut actual = artifact.clone();
     actual.hosted_receiver = None;
+    actual.physical_entry = source.physical_entry.clone();
     if actual != expected {
         return Err(Error::Mismatch(
             "private object composition differs from its artifact-local sources",

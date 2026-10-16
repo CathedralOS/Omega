@@ -146,6 +146,15 @@ pub(crate) fn produce_retained_terminal_artifacts(
                     .callbacks
                     .iter()
                     .map(|placement| placement.selected_machine)
+                    // Firmware starts in the selected adapter, not in the
+                    // semantic continuation. Admit its complete behavior before
+                    // optimization while retaining the semantic entry receipt.
+                    .chain(
+                        requests[request_index]
+                            .view
+                            .entry
+                            .and_then(|entry| entry.physical_adapter()),
+                    )
                     .collect()
             })
             .collect();

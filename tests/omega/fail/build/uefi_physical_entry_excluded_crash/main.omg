@@ -1,0 +1,21 @@
+use omega::language::core::extent;
+use vendor::targets::uefi_x86_64::entry;
+
+FirmwareBootstrap satisfies UefiPhysicalEntry {
+    UefiPhysicalEntry::enter = firmware_entry;
+}
+
+// Only the physical adapter can crash. The semantic root is innocent.
+machine firmware_entry(image_handle: EfiImageHandle, system_table: &EfiSystemTable) -> EfiStatus
+satisfies UefiPhysicalEntry::enter
+crashes Trap
+{
+    crash Trap;
+}
+
+machine kernel_entry(image: Extent in Granted, storage: Extent in Granted) {
+    transition { _ -> retain(image as Extent, storage as Extent) }
+    state retain(image: Extent, storage: Extent) {
+        transition { _ -> retain(image, storage) }
+    }
+}

@@ -3,7 +3,10 @@
 
 mod calling_plans;
 mod model;
+mod physical_adapter;
 mod service_establishment;
+
+pub use physical_adapter::PhysicalProgramEntry;
 
 pub use model::{
     NativeProgramEntrySettlement, NativeProgramEntrySettlementError,
@@ -49,6 +52,9 @@ pub fn validate_native_program_entry_settlement(
     })?;
     if psi != checked_entry.terminal_psi_identity()
         || artifact.manifest().semantic() != checked_entry.terminal_psi_identity()
+        || program_entry
+            .physical_adapter
+            .is_some_and(|adapter| adapter.terminal() != psi)
     {
         return Err(NativeProgramEntrySettlementError::TerminalPsiSubstitution);
     }
@@ -87,6 +93,7 @@ pub fn validate_native_program_entry_settlement(
     )?;
     Ok(ValidatedNativeProgramEntrySettlement {
         checked_entry: checked_entry.clone(),
+        physical_adapter: program_entry.physical_adapter.cloned(),
         target,
         source: program_entry.source.clone(),
         semantic_calling_application: program_entry.semantic_calling_application.cloned(),

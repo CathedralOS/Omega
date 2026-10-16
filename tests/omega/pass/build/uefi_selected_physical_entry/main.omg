@@ -1,0 +1,37 @@
+use omega::language::core::extent;
+use omega::language::core::representation;
+use std::targets::uefi_x86_64::entry;
+
+data SystemTableHeader {
+    signature: u64;
+    revision: u32;
+    header_size: u32;
+    crc: u32;
+    reserved: u32;
+}
+SystemTableRepresentation satisfies OpaqueRepresentation<EfiSystemTable, SystemTableHeader> { }
+
+FirmwareBootstrap satisfies UefiPhysicalEntry {
+    UefiPhysicalEntry::enter = firmware_entry;
+}
+
+// Rejection before storage installation is an ordinary firmware status return.
+// This exercises physical ABI transport without inventing semantic roots.
+machine firmware_entry(image_handle: EfiImageHandle, system_table: &EfiSystemTable) -> EfiStatus
+satisfies UefiPhysicalEntry::enter {
+    reject_image(image_handle)
+}
+
+machine reject_image(image_handle: EfiImageHandle) -> EfiStatus {
+    transition image_handle.raw != 0 {
+        true -> (EfiStatus { code: 0x8000000000000002 })
+        _ -> (EfiStatus { code: 0x8000000000000003 })
+    }
+}
+
+machine kernel_entry(image: Extent in Granted, storage: Extent in Granted) {
+    transition { _ -> retain(image as Extent, storage as Extent) }
+    state retain(image: Extent, storage: Extent) {
+        transition { _ -> retain(image, storage) }
+    }
+}

@@ -1,0 +1,4 @@
+machine build(builder: &mut Build) {
+    Build::package(builder, "vendor");
+    Build::depend(builder, Source::Path { location: "../../../../../../source/library/std" });
+}

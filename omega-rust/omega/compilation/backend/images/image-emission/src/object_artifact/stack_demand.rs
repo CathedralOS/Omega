@@ -20,12 +20,21 @@ pub fn derive_stack_demand(
     artifact: &ObjectArtifact,
     entry: MachineId,
 ) -> Result<StackDemand, ObjectError> {
-    derive_namespace_stack_demand(
+    let mut demand = derive_namespace_stack_demand(
         artifact,
         entry,
         &artifact.private_functions,
         &mut Vec::new(),
-    )
+    )?;
+    if let Some(binding) = artifact.physical_entry_binding()
+        && binding.entry() == entry
+    {
+        demand.ceiling_bytes = demand
+            .ceiling_bytes
+            .checked_add(binding.stack_overhead_bytes())
+            .ok_or(ObjectError::PhysicalEntryStackArithmeticOverflow(entry))?;
+    }
+    Ok(demand)
 }
 
 fn derive_namespace_stack_demand(

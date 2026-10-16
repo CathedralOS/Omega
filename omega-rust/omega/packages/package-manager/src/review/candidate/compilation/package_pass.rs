@@ -462,15 +462,11 @@ impl ClosurePass<'_> {
                     semantic_bindings.push(candidate.binding().clone());
                     proposed_entry = Some((*candidate).clone());
                 }
-                _ => {
-                    return Err(
-                        CompileResolvedPackageReviewsError::AmbiguousCandidateSemanticBinding {
-                            consumer: key.clone(),
-                            role: candidates[0].binding().role(),
-                            candidate_count: candidates.len(),
-                        },
-                    );
-                }
+                // The dependency catalog cannot see the consumer's Build
+                // selection yet. Checked entry discovery may nominate one
+                // exact schema through its selected physical requirement;
+                // absent or ambiguous selection still fails closed there.
+                _ => {}
             }
         }
         let inputs = inputs
@@ -1000,6 +996,21 @@ impl ClosurePass<'_> {
         self.retained_policy_canonical_total = policy_total;
         let mut semantic_binding_candidates = candidate_service_bindings(&checked, key)?;
         semantic_binding_candidates.extend(proposed_entry);
+        if self.discovery == TargetEntryDiscovery::Dependencies {
+            for (candidate_purpose, candidate) in &self.target_entry_candidates {
+                if *candidate_purpose == purpose
+                    && checked
+                        .execution()
+                        .accepted_semantic_bindings()
+                        .any(|binding| binding == candidate.binding())
+                    && !semantic_binding_candidates
+                        .iter()
+                        .any(|existing| existing.binding() == candidate.binding())
+                {
+                    semantic_binding_candidates.push(candidate.clone());
+                }
+            }
+        }
         semantic_binding_candidates.extend(candidate_hosted_exit_bindings(&checked, key)?);
         if self.discovery == TargetEntryDiscovery::Dependencies {
             self.target_entry_candidates.extend(

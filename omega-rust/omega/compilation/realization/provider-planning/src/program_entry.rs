@@ -11,7 +11,9 @@
 use checked_trees::typed_trees::TypedTrees;
 use diagnostics::Diagnostic;
 
+mod discovery;
 mod extent_layout;
+pub use discovery::discover_explicit_entry_binding;
 mod root_bindings;
 pub use root_bindings::collect_root_bindings;
 
@@ -572,6 +574,7 @@ struct SelectedEntryDeclaration {
 /// distinct from the validated ABI plans' own structural commitments.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectedProgramEntryCallingPlans {
+    pub physical_requirement: symbols::SymbolHandle,
     pub semantic_calling_application: calling_conventions::BoundaryCallingApplication,
     pub physical_calling_application: calling_conventions::BoundaryCallingApplication,
     pub storage_entry: program_entry_plan::SelectedProgramStorageEntryPlan,
@@ -588,6 +591,7 @@ pub struct SelectedProgramEntryCallingPlans {
 pub struct SelectedCompilerProgramEntry {
     declaration: SelectedEntryDeclaration,
     calling_plans: Option<SelectedProgramEntryCallingPlans>,
+    physical_adapter: Option<symbols::SymbolHandle>,
     fused_service_establishments: Vec<program_entry_plan::ProgramEntryFusedServiceEstablishment>,
 }
 
@@ -599,12 +603,77 @@ impl SelectedCompilerProgramEntry {
         Self {
             declaration,
             calling_plans,
+            physical_adapter: None,
             fused_service_establishments: Vec::new(),
         }
     }
 
     pub fn machine_name(&self) -> &str {
         self.declaration.signature.machine_name()
+    }
+
+    /// The explicitly selected checked implementation of physical arrival.
+    /// This is separate from the semantic ProgramEntry: firmware cannot call
+    /// the two-root continuation with its handle and System Table registers.
+    pub const fn physical_adapter(&self) -> Option<symbols::SymbolHandle> {
+        self.physical_adapter
+    }
+
+    pub fn bind_physical_adapter(
+        &mut self,
+        typed: &TypedTrees,
+        providers: &[crate::SelectedProviderReviewProvenance],
+    ) -> Result<(), Vec<Diagnostic>> {
+        let Some(plans) = &self.calling_plans else {
+            return Ok(());
+        };
+        let mut selected = None;
+        for provider in providers {
+            for (requirement, implementation) in provider
+                .provider
+                .row_requirements
+                .iter()
+                .zip(&provider.provider.row_realizations)
+            {
+                if *requirement != plans.physical_requirement {
+                    continue;
+                }
+                if matches!(
+                    provider.selected_by,
+                    crate::ProviderSelectionProvenance::UniqueCoveringCandidate
+                ) {
+                    return Err(vec![Diagnostic::error(
+                        "physical entry adapter requires an explicit provider selection",
+                    )]);
+                }
+                let machine = typed
+                    .machines()
+                    .iter()
+                    .find(|machine| machine.symbol == *implementation)
+                    .ok_or_else(|| {
+                        vec![Diagnostic::error(
+                            "selected physical entry adapter is absent",
+                        )]
+                    })?;
+                if typed
+                    .machine_states(machine)
+                    .first()
+                    .is_none_or(|entry| !entry.symbol.is_valid())
+                    || !typed.machine_type_parameters(machine).is_empty()
+                {
+                    return Err(vec![Diagnostic::error(
+                        "physical entry adapter must have a checked source body",
+                    )]);
+                }
+                if selected.replace(*implementation).is_some() {
+                    return Err(vec![Diagnostic::error(
+                        "physical arrival has more than one selected adapter",
+                    )]);
+                }
+            }
+        }
+        self.physical_adapter = selected;
+        Ok(())
     }
 
     pub const fn source_signature(&self) -> &program_entry_plan::SelectedProgramEntrySignature {
@@ -1009,6 +1078,7 @@ pub fn validate_selected_program_entry_calling_plan(
         .with_physical_contract(physical_contract.clone())
         .map_err(|diagnostic| vec![Diagnostic::error(diagnostic.to_string())])?;
     Ok(Some(SelectedProgramEntryCallingPlans {
+        physical_requirement: physical.signature,
         semantic_calling_application: semantic_realization
             .native_application()
             .map_err(|reason| vec![Diagnostic::error(reason)])?,

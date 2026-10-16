@@ -36,22 +36,6 @@ impl RequestedNativeArtifact {
             boundary_applications::TerminalBoundaryApplicationCoverage,
         >,
     ) -> Result<Self, Vec<Diagnostic>> {
-        if let Some(wrapper) = &published.semantic_wrapper_object {
-            // This object transports established roots to the semantic child;
-            // it does not adapt firmware arrival or establish those roots.
-            // Dropping it and emitting `published.object` would expose the
-            // child directly under an incompatible physical calling contract.
-            // Consume the retained obligation explicitly so a future physical
-            // bridge cannot become an unchecked default branch here.
-            match wrapper.encoding().source().physical_disposition() {
-                program_entry_plan::OptimizedProgramStoragePhysicalEntryDisposition::PlannedNotInvokedV1 => {
-                    return Err(crate::native_artifact_error(
-                        "physical program entry",
-                        "semantic entry requires a source bootstrap and installed-root physical bridge before executable publication",
-                    ));
-                }
-            }
-        }
         Self::emit(NativeArtifactEmissionParts {
             target,
             psi_artifact: terminal,

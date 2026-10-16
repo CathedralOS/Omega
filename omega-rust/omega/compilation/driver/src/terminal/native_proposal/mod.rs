@@ -33,13 +33,31 @@ pub(crate) fn project_terminal_native_realization_proposal(
             .map_err(|message| vec![Diagnostic::error(message)])
         })
         .collect::<Result<Vec<_>, _>>()?;
-    terminal_psi_to_abstract_operations::project_terminal_native_realization_proposal(
-        artifact,
-        checked_program_entry,
-        checked.terminal_native_proposal_request(
-            callback_placements,
-            callback_thunks,
-            selections,
-        )?,
-    )
+    let mut proposal =
+        terminal_psi_to_abstract_operations::project_terminal_native_realization_proposal(
+            artifact,
+            checked_program_entry,
+            checked.terminal_native_proposal_request(
+                callback_placements,
+                callback_thunks,
+                selections,
+            )?,
+        )?;
+    if let Some(adapter) = checked
+        .execution()
+        .selected_program_entry
+        .as_ref()
+        .and_then(|entry| entry.physical_adapter())
+    {
+        let signature = psi_compiler::retained_callable_signature(
+            &checked.execution().program,
+            adapter,
+            checked.sources().exact_toolchain_sources(),
+            artifact,
+        )?;
+        proposal
+            .bind_physical_adapter(artifact, signature.machine)
+            .map_err(|message| vec![Diagnostic::error(message)])?;
+    }
+    Ok(proposal)
 }

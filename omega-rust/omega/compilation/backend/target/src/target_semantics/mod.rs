@@ -24,6 +24,7 @@ pub trait TargetEntryStackSubject: sealed::EntryStackSubject {
     const REQUIRED_PROFILE: TargetProfile;
     const GUARANTEED_AVAILABLE_BYTES: u64;
     const REQUIRED_ALIGNMENT: u64;
+    const ADMISSION_RESERVE_BYTES: u64;
 }
 
 /// Compiler-owned subject of the UEFI x86-64 physical-entry stack guarantee.
@@ -39,6 +40,9 @@ impl TargetEntryStackSubject for UefiX86_64 {
     // execution to have at least 128 KiB of available, 16-byte-aligned stack.
     const GUARANTEED_AVAILABLE_BYTES: u64 = 128 * 1024;
     const REQUIRED_ALIGNMENT: u64 = 16;
+    // Compiler-target admission headroom, not a firmware guarantee or a
+    // substitute for the measured/declared stack demand of every callee.
+    const ADMISSION_RESERVE_BYTES: u64 = 4096;
 }
 
 /// Closed symbolic target-observation application retained by compatibility
@@ -97,6 +101,7 @@ pub struct TargetEntryStackGuarantee {
     application: SymbolicTargetObservationApplication,
     guaranteed_available_bytes: u64,
     required_alignment: u64,
+    admission_reserve_bytes: u64,
     non_authoritative_compatibility_report_identity: u64,
     compatibility_commitment: [u8; 32],
 }
@@ -112,6 +117,19 @@ impl TargetEntryStackGuarantee {
 
     pub const fn required_alignment(&self) -> u64 {
         self.required_alignment
+    }
+
+    pub const fn admission_reserve_bytes(&self) -> u64 {
+        self.admission_reserve_bytes
+    }
+
+    /// Admit a complete known demand; reserve cannot cover an unknown callee.
+    pub fn admits_demand(&self, bytes: u64, alignment: u64) -> bool {
+        alignment.is_power_of_two()
+            && self.required_alignment.is_multiple_of(alignment)
+            && bytes
+                .checked_add(self.admission_reserve_bytes)
+                .is_some_and(|total| total <= self.guaranteed_available_bytes)
     }
 
     /// Deterministic report coordinate over the complete numeric closure. It
@@ -224,6 +242,7 @@ impl TargetSemantics {
             application,
             guaranteed_available_bytes: Subject::GUARANTEED_AVAILABLE_BYTES,
             required_alignment: Subject::REQUIRED_ALIGNMENT,
+            admission_reserve_bytes: Subject::ADMISSION_RESERVE_BYTES,
             non_authoritative_compatibility_report_identity,
             compatibility_commitment,
         })
@@ -255,7 +274,7 @@ where
     Subject: TargetEntryStackSubject,
 {
     let mut hash = Fnv1a::new();
-    hash.bytes(b"omega.target-semantics.closed-entry-stack-guarantee.v1");
+    hash.bytes(b"omega.target-semantics.closed-entry-stack-guarantee.v2");
     hash.bytes(
         &application
             .non_authoritative_compatibility_report_identity
@@ -263,6 +282,7 @@ where
     );
     hash.bytes(&Subject::GUARANTEED_AVAILABLE_BYTES.to_le_bytes());
     hash.bytes(&Subject::REQUIRED_ALIGNMENT.to_le_bytes());
+    hash.bytes(&Subject::ADMISSION_RESERVE_BYTES.to_le_bytes());
     hash.finish()
 }
 
@@ -271,10 +291,11 @@ where
     Subject: TargetEntryStackSubject,
 {
     let mut digest = crate::digest_encoder::DomainDigestEncoder::new(b"");
-    digest.bytes(b"omega.target-semantics.closed-entry-stack-guarantee.v1");
+    digest.bytes(b"omega.target-semantics.closed-entry-stack-guarantee.v2");
     digest.bytes(application.compatibility_commitment());
     digest.bytes(&Subject::GUARANTEED_AVAILABLE_BYTES.to_le_bytes());
     digest.bytes(&Subject::REQUIRED_ALIGNMENT.to_le_bytes());
+    digest.bytes(&Subject::ADMISSION_RESERVE_BYTES.to_le_bytes());
     digest.finish()
 }
 
@@ -374,6 +395,21 @@ mod tests {
     }
 
     #[test]
+    fn entry_admission_accounts_for_reserve_and_overflow() {
+        let guarantee =
+            TargetSemantics::close_guaranteed_entry_stack::<UefiX86_64>(TargetProfile::UefiX64)
+                .unwrap();
+        assert_eq!(guarantee.admission_reserve_bytes(), 4096);
+        let available =
+            guarantee.guaranteed_available_bytes() - guarantee.admission_reserve_bytes();
+        assert!(guarantee.admits_demand(available, 16));
+        assert!(!guarantee.admits_demand(available + 1, 16));
+        assert!(!guarantee.admits_demand(u64::MAX, 16));
+        assert!(!guarantee.admits_demand(0, 32));
+        assert!(!guarantee.admits_demand(0, 0));
+    }
+
+    #[test]
     fn every_numeric_guarantee_coordinate_tamper_fails_exact_replay() {
         let exact =
             TargetSemantics::close_guaranteed_entry_stack::<UefiX86_64>(TargetProfile::UefiX64)
@@ -390,6 +426,10 @@ mod tests {
         let mut alignment = exact.clone();
         alignment.required_alignment *= 2;
         assert!(!alignment.matches_exact_uefi_x64_entry_stack_guarantee());
+
+        let mut reserve = exact.clone();
+        reserve.admission_reserve_bytes += 1;
+        assert!(!reserve.matches_exact_uefi_x64_entry_stack_guarantee());
 
         let mut report = exact.clone();
         report.non_authoritative_compatibility_report_identity ^= 1;

@@ -63,10 +63,40 @@ impl SelectedProductTarget {
         package_inputs: Option<&PackageCompilationInputs>,
         permit_unsettled_fused_service_fields: bool,
     ) -> Result<Self, Vec<Diagnostic>> {
+        let mut package_inputs = package_inputs.cloned();
+        if let Some(inputs) = package_inputs.as_ref()
+            && let Some(binding) =
+                provider_planning::program_entry::discover_explicit_entry_binding(
+                    &source.program.typed,
+                    &source.computed_build_config.config.root_bindings,
+                    target,
+                    &source.computed_build_config.config.provider_selections,
+                    inputs,
+                )?
+        {
+            let mut bindings = inputs
+                .accepted_semantic_bindings()
+                .cloned()
+                .collect::<Vec<_>>();
+            bindings.push(binding);
+            package_inputs = Some(
+                inputs
+                    .clone()
+                    .with_accepted_semantic_bindings(bindings)
+                    .map_err(|errors| {
+                        errors
+                            .into_iter()
+                            .map(|error| {
+                                Diagnostic::error(format!("entry candidate inputs: {error:?}"))
+                            })
+                            .collect::<Vec<_>>()
+                    })?,
+            );
+        }
         Ok(Self {
-            custody: select_product_providers(source, target, package_inputs)?,
+            custody: select_product_providers(source, target, package_inputs.as_ref())?,
             retained_checks: source.retained_checks.clone(),
-            package_inputs: package_inputs.cloned(),
+            package_inputs,
             permit_unsettled_fused_service_fields,
         })
     }
@@ -125,14 +155,18 @@ fn select_checked_providers(
         selected_provider_plan_facts,
         selected_provider_provenance,
     } = prepare_target_provider_selection(source, selected_target_profile, package_inputs)?;
-    let selected_program_entry = provider_planning::program_entry::select_compiler_program_entry(
-        typed,
-        &build_config.root_bindings,
-        selected_target_profile,
-        &providers.boundary_calling_plan_realizations,
-        package_inputs,
-        |program, definition| validation::data_requires_establishment(program, definition),
-    )?;
+    let mut selected_program_entry =
+        provider_planning::program_entry::select_compiler_program_entry(
+            typed,
+            &build_config.root_bindings,
+            selected_target_profile,
+            &providers.boundary_calling_plan_realizations,
+            package_inputs,
+            |program, definition| validation::data_requires_establishment(program, definition),
+        )?;
+    if let Some(entry) = &mut selected_program_entry {
+        entry.bind_physical_adapter(typed, &selected_provider_provenance)?;
+    }
     provider_planning::target_machines::reject_reached_inert_sibling_calls(
         typed,
         selected_target_profile.unwrap_or_else(target::TargetProfile::host),
