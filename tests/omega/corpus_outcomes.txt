@@ -56,6 +56,8 @@ fail/arithmetic/bounded_call_unproven rejected 1571ms expected @a9ae30e1c334+wt
 	cannot prove requires contract for call wounded from Main::main: main.health > 0 (needs fact `value > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/arithmetic/bounded_store_consumed_before_repair rejected 913ms expected @a9ae30e1c334+wt
 	cannot prove assignment value `11` satisfies bounded target `counter.value` in `Counter::replace.replace`; expected 0..=10
+fail/arithmetic/chained_const_binder_without_ceiling rejected 313ms expected @5a08952f5dbd+wt
+	exact arithmetic in machine `scale` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/arithmetic/collection_result_changed_predecessor rejected 550ms expected @d840c6ae9019+wt
 	cannot prove ensures contract for exit from rejected at statement 0: result <= values.len; no exact incoming reference origin for values
 fail/arithmetic/collection_result_conditional_bound rejected 181ms expected @d840c6ae9019+wt
@@ -5540,6 +5542,7 @@ pass/arithmetic/anonymous_rational_arguments checked 1594ms @a9ae30e1c334+wt
 pass/arithmetic/anonymous_rational_integer_landing checked 1591ms @a9ae30e1c334+wt
 pass/arithmetic/bounded_assignment checked 1562ms @a9ae30e1c334+wt
 pass/arithmetic/call_surviving_return_exit checked 13025ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/arithmetic/chained_const_binder_scale_exit checked 5864ms check-target:macos_arm64 @5a08952f5dbd+wt
 pass/arithmetic/closed_call_transition_return_proves_exact_sum_exit checked 6759ms check-target:macos_arm64 @97705f5a651d
 pass/arithmetic/collection_result_bound_exit checked 5786ms check-target:macos_arm64 @d840c6ae9019+wt
 pass/arithmetic/compound_assign checked 10321ms @5041ef1af684+wt

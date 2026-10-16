@@ -10,7 +10,10 @@
 //! An integer const or value binder does not change during the machine, so the
 //! same comparisons bound it in every state. A runtime value compared with that
 //! binder (`index < Bound` where `Bound <= 4`) then stands inside the binder's
-//! ceiling, the same way it would under an immutable parameter bound.
+//! ceiling, the same way it would under an immutable parameter bound. A binder
+//! may also take its ceiling from another binder: `Bound <= Limit` with
+//! `Limit <= 4` is solved with the other binder intervals, so a chain reaches
+//! the same standing ceiling a literal would.
 //! A disjunction contributes only when every alternative bounds that parameter;
 //! the bound is their convex hull, so `side == 0 || side == 1` is `[0, 1]`
 //! while `side == 0 || flag == 1` does not bound `side`.
@@ -801,16 +804,245 @@ fn integer_binder_bounds(
         _ => return None,
     };
     let declared = type_bounds(program, type_reference)?;
+    let interval = solved_integer_binder_interval(program, machine, state, binder.symbol)
+        .unwrap_or(declared.interval);
     Some(Bounds {
-        interval: declared.interval.intersect(requires_interval(
+        interval,
+        ..declared
+    })
+}
+
+/// Standing intervals of every integer const or value binder on this machine.
+/// Each round reads the previous round, so `Inner <= Mid <= Outer <= 4`
+/// reaches `Inner` without re-entering binder resolution.
+fn solved_integer_binder_interval(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    symbol: SymbolHandle,
+) -> Option<Interval> {
+    let binders = integer_binders(program, machine);
+    let position = binders
+        .iter()
+        .position(|(candidate, _)| *candidate == symbol)?;
+    let mut current: Vec<Interval> = binders.iter().map(|(_, declared)| *declared).collect();
+    let facts = binder_requirement_facts(program, machine, state);
+    for _ in 0..binders.len() {
+        let previous = current.clone();
+        let mut changed = false;
+        for (index, _) in binders.iter().enumerate() {
+            let mut interval = binders[index].1;
+            for fact in &facts {
+                if let Some(bound) = binder_fact_interval(
+                    program,
+                    machine,
+                    state,
+                    *fact,
+                    binders[index].0,
+                    &binders,
+                    &previous,
+                ) {
+                    interval = interval.intersect(bound);
+                }
+            }
+            if interval != current[index] {
+                changed = true;
+                current[index] = interval;
+            }
+        }
+        if !changed {
+            break;
+        }
+    }
+    Some(current[position])
+}
+
+fn integer_binders(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+) -> Vec<(SymbolHandle, Interval)> {
+    let mut binders = Vec::new();
+    for parameter in program.machine_type_parameters(machine) {
+        let type_reference = match parameter.kind {
+            typed_trees::data::TypeParameterKind::Const { type_reference }
+            | typed_trees::data::TypeParameterKind::Value { type_reference } => type_reference,
+            _ => continue,
+        };
+        let Some(declared) = type_bounds(program, type_reference) else {
+            continue;
+        };
+        binders.push((parameter.symbol, declared.interval));
+    }
+    binders
+}
+
+fn binder_requirement_facts(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+) -> Vec<ExpressionHandle> {
+    program
+        .machine_contracts(machine)
+        .iter()
+        .chain(program.state_contracts(state))
+        .filter(|contract| contract.kind == SignatureContractKind::Requires)
+        .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts))
+        .filter_map(|fact| fact.as_expression().copied())
+        .collect()
+}
+
+fn binder_fact_interval(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    expression: ExpressionHandle,
+    subject_symbol: SymbolHandle,
+    binders: &[(SymbolHandle, Interval)],
+    previous: &[Interval],
+) -> Option<Interval> {
+    let (operator, left, right) = {
+        let binary = program.expression_table.binary_node(expression)?;
+        (binary.operator, binary.left, binary.right)
+    };
+    match operator {
+        BinaryOperator::And => {
+            let left_bound = binder_fact_interval(
+                program,
+                machine,
+                state,
+                left,
+                subject_symbol,
+                binders,
+                previous,
+            );
+            let right_bound = binder_fact_interval(
+                program,
+                machine,
+                state,
+                right,
+                subject_symbol,
+                binders,
+                previous,
+            );
+            match (left_bound, right_bound) {
+                (Some(left_bound), Some(right_bound)) => Some(left_bound.intersect(right_bound)),
+                (Some(bound), None) | (None, Some(bound)) => Some(bound),
+                (None, None) => None,
+            }
+        }
+        BinaryOperator::Or => {
+            let left_bound = binder_fact_interval(
+                program,
+                machine,
+                state,
+                left,
+                subject_symbol,
+                binders,
+                previous,
+            )?;
+            let right_bound = binder_fact_interval(
+                program,
+                machine,
+                state,
+                right,
+                subject_symbol,
+                binders,
+                previous,
+            )?;
+            Some(left_bound.union(right_bound))
+        }
+        _ => binder_comparison_interval(
             program,
             machine,
             state,
-            binder.symbol,
-            true,
-        )),
-        ..declared
-    })
+            expression,
+            operator,
+            left,
+            right,
+            subject_symbol,
+            binders,
+            previous,
+        ),
+    }
+}
+
+fn binder_comparison_interval(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    expression: ExpressionHandle,
+    operator: BinaryOperator,
+    left: ExpressionHandle,
+    right: ExpressionHandle,
+    subject_symbol: SymbolHandle,
+    binders: &[(SymbolHandle, Interval)],
+    previous: &[Interval],
+) -> Option<Interval> {
+    let builtin = match operator {
+        BinaryOperator::Equal => {
+            super::guard_narrowing::has_builtin_equality(program, machine, Some(state), expression)
+        }
+        _ => {
+            super::guard_narrowing::has_builtin_ordering(program, machine, Some(state), expression)
+        }
+    };
+    if !builtin {
+        return None;
+    }
+    let mut interval: Option<Interval> = None;
+    for (subject, operand, subject_on_left) in [(left, right, true), (right, left, false)] {
+        if named_symbol(program, subject) != Some(subject_symbol) {
+            continue;
+        }
+        let Some(bound) =
+            binder_operand_interval(program, machine, state, operand, binders, previous)
+        else {
+            continue;
+        };
+        let compared =
+            super::guard_narrowing::comparison_interval(operator, bound, subject_on_left);
+        if compared.low.is_none() && compared.high.is_none() {
+            continue;
+        }
+        interval = Some(match interval {
+            Some(existing) => existing.intersect(compared),
+            None => compared,
+        });
+    }
+    interval
+}
+
+fn binder_operand_interval(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    operand: ExpressionHandle,
+    binders: &[(SymbolHandle, Interval)],
+    previous: &[Interval],
+) -> Option<Interval> {
+    if let Some(literal) = literal_i64(program, operand) {
+        return Some(Interval::constant(literal));
+    }
+    if let Some(stored) = stored_place_interval(program, machine, state, operand) {
+        return Some(stored);
+    }
+    let symbol = named_symbol(program, operand)?;
+    binders
+        .iter()
+        .position(|(candidate, _)| *candidate == symbol)
+        .map(|index| previous[index])
+}
+
+fn named_symbol(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+) -> Option<SymbolHandle> {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Name(path) if path.symbol.is_valid() && path.head_symbol == path.symbol => {
+            Some(path.symbol)
+        }
+        _ => None,
+    }
 }
 
 /// The comparisons on `parameter` in the clause every arrival proves: the

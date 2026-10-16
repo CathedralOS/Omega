@@ -1,0 +1,10 @@
+// Bound <= Limit does not cap the product when Limit itself has no ceiling.
+machine scale<const Bound: u64, const Limit: u64>(index: u64) -> u64
+requires Bound <= Limit, index < Bound
+{ index * 4 }
+
+machine main() crashes Trap {
+    let value: u64 = scale<3, 4>(1);
+    transition { _ -> done(value) }
+    state done(value: u64) { }
+}

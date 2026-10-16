@@ -14,6 +14,7 @@ pass/arithmetic/anonymous_rational_arguments checked 3381ms @6c49683ce714
 pass/arithmetic/anonymous_rational_integer_landing checked 3306ms @6c49683ce714
 pass/arithmetic/bounded_assignment checked 3260ms @6c49683ce714
 pass/arithmetic/call_surviving_return_exit built 27031ms exit:70 stdout:match @6c49683ce714
+pass/arithmetic/chained_const_binder_scale_exit built 5725ms exit:0 @5a08952f5dbd+wt
 pass/arithmetic/closed_call_transition_return_proves_exact_sum_exit built 27045ms exit:112 @6c49683ce714
 pass/arithmetic/collection_result_bound_exit built 16554ms exit:0 @6c49683ce714
 pass/arithmetic/compound_assign checked 16246ms @6c49683ce714
