@@ -106,13 +106,12 @@ mine tasks to keep a slot occupied.
 
 Choose the capability by its source-to-execution acceptance: "a helper mutates
 the caller's field and the caller observes it after return," stated as the
-program's observable behavior. Acceptance covers the capability's
-variants, not one spelling: before landing, run mechanical variations of the
-program -- the value through a local, a field, a parameter or a call result;
-the operation in another state, machine or target body; an equivalent
-spelling -- and make them work through the same repair. A variant that still
-fails shows the repair recognized a shape instead of generalizing the
-operation; fix the operation, never by adding the variant's shape. Trace the remaining producer and consumer
+program's observable behavior. A checking, proof, or lowering repair is not
+done until the fact-place fixtures under
+[`tests/omega/pass/facts`](../../../tests/omega/pass/facts) and
+[`tests/omega/fail/facts`](../../../tests/omega/fail/facts) pass, including a
+native run. A miss means the repair recognized a shape; generalize the
+operation. Trace the remaining producer and consumer
 dependencies before the first repair. Own the outcome through the program
 running; when the next missing stage appears, that stage is the next step of
 the same assignment. Intermediate code checkpoints are fine; the assignment
@@ -369,8 +368,11 @@ sample that still fails keeps its current failure in its README.
 Landing one witness is not a switch to an unrelated outcome. Continue the
 parent's next required witness within authorized scope; use a fresh worktree
 after the landed lane's cleanup below. Reuse the session and relevant context.
-An explicit one-sample stop remains a stop, with parent acceptance reported
-unfinished. A genuine external prerequisite pauses only the affected work;
+An explicit one-sample stop remains a stop for other work, with parent
+acceptance reported unfinished. A checking, proof, or lowering repair is not
+that stop: it is not done until the fact-place fixtures pass, including a
+native run, and a miss means generalize the operation. A genuine external
+prerequisite pauses only the affected work;
 preserve its frontier and continue other feasible work within user scope.
 
 After publication, return to the recorded starting checkout and recheck its

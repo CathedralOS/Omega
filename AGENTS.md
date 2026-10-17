@@ -144,7 +144,7 @@ that blocks its current acceptance, then returns to Cathedral. It does not
 stay in the compiler collecting adjacent repairs.
 
 The repair inside the loop is ordinary compiler engineering and follows every
-rule below: generalize the operation, check mechanical variants, pin the
+rule below: generalize the operation, check the fact-place fixtures, pin the
 behavior with fixtures under `tests/omega/`, and keep main green.
 
 A change that makes the language reject source it used to accept migrates
@@ -463,11 +463,7 @@ Commit messages carry no tool attribution: no "Generated with ..." line, no
   or mode with cleanup deferred to a task. Preserve genuine semantic and ABI
   distinctions. Optional optimization specialization requires a correct general
   path. See [compositional lowering](omega-rust/pipeline.md#compositional-lowering).
-  A repair is accepted only when mechanical variants of its program work too
-  (through a local, field, parameter or call result; in another state,
-  machine or target body; an equivalent spelling). A failing variant means the
-  repair matched a shape; generalize the operation instead of adding the
-  variant.
+  A repair counts only when the same proved fact (a length, a bound, or a loan) works through a local, a field, a parameter, a call result, a match join, a const name, another state, another machine, and another target body, as pinned by the fact-place fixtures under [`tests/omega/pass/facts`](tests/omega/pass/facts) and [`tests/omega/fail/facts`](tests/omega/fail/facts).
 - **Verify at trust boundaries, not after every stage.** Foreign package review
   and untrusted build-script execution verify; a stage never re-validates,
   replays or rebuilds output the same compile just produced. Verifiers stay

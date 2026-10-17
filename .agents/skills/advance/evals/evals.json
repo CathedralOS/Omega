@@ -363,7 +363,8 @@
       "assertions": [
         "Honors the explicit stopping point over automatic capability continuation",
         "Does not claim the broader task is complete",
-        "Does not launch agents or take an unrelated task"
+        "Does not launch agents or take an unrelated task",
+        "A checking, proof, or lowering repair inside that sample is still not done until the fact-place fixtures pass, including a native run; a miss generalizes the operation"
       ]
     }
   ]
