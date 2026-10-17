@@ -405,13 +405,25 @@ pub(super) fn validate<'a, 'p>(
     } else {
         value_environment.invalidate_unknown_writes(program, current_state);
     }
+    let assignment_path = arithmetic_domains::place_path(program, assignment.target);
     arithmetic_domains::record_assignment(
         value_environment,
-        arithmetic_domains::place_path(program, assignment.target),
+        assignment_path.clone(),
         interval,
         places::declared_place_type_raw(program, machine, current_state, assignment.target)
             .and_then(|handle| arithmetic_domains::enforced_declared_range(program, handle)),
     );
+    if let Some(path) = assignment_path.as_deref() {
+        arithmetic_domains::publish_slice_length(
+            program,
+            machine,
+            current_state,
+            value_environment,
+            path,
+            assignment_root_symbol(program, assignment.target),
+            assignment.value,
+        );
+    }
     if diagnostics.len() == before {
         copied_value.record(
             value_environment,
@@ -447,6 +459,22 @@ pub(super) fn validate<'a, 'p>(
 /// bounds intersect the data's bounds just as field retention does. This is
 /// not the state walk's establishment flag: a later repairing store cannot
 /// authorize this occurrence's earlier value.
+fn assignment_root_symbol(
+    program: &dyn crate::CheckingInput,
+    target: typed_trees::expression::ExpressionHandle,
+) -> symbols::SymbolHandle {
+    let Some(place) = places::canonical_place_from_expression(program, target) else {
+        return symbols::SymbolHandle::default();
+    };
+    let facts::PlaceRoot::Symbol(symbol) = place.root else {
+        return symbols::SymbolHandle::default();
+    };
+    if !place.segments.is_empty() {
+        return symbols::SymbolHandle::default();
+    }
+    symbol
+}
+
 fn checked_integer_assignment(
     program: &dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,

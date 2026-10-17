@@ -66,6 +66,7 @@ mod range_constraints;
 pub(crate) use range_constraints::declares_bracketed_range;
 mod return_ranges;
 mod selected_scalar_intervals;
+mod slice_lengths;
 pub use bigint_interval::{
     BigIntInterval, bitwise_and_constants, bitwise_carrier_bounds, floor_shift_right,
 };
@@ -77,6 +78,7 @@ pub use selected_scalar_intervals::{
     frozen_declared_integer_range, integer_range_contains, selected_boolean_decision,
     selected_scalar_interval,
 };
+pub(crate) use slice_lengths::{carried_slice_length, publish_slice_length};
 mod stored_integer_writes;
 pub(crate) use guard_narrowing::{
     OccurrenceValueEnvironments, occurrence_value_environment, occurrence_value_environments,

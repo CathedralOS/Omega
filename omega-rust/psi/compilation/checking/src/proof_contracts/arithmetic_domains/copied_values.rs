@@ -69,9 +69,32 @@ impl CopiedIntegerValue {
         if program
             .primitive_type_reference(local.type_reference)
             .is_some_and(|primitive| primitive.is_fixed_integer())
-            && let Some(observed) = observed
         {
-            self.capture_scalar_equality(observed, destination, &written);
+            if let Some(observed) = observed {
+                self.capture_scalar_equality(observed, destination.clone(), &written);
+            }
+            if let Some(state) = state
+                && let Some(length) = super::slice_lengths::denoted_collection_length(
+                    program,
+                    machine,
+                    state,
+                    environment,
+                    local.initial_value,
+                )
+            {
+                self.capture_scalar_equality(length, destination.clone(), &written);
+            }
+        }
+        if let Some(state) = state {
+            self.capture_aggregate_identities(
+                program,
+                machine,
+                state,
+                local.initial_value,
+                &destination,
+                &written,
+                environment,
+            );
         }
     }
 
@@ -93,9 +116,6 @@ impl CopiedIntegerValue {
                     crate::value_custody::places::assignment_value_type(program, reference)
                 })
                 .and_then(|reference| program.primitive_type_reference(reference));
-        if !primitive.is_some_and(|primitive| primitive.is_fixed_integer()) {
-            return;
-        }
         // Dynamic destinations require a captured selector, not its later
         // spelling. A static projection is stable here only because the
         // shared RHS operand admission below recursively refuses effectful
@@ -108,6 +128,18 @@ impl CopiedIntegerValue {
         if destination.static_path().is_none() {
             return;
         }
+        self.capture_aggregate_identities(
+            program,
+            machine,
+            state,
+            assignment.value,
+            &destination,
+            written,
+            environment,
+        );
+        if !primitive.is_some_and(|primitive| primitive.is_fixed_integer()) {
+            return;
+        }
         if let Some(observed) = self.capture_relations(
             program,
             machine,
@@ -117,7 +149,16 @@ impl CopiedIntegerValue {
             written,
             environment,
         ) {
-            self.capture_scalar_equality(observed, destination, written);
+            self.capture_scalar_equality(observed, destination.clone(), written);
+            if let Some(length) = super::slice_lengths::denoted_collection_length(
+                program,
+                machine,
+                state,
+                environment,
+                assignment.value,
+            ) {
+                self.capture_scalar_equality(length, destination.clone(), written);
+            }
         }
     }
 
@@ -143,6 +184,58 @@ impl CopiedIntegerValue {
         self.ordered_relations =
             ordered_values::rebind_relations(&environment.ordered_values, &bindings);
         Some(observed)
+    }
+
+    fn capture_aggregate_identities(
+        &mut self,
+        program: &dyn crate::CheckingInput,
+        machine: &typed_trees::machine::Machine,
+        state: &typed_trees::state::State,
+        expression: ExpressionHandle,
+        destination: &ordered_values::Operand,
+        written: &[String],
+        environment: &ValueEnvironment,
+    ) {
+        let ExpressionNode::StructLiteral(literal) =
+            program.expression_table.expression(expression)
+        else {
+            return;
+        };
+        for field in program.expression_table.struct_fields(literal.fields) {
+            let primitive = integer_field_primitive(program, machine, state, field.value);
+            let field_operand = ordered_values::Operand::Field {
+                receiver: Box::new(destination.clone()),
+                field: field.field_symbol,
+                name: field.name.as_str().to_owned(),
+                primitive,
+            };
+            if primitive.is_some() {
+                if let Some(observed) =
+                    ordered_values::operand(program, machine, state, field.value, None)
+                {
+                    self.capture_scalar_equality(observed, field_operand.clone(), written);
+                }
+                if let Some(length) = super::slice_lengths::denoted_collection_length(
+                    program,
+                    machine,
+                    state,
+                    environment,
+                    field.value,
+                ) {
+                    self.capture_scalar_equality(length, field_operand, written);
+                }
+            } else {
+                self.capture_aggregate_identities(
+                    program,
+                    machine,
+                    state,
+                    field.value,
+                    &field_operand,
+                    written,
+                    environment,
+                );
+            }
+        }
     }
 
     fn capture_scalar_equality(
@@ -322,6 +415,27 @@ impl CopiedIntegerValue {
             environment.mark_known_u64(format!("{path}{suffix}"), *value);
         }
     }
+}
+
+fn integer_field_primitive(
+    program: &dyn crate::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    expression: ExpressionHandle,
+) -> Option<typed_trees::types::PrimitiveType> {
+    if crate::value_custody::places::collection_length_receiver(
+        program,
+        machine,
+        Some(state),
+        expression,
+    )
+    .is_some()
+    {
+        return Some(typed_trees::types::PrimitiveType::U64);
+    }
+    super::declared_place_type_raw(program, machine, Some(state), expression)
+        .and_then(|reference| program.primitive_type_reference(reference))
+        .filter(|primitive| primitive.is_fixed_integer())
 }
 
 fn retain_places(

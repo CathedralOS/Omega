@@ -308,6 +308,15 @@ pub(super) fn validate(
                 })
                 .flatten(),
         );
+        arithmetic_domains::publish_slice_length(
+            program,
+            machine,
+            current_state,
+            value_environment,
+            local_data.name.as_str(),
+            local_data.symbol,
+            local_data.initial_value,
+        );
         if diagnostics.len() == before {
             copied_value.record(
                 value_environment,

@@ -373,16 +373,23 @@ fn argument_collection_lengths(
             ) {
                 return None;
             }
-            let length =
-                crate::closed_collection_length(walk.program, walk.machine, state, *argument)?;
-            let length = i64::try_from(length).ok();
-            Some((
-                parameter.symbol,
-                Interval {
-                    low: Some(length.unwrap_or(0)),
-                    high: length,
-                },
-            ))
+            let closed =
+                crate::closed_collection_length(walk.program, walk.machine, state, *argument)
+                    .and_then(|length| i64::try_from(length).ok())
+                    .map(Interval::constant);
+            let carried = super::super::carried_slice_length(
+                walk.program,
+                walk.machine,
+                Some(state),
+                walk.environment,
+                *argument,
+            );
+            let length = match (closed, carried) {
+                (Some(closed), Some(carried)) => closed.intersect(carried),
+                (Some(length), None) | (None, Some(length)) => length,
+                (None, None) => return None,
+            };
+            Some((parameter.symbol, length))
         })
         .collect()
 }

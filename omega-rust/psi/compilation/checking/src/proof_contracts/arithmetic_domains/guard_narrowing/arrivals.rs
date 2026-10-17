@@ -1213,6 +1213,15 @@ impl ArrivalWalk<'_, '_> {
                     );
                     environment.invalidate_written_paths(std::slice::from_ref(&path));
                     environment.set(path.clone(), value.interval);
+                    super::super::publish_slice_length(
+                        self.program,
+                        self.machine,
+                        Some(source),
+                        environment,
+                        &path,
+                        local.symbol,
+                        local.initial_value,
+                    );
                     value.copied.record(
                         environment,
                         Some(path.clone()),
@@ -1320,6 +1329,17 @@ impl ArrivalWalk<'_, '_> {
                                 enforced_declared_range(self.program, reference)
                             }),
                         );
+                        if let Some(path) = path.as_deref() {
+                            super::super::publish_slice_length(
+                                self.program,
+                                self.machine,
+                                Some(source),
+                                environment,
+                                path,
+                                root_symbol(self.program, assignment.target, path),
+                                assignment.value,
+                            );
+                        }
                         value.copied.record(
                             environment,
                             path.clone(),
@@ -1578,6 +1598,25 @@ impl ArrivalWalk<'_, '_> {
             });
         }
     }
+}
+
+fn root_symbol(
+    program: &dyn crate::CheckingInput,
+    target: typed_trees::expression::ExpressionHandle,
+    path: &str,
+) -> symbols::SymbolHandle {
+    let Some(place) =
+        crate::value_custody::places::canonical_place_from_expression(program, target)
+    else {
+        return symbols::SymbolHandle::default();
+    };
+    let facts::PlaceRoot::Symbol(symbol) = place.root else {
+        return symbols::SymbolHandle::default();
+    };
+    if !place.segments.is_empty() || place.label(program) != path {
+        return symbols::SymbolHandle::default();
+    }
+    symbol
 }
 
 fn is_reference(program: &dyn crate::CheckingInput, reference: TypeReferenceHandle) -> bool {

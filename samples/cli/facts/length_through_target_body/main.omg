@@ -1,0 +1,30 @@
+// Every target body uses a runtime window length to name the last byte.
+// Expected exit: 0
+linux_x86_64 machine read_at(window: &[u8], length: u64) -> u8
+requires length == window.len && length > 0
+{
+    window[length - 1]
+}
+linux_arm64 machine read_at(window: &[u8], length: u64) -> u8
+requires length == window.len && length > 0
+{
+    window[length - 1]
+}
+macos_arm64 machine read_at(window: &[u8], length: u64) -> u8
+requires length == window.len && length > 0
+{
+    window[length - 1]
+}
+windows_x86_64 machine read_at(window: &[u8], length: u64) -> u8
+requires length == window.len && length > 0
+{
+    window[length - 1]
+}
+
+machine main() crashes Trap {
+    let items: [u8; 4] = [4, 7, 8, 9];
+    let window: &[u8] = &items[0..3];
+    transition read_at(window, window.len) == 8 { true -> done() _ -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}
