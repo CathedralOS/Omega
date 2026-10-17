@@ -310,6 +310,25 @@ class CompareRecords(unittest.TestCase):
         self.assertEqual(result["losses"], ["pass/a/x: exit 70 -> 71"])
         self.assertEqual(result["gains"], ["pass/a/x: interpreter declined -> agrees"])
 
+    def test_completed_target_execution_is_a_gain_after_unchecked(self):
+        base = [self.row("pass/a/x", "incomplete", facts={"terminal-targets": "unchecked"})]
+        head = [self.row("pass/a/x", "checked", facts={"terminal-targets": "match"})]
+        result = corpus_records.compare_records(base, head)
+        self.assertEqual(result["losses"], [])
+        self.assertEqual(result["gains"], [
+            "pass/a/x: incomplete -> checked", "pass/a/x: terminal-targets unchecked -> match"])
+        self.assertEqual(corpus_records.compare_records(head, base)["losses"], [
+            "pass/a/x: checked -> incomplete", "pass/a/x: terminal-targets match -> unchecked"])
+
+    def test_completed_target_execution_does_not_hide_a_changed_target_exit(self):
+        base = [self.row("pass/a/x", "incomplete", facts={
+            "terminal-targets": "unchecked", "terminal-target.macos_arm64": "70"})]
+        head = [self.row("pass/a/x", "checked", facts={
+            "terminal-targets": "match", "terminal-target.macos_arm64": "71"})]
+        result = corpus_records.compare_records(base, head)
+        self.assertEqual(result["losses"], ["pass/a/x: terminal-target.macos_arm64 70 -> 71"])
+        self.assertIn("pass/a/x: terminal-targets unchecked -> match", result["gains"])
+
 
 if __name__ == "__main__":
     unittest.main()

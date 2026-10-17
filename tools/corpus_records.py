@@ -187,8 +187,10 @@ def compare_records(base: list, head: list) -> dict:
             # Agreement is a successful comparison of both completed engines.
             # An earlier refusal or mismatch is not an execution oracle to
             # preserve. Concrete exits and output facts still compare exactly.
-            gained_agreement = (key == "interpreter" and after == "agrees"
-                                and before in ("unchecked", "declined", "exhausted", "disagrees"))
+            gained_agreement = (
+                (key == "interpreter" and after == "agrees"
+                 and before in ("unchecked", "declined", "exhausted", "disagrees"))
+                or (key == "terminal-targets" and before == "unchecked" and after == "match"))
             (gains if before is None or gained_agreement else losses).append(change)
     return {"losses": losses, "gains": gains,
             "fixtures": len(base_rows.keys() | head_rows.keys())}
