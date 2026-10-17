@@ -149,12 +149,114 @@ pub fn index_place_segment(
     {
         return facts::PlaceSegment::FixedRange { start, end };
     }
-    program
-        .expression_table
-        .constant_integer_value(expression)
-        .and_then(|value| usize::try_from(value).ok())
+    // A selector that every execution fixes to one ordinal is that element.
+    // The same store then retires and lowers the slot a literal would: a
+    // parameter required equal to 0, a call that ensures that result, an
+    // immutable binding of either, or a field of such a value. A wider
+    // interval remains a runtime index and cannot name one home.
+    element_place_segment(program, expression)
+}
+
+/// A point selector's place segment. A range is not a point: callers that
+/// only fold element ordinals keep a range expression as an index segment.
+pub fn element_place_segment(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+) -> facts::PlaceSegment {
+    exact_fixed_element(program, expression, 0)
         .map(|index| facts::PlaceSegment::FixedIndex { index })
         .unwrap_or(facts::PlaceSegment::Index { expression })
+}
+
+fn exact_fixed_element(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+    depth: usize,
+) -> Option<usize> {
+    if depth >= 64 || !expression.is_valid() {
+        return None;
+    }
+    if let Some(value) = program.expression_table.constant_integer_value(expression) {
+        return usize::try_from(value).ok();
+    }
+    if let Some(value) =
+        crate::value_custody::literals::closed_record_integer_projection(program, expression)
+    {
+        return value
+            .value
+            .to_i64()
+            .and_then(|element| usize::try_from(element).ok());
+    }
+    let bindings = match_arm_bindings(program, expression).unwrap_or_default();
+    if let Some(value) = folded_coordinate(program, expression, &bindings, 0) {
+        return usize::try_from(value).ok();
+    }
+    if let Some(value) = standing_fixed_element(program, expression) {
+        return usize::try_from(value).ok();
+    }
+    if let Some(initializer) = immutable_name_initializer(program, expression) {
+        return exact_fixed_element(program, initializer, depth + 1);
+    }
+    let ExpressionNode::Member(member) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    let initializer = immutable_name_initializer(program, member.receiver)?;
+    let literal = program.expression_table.struct_literal_node(initializer)?;
+    let field = program
+        .expression_table
+        .struct_fields(literal.fields)
+        .iter()
+        .find(|field| field.field_symbol == member.member_symbol)?;
+    exact_fixed_element(program, field.value, depth + 1)
+}
+
+fn standing_fixed_element(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+) -> Option<i64> {
+    let states = states_naming(program, expression);
+    if states.is_empty() {
+        return None;
+    }
+    let mut element = None;
+    for state_symbol in states {
+        let machine_symbol = program.symbols.get(state_symbol).parent;
+        let (machine, state) = program.machine_state(machine_symbol, state_symbol)?;
+        let (lower, upper) = crate::standing_integer_bounds(program, machine, state, expression)?;
+        let lower = lower?;
+        if upper != Some(lower) {
+            return None;
+        }
+        if element.is_some_and(|prior| prior != lower) {
+            return None;
+        }
+        element = Some(lower);
+    }
+    element
+}
+
+fn immutable_name_initializer(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+) -> Option<ExpressionHandle> {
+    let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    if !path.symbol.is_valid() || path.head_symbol != path.symbol {
+        return None;
+    }
+    let declaration = program.symbols.get(path.symbol);
+    if declaration.kind != SymbolKind::Local {
+        return None;
+    }
+    let state_symbol = declaration.parent;
+    let machine_symbol = program.symbols.get(state_symbol).parent;
+    let (_, state) = program.machine_state(machine_symbol, state_symbol)?;
+    let (_, local) = program.state_local_declaration(state, path.symbol)?;
+    if local.is_mutable || !local.initial_value.is_valid() {
+        return None;
+    }
+    Some(local.initial_value)
 }
 
 /// Normalize an expression-only range when its half-open bounds do not need

@@ -1,0 +1,56 @@
+// An element known only to lie in 0..2 does not name the displaced backing.
+data Cell [copy] { value: u32; tag: u64; }
+data Window<'input> { values: &'input mut [Cell]; }
+
+machine replace<'carrier, 'input>(windows: &'carrier mut [Window<'input>], slot: i32, replacement: &'input mut [Cell])
+requires windows.len == 2 && slot >= 0 && slot < 2 {
+    windows[slot].values = replacement;
+}
+
+machine replaced(values: &[Cell]) -> bool {
+    transition values.len == 2 {
+        true -> inspect(values)
+        false -> false
+    }
+    state inspect(values: &[Cell]) -> bool requires values.len == 2 {
+        values[0].value == 42 && values[0].tag == 7 && values[1].value == 19 && values[1].tag == 29
+    }
+}
+
+machine unchanged(values: &[Cell]) -> bool {
+    transition values.len == 1 {
+        true -> inspect(values)
+        false -> false
+    }
+    state inspect(values: &[Cell]) -> bool requires values.len == 1 {
+        values[0].value == 31 && values[0].tag == 41
+    }
+}
+
+machine apply(slot: i32) crashes Trap
+requires slot >= 0 && slot < 2
+{
+    let mut original: [Cell; 1] = [Cell { value: 7, tag: 17 }];
+    let mut neighbor: [Cell; 1] = [Cell { value: 31, tag: 41 }];
+    let mut replacement: [Cell; 2] = [Cell { value: 42, tag: 7 }, Cell { value: 19, tag: 29 }];
+    let mut windows: [Window; 2] = [Window { values: &mut original[..] }, Window { values: &mut neighbor[..] }];
+    replace(&mut windows[..], slot, &mut replacement[..]);
+    original[0].value = 9;
+    let valid: bool = replaced(windows[0].values);
+    let adjacent: bool = unchanged(windows[1].values);
+    transition valid && adjacent && original[0].value == 9 && original[0].tag == 17 {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
+
+machine main() crashes Trap {
+    let slot: i32 = 0;
+    transition slot >= 0 && slot < 2 {
+        true -> apply(slot)
+        false -> bad()
+    }
+    state bad() { crash Trap; }
+}

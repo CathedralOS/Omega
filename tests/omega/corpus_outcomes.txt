@@ -1173,6 +1173,8 @@ fail/borrows/tail_recursive_mutation_retires_field_bound rejected 1343ms expecte
 fail/borrows/tail_recursive_write_conflicts_with_live_sibling_loan rejected 981ms expected @0a951af3f8e9+wt
 	state `fill` receives `work` while local borrow `observed` is still active (borrowed at statement 2; its last use is at statement 4)
 	statement 3 mutates `work.stable.value` while local borrow `observed` is still active (borrowed at statement 2; its last use is at statement 4)
+fail/borrows/unproved_window_index_keeps_backing rejected 2835ms expected @c4d3eedf9f1d+wt
+	statement 5 mutates `original[0].value` while local borrow `windows` is still active (borrowed at statement 3; its last use is at statement 6)
 fail/borrows/view_local_backing_write_while_stored rejected 2577ms expected @a9ae30e1c334+wt
 	statement 2 mutates `main.buffer[0]` while local borrow `out_line` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
 fail/borrows/view_local_forward_before_store rejected 2896ms expected @a9ae30e1c334+wt
@@ -8995,6 +8997,7 @@ run/borrows/local_mut_borrow checked 11276ms check-target:macos_arm64 @a9ae30e1c
 run/borrows/mut_record_loan_member_access checked 11486ms check-target:macos_arm64 @a9ae30e1c334+wt
 run/borrows/owned_array_view_establishment checked 5660ms check-target:macos_arm64 @a68c584655e1+wt
 run/borrows/probe_shared_len checked 11488ms check-target:macos_arm64 @a9ae30e1c334+wt
+run/borrows/proved_window_index_replacement checked 6088ms check-target:macos_arm64 @c4d3eedf9f1d+wt
 run/borrows/qualified_owner_views checked 5319ms check-target:macos_arm64 @5797c45a64c3+wt
 run/borrows/recast_mut_borrow checked 11805ms check-target:macos_arm64 @a9ae30e1c334+wt
 run/borrows/reference_local_binding_routes checked 11261ms check-target:macos_arm64 @a9ae30e1c334+wt

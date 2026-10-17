@@ -375,23 +375,18 @@ fn append_data_expression_place(
     }
 }
 
-/// An index expression's place segment: a constant index becomes a fixed
-/// slot, anything else keeps the expression.
+/// An index expression's place segment. A selector fixed to one ordinal,
+/// including a proved equality and not only a literal, becomes that slot.
 fn push_index_place_segment(
     program: &dyn crate::CheckingInput,
     facts: &mut FactPlan,
     indexed: &typed_trees::expression::TableIndexedExpression,
     place: PlaceHandle,
 ) {
-    let segment = program
-        .expression_table
-        .constant_integer_value(indexed.index)
-        .and_then(|value| usize::try_from(value).ok())
-        .map(|index| facts::PlaceSegment::FixedIndex { index })
-        .unwrap_or(facts::PlaceSegment::Index {
-            expression: indexed.index,
-        });
-    facts.push_place_segment(place, segment);
+    facts.push_place_segment(
+        place,
+        crate::value_custody::places::element_place_segment(program, indexed.index),
+    );
 }
 
 /// Push the resolved member's case-variant (when payload-carried) and field

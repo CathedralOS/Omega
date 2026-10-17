@@ -11,6 +11,7 @@ omega run --both samples/cli/collections/rotating_scan_windows/main.omg
 ```
 
 The helper uses a fixed element of a runtime-length view. Its checked bound
-comes from the view's own extent, not its caller's fixed-array type. Runtime
-selection of the replacement destination remains a separate compiler frontier;
-this program makes no concurrency or allocator claim.
+comes from the view's own extent, not its caller's fixed-array type. A selector
+proved equal to one element replaces that slot; an unknown selector still
+overlaps every element and cannot retire one backing. This program makes no
+concurrency or allocator claim.
