@@ -670,7 +670,9 @@ pub(super) fn byte_argument(
             }
         };
         (*structural_type, source)
-    } else if live.block_views.contains(&argument.place) {
+    } else if live.block_views.contains(&argument.place)
+        || live.owned_arrivals.contains(&argument.place)
+    {
         let (entry, parameter) = function
             .block_entries
             .iter()
@@ -683,7 +685,10 @@ pub(super) fn byte_argument(
         // The root's own access authorizes the argument, exactly as an
         // incoming machine parameter does: an exclusive block parameter
         // lends shared, exclusive or write-only, a shared one only shared.
-        let allowed = match parameter.access {
+        let access =
+            terminal_semantics::descriptor_parameter_access(parameter, types.values().copied())
+                .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
+        let allowed = match access {
             StructuralAccess::MutableBorrow => argument.access != StructuralAccess::Owned,
             StructuralAccess::SharedBorrow => argument.access == StructuralAccess::SharedBorrow,
             StructuralAccess::WriteOnlyBorrow => {
@@ -691,8 +696,22 @@ pub(super) fn byte_argument(
             }
             StructuralAccess::Owned => false,
         };
-        if !allowed {
-            return Err(LoweringError::unsupported_control_flow(function.machine));
+        let owned_transfer = argument.access == StructuralAccess::Owned
+            && parameter.access == StructuralAccess::Owned
+            && parameter.multiplicity == declaration.multiplicity
+            && terminal_semantics::descriptor_value_transfer_matches(
+                types.values().copied(),
+                parameter.structural_type,
+                declaration.structural_type,
+                parameter.multiplicity,
+            );
+        if !allowed && !owned_transfer {
+            return Err(LoweringError::StructuralStateBindingMismatch {
+                machine: function.machine,
+                reason: format!(
+                    "descriptor argument={argument:?}; source={parameter:?}; destination={declaration:?}",
+                ),
+            });
         }
         (
             parameter.structural_type,

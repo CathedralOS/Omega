@@ -30,8 +30,8 @@ impl Emission<'_, '_, '_> {
                 &source.path,
             );
         terminal_semantics::present_structural_memberships(
-            self.structural_types,
-            self.domain_declarations,
+            self.structural_types.iter(),
+            self.domain_declarations.iter(),
             structural_type,
             &mut qualifications,
             &mut projected_qualifications,

@@ -101,27 +101,27 @@ fn view_access_with_budget(
                     position: parameter.position,
                 },
             );
+            let access = terminal_semantics::descriptor_parameter_access(
+                parameter,
+                signature.structural_types.iter(),
+            )?;
             if parameters.next().is_some()
                 || declaration.kind != expected_kind
                 || expected_type.is_some_and(|identity| {
                     !same_descriptor_presentation(function, parameter.structural_type, identity)
                 })
-                || !terminal_semantics::view_descriptor_parameter(
-                    parameter,
-                    signature.structural_types.iter(),
-                )
                 || (!parameter.qualifications.is_empty()
-                    && !(parameter.access == A::SharedBorrow
+                    && !(access == A::SharedBorrow
                         && signature.structural_types.iter().any(|row| {
                             row.id == parameter.structural_type
                                 && row.shape.is_borrowed_byte_carrier()
                         })))
-                || (copied_whole && parameter.access != A::SharedBorrow)
-                || !supplies(parameter.access, required)
+                || (copied_whole && access != A::SharedBorrow)
+                || !supplies(access, required)
             {
                 return None;
             }
-            return Some(initial.unwrap_or(parameter.access));
+            return Some(initial.unwrap_or(access));
         }
         if let StructuralPlaceKind::ByteSequenceLiteral {
             structural_type, ..

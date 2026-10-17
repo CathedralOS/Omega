@@ -68,6 +68,31 @@ pub fn view_descriptor_parameter<'types>(
             ))
 }
 
+/// Backing access retained by a live descriptor arrival. Owning the descriptor
+/// storage does not own its referent; its type and multiplicity retain that
+/// permission. This query grants neither storage ownership nor availability.
+pub fn descriptor_parameter_access<'types>(
+    parameter: &StructuralParameterDeclaration,
+    declarations: impl Iterator<Item = &'types terminal_psi::StructuralTypeDeclaration> + Clone,
+) -> Option<terminal_psi::StructuralAccess> {
+    if parameter.access == terminal_psi::StructuralAccess::Owned {
+        if !view_descriptor_projected_qualifications(
+            declarations.clone(),
+            parameter.structural_type,
+            &parameter.projected_qualifications,
+        ) {
+            return None;
+        }
+        crate::descriptor_results::descriptor_value_access(
+            declarations,
+            parameter.structural_type,
+            parameter.multiplicity,
+        )
+    } else {
+        view_descriptor_parameter(parameter, declarations).then_some(parameter.access)
+    }
+}
+
 /// The parameter declaration a structural place arrives as: the machine's own
 /// parameter at its declared position, or a block parameter in the block that
 /// declares it. Both are storage an operation addresses in place, unlike an

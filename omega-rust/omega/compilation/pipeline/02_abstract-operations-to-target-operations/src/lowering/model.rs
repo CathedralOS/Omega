@@ -169,6 +169,10 @@ pub enum LoweringError {
         callee: MachineId,
         place: PlaceId,
     },
+    StructuralStateBindingMismatch {
+        machine: semantic_vocabulary::MachineId,
+        reason: String,
+    },
     DescriptorStateBindingMismatch {
         machine: MachineId,
         source: PlaceId,

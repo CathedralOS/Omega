@@ -315,7 +315,11 @@ pub(super) fn validate_borrowed_argument(
     // declared type keeps its carrier. The source arm below rejoins that block
     // parameter's declared access, type and position.
     let block_forward = semantic.path.is_empty()
-        && target.root_structural_type == target.structural_type
+        && terminal_semantics::borrowed_referent_presentation(
+            signature.structural_types.iter(),
+            target.root_structural_type,
+            target.structural_type,
+        ) == Some(terminal_semantics::BorrowedReferentPresentation::Unchanged)
         && target.source_byte_offset == 0
         && indices.is_empty()
         && matches!(
@@ -427,6 +431,7 @@ pub(super) fn validate_borrowed_argument(
     // The checks below still reconstruct every incoming/outgoing placement,
     // referent, projection, and access mode independently.
     let no_indirect_home = !exclusive
+        && !block_forward
         && address_join.is_none()
         && aggregate.is_none()
         && byte_view.is_none()

@@ -40,6 +40,26 @@ pub fn shared_descriptor_copy_matches<'types>(
             == Some(StructuralAccess::SharedBorrow)
 }
 
+/// Re-home one owned descriptor value without changing its effective access.
+/// The caller separately authenticates storage ownership, multiplicity, live
+/// loans and memberships. Equal geometry alone cannot widen its permission.
+pub fn descriptor_value_transfer_matches<'types>(
+    types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+    source: StructuralTypeId,
+    destination: StructuralTypeId,
+    multiplicity: terminal_psi::StructuralMultiplicity,
+) -> bool {
+    let Some(source_access) =
+        crate::descriptor_results::descriptor_value_access(types.clone(), source, multiplicity)
+    else {
+        return false;
+    };
+    crate::descriptor_results::descriptor_value_access(types.clone(), destination, multiplicity)
+        == Some(source_access)
+        && crate::borrowed_referent_presentation(types, source, destination)
+            == Some(crate::BorrowedReferentPresentation::Unchanged)
+}
+
 /// Reborrowing preserves element geometry while the result occurrence and
 /// stored carrier each constrain access. Canonical and stored descriptors may
 /// have different type identities without denoting different backing shapes.

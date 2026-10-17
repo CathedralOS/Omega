@@ -116,26 +116,37 @@ pub(super) fn block_location(
         .flat_map(|entry| &entry.structural_parameters)
         .filter(|parameter| parameter.place == place);
     let parameter = declarations.next().ok_or_else(invalid)?;
+    let signature = selected.structural.as_ref().ok_or_else(invalid)?;
+    let access = terminal_semantics::descriptor_parameter_access(
+        parameter,
+        signature.structural_types.iter(),
+    )
+    .ok_or_else(invalid)?;
+    let owned_transfer = argument.access == StructuralAccess::Owned
+        && parameter.access == StructuralAccess::Owned
+        && terminal_semantics::descriptor_value_transfer_matches(
+            signature.structural_types.iter(),
+            parameter.structural_type,
+            argument.structural_type,
+            parameter.multiplicity,
+        );
     // The arrival is the argument's root: a whole forward or an element loan
     // (`local_location` checks which).
     if declarations.next().is_some()
         || place != argument.place
         || parameter.structural_type != argument.root_structural_type
-        || !matches!(
-            (parameter.access, argument.access),
+        || !(owned_transfer || matches!(
+            (access, argument.access),
             (
                 StructuralAccess::SharedBorrow,
                 StructuralAccess::SharedBorrow
             ) | (
                 StructuralAccess::MutableBorrow,terminal_psi::reading_borrow_pair_pattern!())
-        )
-        || !selected.structural.as_ref().is_some_and(|signature| {
-            terminal_semantics::view_descriptor_parameter(parameter, signature.structural_types.iter())
-        })
+        ))
         // A shared loan's qualifications describe the bytes it freezes and
         // add no carrier; an exclusive qualified loan keeps the refusal.
         || !(parameter.qualifications.is_empty()
-            || parameter.access == StructuralAccess::SharedBorrow)
+            || access == StructuralAccess::SharedBorrow)
     {
         return Err(invalid());
     }

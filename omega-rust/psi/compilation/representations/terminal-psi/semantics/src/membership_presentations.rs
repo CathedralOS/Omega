@@ -10,27 +10,27 @@ use terminal_psi::{
     StructuralDomainDeclaration, StructuralPathQualification, StructuralTypeDeclaration,
 };
 
-pub fn present_structural_memberships(
-    types: &[StructuralTypeDeclaration],
-    domains: &[StructuralDomainDeclaration],
+pub fn present_structural_memberships<'types, 'domains>(
+    types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+    domains: impl Iterator<Item = &'domains StructuralDomainDeclaration> + Clone,
     destination: StructuralTypeId,
     whole: &mut Vec<StructuralDomainId>,
     projected: &mut Vec<StructuralPathQualification>,
 ) -> Result<(), &'static str> {
     let present = |domain: StructuralDomainId, carrier: StructuralTypeId| {
         let source = domains
-            .iter()
+            .clone()
             .find(|row| row.id == domain)
             .ok_or("membership presentation has no source domain")?;
         if source.carrier == carrier {
             return Ok(domain);
         }
-        if crate::borrowed_referent_presentation(types.iter(), source.carrier, carrier)
+        if crate::borrowed_referent_presentation(types.clone(), source.carrier, carrier)
             != Some(crate::BorrowedReferentPresentation::Unchanged)
         {
             return Err("membership presentation changes its observed carrier");
         }
-        let mut matches = domains.iter().filter(|row| {
+        let mut matches = domains.clone().filter(|row| {
             row.carrier == carrier
                 && row.semantic_domain == source.semantic_domain
                 && row.predicate == source.predicate
@@ -50,7 +50,7 @@ pub fn present_structural_memberships(
         *domain = present(*domain, destination)?;
     }
     for row in projected.iter_mut() {
-        let carrier = crate::qualification_path_carrier(types.iter(), destination, &row.path)
+        let carrier = crate::qualification_path_carrier(types.clone(), destination, &row.path)
             .ok_or("membership presentation has no destination path carrier")?;
         row.domain = present(row.domain, carrier)?;
     }

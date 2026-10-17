@@ -6,7 +6,7 @@ use legalized_operations::{
 };
 use semantic_vocabulary::{OperationId, PlaceId, StructuralPlaceKind};
 use target_operations::{TargetStructuralArgument, TargetStructuralArgumentSource};
-use terminal_psi::{StructuralMultiplicity, StructuralTypeShape};
+use terminal_psi::StructuralTypeShape;
 
 mod access;
 pub(super) use access::view_access;
@@ -122,24 +122,10 @@ fn declared_view_type(
     if let Some(parameter) = parameter {
         // Qualification does not change descriptor geometry. Mutable stores
         // retain their separately checked membership-preservation obligations.
-        if !matches!(
-            parameter.access,
-            terminal_psi::StructuralAccess::Owned
-                | terminal_psi::StructuralAccess::SharedBorrow
-                | terminal_psi::StructuralAccess::MutableBorrow
-        ) || (parameter.multiplicity != StructuralMultiplicity::Unrestricted
-            && !terminal_semantics::view_descriptor_parameter(
-                parameter,
-                signature.structural_types.iter(),
-            ))
-            || !terminal_semantics::view_descriptor_projected_qualifications(
-                signature.structural_types.iter(),
-                parameter.structural_type,
-                &parameter.projected_qualifications,
-            )
-        {
-            return None;
-        }
+        terminal_semantics::descriptor_parameter_access(
+            parameter,
+            signature.structural_types.iter(),
+        )?;
         return Some(parameter.structural_type);
     }
     source.instructions().find_map(|row| {
@@ -168,22 +154,22 @@ pub(super) fn accepts(
         let owner = source.block(block)?;
         let parameter = owner.structural_parameter(place)?;
         let signature = source.structural.as_ref()?;
+        let access = terminal_semantics::descriptor_parameter_access(
+            parameter,
+            signature.structural_types.iter(),
+        )?;
         // The arrival is the loan's root: a whole forward selects it, and a
         // projected element loan's geometry was rejoined by its caller.
         return (place == target.place
             && parameter.structural_type == target.root_structural_type
             && matches!(
-                parameter.access,
+                access,
                 terminal_psi::StructuralAccess::SharedBorrow
                     | terminal_psi::StructuralAccess::MutableBorrow
             )
-            && (target.access == parameter.access
+            && (target.access == access
                 || target.access == terminal_psi::StructuralAccess::SharedBorrow
-                    && parameter.access == terminal_psi::StructuralAccess::MutableBorrow)
-            && terminal_semantics::view_descriptor_parameter(
-                parameter,
-                signature.structural_types.iter(),
-            )
+                    && access == terminal_psi::StructuralAccess::MutableBorrow)
             && terminal_semantics::view_descriptor_projected_qualifications(
                 signature.structural_types.iter(),
                 parameter.structural_type,

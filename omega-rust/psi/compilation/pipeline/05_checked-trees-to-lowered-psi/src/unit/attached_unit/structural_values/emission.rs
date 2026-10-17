@@ -2352,8 +2352,8 @@ impl Emission<'_, '_, '_> {
             })
             .unwrap_or_default();
         terminal_semantics::present_structural_memberships(
-            self.structural_types,
-            self.domain_declarations,
+            self.structural_types.iter(),
+            self.domain_declarations.iter(),
             self.structural_type,
             &mut qualifications,
             &mut projected_qualifications,

@@ -97,8 +97,8 @@ mod zero_valid_storage;
 mod zeroed_structural;
 
 pub use arrival_storage::{
-    StorageNames, arrival_parameter, root_before_edge, storage_names, view_descriptor_parameter,
-    view_descriptor_projected_qualifications,
+    StorageNames, arrival_parameter, descriptor_parameter_access, root_before_edge, storage_names,
+    view_descriptor_parameter, view_descriptor_projected_qualifications,
 };
 pub use byte_carriers::{ByteCarrierLayout, ByteCarrierScalarLeaf, byte_carrier_scalar_layout};
 pub use byte_sequence_concatenation::{
@@ -159,7 +159,8 @@ pub use record_field::{
 };
 pub use reference_views::{
     descriptor_reborrow_matches, descriptor_source_projection_accessible,
-    is_shared_reference_carrier, reference_byte_field_compatible, reference_source_compatible,
+    descriptor_value_transfer_matches, is_shared_reference_carrier,
+    reference_byte_field_compatible, reference_source_compatible,
     reference_source_projection_accessible, reference_source_projection_compatible,
     reference_source_storage_path, reference_storage_byte_width,
     reference_storage_export_byte_width, reference_storage_source_compatible,

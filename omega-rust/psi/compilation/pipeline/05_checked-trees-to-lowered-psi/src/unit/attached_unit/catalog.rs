@@ -1199,8 +1199,9 @@ pub(super) fn lower_unit_structural_domains(
             })
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
-    let declarations = selected_plans
-        .into_iter()
+    let mut declarations = selected_plans
+        .iter()
+        .copied()
         .map(|plan| {
             let content_projection = content_conservation::lower_structural_content_projection(
                 checked,
@@ -1279,6 +1280,52 @@ pub(super) fn lower_unit_structural_domains(
             })
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
+    // A storage descriptor and its canonical value presentation can have
+    // distinct type identities with unchanged observed contents. Register the
+    // same domain theory on each reachable presentation; this declaration
+    // grants no membership, access, custody or lifetime to a value.
+    for plan in selected_plans {
+        let source_carrier = lookup_type_id(type_ids, &plan.carrier_type_identity)?;
+        let source_domain = lookup_domain_id_for_carrier(&domain_ids, plan.domain, source_carrier)?;
+        let source = declarations
+            .iter()
+            .find(|declaration| declaration.id == source_domain)
+            .ok_or(LoweringError::Unsupported(
+                "domain presentation has no source theory",
+            ))?
+            .clone();
+        for (identity, carrier) in type_ids {
+            if domain_ids.iter().any(|binding| {
+                binding.semantic_domain == plan.domain && binding.carrier == *carrier
+            }) || terminal_semantics::borrowed_referent_presentation(
+                structural_types.iter(),
+                source_carrier,
+                *carrier,
+            ) != Some(terminal_semantics::BorrowedReferentPresentation::Unchanged)
+            {
+                continue;
+            }
+            let id = structural_domain_id(dense_identity(declarations.len())?);
+            let mut declaration = source.clone();
+            declaration.id = id;
+            declaration.carrier = *carrier;
+            declaration.identity = identities.intern(&structural_domain_identity(
+                &plan.name,
+                &checked
+                    .type_identity_text(*identity)
+                    .ok_or(LoweringError::Unsupported(
+                        "domain presentation has no carrier identity",
+                    ))?,
+            ));
+            domain_ids.push(StructuralDomainBinding {
+                semantic_domain: plan.domain,
+                carrier: *carrier,
+                domain: id,
+                byte_predicate: None,
+            });
+            declarations.push(declaration);
+        }
+    }
     for (binding, declaration) in domain_ids.iter_mut().zip(&declarations) {
         binding.byte_predicate = if declaration.content_projection.is_none()
             && declaration.establishment_routes.is_empty()

@@ -582,14 +582,30 @@ impl TerminalExecution<'_> {
             }
             _ => return Ok(None),
         };
+        let selected =
+            self.resolve_live_projection(argument.place, &argument.path, argument.access)?;
+        if self.present_owned_descriptor(
+            selected.clone(),
+            parameter.structural_type,
+            parameter.multiplicity,
+        )? != *resolved
+        {
+            return Err(malformed());
+        }
         let owned_source = self
             .owned_block_source(argument.place)
             .is_some_and(|source| {
                 source.access == StructuralAccess::Owned
-                    && source.structural_type == parameter.structural_type
+                    && source.structural_type == selected.structural_type
                     && source.multiplicity == parameter.multiplicity
             })
-            || self.owned_result_matches(argument.place, parameter);
+            || self.owned_result_matches(
+                argument.place,
+                &terminal_psi::StructuralParameterDeclaration {
+                    structural_type: selected.structural_type,
+                    ..parameter.clone()
+                },
+            );
         if argument.access != StructuralAccess::Owned
             || !argument.path.is_empty()
             || parameter.structural_type != resolved.structural_type
@@ -598,7 +614,7 @@ impl TerminalExecution<'_> {
         {
             return Err(malformed());
         }
-        let binding = self.byte_descriptor_binding(argument, resolved)?;
+        let binding = self.byte_descriptor_binding(argument, &selected)?;
         let permission_matches = match &binding {
             ByteSequenceBinding::Immutable(bytes) => {
                 // Copying an unrestricted shared descriptor neither owns nor
@@ -625,11 +641,14 @@ impl TerminalExecution<'_> {
                     && resolved.qualifications.is_empty()
             }
         };
-        let length = self.byte_descriptor_length(&binding, resolved)?;
+        let length = self.byte_descriptor_length(&binding, &selected)?;
         if !permission_matches || capacity.is_some_and(|capacity| length != capacity) {
             return Err(malformed());
         }
-        Ok(Some((resolved.clone(), binding)))
+        Ok(Some((
+            resolved.clone(),
+            binding.with_descriptor_home(resolved.clone()),
+        )))
     }
 
     pub(crate) fn prepare_byte_descriptor_argument(

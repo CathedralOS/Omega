@@ -482,6 +482,12 @@ pub(super) fn validate_successors(
                     || !argument_type.is_some_and(|actual| {
                         if parameter.access == terminal_psi::StructuralAccess::Owned {
                             actual == parameter.structural_type
+                                || terminal_semantics::descriptor_value_transfer_matches(
+                                    structural_types.values().copied(),
+                                    actual,
+                                    parameter.structural_type,
+                                    parameter.multiplicity,
+                                )
                         } else {
                             terminal_semantics::borrowed_referent_matches(
                                 structural_types.values().copied(),
@@ -509,7 +515,13 @@ pub(super) fn validate_successors(
                             | terminal_psi::StructuralAccess::Owned
                     )
                 {
-                    return Err(LoweringError::unsupported_control_flow(function.machine));
+                    return Err(LoweringError::StructuralStateBindingMismatch {
+                        machine: function.machine,
+                        reason: format!(
+                            "binding={binding:?}; parameter={parameter:?}; source_type={source_type:?}; argument_type={argument_type:?}; source_storage_contract={source_storage_contract:?}; leaf_copy_owned_contract={:?}; crosses_loan_leaf={crosses_loan_leaf}",
+                            leaf_copy_owned_contract(),
+                        ),
+                    });
                 }
             }
             // Every source is read from the predecessor environment. Destination

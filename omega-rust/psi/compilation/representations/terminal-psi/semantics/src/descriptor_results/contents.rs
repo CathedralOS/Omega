@@ -248,8 +248,8 @@ impl PayloadMembershipContract {
             return None;
         }
         crate::present_structural_memberships(
-            types,
-            domains,
+            types.iter(),
+            domains.iter(),
             destination,
             &mut self.qualifications,
             &mut self.projected_qualifications,

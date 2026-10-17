@@ -516,13 +516,8 @@ fn view_argument(
             .map(|parameter| (block, parameter))
     }) {
         if block.id == caller.entry
-            || parameter.access != access
-            || !terminal_semantics::view_descriptor_parameter(parameter, structural_types.iter())
-            || !terminal_semantics::view_descriptor_projected_qualifications(
-                structural_types.iter(),
-                parameter.structural_type,
-                &parameter.projected_qualifications,
-            )
+            || terminal_semantics::descriptor_parameter_access(parameter, structural_types.iter())
+                != Some(access)
         {
             return Err(LegalizationError::custody());
         }
@@ -547,8 +542,8 @@ fn view_argument(
             .find(|parameter| parameter.place == semantic.place)
             .ok_or(LegalizationError::custody())?;
         if semantic.place != source.place
-            || source.access != access
-            || !terminal_semantics::view_descriptor_parameter(source, structural_types.iter())
+            || terminal_semantics::descriptor_parameter_access(source, structural_types.iter())
+                != Some(access)
             || !terminal_semantics::view_descriptor_projected_qualifications(
                 structural_types.iter(),
                 source.structural_type,

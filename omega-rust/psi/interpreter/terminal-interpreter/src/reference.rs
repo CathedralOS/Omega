@@ -922,6 +922,37 @@ impl TerminalExecution<'_> {
         Ok((value, backing))
     }
 
+    /// Re-home descriptor words under an equivalent carrier while retaining
+    /// the exact runtime occurrence and its existing semantic theories.
+    pub(crate) fn present_owned_descriptor(
+        &self,
+        mut value: TerminalStructuralValue,
+        expected: StructuralTypeId,
+        multiplicity: terminal_psi::StructuralMultiplicity,
+    ) -> Result<TerminalStructuralValue, TerminalInterpretError> {
+        if value.structural_type == expected {
+            return Ok(value);
+        }
+        if !terminal_semantics::descriptor_value_transfer_matches(
+            self.program.structural_types().values(),
+            value.structural_type,
+            expected,
+            multiplicity,
+        ) {
+            return Err(malformed());
+        }
+        terminal_semantics::present_structural_memberships(
+            self.program.structural_types().values(),
+            self.program.catalogs.structural_domains.iter(),
+            expected,
+            &mut value.qualifications,
+            &mut value.projected_qualifications,
+        )
+        .map_err(|reason| malformed().in_argument_preparation(reason))?;
+        value.structural_type = expected;
+        Ok(value)
+    }
+
     /// The receiving declaration selects a loan presentation, not its backing.
     /// Keep an exact restricted referee exact; a bare scalar formal presents
     /// only the carrier while Psi owns the original field's handback predicate.

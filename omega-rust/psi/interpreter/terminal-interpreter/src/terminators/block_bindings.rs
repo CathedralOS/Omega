@@ -475,9 +475,11 @@ impl TerminalExecution<'_> {
                             &self.structural_values,
                             argument,
                         )?;
-                        if selected.structural_type != parameter.structural_type {
-                            return Err(malformed());
-                        }
+                        let selected = self.present_owned_descriptor(
+                            selected,
+                            parameter.structural_type,
+                            parameter.multiplicity,
+                        )?;
                         let source_matches =
                             self.owned_block_source(argument.place)
                                 .is_some_and(|source| {
