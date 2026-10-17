@@ -16,6 +16,11 @@
 //! an unreachable member must not lose its conformance at this boundary.
 //! Omega projects these exact callable IDs onto an execution scope before
 //! installing providers; family membership itself grants no installation.
+//! Named implementation rows alone supply selectable provider identities. A
+//! realization's exact satisfaction edge proves its contract, but its qualifier
+//! (a namespace or data declaration) is not another provider. Inferring that
+//! extra candidate used to reject namespace-qualified realizations and invented
+//! data-owned candidates beside otherwise valid named maps.
 
 use super::bodies::UnitPlans;
 use super::operation_frame::BoundaryParameters;
@@ -25,7 +30,7 @@ use super::{
     ProviderSignature, ProviderSignatureParameter, TerminalMachine, UnitBody, lookup_machine_id,
     unique_unit_boundary, unsupported,
 };
-use checked_trees::machine::{Machine, TraitConformance};
+use checked_trees::machine::Machine;
 
 mod named;
 mod selection_coordinates;
@@ -54,95 +59,6 @@ enum CatalogRequirement<'a> {
     },
     TopLevel(&'a checked_trees::machine::Machine),
     Operator(&'a typed_trees::operator::OperatorDefinition),
-}
-
-/// A closed requirement keeps its authored conformance coordinate on the
-/// provider. Join through the closed application checking selected, never
-/// through equal runtime signatures: two const tuples may have identical
-/// layouts and still name different boundary obligations.
-fn satisfies_requirement(
-    checked: &CheckedTrees,
-    machine: &Machine,
-    conformance: &TraitConformance,
-    requirement: CatalogRequirement<'_>,
-) -> bool {
-    if conformance.external_binding.is_some() {
-        return false;
-    }
-    let requirement = match requirement {
-        CatalogRequirement::Trait {
-            definition,
-            signature,
-        } => {
-            if let Some(application) = checked
-                .typed
-                .closed_requirement_application(signature.symbol)
-            {
-                let scope =
-                    typed_trees::trait_definition::AppliedTraitScope::from_machine_conformance(
-                        &checked.typed,
-                        machine,
-                        conformance,
-                    );
-                return conformance.requirement_symbol == application.template
-                    && scope.is_some_and(|scope| {
-                        checked
-                            .typed
-                            .requirement_application_matches_scope(signature.symbol, &scope)
-                    })
-                    && checked
-                        .facts
-                        .provider_closed_requirements
-                        .iter()
-                        .any(|row| {
-                            row.provider == machine.symbol
-                                && row.selecting_declaration == machine.symbol
-                                && row.template == application.template
-                                && row.closed_requirement == signature.symbol
-                                && row.receiving_application
-                                    == application.trait_application_identity
-                        });
-            }
-            return conformance.symbol == definition.symbol
-                && if conformance.requirement_symbol.is_valid() {
-                    conformance.requirement_symbol == signature.symbol
-                } else {
-                    conformance
-                        .requirement
-                        .as_ref()
-                        .is_some_and(|name| name == &signature.name)
-                };
-        }
-        CatalogRequirement::Operator(operator) => {
-            // The settled satisfaction edge is mandatory. Equal signatures
-            // or names from another package cannot donate a candidate.
-            return conformance.requirement_symbol == operator.symbol
-                && typed_trees::operator::resolve_satisfied_boundary_operator_for_conformance(
-                    &checked.typed,
-                    machine,
-                    conformance,
-                )
-                .is_some_and(|resolved| resolved.symbol == operator.symbol);
-        }
-        CatalogRequirement::TopLevel(requirement) => requirement,
-    };
-    if conformance.symbol == requirement.symbol
-        && conformance.requirement_symbol == requirement.symbol
-    {
-        return true;
-    }
-    // A conformance naming a generic template satisfies the closed instance
-    // its specialization receipt selected.
-    checked
-        .facts
-        .provider_closed_requirements
-        .iter()
-        .any(|row| {
-            row.provider == machine.symbol
-                && row.selecting_declaration == machine.symbol
-                && row.template == conformance.symbol
-                && row.closed_requirement == requirement.symbol
-        })
 }
 
 pub(super) fn checked_unit_provider_candidates(
@@ -271,22 +187,7 @@ pub(super) fn checked_unit_provider_candidates(
         for machine in checked.typed.machines().iter().filter(|machine| {
             machine.supply_mode == language_semantics::MachineSupplyMode::CheckedBody
         }) {
-            let mut providers = named::provider_identities(checked, machine, requirement)?;
-            if machine.attached_data.is_some() {
-                for conformance in checked.typed.machine_trait_conformances(machine) {
-                    if satisfies_requirement(checked, machine, conformance, requirement) {
-                        providers.push((
-                            machine.attached_data_symbol,
-                            checked.typed.attached_data_path(machine).ok_or(
-                                LoweringError::Unsupported(
-                                    "provider candidate has no attached data path",
-                                ),
-                            )?,
-                        ));
-                        break;
-                    }
-                }
-            }
+            let providers = named::provider_identities(checked, machine, requirement)?;
             if providers.is_empty() {
                 continue;
             }

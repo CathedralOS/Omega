@@ -853,9 +853,11 @@ impl<'program> StructuralJudge<'program> {
                         machine,
                         arguments,
                     };
-                    // Runtime prefix transport owns captured occurrences,
-                    // not equations over a replayable application denotation.
-                    if !self.resolve_applications {
+                    // Case-only reasoning keeps application subjects opaque.
+                    // Runtime reasoning instead captures executed calls before
+                    // term formation; the applications retained in contracts
+                    // still denote mathematical values and must normalize.
+                    if !self.resolve_applications && !self.runtime_body_values {
                         return resolved;
                     }
                     if self.require_closed_computation {
@@ -931,7 +933,7 @@ impl<'program> StructuralJudge<'program> {
                         field_name,
                         arguments,
                     };
-                    if !self.resolve_applications {
+                    if !self.resolve_applications && !self.runtime_body_values {
                         return resolved;
                     }
                     let StructuralTerm::CallProjection {
@@ -2042,6 +2044,19 @@ impl<'program> StructuralJudge<'program> {
         program: &dyn crate::CheckingInput,
         fact: ExpressionHandle,
     ) -> StructuralJudgment {
+        if self.requires_value_preservation() {
+            let mut expressions = Vec::new();
+            crate::expression_traversal::collect_expression_tree(program, fact, &mut expressions);
+            if expressions
+                .iter()
+                .any(|expression| self.storage_observation_invalidated(*expression))
+            {
+                // Entry equations describe the old contents. A source-level
+                // exit predicate cannot reinterpret them after a write;
+                // captured return values remain independent observations.
+                return StructuralJudgment::Unknown;
+            }
+        }
         if self.case_facts_only && !super::call_requirements::case_fact_only(program, fact) {
             return StructuralJudgment::Unknown;
         }

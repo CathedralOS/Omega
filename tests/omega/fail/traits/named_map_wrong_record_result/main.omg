@@ -1,0 +1,10 @@
+pub data Status [copy] { code: u64; }
+pub boundary trait Reports {
+    machine status() -> Status ensures result.code == 7;
+}
+pub WrongReports satisfies Reports {
+    machine status() -> Status ensures result.code == 8; {
+        Status { code: 8 }
+    }
+}
+machine main() { }

@@ -1,0 +1,26 @@
+// Expected exit: 0. Result projections remain functional postconditions,
+// including nested fields, rather than becoming universal trait laws.
+pub data Status [copy] { code: u64; }
+pub data Packet [copy] { status: Status; }
+pub boundary trait Reports {
+    machine status() -> Status ensures result.code == 7;
+    machine packet() -> Packet ensures result.status.code == 11;
+}
+pub CheckedReports satisfies Reports {
+    machine status() -> Status ensures result.code == 7; {
+        Status { code: 7 }
+    }
+    machine packet() -> Packet ensures result.status.code == 11; {
+        Packet { status: Status { code: 11 } }
+    }
+}
+machine main() reaches Reports invokes Reports; crashes Trap {
+    let direct: Status = Reports::status();
+    let nested: Packet = Reports::packet();
+    transition direct.code == 7 && nested.status.code == 11 {
+        true -> done()
+        false -> wrong()
+    }
+    state done() { }
+    state wrong() { crash Trap; }
+}

@@ -1,0 +1,15 @@
+// A portable family's empty interface must not hide a member's call back to
+// the machine whose postcondition is being established.
+machine forwarded() -> u64 ensures result == 7; {
+    selected()
+}
+
+windows_x86_64 machine selected() -> u64 ensures result == 7; {
+    7
+}
+
+reserved_target machine selected() -> u64 ensures result == 7; {
+    forwarded()
+}
+
+machine main() { }

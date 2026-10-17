@@ -1,0 +1,4 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "target_family_unshared_result");
+    Build::select_provider<Reports, ForwardedReports>(builder);
+}

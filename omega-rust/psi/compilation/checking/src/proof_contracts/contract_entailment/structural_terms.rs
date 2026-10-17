@@ -614,7 +614,15 @@ pub(super) fn structural_term(
                         member.receiver,
                     )
                 })
-            };
+            }
+            .or_else(|| {
+                // Declaration-wide conformance checks have no invocation
+                // frame. The reserved result still has an exact authored
+                // owner; recover its carrier rather than losing a functional
+                // postcondition's projections to opaque display text.
+                crate::reserved_result_place(program, member.receiver)
+                    .map(|place| place.type_reference)
+            });
             let declared_field = receiver_type
                 .and_then(|reference| {
                     let data =

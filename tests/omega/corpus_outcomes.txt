@@ -1941,6 +1941,9 @@ fail/contracts/negated_edge_guard_unproven_bound rejected 1542ms expected @a9ae3
 	cannot prove requires contract for call check from main: v < 50 (needs fact `v < 50` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/contracts/nested_array_boolean_requires rejected 1551ms expected @a9ae30e1c334+wt
 	cannot prove requires contract for call consume from main: input.leaves[1].ready (needs fact `input.leaves[1].ready` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/contracts/normal_return_written_premise rejected 9914ms expected @46f9e865d179+wt
+	cannot prove ensures contract for exit from wrong at statement 1: result.code == 7 && counter.value != 0
+	cannot prove ensures contract for exit from wrong_operand at statement 1: result.code == 7 && counter.value != 0
 fail/contracts/observed_borrowed_scalar_bound rejected 624ms expected @7e164e32caf5+wt
 	cannot prove requires contract for call bounded from receive: count <= buffer.len (needs fact `count <= buffer.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/contracts/projected_result_guarantee_after_overwrite rejected 1583ms expected @a9ae30e1c334+wt
@@ -1985,6 +1988,10 @@ fail/contracts/shift_result_negative_wrapping_count rejected 444ms expected @f70
 fail/contracts/shift_result_wrong_count rejected 445ms expected @f70cef10b430
 fail/contracts/state_write_retires_overlapping_guard_conjunct rejected 613ms expected @a036414cf2c9
 	cannot prove requires contract for call pop from Main::main: main.b.count >= 1 && main.b.count <= 4 (needs fact `stack.count >= 1 && stack.count <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `second`
+fail/contracts/target_family_recursive_guarantee rejected 9778ms expected @46f9e865d179+wt
+	cannot prove ensures contract for exit from forwarded at statement 1: result == 7
+fail/contracts/target_family_unshared_result rejected 35723ms expected @46f9e865d179+wt
+	cannot prove ensures contract for exit from ForwardedReports::status at statement 1: result.code == 7
 fail/contracts/target_named_fact_preserved rejected 157ms expected @eca66ed24a79+wt
 	machine `probe` state `entry` value call to `offset` violates required fact `macos_arm64 >= 0`: the instantiated fact is structurally false (`-1 >= 0`)
 fail/contracts/undischarged_contract_entailment rejected 1869ms expected @1f63ee648905+wt
@@ -5555,6 +5562,8 @@ fail/traits/named_const_as_field_type rejected 435ms expected @f3014db3f225+wt
 	data `Wrong` field `value` references unknown data type `Upper`
 fail/traits/named_const_in_type_slot rejected 1148ms expected @f3014db3f225+wt
 	conformance `Wrong satisfies Container` parameter `Value` references unknown data type `Upper`
+fail/traits/named_map_wrong_record_result rejected 25131ms expected @46f9e865d179+wt
+	machine `WrongReports::status` realizes `Reports::status` but does not guarantee its `ensures result.code == 7`; callers of the requirement assume it
 fail/traits/nested_trait_callback_unknown_type_rejected rejected 860ms expected @a9ae30e1c334+wt
 	machine-parameter requirement `Callback` state `Callback` parameter `value` references unknown data type `Missing`
 fail/traits/nominal_invocation_type_argument_not_reselected rejected 723ms expected @a9ae30e1c334+wt
@@ -7389,6 +7398,7 @@ pass/float/runtime_float_predicate_domain_exit checked 15064ms check-target:maco
 pass/float/runtime_format_conversion_result_bounds_exit checked 24869ms check-target:macos_arm64 @9c4d1c444502
 pass/float/runtime_generic_constructor_literal_landing_exit checked 14705ms check-target:macos_arm64 @1b12798e27f4
 pass/float/runtime_guarded_float_capture_exit checked 6880ms check-target:macos_arm64 @22da6bb2553e+wt
+pass/float/runtime_meaning_contract_forwarding checked 19481ms @093da25557af+wt
 pass/float/runtime_named_boundary_transition_exit checked 11907ms check-target:macos_arm64 @0755e2c06ec1
 pass/float/runtime_named_float_to_integer_conversion_exit checked 24284ms check-target:macos_arm64 @9c4d1c444502
 pass/float/runtime_named_fma_sequence_exit checked 23441ms check-target:macos_arm64 @9c4d1c444502
@@ -8170,6 +8180,7 @@ pass/providers/linear_structural_provider_pure_exit checked 9151ms check-target:
 pass/providers/linear_structural_provider_return_exit checked 27483ms check-target:macos_arm64 @7e6c0ae564d2+wt
 pass/providers/local_record_foreign_borrow_exit checked 11406ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/providers/module_named_operator_result_domain_satisfaction checked 12148ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/providers/named_foreign_record_result_contract checked 71284ms @46f9e865d179+wt
 pass/providers/nested_binding_borrowed_call_exit checked 10664ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/providers/occurrence_region_binding_exit checked 5895ms check-target:macos_arm64 @f523463c7783+wt
 pass/providers/occurrence_region_binding_forwarding_exit checked 5870ms check-target:macos_arm64 @f523463c7783+wt
@@ -9012,6 +9023,7 @@ run/calls/static_binding_authority checked 8787ms check-target:macos_arm64 @3ac3
 run/calls/table_report_call_survival checked 5492ms check-target:macos_arm64 @589aedee8ebc+wt
 run/contained_health_loop_command_branch checked 12047ms check-target:macos_arm64 @bb086b40ea65+wt
 run/contracts/captured_bound_unused_mutation checked 5150ms check-target:macos_arm64 @7e164e32caf5+wt
+run/contracts/target_family_forwarded_result checked 71300ms check-target:linux_x86_64 @46f9e865d179+wt
 run/domains/byte_view_predicates_keep_selected_extent checked 6676ms check-target:macos_arm64 @a0e6514a9ab2
 run/domains/checked_provider_issued_field checked 5543ms check-target:macos_arm64 @e5140c7a7be2+wt
 run/domains/checked_provider_issued_root checked 5368ms check-target:macos_arm64 @e5140c7a7be2+wt
@@ -9086,6 +9098,7 @@ run/slices/mutable_window_call_argument checked 5974ms check-target:macos_arm64 
 run/slices/returned_record_fixed_array_window checked 5462ms check-target:macos_arm64 @5292c662f1eb
 run/stores/runtime_float_indexed_call_result_exit checked 16446ms check-target:macos_arm64 @77cde1c51efd+wt
 run/stores/runtime_float_store_selector_snapshot_exit checked 16333ms check-target:macos_arm64 @77cde1c51efd+wt
+run/traits/named_map_record_result_contract checked 71719ms check-target:macos_arm64 @46f9e865d179+wt
 run/traits/static_implementation_method_arguments checked 5547ms check-target:macos_arm64 @93ba1f664f65+wt
 run/traits/target_scoped_map_method_arguments checked 11040ms check-target:macos_arm64 terminal-inspections:match @a68c584655e1+wt
 run/variant_decimal_runtime_division checked 6787ms check-target:linux_x86_64 @7c1edd43e7e4+wt

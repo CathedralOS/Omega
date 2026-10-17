@@ -11,7 +11,7 @@ pub(super) struct ProvenExitExpressions<'program, 'frames> {
     classification: &'program typed_trees::proof_only::ProofOnlyClassification,
     resolver: Option<&'frames validation::CallFrameResolver<'program>>,
     /// Postconditions the one judgment proved on this program, by machine.
-    validated: &'frames [(SymbolHandle, Vec<ExpressionHandle>)],
+    validated: &'frames [(SymbolHandle, validation::ProvenContractExpressions)],
     machines: Vec<MachineEntailmentOutcome>,
 }
 
@@ -29,7 +29,7 @@ impl<'program, 'frames> ProvenExitExpressions<'program, 'frames> {
         program: &'program dyn ::validation::CheckingInput,
         classification: &'program typed_trees::proof_only::ProofOnlyClassification,
         resolver: Option<&'frames validation::CallFrameResolver<'program>>,
-        validated: &'frames [(SymbolHandle, Vec<ExpressionHandle>)],
+        validated: &'frames [(SymbolHandle, validation::ProvenContractExpressions)],
     ) -> Self {
         Self {
             program,
@@ -59,15 +59,18 @@ impl<'program, 'frames> ProvenExitExpressions<'program, 'frames> {
                     self.classification,
                     self.resolver,
                 );
-                let mut expressions = if entry_premises_preserved {
-                    self.validated
-                        .iter()
-                        .find(|(symbol, _)| *symbol == machine_symbol)
-                        .map(|(_, proven)| proven.clone())
-                        .unwrap_or_default()
-                } else {
-                    Vec::new()
-                };
+                let mut expressions = self
+                    .validated
+                    .iter()
+                    .find(|(symbol, _)| *symbol == machine_symbol)
+                    .map(|(_, proven)| {
+                        let mut expressions = proven.normal_returns.clone();
+                        if entry_premises_preserved {
+                            expressions.extend_from_slice(&proven.entry);
+                        }
+                        expressions
+                    })
+                    .unwrap_or_default();
                 if !expressions.is_empty() {
                     // A signature's op-slot expression has a different handle
                     // from the authored guarantee. Match through the existing

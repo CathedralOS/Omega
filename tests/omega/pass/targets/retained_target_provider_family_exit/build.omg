@@ -1,6 +1,6 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "retained_target_provider_family_exit");
-    Build::select_provider<Value::read, TargetValue>(builder);
+    Build::select_provider<Value, SelectedValue>(builder);
     Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
     Build::bind(builder, windows_x86_64::ProgramEntry, Main::main);
     Build::bind(builder, linux_x86_64::ProgramEntry, Main::main);

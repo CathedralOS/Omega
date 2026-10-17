@@ -1,0 +1,2 @@
+cannot prove ensures contract for exit from wrong
+cannot prove ensures contract for exit from wrong_operand

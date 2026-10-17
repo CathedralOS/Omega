@@ -1,0 +1,4 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "named_map_wrong_record_result");
+    Build::select_provider<Reports, WrongReports>(builder);
+}

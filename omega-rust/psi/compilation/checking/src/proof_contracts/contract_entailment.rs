@@ -242,7 +242,7 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
     program: &'program dyn crate::CheckingInput,
     machine: &'program Machine,
     diagnostics: &mut Vec<Diagnostic>,
-    proven: &mut Vec<ExpressionHandle>,
+    proven: &mut crate::ProvenContractExpressions,
 ) {
     // A top-level requirement publishes the contract that its selected
     // satisfier must refine. The declaration has no implementation body whose
@@ -313,7 +313,15 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
     // engine's vacuity rule. Payload-carrying constructor TERMS in facts are
     // grammar-gated today (struct literals do not parse in contract
     // position), so injectivity decomposition is the recorded next rung.
-    let mut structural = StructuralJudge::from_requires(program, machine, &requires, true);
+    let mut structural = if proof_only.is_proof_machine(program, machine) {
+        StructuralJudge::from_requires(program, machine, &requires, true)
+    } else {
+        // An executable body's postcondition describes its actual return,
+        // including calls that mutate their borrowed arguments. Observe those
+        // calls once and invalidate written subjects; do not unfold them as
+        // repeatable mathematical applications.
+        StructuralJudge::from_runtime_requires(program, machine, &requires)
+    };
     if let Some(entry) = program.machine_states(machine).first() {
         transparent_applications::intake_transparent_requires(
             program,
@@ -381,7 +389,25 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
             match statement {
                 StatementNode::Call(call)
                     if is_citation_statement(program, &proof_only, machine, call)
-                        || content_conservation::is_empty_body_statement_call(program, call) => {}
+                        || content_conservation::is_empty_body_statement_call(program, call) =>
+                {
+                    // Even a non-writing callee may receive effectful operands.
+                    // Retire their observations before proving this path's exit.
+                    for (_, judge) in &mut frames {
+                        if judge.requires_value_preservation() {
+                            let resolver = judge.frame_resolver()?;
+                            let mut writes = resolver
+                                .may_write_frame(machine, call)
+                                .into_complete_paths()?;
+                            writes.extend(
+                                resolver
+                                    .statement_value_write_frame(machine, statement)
+                                    .into_complete_paths()?,
+                            );
+                            judge.observe_storage_writes(root, &writes)?;
+                        }
+                    }
+                }
                 StatementNode::LocalData(local) => {
                     let mut next = Vec::new();
                     for (environment, judge) in frames {
@@ -524,7 +550,26 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
     } else {
         Vec::new()
     };
-    let judge_structural = |fact: ExpressionHandle| -> StructuralJudgment {
+    let judge_normal_return = |fact: ExpressionHandle| -> Option<StructuralJudgment> {
+        let paths = sole_arm_result.as_ref()?;
+        let mut verdict = StructuralJudgment::Proven;
+        for path in paths {
+            let mut bound = path.judge.clone();
+            if !result_is_parameter {
+                std::sync::Arc::make_mut(&mut bound.substitutions)
+                    .insert(0, (RESULT_BINDER.to_owned(), path.value.clone()));
+            }
+            match bound.judge(program, fact) {
+                StructuralJudgment::Refuted => return Some(StructuralJudgment::Refuted),
+                StructuralJudgment::Unknown => verdict = StructuralJudgment::Unknown,
+                StructuralJudgment::Proven => {}
+            }
+        }
+        Some(verdict)
+    };
+    let judge_structural = |fact: ExpressionHandle,
+                            normal_return: Option<&StructuralJudgment>|
+     -> StructuralJudgment {
         if let Some(plan) =
             content_conservation::content_conservation_plan(machine, fact, &content_plans)
         {
@@ -583,21 +628,12 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
                 StructuralJudgment::Unknown
             };
         }
-        if let Some(paths) = &sole_arm_result {
-            let mut verdict = StructuralJudgment::Proven;
-            for path in paths {
-                let mut bound = path.judge.clone();
-                if !result_is_parameter {
-                    std::sync::Arc::make_mut(&mut bound.substitutions)
-                        .insert(0, (RESULT_BINDER.to_owned(), path.value.clone()));
-                }
-                match bound.judge(program, fact) {
-                    StructuralJudgment::Refuted => return StructuralJudgment::Refuted,
-                    StructuralJudgment::Unknown => verdict = StructuralJudgment::Unknown,
-                    StructuralJudgment::Proven => {}
-                }
-            }
-            return verdict;
+        if let Some(verdict) = normal_return {
+            return match verdict {
+                StructuralJudgment::Proven => StructuralJudgment::Proven,
+                StructuralJudgment::Refuted => StructuralJudgment::Refuted,
+                StructuralJudgment::Unknown => StructuralJudgment::Unknown,
+            };
         }
         let Some(arms) = &case_arms else {
             return structural.judge(program, fact);
@@ -746,24 +782,34 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
                     .expressions_structurally_equal(*required, *fact)
             }) && fact_call_targets(program, *fact).all_declared
             {
-                proven.push(*fact);
+                proven.entry.push(*fact);
                 return false;
             }
+            let normal_return = judge_normal_return(*fact);
             let Some(held) = mention else {
                 // Selected normal-return guarantees and ordinary value
                 // equations use the same prepared path judgment as proof-only
                 // carriers. A projection shape does not decide which facts
                 // may consume that evidence. Only a proved fact is discharged;
                 // other judgments retain the general engine's existing route.
-                if matches!(judge_structural(*fact), StructuralJudgment::Proven) {
-                    proven.push(*fact);
+                if matches!(
+                    judge_structural(*fact, normal_return.as_ref()),
+                    StructuralJudgment::Proven
+                ) {
+                    if matches!(normal_return, Some(StructuralJudgment::Proven))
+                        && structural.has_runtime_body_values()
+                    {
+                        proven.normal_returns.push(*fact);
+                    } else {
+                        proven.entry.push(*fact);
+                    }
                     return false;
                 }
                 return true;
             };
             any_structural = true;
             if structural.hypotheses_contradictory {
-                proven.push(*fact);
+                proven.entry.push(*fact);
                 return false;
             }
             // CH10 ACCEPTED tier (GR6d): a bodyless boundary machine's
@@ -774,7 +820,10 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
             if machine.supply_mode == language_semantics::MachineSupplyMode::AdmissionClaim
                 && zero_value_mention.is_none()
             {
-                if matches!(judge_structural(*fact), StructuralJudgment::Refuted) {
+                if matches!(
+                    judge_structural(*fact, normal_return.as_ref()),
+                    StructuralJudgment::Refuted
+                ) {
                     diagnostics.push(Diagnostic::error(format!(
                         "accepted boundary machine `{}` claims `{}`, which the \
                          engine REFUTES structurally -- a refutable statement is a \
@@ -787,8 +836,8 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
                 }
                 return false;
             }
-            match judge_structural(*fact) {
-                StructuralJudgment::Proven => proven.push(*fact),
+            match judge_structural(*fact, normal_return.as_ref()) {
+                StructuralJudgment::Proven => proven.entry.push(*fact),
                 StructuralJudgment::Refuted => {
                     diagnostics.push(Diagnostic::error(format!(
                         "machine `{}` ensures contract proof fact `{}` is disproved \
@@ -867,7 +916,7 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
         if let Some(bounds) = result_bounds::infer(program, machine) {
             ensures.retain(|fact| {
                 if result_bounds::proves(program, machine, *fact, &bounds) {
-                    proven.push(*fact);
+                    proven.entry.push(*fact);
                     false
                 } else {
                     true
@@ -884,7 +933,7 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
             &ensures,
             all_facts_are_expressions,
             diagnostics,
-            proven,
+            &mut proven.entry,
         );
         return;
     }
@@ -894,7 +943,7 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
     if engine.requires_unsatisfiable {
         // Contradictory hypotheses entail everything: the proof-theoretic
         // `absurd` case. Accept.
-        proven.extend_from_slice(&ensures);
+        proven.entry.extend_from_slice(&ensures);
         return;
     }
 
@@ -914,7 +963,7 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
         // postcondition pass `--check` silently.
         if let Some(constant) = program.expression_table.boolean_node(*fact) {
             if *constant {
-                proven.push(*fact);
+                proven.entry.push(*fact);
             } else {
                 diagnostics.push(Diagnostic::error(format!(
                     "machine `{}` ensures contract proof fact `{}` is disproved by constant arithmetic",
@@ -925,7 +974,7 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
             continue;
         }
         match engine.judge(*fact) {
-            Judgment::Proven => proven.push(*fact),
+            Judgment::Proven => proven.entry.push(*fact),
             Judgment::Refuted => {
                 diagnostics.push(Diagnostic::error(format!(
                     "machine `{}` ensures contract proof fact `{}` is disproved: the requires contract entails its negation",
@@ -948,7 +997,7 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
                 if crate::proof_contracts::collection_predicates::premises_prove_expression(
                     program, machine, *fact,
                 ) {
-                    proven.push(*fact);
+                    proven.entry.push(*fact);
                     continue;
                 }
                 if goal_in_language && requires_fully_visible {

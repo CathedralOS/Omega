@@ -1,0 +1,15 @@
+// A nonselected target's differing result cannot become a portable guarantee.
+pub data Status [copy] { code: u64; }
+pub boundary trait Reports {
+    machine status() -> Status ensures result.code == 7;
+}
+pub ForwardedReports satisfies Reports {
+    machine status() -> Status ensures result.code == 7; {
+        selected_status()
+    }
+}
+windows_x86_64 machine selected_status() -> Status
+ensures result.code == 7; { Status { code: 7 } }
+reserved_target machine selected_status() -> Status
+ensures result.code == 8; { Status { code: 8 } }
+machine main() { }

@@ -238,17 +238,91 @@ impl StructuralJudge<'_> {
         let StructuralTerm::Application { arguments, .. } = application else {
             return None;
         };
-        let program = self.program;
         let bindings = parameters
             .iter()
             .zip(arguments)
             .map(|(parameter, value)| (parameter.symbol, value.clone()))
             .collect::<Vec<_>>();
+        self.selected_guarantee_equations(&owner, &bindings, application, depth)
+    }
+
+    /// A portable family guarantees only equations supplied by every member.
+    /// Bind each member's formals to the same already-observed operands and
+    /// result occurrence before intersecting; private declaration symbols and
+    /// differing parameter names never become portable value identities.
+    pub(super) fn selected_guarantee_equations(
+        &self,
+        owner: &SelectedCallContract<'_>,
+        bindings: &[(SymbolHandle, StructuralTerm)],
+        result: &StructuralTerm,
+        depth: usize,
+    ) -> Option<Vec<(StructuralTerm, StructuralTerm)>> {
+        let program = self.program;
+        if let SelectedCallContract::Concrete(machine, state) = owner
+            && machine.target_family_interface
+        {
+            if program.machine_states(machine).first()?.symbol != state.symbol {
+                return None;
+            }
+            let parameters = program.state_parameters(state);
+            let members = crate::machine_calls::calls::target_family_members(program, machine)?;
+            let mut common: Option<Vec<(StructuralTerm, StructuralTerm)>> = None;
+            for member in members {
+                let machine = program.machine(member.machine)?;
+                let entry = program.machine_states(machine).first()?;
+                let member_parameters = program.state_parameters(entry);
+                if parameters.len() != member_parameters.len() {
+                    return None;
+                }
+                let member_bindings = parameters
+                    .iter()
+                    .zip(member_parameters)
+                    .filter_map(|(parameter, member)| {
+                        bindings
+                            .iter()
+                            .find(|(symbol, _)| *symbol == parameter.symbol)
+                            .map(|(_, value)| (member.symbol, value.clone()))
+                    })
+                    .collect::<Vec<_>>();
+                let equations = self.declared_guarantee_equations(
+                    &SelectedCallContract::Concrete(machine, entry),
+                    &member_bindings,
+                    result,
+                    depth,
+                )?;
+                if let Some(common) = &mut common {
+                    common.retain(|(left, right)| {
+                        equations.iter().any(|(other_left, other_right)| {
+                            (left == other_left && right == other_right)
+                                || (left == other_right && right == other_left)
+                        })
+                    });
+                } else {
+                    common = Some(equations);
+                }
+            }
+            return common;
+        }
+        self.declared_guarantee_equations(owner, bindings, result, depth)
+    }
+
+    fn declared_guarantee_equations(
+        &self,
+        owner: &SelectedCallContract<'_>,
+        bindings: &[(SymbolHandle, StructuralTerm)],
+        result: &StructuralTerm,
+        depth: usize,
+    ) -> Option<Vec<(StructuralTerm, StructuralTerm)>> {
+        if depth >= 32 {
+            return None;
+        }
+        let program = self.program;
+        let parameters = owner_parameters(program, owner);
         let callable = match owner {
             SelectedCallContract::Concrete(machine, _) => machine.symbol,
-            _ => owner_symbol(&owner),
+            _ => owner_symbol(owner),
         };
-        for contract in owner_contracts(program, &owner)
+        for contract in owner_contracts(program, owner)
             .filter(|contract| contract.kind == SignatureContractKind::Requires)
         {
             for fact in program.proof_facts.span_or_empty(contract.facts) {
@@ -261,7 +335,7 @@ impl StructuralJudge<'_> {
                         *required,
                         callable,
                         parameters,
-                        &bindings,
+                        bindings,
                         depth + 1,
                     ),
                     StructuralJudgment::Proven
@@ -271,7 +345,7 @@ impl StructuralJudge<'_> {
             }
         }
         let mut equations = Vec::new();
-        for contract in owner_contracts(program, &owner)
+        for contract in owner_contracts(program, owner)
             .filter(|contract| contract.kind == SignatureContractKind::Ensures)
         {
             for fact in program.proof_facts.span_or_empty(contract.facts) {
@@ -282,8 +356,8 @@ impl StructuralJudge<'_> {
                         callable,
                         parameters,
                         callable,
-                        &bindings,
-                        application,
+                        bindings,
+                        result,
                         &mut equations,
                         depth + 1,
                     );

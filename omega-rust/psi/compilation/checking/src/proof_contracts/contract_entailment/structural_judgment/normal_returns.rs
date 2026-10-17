@@ -10,9 +10,7 @@ use super::super::specification_calls::{
     SelectedCallContract, owner_contracts, owner_leading_operands, owner_parameter_scope,
     owner_return_type, owner_symbol, selected_call_contract,
 };
-use super::selected_contracts::{
-    capture_equations, independent_application, selected_requirement_judgment,
-};
+use super::selected_contracts::independent_application;
 use super::value_predicates::boolean_term;
 use super::{StructuralJudge, StructuralJudgment, StructuralTerm};
 use crate::expression_traversal::children;
@@ -800,9 +798,6 @@ impl<'program> StructuralJudge<'program> {
                 owner_symbol(&owner)
             );
         }
-        if parameters.iter().any(|parameter| parameter.is_mutable) {
-            return;
-        }
         // References are live subjects. Only the frame owner can publish their
         // exact prefix origins and preservation through this normal return.
         // A written subject or replaced formal binding needs post-state facts,
@@ -810,11 +805,10 @@ impl<'program> StructuralJudge<'program> {
         let Some(machine) = program.machine(scope.0.symbol) else {
             return;
         };
-        let Some(subjects) = self.frame_resolver().and_then(|frames| {
+        let frames = self.frame_resolver();
+        let subjects = frames.and_then(|frames| {
             frames.expression_call_reference_subjects(machine, expression, parameters)
-        }) else {
-            return;
-        };
+        });
         if !independent_application(
             program,
             self.machine_symbol,
@@ -847,12 +841,16 @@ impl<'program> StructuralJudge<'program> {
         else {
             return;
         };
-        let Some(bindings) = parameters
+        let bindings = parameters
             .iter()
             .zip(actuals)
-            .map(|(parameter, value)| {
+            .filter_map(|(parameter, value)| {
+                if parameter.is_mutable {
+                    return None;
+                }
                 let value = if crate::reference_shell(program, parameter.type_reference).is_some() {
                     let subject = subjects
+                        .as_ref()?
                         .iter()
                         .find(|subject| subject.parameter == parameter.symbol)?;
                     if !subject.preserved_on_return {
@@ -860,14 +858,14 @@ impl<'program> StructuralJudge<'program> {
                     }
                     self.reference_subject_term(subject, environment, scope)?
                 } else {
+                    if !frames?.proof_value_is_caller_isolated(parameter.type_reference) {
+                        return None;
+                    }
                     value.clone()
                 };
                 Some((parameter.symbol, value))
             })
-            .collect::<Option<Vec<_>>>()
-        else {
-            return;
-        };
+            .collect::<Vec<_>>();
         let callable = match owner {
             SelectedCallContract::Concrete(machine, _) => machine.symbol,
             _ => owner_symbol(&owner),
@@ -887,38 +885,6 @@ impl<'program> StructuralJudge<'program> {
             return;
         }
         let contracts = owner_contracts(program, &owner).collect::<Vec<_>>();
-        for contract in contracts
-            .iter()
-            .filter(|contract| contract.kind == SignatureContractKind::Requires)
-        {
-            for fact in program.proof_facts.span_or_empty(contract.facts) {
-                let ProofFact::Expression(required) = fact else {
-                    return;
-                };
-                if super::super::struct_trace() {
-                    eprintln!(
-                        "STRUCT normal-capture requires expression={expression:?} required={}",
-                        program.expression_table.display_name(*required)
-                    );
-                }
-                let judgment = selected_requirement_judgment(
-                    self, *required, callable, parameters, &bindings, 0,
-                );
-                if super::super::struct_trace() {
-                    let verdict = match &judgment {
-                        StructuralJudgment::Proven => "proven",
-                        StructuralJudgment::Refuted => "refuted",
-                        StructuralJudgment::Unknown => "unknown",
-                    };
-                    eprintln!(
-                        "STRUCT normal-capture entry-verdict expression={expression:?} judgment={verdict}"
-                    );
-                }
-                if !matches!(judgment, StructuralJudgment::Proven) {
-                    return;
-                }
-            }
-        }
         self.capture_sequence += 1;
         let captured = StructuralTerm::CapturedValue {
             expression,
@@ -926,18 +892,30 @@ impl<'program> StructuralJudge<'program> {
             callable,
             result_type,
         };
-        let mut equations = Vec::new();
+        // An overwritten referent supplies no stable input observation, but
+        // does not erase independent guarantees about this returned value.
+        // Equations requiring an omitted formal fail exact substitution.
+        let Some(equations) = self.selected_guarantee_equations(&owner, &bindings, &captured, 0)
+        else {
+            return;
+        };
         // A saved local now resolves to this occurrence, so the callee's case
         // tags must classify it here; the citation route's saved-binding tags
         // never meet that environment term. Tags never become value equations.
         let tag_callee = match owner {
-            SelectedCallContract::Concrete(machine, _) => Some(machine),
+            SelectedCallContract::Concrete(machine, _) if bindings.len() == parameters.len() => {
+                Some(machine)
+            }
             _ => None,
         };
         let tag_map = parameters
             .iter()
-            .zip(&bindings)
-            .map(|(parameter, (_, value))| (parameter.name.as_str().to_owned(), value.clone()))
+            .filter_map(|parameter| {
+                bindings
+                    .iter()
+                    .find(|(symbol, _)| *symbol == parameter.symbol)
+                    .map(|(_, value)| (parameter.name.as_str().to_owned(), value.clone()))
+            })
             .chain(std::iter::once((
                 crate::proof_contracts::contract_entailment::RESULT_BINDER.to_owned(),
                 captured.clone(),
@@ -952,17 +930,6 @@ impl<'program> StructuralJudge<'program> {
                 let ProofFact::Expression(guarantee) = fact else {
                     continue;
                 };
-                capture_equations(
-                    program,
-                    *guarantee,
-                    callable,
-                    parameters,
-                    callable,
-                    &bindings,
-                    &captured,
-                    &mut equations,
-                    0,
-                );
                 if let Some(callee) = tag_callee {
                     self.instantiated_case_guarantees(
                         callee,

@@ -3298,6 +3298,7 @@ run/calls/runtime_float_distinct_operand_calls_exit built 28191ms exit:0 stdout:
 run/calls/runtime_float_normalized_operand_single_evaluation_exit built 27820ms exit:0 stdout:match stderr:match @91bbf3e29aa9
 run/calls/table_report_call_survival built 12878ms exit:0 stdout:match @91bbf3e29aa9
 run/contained_health_loop_command_branch checked 480ms @0484de104502
+run/contracts/target_family_forwarded_result built 69617ms exit:0 @46f9e865d179+wt
 run/domains/module_qualified_cast_domain built 13255ms exit:0 @91bbf3e29aa9
 run/domains/predicate_interval_premises built 13058ms exit:0 @91bbf3e29aa9
 run/domains/qualified_record_transfer built 13256ms exit:0 @91bbf3e29aa9
@@ -3312,3 +3313,4 @@ run/ownership/declared_record_selected_exit_disposal built 12012ms exit:0 @91bbf
 run/ownership/temporary_projected_value_residual built 12142ms exit:0 @91bbf3e29aa9
 run/stores/runtime_float_indexed_call_result_exit built 24997ms exit:0 stdout:match stderr:match @91bbf3e29aa9
 run/stores/runtime_float_store_selector_snapshot_exit built 24953ms exit:0 stdout:match stderr:match @91bbf3e29aa9
+run/traits/named_map_record_result_contract built 69904ms exit:0 @46f9e865d179+wt

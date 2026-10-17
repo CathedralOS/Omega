@@ -1,0 +1,4 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "named_foreign_record_result_contract");
+    Build::select_provider<ForeignReports, FirmwareReports>(builder);
+}

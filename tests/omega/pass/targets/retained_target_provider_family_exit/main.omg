@@ -3,28 +3,36 @@
 // A distinct competing provider must not donate its body to that selection.
 use omega_language_std::console;
 
-pub data Value {}
-pub boundary requirement Value::read(input: i32) -> i32
-ensures result == input;
+pub boundary trait Value {
+    machine read(input: i32) -> i32 ensures result == input;
+}
 
-pub data TargetValue {}
-linux_x86_64 machine TargetValue::read(input: i32) -> i32
-satisfies Value::read ensures result == input { input }
-linux_arm64 machine TargetValue::read(input: i32) -> i32
-satisfies Value::read ensures result == input { input }
-macos_arm64 machine TargetValue::read(input: i32) -> i32
-satisfies Value::read ensures result == input { input }
-windows_x86_64 machine TargetValue::read(input: i32) -> i32
-satisfies Value::read ensures result == input { input }
-reserved_target machine TargetValue::read(input: i32) -> i32
-satisfies Value::read ensures result == input { input }
+pub SelectedValue satisfies Value {
+    machine read(input: i32) -> i32 ensures result == input {
+        target_value(input)
+    }
+}
+linux_x86_64 machine target_value(input: i32) -> i32
+ensures result == input { input }
+linux_arm64 machine target_value(input: i32) -> i32
+ensures result == input { input }
+macos_arm64 machine target_value(input: i32) -> i32
+ensures result == input { input }
+windows_x86_64 machine target_value(input: i32) -> i32
+ensures result == input { input }
+reserved_target machine target_value(input: i32) -> i32
+ensures result == input { input }
 
-pub data OtherValue {}
-machine OtherValue::read(input: i32) -> i32
-satisfies Value::read ensures result == input { input }
+pub OtherProvider satisfies Value {
+    machine read(input: i32) -> i32 ensures result == input {
+        other_value(input)
+    }
+}
+machine other_value(input: i32) -> i32
+ensures result == input { input }
 
 data Main { }
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches Console + Value {
     let selected: i32 = Value::read(70);
     Console::exit_process(selected);
 }

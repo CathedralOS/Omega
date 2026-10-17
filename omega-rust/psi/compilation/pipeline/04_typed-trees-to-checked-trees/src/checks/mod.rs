@@ -98,7 +98,7 @@ pub(crate) fn check_checked_facts_recording(
     facts: &mut checked_trees::CheckFacts,
     mutation_summaries: &crate::flow::StateMutationSummaryCache,
     guard_index: &IncomingGuardIndexCache,
-    proven_machine_contracts: &[(SymbolHandle, Vec<typed_trees::expression::ExpressionHandle>)],
+    proven_machine_contracts: &[(SymbolHandle, validation::ProvenContractExpressions)],
     expression_intervals: &[validation::ExpressionInterval],
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();

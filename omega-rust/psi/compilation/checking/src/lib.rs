@@ -457,8 +457,8 @@ pub use machine_calls::effect_inference::PreparedEffectPlans;
 pub use machine_calls::reference_result_custody;
 pub use program_validation::{
     ExactIntegerCastFact, ExpressionInterval, OpaquePropertyValidation, ProgramValidation,
-    ProgramValidationFacts, admit_prepared_program_effects, checked_operator_contract_snapshot,
-    expression_interval, prepare_specialized_program,
+    ProgramValidationFacts, ProvenContractExpressions, admit_prepared_program_effects,
+    checked_operator_contract_snapshot, expression_interval, prepare_specialized_program,
     validate_checked_operator_realization_contract, validate_generic_machine_contract_entailment,
     validate_program,
 };

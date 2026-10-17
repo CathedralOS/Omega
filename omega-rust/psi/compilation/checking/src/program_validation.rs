@@ -111,7 +111,16 @@ pub struct ProgramValidationFacts {
     /// judged, the postconditions it proved — the one judgment over bodies,
     /// consumed by the stage-04 prover. Empty when the machine's entailment
     /// raised a diagnostic or does not cover every exit.
-    pub proven_machine_contracts: Vec<(symbols::SymbolHandle, Vec<ExpressionHandle>)>,
+    pub proven_machine_contracts: Vec<(symbols::SymbolHandle, ProvenContractExpressions)>,
+}
+
+/// Postconditions retain the observation point used by their proof. Entry-only
+/// deductions require a preserved frame before they describe an exit; normal
+/// return deductions already account for writes along every observed path.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ProvenContractExpressions {
+    pub entry: Vec<ExpressionHandle>,
+    pub normal_returns: Vec<ExpressionHandle>,
 }
 
 /// Whether opaque property claims must be backed now or remain pending during
@@ -351,7 +360,7 @@ fn validate(
         // the retained postconditions below — no second site rejudges them.
         {
             let mut machine_diagnostics = Vec::new();
-            let mut proven = Vec::new();
+            let mut proven = ProvenContractExpressions::default();
             crate::proof_contracts::contract_entailment::validate_machine_contract_entailment(
                 program,
                 machine,
@@ -369,7 +378,7 @@ fn validate(
                     ) {
                     proven
                 } else {
-                    Vec::new()
+                    ProvenContractExpressions::default()
                 };
                 proven_machine_contracts.push((machine.symbol, judged));
             }

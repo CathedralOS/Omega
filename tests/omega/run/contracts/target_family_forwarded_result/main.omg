@@ -1,0 +1,41 @@
+// Expected exit: 0. Portable forwarding keeps guarantees shared by every
+// target member, with different formal names and an independently mutated output.
+pub data Status [copy] { code: u64; }
+pub data Counter { value: u64; }
+pub boundary trait Values {
+    machine scalar(input: u64) -> u64 ensures result == input;
+    machine status(output: &mut Counter) -> Status ensures result.code == 7;
+}
+pub ForwardedValues satisfies Values {
+    machine scalar(input: u64) -> u64 ensures result == input; {
+        selected_value(input)
+    }
+    machine status(output: &mut Counter) -> Status ensures result.code == 7; {
+        selected_status(output)
+    }
+}
+windows_x86_64 machine selected_value(windows_input: u64) -> u64
+ensures result == windows_input; { windows_input }
+linux_x86_64 machine selected_value(linux_input: u64) -> u64
+ensures result == linux_input; { linux_input }
+windows_x86_64 machine selected_status(windows_output: &mut Counter) -> Status
+ensures result.code == 7; {
+    windows_output.value = 99;
+    Status { code: 7 }
+}
+linux_x86_64 machine selected_status(linux_output: &mut Counter) -> Status
+ensures result.code == 7; {
+    linux_output.value = 99;
+    Status { code: 7 }
+}
+machine main() reaches Values invokes Values; crashes Trap {
+    let scalar: u64 = Values::scalar(63);
+    let mut counter: Counter;
+    let status: Status = Values::status(&mut counter);
+    transition scalar == 63 && status.code == 7 && counter.value == 99 {
+        true -> done()
+        false -> wrong()
+    }
+    state done() { }
+    state wrong() { crash Trap; }
+}

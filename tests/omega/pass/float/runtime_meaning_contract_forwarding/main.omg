@@ -1,0 +1,29 @@
+use omega::language::core::float_operations;
+
+// Runtime results retain invocation identity, while mathematical projections
+// in their public guarantees still normalize through ordinary proof wrappers.
+machine minimum(left: f32, right: f32) -> f32
+ensures F32::meaning(result) == FloatSemantics::minimum(F32::meaning(left), F32::meaning(right)) {
+    F32::minimum(left, right)
+}
+
+machine clamp(value: f32, lower: f32, upper: f32) -> f32
+requires lower <= upper;
+ensures F32::meaning(result) == FloatSemantics::minimum(
+    FloatSemantics::maximum(F32::meaning(value), F32::meaning(lower)), F32::meaning(upper)) {
+    F32::minimum(F32::maximum(value, lower), upper)
+}
+
+machine absolute(value: f32) -> f32
+ensures
+    (value == 0.0 && F32::meaning(result) == F32::meaning(0.0)) ||
+    (value < 0.0 && F32::meaning(result) == FloatSemantics::negate(FloatFormat::BINARY32, F32::meaning(value))) ||
+    (value != 0.0 && !(value < 0.0) && F32::meaning(result) == F32::meaning(value)) {
+    transition {
+        value == 0.0 -> (0.0)
+        value < 0.0 -> (F32::negate(value))
+        _ -> (value)
+    }
+}
+
+machine main() { }

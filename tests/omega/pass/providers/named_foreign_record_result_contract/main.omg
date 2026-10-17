@@ -1,0 +1,21 @@
+// A selected foreign leaf's normal return guarantees its status independently
+// of the mutable output slot. The portable wrapper must not replay that output.
+pub data Status [copy] { code: u64; }
+pub data Table { read: addr; }
+pub data Record { value: u64; }
+pub data Output<'scope> { value: &'scope Record; }
+pub boundary trait ForeignReports {
+    machine read<'scope>(table: &'scope Table, output: &mut Output<'scope>) -> Status
+    ensures result.code == 0;
+}
+pub FirmwareReports satisfies ForeignReports {
+    machine read<'scope>(table: &'scope Table, output: &mut Output<'scope>) -> Status
+    ensures result.code == 0; {
+        Table::read(table, output)
+    }
+}
+uefi_x86_64 machine Table::read<'scope>(
+    table: &'scope Table, output: &mut Output<'scope>
+) -> Status
+satisfies ForeignReports::read via ForeignBinding::TableFunction(read)
+ensures result.code == 0;

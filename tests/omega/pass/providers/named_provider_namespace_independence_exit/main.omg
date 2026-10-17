@@ -1,0 +1,26 @@
+// A named implementation owns its rows. Its implementation namespace and a
+// helper's data qualifier do not create additional selectable providers.
+boundary trait Numbers {
+    machine first() -> u64;
+    machine second() -> u64;
+}
+
+SelectedNumbers satisfies Numbers {
+    machine first() -> u64 { 11 }
+    machine second() -> u64 { Storage::second() }
+}
+
+data Storage { value: u64; }
+
+machine Storage::second() -> u64 satisfies Numbers::second { 31 }
+
+machine main() reaches Numbers crashes Trap {
+    let first: u64 = Numbers::first();
+    let second: u64 = Numbers::second();
+    transition first == 11 && second == 31 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

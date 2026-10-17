@@ -1,0 +1,31 @@
+data Counter { value: u64; }
+data Status [copy] { code: u64; }
+
+machine replace(counter: &mut Counter) -> Status ensures result.code == 7; {
+    counter.value = 0;
+    Status { code: 7 }
+}
+
+// The returned status is established, but its independent equation must not
+// preserve an entry fact about the borrowed storage replaced by the call.
+machine wrong(counter: &mut Counter) -> Status
+requires counter.value == 9;
+ensures result.code == 7 && counter.value != 0; {
+    replace(counter)
+}
+
+machine discard(value: u64) { }
+machine replace_scalar(counter: &mut Counter) -> u64 ensures result == 7; {
+    counter.value = 0;
+    7
+}
+
+// A checked empty body does not make its eagerly evaluated operands inert.
+machine wrong_operand(counter: &mut Counter) -> Status
+requires counter.value == 9;
+ensures result.code == 7 && counter.value != 0; {
+    discard(replace_scalar(counter));
+    Status { code: 7 }
+}
+
+machine main() { }

@@ -219,7 +219,10 @@ chooses per-target output directories separately. The compiler no longer rewrite
 source roles or calls to select a target body: providers and roots select exact
 member handles. Portable runtime calls use an independent bodyless family head:
 callers meet every member's premises and the joined conservative effect/crash
-envelope without importing a member's private result guarantees. Native and
+envelope. Portable calls import only public result equations shared by every
+retained member after exact parameter and result substitution, never one
+selected member's private guarantees. Proof dependencies include every member,
+so the bodyless family head cannot hide a circular justification. Native and
 Terminal execution select the exact deployment-tag member and preserve ordinary
 call custody, including returned linear owners, claims inside affine records,
 and declaration-owned descendant qualifications.

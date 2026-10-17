@@ -1,0 +1,1 @@
+does not guarantee its `ensures result.code == 7`
