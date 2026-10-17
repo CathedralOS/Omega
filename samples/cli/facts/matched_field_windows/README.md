@@ -9,7 +9,7 @@ its end from a call that ensures the result is 2. Each window is written
 through a parameter that requires length at least 2.
 
 ```sh
-omega run samples/cli/simulation/matched_field_windows/main.omg
+omega run samples/cli/facts/matched_field_windows/main.omg
 ```
 
 Expected exit: 0.

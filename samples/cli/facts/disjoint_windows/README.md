@@ -8,6 +8,6 @@ Compile-scope probe. No standard-library dependency.
 Compile-checked only (no ProcessExit provider):
 
 ```sh
-mbx run -p omega -- --check samples/cli/probes/disjoint_windows/main.omg
-mbx run -p omega -- update --project samples/cli/probes/disjoint_windows
+mbx run -p omega -- --check samples/cli/facts/disjoint_windows/main.omg
+mbx run -p omega -- update --project samples/cli/facts/disjoint_windows
 ```

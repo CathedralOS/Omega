@@ -4,7 +4,7 @@ The ordinary `&main.entries[..]` range lends a shared view of noncopy entries
 through the imported core `Slice::range` requirement. The sample reads its
 extent and records whether it still covers all four entries.
 
-Check this probe with `omega --check samples/cli/probes/as_slice_views/main.omg`.
+Check this probe with `omega --check samples/cli/facts/as_slice_views/main.omg`.
 The corresponding executable regression checks the extent with a trap oracle:
 
 ```text

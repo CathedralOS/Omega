@@ -16,6 +16,6 @@ Compile-scope probe. No standard-library dependency.
 Compile-checked only (no ProcessExit provider):
 
 ```sh
-mbx run -p omega -- --check samples/cli/probes/exact_sub_guard/main.omg
-mbx run -p omega -- update --project samples/cli/probes/exact_sub_guard
+mbx run -p omega -- --check samples/cli/facts/exact_sub_guard/main.omg
+mbx run -p omega -- update --project samples/cli/facts/exact_sub_guard
 ```

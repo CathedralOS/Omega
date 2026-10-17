@@ -3,7 +3,7 @@
 Expected exit: 0. A helper returns a write-only loan into caller storage. The
 caller replaces 7 with 42 and preserves the neighboring value 19.
 
-Run `omega run samples/cli/memory/returned_write_destination/main.omg`, or use
+Run `omega run samples/cli/facts/returned_write_destination/main.omg`, or use
 `--both` to compare native and Terminal execution. Both paths exit 0 on Intel
 macOS. Reception transports the descriptor without reading the referent or
 widening access. The composition fixture covers local moves, field and parameter

@@ -15,8 +15,8 @@ facts. No standard-library dependency.
 Compile-checked only (no ProcessExit provider):
 
 ```sh
-mbx run -p omega -- --check samples/cli/probes/field_where_index/main.omg
-mbx run -p omega -- update --project samples/cli/probes/field_where_index
+mbx run -p omega -- --check samples/cli/facts/field_where_index/main.omg
+mbx run -p omega -- update --project samples/cli/facts/field_where_index
 ```
 
 Both green on Linux x86-64; `omega.lock` publishes locally, ignored.

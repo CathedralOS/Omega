@@ -15,6 +15,6 @@ Compile-scope probe. No standard-library dependency.
 Compile-checked only (no ProcessExit provider):
 
 ```sh
-mbx run -p omega -- --check samples/cli/probes/compound_index_guard/main.omg
-mbx run -p omega -- update --project samples/cli/probes/compound_index_guard
+mbx run -p omega -- --check samples/cli/facts/compound_index_guard/main.omg
+mbx run -p omega -- update --project samples/cli/facts/compound_index_guard
 ```

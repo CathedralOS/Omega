@@ -6,7 +6,7 @@ after the array is created. Bytes `[9, 8, 7, 6]` produce `8`, `9`, `6`, and
 `7`. Exit 0 means all four reads matched. A mismatch traps.
 
 ```sh
-omega run samples/cli/independent/runtime_count_index/main.omg
+omega run samples/cli/facts/runtime_count_index/main.omg
 ```
 
 Expected exit: 0.

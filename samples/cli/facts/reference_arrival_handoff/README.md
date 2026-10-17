@@ -8,4 +8,4 @@ The compiler represents the handoff as an owned block arrival, then lends that
 arrival's referent to the store. Its home belongs to the destination block:
 lowering must not require the predecessor's operation identity to borrow it.
 
-Run `omega run --both samples/cli/memory/reference_arrival_handoff/main.omg`.
+Run `omega run --both samples/cli/facts/reference_arrival_handoff/main.omg`.

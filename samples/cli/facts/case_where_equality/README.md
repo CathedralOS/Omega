@@ -1,4 +1,4 @@
-# alias fact transfer
+# case where equality
 
 Compile-scope probe. No standard-library dependency.
 
@@ -16,8 +16,8 @@ Compile-scope probe. No standard-library dependency.
 Compile-checked only (no ProcessExit provider):
 
 ```sh
-mbx run -p omega -- --check samples/cli/probes/alias_fact_transfer/main.omg
-mbx run -p omega -- update --project samples/cli/probes/alias_fact_transfer
+mbx run -p omega -- --check samples/cli/facts/case_where_equality/main.omg
+mbx run -p omega -- update --project samples/cli/facts/case_where_equality
 ```
 
 Both green on Linux x86-64; `omega.lock` publishes locally, ignored.

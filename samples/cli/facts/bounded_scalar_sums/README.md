@@ -16,8 +16,8 @@ standard-library dependency.
 Compile-checked only (no ProcessExit provider):
 
 ```sh
-mbx run -p omega -- --check samples/cli/probes/bounded_scalar_sums/main.omg
-mbx run -p omega -- update --project samples/cli/probes/bounded_scalar_sums
+mbx run -p omega -- --check samples/cli/facts/bounded_scalar_sums/main.omg
+mbx run -p omega -- update --project samples/cli/facts/bounded_scalar_sums
 ```
 
 Both green on Linux x86-64; `omega.lock` publishes locally, ignored.
