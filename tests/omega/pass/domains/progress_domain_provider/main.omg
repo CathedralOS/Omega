@@ -4,7 +4,6 @@
 // in WeakFair` return issues the admission token qualified; each
 // target body implements the requirement via its own foreign route
 // (`ForeignBinding::Syscall(1)` / `VtableField(notify)`).
-use omega::language::core::binding;
 // The opaque receipt has a native wire carrier; only the grant route
 // establishes WeakFair membership.
 pub data SchedulerHandle [copy] { identity: u64; }

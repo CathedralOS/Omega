@@ -1,5 +1,4 @@
 use omega::language::core::task;
-use omega::language::core::binding;
 
 // MP6/TR3: task activation consumes the ordinary compile-time machine-symbol
 // parameter surface. `Worker::run` is selected statically and survives as the
@@ -64,16 +63,15 @@ machine Task::settle<T>(task: Task<T>) -> TaskOutcome<T> {
 }
 
 data Main {
-    runtime: &Binding<TaskRuntime>;
 }
 
 machine Main::probe(main: &mut Main) reaches TokenIssuer + TaskRuntime {
     let token: Token = TokenIssuer::issue(7);
-    let first: Task<Token> = main.runtime.start<Token, Token in Carry::AcrossSuspend, Worker::run>(token);
+    let first: Task<Token> = TaskRuntime::start<Token, Token in Carry::AcrossSuspend, Worker::run>(token);
 
     let retry: Token = TokenIssuer::issue(9);
     let outcome: StartOutcome<Token, Token in Carry::AcrossSuspend> =
-        main.runtime.try_start<Token, Token in Carry::AcrossSuspend, Worker::run>(retry);
+        TaskRuntime::try_start<Token, Token in Carry::AcrossSuspend, Worker::run>(retry);
 
     _ = suspend block Task::settle(first);
     // `try_start` may decline. Only the selected `Started` case carries a

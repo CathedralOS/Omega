@@ -8,16 +8,11 @@
 //     public task-disposition requirement.
 //   * `Task<T> [linear]` / `TaskOutcome<T>` pub data.
 //
-// GAP (filed): `TaskRuntime::start`/`try_start` traits are
-// package-private — the satisfies-impl activation route is
-// unreachable from ordinary packages; only finish/cancel
-// requirements are public.
-//
-// Compile-checked only: `use omega::language::core::task`
-// and `core::binding` are depend-free imports.
+// Compile-checked only: the public task declarations come from
+// `omega::language::core::task`. Executable activation still requires a
+// selected runtime with real custody and backing; this probe supplies none.
 
 use omega::language::core::task;
-use omega::language::core::binding;
 
 pub boundary data Sleeper;
 boundary machine Sleeper::park(token: i32) suspends;

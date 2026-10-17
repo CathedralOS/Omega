@@ -10,7 +10,6 @@
 // Compile-checked only: declaration surface, no standard-library
 // dependency.
 
-use omega::language::core::binding;
 
 pub domain [u8]::Utf8(bytes)
 requires

@@ -1,5 +1,4 @@
 // Expected exit: 0. The original calculation returns 31: (3+5+7+9)+7.
-use omega::language::core::binding;
 
 machine cells_valid(cells: &[i32]) -> bool {
     check_cells(cells, cells.len)

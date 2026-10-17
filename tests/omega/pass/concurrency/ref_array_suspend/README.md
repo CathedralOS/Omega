@@ -5,5 +5,5 @@ An array of references loans through a suspending boundary call:
 returns `i64`, and the elements stay observable afterward
 (`observe(references[0])`, `read_at(&references, 1)`).
 
-Compile-checked only: `use omega::language::core::binding` is depend-free —
-no provider selection runs at `--check`.
+Compile-checked only: calls name the static requirement directly, and no
+provider selection runs at `--check`.

@@ -1,7 +1,7 @@
 use omega::language::core::filesystem_authority;
 // WavOutput: the portable byte-file sink used by the audio samples.
-// Applications carry one portable binding. Selected implementations call the
-// independently complete POSIX or Windows raw service; no raw binding enters
+// Applications call one portable static slot. Selected implementations call the
+// independently complete POSIX or Windows raw service; no provider value enters
 // application data. POSIX operations publish core filesystem capabilities,
 // while the Windows service retains its explicit family reach. This portable
 // ceiling includes both and keeps synchronous invocation identities separate.
@@ -11,7 +11,6 @@ use omega_language_std::filesystem_host;
 use omega_language_std::posix_filesystem_host;
 use omega_language_std::windows_filesystem_host;
 use omega::language::core::numeric_conversion;
-use omega::language::core::binding;
 
 pub boundary trait WavOutput {
     machine write_wav(path: &[u8] in Path, bytes: &[u8]) -> i64

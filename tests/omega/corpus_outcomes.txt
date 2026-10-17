@@ -1260,7 +1260,7 @@ fail/build/component_assumption_swapped rejected 754ms expected @763aa6f05710+wt
 	argument `digest` for state `accept_component_assumption` expects `&[u8]`, got `named value`
 fail/build/component_assumption_wrong_arity rejected 763ms expected @763aa6f05710+wt
 	state `accept_component_assumption` expects 2 argument(s), got 1
-fail/build/crash_exclusion_trapping_provider rejected 21854ms expected @a9ae30e1c334+wt
+fail/build/crash_exclusion_trapping_provider rejected 23007ms expected @3b422f31da30+wt
 	1 authored behavior exclusion(s) could not be satisfied
 	behavior exclusion violated: crash cause Trap is reachable in Terminal machine 4, reached through machine `CheckingAssert::check` (Terminal machine 2) at crash terminator in block 6
 	the selected composition retains crash cause Trap through Terminal machine 4, reached through machine `CheckingAssert::check` (Terminal machine 2) declared here
@@ -1411,7 +1411,7 @@ fail/build/staging_path_escape_refused rejected 6541ms expected published:none @
 fail/build/static_machine_parameter_contract_mismatch rejected 1111ms expected @a9ae30e1c334+wt
 	machine argument `wrong_width` for `apply` does not refine `F`: parameter 0 expects `u16`, got `u32`
 	machine argument `wrong_width` for `apply` does not refine `F`: expected return `u16`, got `u32`
-fail/build/static_service_exclusion_invoked rejected 9293ms expected @eca66ed24a79+wt
+fail/build/static_service_exclusion_invoked rejected 22673ms expected @3b422f31da30+wt
 	1 authored behavior exclusion(s) could not be satisfied
 	behavior exclusion violated: service `Sink` is reachable in machine `Main::main` (Terminal machine 1) at call to boundary `named-callable(path(main::Sink::emit),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,ref\\(slice\\(named\\(name\\(u8\\)\\)\\)\\)\\)),result-dispatch())` (block 1, operation 3)
 	the selected composition retains service `Sink` through machine `Main::main` (Terminal machine 1) declared here
@@ -4153,7 +4153,7 @@ fail/ownership/selected_carrier_refill_reads_consumed_source rejected 1312ms exp
 	owned value may have been transferred by an earlier match; it cannot be used here
 fail/ownership/selected_constructed_argument_double_consumption rejected 437ms expected @dd6871ed0476
 	affine value `held` was already transferred or consumed; it cannot be moved here
-fail/ownership/selected_linear_temporary_double_consumption rejected 446ms expected @dd6871ed0476
+fail/ownership/selected_linear_temporary_double_consumption rejected 2646ms expected @3b422f31da30+wt
 	linear value `receipt` was already transferred or consumed; it cannot be moved here
 fail/ownership/selected_partial_owner_reuse rejected 1238ms expected @a9ae30e1c334+wt
 	cannot use `pair.first.value` in machine `choose` state `entry` (statement 2) after `pair.first` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `pair.first` first
@@ -4701,7 +4701,7 @@ fail/providers/qualified_foreign_result_forwarding_written rejected 1792ms expec
 	state `read` receives `protocol` as both mutable and read-only
 	cannot prove requires contract for call read from wrong: protocol in Guid::Selected in state `entry`
 	cannot prove ensures contract for exit from wrong at statement 0: result.code == 0
-fail/providers/satisfier_extra_parameter_rejected rejected 1269ms expected @a9ae30e1c334+wt
+fail/providers/satisfier_extra_parameter_rejected rejected 1333ms expected @3b422f31da30+wt
 	machine `MappedTally::add` state `add` declares 2 parameter(s), but trait `Tally` machine `add` declares 1: a satisfier declares no parameter its requirement lacks; a provider holds no state, so state that outlives a call passes through the requirement's declared parameters
 	machine `stateful_reset` state `entry` declares 1 parameter(s), but trait `Tally` machine `reset` declares 0: a satisfier declares no parameter its requirement lacks; a provider holds no state, so state that outlives a call passes through the requirement's declared parameters
 	machine `DirectTally::add` state `add` declares 2 parameter(s), but trait `Tally` machine `add` declares 1: a satisfier declares no parameter its requirement lacks; a provider holds no state, so state that outlives a call passes through the requirement's declared parameters
@@ -5260,11 +5260,11 @@ fail/targets/unrealized_conformance_rejected rejected 4375ms expected @a9ae30e1c
 	machine `Helper::value` state `value` does not satisfy trait `Predicate` machine `value`: expected return `bool`, got `u32`
 fail/targets/unrealized_family_signature_rejected rejected 52ms expected @a9ae30e1c334+wt
 	machine `Helper::value` has an incompatible signature for `uefi_x86_64` -- every target's body of one machine shares its signature; incompatible ordinary parameter relevance/calling shape or result
-fail/tasks/task_runtime_machine_selection_effect_mismatch rejected 678ms expected @e058ade68ea2+wt
+fail/tasks/task_runtime_machine_selection_effect_mismatch rejected 1556ms expected @3b422f31da30+wt
 	machine argument `Worker::run` for `start` does not refine `Target`: service reach `DiskIo` exceeds its authored ceiling
 fail/tasks/task_runtime_provider_contract_narrowing rejected 603ms expected @e058ade68ea2+wt
 	machine parameter `Target` of provider machine `NarrowTaskRuntime::start` for trait requirement `TaskRuntime::start` does not refine `Target`: it may block, but the requirement omits `blocks;`
-fail/tasks/task_runtime_selected_provider_missing rejected 1281ms expected @e058ade68ea2+wt
+fail/tasks/task_runtime_selected_provider_missing rejected 3807ms expected @3b422f31da30+wt
 	TaskRuntime boundary slot has no retained selected provider plan
 fail/termination/bitwise_payload_no_rank_progress rejected 932ms expected @94394d5fbb6f+wt
 	terminating machine stuck: cannot prove strict rank decrease on a recurrent arrival: the transition from `stuck` back to itself is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step
@@ -6299,7 +6299,7 @@ pass/build/component_assumption_reborrow checked 18131ms @763aa6f05710+wt
 pass/build/component_assumption_user_declaration checked 18148ms @763aa6f05710+wt
 pass/build/conditional_root_binding checked 10302ms check-target:windows_x86_64 @a9ae30e1c334+wt
 pass/build/const_index_dependency_order_exit checked 10505ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/build/crash_exclusion_untrapping_provider_exit checked 10378ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/build/crash_exclusion_untrapping_provider_exit checked 23347ms check-target:macos_arm64 @3b422f31da30+wt
 pass/build/declaration_domain_context checked 10396ms @a9ae30e1c334+wt
 pass/build/dependency_declaration_queries checked 10390ms @a9ae30e1c334+wt
 pass/build/dependency_generated_source_unimported checked 8642ms check-target:macos_arm64 @5e2a4e6e927b+wt
@@ -6321,7 +6321,7 @@ pass/build/runtime_depend_mapping_exit checked 11118ms check-target:macos_arm64 
 pass/build/runtime_firmware_map_cycle_exit checked 14282ms check-target:macos_arm64 @0a3937c62bdf+wt
 pass/build/runtime_main_source_builder_is_ordinary_exit checked 11077ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/build/runtime_opaque_by_value_selected_exit checked 19630ms check-target:macos_arm64 @35f5679f7d28
-pass/build/runtime_static_service_exclusion_exit checked 10448ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/build/runtime_static_service_exclusion_exit checked 23643ms check-target:macos_arm64 @3b422f31da30+wt
 pass/build/same_leaf_runner_entry_left_exit checked 11139ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/build/same_leaf_runner_entry_right_exit checked 11237ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/build/selected_const_array_length_exit checked 19740ms check-target:macos_arm64 @9c4d1c444502
@@ -6647,7 +6647,7 @@ pass/cases/case_where_match checked 9176ms @5041ef1af684+wt
 pass/cases/dup_match_order checked 9706ms @5041ef1af684+wt
 pass/cases/field_subject_arm_chain checked 9552ms @5041ef1af684+wt
 pass/cases/later_arm_requires checked 9748ms @5041ef1af684+wt
-pass/cases/match_call_patterns checked 18572ms @5041ef1af684+wt
+pass/cases/match_call_patterns checked 36857ms @3b422f31da30+wt
 pass/cases/match_guard_slice_index checked 9501ms @5041ef1af684+wt
 pass/cases/match_record_field checked 9554ms @5041ef1af684+wt
 pass/cases/match_reference_local checked 9861ms @5041ef1af684+wt
@@ -6808,7 +6808,7 @@ pass/comptime/runtime_const_measured_recursion_exit checked 8727ms check-target:
 pass/comptime/selected_float_array_length_exit checked 18178ms check-target:macos_arm64 @77cde1c51efd+wt
 pass/comptime/selected_float_array_length_layout_query_exit checked 18685ms check-target:macos_arm64 @77cde1c51efd+wt
 pass/concurrency/boundary_suspension_inline_completion_exit checked 11498ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/concurrency/ref_array_suspend checked 9995ms @5041ef1af684+wt
+pass/concurrency/ref_array_suspend checked 16512ms @3b422f31da30+wt
 pass/concurrency/runtime_array_loan_suspension_exit checked 10498ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/concurrency/runtime_retained_reference_boundary_exit checked 4943ms check-target:macos_arm64 @46b51224f047+wt
 pass/concurrency/runtime_returned_carrier_suspension_exit checked 10790ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -7222,7 +7222,7 @@ pass/domains/named_const_subject_binding checked 11573ms check-target:macos_arm6
 pass/domains/named_subject_capacity_identity_exit checked 11829ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/domains/policy_plan_shapes checked 9261ms @5041ef1af684+wt
 pass/domains/predicate_domain_param checked 9737ms @5041ef1af684+wt
-pass/domains/progress_domain_provider checked 9522ms @5041ef1af684+wt
+pass/domains/progress_domain_provider checked 18456ms @3b422f31da30+wt
 pass/domains/qualified_mutable_field_exit checked 10906ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/domains/qualified_record_capture_after_mutation checked 2791ms @868a854ecd4d+wt
 pass/domains/qualified_record_capture_before_mutation checked 2882ms @868a854ecd4d+wt
@@ -7256,7 +7256,7 @@ pass/domains/runtime_selected_nested_field_domain_exit checked 2724ms check-targ
 pass/domains/runtime_structural_contract_erasure_exit checked 5362ms check-target:macos_arm64 @35062b135924+wt
 pass/domains/runtime_terminal_result_context_exit checked 14710ms check-target:macos_arm64 @8d3a0acb500a+wt
 pass/domains/semantic_cast_guard_chain_mint checked 2041ms @a9ae30e1c334+wt
-pass/domains/slice_domain_validator checked 4647ms check-target:macos_arm64 @e3e4be8878bd
+pass/domains/slice_domain_validator checked 32151ms check-target:macos_arm64 @3b422f31da30+wt
 pass/domains/threaded_subject_keeps_established_domains checked 15236ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/domains/transparent_alias_expansion checked 1833ms @a9ae30e1c334+wt
 pass/domains/unit_membership_postcondition_exit checked 14120ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -8121,7 +8121,7 @@ pass/ownership/linear_result_owners_residual_cleanup_exit checked 10713ms check-
 pass/ownership/linear_self_receiver_disposition checked 1988ms @a9ae30e1c334+wt
 pass/ownership/linear_state_graph_call_arguments_exit checked 11450ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/ownership/linear_state_graph_claim_transport_exit checked 11585ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/ownership/linear_submit_outcome checked 9350ms @5041ef1af684+wt
+pass/ownership/linear_submit_outcome checked 20830ms @3b422f31da30+wt
 pass/ownership/linear_sum_obligation checked 9398ms @5041ef1af684+wt
 pass/ownership/linear_transfer_and_consume checked 12463ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/ownership/linear_transparent_record_frontier checked 4864ms check-target:macos_arm64 @9dd545defbc0
@@ -8173,7 +8173,7 @@ pass/ownership/runtime_computed_selector_snapshot_window_exit checked 10843ms ch
 pass/ownership/runtime_declared_linear_local_assignment_exit checked 7999ms check-target:macos_arm64 @761f5fae99a7+wt
 pass/ownership/runtime_effectful_singleton_selector_cleanup_exit checked 3725ms check-target:macos_arm64 @a33c0bb290c1
 pass/ownership/runtime_empty_record_local_transfers_exit checked 11851ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/ownership/runtime_first_match_linear_consumption_exit checked 4241ms check-target:macos_arm64 @dd6871ed0476
+pass/ownership/runtime_first_match_linear_consumption_exit checked 22414ms check-target:macos_arm64 @3b422f31da30+wt
 pass/ownership/runtime_first_match_pattern_consumption_exit checked 4177ms check-target:macos_arm64 @dd6871ed0476
 pass/ownership/runtime_generic_borrowed_case_restore_exit checked 13434ms check-target:macos_arm64 @55ccf9be57c4
 pass/ownership/runtime_generic_linear_case_restore_exit checked 13127ms check-target:macos_arm64 @55ccf9be57c4
@@ -8195,7 +8195,7 @@ pass/ownership/runtime_replacement_call_child_snapshot_exit checked 11068ms chec
 pass/ownership/runtime_retained_alias_referent_transform_exit checked 4935ms check-target:macos_arm64 @9dd545defbc0
 pass/ownership/runtime_scalar_return_custody_exit checked 4196ms check-target:macos_arm64 @dd6871ed0476
 pass/ownership/runtime_selected_constructed_argument_exit checked 4178ms check-target:macos_arm64 @dd6871ed0476
-pass/ownership/runtime_selected_linear_temporary_exit checked 4250ms check-target:macos_arm64 @dd6871ed0476
+pass/ownership/runtime_selected_linear_temporary_exit checked 22240ms check-target:macos_arm64 @3b422f31da30+wt
 pass/ownership/runtime_selected_reference_local_exit checked 11154ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/ownership/runtime_selective_constructed_owner_custody_exit checked 3460ms check-target:macos_arm64 @1a353f2e117b+wt
 pass/ownership/runtime_staged_read_before_owned_move_exit checked 4277ms check-target:macos_arm64 @cc35a4f0d368+wt
@@ -8341,7 +8341,7 @@ pass/providers/boundary_declaration_structural_result_return_exit checked 11322m
 pass/providers/boundary_ensures_relation checked 9560ms @5041ef1af684+wt
 pass/providers/boundary_entry_param checked 9360ms @5041ef1af684+wt
 pass/providers/boundary_extent_caller checked 9554ms @5041ef1af684+wt
-pass/providers/boundary_machine_opaque checked 9689ms @5041ef1af684+wt
+pass/providers/boundary_machine_opaque checked 21525ms @3b422f31da30+wt
 pass/providers/boundary_multi_effects checked 9362ms @5041ef1af684+wt
 pass/providers/boundary_operator_contract checked 9282ms @5041ef1af684+wt
 pass/providers/boundary_primitive_array_argument_exit checked 12398ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -8842,8 +8842,8 @@ pass/targets/target_member_ranked_self_transition_exit checked 7211ms check-targ
 pass/targets/uefi_table_integrity_exit checked 9517ms check-target:macos_arm64 @94394d5fbb6f+wt
 pass/targets/unreached_family_missing_member_exit checked 11591ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/targets/unreached_foreign_body_caller_exit checked 11335ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/tasks/ordinary_named_task_runtime_compile checked 1394ms @e058ade68ea2+wt
-pass/tasks/task_runtime_machine_selection_compile checked 1588ms @e058ade68ea2+wt
+pass/tasks/ordinary_named_task_runtime_compile checked 3908ms @3b422f31da30+wt
+pass/tasks/task_runtime_machine_selection_compile checked 4046ms @3b422f31da30+wt
 pass/terminal_psi/content_custody_exit checked 1599ms @a9ae30e1c334+wt
 pass/terminal_psi/debug_identity_complete_module checked 45206ms check-target:macos_arm64 terminal-inspections:match @a9ae30e1c334+wt
 pass/terminal_psi/integer_control_contract checked 4148ms @a9ae30e1c334+wt

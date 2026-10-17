@@ -1,5 +1,4 @@
 use omega::language::core::float_operations;
-use omega::language::core::binding;
 
 machine identity(value: f32) -> f32 { value }
 

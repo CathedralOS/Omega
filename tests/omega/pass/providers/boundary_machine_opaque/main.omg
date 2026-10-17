@@ -1,4 +1,3 @@
-use omega::language::core::binding;
 
 // Machines can be attached to an opaque boundary type: the type carries no
 // fields yet hosts the crossing's contract surface.

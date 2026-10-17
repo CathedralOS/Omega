@@ -3,7 +3,6 @@
 // adds a leading provider-state parameter that its requirement does not
 // declare, and each rejects for that reason. No caller could supply that
 // parameter without an implicit provider receiver.
-use omega::language::core::binding;
 
 data TallyState { total: u32; }
 

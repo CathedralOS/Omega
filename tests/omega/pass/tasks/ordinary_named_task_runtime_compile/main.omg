@@ -1,6 +1,5 @@
 // An authored protocol with the same names is ordinary routed service code.
 // Its generic target is not a Core task activation or runtime-custody claim.
-use omega::language::core::binding;
 pub data Task<Value> { value: Value; }
 pub boundary trait TaskRuntime {
     machine start<machine Target>() -> Task<i32>
@@ -8,7 +7,7 @@ pub boundary trait TaskRuntime {
     ensures true;
 }
 machine value() -> i32 { 7 }
-machine probe(runtime: &Binding<TaskRuntime>) -> Task<i32> reaches TaskRuntime {
-    runtime.start<value>()
+machine probe() -> Task<i32> reaches TaskRuntime {
+    TaskRuntime::start<value>()
 }
 machine main() {}

@@ -1,7 +1,7 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "static_service_exclusion_invoked");
     Build::depend(builder, Source::Path { location: "../../../packages/logger-kit" });
-    Build::select_provider<logger_kit::main::Sink, logger_kit::main::QuietSink>(builder);
+    Build::select_provider<logger_kit::main::Sink, logger_kit::main::QuietSinkProvider>(builder);
     Build::exclude_service<logger_kit::main::Sink>(builder);
     Build::bind(builder, windows_x86_64::ProgramEntry, Main::main);
     Build::bind(builder, linux_x86_64::ProgramEntry, Main::main);

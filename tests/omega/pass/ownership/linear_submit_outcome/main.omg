@@ -1,4 +1,3 @@
-use omega::language::core::binding;
 use omega::language::core::drop;
 
 data Token {

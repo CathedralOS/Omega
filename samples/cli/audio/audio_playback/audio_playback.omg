@@ -15,7 +15,6 @@
 // cannot play the PCM view may use the whole image instead.
 use omega::language::core::external_binding;
 use omega::language::core::numeric_conversion;
-use omega::language::core::binding;
 
 pub boundary trait AudioPlayback {
     machine play(image: &u8, image_length: u32, pcm: &u8, frames: u32) -> i32

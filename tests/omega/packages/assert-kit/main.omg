@@ -6,7 +6,6 @@
 // exclusion across an ordinary call and a direct guarded trap.
 module main;
 
-use omega::language::core::binding;
 
 pub boundary trait Assert {
     machine check(ok: bool) crashes Trap;
@@ -22,6 +21,10 @@ crashes Trap
 
 pub data CheckingAssert { }
 
+pub CheckingAssertProvider satisfies Assert {
+    Assert::check = CheckingAssert::check;
+}
+
 machine CheckingAssert::check(ok: bool)
 satisfies Assert::check
 crashes Trap
@@ -30,6 +33,10 @@ crashes Trap
 }
 
 pub data NoOpAssert { }
+
+pub NoOpAssertProvider satisfies Assert {
+    Assert::check = NoOpAssert::check;
+}
 
 machine NoOpAssert::check(ok: bool)
 satisfies Assert::check

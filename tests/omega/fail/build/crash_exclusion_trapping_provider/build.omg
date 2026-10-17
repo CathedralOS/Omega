@@ -5,7 +5,7 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "crash_exclusion_trapping_provider");
     Build::depend(builder, Source::Path { location: "../../../packages/assert-kit" });
-    Build::select_provider<assert_kit::main::Assert, assert_kit::main::CheckingAssert>(builder);
+    Build::select_provider<assert_kit::main::Assert, assert_kit::main::CheckingAssertProvider>(builder);
     Optimizations::enable(&mut builder.optimizations, Optimization::ControlFlowCleanup);
     Build::exclude_crash(builder, CrashCause::Trap);
     Build::bind(builder, windows_x86_64::ProgramEntry, Main::main);

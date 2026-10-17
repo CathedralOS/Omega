@@ -1,5 +1,4 @@
 use omega::language::core::task;
-use omega::language::core::binding;
 
 // MP6/TR3: TaskRuntime's machine-parameter contract admits suspension and blocking,
 // not arbitrary service reach. A selected target must refine that authored
@@ -25,12 +24,11 @@ machine Task::settle<T>(task: Task<T>) -> TaskOutcome<T> {
 }
 
 data Main {
-    runtime: &Binding<TaskRuntime>;
 }
 
 machine Main::probe(main: &mut Main) reaches TaskRuntime {
     let job: Job = Job { value: 7 };
-    let task: Task<i32> = main.runtime.start<i32, Job, Worker::run>(job);
+    let task: Task<i32> = TaskRuntime::start<i32, Job, Worker::run>(job);
     _ = suspend block Task::settle(task);
 }
 

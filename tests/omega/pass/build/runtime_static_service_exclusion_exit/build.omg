@@ -10,6 +10,7 @@ machine build(builder: &mut Build) {
 
 machine configure(builder: &mut Build) {
     let selected: u32 = Ordinary::exclude_service<u32>(7);
+    Build::select_provider<logger_kit::main::Sink, logger_kit::main::QuietSinkProvider>(builder);
     Build::exclude_service<logger_kit::main::Sink>(builder);
 }
 

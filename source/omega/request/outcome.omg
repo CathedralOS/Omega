@@ -1,5 +1,4 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 
 // The outcome side of the standalone compiler request
 // (wiki/spec/build/compiler_request.md). A Complete result publishes the
