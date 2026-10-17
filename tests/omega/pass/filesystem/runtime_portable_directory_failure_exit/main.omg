@@ -1,0 +1,63 @@
+// Expected exit: 0. A traversal deeper than the bounded stack fails closed,
+// releases every acquired descriptor, and leaves the unvisited subtree intact.
+use omega_language_std::filesystem;
+use omega_language_std::console;
+data Main {
+    filesystem: Filesystem;
+    acquisitions: [File; 17];
+    acquisition_count: u64 in Wrapping;
+    release_index: u64 in Wrapping;
+}
+machine Main::main(main: &mut Main) reaches Console {
+    let result: UnitResult = Filesystem::create_dir_all(&mut main.filesystem, "omega_directory_depth/a/b/c/d/e/f/g/h/i/j/k/l/m/n/o/p/q");
+    transition result { UnitResult::Ok -> refuse(main) _ -> bad(10) }
+    state refuse(main: &mut Main) {
+        let result: UnitResult = Filesystem::remove_dir_all(&mut main.filesystem, "omega_directory_depth");
+        transition result { UnitResult::Error { kind } -> released(main) _ -> bad(11) }
+    }
+    state released(main: &mut Main) {
+        // Keep all 17 acquisitions live: merely reopening descriptor 3 would
+        // not detect a leak of a higher stack slot or the unpushed child.
+        transition main.acquisition_count < 17 { true -> acquire(main) _ -> release_batch(main) }
+    }
+    state acquire(main: &mut Main) {
+        let result: OpenResult = Filesystem::open(&mut main.filesystem, "/dev/null");
+        transition result { OpenResult::Ok { file } -> acquired(main, file) _ -> bad(12) }
+    }
+    state acquired(main: &mut Main, file: File) {
+        transition main.acquisition_count < 17 && file.handle == ((main.acquisition_count + 4) as u64) {
+            true -> store(main, file) _ -> bad(12)
+        }
+    }
+    state store(main: &mut Main, file: File) {
+        main.acquisitions[main.acquisition_count] = file;
+        main.acquisition_count = main.acquisition_count + 1;
+        transition { _ -> released(main) }
+    }
+    state release_batch(main: &mut Main) {
+        transition main.release_index < 17 { true -> release_one(main) _ -> intact(main) }
+    }
+    state release_one(main: &mut Main) {
+        let file: File = main.acquisitions[main.release_index];
+        let result: UnitResult = Filesystem::close(&mut main.filesystem, file);
+        transition result { UnitResult::Ok -> next_release(main) _ -> bad(12) }
+    }
+    state next_release(main: &mut Main) {
+        main.release_index = main.release_index + 1;
+        transition { _ -> release_batch(main) }
+    }
+    state intact(main: &mut Main) {
+        let present: bool = Filesystem::exists(&mut main.filesystem, "omega_directory_depth/a/b/c/d/e/f/g/h/i/j/k/l/m/n/o/p/q");
+        transition present { true -> subtree(main) _ -> bad(13) }
+    }
+    state subtree(main: &mut Main) {
+        let result: UnitResult = Filesystem::remove_dir_all(&mut main.filesystem, "omega_directory_depth/a/b/c");
+        transition result { UnitResult::Ok -> cleanup(main) _ -> bad(14) }
+    }
+    state cleanup(main: &mut Main) {
+        let result: UnitResult = Filesystem::remove_dir_all(&mut main.filesystem, "omega_directory_depth");
+        transition result { UnitResult::Ok -> good() _ -> bad(15) }
+    }
+    state good() { Console::exit_process(0); }
+    state bad(code: i32) { Console::exit_process(code); }
+}

@@ -9,57 +9,386 @@ use posix_filesystem_host;
 use omega::language::core::layout;
 use omega::language::core::numeric_conversion;
 use targets::linux_x86_64::filesystem_impl;
+use targets::linux_arm64::filesystem_impl;
 use targets::macos_arm64::filesystem_impl;
 
 data FilesystemProviderDefaults { }
 
 FilesystemPosixProvider satisfies FilesystemService {
-    FilesystemService::create = portable_filesystem_create;
-    FilesystemService::create_new = portable_filesystem_create_new;
-    FilesystemService::open = portable_filesystem_open;
-    FilesystemService::append = portable_filesystem_append;
-    FilesystemService::read = portable_filesystem_read;
-    FilesystemService::write = portable_filesystem_write;
-    FilesystemService::close = portable_filesystem_close;
-    FilesystemService::write_all = portable_filesystem_write_all;
-    FilesystemService::read_all = portable_filesystem_read_all;
-    FilesystemService::copy = portable_filesystem_copy;
-    FilesystemService::exists = portable_filesystem_exists;
-    FilesystemService::try_exists = portable_filesystem_try_exists;
-    FilesystemService::metadata_path = portable_filesystem_metadata_path;
-    FilesystemService::symlink_metadata = portable_filesystem_symlink_metadata;
-    FilesystemService::remove = portable_filesystem_remove;
-    FilesystemService::create_dir = portable_filesystem_create_dir;
-    FilesystemService::remove_dir = portable_filesystem_remove_dir;
-    FilesystemService::create_dir_all = portable_filesystem_create_dir_all;
-    FilesystemService::read_dir_is_empty = portable_filesystem_read_dir_is_empty;
-    FilesystemService::set_permissions = portable_filesystem_set_permissions;
-    FilesystemService::symlink = portable_filesystem_symlink;
-    FilesystemService::read_link = portable_filesystem_read_link;
-    FilesystemService::set_file_permissions = portable_filesystem_set_file_permissions;
-    FilesystemService::rename = portable_filesystem_rename;
-    FilesystemService::set_len = portable_filesystem_set_len;
-    FilesystemService::sync = portable_filesystem_sync;
-    FilesystemService::sync_data = portable_filesystem_sync_data;
-    FilesystemService::try_clone = portable_filesystem_try_clone;
-    FilesystemService::set_owner = portable_filesystem_set_owner;
-    FilesystemService::set_owner_no_follow = portable_filesystem_set_owner_no_follow;
-    FilesystemService::set_file_owner = portable_filesystem_set_file_owner;
-    FilesystemService::metadata = portable_filesystem_metadata;
-    FilesystemService::open_with = portable_filesystem_open_with;
-    FilesystemService::read_dir_count = portable_filesystem_read_dir_count;
-    FilesystemService::read_dir_nth = portable_filesystem_read_dir_nth;
-    FilesystemService::remove_dir_all = portable_filesystem_remove_dir_all;
-    FilesystemService::read_at = portable_filesystem_read_at;
-    FilesystemService::write_at = portable_filesystem_write_at;
-    FilesystemService::hard_link = portable_filesystem_hard_link;
-    FilesystemService::set_times = portable_filesystem_set_times;
-    FilesystemService::canonicalize = portable_filesystem_canonicalize;
-    FilesystemService::lock = portable_filesystem_lock;
-    FilesystemService::lock_shared = portable_filesystem_lock_shared;
-    FilesystemService::try_lock = portable_filesystem_try_lock;
-    FilesystemService::try_lock_shared = portable_filesystem_try_lock_shared;
-    FilesystemService::unlock = portable_filesystem_unlock;
+    machine create(path: &[u8] in Path) -> OpenResult
+    reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
+    invokes PosixFilesystemHost;
+    {
+        let mut context: PosixFilesystem;
+        PosixFilesystem::create(&mut context, path)
+    }
+
+    machine create_new(path: &[u8] in Path) -> OpenResult
+    reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
+    invokes PosixFilesystemHost;
+    {
+        let mut context: PosixFilesystem;
+        PosixFilesystem::create_new(&mut context, path)
+    }
+
+    machine open(path: &[u8] in Path) -> OpenResult
+    reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
+    invokes PosixFilesystemHost;
+    {
+        let mut context: PosixFilesystem;
+        PosixFilesystem::open(&mut context, path)
+    }
+
+    machine append(path: &[u8] in Path) -> OpenResult
+    reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
+    invokes PosixFilesystemHost;
+    {
+        let mut context: PosixFilesystem;
+        PosixFilesystem::append(&mut context, path)
+    }
+
+    machine read(file: File, buffer: &mut [u8], count: u64) -> IoResult
+    reaches FilesystemContentRead
+    invokes PosixFilesystemHost;
+    {
+        let mut context: PosixFilesystem;
+        PosixFilesystem::read(&mut context, file, buffer, count)
+    }
+
+    machine write(file: File, bytes: &[u8]) -> IoResult
+    reaches FilesystemContentWrite
+    invokes PosixFilesystemHost;
+    {
+        let mut context: PosixFilesystem;
+        PosixFilesystem::write(&mut context, file, bytes)
+    }
+
+    machine close(file: File) -> UnitResult
+
+    invokes PosixFilesystemHost;
+    {
+        let mut context: PosixFilesystem;
+        let result: i32 = PosixFilesystem::close(&mut context, file);
+        transition result == 0 { true -> closed() false -> failed(result) }
+        state closed() -> UnitResult { UnitResult::Ok }
+        state failed(result: i32) -> UnitResult {
+            let mut context: PosixFilesystem;
+            let kind: ErrorKind = PosixFilesystem::last_error_i32(&mut context, result);
+            UnitResult::Error { kind: kind }
+        }
+    }
+
+    machine write_all(path: &[u8] in Path, bytes: &[u8]) -> UnitResult
+    reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
+    invokes PosixFilesystemHost;
+    {
+        let mut context: PosixFilesystem;
+        PosixFilesystem::write_all(&mut context, path, bytes)
+    }
+
+    machine read_all(path: &[u8] in Path, buffer: &mut [u8], count: u64) -> IoResult
+    reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
+    invokes PosixFilesystemHost;
+    {
+        let mut context: PosixFilesystem;
+        PosixFilesystem::read_all(&mut context, path, buffer, count)
+    }
+
+    machine copy(from: &[u8] in Path, to: &[u8] in Path, buffer: &mut [u8], cap: u64) -> IoResult
+    reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + FilesystemMetadataQuery
+    invokes PosixFilesystemHost;
+    {
+        let mut context: PosixFilesystem;
+        PosixFilesystem::copy(&mut context, from, to, buffer, cap)
+    }
+
+    machine exists(path: &[u8] in Path) -> bool
+    reaches FilesystemMetadataQuery
+    invokes PosixFilesystemHost;
+    {
+        let mut context: PosixFilesystem;
+        PosixFilesystem::exists(&mut context, path)
+    }
+
+    machine try_exists(path: &[u8] in Path) -> ExistsResult
+    reaches FilesystemMetadataQuery
+    invokes PosixFilesystemHost;
+    {
+        let mut context: PosixFilesystem;
+        PosixFilesystem::try_exists(&mut context, path)
+    }
+
+    machine metadata_path(path: &[u8] in Path) -> MetadataResult
+    reaches FilesystemMetadataQuery
+    invokes PosixFilesystemHost;
+    {
+        let mut context: PosixFilesystem;
+        PosixFilesystem::metadata_path(&mut context, path)
+    }
+
+    machine symlink_metadata(path: &[u8] in Path) -> MetadataResult
+    reaches FilesystemMetadataQuery
+    invokes PosixFilesystemHost;
+    {
+        let mut context: PosixFilesystem;
+        PosixFilesystem::symlink_metadata(&mut context, path)
+    }
+
+    machine remove(path: &[u8] in Path) -> UnitResult
+    reaches FilesystemNamespaceMutation
+    invokes PosixFilesystemHost;
+    {
+        let mut context: PosixFilesystem;
+        PosixFilesystem::remove(&mut context, path)
+    }
+
+    machine create_dir(path: &[u8] in Path) -> UnitResult
+    reaches FilesystemMetadataMutation + FilesystemNamespaceMutation
+    invokes PosixFilesystemHost;
+    {
+        let mut context: PosixFilesystem;
+        PosixFilesystem::create_dir(&mut context, path)
+    }
+
+    machine remove_dir(path: &[u8] in Path) -> UnitResult
+    reaches FilesystemNamespaceMutation
+    invokes PosixFilesystemHost;
+    {
+        let mut context: PosixFilesystem;
+        PosixFilesystem::remove_dir(&mut context, path)
+    }
+
+    machine create_dir_all(path: &[u8] in Path) -> UnitResult
+    reaches FilesystemMetadataMutation + FilesystemNamespaceMutation
+    invokes PosixFilesystemHost;
+    {
+        let mut context: PosixFilesystem;
+        PosixFilesystem::create_dir_all(&mut context, path)
+    }
+
+    machine read_dir_is_empty(path: &[u8] in Path) -> EmptyResult
+    reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration
+    invokes PosixFilesystemHost;
+    {
+        let mut context: PosixFilesystem;
+        PosixFilesystem::read_dir_is_empty(&mut context, path)
+    }
+
+    machine set_permissions(path: &[u8] in Path, perms: Permissions) -> UnitResult
+    reaches FilesystemMetadataMutation
+    invokes PosixFilesystemHost;
+    {
+        let mut context: PosixFilesystem;
+        PosixFilesystem::set_permissions(&mut context, path, perms)
+    }
+
+    machine symlink(target: &[u8] in Path, link: &[u8] in Path) -> UnitResult
+    reaches FilesystemNamespaceMutation
+    invokes PosixFilesystemHost;
+    {
+        let mut context: PosixFilesystem;
+        PosixFilesystem::symlink(&mut context, target, link)
+    }
+
+    machine read_link(path: &[u8] in Path, buffer: &mut [u8], count: u64) -> IoResult
+    reaches FilesystemMetadataQuery
+    invokes PosixFilesystemHost;
+    {
+        let mut context: PosixFilesystem;
+        PosixFilesystem::read_link(&mut context, path, buffer, count)
+    }
+
+    machine set_file_permissions(file: File, perms: Permissions) -> UnitResult
+    reaches FilesystemMetadataMutation
+    invokes PosixFilesystemHost;
+    {
+        let mut context: PosixFilesystem;
+        PosixFilesystem::set_file_permissions(&mut context, file, perms)
+    }
+
+    machine rename(from: &[u8] in Path, to: &[u8] in Path) -> UnitResult
+    reaches FilesystemNamespaceMutation
+    invokes PosixFilesystemHost;
+    {
+        let mut context: PosixFilesystem;
+        PosixFilesystem::rename(&mut context, from, to)
+    }
+
+    machine set_len(file: File, length: i64) -> UnitResult
+    reaches FilesystemContentWrite + FilesystemMetadataMutation
+    invokes PosixFilesystemHost;
+    {
+        let mut context: PosixFilesystem;
+        PosixFilesystem::set_len(&mut context, file, length)
+    }
+
+    machine sync(file: File) -> UnitResult
+
+    invokes PosixFilesystemHost;
+    {
+        let mut context: PosixFilesystem;
+        PosixFilesystem::sync(&mut context, file)
+    }
+
+    machine sync_data(file: File) -> UnitResult
+
+    invokes PosixFilesystemHost;
+    {
+        let mut context: PosixFilesystem;
+        PosixFilesystem::sync_data(&mut context, file)
+    }
+
+    machine try_clone(file: File) -> OpenResult
+
+    invokes PosixFilesystemHost;
+    {
+        let mut context: PosixFilesystem;
+        PosixFilesystem::try_clone(&mut context, file)
+    }
+
+    machine set_owner(path: &[u8] in Path, uid: i32, gid: i32) -> UnitResult
+    reaches FilesystemMetadataMutation
+    invokes PosixFilesystemHost;
+    {
+        let mut context: PosixFilesystem;
+        PosixFilesystem::set_owner(&mut context, path, uid, gid)
+    }
+
+    machine set_owner_no_follow(path: &[u8] in Path, uid: i32, gid: i32) -> UnitResult
+    reaches FilesystemMetadataMutation
+    invokes PosixFilesystemHost;
+    {
+        let mut context: PosixFilesystem;
+        PosixFilesystem::set_owner_no_follow(&mut context, path, uid, gid)
+    }
+
+    machine set_file_owner(file: File, uid: i32, gid: i32) -> UnitResult
+    reaches FilesystemMetadataMutation
+    invokes PosixFilesystemHost;
+    {
+        let mut context: PosixFilesystem;
+        PosixFilesystem::set_file_owner(&mut context, file, uid, gid)
+    }
+
+    machine metadata(file: File) -> MetadataResult
+    reaches FilesystemMetadataQuery
+    invokes PosixFilesystemHost;
+    {
+        let mut context: PosixFilesystem;
+        PosixFilesystem::metadata(&mut context, file)
+    }
+
+    machine open_with(path: &[u8] in Path, options: OpenOptions) -> OpenResult
+    reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
+    invokes PosixFilesystemHost;
+    {
+        let mut context: PosixFilesystem;
+        PosixFilesystem::open_with(&mut context, path, options)
+    }
+
+    machine read_dir_count(path: &[u8] in Path) -> IoResult
+    reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration
+    invokes PosixFilesystemHost;
+    {
+        let mut context: PosixFilesystem;
+        PosixFilesystem::read_dir_count(&mut context, path)
+    }
+
+    machine read_dir_nth(path: &[u8] in Path, n: u64) -> DirEntryResult
+    reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration
+    invokes PosixFilesystemHost;
+    {
+        let mut context: PosixFilesystem;
+        PosixFilesystem::read_dir_nth(&mut context, path, n)
+    }
+
+    machine remove_dir_all(path: &[u8] in Path) -> UnitResult
+    reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration
+    invokes PosixFilesystemHost;
+    {
+        let mut context: PosixFilesystem;
+        PosixFilesystem::remove_dir_all(&mut context, path)
+    }
+
+    machine read_at(file: File, buffer: &mut [u8], count: u64, offset: i64) -> IoResult
+    reaches FilesystemContentRead
+    invokes PosixFilesystemHost;
+    {
+        let mut context: PosixFilesystem;
+        PosixFilesystem::read_at(&mut context, file, buffer, count, offset)
+    }
+
+    machine write_at(file: File, bytes: &[u8], offset: i64) -> IoResult
+    reaches FilesystemContentWrite
+    invokes PosixFilesystemHost;
+    {
+        let mut context: PosixFilesystem;
+        PosixFilesystem::write_at(&mut context, file, bytes, offset)
+    }
+
+    machine hard_link(original: &[u8] in Path, link: &[u8] in Path) -> UnitResult
+    reaches FilesystemNamespaceMutation
+    invokes PosixFilesystemHost;
+    {
+        let mut context: PosixFilesystem;
+        PosixFilesystem::hard_link(&mut context, original, link)
+    }
+
+    machine set_times(file: File, accessed: i64, modified: i64) -> UnitResult
+    reaches FilesystemMetadataMutation
+    invokes PosixFilesystemHost;
+    {
+        let mut context: PosixFilesystem;
+        PosixFilesystem::set_times(&mut context, file, accessed, modified)
+    }
+
+    machine canonicalize(path: &[u8] in Path, buffer: &mut [u8]) -> UnitResult
+    reaches FilesystemMetadataQuery
+    invokes PosixFilesystemHost;
+    {
+        let mut context: PosixFilesystem;
+        PosixFilesystem::canonicalize(&mut context, path, buffer)
+    }
+
+    machine lock(file: File) -> UnitResult
+
+    invokes PosixFilesystemHost;
+    {
+        let mut context: PosixFilesystem;
+        PosixFilesystem::lock(&mut context, file)
+    }
+
+    machine lock_shared(file: File) -> UnitResult
+
+    invokes PosixFilesystemHost;
+    {
+        let mut context: PosixFilesystem;
+        PosixFilesystem::lock_shared(&mut context, file)
+    }
+
+    machine try_lock(file: File) -> TryLockResult
+
+    invokes PosixFilesystemHost;
+    {
+        let mut context: PosixFilesystem;
+        PosixFilesystem::try_lock(&mut context, file)
+    }
+
+    machine try_lock_shared(file: File) -> TryLockResult
+
+    invokes PosixFilesystemHost;
+    {
+        let mut context: PosixFilesystem;
+        PosixFilesystem::try_lock_shared(&mut context, file)
+    }
+
+    machine unlock(file: File) -> UnitResult
+
+    invokes PosixFilesystemHost;
+    {
+        let mut context: PosixFilesystem;
+        PosixFilesystem::unlock(&mut context, file)
+    }
 }
 data PosixFilesystem
 where open_writable >= 0 && open_writable <= 1,
@@ -393,7 +722,17 @@ invokes PosixFilesystemHost;
         IoResult::Error { kind: kind }
     }
     state read(filesystem: &mut PosixFilesystem, source: i32, to: &[u8] in Path, buffer: &mut [u8], cap: u64) -> IoResult {
-        let metadata: Metadata = PosixFilesystem::decode_metadata(filesystem);
+        let result: MetadataResult = PosixFilesystem::decode_metadata(filesystem);
+        transition result {
+            MetadataResult::Ok { meta } -> read_contents(filesystem, source, to, buffer, cap, meta)
+            MetadataResult::Error { kind } -> invalid_metadata(source, kind)
+        }
+    }
+    state invalid_metadata(source: i32, kind: ErrorKind) -> IoResult {
+        let closed: i32 = PosixFilesystemHost::close(source);
+        IoResult::Error { kind: kind }
+    }
+    state read_contents(filesystem: &mut PosixFilesystem, source: i32, to: &[u8] in Path, buffer: &mut [u8], cap: u64, metadata: Metadata) -> IoResult {
         let mode: u32 = metadata.mode & 511;
         let count: i64 = PosixFilesystemHost::read(source, buffer, cap);
         let closed: i32 = PosixFilesystemHost::close(source);
@@ -485,7 +824,7 @@ invokes
 {
     let rc: i32 = PosixFilesystemHost::read_metadata(path, &mut filesystem.stat_buf);
     transition rc == 0 { true -> decode(filesystem) _ -> err(filesystem, rc) }
-    state decode(filesystem: &mut PosixFilesystem) -> MetadataResult { let m: Metadata = PosixFilesystem::decode_metadata(filesystem); MetadataResult::Ok { meta: m } }
+    state decode(filesystem: &mut PosixFilesystem) -> MetadataResult { PosixFilesystem::decode_metadata(filesystem) }
     state err(filesystem: &mut PosixFilesystem, rc: i32) -> MetadataResult { let kind: ErrorKind = PosixFilesystem::last_error_i32(filesystem, rc); MetadataResult::Error { kind: kind } }
 }
 
@@ -497,7 +836,7 @@ invokes
 {
     let rc: i32 = PosixFilesystemHost::read_symlink_metadata(path, &mut filesystem.stat_buf);
     transition rc == 0 { true -> decode(filesystem) _ -> err(filesystem, rc) }
-    state decode(filesystem: &mut PosixFilesystem) -> MetadataResult { let m: Metadata = PosixFilesystem::decode_metadata(filesystem); MetadataResult::Ok { meta: m } }
+    state decode(filesystem: &mut PosixFilesystem) -> MetadataResult { PosixFilesystem::decode_metadata(filesystem) }
     state err(filesystem: &mut PosixFilesystem, rc: i32) -> MetadataResult { let kind: ErrorKind = PosixFilesystem::last_error_i32(filesystem, rc); MetadataResult::Error { kind: kind } }
 }
 
@@ -861,7 +1200,7 @@ invokes
     filesystem.file_fd = PosixFilesystem::descriptor(file);
     let rc: i32 = PosixFilesystemHost::read_file_metadata(filesystem.file_fd, &mut filesystem.stat_buf);
     transition rc == 0 { true -> decode(filesystem) _ -> err(filesystem, rc) }
-    state decode(filesystem: &mut PosixFilesystem) -> MetadataResult { let m: Metadata = PosixFilesystem::decode_metadata(filesystem); MetadataResult::Ok { meta: m } }
+    state decode(filesystem: &mut PosixFilesystem) -> MetadataResult { PosixFilesystem::decode_metadata(filesystem) }
     state err(filesystem: &mut PosixFilesystem, rc: i32) -> MetadataResult { let kind: ErrorKind = PosixFilesystem::last_error_i32(filesystem, rc); MetadataResult::Error { kind: kind } }
 }
 
@@ -882,418 +1221,6 @@ machine PosixFilesystem::descriptor(file: File) -> i32 {
     }
     state absent() -> i32 { -1 }
 }
-machine portable_filesystem_create(path: &[u8] in Path) -> OpenResult
-reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
-
-invokes PosixFilesystemHost;
-{
-    let mut context: PosixFilesystem;
-    PosixFilesystem::create(&mut context, path)
-}
-
-machine portable_filesystem_create_new(path: &[u8] in Path) -> OpenResult
-reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
-
-invokes PosixFilesystemHost;
-{
-    let mut context: PosixFilesystem;
-    PosixFilesystem::create_new(&mut context, path)
-}
-
-machine portable_filesystem_open(path: &[u8] in Path) -> OpenResult
-reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
-
-invokes PosixFilesystemHost;
-{
-    let mut context: PosixFilesystem;
-    PosixFilesystem::open(&mut context, path)
-}
-
-machine portable_filesystem_append(path: &[u8] in Path) -> OpenResult
-reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
-
-invokes PosixFilesystemHost;
-{
-    let mut context: PosixFilesystem;
-    PosixFilesystem::append(&mut context, path)
-}
-
-machine portable_filesystem_read(file: File, buffer: &mut [u8], count: u64) -> IoResult
-reaches FilesystemContentRead
-
-invokes PosixFilesystemHost;
-{
-    let mut context: PosixFilesystem;
-    PosixFilesystem::read(&mut context, file, buffer, count)
-}
-
-machine portable_filesystem_write(file: File, bytes: &[u8]) -> IoResult
-reaches FilesystemContentWrite
-
-invokes PosixFilesystemHost;
-{
-    let mut context: PosixFilesystem;
-    PosixFilesystem::write(&mut context, file, bytes)
-}
-
-machine portable_filesystem_close(file: File) -> UnitResult
-
-invokes PosixFilesystemHost;
-{
-    let mut context: PosixFilesystem;
-    let result: i32 = PosixFilesystem::close(&mut context, file);
-    transition result == 0 { true -> closed() false -> failed(result) }
-    state closed() -> UnitResult { UnitResult::Ok }
-    state failed(result: i32) -> UnitResult {
-        let mut context: PosixFilesystem;
-        let kind: ErrorKind = PosixFilesystem::last_error_i32(&mut context, result);
-        UnitResult::Error { kind: kind }
-    }
-}
-
-machine portable_filesystem_write_all(path: &[u8] in Path, bytes: &[u8]) -> UnitResult
-reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
-
-invokes PosixFilesystemHost;
-{
-    let mut context: PosixFilesystem;
-    PosixFilesystem::write_all(&mut context, path, bytes)
-}
-
-machine portable_filesystem_read_all(path: &[u8] in Path, buffer: &mut [u8], count: u64) -> IoResult
-reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
-
-invokes PosixFilesystemHost;
-{
-    let mut context: PosixFilesystem;
-    PosixFilesystem::read_all(&mut context, path, buffer, count)
-}
-
-machine portable_filesystem_copy(from: &[u8] in Path, to: &[u8] in Path, buffer: &mut [u8], cap: u64) -> IoResult
-reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + FilesystemMetadataQuery
-
-invokes PosixFilesystemHost;
-{
-    let mut context: PosixFilesystem;
-    PosixFilesystem::copy(&mut context, from, to, buffer, cap)
-}
-
-machine portable_filesystem_exists(path: &[u8] in Path) -> bool
-reaches FilesystemMetadataQuery
-
-invokes PosixFilesystemHost;
-{
-    let mut context: PosixFilesystem;
-    PosixFilesystem::exists(&mut context, path)
-}
-
-machine portable_filesystem_try_exists(path: &[u8] in Path) -> ExistsResult
-reaches FilesystemMetadataQuery
-
-invokes PosixFilesystemHost;
-{
-    let mut context: PosixFilesystem;
-    PosixFilesystem::try_exists(&mut context, path)
-}
-
-machine portable_filesystem_metadata_path(path: &[u8] in Path) -> MetadataResult
-reaches FilesystemMetadataQuery
-
-invokes PosixFilesystemHost;
-{
-    let mut context: PosixFilesystem;
-    PosixFilesystem::metadata_path(&mut context, path)
-}
-
-machine portable_filesystem_symlink_metadata(path: &[u8] in Path) -> MetadataResult
-reaches FilesystemMetadataQuery
-
-invokes PosixFilesystemHost;
-{
-    let mut context: PosixFilesystem;
-    PosixFilesystem::symlink_metadata(&mut context, path)
-}
-
-machine portable_filesystem_remove(path: &[u8] in Path) -> UnitResult
-reaches FilesystemNamespaceMutation
-
-invokes PosixFilesystemHost;
-{
-    let mut context: PosixFilesystem;
-    PosixFilesystem::remove(&mut context, path)
-}
-
-machine portable_filesystem_create_dir(path: &[u8] in Path) -> UnitResult
-reaches FilesystemMetadataMutation + FilesystemNamespaceMutation
-
-invokes PosixFilesystemHost;
-{
-    let mut context: PosixFilesystem;
-    PosixFilesystem::create_dir(&mut context, path)
-}
-
-machine portable_filesystem_remove_dir(path: &[u8] in Path) -> UnitResult
-reaches FilesystemNamespaceMutation
-
-invokes PosixFilesystemHost;
-{
-    let mut context: PosixFilesystem;
-    PosixFilesystem::remove_dir(&mut context, path)
-}
-
-machine portable_filesystem_create_dir_all(path: &[u8] in Path) -> UnitResult
-reaches FilesystemMetadataMutation + FilesystemNamespaceMutation
-
-invokes PosixFilesystemHost;
-{
-    let mut context: PosixFilesystem;
-    PosixFilesystem::create_dir_all(&mut context, path)
-}
-
-machine portable_filesystem_read_dir_is_empty(path: &[u8] in Path) -> EmptyResult
-reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration
-
-invokes PosixFilesystemHost;
-{
-    let mut context: PosixFilesystem;
-    PosixFilesystem::read_dir_is_empty(&mut context, path)
-}
-
-machine portable_filesystem_set_permissions(path: &[u8] in Path, perms: Permissions) -> UnitResult
-reaches FilesystemMetadataMutation
-
-invokes PosixFilesystemHost;
-{
-    let mut context: PosixFilesystem;
-    PosixFilesystem::set_permissions(&mut context, path, perms)
-}
-
-machine portable_filesystem_symlink(target: &[u8] in Path, link: &[u8] in Path) -> UnitResult
-reaches FilesystemNamespaceMutation
-
-invokes PosixFilesystemHost;
-{
-    let mut context: PosixFilesystem;
-    PosixFilesystem::symlink(&mut context, target, link)
-}
-
-machine portable_filesystem_read_link(path: &[u8] in Path, buffer: &mut [u8], count: u64) -> IoResult
-reaches FilesystemMetadataQuery
-
-invokes PosixFilesystemHost;
-{
-    let mut context: PosixFilesystem;
-    PosixFilesystem::read_link(&mut context, path, buffer, count)
-}
-
-machine portable_filesystem_set_file_permissions(file: File, perms: Permissions) -> UnitResult
-reaches FilesystemMetadataMutation
-
-invokes PosixFilesystemHost;
-{
-    let mut context: PosixFilesystem;
-    PosixFilesystem::set_file_permissions(&mut context, file, perms)
-}
-
-machine portable_filesystem_rename(from: &[u8] in Path, to: &[u8] in Path) -> UnitResult
-reaches FilesystemNamespaceMutation
-
-invokes PosixFilesystemHost;
-{
-    let mut context: PosixFilesystem;
-    PosixFilesystem::rename(&mut context, from, to)
-}
-
-machine portable_filesystem_set_len(file: File, length: i64) -> UnitResult
-reaches FilesystemContentWrite + FilesystemMetadataMutation
-
-invokes PosixFilesystemHost;
-{
-    let mut context: PosixFilesystem;
-    PosixFilesystem::set_len(&mut context, file, length)
-}
-
-machine portable_filesystem_sync(file: File) -> UnitResult
-
-invokes PosixFilesystemHost;
-{
-    let mut context: PosixFilesystem;
-    PosixFilesystem::sync(&mut context, file)
-}
-
-machine portable_filesystem_sync_data(file: File) -> UnitResult
-
-invokes PosixFilesystemHost;
-{
-    let mut context: PosixFilesystem;
-    PosixFilesystem::sync_data(&mut context, file)
-}
-
-machine portable_filesystem_try_clone(file: File) -> OpenResult
-
-invokes PosixFilesystemHost;
-{
-    let mut context: PosixFilesystem;
-    PosixFilesystem::try_clone(&mut context, file)
-}
-
-machine portable_filesystem_set_owner(path: &[u8] in Path, uid: i32, gid: i32) -> UnitResult
-reaches FilesystemMetadataMutation
-
-invokes PosixFilesystemHost;
-{
-    let mut context: PosixFilesystem;
-    PosixFilesystem::set_owner(&mut context, path, uid, gid)
-}
-
-machine portable_filesystem_set_owner_no_follow(path: &[u8] in Path, uid: i32, gid: i32) -> UnitResult
-reaches FilesystemMetadataMutation
-
-invokes PosixFilesystemHost;
-{
-    let mut context: PosixFilesystem;
-    PosixFilesystem::set_owner_no_follow(&mut context, path, uid, gid)
-}
-
-machine portable_filesystem_set_file_owner(file: File, uid: i32, gid: i32) -> UnitResult
-reaches FilesystemMetadataMutation
-
-invokes PosixFilesystemHost;
-{
-    let mut context: PosixFilesystem;
-    PosixFilesystem::set_file_owner(&mut context, file, uid, gid)
-}
-
-machine portable_filesystem_metadata(file: File) -> MetadataResult
-reaches FilesystemMetadataQuery
-
-invokes PosixFilesystemHost;
-{
-    let mut context: PosixFilesystem;
-    PosixFilesystem::metadata(&mut context, file)
-}
-
-machine portable_filesystem_open_with(path: &[u8] in Path, options: OpenOptions) -> OpenResult
-reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
-
-invokes PosixFilesystemHost;
-{
-    let mut context: PosixFilesystem;
-    PosixFilesystem::open_with(&mut context, path, options)
-}
-
-machine portable_filesystem_read_dir_count(path: &[u8] in Path) -> IoResult
-reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration
-
-invokes PosixFilesystemHost;
-{
-    let mut context: PosixFilesystem;
-    PosixFilesystem::read_dir_count(&mut context, path)
-}
-
-machine portable_filesystem_read_dir_nth(path: &[u8] in Path, n: u64) -> DirEntryResult
-reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration
-
-invokes PosixFilesystemHost;
-{
-    let mut context: PosixFilesystem;
-    PosixFilesystem::read_dir_nth(&mut context, path, n)
-}
-
-machine portable_filesystem_remove_dir_all(path: &[u8] in Path) -> UnitResult
-reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration
-
-invokes PosixFilesystemHost;
-{
-    let mut context: PosixFilesystem;
-    PosixFilesystem::remove_dir_all(&mut context, path)
-}
-
-machine portable_filesystem_read_at(file: File, buffer: &mut [u8], count: u64, offset: i64) -> IoResult
-reaches FilesystemContentRead
-
-invokes PosixFilesystemHost;
-{
-    let mut context: PosixFilesystem;
-    PosixFilesystem::read_at(&mut context, file, buffer, count, offset)
-}
-
-machine portable_filesystem_write_at(file: File, bytes: &[u8], offset: i64) -> IoResult
-reaches FilesystemContentWrite
-
-invokes PosixFilesystemHost;
-{
-    let mut context: PosixFilesystem;
-    PosixFilesystem::write_at(&mut context, file, bytes, offset)
-}
-
-machine portable_filesystem_hard_link(original: &[u8] in Path, link: &[u8] in Path) -> UnitResult
-reaches FilesystemNamespaceMutation
-
-invokes PosixFilesystemHost;
-{
-    let mut context: PosixFilesystem;
-    PosixFilesystem::hard_link(&mut context, original, link)
-}
-
-machine portable_filesystem_set_times(file: File, accessed: i64, modified: i64) -> UnitResult
-reaches FilesystemMetadataMutation
-
-invokes PosixFilesystemHost;
-{
-    let mut context: PosixFilesystem;
-    PosixFilesystem::set_times(&mut context, file, accessed, modified)
-}
-
-machine portable_filesystem_canonicalize(path: &[u8] in Path, buffer: &mut [u8]) -> UnitResult
-reaches FilesystemMetadataQuery
-
-invokes PosixFilesystemHost;
-{
-    let mut context: PosixFilesystem;
-    PosixFilesystem::canonicalize(&mut context, path, buffer)
-}
-
-machine portable_filesystem_lock(file: File) -> UnitResult
-
-invokes PosixFilesystemHost;
-{
-    let mut context: PosixFilesystem;
-    PosixFilesystem::lock(&mut context, file)
-}
-
-machine portable_filesystem_lock_shared(file: File) -> UnitResult
-
-invokes PosixFilesystemHost;
-{
-    let mut context: PosixFilesystem;
-    PosixFilesystem::lock_shared(&mut context, file)
-}
-
-machine portable_filesystem_try_lock(file: File) -> TryLockResult
-
-invokes PosixFilesystemHost;
-{
-    let mut context: PosixFilesystem;
-    PosixFilesystem::try_lock(&mut context, file)
-}
-
-machine portable_filesystem_try_lock_shared(file: File) -> TryLockResult
-
-invokes PosixFilesystemHost;
-{
-    let mut context: PosixFilesystem;
-    PosixFilesystem::try_lock_shared(&mut context, file)
-}
-
-machine portable_filesystem_unlock(file: File) -> UnitResult
-
-invokes PosixFilesystemHost;
-{
-    let mut context: PosixFilesystem;
-    PosixFilesystem::unlock(&mut context, file)
-}
-
 
 // Shared POSIX algorithms consume target-specific geometry and flag values.
 machine PosixFilesystem::open_with(filesystem: &mut PosixFilesystem, path: &[u8] in Path, options: OpenOptions) -> OpenResult
@@ -1471,128 +1398,22 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
     }
 }
 
+// Both public enumeration and recursive deletion use the same name-filtering
+// record reader. POSIX does not promise that dot entries precede ordinary names.
 machine PosixFilesystem::read_dir_nth(filesystem: &mut PosixFilesystem, path: &[u8] in Path, n: u64) -> DirEntryResult
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration
-
-invokes
-    PosixFilesystemHost;
+invokes PosixFilesystemHost;
 {
-    filesystem.read_flags = 0;
-    filesystem.rd_position = 0;
-    filesystem.rd_off = 0;
-    filesystem.rd_recno = 0;
-    filesystem.rd_target = (n as u64 in Wrapping) + 2;
-    let dfd: i32 = PosixFilesystemHost::open(path, filesystem.read_flags);
-    transition dfd >= 0 { true -> rdn_read(filesystem, dfd) _ -> rdn_err_i32(filesystem, dfd) }
-    state rdn_read(filesystem: &mut PosixFilesystem, dfd: i32) -> DirEntryResult {
-        filesystem.rd_off = 0;
-        let total: i64 = PosixFilesystemHost::read_dir(dfd, &mut filesystem.dir_buf, 512, &mut filesystem.rd_position);
-        filesystem.rd_total = narrow_i64_to_u64_wrapping(total) as u64 in Wrapping;
-        transition total > 0 { true -> rdn_walk(filesystem, dfd) _ -> rdn_nonpositive(filesystem, dfd, total) }
+    let descriptor: i32 = PosixFilesystemHost::open(path, 0);
+    transition descriptor >= 0 { true -> read(filesystem, descriptor, n) _ -> failed(filesystem, descriptor) }
+    state read(filesystem: &mut PosixFilesystem, descriptor: i32, n: u64) -> DirEntryResult {
+        let result: DirEntryResult = PosixFilesystem::read_dir_entry_fd(filesystem, descriptor, n);
+        let closed: i32 = PosixFilesystemHost::close(descriptor);
+        transition closed == 0 { true -> result _ -> failed(filesystem, closed) }
     }
-    state rdn_nonpositive(filesystem: &mut PosixFilesystem, dfd: i32, total: i64) -> DirEntryResult {
-        transition total == 0 { true -> rdn_finish(filesystem, dfd) _ -> rdn_err_i64(filesystem, dfd, total) }
-    }
-    state rdn_walk(filesystem: &mut PosixFilesystem, dfd: i32) -> DirEntryResult {
-        transition filesystem.rd_off < filesystem.rd_total { true -> rdn_header(filesystem, dfd) _ -> rdn_read(filesystem, dfd) }
-    }
-    state rdn_header(filesystem: &mut PosixFilesystem, dfd: i32) -> DirEntryResult {
-        transition filesystem.rd_off < 492 { true -> rdn_at(filesystem, dfd) _ -> rdn_malformed(filesystem, dfd) }
-    }
-    state rdn_at(filesystem: &mut PosixFilesystem, dfd: i32) -> DirEntryResult {
-        transition filesystem.rd_recno == filesystem.rd_target { true -> rdn_found(filesystem, dfd) _ -> rdn_advance(filesystem, dfd) }
-    }
-    state rdn_advance(filesystem: &mut PosixFilesystem, dfd: i32) -> DirEntryResult {
-        filesystem.rd_idx = filesystem.rd_off + 16;
-        filesystem.rd_lo = filesystem.dir_buf[filesystem.rd_idx];
-        filesystem.rd_idx = filesystem.rd_off + 17;
-        filesystem.rd_hi = filesystem.dir_buf[filesystem.rd_idx];
-        filesystem.rd_lou = widen_u8_to_u64(filesystem.rd_lo) as u64 in Wrapping;
-        filesystem.rd_hiu = widen_u8_to_u64(filesystem.rd_hi) as u64 in Wrapping;
-        filesystem.rd_reclen = (filesystem.rd_hiu << 8) | filesystem.rd_lou;
-        transition filesystem.rd_reclen > 0 && filesystem.rd_off + filesystem.rd_reclen <= filesystem.rd_total { true -> rdn_accept(filesystem, dfd) _ -> rdn_malformed(filesystem, dfd) }
-    }
-    state rdn_accept(filesystem: &mut PosixFilesystem, dfd: i32) -> DirEntryResult {
-        filesystem.rd_recno = filesystem.rd_recno + 1;
-        filesystem.rd_off = filesystem.rd_off + filesystem.rd_reclen;
-        transition { _ -> rdn_walk(filesystem, dfd) }
-    }
-    state rdn_found(filesystem: &mut PosixFilesystem, dfd: i32) -> DirEntryResult {
-        let closed: i32 = PosixFilesystemHost::close(dfd);
-        transition { _ -> rdn_extract(filesystem) }
-    }
-    state rdn_extract(filesystem: &mut PosixFilesystem) -> DirEntryResult {
-        filesystem.rd_idx = filesystem.rd_off + (PosixFilesystem::directory_type_offset() as u64 in Wrapping);
-        filesystem.rd_dtype = filesystem.dir_buf[filesystem.rd_idx];
-        filesystem.rd_j = 0;
-        transition { _ -> rdn_copy(filesystem) }
-    }
-    state rdn_copy(filesystem: &mut PosixFilesystem) -> DirEntryResult {
-        transition filesystem.rd_j < 255 { true -> rdn_cbyte(filesystem) _ -> rdn_build(filesystem) }
-    }
-    state rdn_cbyte(filesystem: &mut PosixFilesystem) -> DirEntryResult {
-        filesystem.rd_ridx = filesystem.rd_off + (PosixFilesystem::directory_name_offset() as u64 in Wrapping) + filesystem.rd_j;
-        transition filesystem.rd_ridx < 512 && filesystem.rd_ridx < filesystem.rd_total { true -> rdn_cdo(filesystem) _ -> rdn_build(filesystem) }
-    }
-    state rdn_cdo(filesystem: &mut PosixFilesystem) -> DirEntryResult {
-        filesystem.rd_nb = filesystem.dir_buf[filesystem.rd_ridx];
-        transition filesystem.rd_nb == 0 { true -> rdn_build(filesystem) _ -> rdn_store(filesystem) }
-    }
-    state rdn_store(filesystem: &mut PosixFilesystem) -> DirEntryResult {
-        filesystem.entry_name[filesystem.rd_j] = filesystem.rd_nb;
-        filesystem.rd_j = filesystem.rd_j + 1;
-        transition { _ -> rdn_copy(filesystem) }
-    }
-    state rdn_build(filesystem: &mut PosixFilesystem) -> DirEntryResult {
-        transition filesystem.rd_dtype == 4 { true -> rdn_ok_dir(filesystem) _ -> rdn_maybe_file(filesystem) }
-    }
-    state rdn_ok_dir(filesystem: &mut PosixFilesystem) -> DirEntryResult {
-        let name_len: u64 = filesystem.rd_j as u64;
-        DirEntryResult::Ok { entry: DirEntry {
-            name: filesystem.entry_name,
-            name_len: name_len,
-            is_dir: true,
-            is_file: false,
-        } }
-    }
-    state rdn_maybe_file(filesystem: &mut PosixFilesystem) -> DirEntryResult {
-        transition filesystem.rd_dtype == 8 { true -> rdn_ok_file(filesystem) _ -> rdn_ok_other(filesystem) }
-    }
-    state rdn_ok_file(filesystem: &mut PosixFilesystem) -> DirEntryResult {
-        let name_len: u64 = filesystem.rd_j as u64;
-        DirEntryResult::Ok { entry: DirEntry {
-            name: filesystem.entry_name,
-            name_len: name_len,
-            is_dir: false,
-            is_file: true,
-        } }
-    }
-    state rdn_ok_other(filesystem: &mut PosixFilesystem) -> DirEntryResult {
-        let name_len: u64 = filesystem.rd_j as u64;
-        DirEntryResult::Ok { entry: DirEntry {
-            name: filesystem.entry_name,
-            name_len: name_len,
-            is_dir: false,
-            is_file: false,
-        } }
-    }
-    state rdn_finish(filesystem: &mut PosixFilesystem, dfd: i32) -> DirEntryResult {
-        let closed: i32 = PosixFilesystemHost::close(dfd);
-        DirEntryResult::End
-    }
-    state rdn_err_i32(filesystem: &mut PosixFilesystem, result: i32) -> DirEntryResult {
+    state failed(filesystem: &mut PosixFilesystem, result: i32) -> DirEntryResult {
         let kind: ErrorKind = PosixFilesystem::last_error_i32(filesystem, result);
         DirEntryResult::Error { kind: kind }
-    }
-    state rdn_err_i64(filesystem: &mut PosixFilesystem, dfd: i32, result: i64) -> DirEntryResult {
-        let kind: ErrorKind = PosixFilesystem::last_error_i64(filesystem, result);
-        let closed: i32 = PosixFilesystemHost::close(dfd);
-        DirEntryResult::Error { kind: kind }
-    }
-    state rdn_malformed(filesystem: &mut PosixFilesystem, dfd: i32) -> DirEntryResult {
-        let closed: i32 = PosixFilesystemHost::close(dfd);
-        filesystem.err_kind = ErrorKind::Other;
-        DirEntryResult::Error { kind: ErrorKind::Other }
     }
 }
 
@@ -1603,7 +1424,7 @@ reaches DirectoryEnumeration
     filesystem.rd_position = 0;
     filesystem.rd_off = 0;
     filesystem.rd_recno = 0;
-    filesystem.rd_target = (n as u64 in Wrapping) + 2;
+    filesystem.rd_target = n as u64 in Wrapping;
 
     filesystem.rd_seek_rc = PosixFilesystemHost::seek(dfd, 0, 0);
     let seek_rc: i64 = filesystem.rd_seek_rc;
@@ -1626,10 +1447,10 @@ reaches DirectoryEnumeration
         transition filesystem.rd_off < filesystem.rd_total { true -> rdef_header(filesystem, dfd) _ -> rdef_read(filesystem, dfd) }
     }
     state rdef_header(filesystem: &mut PosixFilesystem, dfd: i32) -> DirEntryResult {
-        transition filesystem.rd_off < 492 { true -> rdef_at(filesystem, dfd) _ -> rdef_malformed(filesystem) }
+        transition filesystem.rd_off < 489 { true -> rdef_advance(filesystem, dfd) _ -> rdef_malformed(filesystem) }
     }
     state rdef_at(filesystem: &mut PosixFilesystem, dfd: i32) -> DirEntryResult {
-        transition filesystem.rd_recno == filesystem.rd_target { true -> rdef_extract(filesystem) _ -> rdef_advance(filesystem, dfd) }
+        transition filesystem.rd_recno == filesystem.rd_target { true -> rdef_extract(filesystem) _ -> rdef_accept(filesystem, dfd) }
     }
     state rdef_advance(filesystem: &mut PosixFilesystem, dfd: i32) -> DirEntryResult {
         filesystem.rd_idx = filesystem.rd_off + 16;
@@ -1639,21 +1460,40 @@ reaches DirectoryEnumeration
         filesystem.rd_lou = widen_u8_to_u64(filesystem.rd_lo) as u64 in Wrapping;
         filesystem.rd_hiu = widen_u8_to_u64(filesystem.rd_hi) as u64 in Wrapping;
         filesystem.rd_reclen = (filesystem.rd_hiu << 8) | filesystem.rd_lou;
-        transition filesystem.rd_reclen > 0 && filesystem.rd_off + filesystem.rd_reclen <= filesystem.rd_total { true -> rdef_accept(filesystem, dfd) _ -> rdef_malformed(filesystem) }
+        transition filesystem.rd_reclen >= 24 && filesystem.rd_off + filesystem.rd_reclen <= filesystem.rd_total { true -> rdef_name(filesystem, dfd) _ -> rdef_malformed(filesystem) }
+    }
+    state rdef_name(filesystem: &mut PosixFilesystem, dfd: i32) -> DirEntryResult {
+        filesystem.rd_idx = filesystem.rd_off + (PosixFilesystem::directory_name_offset() as u64 in Wrapping);
+        transition filesystem.rd_idx < 510 { true -> rdef_dot(filesystem, dfd) _ -> rdef_malformed(filesystem) }
+    }
+    state rdef_dot(filesystem: &mut PosixFilesystem, dfd: i32) -> DirEntryResult {
+        // Check complete names, not positions, prefixes or d_type. Some Linux
+        // filesystems return ordinary children before either dot entry.
+        let dot: bool = filesystem.dir_buf[filesystem.rd_idx] == 46
+            && (filesystem.dir_buf[filesystem.rd_idx + 1] == 0
+                || (filesystem.dir_buf[filesystem.rd_idx + 1] == 46
+                    && filesystem.dir_buf[filesystem.rd_idx + 2] == 0));
+        transition dot { true -> rdef_skip(filesystem, dfd) _ -> rdef_at(filesystem, dfd) }
     }
     state rdef_accept(filesystem: &mut PosixFilesystem, dfd: i32) -> DirEntryResult {
         filesystem.rd_recno = filesystem.rd_recno + 1;
+        transition { _ -> rdef_skip(filesystem, dfd) }
+    }
+    state rdef_skip(filesystem: &mut PosixFilesystem, dfd: i32) -> DirEntryResult {
         filesystem.rd_off = filesystem.rd_off + filesystem.rd_reclen;
         transition { _ -> rdef_walk(filesystem, dfd) }
     }
     state rdef_extract(filesystem: &mut PosixFilesystem) -> DirEntryResult {
         filesystem.rd_idx = filesystem.rd_off + (PosixFilesystem::directory_type_offset() as u64 in Wrapping);
+        transition filesystem.rd_idx < 512 { true -> rdef_type(filesystem) _ -> rdef_malformed(filesystem) }
+    }
+    state rdef_type(filesystem: &mut PosixFilesystem) -> DirEntryResult {
         filesystem.rd_dtype = filesystem.dir_buf[filesystem.rd_idx];
         filesystem.rd_j = 0;
         transition { _ -> rdef_copy(filesystem) }
     }
     state rdef_copy(filesystem: &mut PosixFilesystem) -> DirEntryResult {
-        transition filesystem.rd_j < 255 { true -> rdef_cbyte(filesystem) _ -> rdef_nul(filesystem) }
+        transition filesystem.rd_j < 256 { true -> rdef_cbyte(filesystem) _ -> rdef_malformed(filesystem) }
     }
 
     state rdef_nul(filesystem: &mut PosixFilesystem) -> DirEntryResult {
@@ -1665,11 +1505,16 @@ reaches DirectoryEnumeration
     }
     state rdef_cbyte(filesystem: &mut PosixFilesystem) -> DirEntryResult {
         filesystem.rd_ridx = filesystem.rd_off + (PosixFilesystem::directory_name_offset() as u64 in Wrapping) + filesystem.rd_j;
-        transition filesystem.rd_ridx < 512 && filesystem.rd_ridx < filesystem.rd_total { true -> rdef_cdo(filesystem) _ -> rdef_nul(filesystem) }
+        transition filesystem.rd_ridx < 512 && filesystem.rd_ridx < filesystem.rd_off + filesystem.rd_reclen { true -> rdef_cdo(filesystem) _ -> rdef_malformed(filesystem) }
     }
     state rdef_cdo(filesystem: &mut PosixFilesystem) -> DirEntryResult {
         filesystem.rd_nb = filesystem.dir_buf[filesystem.rd_ridx];
-        transition filesystem.rd_nb == 0 { true -> rdef_nul(filesystem) _ -> rdef_store(filesystem) }
+        transition filesystem.rd_nb == 0 { true -> rdef_nul(filesystem) _ -> rdef_room(filesystem) }
+    }
+    state rdef_room(filesystem: &mut PosixFilesystem) -> DirEntryResult {
+        // A 255-byte name fits only when the next native byte really is NUL.
+        // Never truncate a longer record into a different deletable name.
+        transition filesystem.rd_j < 255 { true -> rdef_store(filesystem) _ -> rdef_malformed(filesystem) }
     }
     state rdef_store(filesystem: &mut PosixFilesystem) -> DirEntryResult {
         filesystem.entry_name[filesystem.rd_j] = filesystem.rd_nb;
@@ -1708,7 +1553,9 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
 invokes
     PosixFilesystemHost;
 {
-    filesystem.read_flags = 0;
+    // Never follow a final symlink, including a child replaced between its
+    // directory record and openat. A rejected root must not drain its target.
+    filesystem.read_flags = PosixFilesystem::directory_descent_flags();
     let dfd: i32 = PosixFilesystemHost::open(path, filesystem.read_flags);
     transition dfd >= 0 { true -> rda_run(filesystem, dfd, path) _ -> rda_err(filesystem, path, dfd) }
     state rda_run(filesystem: &mut PosixFilesystem, dfd: i32, path: &[u8] in Path) -> UnitResult {
@@ -1726,6 +1573,9 @@ invokes
     state rda_ok() -> UnitResult { UnitResult::Ok }
 
     state rda_err(filesystem: &mut PosixFilesystem, path: &[u8] in Path, result: i32) -> UnitResult {
+        // A failed walk owns every directory still on the stack. Stop on the
+        // first failure and close them, rather than retrying and leaking opens.
+        PosixFilesystem::release_directory_stack(filesystem, 16);
         let kind: ErrorKind = PosixFilesystem::last_error_i32(filesystem, result);
         UnitResult::Error { kind: kind }
     }
@@ -1736,9 +1586,12 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
 
 terminates by fuel;
 {
-    PosixFilesystem::rda_step(filesystem, 0);
-
-    transition fuel > 0 { true -> rda_drain(filesystem, fuel - 1) false -> rdd_settle(filesystem) }
+    transition fuel > 0 { true -> rdd_step(filesystem, fuel) false -> rdd_exhausted() }
+    state rdd_step(filesystem: &mut PosixFilesystem, fuel: u64) -> i32 requires fuel > 0; {
+        PosixFilesystem::rda_step(filesystem, 0);
+        transition filesystem.rda_verdict == 1 { true -> rda_drain(filesystem, fuel - 1) _ -> rdd_settle(filesystem) }
+    }
+    state rdd_exhausted() -> i32 { -5 }
     state rdd_settle(filesystem: &mut PosixFilesystem) -> i32 {
         transition filesystem.rda_verdict == 0 { true -> rdd_done() _ -> rdd_fail(filesystem) }
     }
@@ -1787,6 +1640,15 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
     }
     state rds_pop_go(filesystem: &mut PosixFilesystem) {
         filesystem.rda_depth = filesystem.rda_depth - 1;
+        transition filesystem.rda_close_rc == 0 { true -> rds_popped(filesystem) _ -> rds_close_failed(filesystem) }
+    }
+    state rds_close_failed(filesystem: &mut PosixFilesystem) {
+        // The descriptor has already been released from our stack. Do not
+        // retry close: the OS may have reused it even when close reports error.
+        filesystem.rda_rc = filesystem.rda_close_rc;
+        transition { _ -> rds_fail(filesystem) }
+    }
+    state rds_popped(filesystem: &mut PosixFilesystem) {
         transition filesystem.rda_depth == 0 { true -> rds_continue(filesystem) _ -> rds_parent(filesystem) }
     }
     state rds_parent(filesystem: &mut PosixFilesystem) {
@@ -1840,7 +1702,12 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
         transition filesystem.rda_sub >= 0 { true -> rds_push(filesystem) _ -> rds_fail(filesystem) }
     }
     state rds_push(filesystem: &mut PosixFilesystem) {
-        transition filesystem.rda_depth < 16 { true -> rds_push_go(filesystem) _ -> rds_fail(filesystem) }
+        transition filesystem.rda_depth < 16 { true -> rds_push_go(filesystem) _ -> rds_full(filesystem) }
+    }
+    state rds_full(filesystem: &mut PosixFilesystem) {
+        let closed: i32 = PosixFilesystemHost::close(filesystem.rda_sub);
+        filesystem.rda_rc = -24;
+        transition { _ -> rds_fail(filesystem) }
     }
     state rds_push_go(filesystem: &mut PosixFilesystem) {
         filesystem.rda_stack[filesystem.rda_depth] = filesystem.rda_sub;
@@ -1850,6 +1717,28 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
 
     state rds_continue(filesystem: &mut PosixFilesystem) { filesystem.rda_verdict = 1; }
     state rds_fail(filesystem: &mut PosixFilesystem) { filesystem.rda_verdict = filesystem.rda_rc; }
+}
+
+machine PosixFilesystem::release_directory_stack(filesystem: &mut PosixFilesystem, remaining: u64[0..=16])
+terminates by remaining;
+{
+    transition remaining > 0 { true -> entry(filesystem, remaining) _ -> done(filesystem) }
+    state entry(filesystem: &mut PosixFilesystem, remaining: u64[1..=16]) {
+        let index: u64 = remaining - 1;
+        transition index < 16 { true -> present(filesystem, index) _ -> done(filesystem) }
+    }
+    state present(filesystem: &mut PosixFilesystem, index: u64[0..=15]) {
+        transition index < filesystem.rda_depth { true -> close(filesystem, index) _ -> next(filesystem, index) }
+    }
+    state close(filesystem: &mut PosixFilesystem, index: u64[0..=15]) {
+        let descriptor: i32 = filesystem.rda_stack[index];
+        let closed: i32 = PosixFilesystemHost::close(descriptor);
+        transition { _ -> next(filesystem, index) }
+    }
+    state next(filesystem: &mut PosixFilesystem, remaining: u64[0..=15]) {
+        transition { _ -> release_directory_stack(filesystem, remaining) }
+    }
+    state done(filesystem: &mut PosixFilesystem) { filesystem.rda_depth = 0; }
 }
 
 machine PosixFilesystem::read_at(filesystem: &mut PosixFilesystem, file: File, buffer: &mut [u8], count: u64, offset: i64) -> IoResult

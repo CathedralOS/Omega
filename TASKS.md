@@ -5468,24 +5468,27 @@ wait for Cathedral's instruction coverage. The interpreter is
   wrappers and install/update lock round trips without granting authority;
   unregistered reach remains inspectable. No synthesized receiver-policy file.
 
-- **FILESYSTEM-PLATFORM-SERVICES.** Implement the remaining portable
-  [platform services](wiki/spec/build/platform_services.md) providers on
-  Windows x86-64 and Linux ARM64. Portable `FilesystemService` has one routed
+- **FILESYSTEM-PLATFORM-SERVICES.** Complete the remaining portable
+  [platform services](wiki/spec/build/platform_services.md) behavior on
+  Windows x86-64 and in shared POSIX directory handling. Portable
+  `FilesystemService` has one routed
   slot; POSIX algorithms are shared, while each target owns its layouts,
   flags, errno mapping and raw provider closure. Do not introduce target-varying
   portable data, raw-family routing fields or hidden source values.
 
   Remaining acceptance:
-  - Supply complete target implementations, preserving zero handles as absent,
+  - Supply the Windows portable implementation, preserving zero handles as absent,
     zero OpenOptions as defaults and closed failure results. Windows stores
     HANDLE; POSIX stores descriptor + 1, preserving descriptor 0.
     Windows ownership, duplication, file permissions, data synchronization
     and unsupported operations need explicit portable behavior, not POSIX
     conventions or sentinel implementations.
   - Run `file_journal` (exit 7), `note_vault` (exit 14) and applicable
-    filesystem fixture oracles on the remaining hosts. Linux x86-64 retains
+    filesystem fixture oracles on Windows x86-64. Linux x86-64 retains
     its portable provider; the moved shared algorithms and Linux-only
-    `write_all_full_device_exit` need Linux execution.
+    `write_all_full_device_exit` need Linux x86-64 execution.
+  - Resolve native `DT_UNKNOWN` before classifying directory entries or
+    choosing recursive deletion: an unknown kind is not evidence of a file.
   - Execute the Windows raw breadth and set-file-time fixtures on Windows
     x86-64 (exit 70). Foreign artifact production does not establish those
     outcomes. Preserve oversized-read, asynchronous-handle, invalid UTF-8 and

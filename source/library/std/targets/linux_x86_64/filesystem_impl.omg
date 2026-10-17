@@ -1,6 +1,8 @@
 use omega::language::core::external_binding;
 // Linux x86-64 ABI facts; the POSIX algorithms live in the shared adapter.
 use omega::language::core::filesystem_authority;
+use omega::language::core::layout;
+use omega::language::core::numeric_conversion;
 
 use filesystem;
 use posix_filesystem_adapter;
@@ -19,11 +21,10 @@ linux_x86_64 machine StatLayout::plan(schema: Schema) -> Plan {
     entries[7] = FieldEntry { key: schema.fields[7].key, placement: FieldPlan::At { offset: 72 } };
     entries[8] = FieldEntry { key: schema.fields[8].key, placement: FieldPlan::At { offset: 88 } };
     entries[9] = FieldEntry { key: schema.fields[9].key, placement: FieldPlan::At { offset: 104 } };
-    entries[10] = FieldEntry { key: schema.fields[10].key, placement: FieldPlan::At { offset: 120 } };
-    entries[11] = FieldEntry { key: schema.fields[11].key, placement: FieldPlan::At { offset: 48 } };
-    entries[12] = FieldEntry { key: schema.fields[12].key, placement: FieldPlan::At { offset: 64 } };
-    entries[13] = FieldEntry { key: schema.fields[13].key, placement: FieldPlan::At { offset: 56 } };
-    Plan { entries: entries, entry_count: 14, size_fixed: 144, size_is_dynamic: false, align: 8 }
+    entries[10] = FieldEntry { key: schema.fields[10].key, placement: FieldPlan::At { offset: 48 } };
+    entries[11] = FieldEntry { key: schema.fields[11].key, placement: FieldPlan::At { offset: 64 } };
+    entries[12] = FieldEntry { key: schema.fields[12].key, placement: FieldPlan::At { offset: 56 } };
+    Plan { entries: entries, entry_count: 13, size_fixed: 144, size_is_dynamic: false, align: 8 }
 }
 
 linux_x86_64 machine PosixFilesystem::encode_open_options(filesystem: &mut PosixFilesystem) {
@@ -38,8 +39,6 @@ linux_x86_64 machine PosixFilesystem::encode_open_options(filesystem: &mut Posix
         | ((filesystem.open_options.create_new as i32) << 7));
 }
 
-
-
 data StatRecord {
     dev: u64;
     mode: u32;
@@ -51,10 +50,9 @@ data StatRecord {
     atime: i64;
     mtime: i64;
     ctime: i64;
-    btime: i64;
     size: i64;
-    blocks: u64;
-    blksize: u64;
+    blocks: i64;
+    blksize: i64;
 }
 
 data StatLayout {}
@@ -63,30 +61,42 @@ data StatView {
     value: StatLayout<StatRecord>;
 }
 
-linux_x86_64 machine PosixFilesystem::decode_metadata(filesystem: &mut PosixFilesystem) -> Metadata {
+linux_x86_64 machine PosixFilesystem::decode_metadata(filesystem: &mut PosixFilesystem) -> MetadataResult {
     let stat: &StatView = &filesystem.stat_buf[0] as &StatView;
-    let mode: u32 = stat.value.mode;
-    let nlink: u64 = stat.value.nlink;
-    let ino: u64 = stat.value.ino;
-    let uid: u32 = stat.value.uid;
-    let gid: u32 = stat.value.gid;
-    let dev: u64 = stat.value.dev;
-    let rdev: u64 = stat.value.rdev;
-    let ctime: i64 = stat.value.ctime;
-    let blocks: u64 = stat.value.blocks;
-    let blksize: u64 = stat.value.blksize;
-    let len: i64 = stat.value.size;
-    let is_dir: bool = (mode & 61440) == 16384;
-    let is_symlink: bool = (mode & 61440) == 40960;
-    let mtime: i64 = stat.value.mtime;
-    let atime: i64 = stat.value.atime;
-    let btime: i64 = stat.value.btime;
-    Metadata { len: len, is_dir: is_dir, is_symlink: is_symlink, mode: mode, nlink: nlink, ino: ino, dev: dev, uid: uid, gid: gid, rdev: rdev, blocks: blocks, blksize: blksize, modified_secs: mtime, accessed_secs: atime, created_secs: btime, changed_secs: ctime }
+    let blocks: i64 = stat.value.blocks;
+    let blksize: i64 = stat.value.blksize;
+    transition blocks >= 0 && blksize >= 0 {
+        true -> decode(stat, blocks, blksize)
+        _ -> MetadataResult::Error { kind: ErrorKind::InvalidInput }
+    }
+    state decode(stat: &StatView, block_count: i64, block_size: i64) -> MetadataResult
+    requires block_count >= 0 && block_size >= 0;
+    {
+        let mode: u32 = stat.value.mode;
+        let nlink: u64 = stat.value.nlink;
+        let ino: u64 = stat.value.ino;
+        let uid: u32 = stat.value.uid;
+        let gid: u32 = stat.value.gid;
+        let dev: u64 = stat.value.dev;
+        let rdev: u64 = stat.value.rdev;
+        let ctime: i64 = stat.value.ctime;
+        let blocks: u64 = narrow_i64_to_u64_exact(block_count);
+        let blksize: u64 = narrow_i64_to_u64_exact(block_size);
+        let len: i64 = stat.value.size;
+        let is_dir: bool = (mode & 61440) == 16384;
+        let is_symlink: bool = (mode & 61440) == 40960;
+        let mtime: i64 = stat.value.mtime;
+        let atime: i64 = stat.value.atime;
+        // Linux stat has reserved words here, not a birth timestamp.
+        let metadata: Metadata = Metadata { len: len, is_dir: is_dir, is_symlink: is_symlink, mode: mode, nlink: nlink, ino: ino, dev: dev, uid: uid, gid: gid, rdev: rdev, blocks: blocks, blksize: blksize, modified_secs: mtime, accessed_secs: atime, creation_time: TimestampResult::Error { kind: ErrorKind::Unsupported }, changed_secs: ctime };
+        MetadataResult::Ok { meta: metadata }
+    }
 }
 
 linux_x86_64 machine PosixFilesystem::directory_type_offset() -> u64[18..=20] { 18 }
 linux_x86_64 machine PosixFilesystem::directory_name_offset() -> u64[19..=21] { 19 }
 linux_x86_64 machine PosixFilesystem::remove_directory_flag() -> i32 { 512 }
+linux_x86_64 machine PosixFilesystem::directory_descent_flags() -> i32 { 196608 }
 
 linux_x86_64 machine FilesystemProviderDefaults::provider_defaults(defaults: &mut FilesystemProviderDefaults) {
     FilesystemProviderDefaults::select_provider<FilesystemService, FilesystemPosixProvider>(defaults);

@@ -73,7 +73,17 @@ machine Main::main(main: &mut Main) reaches Console {
         transition kind { ErrorKind::InvalidInput -> unchanged(main) _ -> bad(21) }
     }
     state unchanged(main: &mut Main) {
-        transition main.small[0] == 87 && main.small[1] == 88 { true -> long_name(main) false -> bad(22) }
+        transition main.small[0] == 87 && main.small[1] == 88 { true -> missing_canonical(main) false -> bad(22) }
+    }
+    state missing_canonical(main: &mut Main) {
+        let result: UnitResult = Filesystem::canonicalize(&mut main.filesystem, "/no_such_omega_canonical_parent_999/source", &mut main.small);
+        transition result { UnitResult::Error { kind } -> canonical_error(main, kind) _ -> bad(33) }
+    }
+    state canonical_error(main: &mut Main, kind: ErrorKind) {
+        transition kind { ErrorKind::NotFound -> missing_unchanged(main) _ -> bad(34) }
+    }
+    state missing_unchanged(main: &mut Main) {
+        transition main.small[0] == 87 && main.small[1] == 88 { true -> long_name(main) false -> bad(35) }
     }
     state long_name(main: &mut Main) {
         // One 256-byte component exceeds both hosts' 255-byte NAME_MAX.

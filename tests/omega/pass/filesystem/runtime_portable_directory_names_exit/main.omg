@@ -1,0 +1,102 @@
+// Expected exit: 0. Directory enumeration filters exact dot names, not their
+// positions or all dot-prefixed children. Recursive deletion uses that reader.
+use omega_language_std::filesystem;
+use omega_language_std::console;
+data Main { filesystem: Filesystem; index: u64 in Wrapping; seen: u32; }
+machine Main::main(main: &mut Main) reaches Console {
+    let result: UnitResult = Filesystem::create_dir_all(&mut main.filesystem, "omega_directory_names/notes/current");
+    transition result { UnitResult::Ok -> first(main) _ -> bad(10) }
+    state first(main: &mut Main) {
+        let result: UnitResult = Filesystem::write_all(&mut main.filesystem, "omega_directory_names/notes/current/.kept", "one");
+        transition result { UnitResult::Ok -> second(main) _ -> bad(11) }
+    }
+    state second(main: &mut Main) {
+        let result: UnitResult = Filesystem::write_all(&mut main.filesystem, "omega_directory_names/notes/current/..kept", "two");
+        transition result { UnitResult::Ok -> third(main) _ -> bad(12) }
+    }
+    state third(main: &mut Main) {
+        let result: UnitResult = Filesystem::write_all(&mut main.filesystem, "omega_directory_names/notes/current/item", "three");
+        transition result { UnitResult::Ok -> longest(main) _ -> bad(13) }
+    }
+    state longest(main: &mut Main) {
+        let result: UnitResult = Filesystem::write_all(&mut main.filesystem, "omega_directory_names/notes/current/nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn", "maximum name");
+        transition result { UnitResult::Ok -> count(main) _ -> bad(31) }
+    }
+    state count(main: &mut Main) {
+        let result: IoResult = Filesystem::read_dir_count(&mut main.filesystem, "omega_directory_names/notes/current");
+        transition result { IoResult::Ok { count } -> counted(main, count) _ -> bad(14) }
+    }
+    state counted(main: &mut Main, count: u64) {
+        transition count == 4 { true -> read(main) _ -> bad(15) }
+    }
+    state read(main: &mut Main) {
+        let result: DirEntryResult = Filesystem::read_dir_nth(&mut main.filesystem, "omega_directory_names/notes/current", main.index as u64);
+        transition result { DirEntryResult::Ok { entry } -> inspect(main, entry) DirEntryResult::End -> ended(main) _ -> bad(16) }
+    }
+    state inspect(main: &mut Main, entry: DirEntry) {
+        transition {
+            entry.name_len == 5 && entry.name[0] == 46 && entry.name[1] == 107 -> first_seen(main)
+            entry.name_len == 6 && entry.name[0] == 46 && entry.name[1] == 46 && entry.name[2] == 107 -> second_seen(main)
+            entry.name_len == 4 && entry.name[0] == 105 && entry.name[1] == 116 -> third_seen(main)
+            entry.name_len == 255 && entry.name[0] == 110 && entry.name[254] == 110 -> longest_seen(main)
+            _ -> bad(17)
+        }
+    }
+    state first_seen(main: &mut Main) { main.seen = main.seen | 1; transition { _ -> next(main) } }
+    state second_seen(main: &mut Main) { main.seen = main.seen | 2; transition { _ -> next(main) } }
+    state third_seen(main: &mut Main) { main.seen = main.seen | 4; transition { _ -> next(main) } }
+    state longest_seen(main: &mut Main) { main.seen = main.seen | 8; transition { _ -> next(main) } }
+    state next(main: &mut Main) {
+        main.index = main.index + 1;
+        transition main.index <= 4 { true -> read(main) _ -> bad(18) }
+    }
+    state ended(main: &mut Main) {
+        transition main.index == 4 && main.seen == 15 { true -> outside(main) _ -> bad(19) }
+    }
+    state outside(main: &mut Main) {
+        let result: UnitResult = Filesystem::create_dir(&mut main.filesystem, "omega_directory_outside");
+        transition result { UnitResult::Ok -> outside_file(main) _ -> bad(22) }
+    }
+    state outside_file(main: &mut Main) {
+        let result: UnitResult = Filesystem::write_all(&mut main.filesystem, "omega_directory_outside/item", "keep");
+        transition result { UnitResult::Ok -> root_link(main) _ -> bad(23) }
+    }
+    state root_link(main: &mut Main) {
+        let result: UnitResult = Filesystem::symlink(&mut main.filesystem, "omega_directory_outside", "omega_directory_root_link");
+        transition result { UnitResult::Ok -> reject_link(main) _ -> bad(24) }
+    }
+    state reject_link(main: &mut Main) {
+        let result: UnitResult = Filesystem::remove_dir_all(&mut main.filesystem, "omega_directory_root_link");
+        transition result { UnitResult::Error { kind } -> preserved(main) _ -> bad(25) }
+    }
+    state preserved(main: &mut Main) {
+        let present: bool = Filesystem::exists(&mut main.filesystem, "omega_directory_outside/item");
+        transition present { true -> unlink_root(main) _ -> bad(26) }
+    }
+    state unlink_root(main: &mut Main) {
+        let result: UnitResult = Filesystem::remove(&mut main.filesystem, "omega_directory_root_link");
+        transition result { UnitResult::Ok -> child_link(main) _ -> bad(27) }
+    }
+    state child_link(main: &mut Main) {
+        let result: UnitResult = Filesystem::symlink(&mut main.filesystem, "../../../omega_directory_outside", "omega_directory_names/notes/current/outside_link");
+        transition result { UnitResult::Ok -> remove(main) _ -> bad(28) }
+    }
+    state remove(main: &mut Main) {
+        let result: UnitResult = Filesystem::remove_dir_all(&mut main.filesystem, "omega_directory_names");
+        transition result { UnitResult::Ok -> gone(main) _ -> bad(20) }
+    }
+    state gone(main: &mut Main) {
+        let present: bool = Filesystem::exists(&mut main.filesystem, "omega_directory_names");
+        transition present { false -> outside_remains(main) _ -> bad(21) }
+    }
+    state outside_remains(main: &mut Main) {
+        let present: bool = Filesystem::exists(&mut main.filesystem, "omega_directory_outside/item");
+        transition present { true -> cleanup(main) _ -> bad(29) }
+    }
+    state cleanup(main: &mut Main) {
+        let result: UnitResult = Filesystem::remove_dir_all(&mut main.filesystem, "omega_directory_outside");
+        transition result { UnitResult::Ok -> good() _ -> bad(30) }
+    }
+    state good() { Console::exit_process(0); }
+    state bad(code: i32) { Console::exit_process(code); }
+}

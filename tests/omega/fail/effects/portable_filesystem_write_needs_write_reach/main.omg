@@ -6,7 +6,7 @@ pub machine read_only(filesystem: &mut Filesystem) -> IoResult
 reaches FilesystemContentRead
 invokes FilesystemService;
 {
-    filesystem.host.write(File { handle: 0 }, "x")
+    FilesystemService::write(File { handle: 0 }, "x")
 }
 
 data Main { filesystem: Filesystem; }

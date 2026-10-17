@@ -1,6 +1,6 @@
 // Portable filesystem values and one routed service slot. Target adapters own
 // raw descriptors, flags, foreign record layouts and operation scratch.
-// The complete portable provider covers linux_x86_64 and macos_arm64. Other hosts
+// The complete portable provider covers both Linux architectures and macos_arm64. Other hosts
 // retain their independent raw services and have no portable default yet.
 
 use filesystem_host;
@@ -12,7 +12,7 @@ pub data File [copy] {
     handle: u64;
 }
 
-pub data ErrorKind {
+pub data ErrorKind [copy] {
     case Other;
     case NotFound;
     case PermissionDenied;
@@ -121,6 +121,13 @@ pub machine Permissions::set_readonly(permissions: &mut Permissions, readonly: b
     state unlock(permissions: &mut Permissions) { permissions.mode = permissions.mode | 146; }
 }
 
+// Not every native metadata record contains a creation timestamp. Keep that
+// absence distinct from the Unix epoch and from a failed metadata query.
+pub data TimestampResult [copy] {
+    case Error(kind: ErrorKind);
+    case Ok(seconds: i64);
+}
+
 pub data Metadata [copy] {
     len: i64;
     is_dir: bool;
@@ -136,7 +143,7 @@ pub data Metadata [copy] {
     blksize: u64;
     modified_secs: i64;
     accessed_secs: i64;
-    created_secs: i64;
+    creation_time: TimestampResult;
     changed_secs: i64;
 }
 
@@ -209,8 +216,8 @@ pub machine Metadata::accessed(metadata: &Metadata) -> i64 {
     metadata.accessed_secs
 }
 
-pub machine Metadata::created(metadata: &Metadata) -> i64 {
-    metadata.created_secs
+pub machine Metadata::created(metadata: &Metadata) -> TimestampResult {
+    metadata.creation_time
 }
 pub data MetadataResult {
     case Error(kind: ErrorKind);

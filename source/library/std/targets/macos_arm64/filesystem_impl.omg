@@ -5,6 +5,7 @@
 use omega::language::core::filesystem_authority;
 use omega::language::core::external_binding;
 use omega::language::core::layout;
+use omega::language::core::numeric_conversion;
 use filesystem;
 use posix_filesystem_adapter;
 
@@ -21,8 +22,8 @@ data DarwinStatRecord {
     ctime: i64;
     btime: i64;
     size: i64;
-    blocks: u64;
-    blksize: u32;
+    blocks: i64;
+    blksize: i32;
 }
 data DarwinStatLayout {}
 data DarwinStatView { value: DarwinStatLayout<DarwinStatRecord>; }
@@ -46,25 +47,36 @@ macos_arm64 machine DarwinStatLayout::plan(schema: Schema) -> Plan {
     Plan { entries: entries, entry_count: 14, size_fixed: 144, size_is_dynamic: false, align: 8 }
 }
 
-macos_arm64 machine PosixFilesystem::decode_metadata(filesystem: &mut PosixFilesystem) -> Metadata {
+macos_arm64 machine PosixFilesystem::decode_metadata(filesystem: &mut PosixFilesystem) -> MetadataResult {
     let stat: &DarwinStatView = &filesystem.stat_buf[0] as &DarwinStatView;
-    let mode: u32 = stat.value.mode as u32;
-    let nlink: u64 = stat.value.nlink as u64;
-    let ino: u64 = stat.value.ino;
-    let uid: u32 = stat.value.uid;
-    let gid: u32 = stat.value.gid;
-    let dev: u64 = stat.value.dev as u64;
-    let rdev: u64 = stat.value.rdev as u64;
-    let ctime: i64 = stat.value.ctime;
-    let blocks: u64 = stat.value.blocks;
-    let blksize: u64 = stat.value.blksize as u64;
-    let len: i64 = stat.value.size;
-    let is_dir: bool = (mode & 61440) == 16384;
-    let is_symlink: bool = (mode & 61440) == 40960;
-    let mtime: i64 = stat.value.mtime;
-    let atime: i64 = stat.value.atime;
-    let btime: i64 = stat.value.btime;
-    Metadata { len: len, is_dir: is_dir, is_symlink: is_symlink, mode: mode, nlink: nlink, ino: ino, dev: dev, uid: uid, gid: gid, rdev: rdev, blocks: blocks, blksize: blksize, modified_secs: mtime, accessed_secs: atime, created_secs: btime, changed_secs: ctime }
+    let blocks: i64 = stat.value.blocks;
+    let blksize: i64 = stat.value.blksize as i64;
+    transition blocks >= 0 && blksize >= 0 {
+        true -> decode(stat, blocks, blksize)
+        _ -> MetadataResult::Error { kind: ErrorKind::InvalidInput }
+    }
+    state decode(stat: &DarwinStatView, block_count: i64, block_size: i64) -> MetadataResult
+    requires block_count >= 0 && block_size >= 0;
+    {
+        let mode: u32 = stat.value.mode as u32;
+        let nlink: u64 = stat.value.nlink as u64;
+        let ino: u64 = stat.value.ino;
+        let uid: u32 = stat.value.uid;
+        let gid: u32 = stat.value.gid;
+        let dev: u64 = stat.value.dev as u64;
+        let rdev: u64 = stat.value.rdev as u64;
+        let ctime: i64 = stat.value.ctime;
+        let blocks: u64 = narrow_i64_to_u64_exact(block_count);
+        let blksize: u64 = narrow_i64_to_u64_exact(block_size);
+        let len: i64 = stat.value.size;
+        let is_dir: bool = (mode & 61440) == 16384;
+        let is_symlink: bool = (mode & 61440) == 40960;
+        let mtime: i64 = stat.value.mtime;
+        let atime: i64 = stat.value.atime;
+        let btime: i64 = stat.value.btime;
+        let metadata: Metadata = Metadata { len: len, is_dir: is_dir, is_symlink: is_symlink, mode: mode, nlink: nlink, ino: ino, dev: dev, uid: uid, gid: gid, rdev: rdev, blocks: blocks, blksize: blksize, modified_secs: mtime, accessed_secs: atime, creation_time: TimestampResult::Ok { seconds: btime }, changed_secs: ctime };
+        MetadataResult::Ok { meta: metadata }
+    }
 }
 
 macos_arm64 machine PosixFilesystem::encode_open_options(filesystem: &mut PosixFilesystem) {
@@ -82,6 +94,7 @@ macos_arm64 machine PosixFilesystem::encode_open_options(filesystem: &mut PosixF
 macos_arm64 machine PosixFilesystem::directory_type_offset() -> u64[18..=20] { 20 }
 macos_arm64 machine PosixFilesystem::directory_name_offset() -> u64[19..=21] { 21 }
 macos_arm64 machine PosixFilesystem::remove_directory_flag() -> i32 { 128 }
+macos_arm64 machine PosixFilesystem::directory_descent_flags() -> i32 { 1048832 }
 
 macos_arm64 machine FilesystemProviderDefaults::provider_defaults(defaults: &mut FilesystemProviderDefaults) {
     FilesystemProviderDefaults::select_provider<FilesystemService, FilesystemPosixProvider>(defaults);

@@ -1281,6 +1281,9 @@ pass/filesystem/native_read_dir_iter built 5345ms exit:0 stdout:match @e01f73c68
 pass/filesystem/native_wrapper_write_all_result built 16640ms exit:0 stdout:match @cc43b6679d2a+wt
 pass/filesystem/runtime_local_host_result_dispatch_exit built 3686ms exit:70 @e01f73c689de+wt
 pass/filesystem/runtime_portable_copy_errors_exit built 19236ms exit:0 @cc43b6679d2a+wt
+pass/filesystem/runtime_portable_directory_failure_exit built 12872ms exit:0 @7e6a01265b4b
+pass/filesystem/runtime_portable_directory_names_exit built 13946ms exit:0 @7e6a01265b4b
+pass/filesystem/runtime_portable_metadata_exit built 12954ms exit:0 @7e6a01265b4b
 pass/filesystem/runtime_portable_zero_descriptor_exit built 9697ms exit:0 @cc43b6679d2a+wt
 pass/filesystem/runtime_posix_borrowed_view_io_exit built 3171ms exit:0 stdout:match @d1ebe54629b8
 pass/filesystem/runtime_posix_read_runtime_range_view_exit built 7147ms exit:0 stdout:match @2375f5327b1a+wt

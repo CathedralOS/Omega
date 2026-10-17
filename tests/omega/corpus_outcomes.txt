@@ -8137,6 +8137,9 @@ pass/filesystem/native_read_dir_iter checked 10620ms check-target:macos_arm64 @a
 pass/filesystem/native_wrapper_write_all_result checked 19739ms check-target:macos_arm64 @c9eefa9130a0+wt
 pass/filesystem/runtime_local_host_result_dispatch_exit checked 9920ms check-target:macos_arm64 @aebe0714a499+wt
 pass/filesystem/runtime_portable_copy_errors_exit checked 13694ms check-target:macos_arm64 @cc43b6679d2a+wt
+pass/filesystem/runtime_portable_directory_failure_exit checked 15138ms check-target:macos_arm64 @7e6a01265b4b+wt
+pass/filesystem/runtime_portable_directory_names_exit checked 13411ms check-target:macos_arm64 @7e6a01265b4b+wt
+pass/filesystem/runtime_portable_metadata_exit checked 12499ms check-target:macos_arm64 @7e6a01265b4b+wt
 pass/filesystem/runtime_portable_zero_descriptor_exit checked 12120ms check-target:macos_arm64 @cc43b6679d2a+wt
 pass/filesystem/runtime_posix_borrowed_view_io_exit checked 9462ms check-target:macos_arm64 @aebe0714a499+wt
 pass/filesystem/runtime_posix_read_runtime_range_view_exit checked 9450ms check-target:macos_arm64 @aebe0714a499+wt

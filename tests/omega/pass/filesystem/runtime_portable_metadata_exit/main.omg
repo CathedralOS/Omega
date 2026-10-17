@@ -1,0 +1,99 @@
+// Expected exit: 0. Linux stat has no creation timestamp; Darwin has one. Metadata
+// preserves physical field widths, descriptor/path identity and both timespecs.
+use omega_language_std::filesystem;
+use omega_language_std::console;
+
+data Main { filesystem: Filesystem; file: File; original: Metadata; }
+machine Main::main(main: &mut Main) reaches Console {
+    let mut zero: TimestampResult;
+    transition zero { TimestampResult::Error { kind } -> zero_error(main, kind) _ -> bad(10) }
+    state zero_error(main: &mut Main, kind: ErrorKind) {
+        transition kind { ErrorKind::Other -> create(main) _ -> bad(11) }
+    }
+    state create(main: &mut Main) {
+        let result: UnitResult = Filesystem::write_all(&mut main.filesystem, "omega_metadata.txt", "metadata");
+        transition result { UnitResult::Ok -> link(main) _ -> bad(12) }
+    }
+    state link(main: &mut Main) {
+        let result: UnitResult = Filesystem::hard_link(&mut main.filesystem, "omega_metadata.txt", "omega_metadata.link");
+        transition result { UnitResult::Ok -> open(main) _ -> bad(13) }
+    }
+    state open(main: &mut Main) {
+        let result: OpenResult = Filesystem::open(&mut main.filesystem, "omega_metadata.txt");
+        transition result { OpenResult::Ok { file } -> descriptor(main, file) _ -> bad(14) }
+    }
+    state descriptor(main: &mut Main, file: File) {
+        main.file = file;
+        let result: MetadataResult = Filesystem::metadata(&mut main.filesystem, file);
+        transition result { MetadataResult::Ok { meta } -> inspect(main, meta) _ -> bad(15) }
+    }
+    state inspect(main: &mut Main, metadata: Metadata) {
+        main.original = metadata;
+        // Inline file data may legitimately use zero separately allocated blocks.
+        transition metadata.len == 8 && metadata.nlink == 2 && metadata.blksize > 0 {
+            true -> creation(main) _ -> bad(16)
+        }
+    }
+    state creation(main: &mut Main) {
+        let result: TimestampResult = Metadata::created(&main.original);
+        let expected: bool = expected_creation_time(result);
+        transition expected { true -> path(main) _ -> bad(17) }
+    }
+    state path(main: &mut Main) {
+        let result: MetadataResult = Filesystem::metadata_path(&mut main.filesystem, "omega_metadata.link");
+        transition result { MetadataResult::Ok { meta } -> same(main, meta) _ -> bad(19) }
+    }
+    state same(main: &mut Main, metadata: Metadata) {
+        transition metadata.ino == main.original.ino && metadata.dev == main.original.dev
+            && metadata.uid == main.original.uid && metadata.gid == main.original.gid
+            && metadata.blocks == main.original.blocks && metadata.blksize == main.original.blksize {
+            true -> times(main) _ -> bad(20)
+        }
+    }
+    state times(main: &mut Main) {
+        let result: UnitResult = Filesystem::set_times(&mut main.filesystem, main.file, 1700000000, 1700000010);
+        transition result { UnitResult::Ok -> changed(main) _ -> bad(21) }
+    }
+    state changed(main: &mut Main) {
+        let result: MetadataResult = Filesystem::metadata(&mut main.filesystem, main.file);
+        transition result { MetadataResult::Ok { meta } -> changed_times(main, meta) _ -> bad(22) }
+    }
+    state changed_times(main: &mut Main, metadata: Metadata) {
+        transition metadata.accessed_secs == 1700000000 && metadata.modified_secs == 1700000010 {
+            true -> close(main) _ -> bad(23)
+        }
+    }
+    state close(main: &mut Main) {
+        let result: UnitResult = Filesystem::close(&mut main.filesystem, main.file);
+        transition result { UnitResult::Ok -> remove_link(main) _ -> bad(24) }
+    }
+    state remove_link(main: &mut Main) {
+        let result: UnitResult = Filesystem::remove(&mut main.filesystem, "omega_metadata.link");
+        transition result { UnitResult::Ok -> remove(main) _ -> bad(25) }
+    }
+    state remove(main: &mut Main) {
+        let result: UnitResult = Filesystem::remove(&mut main.filesystem, "omega_metadata.txt");
+        transition result { UnitResult::Ok -> missing(main) _ -> bad(26) }
+    }
+    state missing(main: &mut Main) {
+        let result: MetadataResult = Filesystem::metadata_path(&mut main.filesystem, "omega_metadata.txt");
+        transition result { MetadataResult::Error { kind } -> missing_error(kind) _ -> bad(27) }
+    }
+    state missing_error(kind: ErrorKind) {
+        transition kind { ErrorKind::NotFound -> good() _ -> bad(28) }
+    }
+    state good() { Console::exit_process(0); }
+    state bad(code: i32) { Console::exit_process(code); }
+}
+
+linux_arm64 machine expected_creation_time(result: TimestampResult) -> bool {
+    transition result { TimestampResult::Error { kind } -> error(kind) _ -> false }
+    state error(kind: ErrorKind) -> bool { transition kind { ErrorKind::Unsupported -> true _ -> false } }
+}
+linux_x86_64 machine expected_creation_time(result: TimestampResult) -> bool {
+    transition result { TimestampResult::Error { kind } -> error(kind) _ -> false }
+    state error(kind: ErrorKind) -> bool { transition kind { ErrorKind::Unsupported -> true _ -> false } }
+}
+macos_arm64 machine expected_creation_time(result: TimestampResult) -> bool {
+    transition result { TimestampResult::Ok { seconds } -> (seconds > 0) _ -> false }
+}
