@@ -1,0 +1,53 @@
+// Every target body discharges a callee `requires` on a closed call
+// result. `take` is the target-scoped callee; `opaque()`'s result 4
+// proves `scale <= 5` in each body, which still discharges `echo`.
+//
+// Compile-checked only: no standard-library dependency and no
+// ProcessExit provider. The check is the oracle.
+
+machine echo(scale: u64) -> u64
+requires scale <= 5
+{
+    scale
+}
+
+machine opaque() -> u64 { 4u64 }
+
+linux_x86_64 machine take(scale: u64) -> u64
+requires scale <= 5
+{
+    echo(scale)
+}
+
+linux_arm64 machine take(scale: u64) -> u64
+requires scale <= 5
+{
+    echo(scale)
+}
+
+macos_arm64 machine take(scale: u64) -> u64
+requires scale <= 5
+{
+    echo(scale)
+}
+
+windows_x86_64 machine take(scale: u64) -> u64
+requires scale <= 5
+{
+    echo(scale)
+}
+
+data Main { hits: i32 in Wrapping; }
+
+machine Main::main(main: &mut Main) {
+    main.hits = 0;
+
+    let s: u64 = opaque();
+    let r: u64 = take(s);
+    transition r == 4 {
+        true -> pass(main)
+        _ -> fail(main)
+    }
+    state pass(main: &mut Main) { main.hits = 1; }
+    state fail(main: &mut Main) { main.hits = -1; }
+}

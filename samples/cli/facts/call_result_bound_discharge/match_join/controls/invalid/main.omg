@@ -1,0 +1,28 @@
+// A match join drops the bound when one arm's closed result is 9.
+machine echo(scale: u64) -> u64
+requires scale <= 5
+{
+    scale
+}
+
+machine opaque() -> u64 { 4u64 }
+
+machine nine() -> u64 { 9u64 }
+
+machine choose(flag: bool) -> u64 {
+    let scale: u64 = match flag { true -> opaque(), false -> nine() };
+    echo(scale)
+}
+data Main { hits: i32 in Wrapping; }
+
+machine Main::main(main: &mut Main) {
+    main.hits = 0;
+
+    let r: u64 = choose(true);
+    transition r == 4 {
+        true -> pass(main)
+        _ -> fail(main)
+    }
+    state pass(main: &mut Main) { main.hits = 1; }
+    state fail(main: &mut Main) { main.hits = -1; }
+}

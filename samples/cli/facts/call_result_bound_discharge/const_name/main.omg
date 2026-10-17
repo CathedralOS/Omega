@@ -1,0 +1,30 @@
+// A const name of a closed call result still discharges a callee
+// `requires`. `SCALE` is `opaque()`'s result 4, so `echo(SCALE)`
+// proves `scale <= 5`.
+//
+// Compile-checked only: no standard-library dependency and no
+// ProcessExit provider. The check is the oracle.
+
+const SCALE: u64 = opaque();
+
+machine echo(scale: u64) -> u64
+requires scale <= 5
+{
+    scale
+}
+
+machine opaque() -> u64 { 4u64 }
+
+data Main { hits: i32 in Wrapping; }
+
+machine Main::main(main: &mut Main) {
+    main.hits = 0;
+
+    let r: u64 = echo(SCALE);
+    transition r == 4 {
+        true -> pass(main)
+        _ -> fail(main)
+    }
+    state pass(main: &mut Main) { main.hits = 1; }
+    state fail(main: &mut Main) { main.hits = -1; }
+}

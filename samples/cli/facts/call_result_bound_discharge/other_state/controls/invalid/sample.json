@@ -1,0 +1,6 @@
+{
+  "role": "intended-invalid",
+  "rejection_contains": [
+    "cannot prove requires contract for call hold from carry: scale <= 5"
+  ]
+}

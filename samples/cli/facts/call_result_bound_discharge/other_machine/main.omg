@@ -1,0 +1,40 @@
+// Another machine's closed result discharges a different machine's
+// `requires`. `produce` returns `opaque()`'s 4 and ensures
+// `result <= 5`; `consume` uses that bound to discharge `echo`.
+//
+// Compile-checked only: no standard-library dependency and no
+// ProcessExit provider. The check is the oracle.
+
+machine echo(scale: u64) -> u64
+requires scale <= 5
+{
+    scale
+}
+
+machine opaque() -> u64 { 4u64 }
+
+machine produce() -> u64
+ensures result <= 5
+{
+    opaque()
+}
+
+machine consume(scale: u64) -> u64
+requires scale <= 5
+{
+    echo(scale)
+}
+
+data Main { hits: i32 in Wrapping; }
+
+machine Main::main(main: &mut Main) {
+    main.hits = 0;
+
+    let r: u64 = consume(produce());
+    transition r == 4 {
+        true -> pass(main)
+        _ -> fail(main)
+    }
+    state pass(main: &mut Main) { main.hits = 1; }
+    state fail(main: &mut Main) { main.hits = -1; }
+}

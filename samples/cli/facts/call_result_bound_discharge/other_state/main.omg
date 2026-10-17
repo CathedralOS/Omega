@@ -1,0 +1,38 @@
+// Another state receives a closed call result and its `requires`
+// still discharges. Entry binds `opaque()`'s 4, so `hold` proves
+// `scale <= 5`, and that state still discharges `echo`.
+//
+// Compile-checked only: no standard-library dependency and no
+// ProcessExit provider. The check is the oracle.
+
+machine echo(scale: u64) -> u64
+requires scale <= 5
+{
+    scale
+}
+
+machine opaque() -> u64 { 4u64 }
+
+machine carry() -> u64 {
+    let scale: u64 = opaque();
+    transition { _ -> hold(scale) }
+    state hold(scale: u64) -> u64
+    requires scale <= 5
+    {
+        echo(scale)
+    }
+}
+
+data Main { hits: i32 in Wrapping; }
+
+machine Main::main(main: &mut Main) {
+    main.hits = 0;
+
+    let r: u64 = carry();
+    transition r == 4 {
+        true -> pass(main)
+        _ -> fail(main)
+    }
+    state pass(main: &mut Main) { main.hits = 1; }
+    state fail(main: &mut Main) { main.hits = -1; }
+}
