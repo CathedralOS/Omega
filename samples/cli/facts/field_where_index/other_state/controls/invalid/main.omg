@@ -1,0 +1,27 @@
+// No standing where bound. The later state cannot prove its requires.
+
+data Main {
+    arr: [i32 in Wrapping; 5];
+    k: u64;
+    r: i32 in Wrapping;
+    hits: i32 in Wrapping;
+}
+
+machine use(main: &Main) -> i32 in Wrapping {
+    transition { _ -> pick(main, main.k) }
+    state pick(main: &Main, index: u64) -> i32 in Wrapping
+    requires 0 <= index && index <= 3
+    {
+        main.arr[index + 1]
+    }
+}
+
+machine Main::main(main: &mut Main) {
+    main.k = 2;
+    main.r = use(main);
+    transition { _ -> successor(main) }
+    state successor(main: &mut Main) {
+        main.r = use(main);
+        main.hits = main.r;
+    }
+}

@@ -1,0 +1,34 @@
+// Every target body indexes through the standing field fact
+// `k <= 3`, so `main.arr[main.k + 1]` compiles with no guard.
+//
+// Compile-checked only: no ProcessExit provider.
+
+data Main where 0 <= k, k <= 3 {
+    arr: [i32 in Wrapping; 5];
+    k: u64;
+    r: i32 in Wrapping;
+    hits: i32 in Wrapping;
+}
+
+linux_x86_64 machine read_target(main: &Main) -> i32 in Wrapping {
+    main.arr[main.k + 1]
+}
+linux_arm64 machine read_target(main: &Main) -> i32 in Wrapping {
+    main.arr[main.k + 1]
+}
+macos_arm64 machine read_target(main: &Main) -> i32 in Wrapping {
+    main.arr[main.k + 1]
+}
+windows_x86_64 machine read_target(main: &Main) -> i32 in Wrapping {
+    main.arr[main.k + 1]
+}
+
+machine Main::main(main: &mut Main) {
+    main.k = 2;
+    main.r = read_target(main);
+    transition { _ -> successor(main) }
+    state successor(main: &mut Main) {
+        main.r = read_target(main);
+        main.hits = main.r;
+    }
+}

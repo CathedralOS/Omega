@@ -1,0 +1,7 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "field_where_index_parameter");
+    Build::bind(builder, windows_x86_64::ProgramEntry, Main::main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, Main::main);
+    Build::bind(builder, linux_arm64::ProgramEntry, Main::main);
+    Build::bind(builder, macos_arm64::ProgramEntry, Main::main);
+}
