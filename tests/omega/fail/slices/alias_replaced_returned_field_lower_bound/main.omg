@@ -1,0 +1,29 @@
+// Intended invalid: replacing the field retires its initializer's guarantee.
+// The original window has at least two elements; its replacement has one.
+data Held<'row> { values: &'row [u8]; }
+
+machine span<'row>(items: &'row [u8; 4], which: i64) -> Held<'row>
+ensures result.values.len >= 2
+{
+    match which {
+        0 -> Held { values: &items[0..2] }
+        _ -> Held { values: &items[1..4] }
+    }
+}
+
+machine demand_two(values: &[u8])
+requires values.len >= 2
+{}
+
+machine reseat<'row>(held: &mut Held<'row>, replacement: &'row [u8]) {
+    held.values = replacement;
+}
+
+machine main() {
+    let first: [u8; 4] = [1, 2, 3, 4];
+    let replacement: [u8; 4] = [5, 6, 7, 8];
+    let mut held: Held = span(&first, 0);
+    let alias: &mut Held = &mut held;
+    reseat(alias, &replacement[0..1]);
+    demand_two(alias.values);
+}

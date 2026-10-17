@@ -16,6 +16,7 @@ pub fn shared_descriptor_copy_matches<'types>(
     source: StructuralTypeId,
     occurrence_access: Option<StructuralAccess>,
     destination: StructuralTypeId,
+    destination_multiplicity: terminal_psi::StructuralMultiplicity,
 ) -> bool {
     let Some(source) = types.clone().find(|row| row.id == source) else {
         return false;
@@ -28,7 +29,14 @@ pub fn shared_descriptor_copy_matches<'types>(
             .flatten()
             .or(occurrence_access)
             == Some(StructuralAccess::SharedBorrow)
-        && descriptor_declared_access(&destination.shape).flatten()
+        // Stored declarations retain their access; canonical descriptors carry
+        // it on the result occurrence. Both copy the same shared permission.
+        // An affine canonical result remains exclusive and cannot be copied.
+        && crate::descriptor_results::descriptor_value_access(
+            types,
+            destination.id,
+            destination_multiplicity,
+        )
             == Some(StructuralAccess::SharedBorrow)
 }
 

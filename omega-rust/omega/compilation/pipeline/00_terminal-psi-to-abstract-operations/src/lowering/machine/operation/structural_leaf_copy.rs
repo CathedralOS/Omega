@@ -112,6 +112,7 @@ pub(super) fn lower(
             selected_type,
             occurrence_access,
             expected_type,
+            result.multiplicity,
         )
         && terminal_semantics::quotients::quotient_copy_adaptation(module, machine, operation)
             .is_none()

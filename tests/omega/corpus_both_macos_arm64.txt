@@ -703,8 +703,10 @@ pass/recast/runtime_shared_domain_weakening_recast_exit built 8105ms exit:70 int
 pass/recast/runtime_shared_parameter_view_calls_exit built 793ms exit:0 interpreter-exit:0 interpreter:agrees @cd7399e98041+wt
 pass/recast/runtime_stored_mutable_slice_shared_state_exit built 6211ms exit:70 interpreter-exit:70 interpreter:agrees @1a6587978d53
 pass/relevance/erased_formal_before_borrowed_argument_exit built 4468ms exit:70 interpreter-exit:70 interpreter:agrees @6271f1f6d819
+pass/slices/captured_returned_field_observations built 4198ms exit:0 interpreter-exit:0 interpreter:agrees @e0119fc0aaa2
 pass/slices/generic_projected_array_write built 2949ms exit:0 interpreter-exit:0 interpreter:agrees @ef9160ae9c0b+wt
 pass/slices/mutable_matched_window_length built 4819ms exit:0 interpreter-exit:0 interpreter:agrees @68bc166bb593
+pass/slices/returned_collection_window_copy built 4118ms exit:0 interpreter-exit:0 interpreter:agrees @e0119fc0aaa2
 pass/slices/runtime_affine_view_edge_cleanup_exit built 3276ms exit:0 interpreter-exit:0 interpreter:agrees @096f2ecfd243+wt
 pass/slices/runtime_boolean_alias_guard_transport_exit built 1747ms exit:0 interpreter-exit:0 interpreter:agrees @0facec44bc8b+wt
 pass/slices/runtime_bounded_fixed_array_subslice_arg_exit built 1625ms exit:3 interpreter-exit:3 interpreter:agrees @f7e9667e2f4a

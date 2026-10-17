@@ -16,10 +16,9 @@
 //! A match result has one length only when every arm's length is the same
 //! observation, or each arm folds to the same exact integer. Differing arms
 //! stay unknown rather than publishing one arm's extent. A plain record
-//! literal captures each slice field's length from that field's initializer
-//! at the binding; a later write of the record retires those field
-//! observations together with the record. A returned record publishes the
-//! same field lengths on `result.field`, including when every match arm
+//! value captures each slice field's length when that value is transferred;
+//! a later overlapping write retires the affected field observations. A returned
+//! record publishes the same field lengths on `result.field`, including when every match arm
 //! builds that field from an equal window.
 use crate::checks::unsigned;
 use crate::values::scalar::structural_fields;
@@ -43,21 +42,21 @@ struct Binding {
     value: Option<ScopedArithmeticValue>,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 enum LengthSubject {
     Storage(SymbolHandle),
     Result(SymbolHandle),
-    /// One slice field of a record local, captured from the literal that
-    /// initialized that field. The owner is the record binding.
+    /// One captured slice field, identified by its complete declaration path.
+    /// The owner is the current storage binding, not the source producer.
     Field {
         owner: SymbolHandle,
-        field: SymbolHandle,
+        path: Vec<SymbolHandle>,
     },
     /// One slice field of the value returned from this machine. The owner is
     /// the machine, and `result.field.len` reads this observation.
     ResultField {
         owner: SymbolHandle,
-        field: SymbolHandle,
+        path: Vec<SymbolHandle>,
     },
 }
 
@@ -215,6 +214,7 @@ impl<'program> CurrentScalarValues<'program> {
                     );
                     values.capture_record_fields(
                         local.symbol,
+                        &[],
                         local.name.as_str(),
                         local.initial_value,
                     );
@@ -235,6 +235,23 @@ impl<'program> CurrentScalarValues<'program> {
                 StatementNode::Assignment(assignment) => {
                     values.invalidate_operand_effects(program, machine, statement, frames);
                     let value = values.capture(program, machine, state, assignment.value);
+                    let mut fields = values.captured_field_lengths(assignment.value, 0);
+                    if let Some(value) = values.collection_length(assignment.value, 0)
+                        && let Some(type_reference) = validation::expression_result_type_reference(
+                            program,
+                            machine,
+                            state,
+                            assignment.value,
+                        )
+                        && fixed_length(program, type_reference, String::new).is_some()
+                    {
+                        fields.push(collections::CapturedFieldLength {
+                            path: Vec::new(),
+                            name: String::new(),
+                            type_reference,
+                            value,
+                        });
+                    }
                     if let ExpressionNode::Name(name) =
                         program.expression_table.expression(assignment.target)
                         && name.symbol.is_valid()
@@ -275,15 +292,12 @@ impl<'program> CurrentScalarValues<'program> {
                             frames.map(|frames| frames.assignment_write_frame(machine, statement)),
                         );
                     }
-                    if let ExpressionNode::Name(name) =
-                        program.expression_table.expression(assignment.target)
-                        && name.symbol.is_valid()
-                        && name.symbol == name.head_symbol
-                    {
-                        values.capture_record_fields(
-                            name.symbol,
+                    if let Some((owner, path)) = field_storage_path(program, assignment.target) {
+                        values.replace_record_fields(
+                            owner,
+                            &path,
                             &program.expression_table.display_name(assignment.target),
-                            assignment.value,
+                            fields,
                         );
                     }
                 }
@@ -706,6 +720,18 @@ impl<'program> CurrentScalarValues<'program> {
                         value: Some(value),
                     });
                 }
+                for field in self.captured_field_lengths(*argument, 0) {
+                    lengths.push(Length {
+                        subject: LengthSubject::Field {
+                            owner: parameter.symbol,
+                            path: field.path,
+                        },
+                        name: format!("{}.{}", parameter.name, field.name),
+                        stable: true,
+                        type_reference: field.type_reference,
+                        value: Some(field.value),
+                    });
+                }
                 continue;
             };
             formals.push(Binding {
@@ -913,6 +939,26 @@ fn closed_integer_literal(
         .value_bignum()
 }
 
+/// Static declaration fields retain their exact storage root and complete path.
+fn field_storage_path(
+    program: &dyn ::validation::CheckingInput,
+    expression: ExpressionHandle,
+) -> Option<(SymbolHandle, Vec<SymbolHandle>)> {
+    let place = validation::canonical_place_from_expression(program, expression)?;
+    let owner = place.root.as_symbol()?;
+    Some((owner, declaration_field_path(&place.segments)?))
+}
+
+fn declaration_field_path(segments: &[facts::PlaceSegment]) -> Option<Vec<SymbolHandle>> {
+    segments
+        .iter()
+        .map(|segment| match segment {
+            facts::PlaceSegment::Field { symbol } if symbol.is_valid() => Some(*symbol),
+            _ => None,
+        })
+        .collect()
+}
+
 /// The fixed length a `collection.len` occurrence reads, if it reads one.
 fn length_occurrence<'lengths>(
     program: &dyn ::validation::CheckingInput,
@@ -920,24 +966,25 @@ fn length_occurrence<'lengths>(
     lengths: &'lengths [Length],
 ) -> Option<&'lengths Length> {
     let member = program.expression_table.member_node(expression)?;
-    // Contract text spells `result.field` before the field symbol is bound.
-    // The returned literal records that field by name.
-    if let Some(field) = program.expression_table.member_node(member.receiver)
-        && let Some((owner, _)) = validation::reserved_result_owner(program, field.receiver)
-        && let Some(length) = lengths.iter().find(|length| {
-            let LengthSubject::ResultField {
-                owner: existing,
-                field: stored,
-            } = length.subject
-            else {
-                return false;
-            };
-            existing == owner
-                && length.value.is_some()
-                && ((field.member_symbol.is_valid() && stored == field.member_symbol)
-                    || length.name == format!("result.{}", field.member.as_str()))
-        })
-    {
+    if let Some(length) = lengths.iter().find(|length| {
+        if length.value.is_none() {
+            return false;
+        }
+        match &length.subject {
+            LengthSubject::Field { owner, path } => field_storage_path(program, member.receiver)
+                .is_some_and(|(actual_owner, actual_path)| {
+                    actual_owner == *owner && actual_path == *path
+                }),
+            LengthSubject::ResultField { owner, path } => {
+                validation::reserved_result_place(program, member.receiver).is_some_and(|place| {
+                    place.machine_symbol == *owner
+                        && declaration_field_path(&place.segments)
+                            .is_some_and(|actual| actual == *path)
+                })
+            }
+            _ => false,
+        }
+    }) {
         return (validation::collection_operations::collection_measure_member(
             program,
             member,

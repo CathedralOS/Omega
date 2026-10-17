@@ -1586,6 +1586,7 @@ impl TerminalExecution<'_> {
                 leaf.structural_type,
                 occurrence_access,
                 result.structural_type,
+                result.multiplicity,
             )
         {
             // A record leaf copy out of a byte carrier mints fresh storage:

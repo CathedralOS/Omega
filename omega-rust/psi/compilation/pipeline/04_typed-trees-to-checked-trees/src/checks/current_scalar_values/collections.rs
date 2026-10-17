@@ -18,11 +18,11 @@ use validation::{
     ScopedArithmeticValue,
 };
 
-struct ReturnedSliceField {
-    field: SymbolHandle,
-    name: String,
-    type_reference: TypeReferenceHandle,
-    value: ScopedArithmeticValue,
+pub(super) struct CapturedFieldLength {
+    pub(super) path: Vec<SymbolHandle>,
+    pub(super) name: String,
+    pub(super) type_reference: TypeReferenceHandle,
+    pub(super) value: ScopedArithmeticValue,
 }
 
 impl CurrentScalarValues<'_> {
@@ -235,7 +235,6 @@ impl CurrentScalarValues<'_> {
             ExpressionNode::Match(dispatch) => self.matched_length(dispatch, depth),
             ExpressionNode::Member(member) => self
                 .saved_field_length(member, depth)
-                .or_else(|| self.ensured_call_field_length(member))
                 .or_else(|| {
                     super::field_collection_length(
                         self.program,
@@ -378,11 +377,11 @@ impl CurrentScalarValues<'_> {
     /// Slice fields of the returned record. A match publishes a field only
     /// when every arm builds that same field with one shared length.
     fn record_returned_field_lengths(&mut self, returned: ExpressionHandle) {
-        for field in self.returned_slice_fields(returned, 0) {
+        for field in self.captured_field_lengths(returned, 0) {
             self.lengths.push(Length {
                 subject: LengthSubject::ResultField {
                     owner: self.machine.symbol,
-                    field: field.field,
+                    path: field.path,
                 },
                 name: format!("result.{}", field.name),
                 stable: true,
@@ -392,30 +391,89 @@ impl CurrentScalarValues<'_> {
         }
     }
 
-    fn returned_slice_fields(
+    pub(super) fn captured_field_lengths(
         &self,
         expression: ExpressionHandle,
         depth: usize,
-    ) -> Vec<ReturnedSliceField> {
+    ) -> Vec<CapturedFieldLength> {
         if depth >= 64 {
             return Vec::new();
         }
         match self.program.expression_table.expression(expression) {
             ExpressionNode::StructLiteral(literal) if literal.case_symbol.is_none() => {
-                self.literal_slice_fields(literal)
+                self.literal_field_lengths(literal, depth + 1)
+            }
+            ExpressionNode::Borrow(borrow) => self.captured_field_lengths(borrow.target, depth + 1),
+            ExpressionNode::Call(call) => self.call_field_lengths(expression, call),
+            ExpressionNode::Member(member)
+                if super::field_storage_path(self.program, expression).is_none() =>
+            {
+                self.captured_field_lengths(member.receiver, depth + 1)
+                    .into_iter()
+                    .filter_map(|mut field| {
+                        let selected = *field.path.first()?;
+                        if field.path.len() <= 1 || !self.selects_field(member, selected) {
+                            return None;
+                        }
+                        field.path.remove(0);
+                        field.name = field
+                            .path
+                            .iter()
+                            .map(|symbol| self.program.symbols.name(*symbol))
+                            .collect::<Vec<_>>()
+                            .join(".");
+                        Some(field)
+                    })
+                    .collect()
+            }
+            ExpressionNode::Name(_) | ExpressionNode::Member(_) => {
+                let Some((owner, prefix)) = super::field_storage_path(self.program, expression)
+                else {
+                    return Vec::new();
+                };
+                self.lengths
+                    .iter()
+                    .filter_map(|length| {
+                        let LengthSubject::Field {
+                            owner: existing,
+                            path,
+                        } = &length.subject
+                        else {
+                            return None;
+                        };
+                        if *existing != owner
+                            || !path.starts_with(&prefix)
+                            || path.len() <= prefix.len()
+                        {
+                            return None;
+                        }
+                        let path = path[prefix.len()..].to_vec();
+                        let name = path
+                            .iter()
+                            .map(|symbol| self.program.symbols.name(*symbol))
+                            .collect::<Vec<_>>()
+                            .join(".");
+                        Some(CapturedFieldLength {
+                            path,
+                            name,
+                            type_reference: length.type_reference,
+                            value: length.value.clone()?,
+                        })
+                    })
+                    .collect()
             }
             ExpressionNode::Match(dispatch) => {
                 let arms = self.program.expression_table.match_arms(dispatch.arms);
-                let mut joined: Option<Vec<ReturnedSliceField>> = None;
+                let mut joined: Option<Vec<CapturedFieldLength>> = None;
                 for arm in arms {
-                    let fields = self.returned_slice_fields(arm.value, depth + 1);
+                    let fields = self.captured_field_lengths(arm.value, depth + 1);
                     joined = Some(match joined {
                         None => fields,
                         Some(existing) => existing
                             .into_iter()
                             .filter(|field| {
                                 fields.iter().any(|candidate| {
-                                    candidate.field == field.field
+                                    candidate.path == field.path
                                         && self.slice_lengths_agree(&candidate.value, &field.value)
                                 })
                             })
@@ -434,16 +492,22 @@ impl CurrentScalarValues<'_> {
         }
     }
 
-    fn literal_slice_fields(
+    fn literal_field_lengths(
         &self,
         literal: &typed_trees::expression::TableStructLiteral,
-    ) -> Vec<ReturnedSliceField> {
+        depth: usize,
+    ) -> Vec<CapturedFieldLength> {
         let mut fields = Vec::new();
         for field in self.program.expression_table.struct_fields(literal.fields) {
             if !field.field_symbol.is_valid() {
                 continue;
             }
-            let Some(value) = self.collection_length(field.value, 0) else {
+            for mut nested in self.captured_field_lengths(field.value, depth + 1) {
+                nested.path.insert(0, field.field_symbol);
+                nested.name = format!("{}.{}", field.name, nested.name);
+                fields.push(nested);
+            }
+            let Some(value) = self.collection_length(field.value, depth + 1) else {
                 continue;
             };
             let Some(type_reference) = validation::expression_result_type_reference(
@@ -454,12 +518,15 @@ impl CurrentScalarValues<'_> {
             ) else {
                 continue;
             };
+            if fixed_length(self.program, type_reference, String::new).is_none() {
+                continue;
+            }
             let value = self
                 .exact_length(&value)
                 .map(ScopedArithmeticValue::Integer)
                 .unwrap_or(value);
-            fields.push(ReturnedSliceField {
-                field: field.field_symbol,
+            fields.push(CapturedFieldLength {
+                path: vec![field.field_symbol],
                 name: field.name.as_str().to_owned(),
                 type_reference,
                 value,
@@ -591,42 +658,18 @@ impl CurrentScalarValues<'_> {
         })
     }
 
-    /// `helper(..).field.len`, or the same field of a local initialized by
-    /// that call, reads the callee's ensures. An equality publishes the
-    /// integer. A proved lower bound publishes that bound without pretending
-    /// the disagreeing arms share one length. Anything else stays unknown.
-    fn ensured_call_field_length(
+    /// Read result guarantees once at the exact completed call occurrence.
+    fn call_field_lengths(
         &self,
-        member: &typed_trees::expression::TableMemberExpression,
-    ) -> Option<ScopedArithmeticValue> {
-        let call = self
-            .program
-            .expression_table
-            .call_node(member.receiver)
-            .or_else(|| {
-                let name = self
-                    .program
-                    .expression_table
-                    .name_path_node(member.receiver)?;
-                if !name.symbol.is_valid()
-                    || name.symbol != name.head_symbol
-                    || self
-                        .program
-                        .expression_table
-                        .name_path_members(name.members)
-                        .len()
-                        != 1
-                {
-                    return None;
-                }
-                let (_, local) = self
-                    .program
-                    .state_local_declaration(self.state, name.symbol)?;
-                self.program.expression_table.call_node(local.initial_value)
-            })?;
-        let (machine, _) = validation::find_state(self.program, call.target_symbol)
-            .or_else(|| validation::find_machine_head(self.program, call.target_symbol))?;
-        let field_name = member.member.as_str();
+        occurrence: ExpressionHandle,
+        call: &typed_trees::expression::TableCallExpression,
+    ) -> Vec<CapturedFieldLength> {
+        let Some((machine, _)) = validation::find_state(self.program, call.target_symbol)
+            .or_else(|| validation::find_machine_head(self.program, call.target_symbol))
+        else {
+            return Vec::new();
+        };
+        let mut fields = Vec::new();
         for contract in self.program.machine_contracts(machine) {
             if contract.kind != typed_trees::signature::SignatureContractKind::Ensures {
                 continue;
@@ -635,160 +678,147 @@ impl CurrentScalarValues<'_> {
                 let Some(expression) = fact.as_expression() else {
                     continue;
                 };
-                if let Some(value) = self.ensured_field_length(*expression, field_name) {
-                    return Some(value);
+                let Some(comparison) = self.program.expression_table.binary_node(*expression)
+                else {
+                    continue;
+                };
+                let candidates = match comparison.operator {
+                    BinaryOperator::Equal => vec![
+                        (comparison.left, comparison.right, false),
+                        (comparison.right, comparison.left, false),
+                    ],
+                    BinaryOperator::GreaterOrEqual => {
+                        vec![(comparison.left, comparison.right, true)]
+                    }
+                    BinaryOperator::LessOrEqual => vec![(comparison.right, comparison.left, true)],
+                    _ => continue,
+                };
+                for (measure, bound, lower_bound) in candidates {
+                    let Some(length) = self.program.expression_table.member_node(measure) else {
+                        continue;
+                    };
+                    let Some(place) =
+                        validation::reserved_result_place(self.program, length.receiver)
+                    else {
+                        continue;
+                    };
+                    let Some(path) = super::declaration_field_path(&place.segments) else {
+                        continue;
+                    };
+                    let reference = place.type_reference;
+                    if place.machine_symbol != machine.symbol
+                        || path.is_empty()
+                        || validation::collection_operations::collection_measure_member(
+                            self.program,
+                            length,
+                            validation::collection_operations::MeasureReceiver::Declared(reference),
+                        ) != Some(
+                            language_semantics::declaration_selection::CollectionMeasure::Length,
+                        )
+                    {
+                        continue;
+                    }
+                    let Some(value) = self
+                        .program
+                        .expression_table
+                        .integer_node(bound)
+                        .and_then(|literal| literal.value_i64())
+                    else {
+                        continue;
+                    };
+                    if value < 0 {
+                        continue;
+                    }
+                    let value = numerics::bignum::BigInt::from_i64(value);
+                    let value = if lower_bound {
+                        ScopedArithmeticValue::BoundedInteger {
+                            value: Box::new(ScopedArithmeticValue::Atom {
+                                identity: format!(
+                                    "state:{:?}:call:{occurrence:?}:field:{path:?}:length",
+                                    self.state.symbol
+                                ),
+                                unsigned: true,
+                            }),
+                            minimum: Some(value),
+                            maximum: None,
+                        }
+                    } else {
+                        ScopedArithmeticValue::Integer(value)
+                    };
+                    let name = path
+                        .iter()
+                        .map(|symbol| self.program.symbols.name(*symbol))
+                        .collect::<Vec<_>>()
+                        .join(".");
+                    fields.push(CapturedFieldLength {
+                        path,
+                        name,
+                        type_reference: reference,
+                        value,
+                    });
                 }
             }
         }
-        None
+        fields
     }
 
-    fn ensured_field_length(
-        &self,
-        expression: ExpressionHandle,
-        field_name: &str,
-    ) -> Option<ScopedArithmeticValue> {
-        let comparison = self.program.expression_table.binary_node(expression)?;
-        let (length_expression, expected, lower_bound) = match comparison.operator {
-            BinaryOperator::Equal | BinaryOperator::GreaterOrEqual
-                if self.field_length_name(comparison.left) == Some(field_name) =>
-            {
-                (
-                    comparison.left,
-                    comparison.right,
-                    comparison.operator == BinaryOperator::GreaterOrEqual,
-                )
-            }
-            BinaryOperator::Equal | BinaryOperator::LessOrEqual
-                if self.field_length_name(comparison.right) == Some(field_name) =>
-            {
-                (
-                    comparison.right,
-                    comparison.left,
-                    comparison.operator == BinaryOperator::LessOrEqual,
-                )
-            }
-            _ => return None,
-        };
-        let _ = length_expression;
-        let literal = self.program.expression_table.integer_node(expected)?;
-        let value = numerics::bignum::BigInt::from_i64(literal.value_i64()?);
-        if !lower_bound {
-            return Some(ScopedArithmeticValue::Integer(value));
-        }
-        if value < numerics::bignum::BigInt::zero() {
-            return None;
-        }
-        Some(ScopedArithmeticValue::BoundedInteger {
-            value: Box::new(ScopedArithmeticValue::Atom {
-                identity: format!("ensured-field-length:{field_name}"),
-                unsigned: true,
-            }),
-            minimum: Some(value),
-            maximum: None,
-        })
-    }
-
-    fn field_length_name(&self, expression: ExpressionHandle) -> Option<&str> {
-        let length = self.program.expression_table.member_node(expression)?;
-        if !matches!(length.member.as_str(), "len" | "length") {
-            return None;
-        }
-        let field = self.program.expression_table.member_node(length.receiver)?;
-        self.program
-            .expression_table
-            .names_reserved_result(field.receiver)
-            .then_some(field.member.as_str())
-    }
-
-    /// The length captured when this field was filled by a record literal.
-    /// A missing or retired observation is not a length.
+    /// Read only the current captured field roster, never declaration initializers.
     fn saved_field_length(
         &self,
         member: &typed_trees::expression::TableMemberExpression,
-        _depth: usize,
+        depth: usize,
     ) -> Option<ScopedArithmeticValue> {
-        let name = self
-            .program
-            .expression_table
-            .name_path_node(member.receiver)?;
-        if !name.symbol.is_valid()
-            || name.symbol != name.head_symbol
-            || self
-                .program
-                .expression_table
-                .name_path_members(name.members)
-                .len()
-                != 1
-            || !member.member_symbol.is_valid()
-        {
-            return None;
-        }
-        self.lengths
-            .iter()
-            .find(|length| {
-                length.subject
-                    == LengthSubject::Field {
-                        owner: name.symbol,
-                        field: member.member_symbol,
-                    }
-                    && length.value.is_some()
-            })?
-            .value
-            .clone()
+        self.captured_field_lengths(member.receiver, depth + 1)
+            .into_iter()
+            .find(|field| field.path.len() == 1 && self.selects_field(member, field.path[0]))
+            .map(|field| field.value)
     }
 
-    /// Record each slice field of a plain record literal under the binding
-    /// that owns the literal. Replacing the binding drops the previous
-    /// fields first, including when the new value is not a record literal.
+    fn selects_field(
+        &self,
+        member: &typed_trees::expression::TableMemberExpression,
+        field: SymbolHandle,
+    ) -> bool {
+        if member.member_symbol.is_valid() {
+            member.member_symbol == field
+        } else {
+            self.program.symbols.name(field) == member.member.as_str()
+        }
+    }
+
     pub(super) fn capture_record_fields(
         &mut self,
         owner: SymbolHandle,
+        path: &[SymbolHandle],
         owner_name: &str,
         initializer: ExpressionHandle,
     ) {
-        self.lengths.retain(|length| {
-            !matches!(
-                length.subject,
-                LengthSubject::Field {
-                    owner: existing, ..
-                } if existing == owner
-            )
-        });
-        let Some(literal) = self
-            .program
-            .expression_table
-            .struct_literal_node(initializer)
-        else {
-            return;
-        };
-        if literal.case_symbol.is_some() || owner_name.is_empty() {
-            return;
-        }
-        for field in self.program.expression_table.struct_fields(literal.fields) {
-            if !field.field_symbol.is_valid() {
-                continue;
-            }
-            let Some(value) = self.collection_length(field.value, 0) else {
-                continue;
-            };
-            let Some(type_reference) = validation::expression_result_type_reference(
-                self.program,
-                self.machine,
-                self.state,
-                field.value,
-            ) else {
-                continue;
-            };
+        let fields = self.captured_field_lengths(initializer, 0);
+        self.replace_record_fields(owner, path, owner_name, fields);
+    }
+
+    pub(super) fn replace_record_fields(
+        &mut self,
+        owner: SymbolHandle,
+        prefix: &[SymbolHandle],
+        owner_name: &str,
+        fields: Vec<CapturedFieldLength>,
+    ) {
+        self.lengths.retain(|length| !matches!(&length.subject,
+            LengthSubject::Field { owner: existing, path } if *existing == owner && path.starts_with(prefix)));
+        for field in fields {
+            let mut path = prefix.to_vec();
+            path.extend(field.path);
             self.lengths.push(Length {
-                subject: LengthSubject::Field {
-                    owner,
-                    field: field.field_symbol,
+                subject: LengthSubject::Field { owner, path },
+                name: if field.name.is_empty() {
+                    owner_name.to_owned()
+                } else {
+                    format!("{owner_name}.{}", field.name)
                 },
-                name: format!("{owner_name}.{}", field.name.as_str()),
                 stable: false,
-                type_reference,
-                value: Some(value),
+                type_reference: field.type_reference,
+                value: Some(field.value),
             });
         }
     }

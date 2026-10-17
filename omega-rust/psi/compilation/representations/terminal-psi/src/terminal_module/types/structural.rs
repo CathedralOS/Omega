@@ -498,8 +498,24 @@ impl StructuralFieldType {
     /// entries must not select an identity for an already typed operation.
     pub fn leaf_copy_type(&self, expected: Option<&StructuralTypeDeclaration>) -> Option<Self> {
         let contract = self.leaf_copy_shape().and_then(Self::from_leaf_shape)?;
+        // A canonical descriptor keeps permission on its occurrence, while a
+        // stored shared field keeps it on the declaration. Resolve the exact
+        // receiving identity instead of searching equal-shaped declarations
+        // whose lifetime identities may differ. Copy access and destination
+        // multiplicity remain independent checks on the operation.
+        let canonical_shared_descriptor = matches!(
+            self.byte_sequence_carrier(),
+            Some(ByteSequenceCarrier::BorrowedView {
+                access: Some(crate::StructuralAccess::SharedBorrow)
+            })
+        )
+        .then_some(Self::ByteSequence(ByteSequenceCarrier::BorrowedView {
+            access: None,
+        }));
         if let Some(expected) = expected
-            && contract.declares_leaf(expected)
+            && (contract.declares_leaf(expected)
+                || canonical_shared_descriptor
+                    .is_some_and(|contract| contract.declares_leaf(expected)))
         {
             Some(Self::Structural(expected.id))
         } else {

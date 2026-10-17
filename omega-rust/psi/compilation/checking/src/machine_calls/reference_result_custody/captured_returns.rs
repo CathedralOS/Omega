@@ -659,7 +659,14 @@ impl Captures<'_> {
                 for origin in matching {
                     let (suffix, presented, extent) =
                         self.frame_origin_path(selected, &incoming_segments, &origin.source)?;
-                    if self.program.normalized_type_identity(presented) != leaf.source.type_identity
+                    let source_identity = self.program.normalized_type_identity(presented);
+                    if source_identity != leaf.source.type_identity
+                        && !(extent == ReferenceOriginExtent::WithinRegion
+                            && self.collection_region_presents_result(
+                                presented,
+                                state.return_type,
+                                &result_path,
+                            ))
                     {
                         return None;
                     }
@@ -669,7 +676,7 @@ impl Captures<'_> {
                         parameter_index,
                         path: complete,
                         extent,
-                        type_identity: leaf.source.type_identity,
+                        type_identity: source_identity,
                         access: leaf.source.access,
                     };
                     if !output.contains(&source) {
@@ -685,7 +692,16 @@ impl Captures<'_> {
         // here would pretend the public signature selected a private address.
         // The original loan/root/access joins above remain mandatory, and
         // completion must check the actual returned footprint's containment.
-        let (suffix, mut endpoint, _) = self.origin_path(selected, &segments)?;
+        let (suffix, mut endpoint, extent) = self.origin_path(selected, &segments)?;
+        // A captured window still needs a compatible slice presentation when
+        // no body relation is available. A wider opaque lifetime region, in
+        // contrast, has no window conversion to establish here.
+        if extent == ReferenceOriginExtent::WithinRegion
+            && self.program.normalized_type_identity(endpoint) != leaf.source.type_identity
+            && !self.collection_region_presents_result(endpoint, state.return_type, &result_path)
+        {
+            return None;
+        }
         path.extend(suffix);
         if path.is_empty()
             && stored_loan_parts(self.program, parameter.type_reference).is_none()
@@ -704,6 +720,37 @@ impl Captures<'_> {
             type_identity: self.program.normalized_type_identity(endpoint),
             access: leaf.source.access,
         }])
+    }
+
+    /// A window retains its collection's storage identity while presenting a
+    /// slice descriptor. This is ordinary element storage, not a representation
+    /// conversion: element qualifications must agree. Loan joins authenticate
+    /// access and ancestry; checked formation and completion retain the actual
+    /// window and its bounds. A codec-backed re-view still takes the separately
+    /// authenticated recast route in `frame_origin_path`.
+    fn collection_region_presents_result(
+        &self,
+        source: TypeReferenceHandle,
+        result: TypeReferenceHandle,
+        result_path: &[facts::PlaceSegment],
+    ) -> bool {
+        let Some(result) =
+            crate::project_type_reference_from_segments(self.program, result, result_path)
+                .and_then(|result| crate::slice_view_shell(self.program, result, &[]))
+        else {
+            return false;
+        };
+        let source =
+            crate::reference_shell(self.program, source).map_or(source, |shell| shell.referee);
+        let source = crate::peel_declared_constraints(self.program, source);
+        let (TypeReferenceNode::FixedArray { element_type, .. }
+        | TypeReferenceNode::Slice { element_type }) =
+            self.program.type_reference_table.type_reference(source)
+        else {
+            return false;
+        };
+        self.program.normalized_type_identity(*element_type)
+            == self.program.normalized_type_identity(result.element)
     }
 
     /// The complete body relation refines a lifetime loan's storage region.
@@ -1185,12 +1232,13 @@ impl Captures<'_> {
                 return Some((output, selected, ReferenceOriginExtent::Projected));
             };
             selected = crate::peel_declared_constraints(self.program, selected);
-            // A window that ends the path narrows a slice without selecting an
+            // A window that ends the path narrows a collection without selecting an
             // element. Its origin is the collection it narrows, presented as
             // that collection is: a view formal presents its descriptor, as
             // the unprojected region below does. The descriptor retains the
-            // captured window and bound. A window over a fixed array presents
-            // a different type and stays unexpressed here.
+            // captured window and bound. A fixed array keeps its own storage
+            // type here; its returned slice is a separate descriptor, never an
+            // assertion that the array and slice types are interchangeable.
             let trailing_window = position + 1 == segments.len()
                 && match segments[position] {
                     facts::PlaceSegment::FixedRange { .. } | facts::PlaceSegment::OpaqueRange => {
@@ -1206,17 +1254,9 @@ impl Captures<'_> {
                     });
                 return matches!(
                     self.program.type_reference_table.type_reference(collection),
-                    TypeReferenceNode::Slice { .. }
+                    TypeReferenceNode::FixedArray { .. } | TypeReferenceNode::Slice { .. }
                 )
-                .then_some((
-                    output,
-                    selected,
-                    if segments[position] == facts::PlaceSegment::OpaqueRange {
-                        ReferenceOriginExtent::WithinRegion
-                    } else {
-                        ReferenceOriginExtent::Projected
-                    },
-                ));
+                .then_some((output, selected, ReferenceOriginExtent::WithinRegion));
             }
             if let Some(shell) = crate::reference_shell(self.program, selected) {
                 output.push(CheckedReferenceOriginProjection::Exact(

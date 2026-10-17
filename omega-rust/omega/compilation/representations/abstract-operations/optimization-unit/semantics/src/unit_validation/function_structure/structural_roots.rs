@@ -977,6 +977,7 @@ pub(crate) fn validate_structural_root_operations(
                                         || selected.is_some_and(|selected| terminal_semantics::shared_descriptor_copy_matches(
                                             structural_types.values().copied(), selected,
                                             path.is_empty().then_some(signature.access), expected,
+                                            result.multiplicity,
                                         ))
                                         || (path.is_empty() && abstract_operations::quotients::licensed_copy(
                                             &unit.structural_types, function.machine, *psi_operation, *source,

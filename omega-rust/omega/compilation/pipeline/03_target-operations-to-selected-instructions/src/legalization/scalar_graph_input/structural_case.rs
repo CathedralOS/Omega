@@ -377,6 +377,7 @@ pub(in crate::legalization) fn leaf_copy_layout(
             endpoint,
             occurrence_access,
             result.structural_type,
+            result.multiplicity,
         )
     {
         return Err(LegalizationError::custody());

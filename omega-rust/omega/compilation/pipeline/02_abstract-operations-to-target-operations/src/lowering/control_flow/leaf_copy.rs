@@ -164,6 +164,7 @@ pub(super) fn copy_extent(
             endpoint,
             occurrence_access,
             result.structural_type,
+            result.multiplicity,
         )
     {
         return Err(LoweringError::unsupported_control_flow(function.machine));

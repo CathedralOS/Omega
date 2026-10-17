@@ -1,0 +1,47 @@
+// Call guarantees attach to one returned descriptor. Copies keep that value;
+// replacement creates a new field value and sibling writes leave it alone.
+data Held<'row> { values: &'row [u8]; stamp: u32; }
+data Envelope<'row> { held: Held<'row>; }
+
+machine span<'row>(items: &'row [u8; 4], which: i64) -> Held<'row>
+ensures result.values.len >= 1 {
+    match which {
+        0 -> Held { values: &items[0..1], stamp: 7 }
+        _ -> Held { values: &items[1..4], stamp: 9 }
+    }
+}
+
+machine forward<'row>(items: &'row [u8; 4], which: i64) -> Held<'row>
+ensures result.values.len >= 1 {
+    let returned: Held = span(items, which);
+    returned
+}
+
+machine demand_one(values: &[u8]) requires values.len >= 1 {}
+machine demand_two(values: &[u8]) requires values.len >= 2 {}
+machine demand_same(left: &[u8], right: &[u8])
+requires left.len == right.len {}
+
+machine main() crashes Trap {
+    let first: [u8; 4] = [1, 2, 3, 4];
+    let second: [u8; 4] = [5, 6, 7, 8];
+    let mut short: Held = forward(&first, 0);
+    let long: Held = span(&second, 1);
+    let snapshot: Held = Held { values: short.values, stamp: short.stamp };
+    let copied: Held = snapshot;
+    let nested: Envelope = Envelope { held: long };
+    demand_one(short.values);
+    demand_one(nested.held.values);
+    short.stamp = 11;
+    demand_one(short.values);
+    demand_same(short.values, copied.values);
+    short.values = &second[0..2];
+    demand_two(short.values);
+    demand_one(copied.values);
+    transition short.values.len == 2 && copied.values.len == 1 && nested.held.values.len == 3 && short.stamp == 11 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

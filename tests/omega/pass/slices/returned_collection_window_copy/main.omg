@@ -1,0 +1,23 @@
+// A returned non-byte window copies its shared descriptor into a new record.
+data Held<'row> { values: &'row [u32]; stamp: u32; }
+data Envelope<'row> { held: Held<'row>; }
+
+machine span<'row>(items: &'row [u32; 4], which: i64) -> Held<'row>
+ensures result.values.len >= 1 {
+    match which {
+        0 -> Held { values: &items[0..1], stamp: 7 }
+        _ -> Held { values: &items[1..4], stamp: 9 }
+    }
+}
+
+machine main() crashes Trap {
+    let first: [u32; 4] = [1, 2, 3, 4];
+    let held: Held = span(&first, 0);
+    let snapshot: Held = Held { values: held.values, stamp: held.stamp };
+    transition held.values.len == 1 && snapshot.values.len == 1 && snapshot.values[0] == 1 {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
