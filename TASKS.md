@@ -237,8 +237,9 @@ helper that passes does not close an item.
     name, and a trait requirement declares its bare name. Syntax, resolved,
     typed and Terminal closed-conformance applications and package review
     records carry no subject. Boundary roots (the interrupt and
-    secondary-processor canaries) are named implementations whose rows name
-    existing entry machines; provider planning installs each through the
+    secondary-processor canaries) still use reference rows naming existing
+    entry machines; these rows now require migration to inline members.
+    Provider planning installs each through the
     implementation's own plan and resolves installation reach from its rows.
     Remaining: product-producer parity for positional trait implementation
     binders and their ordered mixed telescopes; const-expression closure over
@@ -247,6 +248,14 @@ helper that passes does not close an item.
     data arguments before plan evaluation. Reflection selection rejects a
     named implementation as a member's operation until callable-contract checking lands
     (**Semantic reflection**).
+  - Retire authored `Trait::member = Existing::machine;` rows under
+    [inline conformance members](wiki/spec/language/conformances.md#declaration-and-selection).
+    Declare the member in the implementation and reuse code through ordinary
+    calls/transitions. Remove reference-row parsing and its dedicated resolution
+    path from both producers; keep the normalized internal requirement map,
+    defaults, core synthesis and standalone exact satisfaction. Preserve complete
+    refinement and exact inherited/overloaded requirement identity. Forwarding
+    cannot transfer establishment authority or erase foreign trust dependencies.
   - Own parsing, resolution, typing, checking and conformance publication in
     `omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees` through
     `07_lowered-psi-to-terminal-psi`, their representations and
@@ -273,7 +282,10 @@ helper that passes does not close an item.
     authorization governs the source and dynamic migration tasks below.
   Acceptance: the named counter program runs and the migrated witness program
   checks; wrong trait arguments, incomplete maps, data-as-implementation and
-  retired `Self`/subject syntax reject. Run
+  retired `Self`/subject/reference-row syntax reject. Inline calling policies,
+  target-specific members and members forwarding to shared checked or foreign
+  helpers preserve their contracts; wrong guarantees, missing reach and forged
+  establishment reject. Run
   `python tools/corpus_gate.py --filter traits/,proofs/named_witness_static_trait_plural_compile`
   on the rewritten coverage and focused package checks for changed owners.
   Product-producer parity is required; changes to the accepted bootstrap chain
@@ -285,6 +297,10 @@ helper that passes does not close an item.
   the [named-implementation model](wiki/spec/language/conformances.md).
   Depends on **NAMED-IMPLEMENTATION-CONFORMANCE-MIGRATION** for compiler
   support; source conversion can be prepared concurrently in disjoint paths.
+  Replace reference-row assignments in bundled policies/providers, application
+  ports and fixtures with inline member declarations. Preserve exact entry
+  establishment on the declared member; do not assume a forwarding helper
+  inherits that authority. Ordinary shared implementations remain machines.
   - Own the affected declarations in `source/library/`, `samples/`, and
     `tests/omega/`, with item/path claims for independent batches. Update exact
     satisfaction edges, generic bounds, inherited trait arguments, defaults,
@@ -313,7 +329,8 @@ helper that passes does not close an item.
   `mbx run -p omega -- run <sample/main.omg>` on supported hosts against each
   sample's runtime oracle. Existing unrelated backend blockers
   remain named dependencies, not permission to restore a subject. No active
-  Omega source retains `Self`, data-subject satisfaction, or implicit receiver supply.
+  Omega source retains `Self`, data-subject satisfaction, implicit receiver supply,
+  or conformance reference-row assignments.
 
 - **DYNAMIC-IMPLEMENTATION-SELECTION-MIGRATION.** (split-of:RESTORE-DYNAMIC-DESCRIPTOR-AND-TABLE-CUSTODY)
   Replace data-attached trait objects with runtime selection of named

@@ -172,20 +172,24 @@ A proof-only implementation uses the same named map as an executable
 implementation. Neither has a data subject or creates a runtime instance. See
 [proof projection](#proof-projection-and-carrierless-evidence) below.
 
-To reuse an existing machine, fill a row by reference rather than repeat its
-body. Inside the block:
+To reuse an existing machine, declare the member normally and call the shared
+machine. For example, inside a `Ranked<Card>` implementation:
 
 ```omega
-Ranked::rank_value = Card::stable_rank_value;
+machine rank_value(card: &Card) -> u32 {
+    Card::stable_rank_value(card)
+}
 ```
 
-This binds the requirement to an already-declared machine; it is not a
-transparent alias of machine identity.
+This uses ordinary call checking. The member must satisfy the requirement's
+complete contract, including any laws, effects and ownership obligations.
+Inlining can remove the extra call but does not merge the two machines'
+semantic identities or erase a foreign helper's trust dependency. There is no
+separate assignment syntax for binding a requirement to an existing machine.
 
-The qualified reference identifies an exact requirement overload. If a path
-without a signature names several overloads, it is ambiguous; give requirements
-used in those positions distinct names. Sharing an implementation machine does
-not merge its semantic requirement rows.
+The member signature and, where needed, an exact `satisfies` edge identify the
+requirement overload. A signature-free requirement path used elsewhere must
+resolve uniquely; if it does not, give requirements used there distinct names.
 
 Selection happens where concrete code meets an abstract requirement. Every
 whole-trait implementation has a package-scoped name, and every use passes that
@@ -880,7 +884,7 @@ therefore makes existing executable equality uses require that declaration.
 Identity `==` in a fact or proposition is separate and never requires
 `Equatable`. Domain membership (`in`) also remains separate.
 
-An authored `equals` body or explicit reference row overrides synthesis.
+An authored `equals` member overrides synthesis.
 Synthesized equality compares record fields, or a sum's tag and selected
 payload fields. Prerequisites are checked at the conformance: each field must
 be a primitive, a payload-less sum, text compared by content, or another

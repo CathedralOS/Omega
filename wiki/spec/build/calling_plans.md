@@ -19,6 +19,22 @@ identifies the incompatible signature feature at the relationship's source
 span and creates no accepted contract identity. An accepted value is still
 subject to compiler validation and canonicalization.
 
+The policy implementation declares its machine inside its conformance block:
+
+```omega
+pub FirmwarePolicy satisfies CallingPolicy {
+    machine plan(signature: BoundarySignature) -> BoundaryPlanResult {
+        make_firmware_plan(signature)
+    }
+}
+```
+
+Here `make_firmware_plan` is an ordinary package-defined helper. The member may
+instead construct the plan directly. Neither form uses a reference-row assignment;
+both follow [inline conformance members](../language/conformances.md#declaration-and-selection).
+Accepting a plan validates the calling description, not the truth of an opaque
+provider's claims or its authority to execute.
+
 Packages may author policies under the same rules as platform packages. The
 `std::calling` vocabulary describes normalized signatures, placement, machine
 state, acceptance, and rejection. Its quantities use `u64`, not `addr`; narrowing

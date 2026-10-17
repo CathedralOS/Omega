@@ -53,7 +53,15 @@ is the contract, and `Counter` is an ordinary type argument. The named
 implementation intentionally saturates; its guard proves representability.
 Selecting it creates no counter and supplies no hidden argument. Another named
 implementation may satisfy the same trait application with different machines.
-An implementation may instead bind already-declared machines by exact rows.
+Authored implementations declare their member machines inside the block.
+To reuse an existing machine, a member calls or transitions to it through the
+ordinary machine rules; there is no requirement-to-machine assignment syntax.
+
+Named decision: `inline-conformance-members`, settled 2026-10-16. Reference
+rows (`Trait::member = Existing::machine;`) are retired, not an alternate
+implementation form. Existing source and compiler support for them are migration
+debt owned by the named-implementation and source-migration tasks above.
+Defaults and authorized core synthesis remain unchanged.
 
 The conformance has its own package-scoped name, visibility, binder telescope,
 instantiated trait application, complete row map, laws, and provenance. It is
@@ -140,16 +148,22 @@ One selected conformance covers the whole declared roster; a generic member may
 provide its checked specializations without separately authored width methods.
 This does not permit arbitrary generic virtual methods or partial coverage.
 A short member name is not a row identity. The row is supplied by a checked
-member, an explicitly referenced existing machine, that exact overload's
+member declared in the implementation, that exact overload's
 instantiated default, or an authorized synthesized member with its rule/evidence.
 It occurs exactly once. Missing rows without defaults and duplicate rows reject.
 Default bodies call other requirements through this same selected map.
 
-A reference row such as `Ranked::rank_value = Card::stable_rank_value;` binds
-one requirement to an existing machine; it does not declare transparent machine
-identity. Member implementations refine the requirement's complete
+An inline member is an ordinary machine with its own identity and supplies
+one exact requirement overload. When inherited names or overloads collide,
+its signature and ordinary exact `satisfies Trait<...>::member` edge identify
+the requirement; ambiguity rejects rather than selecting by visibility.
+Member implementations refine the requirement's complete
 [machine contract](machines.md#substitution), not merely its value signature.
-Physical code sharing cannot merge semantic row identities.
+A forwarding body must meet those same proof, ownership and operational
+obligations. Forwarding does not equate the member with its callee, donate the
+callee's establishment authority, or erase trust dependencies. Optimizations
+may eliminate a call or share physical code only while preserving these
+semantic identities and contracts; correctness never depends on that optimization.
 
 Public conformance selection may retain private realization identities. A value
 whose descriptor carries private evidence may be used through its packaged
@@ -242,7 +256,7 @@ requirements. This refinement-local bound is not an installation requirement's
 ## Core equality acquisition
 
 Compiler-synthesized core conformances emit ordinary checked machine bodies.
-An explicit member or exact reference row overrides synthesis. User traits do
+An explicit member declaration overrides synthesis. User traits do
 not acquire compiler synthesis privilege through a name or empty block.
 
 `Equatable<T>` describes equality machines over explicit `T` arguments.
@@ -275,5 +289,5 @@ authors generate ordinary checked member calls; it does not expand this sealed
 synthesis catalog, supply missing law evidence, or permit raw quotient observation.
 
 See the [trait guide](../../language_guide/chapter_14_traits.md) for static bounds,
-reference-row syntax, and dynamic coercion examples. [Relations and quotients](../proofs/quotients.md)
+inline implementations, and dynamic coercion examples. [Relations and quotients](../proofs/quotients.md)
 use this same named-map identity for law selection.
