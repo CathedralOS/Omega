@@ -18,6 +18,7 @@ pass/asm/checked_label_transition_exit built 3639ms exit:0 interpreter-exit:0 in
 pass/atomics/runtime_atomic_computed_operands_exit built 5756ms exit:0 interpreter-exit:0 interpreter:agrees @e460ea1df091+wt
 pass/atomics/runtime_atomic_computed_updates_exit built 5756ms exit:0 interpreter-exit:0 interpreter:agrees @e460ea1df091+wt
 pass/atomics/runtime_atomic_operand_order_exit built 5756ms exit:0 interpreter-exit:0 interpreter:agrees @e460ea1df091+wt
+pass/atomics/runtime_projected_state_operands_exit built 3800ms exit:0 interpreter-exit:0 interpreter:agrees @7bdf39525621
 pass/borrows/constant_shared_boundary_exit built 3580ms exit:0 interpreter-exit:0 interpreter:agrees @1bce9ab2e5d5+wt
 pass/borrows/dynamic_window_return_custody_exit built 3403ms exit:0 interpreter-exit:0 interpreter:agrees @ea7b63644a0a+wt
 pass/borrows/fixed_array_reference_backing_exit built 3555ms exit:0 interpreter-exit:0 interpreter:agrees @c4c0ab7a5d11
