@@ -1,0 +1,23 @@
+// A domain-qualified affine record produced by a call moves into a formal
+// with its checked membership roster retained, not copied: the callee reads
+// the produced value and the caller observes the field after return.
+//
+// Expected exit: 0
+data Stream { identity: u64; }
+data StreamView<'owner> { identity: &'owner u64; }
+domain StreamView::Borrowed established by borrow_stream;
+
+machine borrow_stream<'owner>(stream: &'owner Stream) -> StreamView<'owner> in Borrowed {
+    StreamView { identity: &stream.identity }
+}
+machine receive<'owner>(stream: StreamView<'owner> in Borrowed) -> u64 {
+    let identity: u64 = stream.identity;
+    identity
+}
+machine main() crashes Trap {
+    let stream: Stream = Stream { identity: 41 };
+    let observed: u64 = receive(borrow_stream(&stream));
+    transition observed == 41 && stream.identity == 41 { true -> done() false -> wrong() }
+    state done() {}
+    state wrong() { crash Trap; }
+}

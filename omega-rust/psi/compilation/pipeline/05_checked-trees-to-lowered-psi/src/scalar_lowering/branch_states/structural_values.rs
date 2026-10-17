@@ -540,17 +540,13 @@ impl Preparation<'_> {
                     self.source(identities, *source, source_reference, claim_path)?;
                 argument.path.extend(selected_path);
                 if !node.qualification_decisions.is_empty() {
-                    if self.checked.type_multiplicity(reference) != Multiplicity::Unrestricted {
-                        return unsupported(
-                            "affine operand must retain its checked membership roster",
-                        );
-                    }
-                    let place = self.bind_place(
-                        value,
-                        argument,
-                        selected.id,
-                        StructuralMultiplicity::Unrestricted,
-                    )?;
+                    // An unrestricted projection copies its checked facts into
+                    // the reserved home; an affine projection moves into it,
+                    // with its membership roster retained rather than copied.
+                    let multiplicity = terminal_multiplicity(
+                        crate::reference_custody::result_multiplicity(self.checked, reference),
+                    );
+                    let place = self.bind_place(value, argument, selected.id, multiplicity)?;
                     return Ok(whole_argument(place));
                 }
                 Ok(argument)
@@ -868,9 +864,19 @@ impl Preparation<'_> {
             }
             // Retain this exact completion's checked facts on an ordinary
             // unrestricted snapshot, never by relabeling the callee's ABI
-            // contract. Affine custody cannot authorize this copy.
+            // contract. Affine custody cannot authorize this copy: the
+            // produced place itself moves into the reserved operand home,
+            // carrying its checked membership roster, so the caller keeps no
+            // independent snapshot to re-establish.
             if self.checked.type_multiplicity(reference) != Multiplicity::Unrestricted {
-                return unsupported("affine operand must retain its checked membership roster");
+                return self.bind_place(
+                    value,
+                    whole_argument(place),
+                    declaration.id,
+                    terminal_multiplicity(
+                        crate::reference_custody::result_multiplicity(self.checked, reference),
+                    ),
+                );
             }
             let mut source = self.bindings.structural_copy_source(
                 identities,
