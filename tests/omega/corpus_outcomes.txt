@@ -4331,6 +4331,18 @@ fail/proofs/declaration_synthesized_equality_value_context rejected 629ms expect
 	construction value is not proven in domain `Input::Incorrect`
 fail/proofs/defined_proposition_premise_not_symmetric rejected 168ms expected @77ecdbf5e7c6
 	checked machine `before_symmetric` cannot establish proposition ensure `boolean:right.x < left.x` in state `entry`; require it, cite a checked/accepted proof that ensures it, or supply its declared evidence
+fail/proofs/disjunctive_domain_conjunction rejected 728ms expected @93160ec7e266+wt
+	cannot prove default-domain field requirement for return from invalid at statement 0: Checked::Ready.value requires Pair::Both
+	construction of `Checked` field `value` is not proven in domain `Pair::Both`; a field declared `in Pair::Both` requires every construction value to be established in that domain (construct with a literal its byte-predicate fact accepts, or a value already proven in the domain)
+fail/proofs/disjunctive_domain_false_arm rejected 732ms expected @93160ec7e266+wt
+	cannot prove default-domain field requirement for return from invalid at statement 1: Checked::Ready.value requires Pair::Small
+	construction of `Checked` field `value` is not proven in domain `Pair::Small`; a field declared `in Pair::Small` requires every construction value to be established in that domain (construct with a literal its byte-predicate fact accepts, or a value already proven in the domain)
+fail/proofs/disjunctive_domain_mutated_subject rejected 668ms expected @93160ec7e266+wt
+	cannot prove default-domain field requirement for return from invalid at statement 3: Checked::Ready.value requires Pair::Small
+	construction of `Checked` field `value` is not proven in domain `Pair::Small`; a field declared `in Pair::Small` requires every construction value to be established in that domain (construct with a literal its byte-predicate fact accepts, or a value already proven in the domain)
+fail/proofs/disjunctive_domain_wrong_subject rejected 677ms expected @93160ec7e266+wt
+	cannot prove default-domain field requirement for return from invalid at statement 0: Checked::Ready.value requires Pair::Small
+	construction of `Checked` field `value` is not proven in domain `Pair::Small`; a field declared `in Pair::Small` requires every construction value to be established in that domain (construct with a literal its byte-predicate fact accepts, or a value already proven in the domain)
 fail/proofs/fact_only_proof_value_citation_linear_resource rejected 4427ms expected @4ce1ff349782+wt
 	linear value `value::Node.token` reaches scope exit without being consumed or transferred
 fail/proofs/fact_only_proof_value_citation_missing_premise rejected 1840ms expected @4ce1ff349782+wt
@@ -4648,6 +4660,11 @@ fail/proofs/strict_comparison_mutation_snapshot rejected 8810ms expected @5b35ed
 	cannot prove requires contract for call bounded from main: context.count < 6 (needs fact `context.count < 6` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/proofs/structural_ensures_unjudged_rejected rejected 2841ms expected @a9ae30e1c334+wt
 	machine `bogus` ensures contract proof fact `result == Nat` speaks about proof-only `Nat`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or wait for the structural extraction tier (math roster N3)
+fail/proofs/structural_mathematical_predicate_wrong_polarity rejected 656ms expected @93160ec7e266+wt
+	cannot prove default-domain field requirement for return from invalid_below at statement 0: Below.value requires Word::Below
+	construction of `Below` field `value` is not proven in domain `Word::Below`; a field declared `in Word::Below` requires every construction value to be established in that domain (construct with a literal its byte-predicate fact accepts, or a value already proven in the domain)
+	cannot prove default-domain field requirement for return from invalid_unequal at statement 0: NotTen.value requires Word::NotTen
+	construction of `NotTen` field `value` is not proven in domain `Word::NotTen`; a field declared `in Word::NotTen` requires every construction value to be established in that domain (construct with a literal its byte-predicate fact accepts, or a value already proven in the domain)
 fail/proofs/value_call_refuted_inequality_rejected rejected 802ms expected @a9ae30e1c334+wt
 	machine `invalid_nonzero_identity` state `entry` value call to `nonzero_identity` violates required fact `value != Nat`: the instantiated fact is structurally false
 fail/proofs/wrapping_zero_product_does_not_cancel_factor rejected 3456ms expected @a9ae30e1c334+wt
@@ -8385,6 +8402,7 @@ pass/proofs/declaration_synthesized_equality_value_context checked 3810ms check-
 pass/proofs/defined_proposition_premises checked 1193ms @77ecdbf5e7c6
 pass/proofs/descriptor_bound_after_element_call checked 678ms @b3d0b7396229+wt
 pass/proofs/descriptor_bound_call_after_element_call checked 679ms @b3d0b7396229+wt
+pass/proofs/disjunctive_domain_result_exit checked 3801ms check-target:macos_arm64 @93160ec7e266+wt
 pass/proofs/embed_collection_length checked 1042ms @73e11f08dcbb+wt
 pass/proofs/embed_returned_length checked 1047ms @b276a0918018+wt
 pass/proofs/fact_only_proof_value_citation_exit checked 14367ms check-target:linux_x86_64 @4ce1ff349782+wt
@@ -8474,6 +8492,7 @@ pass/proofs/selected_specification_requires_state checked 4678ms @4ce1ff349782+w
 pass/proofs/short_circuit_rhs_entry_bound checked 30697ms check-target:macos_arm64 @5b35eda9b8d6
 pass/proofs/static_machine_result_projection checked 1379ms @fedeee648fc7+wt
 pass/proofs/stride_pair_telescope checked 9821ms @5041ef1af684+wt
+pass/proofs/structural_mathematical_predicate_polarity_exit checked 3739ms check-target:macos_arm64 @93160ec7e266+wt
 pass/providers/applied_binding_field_telescopes_exit checked 6307ms check-target:macos_arm64 @fa48d7bba308+wt
 pass/providers/applied_entry_nested_binding_context_exit checked 2785ms check-target:macos_arm64 @c61d64ccecc5+wt
 pass/providers/applied_header_dependent_const_carrier_exit checked 12536ms check-target:macos_arm64 @37afc401493b+wt

@@ -271,6 +271,27 @@ pub(crate) struct ConstructorStorage {
 }
 
 impl ConstructorStorage {
+    /// A result catalogue names possible case payloads. Only authenticated
+    /// staged tags select its active obligations; missing tags still reject.
+    /// Each active row must come from a completed child, never the catalogue.
+    pub(crate) fn validate_projected_memberships(
+        &self,
+        execution: &TerminalExecution,
+        root: &TerminalStructuralValue,
+        required: &[terminal_psi::StructuralPathQualification],
+    ) -> Result<(), TerminalInterpretError> {
+        for row in required {
+            let active = crate::structural_inputs::case_membership::case_projection_with_membership_is_active(
+                &execution.program.structural_types(), root.structural_type, &row.path,
+                &|prefix| self.case_at_projection(execution, root, prefix),
+            )?;
+            if active && !root.projected_qualifications.contains(row) {
+                return Err(malformed());
+            }
+        }
+        Ok(())
+    }
+
     /// Custody is staged against the same unpublished tags as the new bytes.
     pub(crate) fn case_at_projection(
         &self,

@@ -284,13 +284,7 @@ impl TerminalExecution<'_> {
         storage.stage_case(member_root, result.structural_type, result_case);
         value.projected_qualifications.sort();
         value.projected_qualifications.dedup();
-        if result
-            .projected_qualifications
-            .iter()
-            .any(|row| !value.projected_qualifications.contains(row))
-        {
-            return Err(malformed());
-        }
+        storage.validate_projected_memberships(self, &value, &result.projected_qualifications)?;
         let claims =
             self.stage_constructor_claims(result, &claim_operands, &mut frontier, &|current| {
                 storage.case_at_projection(self, &value, &current.path)

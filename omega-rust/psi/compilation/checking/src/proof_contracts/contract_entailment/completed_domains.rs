@@ -34,6 +34,7 @@ pub fn completed_value_refutes_domain(
         expression,
         domain_symbol,
         ExpressionHandle::invalid(),
+        &[],
     )
     .refuted
 }
@@ -48,6 +49,7 @@ pub fn completed_value_proves_domain_predicate(
     expression: ExpressionHandle,
     domain_symbol: SymbolHandle,
     predicate: ExpressionHandle,
+    projection: &[facts::PlaceSegment],
 ) -> bool {
     let judgment = completed_domain_judgment(
         program,
@@ -57,6 +59,7 @@ pub fn completed_value_proves_domain_predicate(
         expression,
         domain_symbol,
         predicate,
+        projection,
     );
     judgment.observed && judgment.proven
 }
@@ -76,6 +79,7 @@ fn completed_domain_judgment(
     expression: ExpressionHandle,
     domain_symbol: SymbolHandle,
     predicate: ExpressionHandle,
+    projection: &[facts::PlaceSegment],
 ) -> CompletedDomainJudgment {
     let Some(domain) = program.domain_definition(domain_symbol) else {
         return CompletedDomainJudgment::default();
@@ -101,6 +105,7 @@ fn completed_domain_judgment(
         },
         expression,
         reference,
+        projection,
         domain,
         predicate,
         judgment: CompletedDomainJudgment {
@@ -118,6 +123,7 @@ struct DomainObservation<'program> {
     site: StructuralPrefixSite,
     expression: ExpressionHandle,
     reference: typed_trees::types::TypeReferenceHandle,
+    projection: &'program [facts::PlaceSegment],
     domain: &'program typed_trees::domain::DomainDefinition,
     predicate: ExpressionHandle,
     judgment: CompletedDomainJudgment,
@@ -157,17 +163,32 @@ impl StructuralPrefixVisitor for DomainObservation<'_> {
             return;
         };
         self.judgment.observed |= !outcomes.is_empty();
+        let Some(reference) =
+            crate::project_type_reference_from_segments(program, self.reference, self.projection)
+        else {
+            self.judgment.proven = false;
+            return;
+        };
         let parameters = [typed_trees::signature::StateParameter {
             symbol: self.domain.subject_symbol,
             name: self.domain.subject_name.clone(),
             // Carrier-only families observe this exact completed instance.
             // Indexed theories remain fenced above: their arguments cannot be
             // recovered from a family symbol.
-            type_reference: self.reference,
+            type_reference: reference,
             ..Default::default()
         }];
         for outcome in outcomes {
-            let bindings = [(self.domain.subject_name.to_string(), outcome.value)];
+            let Some(value) = super::observed_projections::project_observed_value(
+                program,
+                self.reference,
+                outcome.judge.completed_value_identity(outcome.value),
+                self.projection,
+            ) else {
+                self.judgment.proven = false;
+                continue;
+            };
+            let bindings = [(self.domain.subject_name.to_string(), value)];
             // Positive callers supply the declared predicate (or a Boolean
             // component of it); sibling memberships have their own evidence
             // owner. Refutation scans all expression conjuncts independently.

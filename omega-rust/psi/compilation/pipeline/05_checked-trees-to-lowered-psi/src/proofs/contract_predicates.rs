@@ -70,7 +70,7 @@ fn has_scalar_boolean_denotation(
     Ok(true)
 }
 
-fn proposition_with_polarity(
+pub(crate) fn proposition_with_polarity(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     predicate: &CheckedBooleanExpression,
     terms: &impl PredicateTerms,

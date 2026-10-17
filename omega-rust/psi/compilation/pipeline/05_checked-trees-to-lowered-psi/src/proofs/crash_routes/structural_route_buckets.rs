@@ -132,6 +132,24 @@ struct RouteTerms<'a> {
     runtime_requirements: &'a [Proposition],
 }
 
+impl crate::proofs::contract_predicates::PredicateTerms for RouteTerms<'_> {
+    fn scalar(
+        &self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        expression: &CheckedScalarExpression,
+    ) -> Result<ScalarTerm, LoweringError> {
+        self.lower_scalar_term(identities, expression)
+    }
+
+    fn boolean(
+        &self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        expression: &CheckedBooleanExpression,
+    ) -> Result<ScalarTerm, LoweringError> {
+        self.lower_term(identities, expression)
+    }
+}
+
 impl RouteTerms<'_> {
     fn lower_term(
         &self,
@@ -317,6 +335,16 @@ impl RouteTerms<'_> {
         depth: usize,
     ) -> Result<Proposition, LoweringError> {
         charge_boolean_expansion(remaining, depth)?;
+        if matches!(
+            expression,
+            CheckedBooleanExpression::IntegerMathComparison { .. }
+        ) {
+            // Mathematical comparisons share their logical meaning with scalar
+            // contracts, while embedded leaves retain this structural namespace.
+            return crate::proofs::contract_predicates::proposition_with_polarity(
+                identities, expression, self, positive, remaining,
+            );
+        }
         if let CheckedBooleanExpression::ScalarIeeeFloatComparison { kind, left, right } =
             expression
         {
@@ -360,6 +388,7 @@ impl RouteTerms<'_> {
         if matches!(
             expression,
             CheckedBooleanExpression::ScalarIeeeFloatComparison { .. }
+                | CheckedBooleanExpression::IntegerMathComparison { .. }
         ) {
             return self.lower_atom_polarity(identities, expression, true, remaining, depth);
         }
@@ -367,6 +396,7 @@ impl RouteTerms<'_> {
             && matches!(
                 operand.as_ref(),
                 CheckedBooleanExpression::ScalarIeeeFloatComparison { .. }
+                    | CheckedBooleanExpression::IntegerMathComparison { .. }
             )
         {
             return self.lower_atom_polarity(identities, operand, false, remaining, depth);
@@ -603,6 +633,7 @@ fn checked_member_path(
 fn contains_structural_atomic_proposition(expression: &CheckedBooleanExpression) -> bool {
     match expression {
         CheckedBooleanExpression::IeeeFloatComparison { .. }
+        | CheckedBooleanExpression::IntegerMathComparison { .. }
         | CheckedBooleanExpression::StructuralIdentity { .. }
         | CheckedBooleanExpression::ScalarIeeeFloatComparison { .. }
         | CheckedBooleanExpression::ByteSequenceEqual { .. }
@@ -619,7 +650,6 @@ fn contains_structural_atomic_proposition(expression: &CheckedBooleanExpression)
         | CheckedBooleanExpression::Local { .. }
         | CheckedBooleanExpression::StructuralParameterField { .. }
         | CheckedBooleanExpression::ErasedParameter { .. }
-        | CheckedBooleanExpression::IntegerMathComparison { .. }
         | CheckedBooleanExpression::IntegerComparison { .. } => false,
     }
 }

@@ -4,13 +4,11 @@
 //! back, and matching a retained proposition against a requested one
 //! under either normalization.
 
-use semantic_vocabulary::{
-    IntegerCarrier, IntegerMathTerm, IntegerType, IntegerValue, Proposition, ScalarTerm,
-};
+use semantic_vocabulary::{IntegerCarrier, IntegerMathTerm, IntegerType, Proposition, ScalarTerm};
 
-/// Canonically embed a relation over fixed-width value/literal terms into the
-/// mathematical-integer relation vocabulary. Compound machine terms are not
-/// silently reinterpreted by this bridge.
+/// Canonically embed a relation over fixed-width terms into the mathematical
+/// vocabulary. Projections and compound operations retain their complete scalar
+/// meaning inside `Embed`; no operation acquires mathematical arithmetic laws.
 pub fn lift_fixed_integer_relation(proposition: &Proposition) -> Option<Proposition> {
     let (kind, left, right) = match proposition {
         Proposition::Equal(left, right) => (0, left, right),
@@ -18,6 +16,7 @@ pub fn lift_fixed_integer_relation(proposition: &Proposition) -> Option<Proposit
         Proposition::LessOrEqual(left, right) => (2, left, right),
         _ => return None,
     };
+    crate::check_predicate_evaluation_size([proposition]).ok()?;
     let mut left = lift_fixed_integer_term(left)?;
     let mut right = lift_fixed_integer_term(right)?;
     Some(match kind {
@@ -32,8 +31,8 @@ pub fn lift_fixed_integer_relation(proposition: &Proposition) -> Option<Proposit
     })
 }
 
-/// Inverse of [`lift_fixed_integer_relation`] for the canonical carrier-bound
-/// shapes used by exact-cast representability.
+/// Inverse of [`lift_fixed_integer_relation`], retaining the exact source
+/// carrier and opaque scalar operation of every embedded endpoint.
 pub fn lower_integer_math_relation(proposition: &Proposition) -> Option<Proposition> {
     let (kind, left, right) = match proposition {
         Proposition::IntegerMathEqual(left, right) => (0, left, right),
@@ -41,8 +40,15 @@ pub fn lower_integer_math_relation(proposition: &Proposition) -> Option<Proposit
         Proposition::IntegerMathLessOrEqual(left, right) => (2, left, right),
         _ => return None,
     };
+    crate::check_predicate_evaluation_size([proposition]).ok()?;
     let source_type = [left, right].into_iter().find_map(|term| match term {
         IntegerMathTerm::MathValue { source_type, .. } => Some(*source_type),
+        IntegerMathTerm::Embed(term) => match term.scalar_type() {
+            semantic_vocabulary::ScalarType::Integer(integer) if exact_ring_carrier(&integer) => {
+                Some(integer)
+            }
+            _ => None,
+        },
         _ => None,
     })?;
     let lower = |term: &IntegerMathTerm| match term {
@@ -55,6 +61,12 @@ pub fn lower_integer_math_relation(proposition: &Proposition) -> Option<Proposit
         )),
         IntegerMathTerm::IntegerLiteral(literal) => {
             ScalarTerm::integer(source_type, literal.as_integer_value(source_type)?).ok()
+        }
+        IntegerMathTerm::Embed(term)
+            if exact_ring_carrier(&source_type)
+                && term.scalar_type() == semantic_vocabulary::ScalarType::Integer(source_type) =>
+        {
+            Some(term.as_ref().clone())
         }
         _ => None,
     };
@@ -81,23 +93,9 @@ pub(crate) fn propositions_match_under_integer_math_normalization(
 }
 
 fn lift_fixed_integer_term(term: &ScalarTerm) -> Option<IntegerMathTerm> {
-    match term {
-        ScalarTerm::Value {
-            id,
-            scalar_type: semantic_vocabulary::ScalarType::Integer(source_type),
-        } if !source_type.is_address() => Some(IntegerMathTerm::MathValue {
-            source_type: *source_type,
-            value: *id,
-        }),
-        ScalarTerm::Integer { scalar_type, value } if !scalar_type.is_address() => {
-            debug_assert!(matches!(
-                value,
-                IntegerValue::Signed(_) | IntegerValue::Unsigned(_)
-            ));
-            Some(IntegerMathTerm::literal(*value))
-        }
-        _ => None,
-    }
+    exact_ring_carrier(&term.scalar_type().as_integer()?)
+        .then(|| IntegerMathTerm::embed(term.clone()))
+        .flatten()
 }
 
 /// Only `Fixed` non-address integer types denote exact ring operations as
@@ -118,6 +116,7 @@ fn exact_ring_carrier(scalar_type: &IntegerType) -> bool {
 pub(crate) fn lift_exact_integer_relation(
     proposition: &Proposition,
 ) -> Option<(IntegerMathTerm, IntegerMathTerm)> {
+    crate::check_predicate_evaluation_size([proposition]).ok()?;
     let (left, right) = match proposition {
         semantic_vocabulary::ordered_comparison_operands!(left, right) => (left, right),
         _ => return None,
@@ -160,7 +159,11 @@ pub(crate) fn lift_exact_integer_term(term: &ScalarTerm) -> Option<IntegerMathTe
             Box::new(lift_exact_integer_term(left)?),
             Box::new(lift_exact_integer_term(right)?),
         )),
-        _ => lift_fixed_integer_term(term),
+        // Ring expansion has a narrower purpose than opaque embedding. Its
+        // callers request arithmetic rearrangement; an opaque projection or
+        // policy-bearing operation cannot acquire those laws through fallback.
+        ScalarTerm::Value { .. } | ScalarTerm::Integer { .. } => lift_fixed_integer_term(term),
+        _ => None,
     }
 }
 
@@ -169,11 +172,129 @@ pub(crate) fn lift_exact_integer_term(term: &ScalarTerm) -> Option<IntegerMathTe
 /// lift, and their resulting terms remain mathematical rather than new SSA
 /// values or an assertion that an operation's finite result is representable.
 pub fn lift_exact_integer_order(proposition: &Proposition) -> Option<Proposition> {
-    proposition.validate().ok()?;
     let (left, right) = lift_exact_integer_relation(proposition)?;
+    proposition.validate().ok()?;
     match proposition {
         Proposition::LessThan(..) => Some(Proposition::IntegerMathLessThan(left, right)),
         Proposition::LessOrEqual(..) => Some(Proposition::IntegerMathLessOrEqual(left, right)),
         _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use semantic_vocabulary::{
+        IntegerSign, IntegerValue, PlaceId, PropositionContext, ScalarType, StructuralFieldId,
+        StructuralPlaceKind, ValueId,
+    };
+    use terminal_psi::{ProofNode, ProofRule};
+
+    #[test]
+    fn embedded_endpoints_preserve_projection_and_operation_meaning() {
+        let integer = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+        let root = PlaceId::new(1).unwrap();
+        let value = ValueId::new(1).unwrap();
+        let context = PropositionContext::from_value_types_and_places(
+            [(value, ScalarType::Integer(integer))],
+            [(root, StructuralPlaceKind::Parameter { position: 0 })],
+        )
+        .unwrap();
+        let field = ScalarTerm::integer_field_path(
+            root,
+            vec![semantic_vocabulary::CanonicalStructuralPathSegment::Field(
+                StructuralFieldId::new(1).unwrap(),
+            )],
+            integer,
+        );
+        let literal = ScalarTerm::integer(integer, IntegerValue::Unsigned(10)).unwrap();
+        let scalar = ScalarTerm::value(value, ScalarType::Integer(integer));
+        let wrapping = ScalarTerm::WrappingIntegerAdd {
+            scalar_type: integer,
+            left: Box::new(scalar.clone()),
+            right: Box::new(literal.clone()),
+        };
+        for endpoint in [field, wrapping] {
+            let finite = Proposition::LessThan(endpoint.clone(), literal.clone());
+            let mathematical = lift_fixed_integer_relation(&finite).unwrap();
+            assert_eq!(
+                lower_integer_math_relation(&mathematical),
+                Some(finite.clone())
+            );
+            for (requirement, goal) in [
+                (finite.clone(), mathematical.clone()),
+                (mathematical.clone(), finite),
+            ] {
+                let proof = ProofNode {
+                    conclusion: goal.clone(),
+                    rule: ProofRule::Assumption { index: 0 },
+                };
+                crate::check_certificate(
+                    &context,
+                    &goal,
+                    std::slice::from_ref(&requirement),
+                    &[],
+                    &proof,
+                )
+                .unwrap();
+                crate::verify_bounded_certificate(
+                    &context,
+                    &goal,
+                    &[requirement],
+                    &[],
+                    &proof,
+                    &mut crate::Budget::default(),
+                )
+                .unwrap();
+            }
+            let wrong = Proposition::IntegerMathLessThan(
+                IntegerMathTerm::embed(scalar.clone()).unwrap(),
+                IntegerMathTerm::literal(IntegerValue::Unsigned(10)),
+            );
+            let proof = ProofNode {
+                conclusion: wrong.clone(),
+                rule: ProofRule::Assumption { index: 0 },
+            };
+            assert!(
+                crate::check_certificate(&context, &wrong, &[mathematical], &[], &proof).is_err()
+            );
+        }
+        let other = IntegerType::new(IntegerSign::Unsigned, 16).unwrap();
+        let mixed = Proposition::IntegerMathLessThan(
+            IntegerMathTerm::embed(scalar).unwrap(),
+            IntegerMathTerm::MathValue {
+                source_type: other,
+                value,
+            },
+        );
+        assert!(lower_integer_math_relation(&mixed).is_none());
+        let outside = Proposition::IntegerMathLessThan(
+            IntegerMathTerm::MathValue {
+                source_type: integer,
+                value,
+            },
+            IntegerMathTerm::literal(IntegerValue::Unsigned(256)),
+        );
+        assert!(lower_integer_math_relation(&outside).is_none());
+
+        let mut deep = literal.clone();
+        for _ in 0..65 {
+            deep = ScalarTerm::WrappingIntegerAdd {
+                scalar_type: integer,
+                left: Box::new(deep),
+                right: Box::new(literal.clone()),
+            };
+        }
+        let oversized = Proposition::LessThan(deep, literal);
+        assert!(lift_fixed_integer_relation(&oversized).is_none());
+        assert!(lift_exact_integer_relation(&oversized).is_none());
+        assert!(
+            crate::decide_primitive(
+                &context,
+                &oversized,
+                terminal_psi::PrimitiveJudgment::ClosedIntegerRelation
+            )
+            .is_err()
+        );
     }
 }

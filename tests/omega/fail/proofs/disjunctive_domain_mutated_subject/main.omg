@@ -1,0 +1,13 @@
+data Pair [copy] { left: u64; right: u64; }
+domain Pair::Small(value)
+requires embed(value.left) < 10 || embed(value.right) < 10;
+data Checked { case Rejected; case Ready(value: Pair in Small); }
+machine invalid(mut value: Pair) -> Checked {
+    let selected: bool = value.left < 10 || value.right < 10;
+    value.left = 20;
+    value.right = 20;
+    transition selected {
+        true -> Checked::Ready { value: value }
+        _ -> Checked::Rejected
+    }
+}

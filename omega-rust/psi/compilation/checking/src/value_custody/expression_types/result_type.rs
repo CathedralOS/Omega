@@ -907,7 +907,12 @@ fn binary_result(
             let equality = matches!(binary.operator, Equal | NotEqual)
                 && matches!(operands, [Some(left), Some(right)]
                     if crate::declared_carriers_match(program, left, right));
-            let compatible = if equality {
+            let mathematical =
+                crate::proof_contracts::contract_entailment::mathematical_integer_operands(
+                    program,
+                    [binary.left, binary.right],
+                );
+            let compatible = if equality || mathematical {
                 true
             } else if let Some(carrier) = operands.into_iter().flatten().next() {
                 let primitive = primitive(program, carrier)?;

@@ -290,7 +290,37 @@ pub(in crate::checks::contracts) fn check_result_field_domains(
                             })
                     })
             };
-            root_satisfied || captured_satisfies(&path)
+            // A completed owned value keeps its observations independently of
+            // the source storage. Project the returned value, not the syntax of
+            // a field initializer after later sibling effects. Routed and
+            // indexed membership still need their exact evidence owner.
+            let completed_satisfies = || {
+                !validation::field_domains::domain_requires_provenance(program, domain_symbol)
+                    && program
+                        .domain_definition(domain_symbol)
+                        .is_some_and(|domain| {
+                            !program.proof_facts(domain).is_empty()
+                                && program.proof_facts(domain).iter().all(|fact| {
+                                    fact.as_expression().is_some_and(|predicate| {
+                                        program
+                                            .state_in_machine(machine, exit.state_symbol)
+                                            .is_some_and(|state| {
+                                                validation::completed_value_proves_domain_predicate(
+                                                    program,
+                                                    machine,
+                                                    state,
+                                                    exit.statement_index,
+                                                    returned,
+                                                    domain_symbol,
+                                                    *predicate,
+                                                    &path,
+                                                )
+                                            })
+                                    })
+                                })
+                        })
+            };
+            root_satisfied || completed_satisfies() || captured_satisfies(&path)
         };
         if !satisfied {
             let (root, mut segments) = base

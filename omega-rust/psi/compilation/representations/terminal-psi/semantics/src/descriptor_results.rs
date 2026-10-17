@@ -26,6 +26,7 @@ mod contents;
 mod payload_entry;
 mod payload_history;
 mod payload_predicates;
+mod payload_reachability;
 mod scalar_contracts;
 pub use contents::{
     DescriptorContentsOperand, DescriptorContentsQuery, DescriptorContentsStep,

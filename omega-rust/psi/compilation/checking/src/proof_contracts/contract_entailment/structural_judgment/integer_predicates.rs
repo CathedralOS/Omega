@@ -196,7 +196,11 @@ impl StructuralJudge<'_> {
             BinaryOperator::Greater => proves(left.sub(&right), 1),
             BinaryOperator::GreaterOrEqual => proves(left.sub(&right), 0),
             BinaryOperator::Equal => proves(left.sub(&right), 0) && proves(right.sub(&left), 0),
-            BinaryOperator::NotEqual => proves(left.sub(&right), 1) || proves(right.sub(&left), 1),
+            BinaryOperator::NotEqual => {
+                engine.is_known_nonzero(&engine.substituted(&left.sub(&right)))
+                    || proves(left.sub(&right), 1)
+                    || proves(right.sub(&left), 1)
+            }
             _ => false,
         }
     }
@@ -314,6 +318,21 @@ impl StructuralJudge<'_> {
         predicate: &StructuralTerm,
         observations: &mut IntegerObservations<'_>,
     ) -> Option<(BinaryOperator, Polynomial, Polynomial)> {
+        // Boolean equality to a literal includes negation. Reuse its checked
+        // operand meaning before asking the integer owner for a relation;
+        // absence of a positive proof is never evidence of the negative.
+        let mut predicate = std::borrow::Cow::Borrowed(predicate.semantic_value());
+        let mut positive = true;
+        for _ in 0..64 {
+            let Some((operand, truth)) = self.boolean_equality_operand(
+                predicate.semantic_value(),
+                &super::value_predicates::boolean_term(positive),
+            ) else {
+                break;
+            };
+            positive = truth == super::value_predicates::boolean_term(true);
+            predicate = std::borrow::Cow::Owned(operand);
+        }
         if let StructuralTerm::MathematicalBinary {
             operator,
             left,
@@ -332,7 +351,11 @@ impl StructuralJudge<'_> {
                 return None;
             }
             return Some((
-                *operator,
+                if positive {
+                    *operator
+                } else {
+                    negate(*operator)
+                },
                 self.mathematical_value(left, observations, 0)?,
                 self.mathematical_value(right, observations, 0)?,
             ));
@@ -376,7 +399,11 @@ impl StructuralJudge<'_> {
             return None;
         }
         Some((
-            *operator,
+            if positive {
+                *operator
+            } else {
+                negate(*operator)
+            },
             self.integer_value(&left, meaning[0].0, observations, 0)?,
             self.integer_value(&right, meaning[1].0, observations, 0)?,
         ))

@@ -1,0 +1,64 @@
+// Expected exit: 0. A selected disjunct may differ on each invocation.
+data Pair [copy] { left: u64; right: u64; }
+domain Pair::Small(value)
+requires embed(value.left) < 10 || embed(value.right) < 10;
+data Checked { case Rejected; case Ready(value: Pair in Small); }
+data Envelope { case Wrapped(value: Checked); }
+data Holder<T> { value: T; }
+
+machine classify(value: Pair) -> Checked {
+    transition value.left < 10 || value.right < 10 {
+        true -> Checked::Ready { value: value }
+        _ -> Checked::Rejected
+    }
+}
+
+machine accepted(value: Pair) -> bool {
+    let wrapped: Holder<Envelope> = wrap(value);
+    transition wrapped.value {
+        Envelope::Wrapped { value } -> inspect(value)
+    }
+    state inspect(result: Checked) -> bool {
+        transition result {
+            Checked::Ready { value } -> (true)
+            Checked::Rejected -> (false)
+        }
+    }
+}
+
+machine classify_local(value: Pair) -> Checked {
+    let admitted: bool = !(value.left >= 10 && value.right >= 10);
+    transition admitted {
+        true -> Checked::Ready { value: value }
+        _ -> Checked::Rejected
+    }
+}
+
+machine accepted_local(value: Pair) -> bool {
+    let result: Checked = classify_local(value);
+    transition result {
+        Checked::Ready { value } -> (true)
+        Checked::Rejected -> (false)
+    }
+}
+
+machine wrap(value: Pair) -> Holder<Envelope> {
+    let result: Checked = classify(value);
+    Holder { value: Envelope::Wrapped { value: result } }
+}
+
+machine main() crashes Trap {
+    let left: bool = accepted(Pair { left: 3, right: 20 });
+    let right: bool = accepted(Pair { left: 20, right: 3 });
+    let both: bool = accepted(Pair { left: 3, right: 4 });
+    let neither: bool = accepted(Pair { left: 10, right: 20 });
+    let local_left: bool = accepted_local(Pair { left: 3, right: 20 });
+    let local_right: bool = accepted_local(Pair { left: 20, right: 3 });
+    let local_neither: bool = accepted_local(Pair { left: 10, right: 20 });
+    transition left && right && both && !neither && local_left && local_right && !local_neither {
+        true -> done()
+        _ -> wrong()
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}

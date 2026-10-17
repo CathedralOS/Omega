@@ -1,0 +1,13 @@
+data Word [copy] { value: u64; }
+domain Word::Below(value) requires !(embed(value.value) >= 10);
+domain Word::NotTen(value) requires embed(value.value) != 10;
+data Below { value: Word in Below; }
+data NotTen { value: Word in NotTen; }
+
+machine invalid_below(value: Word) -> Below
+requires value.value >= 10
+{ Below { value: value } }
+
+machine invalid_unequal(value: Word) -> NotTen
+requires value.value == 10
+{ NotTen { value: value } }

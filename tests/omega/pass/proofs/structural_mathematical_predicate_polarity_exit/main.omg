@@ -1,0 +1,25 @@
+// Expected exit: 0. Mathematical polarity retains the exact structural subject.
+data Word [copy] { value: u64; }
+domain Word::Below(value) requires !(embed(value.value) >= 10);
+domain Word::NotTen(value) requires embed(value.value) != 10;
+data Below { value: Word in Below; }
+data NotTen { value: Word in NotTen; }
+
+machine below(value: Word) -> Below
+requires value.value < 10
+{ Below { value: value } }
+
+machine not_ten(value: Word) -> NotTen
+requires value.value != 10
+{ NotTen { value: value } }
+
+machine main() crashes Trap {
+    let lower: Below = below(Word { value: 3 });
+    let upper: NotTen = not_ten(Word { value: 20 });
+    transition lower.value.value == 3 && upper.value.value == 20 {
+        true -> done()
+        _ -> wrong()
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}

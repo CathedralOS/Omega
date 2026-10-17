@@ -172,6 +172,20 @@ fn predicate_expression_holds_on_value(
     ) else {
         return false;
     };
+    // Judge the complete proposition before asking specialized leaf owners.
+    // An observed disjunction need not establish either alternative globally.
+    if validation::completed_value_proves_domain_predicate(
+        program,
+        machine,
+        state_declaration,
+        statement_index,
+        value,
+        domain.symbol,
+        expression,
+        &[],
+    ) {
+        return true;
+    }
     // Logical composition keeps the semantic owners of its children: a byte
     // classifier does not become an integer predicate merely by joining one.
     if let Some(binary) = program.expression_table.binary_node(expression) {
@@ -240,15 +254,7 @@ fn predicate_expression_holds_on_value(
             required,
         );
     }
-    validation::completed_value_proves_domain_predicate(
-        program,
-        machine,
-        state_declaration,
-        statement_index,
-        value,
-        domain.symbol,
-        expression,
-    )
+    false
 }
 
 fn literal_member_value(

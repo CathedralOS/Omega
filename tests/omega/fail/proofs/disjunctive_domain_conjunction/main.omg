@@ -1,0 +1,10 @@
+data Pair { left: u64; right: u64; }
+domain Pair::Both(value)
+requires embed(value.left) < 10 && embed(value.right) < 10;
+data Checked { case Rejected; case Ready(value: Pair in Both); }
+machine invalid(value: Pair) -> Checked {
+    transition value.left < 10 || value.right < 10 {
+        true -> Checked::Ready { value: value }
+        _ -> Checked::Rejected
+    }
+}

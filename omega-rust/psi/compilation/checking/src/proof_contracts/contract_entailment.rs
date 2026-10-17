@@ -130,6 +130,7 @@ pub(crate) use law_conformance::{
     check_law_conformance, check_operator_contract_conformance, checked_operator_contract_snapshot,
 };
 pub(crate) use proof_edges::proof_edge_strict_decrease_judged;
+pub(crate) use proof_integer::mathematical_integer_operands;
 pub use proof_integer::{anonymous_integer_math_literal, proof_integer_expression};
 pub(crate) use proof_integer::{
     proof_integer_nonnegative, proof_nat_cast, validate_proof_fact_integer_casts,

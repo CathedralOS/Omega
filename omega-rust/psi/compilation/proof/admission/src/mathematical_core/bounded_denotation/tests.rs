@@ -611,13 +611,14 @@ fn a_decision_assumption_is_named_in_the_closure() {
     .expect("the decided order verifies");
     // `IntLt` is a relation, not an `Id`, so the decided `1 < 2`
     // names a decision assumption of type `IntLt m₁ m₂` — the
-    // signature is `{Int, IntLt, zero, odd, one:=odd zero,
-    // double, two:=double one, decision}`. Literal definitions do
+    // Endpoints are interned before the relation, so the signature is
+    // `{Int, zero, odd, one:=odd zero, double, two:=double one,
+    // IntLt, decision}`. Literal definitions do
     // not appear as assumptions; their vocabulary does.
     assert_eq!(denoted.certificate.signature.len(), 8);
     assert_eq!(
         certificate_assumption_closure(&denoted.arena, &denoted.certificate),
-        BTreeSet::from([0, 1, 2, 3, 5, 7]),
+        BTreeSet::from([0, 1, 2, 4, 6, 7]),
         "carrier, relation, numeral vocabulary and the named decision",
     );
 

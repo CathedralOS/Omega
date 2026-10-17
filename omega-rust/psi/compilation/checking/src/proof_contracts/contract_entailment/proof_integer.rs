@@ -116,6 +116,23 @@ pub(super) fn anonymous_integer_value(
     .to_integer_exact()
 }
 
+/// Operand compatibility after builtin selection, shared by result typing and
+/// structural proof terms. An anonymous peer must land exactly in Int; a
+/// finite runtime value enters this arithmetic only through its embedding.
+pub(crate) fn mathematical_integer_operands(
+    program: &dyn crate::CheckingInput,
+    operands: [ExpressionHandle; 2],
+) -> bool {
+    let mathematical = operands.map(|operand| proof_integer_expression(program, operand));
+    mathematical.iter().any(|value| *value)
+        && operands
+            .into_iter()
+            .zip(mathematical)
+            .all(|(operand, mathematical)| {
+                mathematical || anonymous_integer_value(program, operand).is_some()
+            })
+}
+
 pub(crate) fn proof_nat_cast(
     program: &dyn crate::CheckingInput,
     cast: &typed_trees::expression::TableCastExpression,

@@ -155,18 +155,10 @@ pub(crate) fn binary_term_in_scope(
     // The selected builtin mathematical operation has no finite carrier or
     // overflow policy. Preserve it separately instead of borrowing an i64/u64
     // meaning merely to transport its captured operands through the judge.
-    let mathematical = [binary.left, binary.right]
-        .map(|operand| super::super::proof_integer::proof_integer_expression(program, operand));
-    if mathematical.iter().any(|value| *value)
-        && [binary.left, binary.right]
-            .into_iter()
-            .zip(mathematical)
-            .all(|(operand, mathematical)| {
-                mathematical
-                    || super::super::proof_integer::anonymous_integer_value(program, operand)
-                        .is_some()
-            })
-    {
+    if super::super::proof_integer::mathematical_integer_operands(
+        program,
+        [binary.left, binary.right],
+    ) {
         return Some(StructuralTerm::MathematicalBinary {
             operator: binary.operator,
             left: Box::new(left),

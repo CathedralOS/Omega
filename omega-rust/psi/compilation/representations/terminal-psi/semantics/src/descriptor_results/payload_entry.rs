@@ -107,6 +107,17 @@ pub(super) fn prove(
     requirements: &[Proposition],
     depth: usize,
 ) -> Option<ProofNode> {
+    prove_with_budget(context, goal, requirements, depth, &mut 4096)
+}
+
+fn prove_with_budget(
+    context: &semantic_vocabulary::PropositionContext,
+    goal: &Proposition,
+    requirements: &[Proposition],
+    depth: usize,
+    remaining: &mut usize,
+) -> Option<ProofNode> {
+    *remaining = remaining.checked_sub(1)?;
     if depth > 64 {
         return None;
     }
@@ -132,29 +143,76 @@ pub(super) fn prove(
             conclusion: requirement.clone(),
             rule: ProofRule::Assumption { index },
         };
-        if let Some(proof) = select(goal, proof, depth + 1) {
+        if let Some(proof) = select(goal, proof, requirements.len(), depth + 1, remaining) {
             return Some(proof);
         }
     }
     if let Proposition::Conjunction(children) = goal {
         let proofs = children
             .iter()
-            .map(|child| prove(context, child, requirements, depth + 1))
+            .map(|child| prove_with_budget(context, child, requirements, depth + 1, remaining))
             .collect::<Option<Vec<_>>>()?;
         return Some(ProofNode {
             conclusion: goal.clone(),
             rule: ProofRule::ConjunctionIntroduction(proofs),
         });
     }
+    if let Proposition::Disjunction(children) = goal {
+        for (index, child) in children.iter().enumerate() {
+            if let Some(disjunct) =
+                prove_with_budget(context, child, requirements, depth + 1, remaining)
+            {
+                return Some(ProofNode {
+                    conclusion: goal.clone(),
+                    rule: ProofRule::DisjunctionIntroduction {
+                        disjunct: Box::new(disjunct),
+                        index,
+                    },
+                });
+            }
+        }
+    }
     None
 }
 
-fn select(goal: &Proposition, proof: ProofNode, depth: usize) -> Option<ProofNode> {
+fn select(
+    goal: &Proposition,
+    proof: ProofNode,
+    assumptions: usize,
+    depth: usize,
+    remaining: &mut usize,
+) -> Option<ProofNode> {
+    *remaining = remaining.checked_sub(1)?;
     if proof.conclusion == *goal {
         return Some(proof);
     }
     if depth > 64 {
         return None;
+    }
+    if proof_admission::lift_fixed_integer_relation(&proof.conclusion).as_ref() == Some(goal)
+        || proof_admission::lower_integer_math_relation(&proof.conclusion).as_ref() == Some(goal)
+    {
+        // The kernel's assumption rule already recognizes this carrier-preserving
+        // bridge. Discharge the proved relation locally so a selected conjunct
+        // uses that same rule without changing the ambient premise roster.
+        return Some(ProofNode {
+            conclusion: goal.clone(),
+            rule: ProofRule::ImplicationElimination {
+                implication: Box::new(ProofNode {
+                    conclusion: Proposition::Implication {
+                        premise: Box::new(proof.conclusion.clone()),
+                        conclusion: Box::new(goal.clone()),
+                    },
+                    rule: ProofRule::ImplicationIntroduction {
+                        body: Box::new(ProofNode {
+                            conclusion: goal.clone(),
+                            rule: ProofRule::Assumption { index: assumptions },
+                        }),
+                    },
+                }),
+                premise: Box::new(proof),
+            },
+        });
     }
     if let Proposition::Conjunction(children) = &proof.conclusion {
         for (conjunct, child) in children.iter().enumerate() {
@@ -165,10 +223,183 @@ fn select(goal: &Proposition, proof: ProofNode, depth: usize) -> Option<ProofNod
                     conjunct,
                 },
             };
-            if let Some(selected) = select(goal, selected, depth + 1) {
+            if let Some(selected) = select(goal, selected, assumptions, depth + 1, remaining) {
                 return Some(selected);
             }
         }
     }
+    if let Proposition::Disjunction(children) = &proof.conclusion {
+        // Each branch uses only its newly appended assumption. This transport
+        // cannot mix alternatives or repeatedly split an unchanged ambient row:
+        // recursive selection descends into this child, not the premise roster.
+        let branches = children
+            .iter()
+            .map(|child| {
+                select(
+                    goal,
+                    ProofNode {
+                        conclusion: child.clone(),
+                        rule: ProofRule::Assumption { index: assumptions },
+                    },
+                    assumptions + 1,
+                    depth + 1,
+                    remaining,
+                )
+            })
+            .collect::<Option<Vec<_>>>();
+        if let Some(branches) = branches {
+            return Some(ProofNode {
+                conclusion: goal.clone(),
+                rule: ProofRule::DisjunctionElimination {
+                    disjunction: Box::new(proof),
+                    branches,
+                },
+            });
+        }
+    }
+    if let Proposition::Disjunction(children) = goal {
+        for (index, child) in children.iter().enumerate() {
+            if let Some(disjunct) = select(child, proof.clone(), assumptions, depth + 1, remaining)
+            {
+                return Some(ProofNode {
+                    conclusion: goal.clone(),
+                    rule: ProofRule::DisjunctionIntroduction {
+                        disjunct: Box::new(disjunct),
+                        index,
+                    },
+                });
+            }
+        }
+    }
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use semantic_vocabulary::{PropositionContext, ScalarTerm, ScalarType, ValueId};
+
+    #[test]
+    fn disjunction_transport_checks_every_alternative_in_its_own_scope() {
+        use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
+        let integer = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
+        let values = [1, 2, 3].map(|index| ValueId::new(index).unwrap());
+        let context = PropositionContext::from_value_types(
+            values.map(|value| (value, ScalarType::Integer(integer))),
+        )
+        .unwrap();
+        let finite = values.map(|value| {
+            Proposition::LessThan(
+                ScalarTerm::value(value, ScalarType::Integer(integer)),
+                ScalarTerm::integer(integer, IntegerValue::Unsigned(10)).unwrap(),
+            )
+        });
+        let mathematical = finite
+            .each_ref()
+            .map(|proposition| proof_admission::lift_fixed_integer_relation(proposition).unwrap());
+        let requirements = [Proposition::Conjunction(vec![
+            Proposition::Truth,
+            Proposition::Disjunction(finite[..2].to_vec()),
+        ])];
+        let goal = Proposition::Disjunction(mathematical[..2].to_vec());
+        let proof = prove(&context, &goal, &requirements, 0).unwrap();
+        proof_admission::check_certificate(&context, &goal, &requirements, &[], &proof).unwrap();
+        proof_admission::verify_bounded_certificate(
+            &context,
+            &goal,
+            &requirements,
+            &[],
+            &proof,
+            &mut proof_admission::Budget::default(),
+        )
+        .unwrap();
+        assert!(prove(&context, &mathematical[0], &requirements, 0).is_none());
+        let wrong =
+            Proposition::Disjunction(vec![mathematical[0].clone(), mathematical[2].clone()]);
+        assert!(prove(&context, &wrong, &requirements, 0).is_none());
+    }
+
+    #[test]
+    fn disjunction_proof_uses_one_established_alternative_without_inventing_the_other() {
+        let left = ValueId::new(1).unwrap();
+        let right = ValueId::new(2).unwrap();
+        let context = PropositionContext::from_value_types([
+            (left, ScalarType::Boolean),
+            (right, ScalarType::Boolean),
+        ])
+        .unwrap();
+        let predicates = [left, right].map(|value| {
+            Proposition::Equal(
+                ScalarTerm::value(value, ScalarType::Boolean),
+                ScalarTerm::Boolean(true),
+            )
+        });
+        let goal = Proposition::Disjunction(predicates.to_vec());
+        for predicate in &predicates {
+            let requirements = [predicate.clone()];
+            let checked = proof_admission::check_predicate_denotations_with_value_equalities(
+                &context,
+                &goal,
+                &requirements,
+                &[],
+            )
+            .unwrap();
+            let proof = prove(&context, checked.goal(), checked.requirements(), 0).unwrap();
+            assert!(checked.check_certificate(&context, &proof).is_ok());
+        }
+        assert!(prove(&context, &goal, &[], 0).is_none());
+        assert!(
+            prove(
+                &context,
+                &Proposition::Conjunction(predicates.to_vec()),
+                &predicates[..1],
+                0
+            )
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn selected_finite_relation_uses_the_kernel_mathematical_citation_bridge() {
+        use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
+        let integer = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
+        let value = ValueId::new(1).unwrap();
+        let other = ValueId::new(2).unwrap();
+        let context = PropositionContext::from_value_types([
+            (value, ScalarType::Integer(integer)),
+            (other, ScalarType::Integer(integer)),
+        ])
+        .unwrap();
+        let finite = Proposition::LessThan(
+            ScalarTerm::value(value, ScalarType::Integer(integer)),
+            ScalarTerm::integer(integer, IntegerValue::Unsigned(10)).unwrap(),
+        );
+        let goal = proof_admission::lift_fixed_integer_relation(&finite).unwrap();
+        let requirements = [Proposition::Conjunction(vec![
+            Proposition::Truth,
+            finite.clone(),
+        ])];
+        let proof = prove(&context, &goal, &requirements, 0).unwrap();
+        assert!(
+            proof_admission::check_certificate(&context, &goal, &requirements, &[], &proof).is_ok()
+        );
+        assert!(prove(&context, &goal, &[], 0).is_none());
+        let reverse_requirements = [goal];
+        let reverse = prove(&context, &finite, &reverse_requirements, 0).unwrap();
+        assert!(
+            proof_admission::check_certificate(
+                &context,
+                &finite,
+                &reverse_requirements,
+                &[],
+                &reverse
+            )
+            .is_ok()
+        );
+        let wrong = Proposition::LessThan(
+            ScalarTerm::value(other, ScalarType::Integer(integer)),
+            ScalarTerm::integer(integer, IntegerValue::Unsigned(10)).unwrap(),
+        );
+        assert!(prove(&context, &wrong, &reverse_requirements, 0).is_none());
+    }
 }
