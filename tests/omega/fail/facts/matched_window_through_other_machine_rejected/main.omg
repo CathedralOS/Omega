@@ -1,0 +1,39 @@
+// Another machine receives the matched coordinate. In the arm `which == 0`,
+// `which + 2` is 2, so that machine's window has length 2, the same as
+// the other arm.
+// Invalid control: one selected window has length 1 instead of the promised 2.
+
+machine open_end<'row>(items: &'row mut [u8; 4], end: i64) -> &'row mut [u8]
+    requires end == 2
+    ensures result.len == 2
+{
+    &mut items[0..end]
+}
+
+machine from_machine<'row>(items: &'row mut [u8; 4], which: i64) -> &'row mut [u8]
+    ensures result.len == 2
+{
+    match which {
+        0 -> open_end(items, which + 1)
+        _ -> &mut items[2..4]
+    }
+}
+
+machine write_pair(window: &mut [u8])
+    requires window.len >= 2
+{
+    window[0] = 9;
+    window[1] = 8;
+}
+
+machine main() crashes Trap {
+    let mut bytes: [u8; 4] = [1, 2, 3, 4];
+    let window: &mut [u8] = from_machine(&mut bytes, 0);
+    write_pair(window);
+    transition bytes[0] == 9 && bytes[1] == 8 && bytes[2] == 3 {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

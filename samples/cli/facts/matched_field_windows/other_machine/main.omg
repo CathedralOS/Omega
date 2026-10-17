@@ -1,3 +1,4 @@
+// A matched window has length 2 across this place and write_pair writes its original backing.
 // Another machine receives the matched coordinate. In the arm `which == 0`,
 // `which + 2` is 2, so that machine's window has length 2, the same as
 // the other arm.

@@ -1,3 +1,4 @@
+// A matched window has length 2 across this place and write_pair writes its original backing.
 // Another state matches the integer. In the arm `which == 0`, the window
 // `items[0..which + 2]` has length 2, the same as the other arm.
 // Expected exit: 0

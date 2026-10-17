@@ -1,0 +1,33 @@
+// In the arm `which == 0`, the window end adds the const name SPAN.
+// SPAN is 2, so the window has length 2, the same as the other arm.
+// Invalid control: one selected window has length 1 instead of the promised 2.
+
+const SPAN: i64 = 1;
+
+machine from_const<'row>(items: &'row mut [u8; 4], which: i64) -> &'row mut [u8]
+    ensures result.len == 2
+{
+    match which {
+        0 -> &mut items[0..which + SPAN]
+        _ -> &mut items[2..4]
+    }
+}
+
+machine write_pair(window: &mut [u8])
+    requires window.len >= 2
+{
+    window[0] = 9;
+    window[1] = 8;
+}
+
+machine main() crashes Trap {
+    let mut bytes: [u8; 4] = [1, 2, 3, 4];
+    let window: &mut [u8] = from_const(&mut bytes, 0);
+    write_pair(window);
+    transition bytes[0] == 9 && bytes[1] == 8 && bytes[2] == 3 {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

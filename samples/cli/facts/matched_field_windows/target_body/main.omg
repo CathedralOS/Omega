@@ -1,51 +1,55 @@
-// Every target body matches the integer. In the arm `which == 0`, the
-// window `items[0..which + 2]` has length 2, the same as the other arm,
-// and that body writes both bytes of the window.
+// A matched window has length 2 across this place and write_pair writes its original backing.
+// Each target body publishes the same returned-view length contract.
 // Expected exit: 0
 
-linux_x86_64 machine mark(items: &mut [u8; 4], which: i64) -> i64 {
-    let window: &mut [u8] = match which {
+linux_x86_64 machine from_target<'row>(items: &'row mut [u8; 4], which: i64) -> &'row mut [u8]
+    ensures result.len == 2
+{
+    match which {
         0 -> &mut items[0..which + 2]
         _ -> &mut items[2..4]
-    };
-    window[0] = 9;
-    window[1] = 8;
-    window[0] as i64
+    }
 }
 
-linux_arm64 machine mark(items: &mut [u8; 4], which: i64) -> i64 {
-    let window: &mut [u8] = match which {
+linux_arm64 machine from_target<'row>(items: &'row mut [u8; 4], which: i64) -> &'row mut [u8]
+    ensures result.len == 2
+{
+    match which {
         0 -> &mut items[0..which + 2]
         _ -> &mut items[2..4]
-    };
-    window[0] = 9;
-    window[1] = 8;
-    window[0] as i64
+    }
 }
 
-macos_arm64 machine mark(items: &mut [u8; 4], which: i64) -> i64 {
-    let window: &mut [u8] = match which {
+macos_arm64 machine from_target<'row>(items: &'row mut [u8; 4], which: i64) -> &'row mut [u8]
+    ensures result.len == 2
+{
+    match which {
         0 -> &mut items[0..which + 2]
         _ -> &mut items[2..4]
-    };
-    window[0] = 9;
-    window[1] = 8;
-    window[0] as i64
+    }
 }
 
-windows_x86_64 machine mark(items: &mut [u8; 4], which: i64) -> i64 {
-    let window: &mut [u8] = match which {
+windows_x86_64 machine from_target<'row>(items: &'row mut [u8; 4], which: i64) -> &'row mut [u8]
+    ensures result.len == 2
+{
+    match which {
         0 -> &mut items[0..which + 2]
         _ -> &mut items[2..4]
-    };
+    }
+}
+
+machine write_pair(window: &mut [u8])
+    requires window.len >= 2
+{
     window[0] = 9;
     window[1] = 8;
-    window[0] as i64
 }
 
 machine main() crashes Trap {
     let mut bytes: [u8; 4] = [1, 2, 3, 4];
-    transition mark(&mut bytes, 0) == 9 && bytes[1] == 8 && bytes[2] == 3 {
+    let window: &mut [u8] = from_target(&mut bytes, 0);
+    write_pair(window);
+    transition bytes[0] == 9 && bytes[1] == 8 && bytes[2] == 3 {
         true -> done()
         false -> bad()
     }

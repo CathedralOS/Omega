@@ -1,0 +1,32 @@
+// A match arm's integer pattern is that arm's value of the local copy.
+// The window `items[0..index + 2]` in the arm `index == 0` has length 2.
+// Invalid control: one selected window has length 1 instead of the promised 2.
+
+machine from_local<'row>(items: &'row mut [u8; 4], which: i64) -> &'row mut [u8]
+    ensures result.len == 2
+{
+    let index: i64 = which;
+    match index {
+        0 -> &mut items[0..index + 1]
+        _ -> &mut items[2..4]
+    }
+}
+
+machine write_pair(window: &mut [u8])
+    requires window.len >= 2
+{
+    window[0] = 9;
+    window[1] = 8;
+}
+
+machine main() crashes Trap {
+    let mut bytes: [u8; 4] = [1, 2, 3, 4];
+    let window: &mut [u8] = from_local(&mut bytes, 0);
+    write_pair(window);
+    transition bytes[0] == 9 && bytes[1] == 8 && bytes[2] == 3 {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

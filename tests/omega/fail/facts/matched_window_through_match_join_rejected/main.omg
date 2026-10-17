@@ -1,0 +1,36 @@
+// In the arm `which == 0`, the window end joins two spellings of that
+// coordinate. Both are 2, so the window has length 2, the same as the
+// other arm.
+// Invalid control: one selected window has length 1 instead of the promised 2.
+
+machine from_join<'row>(items: &'row mut [u8; 4], which: i64, flag: bool) -> &'row mut [u8]
+    ensures result.len == 2
+{
+    match which {
+        0 -> &mut items[0..(match flag { true -> which + 1, false -> 2 })]
+        _ -> &mut items[2..4]
+    }
+}
+
+machine write_pair(window: &mut [u8])
+    requires window.len >= 2
+{
+    window[0] = 9;
+    window[1] = 8;
+}
+
+machine main() crashes Trap {
+    let mut left: [u8; 4] = [1, 2, 3, 4];
+    let mut right: [u8; 4] = [1, 2, 3, 4];
+    let left_window: &mut [u8] = from_join(&mut left, 0, true);
+    let right_window: &mut [u8] = from_join(&mut right, 0, false);
+    write_pair(left_window);
+    write_pair(right_window);
+    transition left[0] == 9 && left[1] == 8 && left[2] == 3
+        && right[0] == 9 && right[1] == 8 && right[2] == 3 {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
