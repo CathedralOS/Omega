@@ -1,0 +1,121 @@
+// Exact content claims move through projected provider arguments and a
+// projected retained result. The authored partition and custody contracts
+// remain unchanged; native and Terminal execution must both exit 70.
+use omega::language::core::content;
+use omega::language::core::drop;
+use omega_language_std::console;
+
+pub data ByteUnit {}
+
+pub data Region [linear] {
+    remaining: u64;
+}
+
+machine Region::drop(region: &mut Region) {}
+
+pub domain Region::Owned;
+
+pub machine Owned::content(region: &Region) -> CountedQuantity<ByteUnit>
+satisfies Content<Region, CountedQuantity<ByteUnit>>::project
+{
+    CountedQuantity { magnitude: embed(region.remaining) as Nat }
+}
+
+pub data SplitResult {
+    left: Region in Owned;
+    right: Region in Owned;
+}
+
+pub boundary trait RegionSplit {
+    machine split(whole: Region in Owned, head: u64) -> SplitResult
+    requires head <= whole.remaining
+    ensures
+        Owned::content(old(&whole))
+        == separate(
+            Owned::content(&result.left),
+            Owned::content(&result.right),
+        );
+}
+
+pub boundary trait RegionSink {
+    machine accept(piece: Region in Owned);
+}
+
+
+data Envelope { held: SplitResult; }
+data EntryEnvelope { held: Region in Owned; }
+
+machine consume_entry(piece: Region in Owned) -> u64
+reaches RegionSink
+{
+    let envelope: EntryEnvelope = EntryEnvelope { held: piece };
+    let magnitude: u64 = envelope.held.remaining;
+    RegionSink::accept(envelope.held);
+    magnitude
+}
+
+machine consume_arrival(piece: Region in Owned) -> u64
+reaches RegionSink
+{
+    transition { _ -> consume(piece) }
+    state consume(piece: Region in Owned) -> u64 {
+        let envelope: EntryEnvelope = EntryEnvelope { held: piece };
+        let magnitude: u64 = envelope.held.remaining;
+        RegionSink::accept(envelope.held);
+        magnitude
+    }
+}
+
+data Main {
+}
+
+machine Main::partition_and_retain(main: &mut Main, whole: Region in Owned, head: u64) -> Region in Owned
+requires head <= whole.remaining
+reaches RegionSplit, RegionSink
+{
+    let split: SplitResult = RegionSplit::split(whole, head);
+    let envelope: Envelope = Envelope { held: split };
+    RegionSink::accept(envelope.held.left);
+    envelope.held.right
+}
+
+machine Main::main(main: &mut Main) reaches Console, RegionSplit, RegionSink {
+    let whole: Region in Owned = Region { remaining: 8 };
+    let retained: Region in Owned = Main::partition_and_retain(main, whole, 2);
+    let moved: Region in Owned = Region { remaining: 3 };
+    let magnitude: u64 = consume_entry(moved);
+    let arriving: Region in Owned = Region { remaining: 5 };
+    let arrived: u64 = consume_arrival(arriving);
+    let correct: bool = retained.remaining == 6 && magnitude == 3 && arrived == 5;
+    RegionSink::accept(retained);
+    transition correct {
+        true -> good(main)
+        _ -> bad(main)
+    }
+    state good(main: &mut Main) { Console::exit_process(70); }
+    state bad(main: &mut Main) { Console::exit_process(72); }
+}
+
+RegionSplitImplementation satisfies RegionSplit {
+    machine split(whole: Region in Owned, head: u64) -> SplitResult
+    requires head <= whole.remaining
+    ensures
+        Owned::content(old(&whole))
+        == separate(
+            Owned::content(&result.left),
+            Owned::content(&result.right),
+        )
+    {
+        let left: Region in Owned = Region { remaining: head };
+        let right: Region in Owned = Region { remaining: whole.remaining - head };
+        drop(whole);
+        SplitResult { left: left, right: right }
+    }
+}
+
+RegionSinkImplementation satisfies RegionSink {
+    machine accept(piece: Region in Owned)
+    {
+        drop(piece);
+    }
+}

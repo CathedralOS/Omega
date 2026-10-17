@@ -1,0 +1,92 @@
+// Exact content claims move through projected provider arguments and a
+// projected retained result. The authored partition and custody contracts
+// remain unchanged; native and Terminal execution must both exit 70.
+use omega::language::core::content;
+use omega::language::core::drop;
+use omega_language_std::console;
+
+pub data ByteUnit {}
+
+pub data Region [linear] {
+    remaining: u64;
+}
+
+machine Region::drop(region: &mut Region) {}
+
+pub domain Region::Owned;
+
+pub machine Owned::content(region: &Region) -> CountedQuantity<ByteUnit>
+satisfies Content<Region, CountedQuantity<ByteUnit>>::project
+{
+    CountedQuantity { magnitude: embed(region.remaining) as Nat }
+}
+
+pub data SplitResult {
+    left: Region in Owned;
+    right: Region in Owned;
+}
+
+pub boundary trait RegionSplit {
+    machine split(whole: Region in Owned, head: u64) -> SplitResult
+    requires head <= whole.remaining
+    ensures
+        Owned::content(old(&whole))
+        == separate(
+            Owned::content(&result.left),
+            Owned::content(&result.right),
+        );
+}
+
+pub boundary trait RegionSink {
+    machine accept(piece: Region in Owned);
+}
+
+
+data Main {
+}
+
+machine Main::partition_and_retain(main: &mut Main, whole: Region in Owned, head: u64) -> Region in Owned
+requires head <= whole.remaining
+reaches RegionSplit, RegionSink
+{
+    let split: SplitResult = RegionSplit::split(whole, head);
+    RegionSink::accept(split.left);
+    split.right
+}
+
+machine Main::main(main: &mut Main) reaches Console, RegionSplit, RegionSink {
+    let whole: Region in Owned = Region { remaining: 8 };
+    let retained: Region in Owned = Main::partition_and_retain(main, whole, 2);
+    let correct: bool = retained.remaining == 6;
+    RegionSink::accept(retained);
+    transition correct {
+        true -> good(main)
+        _ -> bad(main)
+    }
+    state good(main: &mut Main) { Console::exit_process(70); }
+    state bad(main: &mut Main) { Console::exit_process(72); }
+}
+
+RegionSplitImplementation satisfies RegionSplit {
+    machine split(whole: Region in Owned, head: u64) -> SplitResult
+    requires head <= whole.remaining
+    ensures
+        Owned::content(old(&whole))
+        == separate(
+            Owned::content(&result.left),
+            Owned::content(&result.right),
+        )
+    {
+        let left: Region in Owned = Region { remaining: head };
+        let right: Region in Owned = Region { remaining: whole.remaining - head };
+        drop(whole);
+        SplitResult { left: left, right: right }
+    }
+}
+
+RegionSinkImplementation satisfies RegionSink {
+    machine accept(piece: Region in Owned)
+    {
+        drop(piece);
+    }
+}

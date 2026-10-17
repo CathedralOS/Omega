@@ -378,6 +378,8 @@ pass/control_flow/shared_view_selected_disposition_exit built 1537ms exit:0 inte
 pass/control_flow/single_case_parameter_dispatch_exit built 5838ms exit:70 interpreter-exit:70 interpreter:agrees @9158ef7b209e+wt
 pass/control_flow/single_case_result_dispatch_exit built 4175ms exit:70 interpreter-exit:70 interpreter:agrees @9158ef7b209e+wt
 pass/core/content_conservation_contract_exit built 15885ms exit:70 interpreter-exit:70 interpreter:agrees @e52673d2bcdb+wt
+pass/core/content_conservation_nested_projected_exit built 6452ms exit:70 interpreter-exit:70 interpreter:agrees @7bd69d0648b7
+pass/core/content_conservation_projected_exit built 6369ms exit:70 interpreter-exit:70 interpreter:agrees @7bd69d0648b7
 pass/core/numeric_cross_signed_conversion_surface built 3638ms exit:70 interpreter-exit:70 interpreter:agrees @cba4ef8c9ab1
 pass/core/numeric_signed_narrowing_policies built 3673ms exit:0 interpreter-exit:0 interpreter:agrees @20a60bd05eab+wt
 pass/core/numeric_signed_to_unsigned_policies built 3657ms exit:0 interpreter-exit:0 interpreter:agrees @20a60bd05eab+wt

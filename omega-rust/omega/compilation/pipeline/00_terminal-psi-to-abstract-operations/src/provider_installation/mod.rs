@@ -6,6 +6,7 @@
 //! providers or redirect family heads.
 
 mod admission;
+mod claim_content;
 mod error;
 mod replay;
 

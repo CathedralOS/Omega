@@ -2117,6 +2117,8 @@ fail/core/content_partition_provider_late_entry_read rejected 706ms expected @e7
 fail/core/content_partition_provider_unconserved rejected 1476ms expected @e52673d2bcdb+wt
 	cannot prove ensures contract for exit from RegionSplitProvider::split at statement 3: Owned.content(old(&whole)) == separate(Owned.content(&result.left), Owned.content(&result.right))
 	cannot prove ensures contract for exit from RegionSplitProvider::split at statement 3: Owned.content(old(&whole)) == separate(Owned.content(&result.left), Owned.content(&result.right))
+fail/core/content_projected_duplicate_consumption rejected 287ms expected @7bd69d0648b7
+	cannot use `parts.left` in machine `consume` state `entry` (statement 1) after `parts.left` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `parts.left` first
 fail/core/content_projection_arbitrary_call rejected 922ms expected @a9ae30e1c334+wt
 	content projection `Owned::content` is outside the closed projection fragment; use one selected algebra constructor over subject field reads, proof-natural constructors, and closed arithmetic only
 fail/core/content_projection_foreign_owner rejected 827ms expected @a9ae30e1c334+wt
@@ -7053,6 +7055,8 @@ pass/control_flow/transition_tail_self_call checked 1738ms @a9ae30e1c334+wt
 pass/core/carry_permission_provider_adapter checked 11097ms check-target:macos_arm64 @83314997c2b2
 pass/core/content_conservation_constructed_argument checked 1711ms @5b58c9723867
 pass/core/content_conservation_contract_exit checked 23008ms check-target:macos_arm64 @e52673d2bcdb+wt
+pass/core/content_conservation_nested_projected_exit checked 6221ms check-target:macos_arm64 @7bd69d0648b7
+pass/core/content_conservation_projected_exit checked 6219ms check-target:macos_arm64 @7bd69d0648b7
 pass/core/content_retained_custody_round_trip checked 11400ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/core/extent_core_surface checked 1673ms @a9ae30e1c334+wt
 pass/core/extent_root_provider_adapter checked 11044ms check-target:macos_arm64 @83314997c2b2

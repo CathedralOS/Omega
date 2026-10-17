@@ -1,0 +1,20 @@
+use omega::language::core::content;
+use omega::language::core::nat;
+
+pub data ByteUnit {}
+pub data Chunk [linear] { length: u64; }
+pub domain Chunk::Held established by ChunkRoot::grant;
+pub machine Held::content(value: &Chunk) -> CountedQuantity<ByteUnit>
+satisfies Content<Chunk, CountedQuantity<ByteUnit>>::project
+{ CountedQuantity { magnitude: embed(value.length) as Nat } }
+pub boundary trait ChunkRoot {
+    machine grant(value: Chunk) -> Chunk in Held;
+}
+pub data Pair { left: Chunk in Held; right: Chunk in Held; }
+pub boundary trait Sink { machine accept(value: Chunk in Held); }
+pub machine consume(parts: Pair) reaches Sink {
+    Sink::accept(parts.left);
+    Sink::accept(parts.left);
+    Sink::accept(parts.right);
+}
+machine main() {}

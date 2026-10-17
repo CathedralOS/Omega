@@ -505,474 +505,498 @@ pub(super) fn emit(
     evaluation.remap_transported_call_operands(&mut operations);
     let mut external_result = None;
     let mut parameter_cleanup = Vec::new();
-    let (scalar_return, structural_return) = if let Some(terminator) =
-        operations.take_external_completion(&mut next_edge)?
-    {
-        external_result = Some(if let Some(result) = &plan.structural_result {
-            TerminalMachineResult::Structural(lower_structural_result_declaration(
+    let (scalar_return, structural_return) =
+        if let Some(terminator) = operations.take_external_completion(&mut next_edge)? {
+            external_result = Some(if let Some(result) = &plan.structural_result {
+                TerminalMachineResult::Structural(lower_structural_result_declaration(
+                    identities,
+                    checked,
+                    plan,
+                    result,
+                    parameters,
+                    structural_types,
+                    type_ids,
+                    domain_ids,
+                    &mut next_place,
+                )?)
+            } else if let Some(primitive_type) = plan
+                .scalar_result
+                .as_ref()
+                .map(|result| result.primitive_type)
+                .or_else(|| {
+                    plan.scalar_control
+                        .as_ref()
+                        .map(|control| control.primitive_type)
+                })
+            {
+                TerminalMachineResult::Scalar(ValueDeclaration {
+                    qualifications: super::parameters::unit_scalar_result_type(
+                        checked,
+                        plan.state,
+                        terminal_scalar_type(primitive_type)?,
+                        prepared_scalar_qualifications,
+                    )?
+                    .qualifications,
+                    id: value_id(allocate_dense(&mut next_value_identity)?),
+                    scalar_type: terminal_scalar_type(primitive_type)?,
+                })
+            } else {
+                TerminalMachineResult::Unit
+            });
+            // Result declarations describe the machine's normal-return contract,
+            // not a runtime producer on this abandoned path.
+            // Abandonment seals this path without evaluating a later result,
+            // manufacturing normal receipts, or scheduling implicit cleanup.
+            evaluation.remap_transported_call_operands(&mut operations);
+            evaluation.blocks.push(Block {
+                id: evaluation.current,
+                parameters: evaluation.parameters,
+                erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
+                structural_parameters: evaluation.block_structural_parameters,
+                operations: operations[evaluation.operation_start..].to_vec(),
+                terminator,
+            });
+            next_value = next_value_identity;
+            (None, None)
+        } else if let Some(control) = &plan.scalar_control {
+            // Each selected return owns its checked exit transaction. No cleanup
+            // is reconstructed from entry multiplicity or repeated at the join.
+            scalar_calls.next_obligation_identity = next_call_obligation;
+            let Some(CheckedUnitEffectOperationPlan::Complete {
+                trivial_affine_local_discard_ordinals,
+                ..
+            }) = plan.operations.last()
+            else {
+                return unsupported("scalar control sequence has no checked completion plan");
+            };
+            let trivial_affine_discards = trivial_affine_local_discard_ordinals
+                .iter()
+                .map(|ordinal| {
+                    local_places
+                        .get(*ordinal as usize)
+                        .map(|local| local.id)
+                        .ok_or(LoweringError::Unsupported(
+                            "scalar control local cleanup ordinal is not dense",
+                        ))
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            let claim_bindings = scalar_calls.claims.bindings().to_vec();
+            let mut cleanup_catalog = super::completion_cleanup::CompletionCleanupCatalog {
+                control: &checked.facts.flow.terminal_unit_effects.cleanup_control,
+                types: structural_types,
+                type_ids,
+                calls: &mut scalar_calls,
+            };
+            let cleanups = super::completion_cleanup::scalar_returns(
+                identities,
+                &claim_bindings,
+                checked,
+                super::completion_cleanup::NormalExitSource {
+                    cleanups: checked
+                        .facts
+                        .flow
+                        .terminal_unit_effects
+                        .cleanup_control
+                        .normal_exits(plan.normal_exit_cleanups),
+                    trivial_affine_discards: &trivial_affine_discards,
+                    operations: &plan.operations,
+                    parameters: &plan.structural_parameters,
+                },
+                control,
+                &mut cleanup_catalog,
+                parameters,
+                &evaluation,
+                &operations,
+            )?;
+            let source = evaluation.scalar_control_result(
                 identities,
                 checked,
-                plan,
-                result,
-                parameters,
-                structural_types,
-                type_ids,
-                domain_ids,
-                &mut next_place,
-            )?)
-        } else if let Some(primitive_type) = plan
-            .scalar_result
-            .as_ref()
-            .map(|result| result.primitive_type)
-            .or_else(|| {
-                plan.scalar_control
-                    .as_ref()
-                    .map(|control| control.primitive_type)
-            })
-        {
-            TerminalMachineResult::Scalar(ValueDeclaration {
+                plan.machine,
+                plan.state,
+                control,
+                &cleanups,
+                &mut scalar_result_values,
+                &mut next_value_identity,
+                &mut next_block,
+                &mut next_edge,
+                &mut operations,
+                &mut scalar_calls,
+            )?;
+            next_call_obligation = scalar_calls.next_obligation_identity;
+            let declaration = ValueDeclaration {
                 qualifications: super::parameters::unit_scalar_result_type(
                     checked,
                     plan.state,
-                    terminal_scalar_type(primitive_type)?,
+                    source.scalar_type,
                     prepared_scalar_qualifications,
                 )?
                 .qualifications,
                 id: value_id(allocate_dense(&mut next_value_identity)?),
-                scalar_type: terminal_scalar_type(primitive_type)?,
-            })
+                scalar_type: source.scalar_type,
+            };
+            next_value = next_value_identity;
+            evaluation.remap_transported_call_operands(&mut operations);
+            evaluation.blocks.push(Block {
+                id: evaluation.current,
+                parameters: evaluation.parameters,
+                erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
+                structural_parameters: evaluation.block_structural_parameters,
+                operations: operations[evaluation.operation_start..].to_vec(),
+                terminator: Terminator::Return {
+                    edge: edge_id(allocate_dense(&mut next_edge)?),
+                    value: source.id,
+                    cleanup_actions: Vec::new(),
+                },
+            });
+            (Some((source.id, declaration)), None)
         } else {
-            TerminalMachineResult::Unit
-        });
-        // Result declarations describe the machine's normal-return contract,
-        // not a runtime producer on this abandoned path.
-        // Abandonment seals this path without evaluating a later result,
-        // manufacturing normal receipts, or scheduling implicit cleanup.
-        evaluation.remap_transported_call_operands(&mut operations);
-        evaluation.blocks.push(Block {
-            id: evaluation.current,
-            parameters: evaluation.parameters,
-            erased_scalar_formals: Vec::new(),
-            erased_proof_formals: Vec::new(),
-            structural_parameters: evaluation.block_structural_parameters,
-            operations: operations[evaluation.operation_start..].to_vec(),
-            terminator,
-        });
-        next_value = next_value_identity;
-        (None, None)
-    } else if let Some(control) = &plan.scalar_control {
-        // Each selected return owns its checked exit transaction. No cleanup
-        // is reconstructed from entry multiplicity or repeated at the join.
-        scalar_calls.next_obligation_identity = next_call_obligation;
-        let Some(CheckedUnitEffectOperationPlan::Complete {
-            trivial_affine_local_discard_ordinals,
-            ..
-        }) = plan.operations.last()
-        else {
-            return unsupported("scalar control sequence has no checked completion plan");
-        };
-        let trivial_affine_discards = trivial_affine_local_discard_ordinals
-            .iter()
-            .map(|ordinal| {
+            let Some(CheckedUnitEffectOperationPlan::Complete {
+                trivial_affine_local_discard_ordinals,
+                trivial_affine_discards,
+                ..
+            }) = plan.operations.last()
+            else {
+                return Err(LoweringError::Unsupported(
+                    "returning Unit sequence has no checked completion plan",
+                ));
+            };
+            let cleanup_control = &checked.facts.flow.terminal_unit_effects.cleanup_control;
+            let [normal_exit] = cleanup_control.normal_exits(plan.normal_exit_cleanups) else {
+                return unsupported(
+                    "ordinary sequence return has no unique source cleanup coordinate",
+                );
+            };
+            let local_discards = trivial_affine_local_discard_ordinals.iter().map(|ordinal| {
                 local_places
-                    .get(*ordinal as usize)
+                    .get(usize::try_from(*ordinal).map_err(|_| {
+                        LoweringError::Unsupported("Unit local cleanup ordinal exceeds usize")
+                    })?)
                     .map(|local| local.id)
                     .ok_or(LoweringError::Unsupported(
-                        "scalar control local cleanup ordinal is not dense",
+                        "Unit local cleanup ordinal is not dense",
                     ))
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        let claim_bindings = scalar_calls.claims.bindings().to_vec();
-        let mut cleanup_catalog = super::completion_cleanup::CompletionCleanupCatalog {
-            control: &checked.facts.flow.terminal_unit_effects.cleanup_control,
-            types: structural_types,
-            type_ids,
-            calls: &mut scalar_calls,
-        };
-        let cleanups = super::completion_cleanup::scalar_returns(
-            identities,
-            &claim_bindings,
-            checked,
-            super::completion_cleanup::NormalExitSource {
-                cleanups: checked
-                    .facts
-                    .flow
-                    .terminal_unit_effects
-                    .cleanup_control
-                    .normal_exits(plan.normal_exit_cleanups),
-                trivial_affine_discards: &trivial_affine_discards,
-                operations: &plan.operations,
-                parameters: &plan.structural_parameters,
-            },
-            control,
-            &mut cleanup_catalog,
-            parameters,
-            &evaluation,
-            &operations,
-        )?;
-        let source = evaluation.scalar_control_result(
-            identities,
-            checked,
-            plan.machine,
-            plan.state,
-            control,
-            &cleanups,
-            &mut scalar_result_values,
-            &mut next_value_identity,
-            &mut next_block,
-            &mut next_edge,
-            &mut operations,
-            &mut scalar_calls,
-        )?;
-        next_call_obligation = scalar_calls.next_obligation_identity;
-        let declaration = ValueDeclaration {
-            qualifications: super::parameters::unit_scalar_result_type(
-                checked,
-                plan.state,
-                source.scalar_type,
-                prepared_scalar_qualifications,
-            )?
-            .qualifications,
-            id: value_id(allocate_dense(&mut next_value_identity)?),
-            scalar_type: source.scalar_type,
-        };
-        next_value = next_value_identity;
-        evaluation.remap_transported_call_operands(&mut operations);
-        evaluation.blocks.push(Block {
-            id: evaluation.current,
-            parameters: evaluation.parameters,
-            erased_scalar_formals: Vec::new(),
-            erased_proof_formals: Vec::new(),
-            structural_parameters: evaluation.block_structural_parameters,
-            operations: operations[evaluation.operation_start..].to_vec(),
-            terminator: Terminator::Return {
-                edge: edge_id(allocate_dense(&mut next_edge)?),
-                value: source.id,
-                cleanup_actions: Vec::new(),
-            },
-        });
-        (Some((source.id, declaration)), None)
-    } else {
-        let Some(CheckedUnitEffectOperationPlan::Complete {
-            trivial_affine_local_discard_ordinals,
-            trivial_affine_discards,
-            ..
-        }) = plan.operations.last()
-        else {
-            return Err(LoweringError::Unsupported(
-                "returning Unit sequence has no checked completion plan",
-            ));
-        };
-        let cleanup_control = &checked.facts.flow.terminal_unit_effects.cleanup_control;
-        let [normal_exit] = cleanup_control.normal_exits(plan.normal_exit_cleanups) else {
-            return unsupported("ordinary sequence return has no unique source cleanup coordinate");
-        };
-        let local_discards = trivial_affine_local_discard_ordinals.iter().map(|ordinal| {
-            local_places
-                .get(usize::try_from(*ordinal).map_err(|_| {
-                    LoweringError::Unsupported("Unit local cleanup ordinal exceeds usize")
-                })?)
-                .map(|local| local.id)
-                .ok_or(LoweringError::Unsupported(
-                    "Unit local cleanup ordinal is not dense",
-                ))
-        });
-        // Preserve the checker's disposal authority, but delegate its scheduling
-        // to the complete operation graph. Entry order is declaration order;
-        // affine_cleanup reverses it for cleanup and reconciles selected transfers.
-        let current_parameters = evaluation.current_parameters(parameters);
-        parameter_cleanup = trivial_affine_discards
-            .iter()
-            .map(|parameter_index| {
-                current_parameters
-                    .get(usize::try_from(*parameter_index).map_err(|_| {
-                        LoweringError::Unsupported(
-                            "Unit affine discard parameter index exceeds usize",
-                        )
-                    })?)
-                    .cloned()
-                    .ok_or(LoweringError::Unsupported(
-                        "Unit affine discard has an invalid parameter index",
-                    ))
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        parameter_cleanup.sort_by_key(|parameter| parameter.position);
-        // Legacy locals are a leading constructor prefix; operation results
-        // therefore die before those locals, and all locals before parameters.
-        // Admitting interleaved legacy constructors requires one declaration-
-        // ordered cleanup roster instead of concatenating these two groups.
-        // Parameter selection sources have no result row: they follow the
-        // result rows in descending authored position so the splice replaces
-        // each row with its residual join parameter.
-        // A projected owned argument can move the complete subtree roster out
-        // of a result carrier, in which case the frontier retires the place at
-        // the consuming call and the return roster must not discard its root.
-        let moved_subtrees = projected_moves::moved_subtrees(&operations.operations);
-        // Resolve contextual disposal against the current storage before
-        // constructing the production roster. A name is not disposal
-        // authority: reference descriptors can owe affine retirement without
-        // an owned-storage StateExit row. Only an actual contextual action
-        // replaces their independently recorded production cleanup.
-        let claim_bindings = scalar_calls.claims.bindings().to_vec();
-        let mut cleanup_catalog = super::completion_cleanup::CompletionCleanupCatalog {
-            control: cleanup_control,
-            types: structural_types,
-            type_ids,
-            calls: &mut scalar_calls,
-        };
-        let normal_regions = super::completion_cleanup::for_exit_regions(
-            identities,
-            &claim_bindings,
-            checked,
-            super::completion_cleanup::NormalExitSource {
-                cleanups: cleanup_control.normal_exits(plan.normal_exit_cleanups),
-                // Existing local eligibility keeps its establishment order
-                // in the ordinary completion roster below.
-                trivial_affine_discards: &[],
-                operations: &plan.operations,
-                parameters: &plan.structural_parameters,
-            },
-            normal_exit.exit,
-            &mut cleanup_catalog,
-            parameters,
-            &evaluation,
-            &operations,
-        )?;
-        let mut selection_roster = structural_result_homes
-            .iter()
-            .rev()
-            .map(|(place, discard)| {
-                let retired = moved_subtrees
-                    .get(&evaluation.current_structural_place(place.id))
-                    .is_some_and(|moved| {
-                        projected_moves::retires(
-                            structural_types,
-                            &operations.operations,
-                            place,
-                            moved,
-                        )
-                    });
-                // Contextual actions own the current home's exact partition.
-                // Keep selection source rows, but do not give that storage a
-                // second automatic death from its original production row.
-                let contextual_disposal = normal_regions.iter().any(|region| {
-                    region.action.place() == evaluation.current_structural_place(place.id)
-                });
-                (place.id, *discard && !retired && !contextual_disposal)
-            })
-            .collect::<Vec<_>>();
-        let mut parameter_sources = Vec::new();
-        for cleanup in &evaluation.selection_cleanups {
-            for source in &cleanup.sources {
-                if let Some((position, _)) = evaluation
-                    .structural_parameters
-                    .iter()
-                    .find(|(_, declaration)| declaration.place == *source)
-                {
-                    parameter_sources.push((*position, *source));
-                }
-            }
-        }
-        parameter_sources.sort_by_key(|(position, _)| std::cmp::Reverse(*position));
-        parameter_sources.dedup_by_key(|(_, place)| *place);
-        selection_roster.extend(
-            parameter_sources
-                .into_iter()
-                .map(|(_, place)| (place, false)),
-        );
-        let trivial_affine_discards = evaluation
-            .selection_return_discards(selection_roster)?
-            .into_iter()
-            .map(Ok)
-            .chain(local_discards)
-            .collect::<Result<Vec<_>, _>>()?;
-        let mut scalar_return = plan
-            .scalar_result
-            .as_ref()
-            .map(|result| {
-                let position = scalar_parameter_count
-                    .checked_add(result.binding_ordinal as usize)
-                    .ok_or(LoweringError::Unsupported(
-                        "scalar completion binding position overflows",
-                    ))?;
-                let position = evaluation.scalar_bindings.immutable_position(position)?;
-                let source =
-                    scalar_result_values
-                        .get(position)
+            });
+            // Preserve the checker's disposal authority, but delegate its scheduling
+            // to the complete operation graph. Entry order is declaration order;
+            // affine_cleanup reverses it for cleanup and reconciles selected transfers.
+            let current_parameters = evaluation.current_parameters(parameters);
+            parameter_cleanup = trivial_affine_discards
+                .iter()
+                .map(|parameter_index| {
+                    current_parameters
+                        .get(usize::try_from(*parameter_index).map_err(|_| {
+                            LoweringError::Unsupported(
+                                "Unit affine discard parameter index exceeds usize",
+                            )
+                        })?)
+                        .cloned()
                         .ok_or(LoweringError::Unsupported(
-                            "scalar completion binding is absent",
-                        ))?;
-                let scalar_type = terminal_scalar_type(result.primitive_type)?;
-                if source.scalar_type != scalar_type {
-                    return unsupported("scalar completion binding has a different carrier");
-                }
-                Ok::<_, LoweringError>((
-                    source.id,
-                    ValueDeclaration {
-                        qualifications: super::parameters::unit_scalar_result_type(
-                            checked,
-                            plan.state,
-                            scalar_type,
-                            prepared_scalar_qualifications,
-                        )?
-                        .qualifications,
-                        id: value_id(allocate_dense(&mut next_value_identity)?),
-                        scalar_type,
-                    },
-                ))
-            })
-            .transpose()?;
-        // Completion reserves its own scalar result identity after the body.
-        // Include it before the next helper borrows the shared value allocator.
-        next_value = next_value_identity;
-        let structural_return = plan
-            .structural_result
-            .as_ref()
-            .map(|result| {
-                let source = match result.source {
-                    CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-                        binding_ordinal,
-                    } => {
-                        structural_result_places
-                            .get(binding_ordinal as usize)
-                            .ok_or(LoweringError::Unsupported(
-                                "returned structural binding is absent",
-                            ))?
-                            .0
-                            .as_ref()
-                            // Returning a projected owned alias would forward the
-                            // root place and silently widen the returned subtree
-                            // to the whole root.
-                            .ok_or(LoweringError::Unsupported(
-                                "returned structural binding is a projected alias",
-                            ))?
-                            .id
-                    }
-                    CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => {
-                        evaluation
-                            .structural_parameters
-                            .get(parameter_index as usize)
-                            .map(|(_, parameter)| parameter)
-                            .ok_or(LoweringError::Unsupported(
-                                "returned structural parameter is absent",
-                            ))?
-                            .place
-                    }
-                    _ => {
-                        return unsupported("structural return source is not an owned whole value");
-                    }
-                };
-                let source = evaluation.current_structural_place(source);
-                let returned_claims = super::claims::lower_return_claims(
-                    identities,
-                    checked,
-                    plan.machine,
-                    plan.state,
-                    result,
-                    &operations,
-                    scalar_calls.claims.bindings(),
-                    lookup_type_id(type_ids, &result.type_identity)?,
-                    structural_types,
-                )?;
-                Ok::<_, LoweringError>((
-                    source,
-                    lower_structural_result_declaration(
-                        identities,
-                        checked,
-                        plan,
-                        result,
-                        parameters,
-                        structural_types,
-                        type_ids,
-                        domain_ids,
-                        &mut next_place,
-                    )?,
-                    returned_claims,
-                ))
-            })
-            .transpose()?;
-        let edge = edge_id(allocate_dense(&mut next_edge)?);
-        let mut cleanup_regions = Vec::new();
-        for place in trivial_affine_discards {
-            cleanup_regions.extend(evaluation.normal_discard_regions(place, structural_types)?);
-        }
-        cleanup_regions.extend(normal_regions);
-        let cleanup_actions = if cleanup_regions
-            .iter()
-            .any(|region| !region.conditions.is_empty() || region.selected_region.is_some())
-        {
-            // Scalar return operands are already evaluated. Carry their actual
-            // SSA values through cleanup rather than observing disposed storage
-            // again. Structural completion accepts whole owned sources only;
-            // projected aliases were rejected above, and the checked partition
-            // excludes the returned owner from disposal.
-            let return_position = scalar_return
-                .as_ref()
-                .map(|(source, _)| {
-                    scalar_result_values
-                        .iter()
-                        .position(|value| value.id == *source)
-                        .ok_or(LoweringError::Unsupported(
-                            "cleanup lost its captured scalar return",
+                            "Unit affine discard has an invalid parameter index",
                         ))
                 })
-                .transpose()?;
-            evaluation.continue_cleanup_regions(
+                .collect::<Result<Vec<_>, _>>()?;
+            parameter_cleanup.sort_by_key(|parameter| parameter.position);
+            // Legacy locals are a leading constructor prefix; operation results
+            // therefore die before those locals, and all locals before parameters.
+            // Admitting interleaved legacy constructors requires one declaration-
+            // ordered cleanup roster instead of concatenating these two groups.
+            // Parameter selection sources have no result row: they follow the
+            // result rows in descending authored position so the splice replaces
+            // each row with its residual join parameter.
+            // A projected owned argument can move the complete subtree roster out
+            // of a result carrier, in which case the frontier retires the place at
+            // the consuming call and the return roster must not discard its root.
+            let moved_subtrees = projected_moves::moved_subtrees(&operations.operations);
+            // Resolve contextual disposal against the current storage before
+            // constructing the production roster. A name is not disposal
+            // authority: reference descriptors can owe affine retirement without
+            // an owned-storage StateExit row. Only an actual contextual action
+            // replaces their independently recorded production cleanup.
+            let claim_bindings = scalar_calls.claims.bindings().to_vec();
+            let mut cleanup_catalog = super::completion_cleanup::CompletionCleanupCatalog {
+                control: cleanup_control,
+                types: structural_types,
+                type_ids,
+                calls: &mut scalar_calls,
+            };
+            let normal_regions = super::completion_cleanup::for_exit_regions(
                 identities,
+                &claim_bindings,
                 checked,
-                cleanup_regions,
-                &mut scalar_result_values,
-                &mut next_value,
-                &mut next_block,
-                &mut next_edge,
-                &mut operations,
+                super::completion_cleanup::NormalExitSource {
+                    cleanups: cleanup_control.normal_exits(plan.normal_exit_cleanups),
+                    // Existing local eligibility keeps its establishment order
+                    // in the ordinary completion roster below.
+                    trivial_affine_discards: &[],
+                    operations: &plan.operations,
+                    parameters: &plan.structural_parameters,
+                },
+                normal_exit.exit,
+                &mut cleanup_catalog,
+                parameters,
+                &evaluation,
+                &operations,
             )?;
-            if let Some(position) = return_position {
-                scalar_return
-                    .as_mut()
-                    .ok_or(LoweringError::Unsupported(
-                        "cleanup lost its return contract",
-                    ))?
-                    .0 = scalar_result_values[position].id;
+            let mut selection_roster = structural_result_homes
+                .iter()
+                .rev()
+                .map(|(place, discard)| {
+                    let retired = moved_subtrees
+                        .get(&evaluation.current_structural_place(place.id))
+                        .is_some_and(|moved| {
+                            projected_moves::retires(
+                                structural_types,
+                                &operations.operations,
+                                place,
+                                moved,
+                            )
+                        });
+                    // Contextual actions own the current home's exact partition.
+                    // Keep selection source rows, but do not give that storage a
+                    // second automatic death from its original production row.
+                    let contextual_disposal = normal_regions.iter().any(|region| {
+                        region.action.place() == evaluation.current_structural_place(place.id)
+                    });
+                    (place.id, *discard && !retired && !contextual_disposal)
+                })
+                .collect::<Vec<_>>();
+            let mut parameter_sources = Vec::new();
+            for cleanup in &evaluation.selection_cleanups {
+                for source in &cleanup.sources {
+                    if let Some((position, _)) = evaluation
+                        .structural_parameters
+                        .iter()
+                        .find(|(_, declaration)| declaration.place == *source)
+                    {
+                        parameter_sources.push((*position, *source));
+                    }
+                }
             }
-            Vec::new()
-        } else {
-            cleanup_regions
+            parameter_sources.sort_by_key(|(position, _)| std::cmp::Reverse(*position));
+            parameter_sources.dedup_by_key(|(_, place)| *place);
+            selection_roster.extend(
+                parameter_sources
+                    .into_iter()
+                    .map(|(_, place)| (place, false)),
+            );
+            let trivial_affine_discards = evaluation
+                .selection_return_discards(selection_roster)?
                 .into_iter()
-                .map(|region| region.action)
-                .collect()
+                .map(Ok)
+                .chain(local_discards)
+                .collect::<Result<Vec<_>, _>>()?;
+            let mut scalar_return =
+                plan.scalar_result
+                    .as_ref()
+                    .map(|result| {
+                        let position = scalar_parameter_count
+                            .checked_add(result.binding_ordinal as usize)
+                            .ok_or(LoweringError::Unsupported(
+                                "scalar completion binding position overflows",
+                            ))?;
+                        let position = evaluation.scalar_bindings.immutable_position(position)?;
+                        let source = scalar_result_values.get(position).ok_or(
+                            LoweringError::Unsupported("scalar completion binding is absent"),
+                        )?;
+                        let scalar_type = terminal_scalar_type(result.primitive_type)?;
+                        if source.scalar_type != scalar_type {
+                            return unsupported(
+                                "scalar completion binding has a different carrier",
+                            );
+                        }
+                        Ok::<_, LoweringError>((
+                            source.id,
+                            ValueDeclaration {
+                                qualifications: super::parameters::unit_scalar_result_type(
+                                    checked,
+                                    plan.state,
+                                    scalar_type,
+                                    prepared_scalar_qualifications,
+                                )?
+                                .qualifications,
+                                id: value_id(allocate_dense(&mut next_value_identity)?),
+                                scalar_type,
+                            },
+                        ))
+                    })
+                    .transpose()?;
+            // Completion reserves its own scalar result identity after the body.
+            // Include it before the next helper borrows the shared value allocator.
+            next_value = next_value_identity;
+            let structural_return = plan
+                .structural_result
+                .as_ref()
+                .map(|result| {
+                    let (place, path) = match result.source {
+                        CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                            binding_ordinal,
+                        } => {
+                            if let Some((_, binding)) = operations
+                                .structural_values
+                                .iter()
+                                .find(|(ordinal, _)| *ordinal == binding_ordinal)
+                            {
+                                (binding.place(), binding.path().to_vec())
+                            } else {
+                                let declaration = structural_result_places
+                                    .get(binding_ordinal as usize)
+                                    .and_then(|(declaration, _)| declaration.as_ref())
+                                    .ok_or(LoweringError::Unsupported(
+                                        "returned structural binding is absent",
+                                    ))?;
+                                (declaration.id, Vec::new())
+                            }
+                        }
+                        CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => {
+                            let parameter = evaluation
+                                .structural_parameters
+                                .get(parameter_index as usize)
+                                .map(|(_, parameter)| parameter)
+                                .ok_or(LoweringError::Unsupported(
+                                    "returned structural parameter is absent",
+                                ))?;
+                            (parameter.place, Vec::new())
+                        }
+                        _ => return unsupported("structural return source is not an owned value"),
+                    };
+                    let source = terminal_psi::StructuralArgument {
+                        place: evaluation.current_structural_place(place),
+                        path,
+                        access: terminal_psi::StructuralAccess::Owned,
+                    };
+                    let returned_claims = super::claims::lower_return_claims(
+                        identities,
+                        checked,
+                        plan.machine,
+                        plan.state,
+                        result,
+                        &operations,
+                        scalar_calls.claims.bindings(),
+                        lookup_type_id(type_ids, &result.type_identity)?,
+                        structural_types,
+                    )?;
+                    Ok::<_, LoweringError>((
+                        source,
+                        lower_structural_result_declaration(
+                            identities,
+                            checked,
+                            plan,
+                            result,
+                            parameters,
+                            structural_types,
+                            type_ids,
+                            domain_ids,
+                            &mut next_place,
+                        )?,
+                        returned_claims,
+                    ))
+                })
+                .transpose()?;
+            let edge = edge_id(allocate_dense(&mut next_edge)?);
+            let mut cleanup_regions = Vec::new();
+            for place in trivial_affine_discards {
+                cleanup_regions.extend(evaluation.normal_discard_regions(place, structural_types)?);
+            }
+            cleanup_regions.extend(normal_regions);
+            let (terminator, arrival) =
+                if let Some((source, result, returned_claims)) = &structural_return {
+                    super::structural_returns::materialize(
+                        identities,
+                        checked,
+                        source,
+                        result.structural_type,
+                        result.multiplicity,
+                        Terminator::ReturnStructural {
+                            edge,
+                            source: source.place,
+                            returned_claims: returned_claims.clone(),
+                            cleanup_actions: Vec::new(),
+                        },
+                        cleanup_regions,
+                        &mut next_place,
+                        &mut private_places,
+                        &mut evaluation,
+                        &mut scalar_result_values,
+                        &mut next_value,
+                        &mut next_block,
+                        &mut next_edge,
+                        &mut operations,
+                    )?
+                } else {
+                    let cleanup_actions = if cleanup_regions.iter().any(|region| {
+                        !region.conditions.is_empty() || region.selected_region.is_some()
+                    }) {
+                        // Scalar return operands are already evaluated. Carry their actual
+                        // SSA values through cleanup rather than observing disposed storage
+                        // again. Structural returns use the shared subtree transport above.
+                        let return_position = scalar_return
+                            .as_ref()
+                            .map(|(source, _)| {
+                                scalar_result_values
+                                    .iter()
+                                    .position(|value| value.id == *source)
+                                    .ok_or(LoweringError::Unsupported(
+                                        "cleanup lost its captured scalar return",
+                                    ))
+                            })
+                            .transpose()?;
+                        evaluation.continue_cleanup_regions(
+                            identities,
+                            checked,
+                            cleanup_regions,
+                            &mut scalar_result_values,
+                            &mut next_value,
+                            &mut next_block,
+                            &mut next_edge,
+                            &mut operations,
+                        )?;
+                        if let Some(position) = return_position {
+                            scalar_return
+                                .as_mut()
+                                .ok_or(LoweringError::Unsupported(
+                                    "cleanup lost its return contract",
+                                ))?
+                                .0 = scalar_result_values[position].id;
+                        }
+                        Vec::new()
+                    } else {
+                        cleanup_regions
+                            .into_iter()
+                            .map(|region| region.action)
+                            .collect()
+                    };
+                    let terminator = if let Some((source, _)) = &scalar_return {
+                        Terminator::Return {
+                            edge,
+                            value: *source,
+                            cleanup_actions,
+                        }
+                    } else {
+                        Terminator::ReturnUnit {
+                            edge,
+                            cleanup_actions,
+                        }
+                    };
+                    (terminator, None)
+                };
+            if let Some(arrival) = arrival {
+                evaluation.blocks.push(arrival);
+            }
+            evaluation.remap_transported_call_operands(&mut operations);
+            evaluation.blocks.push(Block {
+                id: evaluation.current,
+                parameters: evaluation.parameters,
+                erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
+                structural_parameters: evaluation.block_structural_parameters,
+                operations: operations[evaluation.operation_start..].to_vec(),
+                terminator,
+            });
+            evaluation.blocks.sort_by_key(|block| block.id);
+            (scalar_return, structural_return)
         };
-        evaluation.remap_transported_call_operands(&mut operations);
-        evaluation.blocks.push(Block {
-            id: evaluation.current,
-            parameters: evaluation.parameters,
-            erased_scalar_formals: Vec::new(),
-            erased_proof_formals: Vec::new(),
-            structural_parameters: evaluation.block_structural_parameters,
-            operations: operations[evaluation.operation_start..].to_vec(),
-            terminator: if let Some((source, _)) = &scalar_return {
-                Terminator::Return {
-                    edge,
-                    value: *source,
-                    cleanup_actions,
-                }
-            } else if let Some((source, _, returned_claims)) = &structural_return {
-                Terminator::ReturnStructural {
-                    edge,
-                    source: *source,
-                    returned_claims: returned_claims.clone(),
-                    cleanup_actions,
-                }
-            } else {
-                Terminator::ReturnUnit {
-                    edge,
-                    cleanup_actions,
-                }
-            },
-        });
-        evaluation.blocks.sort_by_key(|block| block.id);
-        (scalar_return, structural_return)
-    };
     // Operand evaluation can reserve continuation blocks before their parents
     // are sealed. Both normal return and external completion publish identity
     // order, not emission order; abandonment must not skip this common seal.

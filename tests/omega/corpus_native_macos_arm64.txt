@@ -942,6 +942,8 @@ pass/core/carry_permission_provider_adapter built 12252ms @83314997c2b2
 	selected compiler intrinsic `<selected target>::RegionSinkProvider::satisfies::RegionSink` for Terminal boundary `named-callable(path(RegionSink::accept),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,constrained\\(named\\(name\\(Region\\)\\)\\,declared-domain\\(name\\(package:0101010101010101010101010101010101010101010101010101010101010101:product::Region::Owned\\)\\)\\)\\)),result-dispatch())` has no closed native catalog identity
 	selected compiler intrinsic `<selected target>::RegionSplitProvider::satisfies::RegionSplit` for Terminal boundary `named-callable(path(RegionSplit::split),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,constrained\\(named\\(name\\(Region\\)\\)\\,declared-domain\\(name\\(package:0101010101010101010101010101010101010101010101010101010101010101:product::Region::Owned\\)\\)\\)\\)),result-dispatch())` has no closed native catalog identity
 pass/core/content_conservation_contract_exit built 21807ms exit:70 @e52673d2bcdb+wt
+pass/core/content_conservation_nested_projected_exit built 6426ms exit:70 @7bd69d0648b7
+pass/core/content_conservation_projected_exit built 6326ms exit:70 @7bd69d0648b7
 pass/core/content_retained_custody_round_trip built 311ms
 pass/core/extent_core_surface checked 196ms
 pass/core/extent_root_provider_adapter built 12361ms exit:0 @83314997c2b2

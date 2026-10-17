@@ -1,0 +1,13 @@
+// Native coverage uses an authored, target-specific program entry. The
+// conservation boundaries are supplied by the checked providers below:
+// `select_provider` names each one, and every hosted target binds the entry.
+machine build(builder: &mut Build) {
+    Build::application(builder, "content_conservation_projected_exit");
+    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
+    Build::select_provider<RegionSplit, RegionSplitImplementation>(builder);
+    Build::select_provider<RegionSink, RegionSinkImplementation>(builder);
+    Build::bind(builder, windows_x86_64::ProgramEntry, Main::main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, Main::main);
+    Build::bind(builder, linux_arm64::ProgramEntry, Main::main);
+    Build::bind(builder, macos_arm64::ProgramEntry, Main::main);
+}

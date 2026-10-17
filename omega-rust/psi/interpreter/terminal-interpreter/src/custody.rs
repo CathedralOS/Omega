@@ -1461,18 +1461,10 @@ pub(crate) fn transfer_claims(
     {
         return Err(TerminalInterpretError::ClaimTransferMismatch);
     }
-    if caller_arguments
-        .iter()
-        .zip(callee_parameters)
-        .any(|(argument, parameter)| {
-            !argument.path.is_empty()
-                && callee_content_entry_claims
-                    .iter()
-                    .any(|claim| claim.input.root == parameter.place)
-        })
-    {
-        return Err(TerminalInterpretError::ClaimTransferMismatch);
-    }
+    // Content changes neither the argument-relative custody coordinate nor
+    // transfer mechanics. The canonical call and selected-provider join retain
+    // its projection contract; the same exact live-claim/path join below moves
+    // whole and projected values without donating siblings or minting claims.
     let mut expected_by_argument = BTreeMap::<u32, Vec<&EntryClaim>>::new();
     for entry_claim in callee_entry_claims {
         let (index, parameter) = callee_parameters

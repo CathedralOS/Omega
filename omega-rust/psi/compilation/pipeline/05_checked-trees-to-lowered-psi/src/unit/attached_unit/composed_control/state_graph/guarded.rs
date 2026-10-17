@@ -276,9 +276,26 @@ pub(super) fn complete_structural_return(
     // Returning an alias's containing root instead would change both the value
     // contract and its residual ownership. Use the ordinary return transport,
     // independent of whether a conditional or ordered guard selected the exit.
-    let (completion, arrival) = super::returns::projected::materialize(
-        identities, checked, &binding, source, completion, regions, catalogs, evaluation, values,
-        next_value, next_block, next_edge, operations,
+    let (completion, arrival) = crate::unit::attached_unit::structural_returns::materialize(
+        identities,
+        checked,
+        &terminal_psi::StructuralArgument {
+            place: source,
+            path: binding.path().to_vec(),
+            access: terminal_psi::StructuralAccess::Owned,
+        },
+        binding.structural_type(),
+        binding.multiplicity(),
+        completion,
+        regions,
+        &mut catalogs.next_place,
+        &mut catalogs.temporary_places,
+        evaluation,
+        values,
+        next_value,
+        next_block,
+        next_edge,
+        operations,
     )?;
     if let Some(arrival) = arrival {
         evaluation.blocks.push(arrival);

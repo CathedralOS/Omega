@@ -3,9 +3,7 @@
 //! The checked exit already owns the residual cleanup of the current frontier;
 //! reconstructing the initial owner's complement here would revive moved holes.
 
-use super::super::super::catalogs::ComposedCatalogs;
 use crate::emission::operation_emission::buffer::OperationBuffer;
-use crate::emission::operation_emission::buffer::StructuralBinding;
 use crate::lowering_error::LoweringError;
 use crate::terminal_identities::{allocate_dense, block_id, edge_id, place_id};
 use crate::unit::attached_unit::argument_evaluation::Evaluation;
@@ -19,14 +17,16 @@ use terminal_psi::{
 /// Materialize the exact returned subtree into one whole arrival place. The
 /// existing edge transport transfers custody and independently checks cleanup;
 /// no reference establishment, origin selection or copy permission is invented.
-pub(in crate::unit::attached_unit::composed_control::state_graph) fn materialize(
+pub(super) fn materialize(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &checked_trees::CheckedTrees,
-    binding: &StructuralBinding,
-    source: semantic_vocabulary::PlaceId,
+    source: &StructuralArgument,
+    structural_type: semantic_vocabulary::StructuralTypeId,
+    multiplicity: terminal_psi::StructuralMultiplicity,
     completion: Terminator,
     regions: Vec<CleanupRegion>,
-    catalogs: &mut ComposedCatalogs<'_>,
+    next_place: &mut u64,
+    temporary_places: &mut Vec<StructuralPlaceDeclaration>,
     evaluation: &mut Evaluation,
     values: &mut Vec<terminal_psi::ValueDeclaration>,
     next_value: &mut u64,
@@ -34,7 +34,7 @@ pub(in crate::unit::attached_unit::composed_control::state_graph) fn materialize
     next_edge: &mut u64,
     operations: &mut OperationBuffer,
 ) -> Result<(Terminator, Option<Block>), LoweringError> {
-    if binding.path().is_empty() {
+    if source.path.is_empty() {
         let mut completion = completion;
         let Terminator::ReturnStructural {
             cleanup_actions, ..
@@ -59,14 +59,14 @@ pub(in crate::unit::attached_unit::composed_control::state_graph) fn materialize
             "projected return lost its completion",
         ));
     };
-    if returned_source != source {
+    if returned_source != source.place {
         return Err(LoweringError::Unsupported(
             "projected return lost its current root",
         ));
     }
     let block = block_id(allocate_dense(next_block)?);
-    let place = place_id(allocate_dense(&mut catalogs.next_place)?);
-    catalogs.temporary_places.push(StructuralPlaceDeclaration {
+    let place = place_id(allocate_dense(next_place)?);
+    temporary_places.push(StructuralPlaceDeclaration {
         id: place,
         kind: StructuralPlaceKind::BlockParameter { block, position: 0 },
     });
@@ -75,8 +75,8 @@ pub(in crate::unit::attached_unit::composed_control::state_graph) fn materialize
     let mut structural_parameters = vec![StructuralParameterDeclaration {
         place,
         position: 0,
-        structural_type: binding.structural_type(),
-        multiplicity: binding.multiplicity(),
+        structural_type,
+        multiplicity,
         access: StructuralAccess::Owned,
         qualifications: Vec::new(),
         projected_qualifications: Vec::new(),
@@ -149,11 +149,7 @@ pub(in crate::unit::attached_unit::composed_control::state_graph) fn materialize
                     })
                 })
                 .collect::<Result<Vec<_>, LoweringError>>()?,
-            structural_arguments: vec![StructuralArgument {
-                place: source,
-                path: binding.path().to_vec(),
-                access: StructuralAccess::Owned,
-            }],
+            structural_arguments: vec![source.clone()],
             cleanup_actions,
         },
         Some(arrival),

@@ -12,6 +12,8 @@
 //! windows, continuation cleanup, structural-value construction and calls
 //! through one `operation_frame::OperationFrame`. `providers` checks each
 //! provider candidate against the boundary it satisfies.
+//! `structural_returns` captures the exact returned subtree before residual
+//! cleanup for both body forms; returning an alias never widens to its root.
 //!
 //! The module's identity table interns output vocabulary; it does not change
 //! invocation ownership or evaluation namespaces. Machine/state identities,
@@ -84,6 +86,7 @@ mod normal_guarantees;
 mod ordinary_machine;
 mod provider_attachments;
 mod quotients;
+mod structural_returns;
 
 // The operations a body lowers, each with its exact source custody.
 pub(crate) mod byte_locals;

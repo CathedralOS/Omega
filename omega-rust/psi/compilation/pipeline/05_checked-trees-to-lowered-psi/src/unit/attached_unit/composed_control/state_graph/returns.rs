@@ -12,8 +12,6 @@ use crate::emission::borrowed_window::terminal_multiplicity;
 use crate::terminal_identities::lookup_domain_id_for_carrier;
 use checked_trees::CheckedControlResultPlan;
 
-pub(super) mod projected;
-
 pub(super) fn result(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,

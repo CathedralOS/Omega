@@ -3883,12 +3883,10 @@ and `mapped` need matching-host measurements, including the full-i32 status.
     interpreter (exit 70): the provider body proves its own `separate` theorem
     for counted quantities, and installation joins a content argument minted
     inside the caller (call, construction or destructuring result) by the
-    qualifications bound at the argument place. Still owed there: an
+    retained claim identities and checked memberships. Still owed there: an
     interval-set provider body has no theorem judgment (the content tier
-    stands down), a content argument below a root (`accept(split.left)`
-    without destructuring) still refuses at installation, and a
-    wrapper-composed exit (`forward(partition, whole)`) still records its
-    composition against the wrapper.
+    stands down), and a wrapper-composed exit (`forward(partition, whole)`)
+    still records its composition against the wrapper.
   - `tests/omega/pass/core/content_retained_custody_round_trip` has an empty
     entry; its first claim depends on **BOUNDARY-ISSUANCE**. Existing-input
     conservation proceeds independently.
@@ -3901,10 +3899,6 @@ and `mapped` need matching-host measurements, including the full-i32 status.
     rejects nonzero `source_derivation_depth` and nonempty `result_rewrites`.
     Carry the exact claim mappings through those forms, reusing the existing
     normalized equations, identity reshuffles and authored-theorem lowering.
-  - `omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/provider_installation/replay.rs`
-    still requires whole-root content arguments. Complete the provider/caller
-    content join for projected residuals (a content claim passed at a nonempty
-    argument path).
 
   Acceptance: `python3 tools/corpus_gate.py --native --filter core/content_conservation_contract,core/content_retained_custody_round_trip`
   executes both with their authored results, preserving subject/revision,

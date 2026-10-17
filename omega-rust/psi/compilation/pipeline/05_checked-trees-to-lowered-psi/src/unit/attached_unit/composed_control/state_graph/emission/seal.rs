@@ -98,21 +98,28 @@ impl StateGraphEmission<'_, '_> {
                     super::super::case_emission::result(state, binding_ordinal, &operations)?
                         .into_owned();
                 let source = evaluation.current_structural_place(binding.place());
-                let (completion, arrival) = super::super::returns::projected::materialize(
-                    identities,
-                    self.checked,
-                    &binding,
-                    source,
-                    terminator,
-                    regions,
-                    self.catalogs,
-                    &mut evaluation,
-                    &mut values,
-                    &mut next_value,
-                    &mut next_block,
-                    &mut next_edge,
-                    &mut operations,
-                )?;
+                let (completion, arrival) =
+                    crate::unit::attached_unit::structural_returns::materialize(
+                        identities,
+                        self.checked,
+                        &terminal_psi::StructuralArgument {
+                            place: source,
+                            path: binding.path().to_vec(),
+                            access: terminal_psi::StructuralAccess::Owned,
+                        },
+                        binding.structural_type(),
+                        binding.multiplicity(),
+                        terminator,
+                        regions,
+                        &mut self.catalogs.next_place,
+                        &mut self.catalogs.temporary_places,
+                        &mut evaluation,
+                        &mut values,
+                        &mut next_value,
+                        &mut next_block,
+                        &mut next_edge,
+                        &mut operations,
+                    )?;
                 terminator = completion;
                 if let Some(arrival) = arrival {
                     if let Some(rank) = current_rank {
