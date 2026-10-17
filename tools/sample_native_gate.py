@@ -208,6 +208,7 @@ def run(command, timeout, stdin=subprocess.DEVNULL, cwd=None):
 STALE_PACKAGE_STATE = re.compile(
     r"needs an accepted program-entry binding"
     r"|source identity changed"
+    r"|changed since the proposal"
     r"|resume-failed: local source")
 # Local package state the gate itself creates; all of it is ignored by Git.
 PACKAGE_STATE = ("build", "omega.lock", "omega.admissions")

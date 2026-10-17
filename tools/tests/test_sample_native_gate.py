@@ -502,6 +502,21 @@ class StalePackageStateTests(unittest.TestCase):
             self.assertFalse(Path(directory, "omega.lock").exists())
             self.assertTrue(Path(directory, "main.omg").exists(), "sources are never removed")
 
+    def test_a_stale_proposal_is_measured_again(self):
+        with tempfile.TemporaryDirectory() as directory:
+            Path(directory, "build", "package-manager").mkdir(parents=True)
+            Path(directory, "build", "package-manager", "proposal").write_text("stale")
+            stale = {"sample": directory, "state": "error",
+                     "detail": "resume-failed: candidate sources or dependency graph "
+                               "changed since the proposal; discard it and review a fresh candidate"}
+            passing = {"sample": directory, "state": "pass", "detail": ""}
+            with patch.object(gate, "measure", side_effect=[stale, passing]) as measure:
+                result = gate.timed_measure("omega", directory, "macos_arm64", 10)
+            self.assertEqual(measure.call_count, 2)
+            self.assertEqual(result["state"], "pass")
+            self.assertIn("changed since the proposal", result["retried"])
+            self.assertFalse(Path(directory, "build").exists())
+
     def test_a_compiler_refusal_is_not_retried(self):
         refusal = {"sample": "s", "state": "no-native-build",
                    "detail": "`Main::main` has no executable body"}
