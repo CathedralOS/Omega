@@ -82,6 +82,36 @@ pub(in crate::execution::terminal_unit) fn release_matches(
     } else { path.is_empty() && *released == loans })
 }
 
+/// A whole discard closes both the carrier home and its stored descriptors.
+/// Statement and exit expiry share this physical receipt: scheduling another
+/// reference release after it would retire the same result twice. A projected
+/// or case-conditional action does not close the whole occurrence.
+/// Only statement-entry actions are final during sequencing. Call and
+/// replacement actions are still provisional until temporary-action selection;
+/// their transfer and replacement judgments remain separate below.
+fn whole_result_discarded(
+    operation: &CheckedUnitEffectOperationPlan,
+    result: &CheckedUnitStructuralResultBindingPlan,
+) -> bool {
+    let CheckedUnitEffectOperationPlan::ContinuationCleanup {
+        boundary: checked_trees::CheckedUnitCleanupBoundary::StatementEntry { .. },
+        cleanup_actions,
+        ..
+    } = operation
+    else {
+        return false;
+    };
+    cleanup_actions.iter().any(|action| {
+        matches!(action, checked_trees::CheckedNormalCleanupAction::Discard(discard)
+            if discard.source == CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                binding_ordinal: result.binding_ordinal,
+            }
+                && discard.path.is_empty()
+                && discard.type_identity == result.type_identity
+                && discard.case_conditions.is_empty())
+    })
+}
+
 /// A prior constructor or call transfer already moved this descriptor's
 /// custody to another holder.
 fn custody_transferred(
@@ -367,6 +397,19 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
             operation,
         )?;
         pending.extend(stored_releases);
+        // A cleared return-discard flag is not a physical retirement receipt.
+        // Use the exact whole cleanup, preserving partial-carrier leaf expiry.
+        if operation
+            .discardable_structural_result()
+            .is_some_and(|(result, _)| {
+                operations
+                    .iter()
+                    .chain(&pending)
+                    .any(|operation| whole_result_discarded(operation, result))
+            })
+        {
+            continue;
+        }
         let reference_result = captured_reference_result(
             program, facts, machine, state, results, operation, operations,
         );
@@ -461,23 +504,6 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
         if result.multiplicity != Multiplicity::Affine
             || !order.precedes(result.statement_index as usize, statement_index as usize)
         {
-            continue;
-        }
-        // Composed states clear the return-discard flag while selecting their
-        // exits. That scheduling choice is not retirement of a stored loan.
-        // Consult the actual whole cleanup instead, so a partially transferred
-        // carrier still releases its remaining descriptors at their boundaries.
-        let source = CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-            binding_ordinal: result.binding_ordinal,
-        };
-        if operations.iter().chain(&pending).any(|operation| {
-            matches!(operation, CheckedUnitEffectOperationPlan::ContinuationCleanup {
-                cleanup_actions, ..
-            } if cleanup_actions.iter().any(|action| {
-                *action.source() == source && action.path().is_empty()
-                    && action.type_identity() == result.type_identity
-            }))
-        }) {
             continue;
         }
         let Some(StatementNode::LocalData(local)) = program
@@ -731,6 +757,12 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
         ) {
             let result = captured.result;
             let loans = captured.loans;
+            if operations
+                .iter()
+                .any(|operation| whole_result_discarded(operation, result))
+            {
+                continue;
+            }
             if replacement_owns_release(&order, facts, machine, state, loans) {
                 continue;
             }

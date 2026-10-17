@@ -380,6 +380,7 @@ pass/control_flow/self_case_payload_both_arms_exit built 2333ms exit:70 interpre
 pass/control_flow/shared_view_selected_disposition_exit built 1537ms exit:0 interpreter-exit:0 interpreter:agrees @a789a281bf39+wt
 pass/control_flow/single_case_parameter_dispatch_exit built 5838ms exit:70 interpreter-exit:70 interpreter:agrees @9158ef7b209e+wt
 pass/control_flow/single_case_result_dispatch_exit built 4175ms exit:70 interpreter-exit:70 interpreter:agrees @9158ef7b209e+wt
+pass/control_flow/stored_reference_holder_disposal_exit built 3752ms exit:0 interpreter-exit:0 interpreter:agrees @fd94a7b8095c+wt
 pass/core/content_conservation_constructed_result_exit built 7149ms exit:70 interpreter-exit:70 interpreter:agrees @94192499b002+wt
 pass/core/content_conservation_contract_exit built 15885ms exit:70 interpreter-exit:70 interpreter:agrees @e52673d2bcdb+wt
 pass/core/content_conservation_moved_result_exit built 7054ms exit:70 interpreter-exit:70 interpreter:agrees @94192499b002+wt

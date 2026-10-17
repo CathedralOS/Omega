@@ -1,0 +1,55 @@
+// Expected exit: 0.
+// A call can borrow a reference-bearing record without replacing its leaf.
+// Once the record is discarded after its last use, state exit must not release
+// that same carrier again. Replacement and an independently copied view retain
+// their distinct occurrences rather than sharing the holder's disposal.
+data Image { value: u64; }
+data Output<'image> { image: &'image Image; }
+data Status { code: u64; }
+
+machine inspect_output(output: &mut Output) -> Status {
+    Status { code: output.image.value }
+}
+
+machine replace<'image>(image: &'image Image, output: &mut Output<'image>) -> Status {
+    output.image = image;
+    Status { code: output.image.value }
+}
+
+machine preserve() -> bool {
+    transition { _ -> discover() }
+    state discover() -> bool {
+        let image: Image = Image { value: 23 };
+        let mut output: Output = Output { image: &image };
+        let status: Status = inspect_output(&mut output);
+        let observed: u64 = output.image.value;
+        transition status.code == 23 {
+            true -> found(observed)
+            false -> (false)
+        }
+    }
+    state found(observed: u64) -> bool { observed == 23 }
+}
+
+machine replaced(image: &Image) -> bool {
+    let original: Image = Image { value: 17 };
+    let mut output: Output = Output { image: &original };
+    let retained: &Image = output.image;
+    let status: Status = replace(image, &mut output);
+    let observed: u64 = output.image.value;
+    transition status.code == 23 && retained.value == 17 {
+        true -> found(observed)
+        false -> (false)
+    }
+    state found(observed: u64) -> bool { observed == 23 }
+}
+
+machine main() crashes Trap {
+    let image: Image = Image { value: 23 };
+    transition preserve() && replaced(&image) {
+        true -> done()
+        false -> wrong()
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}
