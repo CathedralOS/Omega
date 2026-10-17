@@ -474,22 +474,29 @@ impl StructuralFieldType {
         if expected.is_some_and(|expected| expected.scalar_restriction.as_ref() == Some(self)) {
             return self.canonical_leaf_type();
         }
-        if access == crate::StructuralAccess::SharedBorrow {
-            return match self.byte_sequence_carrier() {
+        let presentation = if access == crate::StructuralAccess::SharedBorrow {
+            match self.byte_sequence_carrier() {
                 Some(ByteSequenceCarrier::BorrowedView {
                     access: Some(crate::StructuralAccess::SharedBorrow),
                 }) => Some(Self::ByteSequence(ByteSequenceCarrier::BorrowedView {
                     access: None,
                 })),
                 _ => self.shared_observation_type(),
-            };
-        }
-        if access == crate::StructuralAccess::Owned {
-            return None;
-        }
-        match self {
-            Self::BoundedInteger(_) | Self::RefinedScalar(_) => self.shared_observation_type(),
-            _ => self.canonical_leaf_type(),
+            }
+        } else if access == crate::StructuralAccess::Owned {
+            None
+        } else {
+            match self {
+                Self::BoundedInteger(_) | Self::RefinedScalar(_) => self.shared_observation_type(),
+                _ => self.canonical_leaf_type(),
+            }
+        }?;
+        if let Some(expected) = expected
+            && presentation.declares_leaf(expected)
+        {
+            Some(Self::Structural(expected.id))
+        } else {
+            Some(presentation)
         }
     }
 
@@ -537,6 +544,9 @@ impl StructuralFieldType {
     /// plain u64 storage too), so a caller that already holds the checked
     /// identity resolves that declaration and confirms it here instead.
     pub fn declares_leaf(&self, declaration: &StructuralTypeDeclaration) -> bool {
+        if let Self::Structural(identity) = self {
+            return *identity == declaration.id;
+        }
         let Some((shape, restriction)) = (match self {
             Self::BoundedInteger(_) | Self::RefinedScalar(_) => self
                 .scalar_type()

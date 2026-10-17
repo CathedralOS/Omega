@@ -469,6 +469,15 @@ pub(in crate::legalization) fn structural_argument_at(
             projection.referent_offset,
             projection.elements,
         )
+    } else if semantic.access != StructuralAccess::Owned {
+        crate::structural_inputs::structural_reference_input::runtime_borrowed_projection(
+            root_type,
+            &semantic.path,
+            semantic.access,
+            Some(declaration_parameter.structural_type),
+            declarations,
+        )
+        .ok_or(LegalizationError::custody())?
     } else {
         crate::structural_inputs::structural_reference_input::runtime_projection(
             root_type,

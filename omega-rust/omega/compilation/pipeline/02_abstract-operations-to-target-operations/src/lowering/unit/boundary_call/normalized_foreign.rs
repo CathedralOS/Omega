@@ -5,8 +5,7 @@ use super::super::super::control_flow::scalar_sources::{
 };
 use super::super::super::scalar_abi::fixed_native_scalar_shape;
 use super::super::super::structural_layout::{
-    borrowed_view_field_offset, byte_sequence_shape, reference_referent_projection,
-    resolve_structural_projection_path, runtime_projection, structural_parameter_shape,
+    reference_referent_projection, resolve_structural_projection_path, structural_parameter_shape,
     structural_shape,
 };
 use super::{
@@ -317,128 +316,19 @@ pub(super) fn lower_normalized_foreign_structural_arguments(
                     .map_err(|_| LoweringError::BoundaryRealizationMismatch(boundary))?
                 }
             } else {
-                // A dynamic descriptor's referent is the caller's stored
-                // view itself: borrowing the whole `ByteSequence`
-                // (BorrowedView) place carries an empty path, while a
-                // stored descriptor field resolves through the record
-                // path with the formal's declared type supplying the
-                // leaf's identity.
-                let descriptor_root = |structural_type: StructuralTypeId| {
-                    matches!(
-                        structural_types
-                            .get(&structural_type)
-                            .map(|declaration| &declaration.shape),
-                        Some(StructuralTypeShape::ByteSequence(
-                            terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
-                        ))
-                    )
-                };
-                if argument.path.contains(&StructuralPathSegment::Referent) {
-                    let (selected, shape, offset, indices) = reference_referent_projection(
-                        source_structural_type,
-                        &argument.path,
-                        argument.access,
-                        Some(parameter.structural_type),
-                        structural_types,
-                    )
-                    .map_err(|_| LoweringError::BoundaryRealizationMismatch(boundary))?;
-                    // Selectors retain their original pointer regions in the
-                    // authored path. The common runtime roster carries their
-                    // exact operands and bounds through foreign calls too.
-                    index_runs = indices;
-                    (selected, shape, offset)
-                } else if argument.path.is_empty() {
-                    if descriptor_root(source_structural_type) {
-                        (
-                            source_structural_type,
-                            byte_sequence_shape(
-                                terminal_psi::ByteSequenceCarrier::BorrowedView {
-                                    access: Some(terminal_psi::StructuralAccess::SharedBorrow),
-                                },
-                                source_structural_type,
-                            )
-                            .map_err(|_| LoweringError::BoundaryRealizationMismatch(boundary))?,
-                            0,
-                        )
-                    } else {
-                        // A whole loan points at its backing's offset zero,
-                        // independent of whether that backing arrived as a
-                        // parameter or was established in this invocation.
-                        (
-                            source_structural_type,
-                            structural_shape(
-                                source_structural_type,
-                                structural_types,
-                                shape_cache,
-                                active,
-                            )
-                            .map_err(|_| LoweringError::BoundaryRealizationMismatch(boundary))?,
-                            0,
-                        )
-                    }
-                } else {
-                    // Borrowed projections share the ordinary address model:
-                    // static fields fold into the offset, and each bounded
-                    // selector contributes its exact SSA operand and stride.
-                    if argument.path.iter().any(|segment| {
-                        !matches!(
-                            segment,
-                            StructuralPathSegment::Field(_)
-                                | StructuralPathSegment::FixedIndex(_)
-                                | StructuralPathSegment::RuntimeIndex { .. }
-                        )
-                    }) {
-                        return Err(LoweringError::BoundaryRealizationMismatch(boundary));
-                    }
-                    let field_only = argument
-                        .path
-                        .iter()
-                        .all(|segment| matches!(segment, StructuralPathSegment::Field(_)));
-                    match runtime_projection(
-                        source_structural_type,
-                        &argument.path,
-                        structural_types,
-                        shape_cache,
-                        active,
-                    ) {
-                        Ok((ty, shape, offset, runs)) => {
-                            index_runs = runs;
-                            (ty, shape, offset)
-                        }
-                        Err(_) if !field_only => {
-                            return Err(LoweringError::BoundaryRealizationMismatch(boundary));
-                        }
-                        Err(_) => {
-                            let Some(offset) = borrowed_view_field_offset(
-                                source_structural_type,
-                                &argument.path,
-                                structural_types,
-                                shape_cache,
-                                active,
-                            )
-                            .map_err(|_| LoweringError::BoundaryRealizationMismatch(boundary))?
-                            else {
-                                return Err(LoweringError::BoundaryRealizationMismatch(boundary));
-                            };
-                            if !descriptor_root(parameter.structural_type) {
-                                return Err(LoweringError::BoundaryRealizationMismatch(boundary));
-                            }
-                            (
-                                parameter.structural_type,
-                                byte_sequence_shape(
-                                    terminal_psi::ByteSequenceCarrier::BorrowedView {
-                                        access: Some(terminal_psi::StructuralAccess::SharedBorrow),
-                                    },
-                                    parameter.structural_type,
-                                )
-                                .map_err(|_| {
-                                    LoweringError::BoundaryRealizationMismatch(boundary)
-                                })?,
-                                offset,
-                            )
-                        }
-                    }
-                }
+                // Ordinary and foreign loans use the same typed projection.
+                // Each pointer crossing retains its region and selector order;
+                // the checked formal supplies the selected field identity.
+                let (selected, shape, offset, indices) = reference_referent_projection(
+                    source_structural_type,
+                    &argument.path,
+                    argument.access,
+                    Some(parameter.structural_type),
+                    structural_types,
+                )
+                .map_err(|_| LoweringError::BoundaryRealizationMismatch(boundary))?;
+                index_runs = indices;
+                (selected, shape, offset)
             };
             // Borrowing does not transfer the owner's multiplicity. Owned
             // whole-place transport retains the exact source contract; a
@@ -462,7 +352,13 @@ pub(super) fn lower_normalized_foreign_structural_arguments(
                         row.shape.is_borrowed_byte_carrier()
                             || matches!(row.shape, StructuralTypeShape::ElementView { .. })
                     });
-            if projected_type != parameter.structural_type
+            let unchanged_presentation = argument.access != StructuralAccess::Owned
+                && terminal_semantics::borrowed_referent_presentation(
+                    structural_types.values().copied(),
+                    projected_type,
+                    parameter.structural_type,
+                ) == Some(terminal_semantics::BorrowedReferentPresentation::Unchanged);
+            if (projected_type != parameter.structural_type && !unchanged_presentation)
                 || argument.access != parameter.access
                 || !multiplicity_matches
                 || !parameter.qualifications.is_empty()
@@ -543,7 +439,7 @@ pub(super) fn lower_normalized_foreign_structural_arguments(
                 access: argument.access,
                 path: argument.path.clone(),
                 root_structural_type: source_structural_type,
-                structural_type: projected_type,
+                structural_type: parameter.structural_type,
                 shape: parameter_shape,
                 source_byte_offset,
                 fixed_array_length: None,

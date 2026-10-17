@@ -395,6 +395,15 @@ pub(crate) fn validate(
                 address.referent_offset,
                 projection.elements,
             )
+        } else if argument.access != terminal_psi::StructuralAccess::Owned {
+            crate::structural_inputs::structural_reference_input::runtime_borrowed_projection(
+                argument.root_structural_type,
+                &argument.path,
+                argument.access,
+                Some(argument.structural_type),
+                &signature.structural_types,
+            )
+            .ok_or_else(|| invalid!())?
         } else {
             crate::structural_inputs::structural_reference_input::runtime_projection(
                 argument.root_structural_type,
