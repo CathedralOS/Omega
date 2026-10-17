@@ -1,0 +1,24 @@
+// Expected exit: 0. Copying a qualified descriptor preserves the whole
+// value's UTF-8 facts; slicing it must classify the selected bytes again.
+domain [u8]::Utf8(bytes) requires valid_utf8(bytes);
+data Text { bytes: &[u8] in Utf8; }
+
+machine main() crashes Trap {
+    let text: Text = Text { bytes: "é" };
+    let whole: &[u8] = text.bytes;
+    transition whole.len == 2 {
+        true -> inspect(whole)
+        false -> bad()
+    }
+    state inspect(bytes: &[u8])
+    requires bytes.len == 2;
+    {
+        let suffix: &[u8] = &bytes[1..2];
+        transition valid_utf8(bytes) && !valid_utf8(suffix) && suffix.len == 1 {
+            true -> done()
+            false -> bad()
+        }
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

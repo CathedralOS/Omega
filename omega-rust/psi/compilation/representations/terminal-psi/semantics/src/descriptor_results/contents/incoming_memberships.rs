@@ -18,19 +18,8 @@ pub(super) fn select(
             _ => None,
         })
         .collect::<Option<Vec<_>>>()?;
-    let path = descriptor_path(types, contract.carrier, &address)?;
-    let carrier = descriptor_location_type(types, contract.carrier, &address)?;
-    let (qualifications, projected_qualifications) =
-        terminal_psi::StructuralPathQualification::select(
-            &contract.qualifications,
-            &contract.projected_qualifications,
-            &path,
-        );
-    let mut contract = PayloadMembershipContract {
-        carrier,
-        qualifications,
-        projected_qualifications,
-    };
+    let mut contract = super::select_payload_memberships(types, domains, &contract, &address)?;
+    let carrier = contract.carrier;
     let Some(DescriptorContentsStep::AnyElement { element }) = steps.get(count) else {
         super::close_predicate_memberships(types, domains, &mut contract);
         return Some(contract);

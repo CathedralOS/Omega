@@ -3,6 +3,7 @@
 //! reachable control-flow joins intersect evidence. Descriptor replay resolves
 //! backing separately. Neither replay grants access, custody or an origin route.
 
+use super::contents::select_payload_memberships;
 use super::*;
 use crate::descriptor_lifetimes::descriptor_path;
 use std::collections::VecDeque;
@@ -84,9 +85,9 @@ pub fn current_payload_contract(
                 {
                     continue;
                 }
-                let incoming = before
-                    .get(&actual.root)
-                    .and_then(|contract| select(types, contract, &actual.path));
+                let incoming = before.get(&actual.root).and_then(|contract| {
+                    select_payload_memberships(types, domains, contract, &actual.path)
+                });
                 failure = "structural store backing is unresolved";
                 let destinations = analysis.storage_origins(identity, current, destination)?;
                 let strong = destinations.len() == 1;
@@ -94,33 +95,38 @@ pub fn current_payload_contract(
                     stores.push((destination, incoming.clone(), strong));
                 }
             }
-            for (index, (destination, incoming, strong)) in stores.iter().enumerate() {
+            // Decide simultaneous overlap before consuming the snapshots. The
+            // exact-carrier path can then move its theory without cloning it.
+            for index in 0..stores.len() {
+                let destination = &stores[index].0;
+                if stores.iter().enumerate().any(|(other, (candidate, _, _))| {
+                    index != other
+                        && candidate.root == destination.root
+                        && (candidate.path.starts_with(&destination.path)
+                            || destination.path.starts_with(&candidate.path))
+                }) {
+                    stores[index].2 = false;
+                }
+            }
+            for (destination, incoming, strong) in stores {
                 let Some(contract) = after.get_mut(&destination.root) else {
                     continue;
                 };
                 failure = "structural store path has no typed coordinate";
                 let path = descriptor_path(types, contract.carrier, &destination.path)?;
                 retire(contract, &path);
-                let overlaps = stores.iter().enumerate().any(|(other, (candidate, _, _))| {
-                    index != other
-                        && candidate.root == destination.root
-                        && (candidate.path.starts_with(&destination.path)
-                            || destination.path.starts_with(&candidate.path))
-                });
-                if !strong || overlaps {
+                if !strong {
                     continue;
                 }
                 let Some(incoming) = incoming else {
                     continue;
                 };
                 failure = "structural store carrier does not match its actual source";
-                if crate::qualification_path_carrier(types.iter(), contract.carrier, &path)?
-                    != incoming.carrier
-                {
-                    return None;
-                }
+                let destination_carrier =
+                    crate::qualification_path_carrier(types.iter(), contract.carrier, &path)?;
+                let incoming = incoming.presented(types, domains, destination_carrier)?;
                 if path.is_empty() {
-                    *contract = incoming.clone();
+                    *contract = incoming;
                 } else {
                     terminal_psi::StructuralPathQualification::append_under(
                         &incoming.qualifications,
@@ -145,10 +151,9 @@ pub fn current_payload_contract(
                     if !parameter.path.is_empty() {
                         return None;
                     }
-                    if let Some(contract) = after
-                        .get(&actual.root)
-                        .and_then(|contract| select(types, contract, &actual.path))
-                    {
+                    if let Some(contract) = after.get(&actual.root).and_then(|contract| {
+                        select_payload_memberships(types, domains, contract, &actual.path)
+                    }) {
                         // Exact descriptor bindings also carry reference access
                         // conversions. Memberships are carrier-specific: an
                         // incompatible row supplies no evidence for that formal,
@@ -257,26 +262,6 @@ pub fn current_payload_contract(
         Some(current)
     })();
     result.ok_or(failure)
-}
-
-fn select(
-    types: &[StructuralTypeDeclaration],
-    contract: &PayloadMembershipContract,
-    path: &[crate::descriptor_lifetimes::DescriptorPathSegment],
-) -> Option<PayloadMembershipContract> {
-    let path = descriptor_path(types, contract.carrier, path)?;
-    let carrier = crate::qualification_path_carrier(types.iter(), contract.carrier, &path)?;
-    let (qualifications, projected_qualifications) =
-        terminal_psi::StructuralPathQualification::select(
-            &contract.qualifications,
-            &contract.projected_qualifications,
-            &path,
-        );
-    Some(PayloadMembershipContract {
-        carrier,
-        qualifications,
-        projected_qualifications,
-    })
 }
 
 fn retire(contract: &mut PayloadMembershipContract, path: &[StructuralPathSegment]) {

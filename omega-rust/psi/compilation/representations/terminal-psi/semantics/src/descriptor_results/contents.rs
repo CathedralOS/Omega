@@ -260,6 +260,42 @@ impl PayloadMembershipContract {
     }
 }
 
+/// Select a value contract using its payload carrier, not its address shape.
+/// Inline byte fields have a structural value type even when the descriptor
+/// address walk ends at a primitive field rather than a nested declaration.
+/// Current source rows and independently validated source-field predicates
+/// supply the facts. Receiving annotations never supply evidence.
+pub(super) fn select_payload_memberships(
+    types: &[StructuralTypeDeclaration],
+    domains: &[terminal_psi::StructuralDomainDeclaration],
+    contract: &PayloadMembershipContract,
+    address: &[crate::descriptor_lifetimes::DescriptorPathSegment],
+) -> Option<PayloadMembershipContract> {
+    let path = descriptor_path(types, contract.carrier, address)?;
+    let carrier = crate::qualification_path_carrier(types.iter(), contract.carrier, &path)?;
+    let (mut qualifications, projected_qualifications) =
+        terminal_psi::StructuralPathQualification::select(
+            &contract.qualifications,
+            &contract.projected_qualifications,
+            &path,
+        );
+    // The actual source field's primitive invariants hold at each valid
+    // establishment and replacement. They classify this read independently of
+    // the receiving copy's requested domain or a previous initializer's facts.
+    if let Some(predicates) =
+        crate::shared_byte_field_copy_predicates(types.iter(), contract.carrier, &path)
+    {
+        qualifications.extend(byte_predicate_memberships(domains, carrier, predicates));
+        qualifications.sort();
+        qualifications.dedup();
+    }
+    Some(PayloadMembershipContract {
+        carrier,
+        qualifications,
+        projected_qualifications,
+    })
+}
+
 /// Copy only memberships held by every possible backing subtree. Unknown or
 /// symbolic contents cannot be filled from the receiving type's declaration.
 pub fn payload_memberships(
@@ -272,20 +308,7 @@ pub fn payload_memberships(
     for target in targets {
         let mut selected = match target {
             DescriptorPayloadTarget::Storage(location) => {
-                let contract = source(location.root)?;
-                let path = descriptor_path(types, contract.carrier, &location.path)?;
-                let carrier = descriptor_location_type(types, contract.carrier, &location.path)?;
-                let (qualifications, projected_qualifications) =
-                    terminal_psi::StructuralPathQualification::select(
-                        &contract.qualifications,
-                        &contract.projected_qualifications,
-                        &path,
-                    );
-                PayloadMembershipContract {
-                    carrier,
-                    qualifications,
-                    projected_qualifications,
-                }
+                select_payload_memberships(types, domains, &source(location.root)?, &location.path)?
             }
             DescriptorPayloadTarget::Incoming(query) => {
                 let contract = source(query.root)?;
@@ -321,59 +344,14 @@ fn close_predicate_memberships(
     domains: &[terminal_psi::StructuralDomainDeclaration],
     contract: &mut PayloadMembershipContract,
 ) {
-    fn implied(
-        types: &[StructuralTypeDeclaration],
-        domains: &[terminal_psi::StructuralDomainDeclaration],
-        carrier: StructuralTypeId,
-        qualifications: &[semantic_vocabulary::StructuralDomainId],
-    ) -> Vec<semantic_vocabulary::StructuralDomainId> {
-        // A closed empty theory classifies every value of this exact carrier.
-        // Routed and Content memberships remain occurrence-bound even when
-        // their logical predicate is Truth.
-        let mut implied = domains
-            .iter()
-            .filter(|domain| {
-                domain.carrier == carrier
-                    && domain.establishment_routes.is_empty()
-                    && domain.content_projection.is_none()
-                    && domain.predicate.as_ref().is_some_and(|predicate| {
-                        predicate.proposition == semantic_vocabulary::Proposition::Truth
-                    })
-            })
-            .map(|domain| domain.id)
-            .collect::<Vec<_>>();
-        if !crate::byte_predicate_carrier(types.iter(), carrier) {
-            return implied;
-        }
-        let mut supplied = terminal_psi::ByteSequencePredicateSet::EMPTY;
-        for domain in qualifications {
-            if let Some(predicates) =
-                crate::byte_qualification_predicates_in(domains.iter(), carrier, &[*domain])
-            {
-                for predicate in predicates.predicates() {
-                    supplied.insert(predicate);
-                }
-            }
-        }
-        implied.extend(
-            domains
-                .iter()
-                .filter(|domain| {
-                    crate::byte_qualification_predicates_in(domains.iter(), carrier, &[domain.id])
-                        .is_some_and(|required| supplied.implies(required))
-                })
-                .map(|domain| domain.id),
-        );
-        implied.sort();
-        implied.dedup();
-        implied
-    }
-    contract.qualifications.extend(implied(
-        types,
-        domains,
-        contract.carrier,
-        &contract.qualifications,
-    ));
+    contract
+        .qualifications
+        .extend(implied_predicate_memberships(
+            types,
+            domains,
+            contract.carrier,
+            &contract.qualifications,
+        ));
     contract.qualifications.sort();
     contract.qualifications.dedup();
     let mut paths: Vec<_> = contract
@@ -396,7 +374,7 @@ fn close_predicate_memberships(
             .map(|row| row.domain)
             .collect();
         // Descendant rows belong to their own carrier and are closed separately.
-        for domain in implied(types, domains, carrier, &whole) {
+        for domain in implied_predicate_memberships(types, domains, carrier, &whole) {
             contract
                 .projected_qualifications
                 .push(terminal_psi::StructuralPathQualification {
@@ -407,6 +385,61 @@ fn close_predicate_memberships(
     }
     contract.projected_qualifications.sort();
     contract.projected_qualifications.dedup();
+}
+
+fn implied_predicate_memberships(
+    types: &[StructuralTypeDeclaration],
+    domains: &[terminal_psi::StructuralDomainDeclaration],
+    carrier: StructuralTypeId,
+    qualifications: &[semantic_vocabulary::StructuralDomainId],
+) -> Vec<semantic_vocabulary::StructuralDomainId> {
+    // A closed empty theory classifies every value of this exact carrier.
+    // Routed and Content memberships remain occurrence-bound even when
+    // their logical predicate is Truth.
+    let mut implied = domains
+        .iter()
+        .filter(|domain| {
+            domain.carrier == carrier
+                && domain.establishment_routes.is_empty()
+                && domain.content_projection.is_none()
+                && domain.predicate.as_ref().is_some_and(|predicate| {
+                    predicate.proposition == semantic_vocabulary::Proposition::Truth
+                })
+        })
+        .map(|domain| domain.id)
+        .collect::<Vec<_>>();
+    if !crate::byte_predicate_carrier(types.iter(), carrier) {
+        return implied;
+    }
+    let mut supplied = terminal_psi::ByteSequencePredicateSet::EMPTY;
+    for domain in qualifications {
+        if let Some(predicates) =
+            crate::byte_qualification_predicates_in(domains.iter(), carrier, &[*domain])
+        {
+            for predicate in predicates.predicates() {
+                supplied.insert(predicate);
+            }
+        }
+    }
+    implied.extend(byte_predicate_memberships(domains, carrier, supplied));
+    implied.sort();
+    implied.dedup();
+    implied
+}
+
+fn byte_predicate_memberships(
+    domains: &[terminal_psi::StructuralDomainDeclaration],
+    carrier: StructuralTypeId,
+    supplied: terminal_psi::ByteSequencePredicateSet,
+) -> Vec<semantic_vocabulary::StructuralDomainId> {
+    domains
+        .iter()
+        .filter(|domain| {
+            crate::byte_qualification_predicates_in(domains.iter(), carrier, &[domain.id])
+                .is_some_and(|required| supplied.implies(required))
+        })
+        .map(|domain| domain.id)
+        .collect()
 }
 
 /// Current declared memberships of actual Terminal storage, including literal

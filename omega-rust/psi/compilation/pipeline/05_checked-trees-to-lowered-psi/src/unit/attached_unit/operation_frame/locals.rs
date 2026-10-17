@@ -1082,6 +1082,11 @@ impl OperationFrame<'_, '_> {
                 formal.symbol
             }
         };
+        let types = self.structural_types.declarations();
+        let same_presentation = |source, destination| {
+            terminal_semantics::borrowed_referent_presentation(types.iter(), source, destination)
+                == Some(terminal_semantics::BorrowedReferentPresentation::Unchanged)
+        };
         let mut locals = self
             .evaluation
             .structural_locals
@@ -1097,22 +1102,36 @@ impl OperationFrame<'_, '_> {
             .iter()
             .filter(|view| view.symbol == symbol);
         let previous_view = views.next().copied();
-        if views.next().is_some()
-            || previous_view.is_some_and(|view| view.structural_type != replacement.structural_type)
-        {
-            return unsupported("owned rebind has ambiguous or incompatible view observations");
+        if views.next().is_some() {
+            return unsupported("owned rebind has more than one current view observation");
         }
+        if previous_view.is_some_and(|view| {
+            !same_presentation(view.structural_type, replacement.structural_type)
+        }) {
+            return unsupported("owned rebind changes its observed carrier representation");
+        }
+        let replacement_view_carrier = previous_view
+            .map(|_| {
+                crate::expression_preparation::bindings::view_locals::ViewCarrier::observation_of(
+                    replacement.structural_type,
+                    types,
+                )
+                .ok_or(LoweringError::Unsupported(
+                    "owned rebind replacement has no view observation family",
+                ))
+            })
+            .transpose()?;
         let binding_access = old
             .map(|local| local.argument.access)
             .or_else(|| previous_view.map(|view| view.access))
             .unwrap_or(StructuralAccess::Owned);
         if locals.next().is_some()
             || old.is_some_and(|local| {
-                local.structural_type != replacement.structural_type
+                !same_presentation(local.structural_type, replacement.structural_type)
                     || (local.argument.access != StructuralAccess::Owned
                         && !previous_view.is_some_and(|view| {
                             view.place == local.argument.place
-                                && view.structural_type == local.structural_type
+                                && same_presentation(view.structural_type, local.structural_type)
                                 && view.access == local.argument.access
                         }))
                     || !local.argument.path.is_empty()
@@ -1140,13 +1159,16 @@ impl OperationFrame<'_, '_> {
         );
         // Lengths and indexed reads use this same current descriptor. Earlier
         // captured operands retain their own places and are not retargeted.
-        if let Some(view) = self
-            .evaluation
-            .view_locals
-            .iter_mut()
-            .find(|view| view.symbol == symbol)
-        {
+        if let (Some(view), Some(carrier)) = (
+            self.evaluation
+                .view_locals
+                .iter_mut()
+                .find(|view| view.symbol == symbol),
+            replacement_view_carrier,
+        ) {
             view.place = replacement.place;
+            view.structural_type = replacement.structural_type;
+            view.carrier = carrier;
         }
         self.evaluation
             .structural_value_owners
