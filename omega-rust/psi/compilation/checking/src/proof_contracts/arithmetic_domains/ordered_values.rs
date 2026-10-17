@@ -4,6 +4,9 @@
 //! does not require a name-only receiver. Paths are write-frame metadata only.
 //! Equality uses resolved declarations and
 //! the complete argument tree of an eligible normal-return call.
+//! A match whose every arm denotes one ordered operand denotes that operand.
+//! The numeric interval join at the match does not replace that equality:
+//! a later guard must still reach the joined value, as it does for a copy.
 //! Observed comparisons also retain consequences of finite integer carriers:
 //! a ceiling may disappear at a state edge without losing its bound on a
 //! surviving scalar. This is not repeated-call equality. Effects invalidate
@@ -544,6 +547,24 @@ fn build_operand(
                     build_operand(program, machine, state, binary.right, depth + 1, frames)?,
                 ],
             })
+        }
+        ExpressionNode::Match(dispatch) => {
+            // The subject is evaluated once and exactly one arm's value is the
+            // result. Arms that denote one operand therefore denote the match,
+            // including when a guard on that operand arrives after the join.
+            // Distinct arm operands stay opaque: union of their ranges is a
+            // different fact and lives in the arithmetic walk.
+            let mut shared_operand = None;
+            for arm in program.expression_table.match_arms(dispatch.arms) {
+                let arm_operand =
+                    build_operand(program, machine, state, arm.value, depth + 1, frames)?;
+                match &shared_operand {
+                    None => shared_operand = Some(arm_operand),
+                    Some(current) if current == &arm_operand => {}
+                    Some(_) => return None,
+                }
+            }
+            shared_operand
         }
         _ => None,
     }
