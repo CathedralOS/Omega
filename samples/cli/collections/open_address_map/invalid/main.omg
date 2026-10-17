@@ -1,0 +1,18 @@
+// Intended-invalid control for open_address_map: writing slot 16 of a
+// 16-entry slot array must be rejected at compile time.
+
+use omega_language_std::console;
+
+data Slot<K, V> { key: K; value: V; tag: u64; }
+data Table<K, V> { slots: [Slot<K, V>; 16]; live: u64 in Wrapping; }
+
+machine poke<K, V>(table: &mut Table<K, V>) {
+    table.slots[16].tag = 1;
+}
+
+data Main { ints: Table<u64, u64>; }
+
+machine Main::main(main: &mut Main) reaches Console {
+    poke(&mut main.ints);
+    Console::exit_process(0);
+}

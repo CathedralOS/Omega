@@ -253,8 +253,103 @@ pub(crate) fn structural_call_arguments(
             )?);
             continue;
         }
-        arm("call operation: structural arguments: source symbol");
-        let source_symbol = place.root.as_symbol()?;
+        arm("call operation: structural arguments: retained temporary");
+        let Some(source_symbol) = place.root.as_symbol() else {
+            // A computed operand keeps its owner in the expression namespace:
+            // the scalar-computation pass already retained its establishment,
+            // so this argument names that retained temporary rather than a
+            // symbol-rooted home. Only a shared loan or its view descriptor
+            // may consume an anonymous home here; owned transfers of retained
+            // operands settle through the produced-result arm above.
+            let expression = place.root.as_expression()?;
+            let descriptor =
+                validation::slice_view_shell(program, target.type_reference, &[]);
+            let authored = *explicit_arguments.get(explicit_index.checked_sub(1)?)?;
+            let (access, referent) = match program
+                .type_reference_table
+                .type_reference(target.type_reference)
+            {
+                typed_trees::types::TypeReferenceNode::Reference { access, .. } if descriptor.is_some() => {
+                    ((*access).into(), target.type_reference)
+                }
+                typed_trees::types::TypeReferenceNode::Reference {
+                    access: language_semantics::ReferenceAccess::Shared,
+                    ..
+                } => (
+                    CheckedStructuralAccess::SharedBorrow,
+                    crate::semantic::calls::shared_argument_referent(
+                        program,
+                        authored,
+                        target.type_reference,
+                    )?
+                    .1,
+                ),
+                _ => return None,
+            };
+            let statement = u32::try_from(statement_index).ok()?;
+            let retained = facts.values.structural_values.root_for_expression(
+                caller_state.symbol,
+                statement,
+                expression,
+            )?;
+            let node = facts.values.structural_values.nodes.get(retained.root);
+            let (owner, path) = match &node.kind {
+                checked_trees::CheckedStructuralValueKind::Projection {
+                    source,
+                    path,
+                    ..
+                } if !path.is_empty() => (*source, path.clone()),
+                _ => (retained.root, Vec::new()),
+            };
+            let owner_expression = facts
+                .values
+                .structural_values
+                .nodes
+                .get(owner)
+                .expression;
+            let owner_type = if owner == retained.root {
+                referent
+            } else {
+                let owner_place = validation::canonical_place_from_expression_in_state(
+                    program,
+                    caller_state.symbol,
+                    statement_index,
+                    owner_expression,
+                )?;
+                if !owner_place.segments.is_empty() {
+                    return None;
+                }
+                validation::canonical_place_type_reference(
+                    program,
+                    caller_state.symbol,
+                    statement_index,
+                    &owner_place,
+                )?
+            };
+            if descriptor.is_none() {
+                validation::structural_result_contract(program, referent).ok()?;
+                super::validate_shared_temporary(
+                    program,
+                    &facts.flow,
+                    caller_machine.symbol,
+                    caller_state.symbol,
+                    call,
+                    owner_expression,
+                    owner_type,
+                )?;
+            }
+            output.push(CheckedUnitStructuralArgumentPlan {
+                source: CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+                    expression: owner_expression,
+                },
+                path,
+                type_identity: validation::structural_type_identity(
+                    program, referent, &[], &[],
+                ),
+                access,
+            });
+            continue;
+        };
         if crate::execution::terminal_unit::structural_scalar_store::primitive_local_before(
             program,
             caller_state,

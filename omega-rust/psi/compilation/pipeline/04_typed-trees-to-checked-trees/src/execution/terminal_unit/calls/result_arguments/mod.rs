@@ -509,25 +509,48 @@ fn argument_contract(
                     // A loan selects a place within the complete producer.
                     // Rejoin that root/path, not expression equality: the
                     // selected field is not a separate temporary owner.
-                    if validation::canonical_place_from_expression_in_state(
+                    let referent_place = validation::canonical_place_from_expression_in_state(
                         program,
                         state,
                         call.statement_index,
                         referent_expression,
-                    )
-                    .as_ref()
-                        != Some(place)
+                    );
+                    let (owner, owner_type) = if referent_place.as_ref() == Some(place) {
+                        (source, produced_type?)
+                    } else if place.segments.is_empty() && source == referent_expression
+                        && let Some(producer) = referent_place
+                            .as_ref()
+                            .and_then(|place| place.root.as_expression())
                     {
+                        // The retained operand evaluated the referent into
+                        // its own temporary — a scalar member read of an
+                        // anonymous construction — so the produced home is
+                        // the referent expression itself. The loan still
+                        // rides the producer's canonical place, which is
+                        // the custody coordinate the roster authenticates.
+                        (
+                            producer,
+                            validation::canonical_place_type_reference(
+                                program,
+                                state,
+                                call.statement_index,
+                                &validation::CanonicalPlace {
+                                    root: facts::PlaceRoot::Expression(producer),
+                                    segments: Vec::new(),
+                                },
+                            )?,
+                        )
+                    } else {
                         return None;
-                    }
+                    };
                     validate_shared_temporary(
                         program,
                         &facts.flow,
                         machine,
                         state,
                         call,
-                        source,
-                        produced_type?,
+                        owner,
+                        owner_type,
                     )?;
                 }
                 _ => return None,
@@ -735,7 +758,14 @@ fn argument_contract(
             } else {
                 source_type
             };
-            let contract = validation::structural_result_contract(program, source_type).ok()?;
+            // A borrowed anonymous result keeps custody with its retained
+            // producer; the shared-temporary admission already authenticated
+            // that loan. Only an owned transfer moves declared
+            // qualifications, so a borrow must not demand a contract-bearing
+            // carrier the referent does not need.
+            let contract = (access == CheckedStructuralAccess::Owned)
+                .then(|| validation::structural_result_contract(program, source_type).ok())
+                .flatten();
             if validation::reference_result_custody::result_multiplicity(program, source_type)
                 != result.multiplicity
                 || validation::structural_type_identity(program, source_type, &[], &[])
@@ -744,7 +774,7 @@ fn argument_contract(
                     && access == CheckedStructuralAccess::Owned
                     && (program.normalized_type_identity(source_type)
                         != program.normalized_type_identity(referent)
-                        || contract.qualifications
+                        || contract?.qualifications
                             != validation::structural_result_contract(program, referent)
                                 .ok()?
                                 .qualifications))

@@ -1,0 +1,20 @@
+// Expected exit: 0.
+//
+// A call operand may lend an anonymous temporary: `echo_u64(&7)` shares a
+// literal's evaluated home, `sum(&Pair { .. })` shares a constructed record,
+// and a projected member operand borrows through the same retained owner.
+machine echo_u64(value: &u64) -> u64 { value }
+
+data Pair { left: i32 in Wrapping; right: i32 in Wrapping; }
+machine sum(pair: &Pair) -> i32 in Wrapping { pair.left + pair.right }
+machine peek(value: &i32 in Wrapping) -> i32 in Wrapping { value }
+
+machine main() crashes Trap {
+    let a: u64 = echo_u64(&7);
+    let b: u64 = echo_u64(&19);
+    let c: i32 in Wrapping = sum(&Pair { left: 20, right: 3 });
+    let d: i32 in Wrapping = peek(&Pair { left: 4, right: 9 }.right);
+    transition a == 7 && b == 19 && c == 23 && d == 9 { true -> done() false -> wrong() }
+    state done() {}
+    state wrong() { crash Trap; }
+}

@@ -220,9 +220,6 @@ impl Builder<'_, '_> {
             TypeReferenceNode::Reference { .. } => return None,
             _ => (expression, expected),
         };
-        if self.program.primitive_type_reference(expected).is_some() {
-            return None;
-        }
         let statement = u32::try_from(self.statement_index).ok()?;
         let retained = self
             .structural_values

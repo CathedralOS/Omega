@@ -8908,6 +8908,7 @@ run/borrows/stored_subview_nested_call_result checked 6293ms check-target:macos_
 run/borrows/stored_subview_repeated_updates checked 6293ms check-target:macos_arm64 @3224bdead711
 run/borrows/transition_shared_borrow checked 11798ms check-target:macos_arm64 @a9ae30e1c334+wt
 run/calls/affine_call_local_field_exit checked 11247ms check-target:macos_arm64 @0e7ef4cb2ac8+wt
+run/calls/anonymous_shared_borrow_operands checked 3414ms check-target:macos_arm64 @73e11f08dcbb+wt
 run/calls/byte_literal_expression_values checked 6095ms check-target:macos_arm64 @0553d60b9b91+wt
 run/calls/fixed_dividend_across_console_calls checked 8916ms check-target:macos_arm64 @16ed47526a08
 run/calls/nested_range_call_operands checked 6080ms check-target:macos_arm64 @0553d60b9b91+wt

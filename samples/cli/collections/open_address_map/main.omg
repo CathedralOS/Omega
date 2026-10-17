@@ -1,0 +1,222 @@
+// Expected exit: 83
+
+use omega_language_std::console;
+
+machine int_hash(key: &u64) -> u64 { key }
+machine int_same(left: &u64, right: &u64) -> bool { left == right }
+
+machine byte_hash(key: &[u8; 8]) -> u64 {
+    let h: u64 = key[0] as u64 + key[7] as u64;
+    h
+}
+machine byte_same(left: &[u8; 8], right: &[u8; 8]) -> bool { left == right }
+
+data Slot<K, V> { key: K; value: V; tag: u64; }
+data Table<K, V> { slots: [Slot<K, V>; 16]; live: u64 in Wrapping; }
+
+// blank fills every slot with a placeholder so borrowed reads of empty
+// slots observe initialized storage; tag 0 keeps them unreachable.
+machine blank<K [copy], V [copy]>(table: &mut Table<K, V>, key: &K, value: &V) {
+    table.live = 0;
+    transition { _ -> wipe(table, key, value, 0) }
+
+    state wipe(table: &mut Table<K, V>, key: &K, value: &V, slot: u64)
+    requires slot < 16;
+    {
+        table.slots[slot].key = key;
+        table.slots[slot].value = value;
+        table.slots[slot].tag = 0;
+        transition slot + 1 < 16 { true -> wipe(table, key, value, slot + 1) _ -> {} }
+    }
+}
+
+// probe returns the slot in [0,16) holding `key`; for an absent key it
+// returns the first tombstone seen while scanning (for insertion reuse)
+// or the empty slot that ends the probe, or 16 when the table is full.
+machine probe<K, V, machine H, machine E>(table: &Table<K, V>, key: &K) -> u64
+where machine H(key: &K) -> u64
+where machine E(left: &K, right: &K) -> bool;
+{
+    let home: u64 = H(key) % 16;
+    transition { _ -> scan(table, key, home, 0, 16) }
+
+    state scan(table: &Table<K, V>, key: &K, slot: u64, seen: u64, reusable: u64) -> u64
+    requires slot < 16;
+    requires seen < 16;
+    requires reusable <= 16;
+    {
+        transition table.slots[slot].tag == 0 {
+            true -> open(table, key, slot, reusable)
+            _ -> live(table, key, slot, seen, reusable)
+        }
+    }
+
+    state open(table: &Table<K, V>, key: &K, slot: u64, reusable: u64) -> u64
+    requires slot < 16;
+    requires reusable <= 16;
+    {
+        transition reusable < 16 { true -> reusable _ -> slot }
+    }
+
+    state live(table: &Table<K, V>, key: &K, slot: u64, seen: u64, reusable: u64) -> u64
+    requires slot < 16;
+    requires seen < 16;
+    requires reusable <= 16;
+    {
+        transition E(&table.slots[slot].key, key) && table.slots[slot].tag == 1 {
+            true -> slot
+            _ -> dead(table, key, slot, seen, reusable)
+        }
+    }
+
+    state dead(table: &Table<K, V>, key: &K, slot: u64, seen: u64, reusable: u64) -> u64
+    requires slot < 16;
+    requires seen < 16;
+    requires reusable <= 16;
+    {
+        transition table.slots[slot].tag == 2 {
+            true -> tombstone(table, key, slot, seen, reusable)
+            _ -> ahead(table, key, slot, seen, reusable)
+        }
+    }
+
+    state tombstone(table: &Table<K, V>, key: &K, slot: u64, seen: u64, reusable: u64) -> u64
+    requires slot < 16;
+    requires seen < 16;
+    requires reusable <= 16;
+    {
+        transition reusable < 16 {
+            true -> ahead(table, key, slot, seen, reusable)
+            _ -> ahead(table, key, slot, seen, slot)
+        }
+    }
+
+    state ahead(table: &Table<K, V>, key: &K, slot: u64, seen: u64, reusable: u64) -> u64
+    requires slot < 16;
+    requires seen < 16;
+    requires reusable <= 16;
+    {
+        let next: u64 = (slot + 1) % 16;
+        let more: u64 = seen + 1;
+        transition more < 16 {
+            true -> scan(table, key, next, more, reusable)
+            _ -> reusable
+        }
+    }
+}
+
+// insert writes `key -> value`; an existing live key updates in place and
+// a tombstone or empty slot fills. A full table leaves the row unchanged.
+machine insert<K [copy], V [copy], machine H, machine E>(table: &mut Table<K, V>, key: &K, value: &V)
+where machine H(key: &K) -> u64
+where machine E(left: &K, right: &K) -> bool;
+{
+    let slot: u64 = probe<H, E>(table, key);
+    transition slot < 16 { true -> place(table, key, value, slot) _ -> full() }
+
+    state place(table: &mut Table<K, V>, key: &K, value: &V, slot: u64)
+    requires slot < 16;
+    {
+        transition table.slots[slot].tag == 1 {
+            true -> update(table, value, slot)
+            _ -> fill(table, key, value, slot)
+        }
+    }
+
+    state update(table: &mut Table<K, V>, value: &V, slot: u64)
+    requires slot < 16;
+    {
+        table.slots[slot].value = value;
+    }
+
+    state fill(table: &mut Table<K, V>, key: &K, value: &V, slot: u64)
+    requires slot < 16;
+    {
+        table.live = table.live + 1;
+        table.slots[slot].key = key;
+        table.slots[slot].value = value;
+        table.slots[slot].tag = 1;
+    }
+
+    state full() {}
+}
+
+// remove tombstones a live key; absent keys leave the table unchanged.
+machine remove<K, V, machine H, machine E>(table: &mut Table<K, V>, key: &K)
+where machine H(key: &K) -> u64
+where machine E(left: &K, right: &K) -> bool;
+{
+    let slot: u64 = probe<H, E>(table, key);
+    transition slot < 16 { true -> kill(table, slot) _ -> {} }
+
+    state kill(table: &mut Table<K, V>, slot: u64)
+    requires slot < 16;
+    {
+        transition table.slots[slot].tag == 1 { true -> drop_(table, slot) _ -> {} }
+    }
+
+    state drop_(table: &mut Table<K, V>, slot: u64)
+    requires slot < 16;
+    {
+        table.live = table.live - 1;
+        table.slots[slot].tag = 2;
+    }
+}
+
+// lookup reports the live value for `key`, or `miss` when absent.
+machine lookup<K, V [copy], machine H, machine E>(table: &Table<K, V>, key: &K, miss: &V) -> V
+where machine H(key: &K) -> u64
+where machine E(left: &K, right: &K) -> bool;
+{
+    let slot: u64 = probe<H, E>(table, key);
+    transition slot < 16 { true -> read(table, miss, slot) _ -> miss }
+
+    state read(table: &Table<K, V>, miss: &V, slot: u64) -> V
+    requires slot < 16;
+    {
+        let hit: V = table.slots[slot].value;
+        transition table.slots[slot].tag == 1 {
+            true -> hit
+            _ -> miss
+        }
+    }
+}
+
+data Main { }
+
+machine Main::main(main: &mut Main) reaches Console {
+    let mut ints: Table<u64, u64>;
+    blank(&mut ints, &0, &0);
+    insert<int_hash, int_same>(&mut ints, &5, &50);
+    insert<int_hash, int_same>(&mut ints, &21, &210);
+    insert<int_hash, int_same>(&mut ints, &37, &370);
+    remove<int_hash, int_same>(&mut ints, &21);
+    insert<int_hash, int_same>(&mut ints, &53, &530);
+    insert<int_hash, int_same>(&mut ints, &37, &371);
+
+    let r5: u64 = lookup<int_hash, int_same>(&ints, &5, &999);
+    let r21: u64 = lookup<int_hash, int_same>(&ints, &21, &999);
+    let r37: u64 = lookup<int_hash, int_same>(&ints, &37, &999);
+    let r53: u64 = lookup<int_hash, int_same>(&ints, &53, &999);
+
+    let mut bytes: Table<[u8; 8], u64>;
+    blank(&mut bytes, &[0, 0, 0, 0, 0, 0, 0, 0], &0);
+    insert<byte_hash, byte_same>(&mut bytes, &[65, 0, 0, 0, 0, 0, 0, 66], &11);
+    insert<byte_hash, byte_same>(&mut bytes, &[66, 0, 0, 0, 0, 0, 0, 65], &22);
+    remove<byte_hash, byte_same>(&mut bytes, &[65, 0, 0, 0, 0, 0, 0, 66]);
+    insert<byte_hash, byte_same>(&mut bytes, &[4, 0, 0, 0, 0, 0, 0, 4], &33);
+
+    let rb: u64 = lookup<byte_hash, byte_same>(&bytes, &[66, 0, 0, 0, 0, 0, 0, 65], &999);
+    let ra: u64 = lookup<byte_hash, byte_same>(&bytes, &[65, 0, 0, 0, 0, 0, 0, 66], &999);
+    let rc: u64 = lookup<byte_hash, byte_same>(&bytes, &[4, 0, 0, 0, 0, 0, 0, 4], &999);
+
+    transition r5 == 50 && r21 == 999 && r37 == 371 && r53 == 530
+        && rb == 22 && ra == 999 && rc == 33
+        && ints.live == 3 && bytes.live == 2 {
+        true -> good()
+        _ -> bad()
+    }
+
+    state good() { Console::exit_process(83); }
+    state bad() { Console::exit_process(1); }
+}
