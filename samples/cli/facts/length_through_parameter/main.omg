@@ -1,0 +1,19 @@
+// A runtime window length passed as a parameter still names the last byte.
+// Expected exit: 0
+machine read_at(window: &[u8], length: u64) -> u8
+requires length == window.len && length > 0
+{
+    window[length - 1]
+}
+machine last_byte(items: &[u8], count: u64) -> u8
+requires count > 0 && count <= items.len
+{
+    let window: &[u8] = &items[0..count];
+    read_at(window, window.len)
+}
+machine main() crashes Trap {
+    let items: [u8; 4] = [4, 7, 8, 9];
+    transition last_byte(&items[..], 3) == 8 { true -> done() _ -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}

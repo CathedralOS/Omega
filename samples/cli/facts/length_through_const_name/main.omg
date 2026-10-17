@@ -1,0 +1,15 @@
+// A const name of a runtime window's length still names the last byte.
+// Expected exit: 0
+const LENGTH: u64 = 3;
+machine last_byte(items: &[u8]) -> u8
+requires items.len == LENGTH && LENGTH > 0
+{
+    let window: &[u8] = &items[0..LENGTH];
+    window[LENGTH - 1]
+}
+machine main() crashes Trap {
+    let items: [u8; 4] = [4, 7, 8, 9];
+    transition last_byte(&items[0..3]) == 8 { true -> done() _ -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}
