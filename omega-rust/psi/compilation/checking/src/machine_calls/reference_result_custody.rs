@@ -1810,6 +1810,59 @@ pub fn transient_call_record_loans(
             })
 }
 
+/// A call result's reference field is already a captured descriptor. Forward
+/// that leaf when the consuming argument projects it. A named local stays on
+/// the construction path below; this does not invent a loan for a shared view.
+fn call_result_field_argument(
+    program: &dyn crate::CheckingInput,
+    facts: &CheckFacts,
+    state: &typed_trees::state::State,
+    result: &CheckedUnitStructuralResultBindingPlan,
+    expression: ExpressionHandle,
+    destination: TypeReferenceHandle,
+) -> Option<checked_trees::CheckedUnitStructuralArgumentPlan> {
+    let projection = aggregate_projection(program, state, expression)?;
+    let ExpressionNode::Call(produced) = program.expression_table.expression(projection.root)
+    else {
+        return None;
+    };
+    let callee = crate::call_target_state(program, produced.target_symbol)?;
+    if result.type_identity != program.normalized_type_identity(callee.return_type) {
+        return None;
+    }
+    let destination_leaves = declared_carrier_references(program, destination)?;
+    let [destination_leaf] = destination_leaves.as_slice() else {
+        return None;
+    };
+    if !destination_leaf.path.is_empty() || crate::reference_shell(program, destination).is_none() {
+        return None;
+    }
+    if program.normalized_type_identity(projection.selected_type)
+        != program.normalized_type_identity(destination)
+    {
+        return None;
+    }
+    let returned = captured_return_sources(program, facts, callee)?;
+    let leaf = returned.iter().find(|leaf| leaf.path == projection.path)?;
+    if leaf.source.type_identity != destination_leaf.type_identity
+        || !reference_access_can_supply(leaf.source.access, destination_leaf.access)
+    {
+        return None;
+    }
+    let mut path = projection.path;
+    if destination_leaf.crosses_reference {
+        path.push(checked_trees::CheckedUnitStructuralPathSegment::Referent);
+    }
+    Some(checked_trees::CheckedUnitStructuralArgumentPlan {
+        source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+            binding_ordinal: result.binding_ordinal,
+        },
+        path,
+        type_identity: crate::structural_type_identity(program, destination, &[], &[]),
+        access: destination_leaf.access,
+    })
+}
+
 /// A projected argument crosses the stored carrier only after its exact local
 /// construction and active leaf loan have been reconstructed.
 pub fn record_argument(
@@ -1822,6 +1875,11 @@ pub fn record_argument(
     result: &CheckedUnitStructuralResultBindingPlan,
     destination: TypeReferenceHandle,
 ) -> Option<checked_trees::CheckedUnitStructuralArgumentPlan> {
+    if let Some(argument) =
+        call_result_field_argument(program, facts, state, result, expression, destination)
+    {
+        return Some(argument);
+    }
     let destination_leaves = declared_carrier_references(program, destination)?;
     let [destination_leaf] = destination_leaves.as_slice() else {
         return None;

@@ -1,0 +1,90 @@
+// Expected exit: 0
+// A feature pair returns its mutable window beside the centered value.
+// The window is forwarded through a local, a record field, a parameter,
+// and the call result.
+use omega_language_std::console;
+
+data Centered<'row> {
+    window: &'row mut [f64];
+    value: f64;
+}
+
+data Held<'row> {
+    window: &'row mut [f64];
+}
+
+machine feature_pair<'row>(items: &'row mut [f64], mean: f64) -> Centered<'row>
+requires items.len == 2
+{
+    Centered { window: items, value: mean }
+}
+
+machine echo(value: f64) -> f64 { value }
+
+machine length_of(window: &mut [f64]) -> u64 {
+    window.len
+}
+
+data Main {
+    measurements: [f64; 4];
+    centered: f64;
+    local_length: u64;
+    field_length: u64;
+    parameter_length: u64;
+    parameter_value: f64;
+}
+
+machine Main::main(main: &mut Main) reaches Console {
+    main.measurements = [3.0, 5.0, 1.0, 9.0];
+    transition { _ -> local(main) }
+    state local(main: &mut Main) {
+        let produced: Centered = feature_pair(&mut main.measurements[0..2], 2.0);
+        let local_value: f64 = produced.value;
+        let local_length: u64 = produced.window.len;
+        main.centered = local_value;
+        let held: Held = Held { window: produced.window };
+        let field_length: u64 = held.window.len;
+        main.local_length = local_length;
+        main.field_length = field_length;
+        main.parameter_length = length_of(held.window);
+        main.parameter_value = echo(main.centered);
+        transition { _ -> check_value(main) }
+    }
+    state check_value(main: &mut Main) {
+        transition main.local_length == 2 {
+            true -> field_length(main)
+            false -> bad(main)
+        }
+    }
+    state local_length(main: &mut Main) {
+        transition main.local_length == 2 {
+            true -> field_length(main)
+            false -> bad(main)
+        }
+    }
+    state field_length(main: &mut Main) {
+        transition main.field_length == 2 {
+            true -> parameter_length(main)
+            false -> bad(main)
+        }
+    }
+    state parameter_length(main: &mut Main) {
+        transition main.parameter_length == 2 {
+            true -> call_value(main)
+            false -> bad(main)
+        }
+    }
+    state call_value(main: &mut Main) {
+        main.centered = echo(feature_pair(&mut main.measurements[0..2], 0.0).value);
+        transition { _ -> call_length(main) }
+    }
+    state call_length(main: &mut Main) {
+        let call_length: u64 = length_of(feature_pair(&mut main.measurements[0..2], 0.0).window);
+        transition call_length == 2 {
+            true -> done(main)
+            false -> bad(main)
+        }
+    }
+    state done(main: &mut Main) { Console::exit_process(0); }
+    state bad(main: &mut Main) { Console::exit_process(2); }
+}

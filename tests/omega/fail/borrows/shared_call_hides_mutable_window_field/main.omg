@@ -1,0 +1,20 @@
+// A shared call result cannot recover the mutable window stored in the record.
+data Centered<'row> {
+    window: &'row mut [f64];
+    value: f64;
+}
+
+machine feature_pair<'row>(items: &'row mut [f64; 2]) -> Centered<'row> {
+    let window: &mut [f64] = &mut items[..];
+    Centered { window: window, value: window[0] }
+}
+
+machine hide<'row>(record: &'row Centered<'row>) -> &'row Centered<'row> { record }
+
+machine length_of(window: &mut [f64]) -> u64 { window.len }
+
+machine observe<'row>(record: &'row Centered<'row>) -> u64 {
+    length_of(hide(record).window)
+}
+
+machine main() {}

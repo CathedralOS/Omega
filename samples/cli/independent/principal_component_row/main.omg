@@ -1,0 +1,93 @@
+// Expected exit: 0
+// Expected output contains: row score
+// A runtime-selected feature pair returns its mutable window and the centered
+// leading feature. The window length is observed through a local, a record
+// field, a parameter, and the call result.
+use omega_language_std::console;
+
+data Main {
+    measurements: [f64; 4];
+    centered: f64;
+    local_length: u64;
+    field_length: u64;
+    parameter_length: u64;
+    call_length: u64;
+}
+
+data Centered<'row> {
+    window: &'row mut [f64];
+    value: f64;
+}
+
+data Held<'row> {
+    window: &'row mut [f64];
+}
+
+machine low_pair<'row>(items: &'row mut [f64], mean: f64) -> Centered<'row>
+requires items.len == 2
+{
+    Centered { window: items, value: mean }
+}
+
+machine high_pair<'row>(items: &'row mut [f64], mean: f64) -> Centered<'row>
+requires items.len == 2
+{
+    Centered { window: items, value: mean }
+}
+
+machine echo(value: f64) -> f64 { value }
+
+machine length_of(window: &mut [f64]) -> u64 { window.len }
+
+machine Main::main(main: &mut Main) reaches Console {
+    main.measurements = [3.0, 5.0, 1.0, 9.0];
+    transition { _ -> low(main) }
+    state low(main: &mut Main) {
+        let produced: Centered = low_pair(&mut main.measurements[0..2], 2.0);
+        let local_length: u64 = produced.window.len;
+        main.centered = echo(produced.value);
+        let held: Held = Held { window: produced.window };
+        let field_length: u64 = held.window.len;
+        main.local_length = local_length;
+        main.field_length = field_length;
+        main.parameter_length = length_of(held.window);
+        transition { _ -> lengths(main) }
+    }
+    state lengths(main: &mut Main) {
+        transition main.local_length == 2 {
+            true -> field(main)
+            false -> bad(main)
+        }
+    }
+    state field(main: &mut Main) {
+        transition main.field_length == 2 {
+            true -> parameter(main)
+            false -> bad(main)
+        }
+    }
+    state parameter(main: &mut Main) {
+        transition main.parameter_length == 2 {
+            true -> high(main)
+            false -> bad(main)
+        }
+    }
+    state high(main: &mut Main) {
+        main.centered = echo(high_pair(&mut main.measurements[2..4], 2.0).value);
+        main.call_length = length_of(low_pair(&mut main.measurements[0..2], 0.0).window);
+        transition { _ -> call(main) }
+    }
+    state call(main: &mut Main) {
+        transition main.call_length == 2 {
+            true -> emit(main)
+            false -> bad(main)
+        }
+    }
+    state emit(main: &mut Main) {
+        Console::write_line("row score");
+        Console::exit_process(0);
+    }
+    state bad(main: &mut Main) {
+        Console::write_line("row mismatch");
+        Console::exit_process(2);
+    }
+}

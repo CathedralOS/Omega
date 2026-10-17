@@ -1069,6 +1069,8 @@ fail/borrows/selected_stored_carrier_child_holds_parent rejected 963ms expected 
 	statement 5 mutates `left.value` while local borrow `held` is still active (borrowed at statement 4; its last use is at statement 6)
 fail/borrows/selected_stored_carrier_retains_incoming rejected 1005ms expected @3224bdead711
 	statement 4 mutates `left.value` while local borrow `held` is still active (borrowed at statement 3; its last use is at statement 5)
+fail/borrows/shared_call_hides_mutable_window_field rejected 268ms expected @73e11f08dcbb+wt
+	argument `window` for state `entry` is declared `&mut` (`&mut [f64]`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
 fail/borrows/shared_carrier_storage_move rejected 1549ms expected @a9ae30e1c334+wt
 	state `take` receives an owned value while local borrow `alias` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
 fail/borrows/shared_entry_jump_into_mutable_receiver_state rejected 869ms expected @a9ae30e1c334+wt

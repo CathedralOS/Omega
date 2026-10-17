@@ -3,6 +3,8 @@
 //! Type matching does not manufacture a loan. Forwarding additionally anchors
 //! the current-state binding and checks every enclosing reference permission;
 //! a mutable leaf behind shared storage cannot authorize an exclusive call.
+//! An owned call result or literal has no binding to anchor, so its projection
+//! uses the same enclosing-permission check without inventing a place.
 use super::{
     ExpressionHandle, ExpressionNode, TypeReferenceHandle, TypeReferenceNode,
     named_value_type_reference,
