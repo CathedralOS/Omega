@@ -3014,6 +3014,25 @@ fail/facts/dependent_subtract_through_target_body_rejected rejected 290ms expect
 	exact arithmetic in machine `gap` state `entry` local `remaining` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `gap` state `entry` local `remaining` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `gap` state `entry` local `remaining` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/matched_window_through_call_result_rejected rejected 664ms expected @a48b0ac286f5
+	cannot prove ensures contract for exit from from_call at statement 0: result.len == 2
+fail/facts/matched_window_through_const_name_rejected rejected 659ms expected @a48b0ac286f5
+	cannot prove ensures contract for exit from from_const at statement 0: result.len == 2
+fail/facts/matched_window_through_field_rejected rejected 659ms expected @a48b0ac286f5
+	cannot prove ensures contract for exit from from_field at statement 0: result.len == 2
+fail/facts/matched_window_through_local_rejected rejected 656ms expected @a48b0ac286f5
+	cannot prove ensures contract for exit from from_local at statement 1: result.len == 2
+fail/facts/matched_window_through_match_join_rejected rejected 659ms expected @a48b0ac286f5
+	cannot prove ensures contract for exit from from_join at statement 0: result.len == 2
+	cannot prove every subslice range endpoint of `0..match flag { true => which + 1, false => 2 }` is non-negative
+fail/facts/matched_window_through_other_machine_rejected rejected 655ms expected @a48b0ac286f5
+	cannot prove requires contract for call open_end from from_machine: which + 1 == 2 (needs fact `end == 2` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/matched_window_through_other_state_rejected rejected 651ms expected @a48b0ac286f5
+	cannot prove ensures contract for exit from from_state at statement 0: result.len == 2
+fail/facts/matched_window_through_parameter_rejected rejected 651ms expected @a48b0ac286f5
+	cannot prove ensures contract for exit from from_parameter at statement 0: result.len == 2
+fail/facts/matched_window_through_target_body_rejected rejected 649ms expected @a48b0ac286f5
+	cannot prove ensures contract for exit from from_target at statement 0: result.len == 2
 fail/float/authored_heterogeneous_float_operator_requires rejected 472ms expected @f7d5743143af
 	cannot prove requires contract for call equal_formats from invalid: negative >= 0.0 (needs fact `left >= 0.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/float/boundary_call_guard_wrong_argument rejected 2266ms expected @f7d5743143af

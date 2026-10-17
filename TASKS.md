@@ -547,6 +547,12 @@ defines the complete product bar.
     contents. Portable calls use common public result equations and the union
     of every retained body's writes; call premises substitute exact actuals
     before interpreting extents, including when caller and formal names collide.
+    Each place has a length-1 reject twin against the unchanged length-2 promise.
+    Distinct runtime calls keep separate result identities; one captured scalar
+    still transports through a state and subtracts from itself (native/Terminal 0).
+    Remaining collection-prefix gap: an earlier indexed store prevents proving
+    `runtime_returned_range_extent_contract_exit`'s later call premise. It remains
+    rejected before execution, as independently observed on unchanged `506f870`.
   - **Loan locals and projected storage.** **REFERENCE-LOCAL-BINDING-ROUTES**
     owns local loan establishment, reads, returned references and state
     forwarding; [representation-view checking](omega-rust/psi/compilation/checking/recasts.md)
