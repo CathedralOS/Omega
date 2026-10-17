@@ -128,3 +128,55 @@ pub machine Cavity::balanced(cavity: &Cavity) -> bool {
     partition == 65535 && total == 16 && cell_count(cavity.filled) == cavity.used
         && cavity.used <= cavity.budget && cavity.tick >= 0 && cavity.tick <= 15
 }
+
+// One arrival row is four ticks. The gate cell and the other three ticks are
+// separate windows. Each returned record publishes that window's length.
+// Realizing that returned loan is still refused, so the running report does
+// not call these machines; package checking still proves the postconditions.
+data HeldTicks<'row> { values: &'row mut [i32 in Wrapping]; }
+
+machine gate_window<'row>(items: &'row mut [i32 in Wrapping; 4]) -> HeldTicks<'row>
+ensures result.values.len == 1
+{
+    HeldTicks { values: &mut items[0..1] }
+}
+
+machine rest_window<'row>(items: &'row mut [i32 in Wrapping; 4]) -> HeldTicks<'row>
+ensures result.values.len == 3
+{
+    HeldTicks { values: &mut items[1..4] }
+}
+
+// Both halves of the row have length 2. A match publishes that shared length
+// on the record field, the same fact a single returned window publishes.
+machine half_window<'row>(
+    items: &'row mut [i32 in Wrapping; 4],
+    which: i32 in Wrapping
+) -> HeldTicks<'row>
+ensures result.values.len == 2
+{
+    match which {
+        0 -> HeldTicks { values: &mut items[0..2] }
+        _ -> HeldTicks { values: &mut items[2..4] }
+    }
+}
+
+machine write_first(window: &mut [i32 in Wrapping], tick: i32 in Wrapping)
+requires window.len >= 1 {
+    window[0] = tick;
+}
+
+pub machine arrival_row_holds() -> bool {
+    let mut row: [i32 in Wrapping; 4] = [1, 2, 3, 4];
+    let gate: HeldTicks = gate_window(&mut row);
+    let gate_length: u64 = gate.values.len;
+    write_first(gate.values, 1);
+    let rest: HeldTicks = rest_window(&mut row);
+    let rest_length: u64 = rest.values.len;
+    write_first(rest.values, 2);
+    let half: HeldTicks = half_window(&mut row, 0);
+    let half_length: u64 = half.values.len;
+    write_first(half.values, 1);
+    gate_length == 1 && rest_length == 3 && half_length == 2 && row[0] == 1
+        && row[1] == 2 && row[2] == 3 && row[3] == 4
+}

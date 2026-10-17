@@ -106,6 +106,7 @@ pub(super) fn proves<'program>(
                         || evaluator.proves_immutable_result_comparison(atom)
                         || evaluator.proves_return_arithmetic(atom)
                         || evaluator.proves_result_field_equality(atom)
+                        || evaluator.proves_result_collection_length(atom)
                         || evaluator.write_transported_equality(atom))
                     .then_some(true)
                     .or_else(|| evaluator.current_predicate(atom))

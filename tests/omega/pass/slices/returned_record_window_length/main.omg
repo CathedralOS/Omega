@@ -1,0 +1,43 @@
+// A match of two equal windows returns those windows inside a record and
+// publishes the shared length. The caller reads that length from the record
+// field. Native execution uses the same windows through a slice return, which
+// is the executable form of this loan; the record return is checked here.
+// Expected native exit: 0
+data Held<'row> { values: &'row mut [u8]; }
+
+machine record_half<'row>(items: &'row mut [u8; 4], which: i64) -> Held<'row>
+ensures result.values.len == 2
+{
+    match which {
+        0 -> Held { values: &mut items[0..2] }
+        _ -> Held { values: &mut items[2..4] }
+    }
+}
+
+machine half<'row>(items: &'row mut [u8; 4], which: i64) -> &'row mut [u8]
+ensures result.len == 2
+{
+    match which {
+        0 -> &mut items[0..2]
+        _ -> &mut items[2..4]
+    }
+}
+
+machine write_pair(window: &mut [u8])
+requires window.len >= 2 {
+    window[0] = 9;
+    window[1] = 8;
+}
+
+machine main() crashes Trap {
+    let mut bytes: [u8; 4] = [1, 2, 3, 4];
+    let view: &mut [u8] = half(&mut bytes, 0);
+    let held: Held = Held { values: view };
+    write_pair(held.values);
+    transition bytes[0] == 9 && bytes[1] == 8 && bytes[2] == 3 && bytes[3] == 4 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

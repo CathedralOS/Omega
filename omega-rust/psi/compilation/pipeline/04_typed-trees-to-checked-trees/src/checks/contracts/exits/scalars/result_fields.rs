@@ -3,6 +3,12 @@
 //! place namespace, retaining carrier and overflow policy. It does not replay
 //! local initializers or calls. The whole return must preserve its operands:
 //! a later sibling field may otherwise invalidate an earlier field's read.
+//!
+//! A slice stored in a returned record publishes that field's closed extent.
+//! The extent is the initializer's geometry, not a second length word on the
+//! record. A match publishes one extent only when every arm agrees. Arms with
+//! different extents still satisfy a relation when each arm does, and they
+//! never publish one arm's extent as the other's.
 
 use validation::CanonicalPlace;
 
@@ -182,21 +188,30 @@ impl ExitScalars<'_, '_> {
             self.machine,
             Some(state),
             expression,
-        ) && validation::reserved_result_owner(self.program, receiver)
-            .is_some_and(|(owner, _)| owner == self.machine.symbol)
-        {
-            let returned = exit_return_expression(self.program, self.exit);
-            if !self.return_expression_is_stable(returned) {
-                return None;
+        ) {
+            if let Some(length) = self.agreed_result_collection_length(state, receiver) {
+                return Some(ScalarValue::Integer(numerics::bignum::BigInt::from_u64(
+                    length,
+                )));
             }
-            return validation::closed_collection_length(
-                self.program,
-                self.machine,
-                state,
-                returned,
-            )
-            .map(numerics::bignum::BigInt::from_u64)
-            .map(ScalarValue::Integer);
+            // The whole returned descriptor keeps its previous route when the
+            // field projection does not apply. A record field is not that route.
+            if validation::reserved_result_owner(self.program, receiver)
+                .is_some_and(|(owner, _)| owner == self.machine.symbol)
+            {
+                let returned = exit_return_expression(self.program, self.exit);
+                if !self.return_expression_is_stable(returned) {
+                    return None;
+                }
+                return validation::closed_collection_length(
+                    self.program,
+                    self.machine,
+                    state,
+                    returned,
+                )
+                .map(numerics::bignum::BigInt::from_u64)
+                .map(ScalarValue::Integer);
+            }
         }
         let (value, remaining) = self.result_projection(expression)?;
         if remaining.is_empty() {
@@ -244,6 +259,284 @@ impl ExitScalars<'_, '_> {
 
     pub(super) fn proves_result_field_equality(&self, expression: ExpressionHandle) -> bool {
         self.result_field_equality(expression) == Some(true)
+    }
+
+    /// `result.field.len` compared with a literal. Every constructed arm must
+    /// establish the same relation. Disagreeing extents do not become one value.
+    pub(super) fn proves_result_collection_length(&self, expression: ExpressionHandle) -> bool {
+        self.result_collection_length_relation(expression) == Some(true)
+    }
+
+    fn result_collection_length_relation(&self, expression: ExpressionHandle) -> Option<bool> {
+        let comparison = self.program.expression_table.binary_node(expression)?;
+        let state =
+            validation::find_state_on_machine(self.program, self.machine, self.exit.state_symbol)?;
+        let (receiver, expected, operator) = self.length_comparison(state, comparison)?;
+        let lengths = self.result_collection_lengths(state, receiver)?;
+        if lengths.is_empty() {
+            return None;
+        }
+        Some(lengths.iter().all(|length| {
+            let length = numerics::bignum::BigInt::from_u64(*length);
+            Self::length_relation(&length, operator, &expected)
+        }))
+    }
+
+    fn length_comparison(
+        &self,
+        state: &State,
+        comparison: &typed_trees::expression::TableBinaryExpression,
+    ) -> Option<(ExpressionHandle, numerics::bignum::BigInt, BinaryOperator)> {
+        let left_length = validation::collection_length_receiver(
+            self.program,
+            self.machine,
+            Some(state),
+            comparison.left,
+        );
+        let right_length = validation::collection_length_receiver(
+            self.program,
+            self.machine,
+            Some(state),
+            comparison.right,
+        );
+        let (receiver, expected, operator) = if left_length.is_some() {
+            (
+                left_length?,
+                self.integer_literal(comparison.right)?,
+                comparison.operator,
+            )
+        } else if right_length.is_some() {
+            (
+                right_length?,
+                self.integer_literal(comparison.left)?,
+                Self::flipped_relation(comparison.operator)?,
+            )
+        } else {
+            return None;
+        };
+        matches!(
+            operator,
+            BinaryOperator::Equal
+                | BinaryOperator::NotEqual
+                | BinaryOperator::Less
+                | BinaryOperator::LessOrEqual
+                | BinaryOperator::Greater
+                | BinaryOperator::GreaterOrEqual
+        )
+        .then_some((receiver, expected, operator))
+    }
+
+    fn integer_literal(&self, expression: ExpressionHandle) -> Option<numerics::bignum::BigInt> {
+        match self.program.expression_table.expression(expression) {
+            ExpressionNode::Integer(value) => value.value_bignum(),
+            _ => None,
+        }
+    }
+
+    fn flipped_relation(operator: BinaryOperator) -> Option<BinaryOperator> {
+        Some(match operator {
+            BinaryOperator::Equal => BinaryOperator::Equal,
+            BinaryOperator::NotEqual => BinaryOperator::NotEqual,
+            BinaryOperator::Less => BinaryOperator::Greater,
+            BinaryOperator::LessOrEqual => BinaryOperator::GreaterOrEqual,
+            BinaryOperator::Greater => BinaryOperator::Less,
+            BinaryOperator::GreaterOrEqual => BinaryOperator::LessOrEqual,
+            _ => return None,
+        })
+    }
+
+    fn length_relation(
+        length: &numerics::bignum::BigInt,
+        operator: BinaryOperator,
+        expected: &numerics::bignum::BigInt,
+    ) -> bool {
+        match operator {
+            BinaryOperator::Equal => length == expected,
+            BinaryOperator::NotEqual => length != expected,
+            BinaryOperator::Less => length < expected,
+            BinaryOperator::LessOrEqual => length <= expected,
+            BinaryOperator::Greater => length > expected,
+            BinaryOperator::GreaterOrEqual => length >= expected,
+            _ => false,
+        }
+    }
+
+    /// One closed extent when every arm of this result projection agrees.
+    fn agreed_result_collection_length(
+        &self,
+        state: &State,
+        receiver: ExpressionHandle,
+    ) -> Option<u64> {
+        let lengths = self.result_collection_lengths(state, receiver)?;
+        let first = *lengths.first()?;
+        lengths
+            .iter()
+            .all(|length| *length == first)
+            .then_some(first)
+    }
+
+    /// Closed extents of the slice selected by `receiver` on this exit.
+    /// A match contributes every arm. A record field contributes that field's
+    /// initializer. The record itself is not a descriptor.
+    fn result_collection_lengths(
+        &self,
+        state: &State,
+        receiver: ExpressionHandle,
+    ) -> Option<Vec<u64>> {
+        let segments = self.result_receiver_segments(receiver)?;
+        if !stable_segments(&segments) {
+            return None;
+        }
+        let returned = exit_return_expression(self.program, self.exit);
+        let entry = self.program.machine_states(self.machine).first()?;
+        self.collection_lengths_through(state, returned, entry.return_type, &segments)
+    }
+
+    /// Field path from this machine's reserved result to the length receiver.
+    /// An intermediate `result.field` node is not its own contract root, so the
+    /// result name owns the path and each field is resolved on the result type.
+    fn result_receiver_segments(
+        &self,
+        receiver: ExpressionHandle,
+    ) -> Option<Vec<facts::PlaceSegment>> {
+        let mut members = Vec::new();
+        let mut cursor = receiver;
+        loop {
+            if !self.program.expression_table.expression_is_valid(cursor) || members.len() >= 128 {
+                return None;
+            }
+            match self.program.expression_table.expression(cursor) {
+                ExpressionNode::Member(member) if member.case_variant.is_none() => {
+                    members.push(member);
+                    cursor = member.receiver;
+                }
+                ExpressionNode::Name(_) => break,
+                _ => return None,
+            }
+        }
+        let (owner, mut type_reference) = validation::reserved_result_owner(self.program, cursor)?;
+        if owner != self.machine.symbol {
+            return None;
+        }
+        let mut segments = Vec::with_capacity(members.len());
+        for member in members.into_iter().rev() {
+            let field = self.field_of_type(type_reference, member)?;
+            segments.push(facts::PlaceSegment::Field {
+                symbol: field.symbol,
+            });
+            type_reference = field.type_reference;
+        }
+        Some(segments)
+    }
+
+    fn field_of_type(
+        &self,
+        type_reference: typed_trees::types::TypeReferenceHandle,
+        member: &typed_trees::expression::TableMemberExpression,
+    ) -> Option<&typed_trees::data::DataField> {
+        let mut reference = type_reference;
+        loop {
+            match self.program.type_reference_table.type_reference(reference) {
+                typed_trees::types::TypeReferenceNode::Reference { referee, .. }
+                | typed_trees::types::TypeReferenceNode::Constrained {
+                    base_type: referee, ..
+                } => reference = *referee,
+                typed_trees::types::TypeReferenceNode::Generic { base_symbol, .. } => {
+                    return self.field_of_data(*base_symbol, member);
+                }
+                typed_trees::types::TypeReferenceNode::Named { symbol, .. } => {
+                    return self.field_of_data(*symbol, member);
+                }
+                _ => return None,
+            }
+        }
+    }
+
+    fn field_of_data(
+        &self,
+        symbol: symbols::SymbolHandle,
+        member: &typed_trees::expression::TableMemberExpression,
+    ) -> Option<&typed_trees::data::DataField> {
+        let mut definitions = self
+            .program
+            .data_definitions()
+            .iter()
+            .filter(|data| data.symbol == symbol);
+        let data = definitions.next()?;
+        if definitions.next().is_some() {
+            return None;
+        }
+        self.program
+            .data_members(data)
+            .iter()
+            .find_map(|candidate| {
+                let field = candidate.as_field()?;
+                let selected = if member.member_symbol.is_valid() {
+                    field.symbol == member.member_symbol
+                } else {
+                    field.name.as_str() == member.member.as_str()
+                };
+                selected.then_some(field)
+            })
+    }
+
+    fn collection_lengths_through(
+        &self,
+        state: &State,
+        expression: ExpressionHandle,
+        reference: typed_trees::types::TypeReferenceHandle,
+        segments: &[facts::PlaceSegment],
+    ) -> Option<Vec<u64>> {
+        if let ExpressionNode::Match(dispatch) =
+            self.program.expression_table.expression(expression)
+        {
+            let arms = self.program.expression_table.match_arms(dispatch.arms);
+            if arms.is_empty() {
+                return None;
+            }
+            let mut lengths = Vec::new();
+            for arm in arms {
+                lengths.extend(
+                    self.collection_lengths_through(state, arm.value, reference, segments)?,
+                );
+            }
+            return (!lengths.is_empty()).then_some(lengths);
+        }
+        if segments.is_empty() {
+            if !self.return_expression_is_stable(expression) {
+                return None;
+            }
+            return validation::closed_collection_length(
+                self.program,
+                self.machine,
+                state,
+                expression,
+            )
+            .map(|length| vec![length]);
+        }
+        let projections = flow::literal_expression_projections(
+            self.program,
+            expression,
+            reference,
+            segments,
+            false,
+        )?;
+        if projections.is_empty() {
+            return None;
+        }
+        let mut lengths = Vec::new();
+        for projection in projections {
+            if !projection.remaining.is_empty() {
+                return None;
+            }
+            lengths.extend(self.collection_lengths_through(
+                state,
+                projection.expression,
+                reference,
+                &[],
+            )?);
+        }
+        (!lengths.is_empty()).then_some(lengths)
     }
 
     fn result_field_equality(&self, expression: ExpressionHandle) -> Option<bool> {

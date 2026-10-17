@@ -20,7 +20,10 @@ pub struct ReservedResultPlace {
 }
 
 /// Resolve ordinary field projections rooted at the reserved contract result.
-/// Both the root and complete projection must occur in the same owning ensures.
+/// The result name and the complete projection share one owning ensures when
+/// the occurrence index lists both. An intermediate field node that the index
+/// does not list separately still belongs to that result; a different owner
+/// for the same nodes does not.
 pub fn reserved_result_place(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
@@ -42,7 +45,8 @@ pub fn reserved_result_place(
     }
     let (machine_symbol, mut type_reference) = reserved_result_owner(program, root)?;
     if expression != root
-        && contract_occurrence_owner(program, root, expression)? != (machine_symbol, type_reference)
+        && let Some(owner) = contract_occurrence_owner(program, root, expression)
+        && owner != (machine_symbol, type_reference)
     {
         return None;
     }
@@ -50,20 +54,30 @@ pub fn reserved_result_place(
     for member in members.into_iter().rev() {
         let receiver =
             crate::value_custody::places::unwrapped_type_reference(program, type_reference)?;
-        // A generic base alone does not instantiate its field telescope. Named
-        // specializations already carry the producer's concrete declaration.
-        let typed_trees::types::TypeReferenceNode::Named { symbol, .. } =
-            program.type_reference_table.type_reference(receiver)
-        else {
-            return None;
+        // A lifetime application such as `Held<'row>` keeps the base data's
+        // fields. An open type argument is not that application: its field
+        // types are not a concrete telescope, so this query still stops.
+        let symbol = match program.type_reference_table.type_reference(receiver) {
+            typed_trees::types::TypeReferenceNode::Named { symbol, .. } => *symbol,
+            typed_trees::types::TypeReferenceNode::Generic {
+                base_symbol,
+                arguments,
+                ..
+            } if arguments.is_empty()
+                && base_symbol.is_valid()
+                && program.symbols.get(*base_symbol).kind == symbols::SymbolKind::Data =>
+            {
+                *base_symbol
+            }
+            _ => return None,
         };
-        if !symbol.is_valid() || program.symbols.get(*symbol).kind != symbols::SymbolKind::Data {
+        if !symbol.is_valid() || program.symbols.get(symbol).kind != symbols::SymbolKind::Data {
             return None;
         }
         let mut declarations = program
             .data_definitions()
             .iter()
-            .filter(|data| data.symbol == *symbol);
+            .filter(|data| data.symbol == symbol);
         let data = declarations.next()?;
         if declarations.next().is_some() {
             return None;

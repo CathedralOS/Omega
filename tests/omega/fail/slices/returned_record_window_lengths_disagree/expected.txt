@@ -1,0 +1,1 @@
+cannot prove ensures contract for exit from span at statement 0: result.values.len == 2

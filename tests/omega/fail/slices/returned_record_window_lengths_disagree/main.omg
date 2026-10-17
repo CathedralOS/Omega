@@ -1,0 +1,11 @@
+// Arms of different lengths do not publish either length as the field's length.
+data Held<'row> { values: &'row mut [i32 in Wrapping]; }
+machine span<'row>(items: &'row mut [i32 in Wrapping; 4], which: i32 in Wrapping) -> Held<'row>
+ensures result.values.len == 2
+{
+    match which {
+        0 -> Held { values: &mut items[0..1] }
+        _ -> Held { values: &mut items[1..4] }
+    }
+}
+machine main() {}
