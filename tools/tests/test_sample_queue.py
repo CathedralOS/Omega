@@ -183,6 +183,43 @@ class SampleQueueTests(unittest.TestCase):
             self.assertEqual(Path(queue_module.latest_record(include_all=True)).name,
                              "20261001T000000Z-macos_arm64.json")
 
+    def test_facts_record_does_not_replace_the_program_queue(self):
+        runs = self.root / "runs"
+        runs.mkdir()
+        (runs / "20261005T000000Z-linux_x86_64.json").write_text(json.dumps({
+            "filter": "", "scope": "programs",
+            "results": [{"sample": "samples/cli/app", "state": "oracle-failed"}]}))
+        (runs / "20261006T000000Z-linux_x86_64.json").write_text(json.dumps({
+            "filter": "cli/facts", "scope": "discovery",
+            "results": [{"sample": "samples/cli/facts/runtime_count_index",
+                         "state": "oracle-failed"}]}))
+        with patch.object(queue_module, "RUNS", runs):
+            self.assertEqual(Path(queue_module.latest_record()).name,
+                             "20261005T000000Z-linux_x86_64.json")
+            self.assertEqual(Path(queue_module.latest_record(facts=True)).name,
+                             "20261006T000000Z-linux_x86_64.json")
+
+    def test_facts_flag_lists_fact_failures_and_hides_other_programs(self):
+        program = self.sample("samples/cli/app", 8)
+        fact = self.sample("samples/cli/facts/runtime_count_index", 12)
+        record = self.root / "mixed.json"
+        record.write_text(json.dumps(self.record(
+            (program, "oracle-failed", "program refusal"),
+            (fact, "oracle-failed", "fact refusal"))))
+        output = io.StringIO()
+        with patch.object(queue_module, "live_ownership", return_value=[]), \
+                patch.object(queue_module.sys, "argv",
+                             ["sample_queue.py", "--facts", "--record", str(record)]), \
+                redirect_stdout(output):
+            self.assertEqual(queue_module.main(), 0)
+        text = output.getvalue()
+        self.assertIn(fact, text)
+        self.assertNotIn(program, text)
+        self.assertEqual(queue_module.discovery_command(facts=True),
+                         "python3 tools/sample_native_gate.py --programs-only --find-work --facts")
+        self.assertEqual(queue_module.discovery_command(),
+                         "python3 tools/sample_native_gate.py --programs-only --find-work")
+
     def test_explicit_application_record_cannot_satisfy_all(self):
         record = self.root / "programs.json"
         record.write_text('{"filter": "", "scope": "programs", "results": []}')

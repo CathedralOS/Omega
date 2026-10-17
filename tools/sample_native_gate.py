@@ -64,8 +64,11 @@ replacement a rebuild makes.
 
 `--programs-only` selects application work without probe/control trees. Its
 completed record feeds the default work queue but does not establish full
-release coverage. Unexpected failures are printed immediately, before the
-remaining projects finish; a final run record is written only at completion.
+release coverage. `--facts` limits discovery to `samples/cli/facts` and records
+filter `cli/facts`, including with `--find-work`. The unfiltered queue ignores
+that record. Omit `--facts` for ordinary program runs. Unexpected failures are
+printed immediately, before the remaining projects finish; a final run record
+is written only at completion.
 """
 
 import argparse
@@ -569,7 +572,7 @@ def find_work(arguments, samples):
     except sample_queue.outcome_claims.ClaimsError as error:
         ownership = None
         print(f"sample_native_gate: ownership unknown: {error}", file=sys.stderr)
-    previous = sample_queue.latest_record()
+    previous = sample_queue.latest_record(facts=bool(getattr(arguments, "facts", False)))
     record = json.loads(Path(previous).read_text(encoding="utf-8")) if previous else {}
     candidates = sample_queue.discovery_candidates(samples, record, ownership)
     results = []
@@ -607,6 +610,9 @@ def main():
     parser.add_argument("--target", default=host_target(),
                         help="defaults to this host's target")
     parser.add_argument("--filter", help="comma-separated path fragments")
+    parser.add_argument("--facts", action="store_true",
+                        help="discover only samples/cli/facts; ordinary program "
+                             "runs omit this flag")
     parser.add_argument("--programs-only", action="store_true",
                         help="discover application work without probe/control trees; "
                              "not a full release gate")
@@ -649,7 +655,7 @@ def main():
         print(f"sample_native_gate: warning: {staleness}", file=sys.stderr)
 
     wanted = [fragment.strip() for fragment in (arguments.filter or "").split(",") if fragment.strip()]
-    samples = discover("samples", wanted)
+    samples = discover("samples/cli/facts" if arguments.facts else "samples", wanted)
     if arguments.programs_only:
         samples = [sample for sample in samples if work_kind(sample) == "program"]
     if not samples:
@@ -941,7 +947,7 @@ def record_run(arguments, started, results, buckets, passed, scored, timing=None
                     stale=staleness),
         "jobs": getattr(arguments, "jobs", None),
         "timeout": getattr(arguments, "timeout", None),
-        "filter": arguments.filter or "",
+        "filter": arguments.filter or ("cli/facts" if getattr(arguments, "facts", False) else ""),
         "scope": ("discovery" if getattr(arguments, "find_work", False) else
                   "programs" if getattr(arguments, "programs_only", False) else "all"),
         "summary": {

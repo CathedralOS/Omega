@@ -582,6 +582,10 @@ For work selection, `python3 tools/sample_native_gate.py --programs-only`
 omits the same probe/control trees the work queue excludes. It retains
 host exclusions and missing-oracle reports. This is application discovery,
 not release acceptance: the unfiltered default gate still checks every project.
+Compiler advancement adds `--facts` (`--programs-only --find-work --facts`,
+then `python3 tools/sample_queue.py --facts`). That record is filtered to
+`samples/cli/facts` and does not replace the unfiltered application queue.
+Ordinary program runs omit `--facts`.
 Unexpected failures print immediately as they finish, before the aggregate
 report. Only a completed run writes a queue record; an interrupted run is not
 complete coverage.
@@ -836,6 +840,9 @@ next application failure. It remeasures previous failures first, excludes live
 claimed outcomes and owner prerequisites, then tries smaller applications. It
 stops scheduling when a confirmed failure supplies work. `sample_queue.py` reads
 that partial discovery record and labels unmeasured applications unknown.
+`--facts` on that command and on `sample_queue.py` limits the same search to
+`samples/cli/facts` for compiler advancement. Without `--facts`, ordinary
+program discovery is unchanged.
 Historical verdicts guide order only: they never become fresh acceptance.
 
 Discovery does not replace complete application coverage or the full release

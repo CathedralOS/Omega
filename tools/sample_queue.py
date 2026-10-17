@@ -26,6 +26,11 @@ Partial discovery leaves unmeasured applications unknown. Probes
     python3 tools/sample_queue.py
     python3 tools/sample_queue.py --limit 5
     python3 tools/sample_queue.py --all --json
+    python3 tools/sample_queue.py --facts
+
+`--facts` reads the latest `cli/facts` record and lists only
+`samples/cli/facts` witnesses. That record does not replace this unfiltered
+program queue. Compiler advancement uses `--facts`; ordinary program runs omit it.
 
 Reads the live outcome registry once. Claimed samples stay visible with their
 owners and notes. Failed registry reads mark ownership unknown; they never imply
@@ -56,12 +61,14 @@ FAILING = ("no-native-build", "oracle-failed", "error", "timeout", "check-fail",
            "rejection-failed", "discovery-error")
 
 
-def latest_record(include_all=False):
+def latest_record(include_all=False, facts=False):
     """Newest application work evidence, or full coverage for --all.
 
     Explicit partial discovery records can supply measured failures, while an
     empty discovery never declares the queue exhausted. Ordinary filtered runs
     cannot replace complete coverage. Legacy records are full gate runs.
+    `facts` selects the newest `cli/facts` record instead, and never the
+    unfiltered program queue.
     """
     candidates = set(glob.glob(str(RUNS / "*.json")))
     candidates.update(glob.glob(str(ROOT / "build" / "sample-gate-runs" / "*.json")))
@@ -71,12 +78,31 @@ def latest_record(include_all=False):
         except (OSError, ValueError):
             continue
         scope = record.get("scope", "all")
-        if not record.get("filter") and scope in ("all", "programs", "discovery") \
-                and (not include_all or scope == "all"):
-            if scope != "discovery" or any(row.get("state") in FAILING
-                                            for row in record.get("results", [])):
-                return path
+        record_filter = record.get("filter") or ""
+        if facts:
+            if record_filter != "cli/facts" or scope not in ("all", "programs", "discovery"):
+                continue
+        elif record_filter or scope not in ("all", "programs", "discovery") \
+                or (include_all and scope != "all"):
+            continue
+        if scope != "discovery" or any(row.get("state") in FAILING
+                                        for row in record.get("results", [])):
+            return path
     return None
+
+
+def discovery_command(include_all=False, facts=False):
+    """The gate invocation that can refresh this queue."""
+    if include_all:
+        return "python3 tools/sample_native_gate.py"
+    command = "python3 tools/sample_native_gate.py --programs-only --find-work"
+    if facts:
+        command += " --facts"
+    return command
+
+
+def fact_witness(sample):
+    return sample == "samples/cli/facts" or sample.startswith("samples/cli/facts/")
 
 
 def owner_question(sample):
@@ -193,13 +219,15 @@ def main():
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--record", help="a sample gate run record; default: the latest")
     parser.add_argument("--all", action="store_true", help="include probes and invalid controls")
+    parser.add_argument("--facts", action="store_true",
+                        help="list samples/cli/facts witnesses from a cli/facts record")
     parser.add_argument("--limit", type=int, help="show at most this many rows")
     parser.add_argument("--json", action="store_true", help="print rows as JSON")
     arguments = parser.parse_args()
 
-    path = arguments.record or latest_record(arguments.all)
+    path = arguments.record or latest_record(arguments.all, facts=arguments.facts)
     if not path:
-        command = "python3 tools/sample_native_gate.py" + ("" if arguments.all else " --programs-only --find-work")
+        command = discovery_command(arguments.all, arguments.facts)
         print(f"sample_queue: no gate run recorded; run {command} first",
               file=sys.stderr)
         return 2
@@ -215,6 +243,8 @@ def main():
         print(f"sample_queue: ownership unknown: {error}; "
               "do not interpret this list as unclaimed work", file=sys.stderr)
     rows = queue(record, arguments.all, ownership)
+    if arguments.facts:
+        rows = [row for row in rows if fact_witness(row["sample"])]
     has_work = any(row["kind"] == "program" for row in rows)
     has_unclaimed_work = any(row["kind"] == "program" and not row["claims"] for row in rows)
     if arguments.limit is not None:
@@ -230,7 +260,7 @@ def main():
           f"{summary.get('passed', '?')}/{summary.get('scored', '?')} samples meet their oracle"
           + (f", {behind} commits behind HEAD" if behind else ""))
     if behind and behind > 50:
-        print("sample_queue: the record is old; rerun python3 tools/sample_native_gate.py --programs-only --find-work",
+        print(f"sample_queue: the record is old; rerun {discovery_command(facts=arguments.facts)}",
               file=sys.stderr)
     if record.get("scope") == "discovery":
         print("sample_queue: partial work discovery; unmeasured applications remain unknown")

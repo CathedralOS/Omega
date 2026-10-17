@@ -679,6 +679,85 @@ class GateCliTests(unittest.TestCase):
                 self.assertEqual(gate.cli_staleness(cli.name), "")
 
 
+class FactsSelectionTests(unittest.TestCase):
+    def test_facts_flag_discovers_the_facts_tree_and_marks_the_record(self):
+        captured = {}
+
+        def discover(root, filters=()):
+            captured["root"] = root
+            return ["samples/cli/facts/length/local"]
+
+        with tempfile.TemporaryDirectory() as directory:
+            arguments = ["sample_native_gate.py", "--cli", "omega", "--jobs", "1",
+                         "--facts", "--programs-only", "--history-dir", directory]
+
+            def result(_cli, sample, _target, _timeout, _build_unscored=False):
+                return {"sample": sample, "state": "pass", "detail": "", "seconds": 0}
+
+            with patch.object(sys, "argv", arguments), \
+                    patch.object(gate, "discover", side_effect=discover), \
+                    patch.object(gate, "cli_staleness", return_value=""), \
+                    patch.object(gate, "timed_measure", side_effect=result), \
+                    contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(gate.main(), 0)
+            self.assertEqual(captured["root"], "samples/cli/facts")
+            record = gate.json.loads(next(Path(directory).glob("*.json")).read_text())
+            self.assertEqual(record["filter"], "cli/facts")
+            self.assertEqual(record["scope"], "programs")
+            self.assertEqual([row["sample"] for row in record["results"]],
+                             ["samples/cli/facts/length/local"])
+
+    def test_find_work_accepts_facts_without_a_path_filter(self):
+        seen = {}
+
+        def discover(root, filters=()):
+            seen["root"] = root
+            return ["samples/cli/facts/length/local"]
+
+        def find_work(arguments, samples):
+            seen["facts"] = arguments.facts
+            seen["samples"] = samples
+            return [{"sample": samples[0], "state": "pass", "detail": "", "seconds": 0}]
+
+        with tempfile.TemporaryDirectory() as directory:
+            arguments = ["sample_native_gate.py", "--cli", "omega", "--facts",
+                         "--programs-only", "--find-work", "--history-dir", directory]
+            with patch.object(sys, "argv", arguments), \
+                    patch.object(gate, "discover", side_effect=discover), \
+                    patch.object(gate, "find_work", side_effect=find_work), \
+                    patch.object(gate, "cli_staleness", return_value=""), \
+                    contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(gate.main(), 0)
+        self.assertEqual(seen["root"], "samples/cli/facts")
+        self.assertTrue(seen["facts"])
+        self.assertEqual(seen["samples"], ["samples/cli/facts/length/local"])
+
+    def test_ordinary_discovery_root_stays_the_sample_tree(self):
+        captured = {}
+
+        def discover(root, filters=()):
+            captured["root"] = root
+            return ["samples/cli/app"]
+
+        with tempfile.TemporaryDirectory() as directory:
+            arguments = ["sample_native_gate.py", "--cli", "omega", "--jobs", "1",
+                         "--programs-only", "--history-dir", directory]
+
+            def result(_cli, sample, _target, _timeout, _build_unscored=False):
+                return {"sample": sample, "state": "pass", "detail": "", "seconds": 0}
+
+            with patch.object(sys, "argv", arguments), \
+                    patch.object(gate, "discover", side_effect=discover), \
+                    patch.object(gate, "cli_staleness", return_value=""), \
+                    patch.object(gate, "timed_measure", side_effect=result), \
+                    contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(gate.main(), 0)
+            record = gate.json.loads(next(Path(directory).glob("*.json")).read_text())
+        self.assertEqual(captured["root"], "samples")
+        self.assertEqual(record["filter"], "")
+        self.assertEqual(record["scope"], "programs")
+
+
 class RunHistoryTests(unittest.TestCase):
     def test_program_discovery_is_explicit_and_full_gate_still_includes_controls(self):
         samples = ["samples/cli/app", "samples/cli/probes/gap",
