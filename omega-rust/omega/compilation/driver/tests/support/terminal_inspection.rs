@@ -268,19 +268,7 @@ fn boundary_conformance_controls(artifact: &CanonicalTerminalArtifact) -> Result
     ));
 
     for (name, reason, invalid) in controls {
-        let error = CanonicalTerminalArtifact::from_parts(
-            invalid,
-            terminal_codec::decode_psi_optimization_execution_record(artifact.optimization_bytes())
-                .map_err(|error| format!("original optimization record: {error:?}"))?,
-            None,
-        )
-        .err()
-        .ok_or_else(|| format!("artifact ingress accepted {name}"))?;
-        if !format!("{error:?}").contains(reason) {
-            return Err(format!(
-                "artifact control {name} refused for another reason: {error:?}"
-            ));
-        }
+        reject_module_at_ingress(&invalid, name, reason)?;
     }
     Ok(())
 }
@@ -377,20 +365,7 @@ fn closed_conformance_controls(artifact: &CanonicalTerminalArtifact) -> Result<(
     refresh_conformance_commitment(&mut bad, position);
     controls.push(("duplicate unreferenced callable registry", "duplicate", bad));
     for (name, reason, invalid) in controls {
-        let error = CanonicalTerminalArtifact::from_parts(
-            invalid,
-            terminal_codec::decode_psi_optimization_execution_record(artifact.optimization_bytes())
-                .map_err(|error| format!("original optimization record: {error:?}"))?,
-            None,
-        )
-        .err()
-        .ok_or_else(|| format!("artifact ingress accepted {name}"))?;
-        let error = format!("{error:?}");
-        if !error.contains(reason) {
-            return Err(format!(
-                "artifact control {name} refused for another reason: {error}"
-            ));
-        }
+        reject_module_at_ingress(&invalid, name, reason)?;
     }
     let domain = b"omega.requirement-schema.v1\0";
     let mut wire = artifact.to_bytes();
@@ -405,6 +380,27 @@ fn closed_conformance_controls(artifact: &CanonicalTerminalArtifact) -> Result<(
     if !format!("{error:?}").contains("unknown definition domain") {
         return Err(format!(
             "malformed schema wire refused for another reason: {error:?}"
+        ));
+    }
+    Ok(())
+}
+
+fn reject_module_at_ingress(
+    module: &terminal_psi::TerminalModule,
+    name: &str,
+    reason: &str,
+) -> Result<(), String> {
+    // Producer serialization is not admission. Exercise the same module
+    // decoder used by artifact ingress, without an unrelated stale optimizer
+    // identity masking the structural defect. Noncanonical wire order may
+    // already refuse while encoding; canonical malformed payloads must decode.
+    let error = terminal_codec::encode_module(module)
+        .and_then(|bytes| terminal_codec::decode_module(&bytes))
+        .err()
+        .ok_or_else(|| format!("artifact ingress accepted {name}"))?;
+    if !format!("{error:?}").contains(reason) {
+        return Err(format!(
+            "artifact control {name} refused for another reason: {error:?}"
         ));
     }
     Ok(())

@@ -1,10 +1,11 @@
 //! The semantic module's canonical encoding: one `*_wire` file per section in
 //! the order `module_wire` writes them, the byte cursors in `wire`, canonical
-//! ordering rules, the structural-place encoders several sections share, and
-//! the representation-foundation checks that run before any byte is written.
-//! `encode_module` and `decode_module` sequence canonical ordering, foundation
-//! checks and wire encoding here. Identity derives from those exact canonical
-//! bytes. These checks establish representation shape, not proof admission.
+//! ordering rules and the structural-place encoders several sections share.
+//! Encoding and identity preserve the producer's canonical bytes without
+//! rechecking its structural foundations. Fingerprinting is used throughout
+//! compilation; replaying payload histories there repeats semantic work for
+//! every identity consumer. Foundation validation belongs to external decoding,
+//! also exercised by the corpus transport checks, not producer serialization.
 //!
 //! Decoding checks canonical wire and representation-foundation shape. Semantic
 //! checking belongs to the producer; this codec does not replay it.
@@ -100,10 +101,12 @@ pub(crate) const MAX_CONTENT_TERM_DEPTH: usize = 256;
 
 pub(crate) const MAX_CONTENT_IDENTITY_BYTES: usize = 1 << 20;
 
+/// Encode the producer's module in canonical wire order, without admitting its
+/// structural relationships. A fingerprint of these bytes is identity, not
+/// evidence of validity. Untrusted bytes must enter through [`decode_module`].
 pub fn encode_module(module: &TerminalModule) -> Result<Vec<u8>, CodecError> {
     scalar_qualification_wire::validate(&module.scalar_qualifications)?;
     validate_canonical_order(module)?;
-    validate_structural_foundation(module)?;
     encode_raw(module)
 }
 

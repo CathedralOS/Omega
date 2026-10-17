@@ -397,10 +397,10 @@ fn reordered_views_preserve_origin_and_reject_conflicting_shared_descriptors() {
             1 => row.source_state_identity = row.schema_identity,
             _ => row.carrier_identity = row.schema_identity,
         }
-        let error =
-            CanonicalTerminalArtifact::from_parts(module, artifact.optimization().clone(), None)
-                .err()
-                .expect("tampered relation rejects");
+        let bytes = terminal_codec::encode_module(&module).expect("tampered relation encodes");
+        let error = terminal_codec::decode_module(&bytes)
+            .err()
+            .expect("tampered relation rejects at external ingress");
         assert!(format!("{error:?}").contains("PlacedViewInput"));
         eprintln!("tampered formal relation {corruption}: {error:?}");
     }

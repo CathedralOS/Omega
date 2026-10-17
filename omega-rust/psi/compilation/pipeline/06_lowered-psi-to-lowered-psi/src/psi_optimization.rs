@@ -1,4 +1,4 @@
-//! Execute selected target-neutral passes and return their validated publication result.
+//! Execute selected target-neutral passes and record their publication identities.
 
 use crate::optimization_error::PsiOptimizationStageError;
 
@@ -15,8 +15,8 @@ use terminal_psi::TerminalPsiIdentity;
 /// Execute the selected target-neutral optimization phase over the complete
 /// unsealed Psi product.
 ///
-/// The empty selection deliberately validates both sides of the identity
-/// transformation. Selected passes execute in canonical order; the catalog is
+/// Input and output fingerprints identify the transformation; they do not
+/// revalidate the producer's module. Selected passes execute in canonical order; the catalog is
 /// exhaustive, so a future selection added without an implementation fails to
 /// compile rather than being silently recorded as an executed identity — every
 /// member's preterminal semantics must be stated here explicitly.
@@ -76,14 +76,14 @@ fn carrier_identity(
         .map_err(PsiOptimizationStageError::InvalidSemantic)
 }
 
-/// Validated output of the selected target-neutral Psi optimization phase.
+/// Output of the selected target-neutral Psi optimization phase.
 ///
-/// Terminal publication accepts this type rather than an unvalidated lowering
-/// result. Empty selection is an executed identity transformation. A selected
-/// pass has no route until its rewrite and independent validator operate on
-/// this complete carrier, including proof, debug, and source-custody sidecars.
+/// Terminal publication accepts the complete carrier and the execution record
+/// together. Empty selection is an executed identity transformation. Passes
+/// preserve the proof, debug and source-custody sidecars; independent validators
+/// exercise their invariants in tests rather than repeating production work.
 #[derive(Debug, Clone, PartialEq, Eq)]
-#[must_use = "Terminal publication requires the validated Psi optimization result"]
+#[must_use = "Terminal publication requires the Psi optimization result"]
 pub struct PsiOptimizationStageResult {
     lowered: LoweredPsi,
     selections: PsiOptimizationSelections,

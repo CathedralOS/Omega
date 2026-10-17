@@ -1,4 +1,4 @@
-//! Closed representation-foundation validation run before encoding.
+//! Closed representation-foundation validation at external module ingress.
 //!
 //! Checks identities, exact carrier relationships, signatures, provider
 //! attachments, and operation/result shape so the independent semantic

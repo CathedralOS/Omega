@@ -144,13 +144,23 @@ fn target_family_wire_rejects_duplicate_tags_and_missing_callables() {
             head_contract: [1; 32],
             members,
         });
-        assert_eq!(
-            encode_module(&module),
-            Err(expected_error.clone()),
-            "{case}"
-        );
-        // Raw encoding exercises decoder rejection without admitting malformed input.
         let encoded_bytes = encode_raw(&module).unwrap();
+        if matches!(expected_error, CodecError::NonCanonicalOrder(_)) {
+            assert_eq!(
+                encode_module(&module),
+                Err(expected_error.clone()),
+                "{case}"
+            );
+        } else {
+            // Encoding and identity describe the producer's module; they do not
+            // admit it. External ingress must still reject missing supplies.
+            assert_eq!(encode_module(&module).unwrap(), encoded_bytes, "{case}");
+            assert_eq!(
+                crate::semantic_fingerprint(&module).unwrap(),
+                super::fingerprint_bytes(&encoded_bytes),
+                "{case}"
+            );
+        }
         assert_eq!(decode_module(&encoded_bytes), Err(expected_error), "{case}");
     }
 }

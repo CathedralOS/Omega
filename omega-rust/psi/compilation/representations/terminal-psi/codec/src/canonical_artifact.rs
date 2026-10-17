@@ -25,8 +25,8 @@ const ARTIFACT_FORMAT_MARKER: u16 = 3;
 /// admitted at external ingress; consumers do not reconstruct it from bytes.
 ///
 /// Private fields prevent pairing an unrelated module with an artifact's
-/// identity. Canonical encoding establishes representation shape, not proof
-/// validity or permission to install a provider.
+/// identity. Canonical encoding establishes wire order, not structural
+/// validity, proof validity or permission to install a provider.
 #[derive(Debug, Clone, Copy)]
 pub struct TerminalArtifactView<'artifact> {
     module: &'artifact TerminalModule,
@@ -219,7 +219,7 @@ impl CanonicalTerminalArtifact {
         }
     }
 
-    /// Transfer admitted semantic storage to an execution owner without a
+    /// Transfer retained semantic storage to an execution owner without a
     /// second byte load. All constructors retain this module before returning.
     pub fn into_semantics(self) -> (TerminalModule, terminal_psi::TerminalPsiIdentity) {
         (self.semantic_module, self.manifest.semantic())
@@ -227,11 +227,11 @@ impl CanonicalTerminalArtifact {
 
     /// The canonical semantic module these bytes decode to.
     ///
-    /// Producer construction retains the module checked by `encode_module`;
+    /// Producer construction retains the module serialized by `encode_module`;
     /// external ingress retains the module reconstructed by `decode_module`.
-    /// Both establish canonical representation shape, not semantic proof
-    /// validity. Readers share that immutable module rather than repeating
-    /// its encoding or decoding.
+    /// Only external decoding validates structural foundations. Neither route
+    /// establishes semantic proof validity. Readers share that immutable module
+    /// rather than repeating its encoding or decoding.
     pub fn semantic_module(&self) -> &TerminalModule {
         &self.semantic_module
     }
