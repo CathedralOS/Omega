@@ -205,14 +205,8 @@ fn project_checked_or_computed_member(
     } else {
         child(root_expression)?
     };
-    let member_path = checked_contract_member_path(
-        compilation,
-        context,
-        checked_fact,
-        expression,
-        root,
-        &source_members,
-    )?;
+    let member_path =
+        checked_contract_member_path(compilation, context, checked_fact, root, &source_members)?;
     let selected_member = member_path.last().ok_or_else(|| {
         vec![Diagnostic::error(format!(
             "reviewed {} `{}` contract member path has no checked member coordinate",

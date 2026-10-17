@@ -396,12 +396,15 @@ pub(crate) fn checked_contract_member_path(
     compilation: &PackageReviewInput<'_>,
     context: &ContractProjectionContext<'_>,
     checked_fact: arena::Handle<typed_trees::domain::ProofFact>,
-    expression: typed_trees::expression::ExpressionHandle,
     root: facts::PlaceRoot,
     source_members: &[typed_trees::name::Identifier],
 ) -> Result<Vec<(Option<SymbolHandle>, SymbolHandle)>, Vec<Diagnostic>> {
     use facts::FactPayload;
 
+    // Definition facts, like machine facts, retain complete operand reads.
+    // An indexed operand's dependency expression is not its member receiver.
+    // Join within this exact owner/fact by root and checked member prefix;
+    // requiring expression equality here would discard that receiver's proof.
     if let Some(domain_symbol) = context.domain_symbol {
         return select_checked_dependency_member(
             compilation,
@@ -417,7 +420,6 @@ pub(crate) fn checked_contract_member_path(
                     record.domain_symbol == domain_symbol && record.fact == checked_fact
                 })
                 .flat_map(|(_, record)| record.dependencies.iter())
-                .filter(|dependency| dependency.expression == expression)
                 .map(|dependency| dependency.place),
         );
     }
@@ -437,7 +439,6 @@ pub(crate) fn checked_contract_member_path(
                     record.data_symbol == data_symbol && record.fact == checked_fact
                 })
                 .flat_map(|(_, record)| record.dependencies.iter())
-                .filter(|dependency| dependency.expression == expression)
                 .map(|dependency| dependency.place),
         );
     }
@@ -492,9 +493,10 @@ pub(crate) fn checked_contract_member_path(
     }
     let [selected] = candidates.as_slice() else {
         return Err(vec![Diagnostic::error(format!(
-            "reviewed {} `{}` contract member path resolves to {} exact checked place rows; expected one",
+            "reviewed {} `{}` contract member path {:?} resolves to {} exact checked place rows; expected one",
             context.subject_kind,
             context.subject_name,
+            source_members,
             candidates.len()
         ))]);
     };
@@ -515,8 +517,7 @@ fn push_checked_member_candidate(
     if place.root != root {
         return;
     }
-    let Some(selected) = checked_member_segments(compilation, place.segments, source_members)
-    else {
+    let Some(selected) = checked_member_prefix(compilation, place.segments, source_members) else {
         return;
     };
     if !candidates.contains(&selected) {
@@ -545,9 +546,10 @@ fn select_checked_dependency_member(
         if place.root != root {
             continue;
         }
-        if let Some(selected) = checked_member_segments(compilation, place.segments, source_members)
-        {
-            candidates.push(selected);
+        if let Some(selected) = checked_member_prefix(compilation, place.segments, source_members) {
+            if !candidates.contains(&selected) {
+                candidates.push(selected);
+            }
         }
     }
     let [selected] = candidates.as_slice() else {
@@ -561,7 +563,12 @@ fn select_checked_dependency_member(
     Ok(selected.clone())
 }
 
-pub(crate) fn checked_member_segments(
+/// Recover the member expression's prefix of a checked storage dependency.
+/// `packet.bytes[0]` reads the indexed place, not the whole array, but review
+/// still projects its `packet.bytes` receiver before projecting the index.
+/// Require every requested field/case identity in order; a later index or
+/// member neither replaces that prefix nor adds another copy of its identity.
+fn checked_member_prefix(
     compilation: &PackageReviewInput<'_>,
     segments: arena::HandleSpan<facts::PlaceSegment>,
     source_members: &[typed_trees::name::Identifier],
@@ -576,6 +583,9 @@ pub(crate) fn checked_member_segments(
         .place_segments
         .span_or_empty(segments)
     {
+        if selected.len() == source_members.len() && pending_case.is_none() {
+            break;
+        }
         match *segment {
             PlaceSegment::Case { variant } if pending_case.is_none() => {
                 pending_case = Some(variant);

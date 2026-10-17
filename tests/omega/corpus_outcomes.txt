@@ -4100,6 +4100,8 @@ fail/ownership/whole_borrowed_shared_extraction rejected 1173ms expected @a9ae30
 	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `take_shared`, state `entry` (statement 0)
 fail/ownership/whole_borrowed_stale_observation rejected 1213ms expected @a9ae30e1c334+wt
 	cannot use `inventory.slots` while `inventory` is absent from borrowed storage: the value moved out at statement 0 must be restored first
+fail/packages/indexed_contract_out_of_bounds rejected 1585ms expected @c4d3eedf9f1d+wt
+	cannot prove index `8` is within length 8
 fail/packages/std_missing_dependency_rejected rejected 50ms expected @2cc7258c36bd+wt
 	tests/omega/fail/packages/std_missing_dependency_rejected/main.omg: import `omega_language_std::console` names package `omega_language_std` (bundled) as `omega_language_std`, but package `std_missing_dependency_rejected` (0101010101010101010101010101010101010101010101010101010101010101) declares no product dependency under that alias -- declare `Build::depend(builder, ...)` or `Build::depend_as(builder, "omega_language_std", ...)` in its build.omg to add that dependency edge for the product scope
 fail/packages/std_mount_path_rejected rejected 0ms expected @a9ae30e1c334+wt
@@ -8024,6 +8026,7 @@ pass/ownership/view_param_subject_compile checked 1733ms @a9ae30e1c334+wt
 pass/ownership/view_reborrow_argument_compile checked 1745ms @a9ae30e1c334+wt
 pass/ownership/view_to_view_reborrow_compile checked 1762ms @a9ae30e1c334+wt
 pass/packages/implementation_parent_review checked 5037ms @e989a71f345a+wt
+pass/packages/indexed_contract_field_review checked 4176ms check-target:macos_arm64 @c4d3eedf9f1d+wt
 pass/parameters/byte_store_root_after_scalar_formal_exit checked 12305ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/parameters/shared_and_mut_borrow_params_compile checked 1610ms @a9ae30e1c334+wt
 pass/parser/deep_nesting_within_limit checked 1780ms @a9ae30e1c334+wt

@@ -1,0 +1,7 @@
+// Reviewable indexed members do not waive the index's own bounds obligation.
+pub data Packet { bytes: [u8; 8]; }
+
+pub machine inspect(packet: &Packet) -> u8
+requires packet.bytes[0] == 42 {
+    packet.bytes[8]
+}

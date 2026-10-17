@@ -67,7 +67,6 @@ pub(crate) fn project_contract_name_expression(
             compilation,
             context,
             checked_fact,
-            expression,
             facts::PlaceRoot::Symbol(context.data_symbol.expect("guarded data subject")),
             members,
         )?
@@ -178,7 +177,6 @@ pub(crate) fn project_contract_name_expression(
         compilation,
         context,
         checked_fact,
-        expression,
         semantic_root,
         &members[1..],
     )?
