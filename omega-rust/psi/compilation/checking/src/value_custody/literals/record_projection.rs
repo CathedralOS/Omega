@@ -5,9 +5,13 @@
 //! inside an array does not need a runtime place just to read its scalar field. The
 //! scalar producer and its source replay share only this typed identity join;
 //! replay still checks the authored occurrence and the retained scalar value.
+//! Case constructors use the same closed-value rule: common fields and the
+//! selected case's payload must all be closed. A projection retains that exact
+//! case; inactive payloads cannot supply a same-named scalar. Constructor
+//! establishment separately owes the case's predicate and ownership checks.
 
 use symbols::SymbolKind;
-use typed_trees::data::{DataDefinition, DataMember};
+use typed_trees::data::{DataDefinition, DataField, DataMember};
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableStructLiteral};
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
@@ -68,9 +72,7 @@ pub(super) fn closed_scalar_projection(
             return None;
         }
         let receiver = match program.expression_table.expression(root) {
-            ExpressionNode::Member(member)
-                if member.case_variant.is_none() && member.member_symbol.is_valid() =>
-            {
+            ExpressionNode::Member(member) if member.member_symbol.is_valid() => {
                 has_field = true;
                 member.receiver
             }
@@ -97,12 +99,15 @@ pub(super) fn closed_scalar_projection(
         match program.expression_table.expression(projection) {
             ExpressionNode::Member(member) => {
                 let (literal, definition) = record_constructor(program, selected)?;
+                if member.case_variant.is_some() && member.case_variant != literal.case_name {
+                    return None;
+                }
                 let field = crate::value_custody::places::exact_data_member_field(
                     program,
                     definition,
                     member.member_symbol,
                     member.member.as_str(),
-                    None,
+                    member.case_variant.as_ref().map(|variant| variant.as_str()),
                 )?;
                 let actual = program
                     .expression_table
@@ -203,8 +208,6 @@ fn record_constructor(
     let literal = program.expression_table.struct_literal_node(expression)?;
     if !literal.type_symbol.is_valid()
         || program.symbols.get(literal.type_symbol).kind != SymbolKind::Data
-        || literal.case_name.is_some()
-        || literal.case_symbol.is_some()
     {
         return None;
     }
@@ -227,6 +230,51 @@ fn record_constructor(
     Some((literal, definition))
 }
 
+/// The complete active constructor roster, retaining each field's owning
+/// declaration. A case label and symbol must select the same declared variant;
+/// neither spelling alone nor an inactive sibling's fields establish a value.
+fn constructor_fields<'program>(
+    program: &'program dyn crate::CheckingInput,
+    literal: &TableStructLiteral,
+    definition: &'program DataDefinition,
+) -> Option<Vec<(&'program DataField, symbols::SymbolHandle)>> {
+    let mut fields = Vec::new();
+    let mut selected = false;
+    let mut has_cases = false;
+    let members = program.data_members(definition);
+    if members.len() != definition.members.count() as usize {
+        return None;
+    }
+    for member in members {
+        match member {
+            DataMember::Field(field) => fields.push((field, definition.symbol)),
+            DataMember::Variant(variant) => {
+                has_cases = true;
+                if literal.case_symbol == Some(variant.symbol)
+                    && literal.case_name.as_ref() == Some(&variant.name)
+                {
+                    if selected {
+                        return None;
+                    }
+                    selected = true;
+                    fields.extend(
+                        program
+                            .data_payload_fields(variant)
+                            .iter()
+                            .map(|field| (field, variant.symbol)),
+                    );
+                }
+            }
+        }
+    }
+    if has_cases != selected
+        || (!has_cases && (literal.case_name.is_some() || literal.case_symbol.is_some()))
+    {
+        return None;
+    }
+    Some(fields)
+}
+
 fn closed_record(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
@@ -239,26 +287,21 @@ fn closed_record(
         return false;
     };
     let actuals = program.expression_table.struct_fields(literal.fields);
-    let fields = program.data_members(definition);
-    if actuals.len() != fields.len()
-        || actuals.len() != literal.fields.count() as usize
-        || fields.len() != definition.members.count() as usize
-    {
+    let Some(fields) = constructor_fields(program, literal, definition) else {
+        return false;
+    };
+    if actuals.len() != fields.len() || actuals.len() != literal.fields.count() as usize {
         return false;
     }
     active.push(expression);
-    let valid = fields.iter().enumerate().all(|(ordinal, member)| {
-        let Some(field) = member.as_field() else {
-            return false;
-        };
+    let valid = fields.iter().enumerate().all(|(ordinal, (field, owner))| {
         if !field.symbol.is_valid()
             || program.symbols.get(field.symbol).kind != SymbolKind::Field
-            || program.symbols.get(field.symbol).parent != definition.symbol
+            || program.symbols.get(field.symbol).parent != *owner
             || field.relevance.is_erased()
-            || fields[..ordinal].iter().any(|prior| {
-                matches!(prior, DataMember::Field(prior)
-                    if prior.symbol == field.symbol || prior.name == field.name)
-            })
+            || fields[..ordinal]
+                .iter()
+                .any(|(prior, _)| prior.symbol == field.symbol || prior.name == field.name)
         {
             return false;
         }

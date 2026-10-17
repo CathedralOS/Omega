@@ -972,7 +972,11 @@ fn flatten_binary(
 
 /// Structural equality over resolved expressions: each transition arm holds a
 /// parser COPY of the block subject, so handle identity never matches and the
-/// trees must be compared by shape.
+/// trees must be compared by shape. Constant substitution materializes aggregate
+/// values before this pass; their copied fields and elements still describe one
+/// dispatch subject, not independent Cartesian axes. Compare the complete value
+/// and resolved owners so distinct aggregate subjects cannot close each other's
+/// missing cases.
 fn expressions_structurally_equal(
     program: &SymbolResolvedTrees,
     left: ExpressionHandle,
@@ -991,6 +995,27 @@ fn expressions_structurally_equal(
         (ExpressionNode::Integer(left), ExpressionNode::Integer(right)) => left == right,
         (ExpressionNode::Float(left), ExpressionNode::Float(right)) => left == right,
         (ExpressionNode::String(left), ExpressionNode::String(right)) => left == right,
+        (ExpressionNode::ArrayLiteral(left), ExpressionNode::ArrayLiteral(right)) => {
+            let left = expressions.expression_handles(*left);
+            let right = expressions.expression_handles(*right);
+            left.len() == right.len()
+                && left
+                    .iter()
+                    .zip(right)
+                    .all(|(left, right)| expressions_structurally_equal(program, *left, *right))
+        }
+        (ExpressionNode::StructLiteral(left), ExpressionNode::StructLiteral(right)) => {
+            let left_fields = expressions.struct_fields(left.fields);
+            let right_fields = expressions.struct_fields(right.fields);
+            left.type_symbol == right.type_symbol
+                && left.case_symbol == right.case_symbol
+                && left_fields.len() == right_fields.len()
+                && left_fields.iter().zip(right_fields).all(|(left, right)| {
+                    left.field_symbol == right.field_symbol
+                        && left.name == right.name
+                        && expressions_structurally_equal(program, left.value, right.value)
+                })
+        }
         (ExpressionNode::Name(left), ExpressionNode::Name(right)) => {
             left.symbol == right.symbol
                 && name_paths_equal(

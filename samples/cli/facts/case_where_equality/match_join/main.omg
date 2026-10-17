@@ -1,0 +1,19 @@
+// Case Point(lo, hi) where lo == hi makes hi - lo exact in u64, without a guard or Wrapping.
+// Compile-checked only; no runtime oracle.
+data Interval [copy] {
+    case Empty;
+    case Point(lo: u64, hi: u64) where lo == hi;
+}
+data Main { interval: Interval; other: Interval; width: u64; flag: bool; }
+
+machine Main::main(main: &mut Main) {
+    let interval: Interval = match main.flag { true -> main.interval, false -> main.other };
+    transition interval {
+        Interval::Point { lo, hi } -> take(lo, hi, main)
+        Interval::Empty -> done()
+    }
+    state take(lo: u64, hi: u64, main: &mut Main) {
+        main.width = hi - lo;
+    }
+    state done() { }
+}

@@ -41,11 +41,24 @@ impl ExpressionTableLowerer<'_, '_, '_> {
         }
         self.program
             .and_then(|program| declared_receiver_field(program, self.source, member, 0))
-            // Parsing knows the selected case but not a field's storage owner.
-            // A resolved common field belongs to the record, not that case's
-            // payload. Publish its exact identity and ordinary projection once;
-            // later stages must not reinterpret a case-qualified common read.
-            .map(|field| (field.symbol, None))
+            // Substituted constructors have no runtime place to bind through.
+            // Recover the exact declared field, preserving a payload's case
+            // selector while making a common-field read ordinary. A same-named
+            // field in another case is never a candidate for this projection.
+            .map(|field| {
+                let payload = self.program.is_some_and(|program| {
+                    let owner = program.symbols.get(field.symbol).parent;
+                    program.symbols.get(owner).kind == SymbolKind::Variant
+                });
+                (
+                    field.symbol,
+                    if payload {
+                        member.case_variant.clone()
+                    } else {
+                        None
+                    },
+                )
+            })
             .unwrap_or_else(|| (member.member_symbol, member.case_variant.clone()))
     }
 }
@@ -174,12 +187,23 @@ fn declared_data_field<'program>(
         if variants.next().is_some()
             || !variant.symbol.is_valid()
             || program.symbols.get(variant.symbol).parent != definition.symbol
-            || program
-                .data_payload_fields(variant.payload)
-                .iter()
-                .any(|field| field.name.as_str() == member.member.as_str())
         {
             return None;
+        }
+        let mut payload = program
+            .data_payload_fields(variant.payload)
+            .iter()
+            .filter(|field| {
+                field.name.as_str() == member.member.as_str()
+                    && exact_field_symbol(program, variant.symbol, field)
+            });
+        if let Some(field) = payload.next() {
+            if payload.next().is_some()
+                || (member.member_symbol.is_valid() && member.member_symbol != field.symbol)
+            {
+                return None;
+            }
+            return Some(field);
         }
     }
     let mut fields = program

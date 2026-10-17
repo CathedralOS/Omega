@@ -1,0 +1,15 @@
+// Common fields and the selected case payload retain exact owners.
+data Interval [copy] {
+    marker: u64;
+    case Point(lo: u64, hi: u64) where lo == hi;
+    case Other(lo: u64, hi: u64);
+}
+data Main { width: u64; }
+machine Main::main(main: &mut Main) {
+    transition (Interval::Point { marker: 9, lo: 4, hi: 4 }) {
+        Interval::Point { marker as _, lo, hi } -> take(lo, hi, main)
+        Interval::Other { marker as _, lo as _, hi as _ } -> done()
+    }
+    state take(lo: u64, hi: u64, main: &mut Main) { main.width = hi - lo; }
+    state done() {}
+}

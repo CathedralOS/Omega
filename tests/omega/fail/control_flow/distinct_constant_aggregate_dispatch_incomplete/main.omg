@@ -1,0 +1,14 @@
+// Different aggregate values cannot merge into one coverage axis.
+data Interval [copy] {
+    case Empty;
+    case Point(lo: u64, hi: u64) where lo == hi;
+}
+const FIRST: [Interval; 1] = [Interval::Point { lo: 4, hi: 4 }];
+const SECOND: [Interval; 1] = [Interval::Point { lo: 5, hi: 5 }];
+machine main() {
+    transition (FIRST[0], SECOND[0]) {
+        (Interval::Empty, Interval::Empty) -> done()
+        (Interval::Point { lo as _, hi as _ }, Interval::Point { lo as _, hi as _ }) -> done()
+    }
+    state done() {}
+}

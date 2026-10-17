@@ -1,0 +1,3 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "case_where_equality_match_join_invalid");
+}

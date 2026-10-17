@@ -1,0 +1,14 @@
+// A selected closed payload cannot hide an unsafe evaluated sibling.
+data Interval [copy] {
+    case Empty;
+    case Point(lo: u64, hi: u64, sibling: u64) where lo == hi;
+}
+data Main { amount: u64; width: u64; }
+machine Main::main(main: &mut Main) {
+    transition (Interval::Point { lo: 4, hi: 4, sibling: main.amount + 1 }) {
+        Interval::Point { lo, hi, sibling as _ } -> take(lo, hi, main)
+        Interval::Empty -> done()
+    }
+    state take(lo: u64, hi: u64, main: &mut Main) { main.width = hi - lo; }
+    state done() {}
+}

@@ -1,0 +1,15 @@
+// Array constants remain one dispatch subject after substitution.
+data Interval [copy] {
+    case Empty;
+    case Point(lo: u64, hi: u64) where lo == hi;
+}
+const BUNDLE: [Interval; 1] = [Interval::Point { lo: 4, hi: 4 }];
+data Main { width: u64; }
+machine Main::main(main: &mut Main) {
+    transition BUNDLE[0] {
+        Interval::Point { lo, hi } -> take(lo, hi, main)
+        Interval::Empty -> done()
+    }
+    state take(lo: u64, hi: u64, main: &mut Main) { main.width = hi - lo; }
+    state done() {}
+}

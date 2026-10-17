@@ -2130,6 +2130,8 @@ fail/control_flow/dispatch_boundary_ordinary_result rejected 39ms expected @58a5
 	transition dispatch in `choose::entry` can fall through: no arm matches when every guard is false, and no `_` arm exists; add a `_ ->` arm (or complete the `true`/`false` pair)
 fail/control_flow/dispatch_boundary_separated_crash rejected 39ms expected @58a5ed816ae5
 	transition dispatch in `choose::entry` can fall through: no arm matches when every guard is false, and no `_` arm exists; add a `_ ->` arm (or complete the `true`/`false` pair)
+fail/control_flow/distinct_constant_aggregate_dispatch_incomplete rejected 175ms expected @2ef2ab353498+wt
+	transition pattern matrix in `main::entry` does not cover (`Interval::Point`, `Interval::Empty`); add an arm or `_`
 fail/control_flow/implicit_entry_parameter_capture rejected 819ms expected @a9ae30e1c334+wt
 	machine `inspect` state `finish` uses `input`, which is not a declared local, parameter, field, or type in this state (check the spelling)
 fail/control_flow/linear_result_repeated_successor_arguments rejected 1568ms expected @a9ae30e1c334+wt
@@ -2348,6 +2350,16 @@ fail/dependent/case_where_zero_refuted_first_case_rejected rejected 820ms expect
 	construction of `Main` omits gated field `v`: its zero-filled representation is not an established value -- initialize it explicitly
 fail/dependent/case_where_zero_wide_arithmetic_not_saturated rejected 148ms expected @2b888a3f0e32
 	construction of `Context` omits gated field `choice`: its zero-filled representation is not an established value -- initialize it explicitly
+fail/dependent/closed_case_projection_checks_sibling_arithmetic rejected 521ms expected @2ef2ab353498+wt
+	exact arithmetic in construction of `Interval` field `sibling` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in construction of `Interval` field `sibling` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in construction of `Interval` field `sibling` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in construction of `Interval` field `sibling` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `Main::main` state `main` transition guard may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `Main::main` state `main` transition argument may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `Main::main` state `main` transition argument may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `Main::main` state `main` transition guard may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `Main::main` state `take` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/dependent/collection_predicate_caller_store_before_call_rejected rejected 875ms expected @a9ae30e1c334+wt
 	the next whole-value read of `context` occurs inside an OPEN invariant window: a prior write left data `Grid`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)
 	data `Grid`'s default domain is still FALSE at a call: the invariant window opened on `context.grid` must close first -- restore the `where` facts before this consumption point (ch11)
@@ -3001,6 +3013,27 @@ fail/facts/bound_through_target_body_rejected rejected 1071ms expected @3b422f31
 	cannot prove index `index` is within length 3 in read_target::entry
 	cannot prove index `index` is within length 3 in read_target::entry
 	cannot prove index `index` is within length 3 in read_target::entry
+fail/facts/case_equality_through_call_result_compile rejected 661ms expected @2ef2ab353498+wt
+	exact arithmetic in machine `Main::main` state `take` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/case_equality_through_const_name_compile rejected 82ms expected @2ef2ab353498+wt
+	constant `INTERVAL` is invalid: data constant `Interval` violates its case predicate
+fail/facts/case_equality_through_field_compile rejected 570ms expected @2ef2ab353498+wt
+	exact arithmetic in machine `Main::main` state `take` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/case_equality_through_local_compile rejected 910ms expected @2ef2ab353498+wt
+	exact arithmetic in machine `Main::main` state `take` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/case_equality_through_match_join_compile rejected 724ms expected @2ef2ab353498+wt
+	exact arithmetic in machine `Main::main` state `take` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/case_equality_through_other_machine_compile rejected 742ms expected @2ef2ab353498+wt
+	exact arithmetic in machine `inspect` state `take` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/case_equality_through_other_state_compile rejected 456ms expected @2ef2ab353498+wt
+	exact arithmetic in machine `Main::main` state `take` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/case_equality_through_parameter_compile rejected 440ms expected @2ef2ab353498+wt
+	exact arithmetic in machine `Main::main` state `take` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/case_equality_through_target_body_compile rejected 671ms expected @2ef2ab353498+wt
+	exact arithmetic in machine `Main::main` state `take` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `Main::main` state `take` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `Main::main` state `take` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `Main::main` state `take` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/dependent_subtract_through_call_result_rejected rejected 284ms expected @fd94a7b8095c+wt
 	exact arithmetic in machine `Main::main` state `main` local `remaining` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`). Here the operand `used_amount(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u32 in Wrapping`).
 fail/facts/dependent_subtract_through_const_name_rejected rejected 297ms expected @fd94a7b8095c+wt
@@ -7206,6 +7239,7 @@ pass/control_flow/composite_state_parameter checked 11610ms check-target:macos_a
 pass/control_flow/computed_float_array_field_store_exit checked 11126ms check-target:macos_arm64 @589aedee8ebc+wt
 pass/control_flow/conditional_unit_completion_exit checked 11500ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/control_flow/conjunct_subject_dispatch_compile checked 1615ms @a9ae30e1c334+wt
+pass/control_flow/constant_aggregate_dispatch_complete checked 1907ms @2ef2ab353498+wt
 pass/control_flow/copy_enum_cycle_edge_write_frame checked 1751ms @a9ae30e1c334+wt
 pass/control_flow/domain_member_subject_compile checked 1567ms @a9ae30e1c334+wt
 pass/control_flow/edge_call_nested_structural_operand_exit checked 11363ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -7421,6 +7455,7 @@ pass/dependent/case_where_equality_bounds_subtraction checked 1737ms @a9ae30e1c3
 pass/dependent/case_where_generic_type_bound_coverage checked 1716ms @a9ae30e1c334+wt
 pass/dependent/case_where_match_contributes checked 1661ms @a9ae30e1c334+wt
 pass/dependent/case_where_zero_decided_first_case checked 1749ms @a9ae30e1c334+wt
+pass/dependent/closed_case_common_and_active_payload_projection checked 2695ms @2ef2ab353498+wt
 pass/dependent/collection_predicate_element_store_restored checked 1687ms @a9ae30e1c334+wt
 pass/dependent/collection_predicate_helper_theorem_bounds_sum checked 1687ms @a9ae30e1c334+wt
 pass/dependent/collection_predicate_proved_element_store checked 1217ms @abbaf3aaa059+wt
@@ -7779,6 +7814,15 @@ pass/facts/bound_through_other_machine_exit checked 6145ms check-target:macos_ar
 pass/facts/bound_through_other_state_exit checked 6159ms check-target:macos_arm64 @3b422f31da30+wt
 pass/facts/bound_through_parameter_exit checked 6140ms check-target:macos_arm64 @3b422f31da30+wt
 pass/facts/bound_through_target_body_exit checked 6380ms check-target:macos_arm64 @3b422f31da30+wt
+pass/facts/case_equality_through_call_result_compile checked 3294ms @2ef2ab353498+wt
+pass/facts/case_equality_through_const_name_compile checked 1993ms @2ef2ab353498+wt
+pass/facts/case_equality_through_field_compile checked 2122ms @2ef2ab353498+wt
+pass/facts/case_equality_through_local_compile checked 2290ms @2ef2ab353498+wt
+pass/facts/case_equality_through_match_join_compile checked 3847ms @2ef2ab353498+wt
+pass/facts/case_equality_through_other_machine_compile checked 2139ms @2ef2ab353498+wt
+pass/facts/case_equality_through_other_state_compile checked 2349ms @2ef2ab353498+wt
+pass/facts/case_equality_through_parameter_compile checked 3429ms @2ef2ab353498+wt
+pass/facts/case_equality_through_target_body_compile checked 2116ms @2ef2ab353498+wt
 pass/facts/dependent_subtract_through_call_result_compile checked 1268ms @fd94a7b8095c+wt
 pass/facts/dependent_subtract_through_const_name_compile checked 1226ms @fd94a7b8095c+wt
 pass/facts/dependent_subtract_through_field_compile checked 1211ms @fd94a7b8095c+wt
