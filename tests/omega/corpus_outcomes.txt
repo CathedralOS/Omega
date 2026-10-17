@@ -4854,6 +4854,10 @@ fail/slices/matched_window_scalar_subject_write_overlap rejected 561ms expected 
 	state `collide` receives `values[2]` while local borrow `view` is still active
 fail/slices/matched_window_sibling_write_overlap rejected 556ms expected @3384eccdf464
 	state `collide` receives `holder.values[2]` while local borrow `view` is still active
+fail/slices/matched_window_subject_changed_by_field rejected 633ms expected @ef751ffeeea5
+	cannot prove ensures contract for exit from selected at statement 0: result.events.len == 1
+fail/slices/matched_window_subject_changed_by_pattern rejected 633ms expected @ef751ffeeea5
+	cannot prove ensures contract for exit from selected at statement 0: result.events.len == 1
 fail/slices/mutable_matched_window_lengths_disagree rejected 1076ms expected @2cbb09f59147+wt
 	cannot prove ensures contract for exit from half at statement 0: result.len == 2
 fail/slices/mutable_subslice_state_out_of_bounds rejected 1504ms expected @a9ae30e1c334+wt
@@ -8392,6 +8396,7 @@ pass/slices/let_matched_mutable_window checked 5872ms check-target:macos_arm64 @
 pass/slices/live_view_edge_write checked 9740ms @5041ef1af684+wt
 pass/slices/local_array_element_view_exit checked 11239ms check-target:macos_arm64 @1f63ee648905+wt
 pass/slices/local_record_array_state_view_exit checked 12143ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/slices/matched_window_before_later_field_effect checked 693ms @ef751ffeeea5
 pass/slices/matched_window_length_through_record_field checked 5723ms check-target:macos_arm64 @0e7ef4cb2ac8+wt
 pass/slices/mut_field_subview checked 9849ms @5041ef1af684+wt
 pass/slices/mut_slice_establish checked 9589ms @5041ef1af684+wt
