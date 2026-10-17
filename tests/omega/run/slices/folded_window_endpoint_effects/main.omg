@@ -1,0 +1,89 @@
+// A window argument whose bounds fold from ensured call results still runs
+// those calls: their writes are authored effects in argument order. The
+// window crosses a boundary provider call from an owned parameter and from
+// an owned local, with the constant start also taking a nonzero value.
+//
+// Expected exit: 0
+data Payload [copy] { bytes: [u8; 8]; }
+data Sequence [copy] { digits: u64 in Wrapping; }
+boundary trait ByteCounter {
+    machine count(prefix: u64, bytes: &[u8], suffix: u64) -> u64;
+}
+data Provider {}
+Selected satisfies ByteCounter {
+    ByteCounter::count = Provider::count;
+}
+macos_arm64 machine Provider::count(prefix: u64, bytes: &[u8], suffix: u64) -> u64 satisfies ByteCounter::count {
+    sized(prefix, bytes, suffix)
+}
+linux_arm64 machine Provider::count(prefix: u64, bytes: &[u8], suffix: u64) -> u64 satisfies ByteCounter::count {
+    sized(prefix, bytes, suffix)
+}
+linux_x86_64 machine Provider::count(prefix: u64, bytes: &[u8], suffix: u64) -> u64 satisfies ByteCounter::count {
+    sized(prefix, bytes, suffix)
+}
+windows_x86_64 machine Provider::count(prefix: u64, bytes: &[u8], suffix: u64) -> u64 satisfies ByteCounter::count {
+    sized(prefix, bytes, suffix)
+}
+machine sized(prefix: u64, bytes: &[u8], suffix: u64) -> u64 {
+    transition prefix == 17 && suffix == 23 {
+        true -> window(bytes)
+        _ -> (255)
+    }
+    state window(bytes: &[u8]) -> u64 { bytes.len }
+}
+machine prefix_of(sequence: &mut Sequence) -> u64 {
+    sequence.digits = sequence.digits * 10 + 1;
+    17
+}
+machine range_start(sequence: &mut Sequence) -> u64 ensures result == 0; {
+    sequence.digits = sequence.digits * 10 + 2;
+    0
+}
+machine range_end(sequence: &mut Sequence) -> u64 ensures result == 3; {
+    sequence.digits = sequence.digits * 10 + 3;
+    3
+}
+machine suffix_of(sequence: &mut Sequence) -> u64 {
+    sequence.digits = sequence.digits * 10 + 4;
+    23
+}
+machine ordered_count(payload: Payload, observed: &mut [u64; 2]) -> u64 {
+    let mut sequence: Sequence;
+    sequence.digits = 0;
+    let count: u64 = Selected::count(
+        prefix_of(&mut sequence),
+        payload.bytes[range_start(&mut sequence)..range_end(&mut sequence)],
+        suffix_of(&mut sequence)
+    );
+    observed[0] = sequence.digits as u64;
+    count
+}
+machine local_count(observed: &mut [u64; 2]) -> u64 {
+    let mut payload: Payload;
+    payload.bytes[0] = 41;
+    let mut sequence: Sequence;
+    sequence.digits = 0;
+    let count: u64 = Selected::count(
+        17,
+        payload.bytes[1..range_end(&mut sequence)],
+        23
+    );
+    observed[0] = sequence.digits as u64;
+    count
+}
+machine main() crashes Trap {
+    let mut payload: Payload;
+    payload.bytes[0] = 41;
+    let mut observed: [u64; 2];
+    let ordered: u64 = ordered_count(payload, &mut observed);
+    let digits: u64 = observed[0];
+    let local: u64 = local_count(&mut observed);
+    let local_digits: u64 = observed[0];
+    transition ordered == 3 && digits == 1234 && local == 2 && local_digits == 3 {
+        true -> done()
+        false -> wrong()
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}

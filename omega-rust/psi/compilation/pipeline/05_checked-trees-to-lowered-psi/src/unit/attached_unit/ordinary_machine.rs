@@ -1532,6 +1532,33 @@ impl MachineEmission<'_> {
                 self.scalar_result_values.push(value);
                 return Ok(());
             }
+            argument_schedule::Step::Endpoint {
+                operation,
+                argument,
+            } => {
+                let source_value_count =
+                    self.retained_scalar_prefix
+                        .ok_or(LoweringError::Unsupported(
+                            "endpoint staging has no source prefix",
+                        ))?;
+                self.evaluation.window_endpoints(
+                    identities,
+                    checked,
+                    plan.machine,
+                    plan.state,
+                    &plan.operations[operation],
+                    argument,
+                    source_value_count,
+                    &mut self.scalar_result_values,
+                    &mut self.next_value_identity,
+                    &mut self.next_block,
+                    &mut self.next_edge,
+                    &mut self.operations,
+                    &mut self.scalar_calls,
+                )?;
+                self.next_call_obligation = self.scalar_calls.next_obligation_identity;
+                return Ok(());
+            }
             argument_schedule::Step::Subslice { operation, ordinal } => {
                 let source_value_count =
                     self.retained_scalar_prefix

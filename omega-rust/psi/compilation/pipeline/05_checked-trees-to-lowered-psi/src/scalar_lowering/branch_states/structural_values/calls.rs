@@ -362,6 +362,40 @@ impl Preparation<'_> {
                     )?;
                     selector_positions[operation].push((argument, segment, position));
                 }
+                argument_schedule::Step::Endpoint {
+                    operation,
+                    argument,
+                } => {
+                    let call = operations[operation]
+                        .call()
+                        .ok_or(LoweringError::Unsupported(
+                            "endpoint schedule lost its call",
+                        ))?;
+                    for (role, root) in argument_schedule::recorded_window_endpoint_roots(
+                        self.checked,
+                        self.state,
+                        call.coordinate,
+                        argument,
+                    ) {
+                        // The window's fixed coordinates consume no endpoint
+                        // value; the retained computation still runs for its
+                        // authored effects and joins the same completion.
+                        let result_type = computations::computation_value_type(
+                            identities,
+                            self.checked,
+                            self.qualifications,
+                            root,
+                            &bindings,
+                            &self.prefix,
+                        )?;
+                        self.steps.push(Step::Scalar {
+                            role,
+                            result_type: result_type.clone(),
+                            prefix: self.prefix.clone(),
+                        });
+                        self.prefix.push(result_type);
+                    }
+                }
                 argument_schedule::Step::Argument { operation, ordinal } => {
                     let call = operations[operation]
                         .call()

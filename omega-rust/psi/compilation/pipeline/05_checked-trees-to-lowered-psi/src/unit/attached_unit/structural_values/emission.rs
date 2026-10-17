@@ -1248,6 +1248,30 @@ impl Emission<'_, '_, '_> {
                     self.values.push(value);
                     continue;
                 }
+                Step::Endpoint {
+                    operation,
+                    argument,
+                } => {
+                    let count = source_count.ok_or(LoweringError::Unsupported(
+                        "structural endpoint operand has no source prefix",
+                    ))?;
+                    self.evaluation.window_endpoints(
+                        identities,
+                        self.checked,
+                        self.machine,
+                        self.state,
+                        &planned[operation],
+                        argument,
+                        count,
+                        self.values,
+                        self.next_value,
+                        self.next_block,
+                        self.next_edge,
+                        self.operations,
+                        self.calls,
+                    )?;
+                    continue;
+                }
                 Step::Subslice { operation, ordinal } => {
                     let count = source_count.ok_or(LoweringError::Unsupported(
                         "structural range operand has no source prefix",

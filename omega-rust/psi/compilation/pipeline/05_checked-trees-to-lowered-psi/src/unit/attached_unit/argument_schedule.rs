@@ -21,6 +21,13 @@ pub(crate) enum Step {
         operation: usize,
         ordinal: usize,
     },
+    /// A window argument whose coordinates folded keeps its authored endpoint
+    /// evaluations: the call no longer reads their values, but the expressions
+    /// still run — their calls and writes are authored effects in order.
+    Endpoint {
+        operation: usize,
+        argument: usize,
+    },
     Subslice {
         operation: usize,
         ordinal: usize,
@@ -103,6 +110,17 @@ pub(super) fn build_operations(
                     call.structural_arguments
                         .iter()
                         .any(|argument| argument.call_selector_segments().next().is_some())
+                        || call.structural_arguments.iter().enumerate().any(
+                            |(argument_ordinal, _)| {
+                                !recorded_window_endpoint_roots(
+                                    checked,
+                                    state,
+                                    call.coordinate,
+                                    argument_ordinal,
+                                )
+                                .is_empty()
+                            },
+                        )
                 }) {
                     steps.push(Step::Begin);
                     append(
@@ -294,6 +312,9 @@ fn append(
             });
             continue;
         }
+        let has_recorded_endpoints =
+            !recorded_window_endpoint_roots(checked, state, call.coordinate, argument_ordinal)
+                .is_empty();
         // The plan names the produced value this argument consumes; a producer
         // in this group is scheduled first, and a result bound earlier in the
         // body needs no scheduling.
@@ -327,9 +348,65 @@ fn append(
                 segment,
             });
         }
+        // A folded window keeps no descriptor to narrow, yet its authored
+        // endpoint expressions still run before later arguments can mutate.
+        if has_recorded_endpoints {
+            steps.push(Step::Endpoint {
+                operation: index,
+                argument: argument_ordinal,
+            });
+        }
     }
     active.pop();
     emitted.push(index);
     steps.push(Step::Call(index));
     Ok(())
+}
+
+/// The recorded window endpoint computations of one structural argument at a
+/// call's site, in start-then-end order. A descriptor range evaluates its
+/// endpoints when it narrows; a folded fixed window presents fixed coordinates
+/// instead, so its consumer must still run these roots for their authored
+/// effects. Only argument expressions the caller admitted as ranges record
+/// endpoint roots, so an argument without them contributes nothing.
+pub(crate) fn recorded_window_endpoint_roots(
+    checked: &CheckedTrees,
+    state: symbols::SymbolHandle,
+    coordinate: checked_trees::CheckedUnitCallCoordinate,
+    argument_ordinal: usize,
+) -> Vec<(
+    checked_trees::CheckedScalarExpressionRole,
+    checked_trees::CheckedScalarComputationHandle,
+)> {
+    let (Ok(call_ordinal), Ok(argument_ordinal)) = (
+        u32::try_from(coordinate.call_ordinal),
+        u32::try_from(argument_ordinal),
+    ) else {
+        return Vec::new();
+    };
+    let site = checked_trees::CheckedSubsliceSite::CallArgument {
+        call_ordinal,
+        argument_ordinal,
+    };
+    [
+        checked_trees::CheckedScalarExpressionRole::SubsliceStart { site },
+        checked_trees::CheckedScalarExpressionRole::SubsliceEnd { site },
+    ]
+    .into_iter()
+    .filter_map(|role| {
+        let root = checked
+            .facts
+            .values
+            .scalar_computations
+            .roots
+            .iter()
+            .map(|(_, root)| root)
+            .find(|root| {
+                root.state == state
+                    && root.statement_ordinal == coordinate.statement_index
+                    && root.role == role
+            })?;
+        Some((role, root.root))
+    })
+    .collect()
 }

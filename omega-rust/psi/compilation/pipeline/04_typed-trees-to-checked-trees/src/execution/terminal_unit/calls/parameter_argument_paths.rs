@@ -82,6 +82,18 @@ impl ArgumentCustody {
     pub(crate) fn lends_unrestricted_borrow(self) -> bool {
         self.lends_borrow() && self.multiplicity == Multiplicity::Unrestricted && self.unqualified
     }
+
+    /// The custody that may lend a fixed byte-array window to a call: an
+    /// unrestricted unqualified borrow, or unrestricted owned storage whose
+    /// window the callee reads in place through the call-scoped path. The
+    /// fixed-array-as-view admission inside the row still decides the formal
+    /// shape, so this predicate names only which caller custody can lend.
+    pub(crate) fn lends_fixed_byte_window(self) -> bool {
+        self.lends_unrestricted_borrow()
+            || (self.access == Owned
+                && self.multiplicity == Multiplicity::Unrestricted
+                && self.unqualified)
+    }
 }
 
 /// An argument place's segments below its root, classified once.
@@ -170,7 +182,7 @@ pub(crate) fn ordinary_parameter_path(
         _ if !custody.unqualified => None,
         ArgumentPathShape::FixedRange
             if (checked_body || supply_mode.is_boundary_declaration())
-                && custody.lends_unrestricted_borrow() =>
+                && custody.lends_fixed_byte_window() =>
         {
             argument.fixed_range_path()
         }
@@ -269,7 +281,7 @@ pub(crate) fn boundary_parameter_path(
         ArgumentPathShape::Whole => Some(Vec::new()),
         // A qualified parameter passes only whole.
         _ if !custody.unqualified => None,
-        ArgumentPathShape::FixedRange if custody.lends_unrestricted_borrow() => {
+        ArgumentPathShape::FixedRange if custody.lends_fixed_byte_window() => {
             argument.fixed_range_path()
         }
         ArgumentPathShape::Static {

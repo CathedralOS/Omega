@@ -1,0 +1,17 @@
+// An ensured window bound still obeys the backing's literal extent: folding
+// a call result into the window coordinates does not bypass the bounds
+// proof, so a bound past the array rejects.
+data Payload [copy] { bytes: [u8; 8]; }
+machine range_start() -> u64 ensures result == 0; { 0 }
+machine range_end() -> u64 ensures result == 9; { 9 }
+machine sized(bytes: &[u8]) -> u64 { bytes.len }
+machine over(payload: Payload) -> u64 {
+    sized(payload.bytes[range_start()..range_end()])
+}
+machine main() crashes Trap {
+    let mut payload: Payload;
+    payload.bytes[0] = 41;
+    transition over(payload) == 9 { true -> done() false -> wrong() }
+    state done() {}
+    state wrong() { crash Trap; }
+}

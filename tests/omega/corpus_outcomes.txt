@@ -5100,6 +5100,8 @@ fail/slices/direct_returned_field_lengths rejected 777ms expected @e0119fc0aaa2
 	cannot prove requires contract for call demand_same from main: span(shared first, 0).values.len == span(shared second, 1).values.len (needs fact `left.len == right.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/slices/empty_fixed_array_slice_wrong_element rejected 844ms expected @a9ae30e1c334+wt
 	argument `items` for state `empty::entry` expects element type `u64`, but the argument supplies `i32`
+fail/slices/ensured_window_beyond_backing rejected 608ms expected @fa0a8b1267bb+wt
+	cannot prove subslice range end bound `range_start()..range_end()` is within slice length 8
 fail/slices/inclusive_endpoint_equals_length rejected 1557ms expected @a9ae30e1c334+wt
 	cannot prove subslice range end bound `..4` is within slice length 4
 fail/slices/inclusive_endpoint_maximum rejected 1510ms expected @a9ae30e1c334+wt
@@ -9534,6 +9536,7 @@ run/providers/target_family_provider_boundary_identity_exit checked 73525ms chec
 run/slices/call_result_mutable_window_exit checked 13049ms check-target:macos_arm64 @73e11f08dcbb+wt
 run/slices/computed_record_window checked 12426ms check-target:macos_arm64 @b88c1c4b1ca5+wt
 run/slices/disjoint_local_state_windows checked 9595ms check-target:macos_arm64 @1810e541fd15+wt
+run/slices/folded_window_endpoint_effects checked 3455ms check-target:macos_arm64 @fa0a8b1267bb+wt
 run/slices/matched_computed_window_end checked 5636ms check-target:macos_arm64 @a4e565996e72+wt
 run/slices/matched_record_window_lower_bound checked 5549ms check-target:macos_arm64 @9eaef6640419
 run/slices/mutable_window_call_argument checked 5974ms check-target:macos_arm64 @218cc4d211aa

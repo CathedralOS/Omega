@@ -260,18 +260,34 @@ fn argument_contract(
     // A range lends the original array's window, not the element type that
     // generic indexing projects. Reuse the parameter operand's range walk,
     // including omitted endpoints resolved from the declared backing extent.
+    // An authored `&x[a..b]` names the builtin range on the borrow target;
+    // a window lent implicitly to a view formal names it on the argument
+    // itself, whose fixed projection the caller already admitted.
     let byte_window = projected_borrow
         .then(|| {
-            let Some(borrow) = program.expression_table.borrow_expression(expression) else {
-                return None;
-            };
-            if !validation::has_builtin_subslice_meaning(
-                program,
-                source_machine,
-                Some(source_state),
-                borrow.target,
-            ) {
-                return None;
+            match program.expression_table.borrow_expression(expression) {
+                Some(borrow) => {
+                    if !validation::has_builtin_subslice_meaning(
+                        program,
+                        source_machine,
+                        Some(source_state),
+                        borrow.target,
+                    ) {
+                        return None;
+                    }
+                }
+                None => {
+                    if !place.segments.last().is_some_and(|segment| {
+                        matches!(segment, facts::PlaceSegment::FixedRange { .. })
+                    }) || !validation::has_builtin_subslice_meaning(
+                        program,
+                        source_machine,
+                        Some(source_state),
+                        expression,
+                    ) {
+                        return None;
+                    }
+                }
             }
             super::argument_paths::fixed_byte_array_range_path(
                 program,

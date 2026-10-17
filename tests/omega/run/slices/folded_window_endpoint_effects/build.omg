@@ -1,0 +1,8 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "folded_window_endpoint_effects");
+    Build::select_provider<ByteCounter, Provider>(builder);
+    Build::bind(builder, macos_arm64::ProgramEntry, main);
+    Build::bind(builder, linux_arm64::ProgramEntry, main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+    Build::bind(builder, windows_x86_64::ProgramEntry, main);
+}

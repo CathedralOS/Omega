@@ -1051,6 +1051,58 @@ impl Evaluation {
         Ok(value)
     }
 
+    /// Run the recorded window endpoints of one folded structural argument.
+    /// The argument's coordinates are already fixed in its checked path, so
+    /// no later operation consumes these values; the authored expressions
+    /// still execute — their calls and writes are authored effects — in
+    /// start-then-end order at the argument's own position.
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn window_endpoints(
+        &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        checked: &CheckedTrees,
+        machine: symbols::SymbolHandle,
+        state: symbols::SymbolHandle,
+        operation: &CheckedUnitEffectOperationPlan,
+        argument: usize,
+        source_value_count: usize,
+        values: &mut Vec<ValueDeclaration>,
+        next_value: &mut u64,
+        next_block: &mut u64,
+        next_edge: &mut u64,
+        operations: &mut OperationBuffer,
+        calls: &mut CallEmissionContext<'_>,
+    ) -> Result<(), LoweringError> {
+        let Some(call) = operation.call() else {
+            return unsupported("window endpoint schedule has no call");
+        };
+        for (role, root) in super::argument_schedule::recorded_window_endpoint_roots(
+            checked,
+            state,
+            call.coordinate,
+            argument,
+        ) {
+            let value = self.source_value(
+                identities,
+                checked,
+                machine,
+                state,
+                call.coordinate.statement_index,
+                role,
+                &CheckedCallScalarArgument::Computation(root),
+                source_value_count,
+                values,
+                next_value,
+                next_block,
+                next_edge,
+                operations,
+                calls,
+            )?;
+            values.push(value);
+        }
+        Ok(())
+    }
+
     /// Complete one dense scalar operand at its original call coordinate.
     /// The caller retains the result in `values` before evaluating another
     /// operand and uses indices to follow values across private blocks. Only

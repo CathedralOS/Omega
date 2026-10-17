@@ -156,6 +156,32 @@ pub(super) fn emit_call_operations(
                 values.push(value);
                 continue;
             }
+            Step::Endpoint {
+                operation,
+                argument,
+            } => {
+                let source_value_count = retained_source_count.ok_or(
+                    LoweringError::Unsupported("composed endpoint operand has no source prefix"),
+                )?;
+                let mut calls = catalogs.scalar_calls.emission_context();
+                evaluation.window_endpoints(
+                    identities,
+                    checked,
+                    machine,
+                    state.state,
+                    &planned_operations[operation],
+                    argument,
+                    source_value_count,
+                    values,
+                    next_value,
+                    next_block,
+                    next_edge,
+                    operations,
+                    &mut calls,
+                )?;
+                catalogs.scalar_calls.next_call_obligation = calls.next_obligation_identity;
+                continue;
+            }
             Step::Subslice { operation, ordinal } => {
                 let source_value_count = retained_source_count.ok_or(
                     LoweringError::Unsupported("composed range operand has no source prefix"),
