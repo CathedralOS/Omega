@@ -1,0 +1,12 @@
+// Parameter bounds u64 [0..=50] prove the exact sum cannot overflow.
+// Compile-checked only: no ProcessExit provider.
+machine add(a: u64 [0..=50], b: u64 [0..=50]) -> u64 [0..=100] {
+    a + b
+}
+
+machine main() {
+    let total: u64 [0..=100] = add(30, 40);
+    transition total == 70 { true -> pass() _ -> fail() }
+    state pass() {}
+    state fail() {}
+}

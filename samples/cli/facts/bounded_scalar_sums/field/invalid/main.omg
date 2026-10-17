@@ -1,0 +1,14 @@
+// Record fields spanning all of u64 do not prove an exact sum.
+data Pair {
+    left: u64 [0..=18446744073709551615];
+    right: u64 [0..=18446744073709551615];
+}
+
+machine add(pair: Pair) -> u64 {
+    pair.left + pair.right
+}
+
+machine main() {
+    let pair: Pair = Pair { left: 30, right: 40 };
+    _ = add(pair);
+}

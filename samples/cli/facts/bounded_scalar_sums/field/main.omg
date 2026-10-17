@@ -1,0 +1,18 @@
+// Bounded record fields still prove their sum cannot overflow.
+// Compile-checked only: no ProcessExit provider.
+data Pair {
+    left: u64 [0..=50];
+    right: u64 [0..=50];
+}
+
+machine add(pair: Pair) -> u64 [0..=100] {
+    pair.left + pair.right
+}
+
+machine main() {
+    let pair: Pair = Pair { left: 30, right: 40 };
+    let total: u64 [0..=100] = add(pair);
+    transition total == 70 { true -> pass() _ -> fail() }
+    state pass() {}
+    state fail() {}
+}
