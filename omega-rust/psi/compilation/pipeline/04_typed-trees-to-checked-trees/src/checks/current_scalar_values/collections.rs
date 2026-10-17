@@ -591,14 +591,39 @@ impl CurrentScalarValues<'_> {
         })
     }
 
-    /// `helper(..).field.len` reads an ensures `result.field.len == N`.
-    /// The contract is the callee's, so the caller does not need a local to
-    /// restate the length. A non-constant postcondition stays unknown.
+    /// `helper(..).field.len`, or the same field of a local initialized by
+    /// that call, reads the callee's ensures. An equality publishes the
+    /// integer. A proved lower bound publishes that bound without pretending
+    /// the disagreeing arms share one length. Anything else stays unknown.
     fn ensured_call_field_length(
         &self,
         member: &typed_trees::expression::TableMemberExpression,
     ) -> Option<ScopedArithmeticValue> {
-        let call = self.program.expression_table.call_node(member.receiver)?;
+        let call = self
+            .program
+            .expression_table
+            .call_node(member.receiver)
+            .or_else(|| {
+                let name = self
+                    .program
+                    .expression_table
+                    .name_path_node(member.receiver)?;
+                if !name.symbol.is_valid()
+                    || name.symbol != name.head_symbol
+                    || self
+                        .program
+                        .expression_table
+                        .name_path_members(name.members)
+                        .len()
+                        != 1
+                {
+                    return None;
+                }
+                let (_, local) = self
+                    .program
+                    .state_local_declaration(self.state, name.symbol)?;
+                self.program.expression_table.call_node(local.initial_value)
+            })?;
         let (machine, _) = validation::find_state(self.program, call.target_symbol)
             .or_else(|| validation::find_machine_head(self.program, call.target_symbol))?;
         let field_name = member.member.as_str();
@@ -624,22 +649,44 @@ impl CurrentScalarValues<'_> {
         field_name: &str,
     ) -> Option<ScopedArithmeticValue> {
         let comparison = self.program.expression_table.binary_node(expression)?;
-        if comparison.operator != BinaryOperator::Equal {
-            return None;
-        }
-        let (length_expression, expected) =
-            if self.field_length_name(comparison.left) == Some(field_name) {
-                (comparison.left, comparison.right)
-            } else if self.field_length_name(comparison.right) == Some(field_name) {
-                (comparison.right, comparison.left)
-            } else {
-                return None;
-            };
+        let (length_expression, expected, lower_bound) = match comparison.operator {
+            BinaryOperator::Equal | BinaryOperator::GreaterOrEqual
+                if self.field_length_name(comparison.left) == Some(field_name) =>
+            {
+                (
+                    comparison.left,
+                    comparison.right,
+                    comparison.operator == BinaryOperator::GreaterOrEqual,
+                )
+            }
+            BinaryOperator::Equal | BinaryOperator::LessOrEqual
+                if self.field_length_name(comparison.right) == Some(field_name) =>
+            {
+                (
+                    comparison.right,
+                    comparison.left,
+                    comparison.operator == BinaryOperator::LessOrEqual,
+                )
+            }
+            _ => return None,
+        };
         let _ = length_expression;
         let literal = self.program.expression_table.integer_node(expected)?;
-        Some(ScopedArithmeticValue::Integer(
-            numerics::bignum::BigInt::from_i64(literal.value_i64()?),
-        ))
+        let value = numerics::bignum::BigInt::from_i64(literal.value_i64()?);
+        if !lower_bound {
+            return Some(ScopedArithmeticValue::Integer(value));
+        }
+        if value < numerics::bignum::BigInt::zero() {
+            return None;
+        }
+        Some(ScopedArithmeticValue::BoundedInteger {
+            value: Box::new(ScopedArithmeticValue::Atom {
+                identity: format!("ensured-field-length:{field_name}"),
+                unsigned: true,
+            }),
+            minimum: Some(value),
+            maximum: None,
+        })
     }
 
     fn field_length_name(&self, expression: ExpressionHandle) -> Option<&str> {

@@ -2705,8 +2705,8 @@ pass/slices/projected_slice_length checked 17969ms @6c49683ce714
 pass/slices/qualified_subslice_composition_exit built 14865ms exit:70 @6c49683ce714
 pass/slices/recursive_subslice_element_accumulator_exit built 14665ms exit:70 @6c49683ce714
 pass/slices/requires_field_count_alias_index_compile checked 3556ms @6c49683ce714
-pass/slices/returned_record_window_length built 5661ms exit:0 @73e11f08dcbb+wt
-pass/slices/returned_record_window_lower_bound built 5762ms exit:0 @73e11f08dcbb+wt
+pass/slices/returned_record_window_length built 5417ms exit:0 @2d4ff85790f0+wt
+pass/slices/returned_record_window_lower_bound built 5415ms exit:0 @2d4ff85790f0+wt
 pass/slices/runtime_affine_view_edge_cleanup_exit built 7210ms exit:0 @8a2c1f68d503
 pass/slices/runtime_anonymous_slice_argument_return_exit built 18232ms exit:0 @6c49683ce714
 pass/slices/runtime_boolean_alias_guard_transport_exit built 17526ms exit:0 @6c49683ce714

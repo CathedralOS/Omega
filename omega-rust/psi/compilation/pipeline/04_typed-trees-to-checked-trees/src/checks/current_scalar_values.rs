@@ -682,14 +682,22 @@ impl<'program> CurrentScalarValues<'program> {
         let mut lengths = Vec::new();
         for (parameter, argument) in parameters.iter().zip(arguments) {
             let Some(primitive) = integer_carrier(self.program, parameter.type_reference) else {
-                if validation::state_reference_parameter_binding_is_stable(
-                    self.program,
-                    callee,
-                    state,
-                    parameter.symbol,
-                ) && let Some(value) = self.collection_length(*argument, 0)
+                if let Some(value) = self.collection_length(*argument, 0)
                     && fixed_length(self.program, parameter.type_reference, String::new).is_some()
+                    && (validation::state_reference_parameter_binding_is_stable(
+                        self.program,
+                        callee,
+                        state,
+                        parameter.symbol,
+                    ) || matches!(
+                        value,
+                        ScopedArithmeticValue::Integer(_)
+                            | ScopedArithmeticValue::BoundedInteger { .. }
+                    ))
                 {
+                    // A closed length is an entry observation. A mutable slice
+                    // parameter may later reseat its descriptor; the requires
+                    // clause still sees the length the caller passed.
                     lengths.push(Length {
                         subject: LengthSubject::Storage(parameter.symbol),
                         name: parameter.name.to_string(),
