@@ -1,0 +1,22 @@
+// Package review must retain an implementation-valued parent argument.
+// This is ordinary named conformance, not a structural machine binder.
+pub trait Policy {
+    machine value() -> u64;
+}
+
+pub SelectedPolicy satisfies Policy {
+    machine value() -> u64 { 42 }
+}
+
+pub trait WithPolicy<P satisfies Policy> {
+    machine inherited() -> u64;
+}
+
+pub trait Interface: WithPolicy<SelectedPolicy> {
+    machine read() -> u64;
+}
+
+pub Reader satisfies Interface {
+    machine inherited() -> u64 { SelectedPolicy::value() }
+    machine read() -> u64 { SelectedPolicy::value() }
+}

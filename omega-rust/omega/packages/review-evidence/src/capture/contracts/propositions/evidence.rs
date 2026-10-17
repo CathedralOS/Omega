@@ -142,6 +142,7 @@ pub(crate) fn collect_evidence_requirements(
         !matches!(
             &parameter.kind,
             typed_trees::data::TypeParameterKind::Type
+                | typed_trees::data::TypeParameterKind::Implementation
                 | typed_trees::data::TypeParameterKind::Const { .. }
                 | typed_trees::data::TypeParameterKind::Machine {
                     contract: typed_trees::data::MachineParameterContract::RequirementIdentity
