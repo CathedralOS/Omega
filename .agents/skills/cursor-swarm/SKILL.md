@@ -161,8 +161,11 @@ Copy this into every worker prompt:
 > already works, reconcile only what the evidence establishes and continue the
 > same capability's next remaining requirement. Do not manufacture a failing
 > sample or a compiler edit. Full task acceptance, not the first passing
-> program, closes the capability. Respect explicit one-sample scope, user stops
-> and budgets; preserve remaining acceptance when interrupted.
+> program, closes the capability. Return to the remaining acceptance in this
+> same session. A session that lands the witness and stops has not finished.
+> The claim note names what of the customer now runs and what still fails,
+> in words a person can read without the diff. Respect explicit one-sample
+> scope, user stops and budgets; preserve remaining acceptance when interrupted.
 
 A host this VM cannot execute, or an owner decision in `OWNER_QUESTIONS.md`,
 leaves that requirement blocked with its prerequisite named. Continue feasible
@@ -210,12 +213,13 @@ Reuse the session that already has the pod. A new VM spends a machine and
 the tokens required to rebuild the investigation. Resume the same agent id.
 A new Task call is for an id that is gone.
 
-After a solve lands and the next assignment is a different outcome, compact
-before that assignment. Compaction keeps the claim note: what landed, the
-witness, and the next failure. The following prompt is that note. The
-investigation trace does not carry forward.
+A landed witness is not a different outcome while the parent acceptance
+still fails. After that acceptance holds and the next assignment is a
+different outcome, compact before that assignment. Compaction keeps the
+claim note: what landed, the witness, and the next failure. The following
+prompt is that note. The investigation trace does not carry forward.
 
-When the next run branches from that solve, do not compact. The session
+When the next run is still that outcome, do not compact. The session
 keeps the repair and cuts the next failing run from it.
 
 ## Drain

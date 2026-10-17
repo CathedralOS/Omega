@@ -134,6 +134,15 @@ that repair, not every requirement of its parent capability.
    existing actionable outcomes within scope are exhausted should open-ended
    advancement explore a new accepted-language gap.
 
+A smaller sample is a rung inside the program that is too large to trace.
+Land it in the same session that returns to that program. A session that
+lands the rung and stops has not finished. Do not carve a new sample out of
+a program that already meets its oracle.
+
+Cathedral is a customer. A session driving Cathedral fixes the Omega defect
+that blocks its current acceptance, then returns to Cathedral. It does not
+stay in the compiler collecting adjacent repairs.
+
 The repair inside the loop is ordinary compiler engineering and follows every
 rule below: generalize the operation, check mechanical variants, pin the
 behavior with fixtures under `tests/omega/`, and keep main green.
@@ -292,7 +301,9 @@ are byte-sensitive.
   unavailable environment) gates work.
 - Keep a short record in the claim note: parent task, remaining acceptance,
   current witness and the requirement it discharges, current failure, next
-  necessary action and prerequisites. Explicitly named standalone work need not
+  necessary action and prerequisites. Write it in words a person can read
+  without the diff: what of the customer now runs, and what of it still fails.
+  Explicitly named standalone work need not
   invent a parent task. Reread the note after context compaction
   and before changing direction. A checkpoint is not completion. A user stop
   or exhausted budget preserves the frontier without claiming success.

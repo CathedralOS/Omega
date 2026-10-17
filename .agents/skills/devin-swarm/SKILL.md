@@ -54,9 +54,10 @@ Each dispatch includes the outcome/acceptance, governing design, expected behavi
 exact worktree/base, publication authority, peers, next action, dependencies,
 focused validation, reporting destination and stopping condition. Include the
 short assignment to reread after compaction. Reuse the session that already
-has the checkout. Compact after a landed repair when the next assignment is
-a different outcome. When the next run branches from that repair, do not
-compact. Cloud sessions reach the Jev
+has the checkout. A landed witness is not completion while the parent
+acceptance still fails; return to that outcome in the same session. Compact
+after that acceptance, when the next assignment is a different outcome.
+When the next failure is still that outcome's, do not compact. Cloud sessions reach the Jev
 advisories only when the manifest injects `"secret_ids":
 ["TYPESAFE_API_KEY"]` ([tools/swarm/README.md](../../../tools/swarm/README.md))
 AND the session network policy allows api.typesafe.ai — the ccr2 wave ran

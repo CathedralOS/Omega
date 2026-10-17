@@ -235,9 +235,11 @@ Resume that assignment with `followup_task`. Send changed selection instructions
 explicitly to existing workers at safe checkpoints, preserving their work and
 user limits. Use a new worker for a new
 independent assignment. Reuse the session: a new executor spends a machine
-and the tokens required to rebuild the investigation. After a landed repair,
-compact when the next assignment is a different outcome. When the next run
-branches from that repair, do not compact. Do not silently broaden a completed chain to any board
+and the tokens required to rebuild the investigation. A landed witness is
+not completion while the parent acceptance still fails; resume that session
+and return it to the outcome. Compact after that acceptance, when the next
+assignment is a different outcome. When the next failure is still that
+outcome's, do not compact. Do not silently broaden a completed chain to any board
 item. Redispatch only while the user-requested wave scope and stopping condition
 remain open. A missing dependency blocks the item, not unrelated permitted work;
 when no eligible work exists, leave the slot empty and name the blocker.

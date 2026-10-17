@@ -41,10 +41,13 @@ outcomes are exhausted.
 
 Size the work to finish in this session. When the sample is too large to
 trace, write a smaller sample that isolates its failing construct with its own
-oracle, make that run and land it, then return to the large one. A sample that
+oracle, make that run and land it, then return to the large one in this same
+session. Landing that smaller sample and stopping leaves the large one
+unfinished. A sample that
 already passes establishes only its exercised requirement. Reconcile that
 evidence and continue the same capability's remaining acceptance; do not
-manufacture a failure or compiler edit. If the full acceptance already passes,
+manufacture a failure or compiler edit. Do not carve a new sample out of a
+program that already meets its oracle. If the full acceptance already passes,
 close the stale item through normal board reconciliation and select the next
 outcome only when the user's scope permits it.
 
@@ -80,12 +83,16 @@ Fetch and inspect incoming main after reducing the failure to its root cause,
 before committing to a long repair or validation run. If another session already
 landed the repair, verify that sample on main and use it rather than duplicating
 its implementation. Repeat integration near publication. An explicitly named
-program limits the work to that program and its necessary repairs. State the
+program is the customer for this session. A smaller witness isolates the
+current failure; it does not replace that program. Return to it in the same
+session until its oracle holds. Do not open a second feature while it still
+fails. State the
 sample, its oracle, the current failure and the acceptance command.
 
 Keep that short record in the claim note: parent task, remaining acceptance,
 current sample and the requirement it discharges, failure, next action and
-dependencies. Reread it after compaction
+dependencies. Name what of the customer now runs and what still fails, in
+words a person can read without the diff. Reread it after compaction
 and before changing direction. Reuse the session that already has the
 checkout. After a landed repair, compact when the next assignment is a
 different outcome, and leave the context in place when the next run branches

@@ -149,10 +149,12 @@ actual returned IDs. Never claim a session was launched without its receipt.
 Reconcile an existing session before reuse. Follow-up goes to that same returned
 session and host, retaining its warm checkout and executor when the runtime
 supports this. Reuse is the default: a new session spends a machine and the
-tokens required to rebuild the investigation. After a landed repair, compact
-when the next assignment is a different outcome, and send that session the
-claim note rather than the investigation trace. When the next run branches
-from that repair, do not compact. A new assignment message states that the
+tokens required to rebuild the investigation. A landed witness is not
+completion while the parent acceptance still fails; return to that outcome
+in the same session. Compact after that acceptance, when the next assignment
+is a different outcome, and send that session the claim note rather than
+the investigation trace. When the next failure is still that outcome's, do
+not compact. A new assignment message states that the
 previous assignment is complete, names the next program, updates
 ownership/dependencies and carries the new acceptance. Synchronize its lane
 with current main before editing. Do not create another session merely

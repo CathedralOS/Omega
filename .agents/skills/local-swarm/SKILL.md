@@ -66,9 +66,11 @@ using the native host's supported entrypoint.
 Dispatch parent outcome, remaining acceptance, next witness and the requirement
 it discharges, failure, next action, dependencies, design,
 exact worktree/base and publication permission. Agents reread the short assignment
-after compaction. Reuse the session that already has the checkout. Compact
-after a landed repair when the next assignment is a different outcome. When
-the next run branches from that repair, do not compact. A checkpoint is not
+after compaction. Reuse the session that already has the checkout. A landed
+witness is not completion while the parent acceptance still fails; return to
+that outcome in the same session. Compact after that acceptance, when the
+next assignment is a different outcome. When the next failure is still that
+outcome's, do not compact. A checkpoint is not
 completion; a missing next stage is more work on the same assignment.
 
 ## Coordinate and integrate
