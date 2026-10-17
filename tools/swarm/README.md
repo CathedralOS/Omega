@@ -6,10 +6,12 @@ durable dispatch results, dependency handoffs, final acceptance and bounded
 2/5/10 admission. The Devin launcher below retains its existing transport.
 
 `launch.py` fans "advance the compiler" out to Devin Cloud sessions: the
-coordinator writes a wave manifest that pre-assigns one sample per session (a
-`"sample": "samples/..."` row whose acceptance is that program running with its
-authored oracle; a board item only for work outside any sample),
-the launcher creates one session per entry, and each session runs the ordinary
+coordinator writes a wave manifest assigning capability outcomes through the
+existing `board`/`item` fields. `suggested_first_slice` names the next executable
+witness, oracle and requirement it discharges. A `"sample": "samples/..."` row
+remains available for an explicitly sample-scoped assignment; the two forms
+are mutually exclusive; no new manifest fields are required.
+The launcher creates one session per entry, and each session runs the ordinary
 `advance` skill restricted to that item, registering its assignment in the
 shared claims registry ([tools/claims](../claims.md)) and landing through
 `tools/landing.py`.
@@ -278,9 +280,14 @@ coordinator-side:
 
 ## Coordinator selection rules
 
-Prioritize immediate customer outcomes within the requested scope, not the ease
-of producing a helper commit. Give one session the complete end-to-end outcome
-and its application command; all necessary pipeline crates belong to that owner.
+Follow [capability selection](../../AGENTS.md#the-sample-loop): retain regressions
+and explicit user scope, then select by existing outcome priority and release
+dependencies, not sample size. Give one session the parent task, its remaining
+acceptance and next executable witness; all necessary pipeline crates belong
+to that owner. After each witness lands, continue the same capability until its
+acceptance closes or the canonical switching/stopping conditions apply.
+Do not fill slots with invented failures when a first witness already passes.
+Send changed instructions explicitly to resumed workers at safe checkpoints.
 Check live outcome assignments; shared paths do not require partitioning.
 An exclusion applies to its wave, not all future work: reassess it when preparing
 a new wave and retain it only for a current conflict or concrete blocker. Do not

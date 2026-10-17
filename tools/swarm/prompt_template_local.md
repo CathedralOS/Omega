@@ -7,6 +7,13 @@ end.
 
 {customer_block}
 
+For a board-item assignment, retain its full remaining acceptance. The suggested
+first witness is an executable step, not a replacement finish line. Land complete
+repairs promptly, subtract the requirement each establishes, and continue the
+same capability. If a witness already passes, verify what it establishes and
+take the next required witness; do not manufacture a failure. An explicitly
+sample-only assignment remains limited to that sample.
+
 Complete the mandatory main preflight in `AGENTS.md` before dispatch. The
 coordinator must successfully fetch main and record its exact commit before
 creating workers. New worktrees use that commit; resumed worktrees retain their
@@ -82,8 +89,9 @@ at rebase. There are no handoffs; you finish this work. Renew before expiry.
 A checkpoint does not end the work.
 
 Keep a short record in the claim note (`python3 tools/claims.py note --ticket
-<ticket> --text "<finding>"`): sample, acceptance, current failure, next
-necessary action and prerequisites. Reread it after compaction. A new obstacle
+<ticket> --text "<finding>"`): parent task, remaining acceptance, witness and
+requirement it discharges, current failure, next action and prerequisites.
+Reread it after compaction. A new obstacle
 belongs to this work: fix it rather than filing a task for someone else. When
 the sample is too large to trace, cut a smaller sample that isolates the failing
 construct, make it run and land it, then return to this one.
@@ -96,12 +104,13 @@ an uncertain write. The landing queue remains mandatory.
 Keep `TASKS*.md` out of claimed paths; they are hot shared files. A sample
 that still fails keeps its current failure in its own README. If a `TASKS.md`
 item names this sample or its root cause, update it in the same commit as the
-repair. `landing.py` refuses candidates that touch only coordination files
-(`TASKS*.md`, `OWNER_QUESTIONS.md`, `tools/swarm/waves/`) or change nothing,
-so never land a board-only or empty commit.
+repair. For verified already-satisfied acceptance with no implementation diff,
+use the documented `--board-update` landing route; never invent code or an empty
+commit to publish closure. Ordinary repairs carry their board update with them.
 
 Release the claim with `python3 tools/claims.py release --ticket <ticket>`
-when the sample runs on main or the session stops; a stopped session records
+when the assigned capability acceptance is met, an explicitly standalone sample
+runs on main, or the session stops; a stopped session records
 its frontier in the claim note and the sample README first.
 
 ## Working rules
@@ -119,8 +128,9 @@ its frontier in the claim note and the sample README first.
   GC with the coordinator; inspect `mbx gc --dry-run` first. Cache budgets do not
   bound unmanaged outputs. Do not delete another slot's active targets,
   unpublished work or ignored package-review state to make room.
-- Refetch `origin/main` before enqueueing. If the sample already runs on
-  main, verify and report `superseded`.
+- Refetch `origin/main` before enqueueing. If the assigned acceptance already
+  passes on main, verify and report `superseded`; a passing first witness does
+  not supersede the remaining requirements of a capability assignment.
 - On Windows, never use `2>nul` or `>nul` to silence output: Git Bash
   creates a literal file named `nul` in the worktree, which lands as an
   untracked file and can block a publish from the main checkout. Drop the
@@ -159,6 +169,7 @@ Give `publish` the model that produced the change: `--provenance "agent=<tool> m
 End with a prose report containing:
 
 - the sample and whether it now runs with its oracle on main
+- parent capability, requirements removed and remaining acceptance
 - claim ticket
 - landed commit(s), or the exact blocker with the conflict details
 - checks run, each with command, host, and exit code

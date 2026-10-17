@@ -30,6 +30,14 @@ These are estimates, not edit permissions; necessary scope can grow without a
 new claim. Boards remain shared: claim their items, not board-file paths. A
 sample and the compiler repairs it needs are one piece of work under one claim.
 
+For capability work, claim the board item and keep its current witness,
+requirement removed and remaining acceptance in the note. Explicit sample-only
+assignments may still claim the sample path. Existing sample tickets stay valid:
+record parent context in their notes rather than replacing tickets mid-repair.
+Keep the capability claim across its landed witnesses while actively continuing;
+release when its acceptance is complete or the session stops, preserving the
+remaining frontier. No registry schema change is needed.
+
 `python3 tools/sample_queue.py` reads one live registry snapshot while listing
 failing samples. Unclaimed programs come first; occupied samples show their
 owners, tickets and notes. A failed registry read labels ownership unknown in

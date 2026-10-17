@@ -1,35 +1,38 @@
 # Tasks
 
-This board is reference, not the work queue. Compiler work follows
-[the sample loop](AGENTS.md#the-sample-loop): take a failing sample from
-`python3 tools/sample_queue.py`, make it run, and when it already runs, write a
-harder one. The [completion contract](wiki/drafts/reference/rust_compiler_completion.md)
+This board supplies capability priorities and remaining acceptance. Compiler
+work follows [the sample loop](AGENTS.md#the-sample-loop): select an outcome,
+make its required witnesses run, land complete repairs, and continue until
+the outcome's acceptance is met. `python3 tools/sample_queue.py` helps find
+witnesses; smallest-first is not the release priority. The
+[completion contract](wiki/drafts/reference/rust_compiler_completion.md)
 defines release acceptance. Squalr is a customer, not the destination or a
 reason to special-case source; all accepted language scope stays required.
 
 ## Working the board
 
 The sections below describe capability gaps, release requirements and design
-context under stable IDs that other documents link to. Read the section a
-sample's failure leads into; do not take an item as work on its own. A sample
-that runs because of a repair is the record that the repair is done: subtract
-what now works from any item that names that sample or its root cause, and
-delete the item when nothing remains.
+context under stable IDs that other documents link to. Read the whole selected
+item and check its frontier against current main before assigning work. Choose
+the next executable witness by the remaining requirement it establishes, not
+because its failure is small. Samples and fixtures prove capability outcomes;
+they do not replace the item's broader acceptance.
 
-An item stands on its own only when no sample can carry it:
-
-- an owner decision (linked to [OWNER_QUESTIONS.md](OWNER_QUESTIONS.md)) or an
-  unavailable environment;
-- release closure ([Rust compiler release closure](#rust-compiler-release-closure))
-  and its full gates;
-- a regression that could not be repaired where it was found.
+After each complete landed repair, subtract what its evidence establishes and
+continue the same item's next required witness. Delete the item when nothing
+remains. A passing first witness is evidence to reconcile, not an instruction
+to keep changing it until it fails. External prerequisites, release gates and
+measured development-health incidents retain their own non-sample acceptance.
+Keep owner decisions in [OWNER_QUESTIONS.md](OWNER_QUESTIONS.md). Do not turn
+this board into one entry per witness or a history of successful runs.
 
 Optimizer and bootstrap work keep their own boards
 ([TASKS_OPTIMIZER.md](TASKS_OPTIMIZER.md), [TASKS_BOOTSTRAP.md](TASKS_BOOTSTRAP.md))
 and acceptance; Cathedral structures stay Cathedral's.
 
-A claim note carries the sample, its oracle, the current failure, the next
-necessary action and prerequisites. After compaction or a checkpoint, reread
+A claim note carries the parent item, remaining acceptance, witness and oracle,
+the requirement it discharges, current failure, next necessary action and
+prerequisites. After compaction or a checkpoint, reread
 the note before proceeding. A roadblock you discover belongs to the work that
 found it: fix it. A checkpoint, diagnosis or child task does not make a sample
 run. File conflicts are reconciled at rebase, not avoided by inventing another

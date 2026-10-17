@@ -100,8 +100,11 @@ cannot dispatch work or acquire managed rollout/completion credit. See
    the exact main commit and reread updated instructions. A failed fetch stops
    the new launch; cached main is not a fallback. Each independent executor
    repeats this preflight before implementation.
-2. Inspect live claims and the coordinator's in-flight assignments. Select real
-   capability or development-health outcomes under `advance`. Recheck board
+2. Inspect live claims and the coordinator's in-flight assignments. Follow
+   [capability selection](../../../AGENTS.md#the-sample-loop) under `advance`.
+   Record the parent task, remaining acceptance and next required witness in
+   the existing assignment context; a controller's program-level success does
+   not establish parent-task closure. Recheck board
    evidence against current code before dispatching an already-landed repair.
 3. Assign distinct outcomes, allowing shared implementation paths. Each assignment carries the
    program, authored exit/output, board acceptance, governing designs, exact
@@ -206,8 +209,11 @@ ancestry before integration. Keep independent proof, custody and trust checks.
 Drain each result promptly: inspect evidence and diff, reconcile claims, record
 the outcome, verify the owner's complete path through `landing.py`, and follow up
 with the next necessary step of the owned outcome on the same session.
-Choose another outcome only after complete acceptance and authorized remote
-landing. Path overlap is
+Continue the same parent task through successive complete landed witnesses;
+use the controller's normal successor protocol for program-level assignments.
+Choose another capability only under the canonical selection rules and user
+scope. Send changed selection instructions explicitly to existing workers at
+safe checkpoints without discarding current work. Path overlap is
 not a blocker; reconcile changes rather than pivoting to peripheral work. Do not hold an idle session behind
 a coordinator gate unless its next program truly depends on that result.
 Update only board items justified by actual acceptance. A program that still

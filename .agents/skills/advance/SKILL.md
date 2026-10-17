@@ -1,44 +1,52 @@
 ---
 name: advance
 description: >-
-  Take one failing Omega sample end to end: make it compile and run with its
-  authored result, landing every compiler repair it needs. Use for advance,
+  Advance an Omega capability outcome through executable samples, landing
+  complete repairs and retaining its remaining acceptance. Use for advance,
   continue the compiler, or pick the next compiler work. Not for a named bug
   fix, code question, review, or repository-wide health check.
 ---
 
 # Advance the Omega compiler
 
-Make one sample run, through demonstrated acceptance and publication, following
-[the sample loop](../../../AGENTS.md#the-sample-loop).
+Finish a selected capability through executable witnesses and published repairs,
+following [the sample loop](../../../AGENTS.md#the-sample-loop). A named sample
+or explicitly bounded request retains its narrower scope.
 Follow [AGENTS.md](../../../AGENTS.md) for repository ownership,
 validation, board rules, and publication.
 
-## Choose the sample
+## Choose the capability and its next witness
 
 Record the start time, starting checkout, and branch. Fetch main and inspect
 status and recent lane commits. If the starting checkout is clean and on main,
 fast-forward it with `git merge --ff-only origin/main` before reading its boards.
 Otherwise preserve it and read from an isolated worktree based on fetched main.
 
-For a continuation, keep the same sample until it runs and lands, unless the
-user changes priority. Missing implementation is part of the work, not a reason
-to move elsewhere. Without prior continuity, take work in this order:
+Apply the selection order in [AGENTS.md](../../../AGENTS.md#the-sample-loop):
+known main regressions, explicit user scope, the existing capability continuation,
+then an actionable board outcome by priority and release dependencies. Read the
+whole item's acceptance and verify its remaining gap against current main.
+Record the parent task and the exact requirement the next sample will discharge.
+Do not attach a task ID to an unrelated sample after choosing it.
 
-1. A regression `tools/native_watch.py` reports on main, or a sample that ran
-   before and no longer does: bisect it and repair it.
-2. A sample the user names.
-3. The smallest unclaimed failing sample from `python3 tools/sample_queue.py` (run
-   `python3 tools/sample_native_gate.py --programs-only --find-work` first when no recent run exists).
-   Several queued samples with one demonstrated root cause are one piece of
-   work.
-4. When the queue is empty, write a harder sample at the language frontier
-   and take its failure.
+Use `python3 tools/sample_queue.py` as witness evidence, not a global
+smallest-first assignment policy. Prefer an existing relevant program; use a
+focused reproduction when the task already names one. Run
+`python3 tools/sample_native_gate.py --programs-only --find-work` when discovery
+is needed and no recent record exists. An absent or green queue does not close
+the task: write a witness for its next uncovered requirement. Several samples
+with one demonstrated root cause may belong to one repair. Explore a new
+language-frontier gap only under open-ended scope after existing actionable
+outcomes are exhausted.
 
 Size the work to finish in this session. When the sample is too large to
 trace, write a smaller sample that isolates its failing construct with its own
 oracle, make that run and land it, then return to the large one. A sample that
-passes on its first run is not work; take the next one.
+already passes establishes only its exercised requirement. Reconcile that
+evidence and continue the same capability's remaining acceptance; do not
+manufacture a failure or compiler edit. If the full acceptance already passes,
+close the stale item through normal board reconciliation and select the next
+outcome only when the user's scope permits it.
 
 Squalr and Cathedral are customers, not source shapes to special-case or
 rewrite around gaps. `TASKS_BOOTSTRAP.md` and `TASKS_OPTIMIZER.md` work, when the
@@ -46,19 +54,20 @@ user names it, keeps its own acceptance. After landing a sample, measured
 iteration performance or test-environment friction may be the next piece of
 work. Name its workflow, baseline and adequate target first; a minor
 incidental slowdown is not permission to abandon a sample.
-Read the sample queue's live owners and notes before choosing unassigned work.
-It ranks unclaimed samples first; an occupied sample remains visible. Use
-`python tools/claims.py status` to read other live outcomes when their refusals
-suggest a related root cause. Prefer another complete sample outcome already
-outside the live sessions' work; shared implementation paths do not exclude it.
-If every queued failure is already being pursued, write a harder distinct sample
-as in step 4. A named sample, continuation or known main regression keeps its
-priority even when another session claims it: read the note, reuse available repairs and reconcile at rebase.
+Read live claims and in-flight assignments before choosing unassigned work.
+Prefer distinct capability outcomes with demonstrated acceptance; shared
+implementation paths do not exclude them. A named assignment, continuation or
+known regression keeps its priority even when another session claims it: read
+the note, reuse available repairs and reconcile at rebase. Do not invent unrelated
+samples to fill capacity when the current witnesses are already assigned.
 
-Claim your sample (`claim --item <sample path> --owner "<label>" --path <paths>`)
-before implementation. Inspect the registration's `overlaps`: if another session
-claimed the same sample between selection and registration, release this ticket
-and choose another unassigned sample before starting its repair. This preference
+Claim the parent item (`claim --board TASKS.md --item <ID> --owner "<label>"
+--path <paths>`) and record the current witness in its note. For explicitly
+standalone sample work, claim `--item <sample path>` without inventing a board
+entry. Existing sample tickets remain valid; add the parent context in the note
+rather than discarding ownership. Inspect the registration's `overlaps`: if an
+automatic assignment duplicates a just-claimed outcome, choose another ready
+outcome before implementation. This preference
 for distinct automatic assignments grants no veto and requires no permission;
 named samples, continuations and known main regressions still proceed.
 Overlapping paths are informational.
@@ -74,8 +83,9 @@ its implementation. Repeat integration near publication. An explicitly named
 program limits the work to that program and its necessary repairs. State the
 sample, its oracle, the current failure and the acceptance command.
 
-Keep that short record in the claim note: sample, acceptance, current
-failure, next necessary action and dependencies. Reread it after compaction
+Keep that short record in the claim note: parent task, remaining acceptance,
+current sample and the requirement it discharges, failure, next action and
+dependencies. Reread it after compaction
 and before changing direction. Reuse the session that already has the
 checkout. After a landed repair, compact when the next assignment is a
 different outcome, and leave the context in place when the next run branches
@@ -342,12 +352,19 @@ rather than writing `unspecified`: Codex records it as `model` and
 `model_reasoning_effort` in `~/.codex/config.toml`.
 Hold the lease only for the publish itself.
 
-The sample running is the record of the work; no board entry is needed. If a
-`TASKS.md` item names this sample or its root cause, update it in the same
-change following [board update discipline](../../../TASKS.md#updating-the-boards):
-subtract what now works, delete the item when its acceptance is met, and do
-not replace it with a success narrative. A sample that still fails keeps its
-current failure in its README.
+The sample running on main establishes the completed repair. Update its parent
+item in the same change following [board update discipline](../../../TASKS.md#updating-the-boards):
+subtract only requirements established by the evidence, delete the item only
+when its full acceptance is met, and do not add a success narrative or a new
+item per witness. Keep the next remaining requirement in the claim note. A
+sample that still fails keeps its current failure in its README.
+
+Landing one witness is not a switch to an unrelated outcome. Continue the
+parent's next required witness within authorized scope; use a fresh worktree
+after the landed lane's cleanup below. Reuse the session and relevant context.
+An explicit one-sample stop remains a stop, with parent acceptance reported
+unfinished. A genuine external prerequisite pauses only the affected work;
+preserve its frontier and continue other feasible work within user scope.
 
 After publication, return to the recorded starting checkout and recheck its
 branch and status. If it is still clean and on main, fetch and run
@@ -381,8 +398,9 @@ decision, unavailable environment, budget limit or user stop may end this run;
 preserve the exact frontier for the same owner's continuation without marking
 the outcome complete.
 
-Report the program's behavior before and after, commit/publication state,
-checks run, and remaining dependencies. For development-health work report the
+Report the program's behavior before and after, the parent requirement removed,
+remaining capability acceptance, commit/publication state, checks and dependencies.
+For development-health work report the
 workflow's before/after measurements and preserved validation. Stop after the
 owned outcome unless the user requested continuing work.
 

@@ -21,8 +21,10 @@ state machines. This repository holds the language, its Rust reference
 compiler, its Omega-written product compiler, and the Alpha-to-Omega bootstrap
 chain.
 
-**The goal is a compiler that ships.** Take a sample program end to end, not
-a file or a stage ([the sample loop](#the-sample-loop)). Demonstrate compiler work through real programs and
+**The goal is a compiler that ships.** Choose a capability outcome from
+`TASKS.md`, then carry its executable witnesses end to end
+([the sample loop](#the-sample-loop)), not a file or a stage.
+Demonstrate compiler work through real programs and
 relevant invalid controls; `omega run <program.omg>` must produce the authored
 result. Squalr and Cathedral expose general compiler gaps, not special cases
 to recognize or applications to rewrite around missing language support.
@@ -90,33 +92,47 @@ continuation; it does not turn unfinished work into completion.
 
 ## The sample loop
 
-Compiler work is one loop, and its unit is a sample: a runnable program under
-`samples/` whose header documents `Expected exit` or `Expected output contains`.
+Capability outcomes determine priority; samples provide executable evidence.
+A sample is a runnable program under `samples/` whose header documents
+`Expected exit` or `Expected output contains`. A passing witness completes
+that repair, not every requirement of its parent capability.
 
-1. **Take a failing sample.** `python3 tools/sample_queue.py` lists the
-   samples that fail on this host in the latest sample-gate run, smallest
-   first, with each one's refusal; run `python3 tools/sample_native_gate.py`
-   with `--programs-only --find-work` first when no recent run exists; the full release
-   gate still includes probes and controls. A sample the user names comes first. A
-   sample that cannot run until the owner decides something says so in its
-   README, citing the `OWNER_QUESTIONS.md` entry; the queue lists it apart
-   from the work.
-2. **Make it run.** Done means the sample compiles and runs natively with its
-   authored result on main, with every compiler, library and fixture repair
+1. **Choose the outcome, then its witness.** Repair known main regressions
+   first, honor explicit user scope, and otherwise retain the current capability
+   assignment. For new automatic work, choose an actionable `TASKS.md` outcome
+   by its stated priority and release dependencies. Read its full acceptance
+   and verify its remaining gap against current main. Name the exact requirement
+   the next witness will discharge. `python3 tools/sample_queue.py` supplies
+   failing witnesses; its smallest-first order does not set product priority.
+   Use existing evidence or a focused run for the selected outcome; run
+   `python3 tools/sample_native_gate.py --programs-only --find-work` when discovery
+   is needed and no recent record exists. A genuinely missing owner decision
+   is cited in the sample README through `OWNER_QUESTIONS.md`.
+2. **Make it run and land.** Done for this witness means it compiles and runs
+   natively with its authored result on main, with every compiler, library and fixture repair
    it needed landed with it, and its invalid controls still rejecting.
    Nothing short of that is done: a stage, checkpoint, diagnosis or board edit
    is progress, not completion.
-3. **Keep it small enough to finish.** A piece of work is sized to finish in
-   one session. When a sample is too large to trace (its size hides the
+3. **Land complete steps toward the same outcome.** Size each executable
+   repair to finish in one session; the capability may require several landed
+   repairs. When a sample is too large to trace (its size hides the
    failing construct, or its first failure leads into an unrelated second
    gap), cut it down: write a smaller sample that isolates the failing
    construct with its own oracle, make that run, land it, then return to the
    large one. Large programs advance as a ladder of small runnable samples,
    never as stage tasks.
-4. **When it already works, go harder.** A sample that passes on its first
-   run teaches nothing. Take the next failing sample, or write a harder one at
-   the language frontier: a construct, combination or scale no passing sample
-   uses yet. Its failure is the next work.
+4. **Return to the remaining acceptance.** After a witness lands or already
+   passes, subtract only the requirement its evidence establishes and take the
+   next required witness of the same capability. Write a new witness when an
+   uncovered requirement needs one, not to manufacture a failure or fill a slot.
+   Close the task only when its full acceptance passes. Switch capabilities on
+   closure, explicit reprioritization, or a genuine external prerequisite after
+   exhausting feasible work on that outcome. Regressions may interrupt this
+   chain; return afterward. Respect user stops, budgets and explicitly bounded
+   assignments, preserving the parent outcome and next requirement for resumption.
+   A green sample queue does not establish capability closure. Only after
+   existing actionable outcomes within scope are exhausted should open-ended
+   advancement explore a new accepted-language gap.
 
 The repair inside the loop is ordinary compiler engineering and follows every
 rule below: generalize the operation, check mechanical variants, pin the
@@ -218,10 +234,10 @@ The rules that touch every edit:
   provenance.
 - Commit subjects are `lane: statement` — pick the lane by changed
   responsibility per [commit naming](#commit-naming) below.
-- The sample gate is the work queue; the boards are not. `TASKS.md` records
-  only what the sample loop cannot: a prerequisite outside any sample (an
-  owner decision, an unavailable environment), release work with its own
-  acceptance, and a regression that could not be repaired where it was found.
+- `TASKS.md` supplies capability priorities and remaining acceptance; the
+  sample gate supplies executable witnesses, not the priority order. Keep
+  capability outcomes, external prerequisites, release acceptance and unresolved
+  regressions on the board, not one item per sample or diagnostic.
   `TASKS_BOOTSTRAP.md` and `TASKS_OPTIMIZER.md` keep the bootstrap chain and
   optimizer work, which have their own acceptance. An item exists only while
   it names unfinished work and is deleted when its acceptance passes; state
@@ -274,15 +290,17 @@ are byte-sensitive.
   cause are one piece of work; shared files or pipeline stages are not a
   reason to group. Never divide a sample into stages for different agents. Only an actual external prerequisite (an owner decision, an
   unavailable environment) gates work.
-- Keep a short record in the claim note: sample, acceptance, current failure,
-  next necessary action and prerequisites. Reread it after context compaction
+- Keep a short record in the claim note: parent task, remaining acceptance,
+  current witness and the requirement it discharges, current failure, next
+  necessary action and prerequisites. Explicitly named standalone work need not
+  invent a parent task. Reread the note after context compaction
   and before changing direction. A checkpoint is not completion. A user stop
   or exhausted budget preserves the frontier without claiming success.
 - A newly discovered obstacle belongs to the work that found it: fix it
   rather than filing a task for someone else. Do not split work or mine
   tasks to keep agents busy; narrow parallel slices build duplicate routes for
-  the same operation. When the queue is empty, write a harder sample (step 4
-  of the sample loop).
+  the same operation. An empty sample queue calls for the selected capability's
+  next uncovered acceptance witness (step 4 of the sample loop).
 - Overlap is expected and needs no permission. A Git conflict is a design
   signal: two sessions are changing one decision point, so reconcile them into
   one implementation at rebase. Conflicts only show textual overlap; semantic
@@ -297,8 +315,9 @@ are byte-sensitive.
 - After landing a sample, an agent may take a bounded
   iteration-performance or test-environment outcome based on an experienced
   obstruction. Record the workflow and adequate target before repair; return
-  to product work when it meets that target. No incidental profiling detours.
-- Report which samples now run, not activity or commit counts. Missing implementation
+  to the parent capability when it meets that target. No incidental profiling detours.
+- Report which samples now run, which capability requirements their evidence
+  removes, and what remains; do not count activity or commits as closure. Missing implementation
   and file overlap are work to resolve, not blockers. An actual missing owner
   decision, inaccessible environment or external dependency may pause that one
   piece of work; record it and continue everything else. Unrelated busywork is
@@ -326,7 +345,9 @@ active qualification capture. Offline plans and dry runs are previews, not a
 completed launch preflight.
 
 - Give a session or subagent a complete piece of work, never a stage: the
-  sample that must run, its oracle, and that it lands its own result.
+  parent capability and remaining acceptance, its next sample and oracle,
+  and that it lands its own result and continues the capability within the
+  authorized scope and stopping condition.
   State directions directly; never imply or insinuate them. The session
   carries authorized work through implementation, testing, review, normal
   main landing and remote verification, and keeps working until it is
@@ -351,6 +372,10 @@ completed launch preflight.
 - Sessions record progress in their claim note
   (`python tools/claims.py note --ticket`) and their final report. Nobody
   reconciles another session's work on its behalf.
+- When selection policy changes, coordinators explicitly send active workers
+  the updated instructions and parent-outcome context at their next safe
+  checkpoint. Do not assume a file edit refreshed a running session's context;
+  preserve its current witness, unpublished work and original user limits.
 - Continue implementation when the design answers the question; when it does
   not, put the exact missing decision to the project owner and keep working
   on everything else.

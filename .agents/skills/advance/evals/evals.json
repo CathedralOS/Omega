@@ -20,7 +20,8 @@
         "Selected regression and affected checks for the changed behavior; no full suite without a stated broad-impact or explicit health/release reason",
         "Check claims match recorded commands, revisions, outcomes, and actual coverage",
         "Board handled correctly: updated when acceptance passed, or explained why not",
-        "Task picked traces to a concrete customer and owning board or design contract",
+        "Selects an actionable capability by board priority and release dependencies before selecting its witness",
+        "Names the exact parent requirement the witness discharges and retains broader unfinished acceptance",
         "Used existing evidence or a focused probe instead of unfiltered corpus ranking",
         "Reused successful checks on unchanged inputs instead of repeating a full suite for landing",
         "Recorded confirmed unrelated failures without adding their repairs to the task"
@@ -297,6 +298,72 @@
         "Removes the replaced special path where the repair supersedes it",
         "Reruns the unchanged customer and reports any remaining downstream failure without claiming full closure",
         "Does not grow the board into one task per source-shape permutation"
+      ]
+    },
+    {
+      "id": 18,
+      "name": "capability-priority-beats-smallest-sample",
+      "prompt": "Continue compiler development. No regression or current assignment exists. TASKS.md prioritizes completing growable collections, with an actionable native growth-and-cleanup witness. The queue's smallest failure is an unrelated arithmetic example.",
+      "status": "Not run against this revision",
+      "expected_output": "Select the collection capability, verify its current remaining acceptance, and work its executable witness rather than the smaller unrelated failure.",
+      "files": [],
+      "assertions": [
+        "Selects the capability before its sample and records the requirement the witness establishes",
+        "Does not attach the collection task ID to the unrelated arithmetic sample",
+        "Preserves general compiler repairs, invalid controls and normal landing"
+      ]
+    },
+    {
+      "id": 19,
+      "name": "landed-witness-retains-parent-outcome",
+      "prompt": "Keep going on the assigned collection capability. Its growth witness has landed and runs; exact cleanup and failed-allocation preservation remain in its acceptance. An unrelated sample is newly available.",
+      "status": "Not run against this revision",
+      "expected_output": "Continue the same parent task with its next required executable witness, landing complete repairs independently rather than switching tasks or retaining one enormous branch.",
+      "files": [],
+      "assertions": [
+        "Subtracts only the requirement established by the landed witness",
+        "Retains cleanup and failed-allocation acceptance and selects a witness for the next necessary requirement",
+        "Does not mark the capability complete or select unrelated work because one sample landed",
+        "Cleans up the landed lane and preserves capability context for the next repair"
+      ]
+    },
+    {
+      "id": 20,
+      "name": "green-queue-does-not-close-unwitnessed-capability",
+      "prompt": "Advance the assigned task-runtime capability. Every queued sample passes, but the task explicitly requires physical park/resume and existing examples complete inline. The necessary host is available and the semantics are settled.",
+      "status": "Not run against this revision",
+      "expected_output": "Create a real park/resume witness with an observable oracle and implement the required capability, rather than treating the green queue as closure or inventing unrelated frontier work.",
+      "files": [],
+      "assertions": [
+        "Connects the new witness to the existing unmet acceptance",
+        "Does not substitute inline completion for physical preservation",
+        "Does not create another board item for the witness or manufacture an owner blocker"
+      ]
+    },
+    {
+      "id": 21,
+      "name": "already-complete-outcome-needs-no-invented-failure",
+      "prompt": "Continue open-ended advancement on the selected capability. Fresh verification shows all its acceptance, including invalid controls and required hosts, already passes on main. The board is stale. Another prioritized capability remains incomplete.",
+      "status": "Not run against this revision",
+      "expected_output": "Reconcile the stale item with verified evidence through the normal board protocol, then select the next ready capability without manufacturing a compiler edit or failing sample.",
+      "files": [],
+      "assertions": [
+        "Checks full acceptance rather than inferring closure from one passing example",
+        "Does not keep modifying a passing program until it fails",
+        "Distinguishes verified existing behavior from newly implemented capability"
+      ]
+    },
+    {
+      "id": 22,
+      "name": "explicit-one-sample-scope-remains-bounded",
+      "prompt": "Fix only this named sample and stop after landing it. It exercises one requirement of a much larger collection task.",
+      "status": "Not run against this revision",
+      "expected_output": "Repair and publish the named sample and necessary general compiler changes, report the parent task's remaining acceptance, and stop without expanding into the whole capability.",
+      "files": [],
+      "assertions": [
+        "Honors the explicit stopping point over automatic capability continuation",
+        "Does not claim the broader task is complete",
+        "Does not launch agents or take an unrelated task"
       ]
     }
   ]

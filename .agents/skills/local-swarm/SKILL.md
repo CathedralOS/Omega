@@ -34,10 +34,12 @@ distinct outcomes, not disjoint files. Compiler capabilities and measured
 iteration-performance/test-environment incidents are eligible. Preserve explicit
 parked scope; idle rather than mine tasks or invent audits.
 
-Use `tools/swarm/waves/local-example.json`: one session name, sample
-(`"sample": "samples/..."`, whose authored oracle is the acceptance) and path
-estimate per outcome; name a board item instead only for work outside any
-sample. Keep active IDs stable. `owning_paths` is a
+Follow [capability selection](../../../AGENTS.md#the-sample-loop). For automatic
+work, use the launcher's existing `board`/`item` manifest form and put the next
+witness, oracle and requirement in `suggested_first_slice`. The `sample` form
+in `tools/swarm/waves/local-example.json` remains for explicitly sample-scoped
+work; do not combine those mutually exclusive forms. Keep active IDs stable.
+`owning_paths` is a
 compatibility name for advisory estimates. Layers represent real dependencies,
 not a requirement to serialize file overlaps.
 
@@ -61,7 +63,8 @@ stable worktree for an ongoing outcome; a same-checkout no-op does not prove a
 new worktree's cache hits. Check pressure before builds and close delegated stdin
 using the native host's supported entrypoint.
 
-Dispatch outcome, acceptance, failure, next action, dependencies, design,
+Dispatch parent outcome, remaining acceptance, next witness and the requirement
+it discharges, failure, next action, dependencies, design,
 exact worktree/base and publication permission. Agents reread the short assignment
 after compaction. Reuse the session that already has the checkout. Compact
 after a landed repair when the next assignment is a different outcome. When
@@ -78,7 +81,10 @@ Keep returned handles and real states in `build/swarm/<wave>/slots.json`;
 `tools/swarm/fill.py note` and `plan` support this. On completion inspect
 evidence/diff and verify the owner's complete acceptance and authorized remote
 landing. If either remains incomplete, resume the same owner on that outcome.
-Only after completion choose new work within user scope.
+After each witness lands, continue the parent's remaining acceptance; do not
+count a witness landing as full capability closure. Switch only under the
+canonical selection rules and user scope. Send updated selection instructions
+explicitly to existing workers at safe checkpoints without discarding their work.
 
 Use local branches and landing.py, not merge commits/direct pushes. Rebase
 incoming changes, preserve behavior and validate the combined result. Existing

@@ -1,13 +1,13 @@
 ---
 name: cursor-swarm
-description: Coordinate a requested Cursor cloud wave, one Task cloud subagent per distinct sample outcome, each on its own VM and branch. Use when the user asks for a Cursor swarm, Cursor cloud sessions, or for this chat to start separate cloud sessions. Use dot-swarm for dot native workers, devin-swarm for Devin, codex-swarm for Codex, and local-swarm for agents sharing one machine.
+description: Coordinate a requested Cursor cloud wave, one Task cloud subagent per capability outcome, each on its own VM and branch. Use when the user asks for a Cursor swarm, Cursor cloud sessions, or for this chat to start separate cloud sessions. Use dot-swarm for dot native workers, devin-swarm for Devin, codex-swarm for Codex, and local-swarm for agents sharing one machine.
 ---
 
 # Cursor cloud session swarm
 
 Run a user-requested compiler wave as Cursor cloud subagents. Each worker has
-its own VM, checkout, and branch, and it carries one sample through acceptance
-and landing. The coordinator selects outcomes, starts the sessions, and checks
+its own VM, checkout, and branch, and it advances a capability through complete
+landed witnesses. The coordinator selects outcomes, starts the sessions, and checks
 that each landing is on remote main. Writing or editing this skill does not
 launch a session or advance a compiler.
 
@@ -39,12 +39,11 @@ not a dead worker, and a local archive is not a landed result.
 
 A single advance remains one assignment. This skill applies when the user asks
 for the wave. Honor the requested session count and the stopping condition.
-Record that count. Launch one session per distinct demonstrated root cause
-that the selected environment can execute. When the queue has fewer causes
-than the requested count, launch the smaller number and report the remainder
-as pending, with the missing cause or host. Idle slots stay empty. Board
-items, line-count cleanup, and a second session on the same cause do not fill
-the count.
+Record that count. Launch one session per distinct actionable capability outcome
+with a concrete acceptance witness on its assigned host. When fewer outcomes
+are ready than the requested count, report the remainder and leave slots empty.
+An unverified board label, unrelated cleanup or duplicate repair does not fill
+the count. Claims and in-flight assignments inform selection, not file fences.
 
 ## Discover the launch tool
 
@@ -119,14 +118,14 @@ launch. Cached `origin/main` is not a fallback. Preserve the coordinator's
 dirty or non-main checkout; workers start from the fetched remote `main`, not
 from the coordinator's branch.
 
-Inspect live claims and assignments already written for this wave. Select
-with [advance](../advance/SKILL.md): a main regression, a sample the user
-names, then the smallest unclaimed failing sample. Several queued samples
-with one demonstrated root cause are one session. Shared files are allowed.
-When no recent queue record exists, run
-`python3 tools/sample_native_gate.py --programs-only --find-work`, then read
-`python3 tools/sample_queue.py`. Root causes named before that record are
-hypotheses.
+Inspect live claims and in-flight assignments. Follow
+[capability selection](../../../AGENTS.md#the-sample-loop) and
+[advance](../advance/SKILL.md): retain the parent task, its remaining acceptance
+and the requirement the next witness discharges. Sample-queue size is not
+priority. Reproduce the selected requirement using current evidence or a focused
+run; root causes not yet witnessed are hypotheses. Shared files are allowed.
+When resuming existing workers, send this policy and their parent-task context
+explicitly at a safe checkpoint; preserve current work and user scope.
 
 The worker boots the Cursor environment selected for it. The coordinator's OS
 does not transfer. A Windows execution oracle needs a Windows environment
@@ -145,51 +144,48 @@ that slug is present in the exposed list.
 ## Record, then start
 
 Before the Task calls, write `build/swarm/<wave>/inflight.json` with one slot
-per requested session: sample path, oracle, acceptance command, base SHA,
+per requested session: parent task, remaining acceptance, next requirement,
+sample path, oracle, acceptance command, base SHA,
 required host, model request, status `pending`, and the agent id once the
 call returns. A draft file under `build/swarm/` is coordinator memory. It is
 not a Devin manifest and it is not fed to `launch.py`.
 
 ## The worker's goal
 
-The session has two finishes when the assigned program already runs. Keep
-modifying that program until its first run fails, then repair the compiler
-only far enough that the failing run passes. Or leave it and write another
-useful sample, one whose first `omega run` fails, and repair only what that
-failure requires. A sample that runs on the first try is a wasted session.
-Do not hunt the compiler for something to change.
-
 Copy this into every worker prompt:
 
-> Run `omega run` on the assigned program. When it fails, repair the
-> compiler only far enough that this run passes, including through a local,
-> a field, a parameter, and a call result, and land that repair with the
-> program through `landing.py`. When it already passes, stop. Either keep
-> modifying this program until a run fails and then repair that failure, or
-> go write another useful sample whose first `omega run` fails and repair
-> that failure. Land the repair with the witness that failed. A sample,
-> input file, or fixture that passed on the first try is unfinished. Do not
-> search the compiler for an edit.
+> Read the assigned capability's full acceptance and identify the requirement
+> this witness establishes. Run its public acceptance command. Repair failures
+> generally, preserving valid compositions and invalid controls, and land each
+> complete repair through `landing.py`. After landing, or if this witness
+> already works, reconcile only what the evidence establishes and continue the
+> same capability's next remaining requirement. Do not manufacture a failing
+> sample or a compiler edit. Full task acceptance, not the first passing
+> program, closes the capability. Respect explicit one-sample scope, user stops
+> and budgets; preserve remaining acceptance when interrupted.
 
 A host this VM cannot execute, or an owner decision in `OWNER_QUESTIONS.md`,
-ends as `blocked` with the failure named. Publishing the original program
-unchanged, or admitting a feature the compiler already required, does not
-close the session.
+leaves that requirement blocked with its prerequisite named. Continue feasible
+work within scope; a missing implementation is not an external blocker.
+If all acceptance already passes, report verified closure without inventing
+code changes. A published witness alone does not close a broader assignment.
 
 Each prompt is the worker's whole assignment. The worker does not see this
 conversation. Include:
 
 - The goal above, in those words
-- Wave, slot, sample path, authored oracle, and the `omega run` acceptance
+- Wave, slot, parent task and remaining acceptance, next requirement, sample
+  path, authored oracle, and the public acceptance command
 - Fetched main SHA, and the instruction to repeat the main preflight
-- Read `AGENTS.md` and run [advance](../advance/SKILL.md) restricted to this
-  sample
+- Read `AGENTS.md` and run [advance](../advance/SKILL.md) within the assigned
+  capability, or the narrower sample when explicitly requested
 - The law of completion: carry the failing run through the compiler repair,
   required review, and authorized landing verified on remote main; do not
   wait for another agent; do not publish half-finished functionality; do not
   bypass a gate; an explicitly read-only probe remains read-only
 - Claim with `python3 tools/claims.py` before editing, and keep the note
-  current: sample, acceptance, current failure, next action, prerequisites
+  current: parent task, requirement removed, remaining acceptance, witness,
+  current failure, next action, prerequisites
 - Publish only through `python3 tools/landing.py`. A Cursor branch or pull
   request for that branch is the worker's checkout, not the landing. Leave
   the pull request unmerged. After `landing.py` has fast-forwarded main,
@@ -200,7 +196,8 @@ conversation. Include:
   `TYPESAFE_API_KEY` and can reach api.typesafe.ai. This transport has no
   `secret_ids` field. Otherwise record Jev unavailable and use the
   deterministic checks in [testing](../../../tools/testing.md)
-- Verdict fields: `worker`, `item`, `result`, `base`, `branch`, `commits`,
+- Verdict fields: `worker`, `item`, `requirement_removed`, `item_closed`,
+  `result`, `base`, `branch`, `commits`,
   `claim_ticket`, `checks`, `witness`, `remaining_legs`. `result` is
   `landed`, `verification_only`, `blocked`, `superseded`, or `aborted`
 
@@ -228,25 +225,20 @@ poll it, wait on its shell, or send a keep-alive nudge. After the launches,
 continue coordinator bookkeeping or end the turn.
 
 On notification, drain that slot before starting a replacement. Read the
-verdict, fetch `origin/main`, and accept `landed` only when the repair
-commit is an ancestor of fetched main and the witness failed before that
-commit. A sample that passed on the first try is unfinished: resume the
-same agent and tell it to keep modifying the program until a run fails, or
-write another useful sample whose first run fails. Do not merge the worker branch into
-the coordinator branch. Resume the same agent id for the next step of the
-same unfinished outcome. Resume that same agent for the next red run while
-its pod is up. The pod already has the compiler in its target directory. A
-new Task call starts a new VM and pays about eight minutes of `mbx build`.
-Keep the session on one more failing `omega run`, then one repair. When the
-next probe passes, the session stops. Do not replace a live pod with a fresh
-one for the next sample. A new Task call is a new VM; use it when the
-returned id is gone. Choose another sample only after this one has landed or
-the user stops the wave.
+verdict, fetch `origin/main`, and verify landed repairs are ancestors of main
+with observed acceptance. Distinguish a landed witness from full parent-task
+closure. If requirements remain, resume the same agent on the next necessary
+witness within user scope; a passing first run is evidence, not a demand for
+another failure. Do not merge the worker branch into the coordinator branch.
+Reuse the live pod, but clean up each verified-landed branch/worktree under
+AGENTS.md. Switch capability only under the canonical selection rules, not
+because a witness landed or a worker ended its turn.
 
 Release a claim only for a slot whose owner has stopped and whose outcome has
 landed or been abandoned. Keep dirty unpublished work. Remove only a clean
 worktree whose head is an ancestor of fetched main.
 
 Report the requested count, the launched count, each linked session, the base
-SHA, the sample, and the observed result. A written skill and a session count
+SHA, the parent capability, requirement removed, remaining acceptance, sample,
+and observed result. A written skill and a session count
 are not a compiler improvement.

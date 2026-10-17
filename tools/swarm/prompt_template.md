@@ -11,6 +11,13 @@ Read `AGENTS.md` fully, then run the `advance` skill
 (`.agents/skills/advance/SKILL.md`) restricted to this customer. Do not select
 other work.
 
+For a board-item assignment, retain its full remaining acceptance. The suggested
+first witness is an executable step, not a replacement finish line. Land complete
+repairs promptly, subtract the requirement each establishes, and continue the
+same capability. If a witness already passes, verify what it establishes and
+take the next required witness; do not manufacture a failure. An explicitly
+sample-only assignment remains limited to that sample.
+
 ## Finish the whole path
 
 Apply the law of completion in `AGENTS.md`. Your superhuman advantage is
@@ -55,8 +62,9 @@ at rebase. There are no handoffs; you finish this work. Renew before expiry.
 A checkpoint does not end the work.
 
 Keep a short record in the claim note (`python3 tools/claims.py note --ticket
-<ticket> --text "<finding>"`): sample, acceptance, current failure, next
-necessary action and prerequisites. Reread it after compaction. A new obstacle
+<ticket> --text "<finding>"`): parent task, remaining acceptance, witness and
+requirement it discharges, current failure, next action and prerequisites.
+Reread it after compaction. A new obstacle
 belongs to this work: fix it rather than filing a task for someone else. When
 the sample is too large to trace, cut a smaller sample that isolates the failing
 construct, make it run and land it, then return to this one.
@@ -71,16 +79,18 @@ before retrying; its outcome may be uncertain. Landing remains mandatory.
 A sample that still fails keeps its current failure in its own README. If a
 `TASKS.md` item names this sample or its root cause, update that item in the
 same commit as the repair: subtract what now works, delete it when its
-acceptance passes. `landing.py` refuses candidates that touch only
-`TASKS*.md`, `OWNER_QUESTIONS.md` or `tools/swarm/waves/` or change nothing,
-so never land a board-only or empty commit. A missing owner decision goes to
+acceptance passes. Use the documented `--board-update` landing route for verified
+already-satisfied acceptance with no implementation diff; never invent code or
+an empty commit to publish closure. Ordinary repairs carry their board update
+with the implementation. A missing owner decision goes to
 `OWNER_QUESTIONS.md` with the exact question, referenced from the sample README,
 in the commit that records the frontier. Never touch these excluded items:
 {exclusions}.
 Required edits may span other sessions' paths and multiple stages. Reconcile
 shared repairs rather than adding a competing mode or dropping incoming work.
-Refetch main before landing. If the sample already runs, verify it and report
-superseded.
+Refetch main before landing. If the assigned acceptance is already satisfied,
+verify and report superseded. One passing witness does not supersede an
+unfinished board-item assignment; continue its remaining requirements.
 
 ## Landing
 
@@ -147,6 +157,10 @@ stopped:
   still believe is landable and ran out of ACU doing so; record the partial
   state and the next step in `remaining_dependency`. Do not describe a
   verification-only investigation as implementation budget exhaustion.
+
+For a capability assignment, report the requirements removed and remaining
+acceptance in the existing report fields. A landed witness may be progress
+without closing the item; keep working within the authorized stopping condition.
 
 `first_build_seconds` is the wall time of your
 first workspace check in this session. `lease_expiries` counts landing-lease

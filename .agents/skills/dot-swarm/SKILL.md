@@ -111,13 +111,15 @@ absent, report the missing runtime rather than pretending a shell is an agent.
    cached main is not a fallback.
 2. Read the relevant board sections and named code, then check live assignments
    with `python3 tools/claims.py status`. These name outcome DRIs, not file fences. Read the [coordinator selection rules](../../../tools/swarm/README.md#coordinator-selection-rules).
-3. Choose a required compiler capability with a real failing program, or a
+3. Follow [capability selection](../../../AGENTS.md#the-sample-loop). Choose a
+   required compiler capability with an executable acceptance witness, or a
    measured development-health outcome with a bounded target. Keep a continuation
    on its outcome through acceptance. Verify stale board claims
    against the code and recorded evidence. Do not fill spare slots with invented
    mining, fuzzing, or unrelated cleanup.
 4. Assign distinct outcomes with advisory implementation and validation paths. Include the board's
-   acceptance verbatim, concrete witness path, expected result, governing design,
+   acceptance verbatim, the next requirement to discharge, concrete witness path,
+   expected result, governing design,
    path estimates, known dependencies, and other workers' outcomes. Check required
    prerequisites before spending a slot on an impossible leg. Reading a shared
    dependency is allowed; necessary edits proceed with overlap reported.
@@ -227,8 +229,11 @@ Do not await a long build while finished reports remain undrained. Yield long
 commands through the execution tool and retain their session IDs; handle other
 work between checks. When nothing useful remains runnable, wait for a report.
 
-Prefer the smallest same-domain residual in the worker's existing authorized
-chain; resume that assignment with `followup_task`. Use a new worker for a new
+Prefer the next requirement of the same parent capability, not merely nearby
+work in the same domain; a landed witness does not close broader acceptance.
+Resume that assignment with `followup_task`. Send changed selection instructions
+explicitly to existing workers at safe checkpoints, preserving their work and
+user limits. Use a new worker for a new
 independent assignment. Reuse the session: a new executor spends a machine
 and the tokens required to rebuild the investigation. After a landed repair,
 compact when the next assignment is a different outcome. When the next run

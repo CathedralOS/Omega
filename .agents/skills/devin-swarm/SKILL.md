@@ -23,12 +23,16 @@ Follow the concrete path through completion; let working programs reveal design.
 Complete the [mandatory main preflight](../../../AGENTS.md#sessions-and-subagents)
 on the coordinator before dispatch and on each independent executor before
 implementation. A failed fetch stops a new launch; cached main is not a fallback.
-Inspect live claims plus in-flight assignments. Choose existing
+Inspect live claims plus in-flight assignments. Follow
+[capability selection](../../../AGENTS.md#the-sample-loop): choose existing
 release capabilities or measured iteration-performance/test-environment outcomes.
 Applications are witnesses, not separate priorities. Do not manufacture mining,
 fuzzing or gardening assignments to fill slots.
 
-Before dispatch record outcome, acceptance, session, revision, current failure,
+Use the launcher's `board`/`item` form for capability assignments, with the next
+witness and requirement in `suggested_first_slice`; reserve `sample` assignments
+for explicit sample scope. Before dispatch record outcome, remaining acceptance,
+next requirement and witness, session, revision, current failure,
 next action, dependencies and ticket in ignored `build/swarm/<wave>/`.
 Consult in-flight assignments too: claims can lag dispatch. Distinct outcomes
 may edit the same files in isolated worktrees. Notify peers, reuse repairs where
@@ -97,7 +101,11 @@ completed work. Never union-merge histories or create one task per diagnostic.
 
 ## Continue and drain
 
-After completion choose another ready outcome within user scope, including a
+After a witness lands, continue the same parent capability's remaining acceptance.
+A passing first witness is evidence to reconcile, not a reason to invent a new
+failure. Send changed selection policy explicitly to existing workers at safe
+checkpoints, retaining current work and user limits.
+After capability completion choose another ready outcome within user scope, including a
 measured development-health incident. If nothing useful is available, idle.
 Missing implementation and path overlap are not external blockers.
 

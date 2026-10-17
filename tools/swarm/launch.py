@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
-"""Coordinate a wave of sessions, each making one sample run end to end.
+"""Coordinate capability outcomes through complete executable witnesses.
 
-Why pre-assignment exists: the repository's advance skill selects its own
-sample from the queue, which is correct for one agent and a collision when N
-sessions start at once. The manifest is the coordinator's partitioning
-decision: one session, one sample (or, for work outside any sample, one named
-board item), one set of owning paths. A sample session's acceptance is the
+Why pre-assignment exists: independent sessions can select the same capability.
+The manifest records the coordinator's distinct board-item assignments, with
+the next witness in suggested_first_slice and advisory owning paths. Explicit
+sample-only requests retain the sample form. A sample session's acceptance is the
 sample compiling and running natively with its authored oracle on main; the
 session makes every repair that needs and lands it through tools/landing.py.
 The swarm adds nothing to the boards themselves.

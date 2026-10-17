@@ -17,6 +17,15 @@ a code explanation, and an edit to this skill must not independently select boar
 work or authorize publication. Use the assertions as outcome criteria, not required
 wording. Existing AGENTS.md requirements are controls, not evidence of a skill win.
 
+Scenarios 18–22 exercise capability-directed selection: priority versus sample
+size, continuity after a witness lands, missing witnesses, already-satisfied
+acceptance and explicit sample scope. Review the next completed assignments
+for requirements actually removed from their selected tasks, preserved regression
+behavior and continuation to remaining acceptance. A task ID attached to unrelated
+sample work is not success. If that pattern persists, revise the selection or
+dispatch guidance; do not add another tracker or count new samples as closure.
+This workflow change is an experiment, not a measured throughput improvement.
+
 For reasoning preservation, scenarios 13 and 14 distinguish a missing explanation
 from one already adequate. Inspect the natural source entry and decision site,
 not comment counts: can a fresh editor find the required rationale before making
