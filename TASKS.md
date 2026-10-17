@@ -3871,34 +3871,26 @@ and `mapped` need matching-host measurements, including the full-i32 status.
   Targetless checks select no physical entry; deployment cannot replace the
   physical adapter with a semantic continuation.
 
-- **CONSERVATION-CONTRACT / TERMINAL-CONTENT-CLAIMS.** Nonempty content claims
-  do not execute through source, Terminal, selected providers and native code
-  under [content conservation](wiki/spec/resources/content_custody.md):
-  partition an established input under an authored theorem, pass the exact
-  residual to a boundary, retain/return the rest and consume it in the caller,
-  for direct calls and checked wrappers using canonical
+- **CONSERVATION-CONTRACT / TERMINAL-CONTENT-CLAIMS.** Complete checked wrapper
+  theorem propagation and interval-set provider-body judgments under
+  [content conservation](wiki/spec/resources/content_custody.md), using canonical
   `source/library/core/content.omg` identities.
-  - `tests/omega/pass/core/content_conservation_contract_exit` executes its
-    checked `RegionSplit`/`RegionSink` providers natively and in the
-    interpreter (exit 70): the provider body proves its own `separate` theorem
-    for counted quantities, and installation joins a content argument minted
-    inside the caller (call, construction or destructuring result) by the
-    retained claim identities and checked memberships. Still owed there: an
-    interval-set provider body has no theorem judgment (the content tier
-    stands down), and a wrapper-composed exit (`forward(partition, whole)`)
-    still records its composition against the wrapper.
+  - A wrapper that authors the input-to-separated-results conservation guarantee
+    cannot prove it after calling two theorem-free forwarding wrappers, although
+    the forwarding chain executes with its authored result. Derive content facts
+    from exact completed invocations through every successful return, retaining
+    argument substitution, entry/current revision and returned-claim correspondence.
+    Only proved bodies and admitted declarations supply theorem roots; unproved
+    authored guarantees and recursive cycles cannot seed their own evidence.
+  - Interval-set provider bodies have no theorem judgment: the content tier stands
+    down even when the body preserves the authored partition. Counted-quantity
+    body judgment does not discharge interval separation or coverage.
   - `tests/omega/pass/core/content_retained_custody_round_trip` has an empty
     entry; its first claim depends on **BOUNDARY-ISSUANCE**. Existing-input
     conservation proceeds independently.
   - `tests/omega/pass/terminal_psi/{content_custody_exit,structural_content_passthrough}`
     use local lookalike types and no build entries; they do not establish
     canonical content execution.
-  - Stage 04's `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/content.rs::compose_partition_wrappers`
-    derives transitive and staged-result compositions, but
-    `omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/proofs/content_conservation.rs::lower_content_partition_compositions`
-    rejects nonzero `source_derivation_depth` and nonempty `result_rewrites`.
-    Carry the exact claim mappings through those forms, reusing the existing
-    normalized equations, identity reshuffles and authored-theorem lowering.
 
   Acceptance: `python3 tools/corpus_gate.py --native --filter core/content_conservation_contract,core/content_retained_custody_round_trip`
   executes both with their authored results, preserving subject/revision,

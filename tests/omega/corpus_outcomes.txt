@@ -8171,7 +8171,7 @@ pass/ownership/runtime_case_alternative_custody_exit checked 14038ms check-targe
 pass/ownership/runtime_complete_array_reference_store_exit checked 2903ms check-target:macos_arm64 @f48a7c9556ec+wt
 pass/ownership/runtime_computed_selector_snapshot_window_exit checked 10843ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/ownership/runtime_declared_linear_local_assignment_exit checked 7999ms check-target:macos_arm64 @761f5fae99a7+wt
-pass/ownership/runtime_effectful_singleton_selector_cleanup_exit checked 7843ms check-target:linux_x86_64 @8a2c1f68d503
+pass/ownership/runtime_effectful_singleton_selector_cleanup_exit checked 3725ms check-target:macos_arm64 @a33c0bb290c1
 pass/ownership/runtime_empty_record_local_transfers_exit checked 11851ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/ownership/runtime_first_match_linear_consumption_exit checked 4241ms check-target:macos_arm64 @dd6871ed0476
 pass/ownership/runtime_first_match_pattern_consumption_exit checked 4177ms check-target:macos_arm64 @dd6871ed0476

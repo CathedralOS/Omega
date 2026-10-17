@@ -1685,6 +1685,7 @@ pass/ownership/runtime_captured_replacement_selector_exit built 1790ms exit:0 @4
 pass/ownership/runtime_captured_selector_call_exit built 1790ms exit:0 @441e8f33f8c7+wt
 pass/ownership/runtime_case_alternative_custody_exit built 11766ms exit:0 @55ccf9be57c4
 pass/ownership/runtime_declared_linear_local_assignment_exit built 8317ms exit:70 @761f5fae99a7+wt
+pass/ownership/runtime_effectful_singleton_selector_cleanup_exit built 3886ms exit:0 @a33c0bb290c1
 pass/ownership/runtime_first_match_linear_consumption_exit built 4295ms exit:0 @dd6871ed0476
 pass/ownership/runtime_generic_borrowed_case_restore_exit built 11890ms exit:0 @55ccf9be57c4
 pass/ownership/runtime_generic_linear_case_restore_exit built 12332ms exit:0 @55ccf9be57c4

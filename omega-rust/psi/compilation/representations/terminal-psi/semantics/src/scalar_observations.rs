@@ -21,14 +21,14 @@ enum Target {
 /// Exact scalar carrier selected by a declaration path. Rejects duplicate or
 /// erased members, ill-formed case paths, statically impossible indexes, atomic
 /// cells and reference crossings. A dynamic index still owes its live bound.
+/// An empty path selects the root itself when its declaration is primitive.
+/// Term-specific path restrictions and readable access belong to the caller;
+/// this shared geometry also resolves whole-primitive contract observations.
 pub fn structural_read_scalar_type<'a>(
     types: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
     root: StructuralTypeId,
     path: &[ScalarReadProjection],
 ) -> Option<ScalarType> {
-    if path.is_empty() {
-        return None;
-    }
     let declaration = |identity| {
         let mut matches = types.clone().filter(|candidate| candidate.id == identity);
         let found = matches.next()?;
