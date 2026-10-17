@@ -452,6 +452,7 @@ pub fn decode_local_storage_slot(
                 .ok_or(PreAllocationMachineEffectDecodeError::InvalidField)?,
         }),
         1 => Ok(crate::LocalStorageSlotId::Boundary { operation }),
+        7 => Ok(crate::LocalStorageSlotId::BoundaryResult { operation }),
         5 => Ok(crate::LocalStorageSlotId::StructuralCallArgument {
             operation,
             argument_index: cursor.u32()?,

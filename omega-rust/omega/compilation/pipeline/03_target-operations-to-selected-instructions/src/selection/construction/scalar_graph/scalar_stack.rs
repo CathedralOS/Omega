@@ -19,7 +19,7 @@ fn address_type() -> Result<ScalarType, SelectedInstructionError> {
         .map_err(|_| SelectedInstructionError::custody())
 }
 
-fn address_register(
+pub(super) fn address_register(
     builder: &mut Builder<'_>,
     value: ValueId,
     site: ValueDefinitionSite,

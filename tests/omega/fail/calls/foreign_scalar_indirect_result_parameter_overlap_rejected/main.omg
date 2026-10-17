@@ -1,0 +1,117 @@
+// A malformed authored result placement must reject before foreign execution.
+use omega_language_std::calling;
+use omega::language::core::external_binding;
+data ScalarResultPolicies {}
+data LinuxScalarResultPolicies {}
+SnapshotCalling satisfies CallingPolicy { CallingPolicy::plan = snapshot_plan; }
+boundary trait Snapshot: Calling<SnapshotCalling> {
+    machine copy(value: &[u8; 8], count: u64) -> u64 requires count == 8;
+}
+machine snapshot_plan(signature: BoundarySignature) -> BoundaryPlanResult {
+    transition signature.parameter_count == 2 && signature.has_result {
+        true -> accept()
+        _ -> reject()
+    }
+    state accept() -> BoundaryPlanResult {
+        let mut plan: BoundaryEntryPlan;
+        plan.call.parameter_count = 2;
+        plan.call.parameters[0] = LinuxScalarResultPolicies::word(8, 1);
+        plan.call.parameters[1] = LinuxScalarResultPolicies::word(8, 2);
+        plan.call.has_result = true;
+        plan.call.result.shape.class = AbiValueClass::Integer;
+        plan.call.result.shape.byte_size = 8;
+        plan.call.result.shape.alignment = 8;
+        plan.call.result.location_count = 1;
+        plan.call.result.locations[0] = ValueLocation::Indirect {
+            pointer: IndirectPointerLocation::Register { register: MachineRegister::X86Rsi },
+            has_copy: false,
+            copy_stack_byte_offset: 0,
+            byte_size: 8,
+            alignment: 8,
+        };
+        BoundaryPlanResult::Accepted { plan: LinuxScalarResultPolicies::finish(plan) }
+    }
+    state reject() -> BoundaryPlanResult {
+        BoundaryPlanResult::Rejected { reason: CallingPolicyRejection { reason: "copy expects source and byte count" } }
+    }
+}
+linux_x86_64 machine snapshot_binding() -> ForeignBinding<9, 6, 10> {
+    ForeignBinding::DllImport { import: DllImport::ElfVersioned {
+        object: "libc.so.6", symbol: "memcpy", version: "GLIBC_2.14",
+    } }
+}
+linux_x86_64 machine snapshot(value: &[u8; 8], count: u64) -> u64
+satisfies Snapshot::copy via snapshot_binding()
+requires count == 8;
+NativeSnapshot satisfies Snapshot { Snapshot::copy = snapshot; }
+machine main() crashes Trap {
+    let value: [u8; 8] = [135, 214, 18, 0, 0, 0, 0, 0];
+    let observed: u64 = Snapshot::copy(&value, 8);
+    transition observed == 1234567 { true -> done() _ -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}
+machine ScalarResultPolicies::placed_word(bytes: u64, register: MachineRegister) -> ValuePlacement {
+    let mut value: ValuePlacement;
+    value.shape.class = AbiValueClass::Integer;
+    value.shape.byte_size = bytes;
+    value.shape.alignment = bytes;
+    value.location_count = 1;
+    value.locations[0] = ValueLocation::Register {
+        register: register,
+        value_byte_offset: 0,
+        byte_size: bytes,
+    };
+    value
+}
+
+machine LinuxScalarResultPolicies::word(bytes: u64, register: u64) -> ValuePlacement {
+    transition register {
+        0 -> ScalarResultPolicies::placed_word(bytes, MachineRegister::X86Rdi)
+        1 -> ScalarResultPolicies::placed_word(bytes, MachineRegister::X86Rsi)
+        2 -> ScalarResultPolicies::placed_word(bytes, MachineRegister::X86Rdx)
+        3 -> ScalarResultPolicies::placed_word(bytes, MachineRegister::X86Rcx)
+        4 -> ScalarResultPolicies::placed_word(bytes, MachineRegister::X86R8)
+        _ -> ScalarResultPolicies::placed_word(bytes, MachineRegister::X86R9)
+    }
+}
+
+machine LinuxScalarResultPolicies::finish(output: BoundaryEntryPlan) -> BoundaryEntryPlan {
+    let mut plan: BoundaryEntryPlan = output;
+    plan.call.convention = CallingConvention::SystemVAMD64;
+    plan.call.stack_alignment = 16;
+    plan.call.entry_control = EntryControl::CallReturn;
+    plan.call.ordinary_clobbers.register_count = 25;
+    plan.call.ordinary_clobbers.registers[0] = MachineRegister::X86Rax;
+    plan.call.ordinary_clobbers.registers[1] = MachineRegister::X86Rcx;
+    plan.call.ordinary_clobbers.registers[2] = MachineRegister::X86Rdx;
+    plan.call.ordinary_clobbers.registers[3] = MachineRegister::X86Rsi;
+    plan.call.ordinary_clobbers.registers[4] = MachineRegister::X86Rdi;
+    plan.call.ordinary_clobbers.registers[5] = MachineRegister::X86R8;
+    plan.call.ordinary_clobbers.registers[6] = MachineRegister::X86R9;
+    plan.call.ordinary_clobbers.registers[7] = MachineRegister::X86R10;
+    plan.call.ordinary_clobbers.registers[8] = MachineRegister::X86R11;
+    plan.call.ordinary_clobbers.registers[9] = MachineRegister::X86Xmm { index: 0 };
+    plan.call.ordinary_clobbers.registers[10] = MachineRegister::X86Xmm { index: 1 };
+    plan.call.ordinary_clobbers.registers[11] = MachineRegister::X86Xmm { index: 2 };
+    plan.call.ordinary_clobbers.registers[12] = MachineRegister::X86Xmm { index: 3 };
+    plan.call.ordinary_clobbers.registers[13] = MachineRegister::X86Xmm { index: 4 };
+    plan.call.ordinary_clobbers.registers[14] = MachineRegister::X86Xmm { index: 5 };
+    plan.call.ordinary_clobbers.registers[15] = MachineRegister::X86Xmm { index: 6 };
+    plan.call.ordinary_clobbers.registers[16] = MachineRegister::X86Xmm { index: 7 };
+    plan.call.ordinary_clobbers.registers[17] = MachineRegister::X86Xmm { index: 8 };
+    plan.call.ordinary_clobbers.registers[18] = MachineRegister::X86Xmm { index: 9 };
+    plan.call.ordinary_clobbers.registers[19] = MachineRegister::X86Xmm { index: 10 };
+    plan.call.ordinary_clobbers.registers[20] = MachineRegister::X86Xmm { index: 11 };
+    plan.call.ordinary_clobbers.registers[21] = MachineRegister::X86Xmm { index: 12 };
+    plan.call.ordinary_clobbers.registers[22] = MachineRegister::X86Xmm { index: 13 };
+    plan.call.ordinary_clobbers.registers[23] = MachineRegister::X86Xmm { index: 14 };
+    plan.call.ordinary_clobbers.registers[24] = MachineRegister::X86Xmm { index: 15 };
+    plan.state.initial_regime = MachineRegime::X86Long64;
+    plan.state.permitted_transitive_use.general_registers = true;
+    plan.state.permitted_transitive_use.vector_registers = true;
+    plan.state.permitted_transitive_use.flags = true;
+    plan.state.stack = EntryStack::ProviderSelected;
+    plan.state.preemption = Preemption::NotApplicable;
+    plan
+}

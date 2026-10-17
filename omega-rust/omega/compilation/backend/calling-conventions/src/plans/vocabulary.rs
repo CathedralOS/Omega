@@ -359,6 +359,30 @@ pub struct ValuePlacement {
 }
 
 impl ValuePlacement {
+    /// One complete scalar result, either in a register or in caller-owned
+    /// storage addressed by the admitted result pointer. This checks transport
+    /// extent; signature admission still establishes the semantic scalar shape.
+    pub fn is_complete_scalar_result(&self) -> bool {
+        match self.locations.as_slice() {
+            [
+                ValueLocation::Register {
+                    value_byte_offset: 0,
+                    byte_size,
+                    ..
+                },
+            ] => *byte_size == self.shape.byte_size,
+            [
+                ValueLocation::Indirect {
+                    pointer: IndirectPointerLocation::Register(_),
+                    copy_stack_byte_offset: None,
+                    byte_size,
+                    alignment,
+                },
+            ] => *byte_size == self.shape.byte_size && *alignment == self.shape.alignment,
+            _ => false,
+        }
+    }
+
     /// Compare an internal parameter's physical transport with a boundary's.
     /// Borrowed aggregate shapes measure the referent and use an indirect
     /// location, while a foreign signature describes the thin pointer word.

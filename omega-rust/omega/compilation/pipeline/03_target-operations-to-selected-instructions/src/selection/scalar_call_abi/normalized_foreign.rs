@@ -525,7 +525,7 @@ pub(crate) fn validate(
     }
     // The scalar result home is exact value custody: the defining operation,
     // source value, scalar type, and shape must equal the legalized result,
-    // and the plan's result must be one register of that exact shape. A unit
+    // and the plan must transport that complete shape directly or indirectly. A unit
     // result admits neither a home nor a plan result row.
     let result_shape = match (&call.result, &plan.call.result, result) {
         (TargetBoundaryResult::Unit, None, None) => None,
@@ -539,17 +539,7 @@ pub(crate) fn validate(
             {
                 return Err(invalid!());
             }
-            let [
-                ValueLocation::Register {
-                    value_byte_offset: 0,
-                    byte_size,
-                    ..
-                },
-            ] = placement.locations.as_slice()
-            else {
-                return Err(invalid!());
-            };
-            if *byte_size != home.shape.byte_size {
+            if !placement.is_complete_scalar_result() {
                 return Err(invalid!());
             }
             Some(home.shape)

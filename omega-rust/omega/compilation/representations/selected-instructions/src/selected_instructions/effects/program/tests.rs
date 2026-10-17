@@ -1402,3 +1402,40 @@ fn hosted_exit_codec_retains_nonreturning_effect_without_scratch() {
         assert!(PreAllocationMachineEffectPlan::decode(&changed.encode()).is_err());
     }
 }
+
+#[test]
+fn scalar_result_buffer_identity_cannot_alias_saved_boundary_controls() {
+    use crate::{FrameStorageSlotId, LocalStorageSlotId};
+    let operation = OperationId::new(317).unwrap();
+    let mut source = plan();
+    source.functions[0].blocks[0].instructions[0].kind = SelectedInstructionKind::FrameAddress {
+        slot: FrameStorageSlotId::Local(LocalStorageSlotId::BoundaryResult { operation }),
+        byte_offset: 0,
+    };
+    source.identity = pre_allocation_machine_effect_identity(&source);
+    assert_eq!(
+        PreAllocationMachineEffectPlan::decode(&source.encode()),
+        Ok(source.clone())
+    );
+    for slot in [
+        LocalStorageSlotId::Boundary { operation },
+        LocalStorageSlotId::BoundaryResult {
+            operation: OperationId::new(319).unwrap(),
+        },
+    ] {
+        let mut changed = source.clone();
+        changed.functions[0].blocks[0].instructions[0].kind =
+            SelectedInstructionKind::FrameAddress {
+                slot: FrameStorageSlotId::Local(slot),
+                byte_offset: 0,
+            };
+        assert_ne!(
+            source.identity,
+            pre_allocation_machine_effect_identity(&changed)
+        );
+        assert_eq!(
+            PreAllocationMachineEffectPlan::decode(&changed.encode()),
+            Err(PreAllocationMachineEffectDecodeError::InvalidIdentity)
+        );
+    }
+}

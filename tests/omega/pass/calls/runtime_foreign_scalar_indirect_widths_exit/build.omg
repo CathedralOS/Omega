@@ -1,0 +1,16 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "runtime_foreign_scalar_indirect_widths_exit");
+    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
+    Build::select_provider<SnapshotU8, NativeSnapshotU8>(builder);
+    Build::select_provider<SnapshotI8, NativeSnapshotI8>(builder);
+    Build::select_provider<SnapshotU16, NativeSnapshotU16>(builder);
+    Build::select_provider<SnapshotI16, NativeSnapshotI16>(builder);
+    Build::select_provider<SnapshotU32, NativeSnapshotU32>(builder);
+    Build::select_provider<SnapshotI32, NativeSnapshotI32>(builder);
+    Build::select_provider<SnapshotU64, NativeSnapshotU64>(builder);
+    Build::select_provider<SnapshotI64, NativeSnapshotI64>(builder);
+    Build::select_provider<SnapshotF32, NativeSnapshotF32>(builder);
+    Build::select_provider<SnapshotF64, NativeSnapshotF64>(builder);
+    Build::select_provider<SnapshotBool, NativeSnapshotBool>(builder);
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+}

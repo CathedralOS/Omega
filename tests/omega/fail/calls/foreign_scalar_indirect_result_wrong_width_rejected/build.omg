@@ -1,0 +1,6 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "foreign_scalar_indirect_result_wrong_width_rejected");
+    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
+    Build::select_provider<Snapshot, NativeSnapshot>(builder);
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+}

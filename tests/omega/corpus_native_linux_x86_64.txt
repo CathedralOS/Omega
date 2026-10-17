@@ -657,6 +657,9 @@ pass/calls/runtime_explicit_discard_executes_exit built 16058ms exit:70 @6c49683
 pass/calls/runtime_explicit_reference_alias_argument_exit built 17292ms exit:0 @6c49683ce714
 pass/calls/runtime_fixed_element_view_field_loan_exit built 7458ms exit:70 stdout:match @326ed531359e+wt
 pass/calls/runtime_float_result_across_call_exit built 33196ms exit:70 stdout:match @6c49683ce714
+pass/calls/runtime_foreign_scalar_indirect_places_exit built 11349ms exit:0 @dcca78ae8d3d+wt
+pass/calls/runtime_foreign_scalar_indirect_result_exit built 11181ms exit:0 @dcca78ae8d3d+wt
+pass/calls/runtime_foreign_scalar_indirect_widths_exit built 12618ms exit:0 @dcca78ae8d3d+wt
 pass/calls/runtime_guard_call_vs_call_exit built 14805ms exit:70 @6c49683ce714
 pass/calls/runtime_guarded_boundary_tail_call_exit built 14845ms exit:70 @6c49683ce714
 pass/calls/runtime_guarded_effectful_transition_argument_exit built 15536ms exit:70 @6c49683ce714

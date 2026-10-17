@@ -75,7 +75,8 @@ pub(super) fn local_slot_is_place_storage(
         LocalStorageSlotId::Spill { .. }
         | LocalStorageSlotId::Boundary { .. }
         | LocalStorageSlotId::EdgeSnapshot { .. }
-        | LocalStorageSlotId::StructuralCallArgument { .. } => false,
+        | LocalStorageSlotId::StructuralCallArgument { .. }
+        | LocalStorageSlotId::BoundaryResult { .. } => false,
     }
 }
 /// Whether an exact-extent row's half-open byte interval shares a byte with

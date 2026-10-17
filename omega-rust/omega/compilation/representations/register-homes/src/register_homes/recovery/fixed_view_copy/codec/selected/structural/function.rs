@@ -47,6 +47,7 @@ pub(in crate::register_homes::recovery::fixed_view_copy::codec::selected) fn dec
             place: decode_id(cursor, PlaceId::new)?,
         }),
         1 => Ok(selected_instructions::LocalStorageSlotId::Boundary { operation }),
+        7 => Ok(selected_instructions::LocalStorageSlotId::BoundaryResult { operation }),
         5 => Ok(
             selected_instructions::LocalStorageSlotId::StructuralCallArgument {
                 operation,

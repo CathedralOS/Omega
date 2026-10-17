@@ -1145,16 +1145,7 @@ fn foreign_scalar_result_custody(
     if Some(home.defining_operation) != record.invocation_site.operation()
         || home.shape != shape
         || placement.shape != home.shape
-        || !matches!(
-            placement.locations.as_slice(),
-            [
-                ValueLocation::Register {
-                    value_byte_offset: 0,
-                    byte_size,
-                    ..
-                },
-            ] if *byte_size == home.shape.byte_size
-        )
+        || !placement.is_complete_scalar_result()
     {
         return Err(invalid());
     }
@@ -1166,7 +1157,13 @@ fn foreign_scalar_result_custody(
         .instructions
         .get(transport.normalization_position)
         .ok_or_else(invalid)?;
-    let Some(kind) = scalar_result_normalization_kind(home.scalar_type) else {
+    let Some(kind) = scalar_result_normalization_kind(
+        home.scalar_type,
+        matches!(
+            placement.locations.as_slice(),
+            [ValueLocation::Indirect { .. }]
+        ),
+    ) else {
         return Err(invalid());
     };
     let [input, output] = normalization.operands.as_slice() else {
@@ -1228,9 +1225,13 @@ fn foreign_scalar_result_custody(
 /// The normalization kind one scalar result's durable definition emits.
 fn scalar_result_normalization_kind(
     scalar_type: ScalarType,
+    indirect: bool,
 ) -> Option<selected_instructions::SelectedInstructionKind> {
     use selected_instructions::SelectedInstructionKind as Kind;
     use semantic_vocabulary::IntegerSign;
+    if indirect && matches!(scalar_type, ScalarType::IeeeFloat(_)) {
+        return Some(Kind::CopyI64);
+    }
     match scalar_type {
         ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary32) => {
             Some(Kind::Float32ToBits)

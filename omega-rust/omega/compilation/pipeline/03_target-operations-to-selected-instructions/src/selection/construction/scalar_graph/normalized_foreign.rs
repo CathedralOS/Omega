@@ -20,6 +20,7 @@ use selected_instructions::{
 use semantic_vocabulary::BoundaryInvocationSite;
 
 mod descriptor_input;
+mod scalar_result_buffer;
 
 pub(super) enum Invocation<'source> {
     Operation(&'source LegalizedScalarInstruction),
@@ -251,6 +252,16 @@ pub(super) fn emit_invocation(
     });
     let mut operands: Vec<VirtualRegisterId> =
         operands.into_iter().map(|(_, register)| register).collect();
+    let indirect_scalar = scalar_result_buffer::is_indirect(call);
+    let scalar_pointer = if indirect_scalar {
+        Some(scalar_result_buffer::prepare(
+            call,
+            operation.ok_or_else(SelectedInstructionError::custody)?,
+            builder,
+        )?)
+    } else {
+        None
+    };
     let hidden = match operation {
         Some(operation) => structural::indirect_results::prepare_call(source, operation, builder)?,
         None => None,
@@ -312,7 +323,10 @@ pub(super) fn emit_invocation(
             result_registers.push(register);
         }
     }
-    let short_result = if let Some(result) = result {
+    if let Some(pointer) = scalar_pointer {
+        operands.push(pointer);
+    }
+    let short_result = if let Some(result) = result.filter(|_| !indirect_scalar) {
         let register =
             builder.register(result.value, result.definition_site, result.scalar_type)?;
         builder.registers[register.0 as usize].class = constraint
@@ -388,15 +402,28 @@ pub(super) fn emit_invocation(
             super::unit_call::retain_result(source, operation, &result_registers, builder)?;
         }
     }
+    let short_result = if indirect_scalar {
+        Some(scalar_result_buffer::load(
+            call,
+            operation.ok_or_else(SelectedInstructionError::custody)?,
+            builder,
+        )?)
+    } else {
+        short_result
+    };
     // After restoring machine controls, retain the exact result bits in the
     // ordinary scalar home. Integer and Boolean carriers normalize as before.
     if let (Some(short_result), Some(result)) = (short_result, result) {
         let output = builder.register(result.value, result.definition_site, result.scalar_type)?;
-        let (kind, transfer_key) = crate::selection::scalar_call_abi::incoming_float_transfer(
-            result.scalar_type,
-            &builder.constraints.keys,
-        )
-        .unwrap_or((
+        let floating_transfer = if indirect_scalar {
+            None
+        } else {
+            crate::selection::scalar_call_abi::incoming_float_transfer(
+                result.scalar_type,
+                &builder.constraints.keys,
+            )
+        };
+        let (kind, transfer_key) = floating_transfer.unwrap_or((
             crate::selection::scalar_call_abi::integer_carrier_normalization(result.scalar_type),
             builder.constraints.keys.copy_i64,
         ));

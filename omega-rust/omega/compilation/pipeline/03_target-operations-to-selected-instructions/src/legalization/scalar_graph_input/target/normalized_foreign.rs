@@ -22,7 +22,7 @@ use super::{
     ValueId,
 };
 use crate::LegalizationError;
-use calling_conventions::{CallSignature, ValueLocation};
+use calling_conventions::CallSignature;
 use target_operations::{
     TargetBoundaryResult, TargetOperationPlan, TargetStructuralParameter,
     TargetUnitScalarArgumentSource as Source,
@@ -271,9 +271,7 @@ pub(super) fn validate(
             (Some(placement), Some(shape)) => {
                 placement.shape != shape
                     || matches!(expected_result, TargetBoundaryResult::Scalar(_))
-                        && !matches!(placement.locations.as_slice(),
-                        [ValueLocation::Register { value_byte_offset: 0, byte_size, .. }]
-                            if *byte_size == shape.byte_size)
+                        && !placement.is_complete_scalar_result()
             }
             _ => true,
         }

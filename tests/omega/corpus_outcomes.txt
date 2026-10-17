@@ -1561,6 +1561,12 @@ fail/calls/foreign_applied_callback_requires_selected_entry_plan rejected 3290ms
 	foreign callback registration requires an explicit selected callback calling plan
 fail/calls/foreign_callback_requires_selected_entry_plan rejected 3295ms expected @cf8d1dac5338
 	foreign callback registration requires an explicit selected callback calling plan
+fail/calls/foreign_scalar_indirect_result_copy_slot_rejected rejected 6371ms expected @dcca78ae8d3d
+	native artifact target lowering failed: BoundaryRealizationMismatch(BoundaryMachineId(3))
+fail/calls/foreign_scalar_indirect_result_parameter_overlap_rejected rejected 5875ms expected @dcca78ae8d3d
+	native artifact identity physical pipeline failed: common physical staging failed: RegisterAllocation(RuntimeSpill(FixedOccurrences(UnsupportedCarrier)))
+fail/calls/foreign_scalar_indirect_result_wrong_width_rejected rejected 2851ms expected @dcca78ae8d3d
+	calling policy accepted an invalid plan: value 2 has an invalid indirect shape
 fail/calls/free_machine_named_transition_rejected rejected 895ms expected @a9ae30e1c334+wt
 	unsupported transition target `scan`
 fail/calls/generic_operator_guard_argument_mismatch rejected 1817ms expected @cd5a3c1ae981+wt
@@ -6559,6 +6565,9 @@ pass/calls/runtime_explicit_discard_executes_exit checked 10887ms check-target:m
 pass/calls/runtime_explicit_reference_alias_argument_exit checked 10484ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_fixed_element_view_field_loan_exit checked 10962ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_float_result_across_call_exit checked 154498ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/calls/runtime_foreign_scalar_indirect_places_exit checked 12232ms check-target:linux_x86_64 @dcca78ae8d3d
+pass/calls/runtime_foreign_scalar_indirect_result_exit checked 12119ms check-target:linux_x86_64 @dcca78ae8d3d
+pass/calls/runtime_foreign_scalar_indirect_widths_exit checked 17627ms check-target:linux_x86_64 @dcca78ae8d3d+wt
 pass/calls/runtime_guard_call_vs_call_exit checked 11155ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_guarded_boundary_tail_call_exit checked 11007ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_guarded_effectful_transition_argument_exit checked 11101ms check-target:macos_arm64 @a9ae30e1c334+wt

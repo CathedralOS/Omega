@@ -16,7 +16,7 @@ use super::{
     AbstractFunction, BTreeMap, BTreeSet, BoundaryMachineId, CallSignature, LoweringError,
     NativeTarget, OperationId, PlaceId, StructuralTypeId, StructuralTypeLookup,
     StructuralTypeShape, TargetStructuralParameter, TargetUnitScalarHomeRequirement, ValueId,
-    ValueLocation, ValueShape,
+    ValueShape,
 };
 use calling_conventions::ValueClass;
 use target_operations::{TargetStructuralArgument, TargetUnitScalarArgumentSource};
@@ -712,17 +712,7 @@ pub(super) fn lower_normalized_foreign_scalar_result(
     let Some(placement) = boundary_entry_plan.call.result.as_ref() else {
         return Err(LoweringError::BoundaryRealizationMismatch(boundary));
     };
-    let [
-        ValueLocation::Register {
-            value_byte_offset: 0,
-            byte_size,
-            ..
-        },
-    ] = placement.locations.as_slice()
-    else {
-        return Err(LoweringError::BoundaryRealizationMismatch(boundary));
-    };
-    if placement.shape != shape || *byte_size != shape.byte_size {
+    if placement.shape != shape || !placement.is_complete_scalar_result() {
         return Err(LoweringError::BoundaryRealizationMismatch(boundary));
     }
     Ok(Some(TargetUnitScalarHomeRequirement {

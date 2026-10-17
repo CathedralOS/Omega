@@ -657,3 +657,28 @@ fn returned_descriptor_origins_preserve_namespace_and_memory_role_in_wire_identi
         );
     }
 }
+
+#[test]
+fn scalar_result_buffer_round_trips_separately_from_boundary_controls() {
+    use selected_instructions::{LocalStorageSlotId, SelectedLocalStorageSlot};
+    let operation = OperationId::new(317).unwrap();
+    let mut source = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1);
+    let mut function = structural_function();
+    for id in [
+        LocalStorageSlotId::Boundary { operation },
+        LocalStorageSlotId::BoundaryResult { operation },
+    ] {
+        function.local_storage_slots.push(SelectedLocalStorageSlot {
+            id,
+            byte_size: 8,
+            alignment: 8,
+        });
+    }
+    std::sync::Arc::make_mut(&mut source.transformed)
+        .functions
+        .push(function);
+    assert_eq!(
+        FixedViewCopyPlan::decode(&source.encode().unwrap()).unwrap(),
+        source
+    );
+}

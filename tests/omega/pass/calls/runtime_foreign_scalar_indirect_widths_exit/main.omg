@@ -1,0 +1,252 @@
+// Expected exit: 0. Real memcpy returns caller-buffer values at every scalar width.
+// Fixed-size inputs expose exact C storage; shared scalar loans may use narrower codecs.
+use omega_language_std::calling;
+use omega::language::core::external_binding;
+use omega::language::core::float_operations;
+data ScalarResultPolicies {}
+data LinuxScalarResultPolicies {}
+SnapshotCalling satisfies CallingPolicy { CallingPolicy::plan = snapshot_plan; }
+boundary trait SnapshotU8: Calling<SnapshotCalling> {
+    machine copy(value: &[u8; 1], count: u64) -> u8 requires count == 1;
+}
+linux_x86_64 machine snapshot_U8(value: &[u8; 1], count: u64) -> u8
+satisfies SnapshotU8::copy via snapshot_binding()
+requires count == 1;
+NativeSnapshotU8 satisfies SnapshotU8 { SnapshotU8::copy = snapshot_U8; }
+boundary trait SnapshotI8: Calling<SnapshotCalling> {
+    machine copy(value: &[u8; 1], count: u64) -> i8 requires count == 1;
+}
+linux_x86_64 machine snapshot_I8(value: &[u8; 1], count: u64) -> i8
+satisfies SnapshotI8::copy via snapshot_binding()
+requires count == 1;
+NativeSnapshotI8 satisfies SnapshotI8 { SnapshotI8::copy = snapshot_I8; }
+boundary trait SnapshotU16: Calling<SnapshotCalling> {
+    machine copy(value: &[u8; 2], count: u64) -> u16 requires count == 2;
+}
+linux_x86_64 machine snapshot_U16(value: &[u8; 2], count: u64) -> u16
+satisfies SnapshotU16::copy via snapshot_binding()
+requires count == 2;
+NativeSnapshotU16 satisfies SnapshotU16 { SnapshotU16::copy = snapshot_U16; }
+boundary trait SnapshotI16: Calling<SnapshotCalling> {
+    machine copy(value: &[u8; 2], count: u64) -> i16 requires count == 2;
+}
+linux_x86_64 machine snapshot_I16(value: &[u8; 2], count: u64) -> i16
+satisfies SnapshotI16::copy via snapshot_binding()
+requires count == 2;
+NativeSnapshotI16 satisfies SnapshotI16 { SnapshotI16::copy = snapshot_I16; }
+boundary trait SnapshotU32: Calling<SnapshotCalling> {
+    machine copy(value: &[u8; 4], count: u64) -> u32 requires count == 4;
+}
+linux_x86_64 machine snapshot_U32(value: &[u8; 4], count: u64) -> u32
+satisfies SnapshotU32::copy via snapshot_binding()
+requires count == 4;
+NativeSnapshotU32 satisfies SnapshotU32 { SnapshotU32::copy = snapshot_U32; }
+boundary trait SnapshotI32: Calling<SnapshotCalling> {
+    machine copy(value: &[u8; 4], count: u64) -> i32 requires count == 4;
+}
+linux_x86_64 machine snapshot_I32(value: &[u8; 4], count: u64) -> i32
+satisfies SnapshotI32::copy via snapshot_binding()
+requires count == 4;
+NativeSnapshotI32 satisfies SnapshotI32 { SnapshotI32::copy = snapshot_I32; }
+boundary trait SnapshotU64: Calling<SnapshotCalling> {
+    machine copy(value: &[u8; 8], count: u64) -> u64 requires count == 8;
+}
+linux_x86_64 machine snapshot_U64(value: &[u8; 8], count: u64) -> u64
+satisfies SnapshotU64::copy via snapshot_binding()
+requires count == 8;
+NativeSnapshotU64 satisfies SnapshotU64 { SnapshotU64::copy = snapshot_U64; }
+boundary trait SnapshotI64: Calling<SnapshotCalling> {
+    machine copy(value: &[u8; 8], count: u64) -> i64 requires count == 8;
+}
+linux_x86_64 machine snapshot_I64(value: &[u8; 8], count: u64) -> i64
+satisfies SnapshotI64::copy via snapshot_binding()
+requires count == 8;
+NativeSnapshotI64 satisfies SnapshotI64 { SnapshotI64::copy = snapshot_I64; }
+boundary trait SnapshotF32: Calling<SnapshotCalling> {
+    machine copy(value: &[u8; 4], count: u64) -> f32 requires count == 4;
+}
+linux_x86_64 machine snapshot_F32(value: &[u8; 4], count: u64) -> f32
+satisfies SnapshotF32::copy via snapshot_binding()
+requires count == 4;
+NativeSnapshotF32 satisfies SnapshotF32 { SnapshotF32::copy = snapshot_F32; }
+boundary trait SnapshotF64: Calling<SnapshotCalling> {
+    machine copy(value: &[u8; 8], count: u64) -> f64 requires count == 8;
+}
+linux_x86_64 machine snapshot_F64(value: &[u8; 8], count: u64) -> f64
+satisfies SnapshotF64::copy via snapshot_binding()
+requires count == 8;
+NativeSnapshotF64 satisfies SnapshotF64 { SnapshotF64::copy = snapshot_F64; }
+boundary trait SnapshotBool: Calling<SnapshotCalling> {
+    machine copy(value: &[bool; 1], count: u64) -> bool requires count == 1;
+}
+linux_x86_64 machine snapshot_Bool(value: &[bool; 1], count: u64) -> bool
+satisfies SnapshotBool::copy via snapshot_binding()
+requires count == 1;
+NativeSnapshotBool satisfies SnapshotBool { SnapshotBool::copy = snapshot_Bool; }
+machine snapshot_plan(signature: BoundarySignature) -> BoundaryPlanResult {
+    transition signature.parameter_count == 2 && signature.has_result {
+        true -> select_result(signature, signature.result)
+        _ -> reject()
+    }
+    state select_result(signature: BoundarySignature, result: u64) -> BoundaryPlanResult {
+        transition result < 256 { true -> accept(signature, result) _ -> reject() }
+    }
+    state accept(signature: BoundarySignature, result: u64) -> BoundaryPlanResult {
+        let mut plan: BoundaryEntryPlan;
+        plan.call.parameter_count = 2;
+        plan.call.parameters[0] = LinuxScalarResultPolicies::word(8, 1);
+        plan.call.parameters[1] = LinuxScalarResultPolicies::word(8, 2);
+        plan.call.has_result = true;
+        plan.call.result.shape.class = scalar_class(&signature.shapes[result]);
+        plan.call.result.shape.byte_size = signature.shapes[result].byte_size;
+        plan.call.result.shape.alignment = signature.shapes[result].alignment;
+        plan.call.result.location_count = 1;
+        plan.call.result.locations[0] = ValueLocation::Indirect {
+            pointer: IndirectPointerLocation::Register { register: MachineRegister::X86Rdi },
+            has_copy: false,
+            copy_stack_byte_offset: 0,
+            byte_size: signature.shapes[result].byte_size,
+            alignment: signature.shapes[result].alignment,
+        };
+        BoundaryPlanResult::Accepted { plan: LinuxScalarResultPolicies::finish(plan) }
+    }
+    state reject() -> BoundaryPlanResult {
+        BoundaryPlanResult::Rejected { reason: CallingPolicyRejection { reason: "copy expects source and byte count" } }
+    }
+}
+linux_x86_64 machine snapshot_binding() -> ForeignBinding<9, 6, 10> {
+    ForeignBinding::DllImport { import: DllImport::ElfVersioned {
+        object: "libc.so.6", symbol: "memcpy", version: "GLIBC_2.14",
+    } }
+}
+machine main() crashes Trap {
+    transition { _ -> check_U8() }
+    state check_U8() {
+        let value: [u8; 1] = [231];
+        let observed: u8 = SnapshotU8::copy(&value, 1);
+        transition observed == 231 { true -> check_I8() _ -> bad() }
+    }
+    state check_I8() {
+        let value: [u8; 1] = [155];
+        let observed: i8 = SnapshotI8::copy(&value, 1);
+        transition observed == -101 { true -> check_U16() _ -> bad() }
+    }
+    state check_U16() {
+        let value: [u8; 2] = [71, 238];
+        let observed: u16 = SnapshotU16::copy(&value, 2);
+        transition observed == 60999 { true -> check_I16() _ -> bad() }
+    }
+    state check_I16() {
+        let value: [u8; 2] = [207, 138];
+        let observed: i16 = SnapshotI16::copy(&value, 2);
+        transition observed == -30001 { true -> check_U32() _ -> bad() }
+    }
+    state check_U32() {
+        let value: [u8; 4] = [1, 40, 107, 238];
+        let observed: u32 = SnapshotU32::copy(&value, 4);
+        transition observed == 4000000001 { true -> check_I32() _ -> bad() }
+    }
+    state check_I32() {
+        let value: [u8; 4] = [255, 107, 202, 136];
+        let observed: i32 = SnapshotI32::copy(&value, 4);
+        transition observed == -2000000001 { true -> check_U64() _ -> bad() }
+    }
+    state check_U64() {
+        let value: [u8; 8] = [121, 223, 13, 134, 72, 112, 0, 0];
+        let observed: u64 = SnapshotU64::copy(&value, 8);
+        transition observed == 123456789012345 { true -> check_I64() _ -> bad() }
+    }
+    state check_I64() {
+        let value: [u8; 8] = [135, 32, 242, 121, 183, 143, 255, 255];
+        let observed: i64 = SnapshotI64::copy(&value, 8);
+        transition observed == -123456789012345 { true -> check_F32() _ -> bad() }
+    }
+    state check_F32() {
+        let value: [u8; 4] = [0, 0, 192, 63];
+        let observed: f32 = SnapshotF32::copy(&value, 4);
+        transition observed == 1.5f32 { true -> check_F64() _ -> bad() }
+    }
+    state check_F64() {
+        let value: [u8; 8] = [0, 0, 0, 0, 0, 0, 10, 192];
+        let observed: f64 = SnapshotF64::copy(&value, 8);
+        transition observed == -3.25f64 { true -> check_Bool() _ -> bad() }
+    }
+    state check_Bool() {
+        let value: [bool; 1] = [true];
+        let observed: bool = SnapshotBool::copy(&value, 1);
+        transition observed { true -> done() _ -> bad() }
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
+machine ScalarResultPolicies::placed_word(bytes: u64, register: MachineRegister) -> ValuePlacement {
+    let mut value: ValuePlacement;
+    value.shape.class = AbiValueClass::Integer;
+    value.shape.byte_size = bytes;
+    value.shape.alignment = bytes;
+    value.location_count = 1;
+    value.locations[0] = ValueLocation::Register {
+        register: register,
+        value_byte_offset: 0,
+        byte_size: bytes,
+    };
+    value
+}
+
+machine LinuxScalarResultPolicies::word(bytes: u64, register: u64) -> ValuePlacement {
+    transition register {
+        0 -> ScalarResultPolicies::placed_word(bytes, MachineRegister::X86Rdi)
+        1 -> ScalarResultPolicies::placed_word(bytes, MachineRegister::X86Rsi)
+        2 -> ScalarResultPolicies::placed_word(bytes, MachineRegister::X86Rdx)
+        3 -> ScalarResultPolicies::placed_word(bytes, MachineRegister::X86Rcx)
+        4 -> ScalarResultPolicies::placed_word(bytes, MachineRegister::X86R8)
+        _ -> ScalarResultPolicies::placed_word(bytes, MachineRegister::X86R9)
+    }
+}
+
+machine LinuxScalarResultPolicies::finish(output: BoundaryEntryPlan) -> BoundaryEntryPlan {
+    let mut plan: BoundaryEntryPlan = output;
+    plan.call.convention = CallingConvention::SystemVAMD64;
+    plan.call.stack_alignment = 16;
+    plan.call.entry_control = EntryControl::CallReturn;
+    plan.call.ordinary_clobbers.register_count = 25;
+    plan.call.ordinary_clobbers.registers[0] = MachineRegister::X86Rax;
+    plan.call.ordinary_clobbers.registers[1] = MachineRegister::X86Rcx;
+    plan.call.ordinary_clobbers.registers[2] = MachineRegister::X86Rdx;
+    plan.call.ordinary_clobbers.registers[3] = MachineRegister::X86Rsi;
+    plan.call.ordinary_clobbers.registers[4] = MachineRegister::X86Rdi;
+    plan.call.ordinary_clobbers.registers[5] = MachineRegister::X86R8;
+    plan.call.ordinary_clobbers.registers[6] = MachineRegister::X86R9;
+    plan.call.ordinary_clobbers.registers[7] = MachineRegister::X86R10;
+    plan.call.ordinary_clobbers.registers[8] = MachineRegister::X86R11;
+    plan.call.ordinary_clobbers.registers[9] = MachineRegister::X86Xmm { index: 0 };
+    plan.call.ordinary_clobbers.registers[10] = MachineRegister::X86Xmm { index: 1 };
+    plan.call.ordinary_clobbers.registers[11] = MachineRegister::X86Xmm { index: 2 };
+    plan.call.ordinary_clobbers.registers[12] = MachineRegister::X86Xmm { index: 3 };
+    plan.call.ordinary_clobbers.registers[13] = MachineRegister::X86Xmm { index: 4 };
+    plan.call.ordinary_clobbers.registers[14] = MachineRegister::X86Xmm { index: 5 };
+    plan.call.ordinary_clobbers.registers[15] = MachineRegister::X86Xmm { index: 6 };
+    plan.call.ordinary_clobbers.registers[16] = MachineRegister::X86Xmm { index: 7 };
+    plan.call.ordinary_clobbers.registers[17] = MachineRegister::X86Xmm { index: 8 };
+    plan.call.ordinary_clobbers.registers[18] = MachineRegister::X86Xmm { index: 9 };
+    plan.call.ordinary_clobbers.registers[19] = MachineRegister::X86Xmm { index: 10 };
+    plan.call.ordinary_clobbers.registers[20] = MachineRegister::X86Xmm { index: 11 };
+    plan.call.ordinary_clobbers.registers[21] = MachineRegister::X86Xmm { index: 12 };
+    plan.call.ordinary_clobbers.registers[22] = MachineRegister::X86Xmm { index: 13 };
+    plan.call.ordinary_clobbers.registers[23] = MachineRegister::X86Xmm { index: 14 };
+    plan.call.ordinary_clobbers.registers[24] = MachineRegister::X86Xmm { index: 15 };
+    plan.state.initial_regime = MachineRegime::X86Long64;
+    plan.state.permitted_transitive_use.general_registers = true;
+    plan.state.permitted_transitive_use.vector_registers = true;
+    plan.state.permitted_transitive_use.flags = true;
+    plan.state.stack = EntryStack::ProviderSelected;
+    plan.state.preemption = Preemption::NotApplicable;
+    plan
+}
+
+machine scalar_class(shape: &ValueShape) -> AbiValueClass {
+    transition shape.class {
+        ValueClass::Float -> AbiValueClass::Float
+        _ -> AbiValueClass::Integer
+    }
+}

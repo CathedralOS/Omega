@@ -65,6 +65,10 @@ pub enum LocalStorageSlotId {
     Boundary {
         operation: OperationId,
     },
+    /// Caller-owned scalar result storage, disjoint from boundary controls.
+    BoundaryResult {
+        operation: OperationId,
+    },
 }
 
 impl LocalStorageSlotId {
@@ -72,7 +76,8 @@ impl LocalStorageSlotId {
         match self {
             Self::Structural { operation, .. }
             | Self::StructuralCallArgument { operation, .. }
-            | Self::Boundary { operation } => Some(operation),
+            | Self::Boundary { operation }
+            | Self::BoundaryResult { operation } => Some(operation),
             Self::Spill { .. }
             | Self::EdgeSnapshot { .. }
             | Self::StructuralBlockParameter { .. }
@@ -86,6 +91,7 @@ impl LocalStorageSlotId {
             | Self::StructuralBlockParameter { place, .. }
             | Self::StructuralParameter { place } => Some(place),
             Self::Boundary { .. }
+            | Self::BoundaryResult { .. }
             | Self::Spill { .. }
             | Self::StructuralCallArgument { .. }
             | Self::EdgeSnapshot { .. } => None,
@@ -128,6 +134,10 @@ impl LocalStorageSlotId {
                 bytes.push(0);
                 crate::codec_bytes::push_encoded(bytes, operation.get().to_le_bytes());
                 crate::codec_bytes::push_encoded(bytes, place.get().to_le_bytes());
+            }
+            Self::BoundaryResult { operation } => {
+                bytes.push(7);
+                crate::codec_bytes::push_encoded(bytes, operation.get().to_le_bytes());
             }
             Self::Boundary { operation } => {
                 bytes.push(1);
