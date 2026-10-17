@@ -1,6 +1,9 @@
 # progress_domain_provider
 
-`domain H::WeakFair satisfies ProgressProfile established by S::grant` + `-> H in WeakFair` qualified return + per-target providers via `ForeignBinding::Syscall(1)`/`VtableField(notify)`.
+`SchedulerHandle::WeakFair` declares a progress profile established by
+`Scheduler::grant`. The table-backed grant takes an explicit shared provider
+borrow and a one-word opaque receipt; its qualified return issues membership.
+Notification uses the selected target's foreign route.
 
-Compile-checked only: no standard-library dependency and
-no \`Main::exit\` — run a check target, not native.
+This is a declaration-only check probe. Its freestanding build binds no program
+entry, so the native corpus outcome remains `checked`.
