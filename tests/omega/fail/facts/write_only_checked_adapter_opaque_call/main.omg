@@ -1,0 +1,2 @@
+boundary machine opaque(destination: &write i32) -> &write i32;
+boundary machine lend(destination: &write i32) -> &write i32 { opaque(&write destination) }

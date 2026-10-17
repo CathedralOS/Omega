@@ -3109,6 +3109,33 @@ fail/facts/matched_window_through_parameter_rejected rejected 651ms expected @a4
 	cannot prove ensures contract for exit from from_parameter at statement 0: result.len == 2
 fail/facts/matched_window_through_target_body_rejected rejected 649ms expected @a48b0ac286f5
 	cannot prove ensures contract for exit from from_target at statement 0: result.len == 2
+fail/facts/returned_write_destination_through_call_result_read rejected 2165ms expected @2ef2ab353498+wt
+	machine `main` state `entry` reads write-only parameter `destination`; `&write` permits replacement or exact `&write` forwarding, never observation
+fail/facts/returned_write_destination_through_const_name_read rejected 2281ms expected @2ef2ab353498+wt
+	machine `main` state `entry` reads write-only parameter `destination`; `&write` permits replacement or exact `&write` forwarding, never observation
+fail/facts/returned_write_destination_through_field_read rejected 1980ms expected @2ef2ab353498+wt
+	machine `main` state `entry` observes write-only referent through a selected value; `&write` permits replacement or exact `&write` forwarding, never observation
+fail/facts/returned_write_destination_through_local_read rejected 2211ms expected @2ef2ab353498+wt
+	machine `main` state `entry` reads write-only parameter `destination`; `&write` permits replacement or exact `&write` forwarding, never observation
+fail/facts/returned_write_destination_through_match_join_read rejected 2885ms expected @2ef2ab353498+wt
+	machine `replace` state `entry` reads write-only parameter `destination`; `&write` permits replacement or exact `&write` forwarding, never observation
+fail/facts/returned_write_destination_through_other_machine_read rejected 1978ms expected @2ef2ab353498+wt
+	machine `replace` state `entry` reads write-only parameter `destination`; `&write` permits replacement or exact `&write` forwarding, never observation
+fail/facts/returned_write_destination_through_other_state_read rejected 1985ms expected @2ef2ab353498+wt
+	machine `replace` state `later` reads write-only parameter `destination`; `&write` permits replacement or exact `&write` forwarding, never observation
+fail/facts/returned_write_destination_through_parameter_read rejected 1888ms expected @2ef2ab353498+wt
+	machine `replace` state `entry` reads write-only parameter `destination`; `&write` permits replacement or exact `&write` forwarding, never observation
+fail/facts/returned_write_destination_through_target_body_read rejected 2268ms expected @2ef2ab353498+wt
+	machine `main` state `entry` reads write-only parameter `destination`; `&write` permits replacement or exact `&write` forwarding, never observation
+fail/facts/write_only_checked_adapter_opaque_call rejected 328ms expected @2ef2ab353498+wt
+	machine `opaque` state `entry` declares `&write`, but the current milestone proves non-observation only for checked Omega bodies; bodyless boundary, accepted, requirement, and external-provider declarations require an admitted write-only boundary claim
+	machine `lend` state `entry` calls `opaque` with write-only input authority; an opaque selected implementation requires an admitted write-only boundary claim
+	bodyless boundary symbol `opaque` has no executable realization; use it only in contracts, or satisfy a boundary requirement via an admitted provider
+fail/facts/write_only_target_family_nonhost_observation rejected 331ms expected @2ef2ab353498+wt
+	machine `lend` state `entry` reads write-only parameter `destination`; `&write` permits replacement or exact `&write` forwarding, never observation
+fail/facts/write_only_target_family_opaque_member rejected 268ms expected @2ef2ab353498+wt
+	machine `lend` state `entry` declares `&write`, but the current milestone proves non-observation only for checked Omega bodies; bodyless boundary, accepted, requirement, and external-provider declarations require an admitted write-only boundary claim
+	machine `lend` state `entry` declares `&write`, but the current milestone proves non-observation only for checked Omega bodies; bodyless boundary, accepted, requirement, and external-provider declarations require an admitted write-only boundary claim
 fail/float/authored_heterogeneous_float_operator_requires rejected 472ms expected @f7d5743143af
 	cannot prove requires contract for call equal_formats from invalid: negative >= 0.0 (needs fact `left >= 0.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/float/boundary_call_guard_wrong_argument rejected 2266ms expected @f7d5743143af
@@ -7877,6 +7904,16 @@ pass/facts/dependent_subtract_through_other_machine_compile checked 1231ms @fd94
 pass/facts/dependent_subtract_through_other_state_compile checked 1236ms @fd94a7b8095c+wt
 pass/facts/dependent_subtract_through_parameter_compile checked 1237ms @fd94a7b8095c+wt
 pass/facts/dependent_subtract_through_target_body_compile checked 1244ms @fd94a7b8095c+wt
+pass/facts/returned_write_destination_through_call_result_exit checked 6783ms check-target:macos_arm64 @2ef2ab353498+wt
+pass/facts/returned_write_destination_through_const_name_exit checked 6674ms check-target:macos_arm64 @2ef2ab353498+wt
+pass/facts/returned_write_destination_through_field_exit checked 7303ms check-target:macos_arm64 @2ef2ab353498+wt
+pass/facts/returned_write_destination_through_local_exit checked 7446ms check-target:macos_arm64 @2ef2ab353498+wt
+pass/facts/returned_write_destination_through_match_join_exit checked 6869ms check-target:macos_arm64 @2ef2ab353498+wt
+pass/facts/returned_write_destination_through_other_machine_exit checked 7110ms check-target:macos_arm64 @2ef2ab353498+wt
+pass/facts/returned_write_destination_through_other_state_exit checked 8162ms check-target:macos_arm64 @2ef2ab353498+wt
+pass/facts/returned_write_destination_through_parameter_exit checked 7698ms check-target:macos_arm64 @2ef2ab353498+wt
+pass/facts/returned_write_destination_through_target_body_exit checked 8371ms check-target:macos_arm64 @2ef2ab353498+wt
+pass/facts/write_only_checked_adapter_exit checked 5187ms check-target:macos_arm64 @2ef2ab353498+wt
 pass/filesystem/cross_linux_value_syscalls checked 16296ms @aebe0714a499+wt
 pass/filesystem/dir_walk_wrappers_exit checked 19471ms check-target:macos_arm64 @7c847bad15b6+wt
 pass/filesystem/native_canonicalize checked 25257ms check-target:macos_arm64 @c9eefa9130a0+wt

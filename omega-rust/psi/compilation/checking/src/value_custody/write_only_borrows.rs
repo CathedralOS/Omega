@@ -13,8 +13,8 @@
 //! local initialization and returns share this boundary and validate the
 //! producer's receiver and operands even when its result is not observed.
 use diagnostics::Diagnostic;
+use language_semantics::ReferenceAccess;
 use language_semantics::declaration_selection::CollectionMeasure;
-use language_semantics::{MachineSupplyMode, ReferenceAccess};
 use symbols::SymbolHandle;
 use typed_trees::data::{DataDefinition, DataMember, DataShapeKind};
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -35,6 +35,26 @@ struct WriteOnlyRoot {
     name: String,
     referee: TypeReferenceHandle,
     access: ReferenceAccess,
+}
+
+/// A generated target-family interface supplies no body itself. Non-observation
+/// comes from its complete checked member roster, never from one host's selected
+/// body. Opaque members still require boundary evidence, and checked adapters
+/// retain the same body-based obligation as ordinary machines.
+fn has_checked_write_only_implementation(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+) -> bool {
+    machine.supplies_checked_body()
+        || crate::machine_calls::calls::target_family_members(program, machine).is_some_and(
+            |members| {
+                members.iter().all(|member| {
+                    program
+                        .machine(member.machine)
+                        .is_some_and(Machine::supplies_checked_body)
+                })
+            },
+        )
 }
 
 pub(crate) fn validate_checked_write_only_slice(
@@ -107,7 +127,7 @@ pub(crate) fn validate_checked_write_only_slice(
             // A generic declaration retains a dependent obligation. Calls
             // below judge its exact static application with the ordinary
             // callable substitution, so dependence never becomes absence.
-            let opaque_write_only = !matches!(machine.supply_mode, MachineSupplyMode::CheckedBody)
+            let opaque_write_only = !has_checked_write_only_implementation(program, machine)
                 && program.state_parameters(state).iter().any(|parameter| {
                     matches!(
                         crate::borrow_contracts::input_write_only_access(
@@ -121,9 +141,9 @@ pub(crate) fn validate_checked_write_only_slice(
                     )
                 });
             if !roots.is_empty() || opaque_write_only {
-                if !matches!(machine.supply_mode, MachineSupplyMode::CheckedBody) {
+                if !has_checked_write_only_implementation(program, machine) {
                     diagnostics.push(Diagnostic::error(format!(
-                        "machine `{}` state `{}` declares `&write`, but the current milestone proves non-observation only for checked Omega bodies; boundary, accepted, requirement, and external-provider declarations require an admitted write-only boundary claim",
+                        "machine `{}` state `{}` declares `&write`, but the current milestone proves non-observation only for checked Omega bodies; bodyless boundary, accepted, requirement, and external-provider declarations require an admitted write-only boundary claim",
                         machine.name,
                         state.name,
                     )));
@@ -927,7 +947,13 @@ fn validate_statement<'p>(
                 machine_definition,
                 state_definition,
                 assignment.target,
-            );
+            )
+            .map(|destination| {
+                // A store receives the referent value. Treating the outer
+                // reference carrier as its destination would admit an RHS
+                // read as descriptor transport, including `output = output`.
+                crate::value_custody::places::assignment_value_type(program, destination)
+            });
             validate_received_value(
                 program,
                 machine_definition,
@@ -1483,7 +1509,7 @@ fn validate_opaque_call_inputs(
     let (name, inputs, bindings) = if let Some((callee, entry)) =
         crate::machine_calls::calls::machine_state_by_symbol(program, target)
     {
-        if matches!(callee.supply_mode, MachineSupplyMode::CheckedBody) {
+        if has_checked_write_only_implementation(program, callee) {
             return;
         }
         let Some(bindings) = crate::machine_calls::calls::call_type_arguments(

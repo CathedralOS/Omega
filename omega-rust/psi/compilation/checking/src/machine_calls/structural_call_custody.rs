@@ -1285,7 +1285,10 @@ pub fn structural_call_custody(
         let destination =
             typed_trees::state::state_by_symbol(program.machine_states(target), *target_state)
                 .ok_or("structural call has no exact callee state")?;
-        if target.supply_mode != language_semantics::MachineSupplyMode::CheckedBody {
+        // Ordinary custody follows an actual checked body, including a
+        // boundary adapter. Its interface polarity does not turn the result
+        // into opaque supply or erase the checked return's loan ancestry.
+        if !target.supplies_checked_body() {
             return Err("structural call result differs from the callee contract");
         }
         (

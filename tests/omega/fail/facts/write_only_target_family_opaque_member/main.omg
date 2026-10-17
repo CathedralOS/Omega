@@ -1,0 +1,2 @@
+linux_x86_64 machine lend(destination: &write i32) -> &write i32 { &write destination }
+macos_arm64 boundary machine lend(destination: &write i32) -> &write i32;

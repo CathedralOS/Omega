@@ -209,6 +209,16 @@ pass/drops/runtime_parent_hook_preserves_linear_descendants_exit built 6296ms ex
 pass/drops/runtime_scalar_exit_nominal_cleanup_exit built 5398ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @d537c1f08618
 pass/expressions/call_result_comparison_operands_exit built 22382ms exit:70 interpreter-exit:70 interpreter:agrees @c48489ea6ad6
 pass/expressions/runtime_comparison_store_integer_exit built 24518ms exit:70 interpreter-exit:70 interpreter:agrees @c48489ea6ad6
+pass/facts/returned_write_destination_through_call_result_exit built 7646ms exit:0 interpreter-exit:0 interpreter:agrees @2ef2ab353498+wt
+pass/facts/returned_write_destination_through_const_name_exit built 6783ms exit:0 interpreter-exit:0 interpreter:agrees @2ef2ab353498+wt
+pass/facts/returned_write_destination_through_field_exit built 7535ms exit:0 interpreter-exit:0 interpreter:agrees @2ef2ab353498+wt
+pass/facts/returned_write_destination_through_local_exit built 6878ms exit:0 interpreter-exit:0 interpreter:agrees @2ef2ab353498+wt
+pass/facts/returned_write_destination_through_match_join_exit built 6854ms exit:0 interpreter-exit:0 interpreter:agrees @2ef2ab353498+wt
+pass/facts/returned_write_destination_through_other_machine_exit built 6214ms exit:0 interpreter-exit:0 interpreter:agrees @2ef2ab353498+wt
+pass/facts/returned_write_destination_through_other_state_exit built 5947ms exit:0 interpreter-exit:0 interpreter:agrees @2ef2ab353498+wt
+pass/facts/returned_write_destination_through_parameter_exit built 5675ms exit:0 interpreter-exit:0 interpreter:agrees @2ef2ab353498+wt
+pass/facts/returned_write_destination_through_target_body_exit built 5621ms exit:0 interpreter-exit:0 interpreter:agrees @2ef2ab353498+wt
+pass/facts/write_only_checked_adapter_exit built 5116ms exit:0 interpreter-exit:0 interpreter:agrees @2ef2ab353498+wt
 pass/float/boundary_call_guard_result built 23050ms exit:0 interpreter-exit:0 interpreter:agrees @9e808e0970fc
 pass/float/build_runtime_semantics_twins_x86_baseline built 259139ms @d537c1f08618
 pass/float/coherent_field_energy_scattering_exit built 123676ms exit:0 interpreter-exit:0 interpreter:agrees @8e62b89228ab

@@ -1,0 +1,14 @@
+// A returned write-only loan permits replacing caller storage 7 with 42 while preserving neighboring 19.
+// Expected exit: 0.
+machine lend_write(destination: &write i32) -> &write i32 { &write destination }
+machine replace(value: &mut i32, choice: bool) {
+ let destination: &write i32 = match choice { true -> lend_write(&write value), false -> lend_write(&write value) };
+ destination = 42;
+}
+machine main() crashes Trap {
+ let mut value: i32 = 7;
+ let neighbor: i32 = 19;
+ replace(&mut value, true);
+ transition value == 42 && neighbor == 19 { true -> done() false -> wrong() }
+ state done() {} state wrong() { crash Trap; }
+}
