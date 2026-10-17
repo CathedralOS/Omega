@@ -81,9 +81,14 @@ pub enum LoweringError {
     /// shared parameter root, integer field, and typed scalar result.
     InvalidScalarStructuralField(semantic_vocabulary::OperationId),
     /// Independent Terminal-to-Omega projection could not rejoin the exact
-    /// mutable-borrowed parameter root, declared structural field type, or
-    /// the result/value custody rows a restoration window requires.
-    InvalidBorrowedStorageWindow(semantic_vocabulary::OperationId),
+    /// declared storage root, structural field type, or the result/value
+    /// custody rows a restoration window requires.
+    InvalidBorrowedStorageWindow {
+        machine: MachineId,
+        operation: semantic_vocabulary::OperationId,
+        place: semantic_vocabulary::PlaceId,
+        reason: String,
+    },
     ScalarReturnFromUnitMachine(MachineId),
     UnitReturnFromScalarMachine(MachineId),
     /// The verified structural-result machine is wider than the exact
