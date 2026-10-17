@@ -195,31 +195,39 @@ pub(crate) fn infer_identity_preserving_reshuffles(
     facts.qualifications.content.identity_reshuffles = reshuffles;
 }
 
-/// Instantiate an already-authored partition theorem through an exact wrapper.
-/// This pass can substitute caller-entry paths and either a directly returned
-/// result or a result staged through exact local-chain and aggregate identity
-/// rewrites;
-/// it cannot construct a `separate(...)` node. Every entry projection must bind
-/// to one caller parameter claim whose transfer-stable identity reaches the
-/// exact returned call site.
+/// Compose proved partition theorems at completed invocations. The shared
+/// entailment owner decides which authored clauses are proved; requirements
+/// and admitted boundary declarations supply the other roots. Merely writing
+/// a guarantee cannot make an unproved cycle authorize itself.
 ///
-/// Derived rows are made available to later rounds so wrapper chains close to
-/// a fixed point. Every staged source-result projection must retain one exact
-/// call-established claim identity into a unique callable-result path. When
-/// several staged calls independently contribute to one returned aggregate,
-/// each call retains its own authored theorem and exact structural rewrite row.
+/// The capture owner relates actual entry observations and returned contents,
+/// while the permission ledger separately relates exact claims. Derived rows
+/// bind one outgoing occurrence. Only a theorem established on every ordinary
+/// outgoing edge becomes a callable source for the next fixed-point round.
+/// Substitution preserves the source's partition algebra; it never invents
+/// disjointness from independent claim identities or equal scalar totals.
 pub(crate) fn compose_partition_wrappers(
     program: &dyn ::validation::CheckingInput,
     facts: &mut CheckFacts,
+    entailment: &mut super::contracts::ProvenExitExpressions<'_, '_>,
 ) {
-    let mut available = facts
-        .qualifications
-        .content
-        .conservation_plans
+    let source_plans = validation::content_conservation_plans(program);
+    let mut available = source_plans
         .iter()
-        .cloned()
-        .map(|plan| AvailablePartitionSource {
-            plan,
+        .filter(|source| {
+            source.plan.owner_kind == ContentConservationOwnerKind::TraitRequirement
+                || program
+                    .machine_by_symbol(source.plan.owner)
+                    .is_some_and(|machine| {
+                        machine.supply_mode == language_semantics::MachineSupplyMode::AdmissionClaim
+                            || entailment
+                                .for_machine(facts, machine.symbol)
+                                .expressions
+                                .contains(&source.source_expression)
+                    })
+        })
+        .map(|source| AvailablePartitionSource {
+            plan: source.plan.clone(),
             derivation_depth: 0,
         })
         .collect::<Vec<_>>();
@@ -236,7 +244,7 @@ pub(crate) fn compose_partition_wrappers(
 
         for machine in program.machines() {
             for state in program.machine_states(machine) {
-                for invocation in returned_partition_invocations(program, state) {
+                for invocation in returned_partition_invocations(program, facts, state) {
                     for source in sources.iter().filter(|source| {
                         source.plan.callable == invocation.target_symbol
                             && equation_contains_partition(&source.plan.equation)
@@ -252,22 +260,17 @@ pub(crate) fn compose_partition_wrappers(
                         ) else {
                             continue;
                         };
-                        if available
-                            .iter()
-                            .map(|source| &source.plan)
-                            .chain(
-                                round
-                                    .iter()
-                                    .map(|fact: &ContentPartitionCompositionFact| &fact.plan),
-                            )
-                            .any(|existing| {
-                                existing.callable == state.symbol
-                                    && existing.algebra == composition.plan.algebra
-                                    && existing.report_fingerprint
-                                        == composition.plan.report_fingerprint
-                                    && existing.equation == composition.plan.equation
-                            })
-                        {
+                        if compositions.iter().chain(round.iter()).any(
+                            |existing: &ContentPartitionCompositionFact| {
+                                existing.returned_at == composition.returned_at
+                                    && existing.machine_symbol == composition.machine_symbol
+                                    && existing.state_symbol == composition.state_symbol
+                                    && existing.statement_index == composition.statement_index
+                                    && existing.call_ordinal == composition.call_ordinal
+                                    && existing.source_plan == composition.source_plan
+                                    && existing.plan == composition.plan
+                            },
+                        ) {
                             continue;
                         }
                         round.push(composition);
@@ -289,11 +292,40 @@ pub(crate) fn compose_partition_wrappers(
         if round.is_empty() {
             break;
         }
-        available.extend(round.iter().map(|fact| AvailablePartitionSource {
-            plan: fact.plan.clone(),
-            derivation_depth: fact.source_derivation_depth.saturating_add(1),
-        }));
         compositions.extend(round);
+        let mut added_source = false;
+        for composition in &compositions {
+            if available
+                .iter()
+                .any(|source| source.plan == composition.plan)
+            {
+                continue;
+            }
+            let Some(state) = program.state_by_symbol(composition.state_symbol) else {
+                continue;
+            };
+            let outgoing = partition_wrappers::ordinary_returns(program, facts, state);
+            // A theorem on one arm is not a callable guarantee. Keep each
+            // exact exit proof, and export a source only when the complete
+            // ordinary outgoing roster proves the same normalized equation.
+            if outgoing.is_empty()
+                || !outgoing.iter().all(|returned_at| {
+                    compositions.iter().any(|candidate| {
+                        candidate.returned_at == *returned_at && candidate.plan == composition.plan
+                    })
+                })
+            {
+                continue;
+            }
+            available.push(AvailablePartitionSource {
+                plan: composition.plan.clone(),
+                derivation_depth: composition.source_derivation_depth.saturating_add(1),
+            });
+            added_source = true;
+        }
+        if !added_source {
+            break;
+        }
     }
 
     compositions.sort_by_key(|fact| {
@@ -304,7 +336,65 @@ pub(crate) fn compose_partition_wrappers(
         )
     });
     compositions.dedup();
+    // A complete entry summary is a judgment over every ordinary machine
+    // return, including returns in later states. Its substitution has already
+    // carried their parameters back through the selected incoming calls.
+    // Per-exit reference-origin machinery is not a prerequisite for this
+    // independent owned-content proof. Never publish a local exit row here.
+    for source in source_plans
+        .iter()
+        .filter(|source| source.plan.owner_kind == ContentConservationOwnerKind::Machine)
+    {
+        let Some(machine) = program.machine_by_symbol(source.plan.owner) else {
+            continue;
+        };
+        if program
+            .machine_states(machine)
+            .first()
+            .is_some_and(|entry| entry.symbol == source.plan.callable)
+            && available
+                .iter()
+                .any(|complete| complete.plan == source.plan)
+        {
+            entailment.record_proved_normal_return(facts, machine.symbol, source.source_expression);
+        }
+    }
     facts.qualifications.content.partition_compositions = compositions;
+}
+
+/// Consume a derived theorem only at the outgoing occurrence whose current
+/// result claims justified its substitution. Equal statement indices on two
+/// transition arms are not the same completed invocation.
+pub(super) fn proves_composed_exit(
+    facts: &CheckFacts,
+    exit: &checked_trees::FlowExitFact,
+    fact: &facts::Fact,
+    sources: &[validation::ContentConservationSourcePlan],
+) -> bool {
+    let facts::FactPayload::ContractBooleanExpression { expression, .. } = fact.payload else {
+        return false;
+    };
+    sources
+        .iter()
+        .filter(|source| {
+            source.source_expression == expression && source.plan.owner == exit.machine_symbol
+        })
+        .any(|source| {
+            facts
+                .qualifications
+                .content
+                .partition_compositions
+                .iter()
+                .any(|composition| {
+                    let outgoing = facts.flow.control.outgoing.get(composition.returned_at);
+                    outgoing.machine_symbol == exit.machine_symbol
+                        && outgoing.state_symbol == exit.state_symbol
+                        && outgoing.statement_index == exit.statement_index
+                        && outgoing.transition_target == exit.transition_target
+                        && composition.plan.algebra == source.plan.algebra
+                        && composition.plan.equation == source.plan.equation
+                })
+        })
 }
 
 pub(crate) fn check_retained_content_custody(

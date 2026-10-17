@@ -15,14 +15,14 @@
 //!    of contract expressions and calls;
 //! 2. `borrows` checks call and statement borrows, then `case_access` checks
 //!    every evaluated payload access against its live selected tag;
-//! 3. `contracts::check_flow_call_contracts` checks call requirements, exit
-//!    guarantees, arrival requirements and domain field writes;
+//! 3. `content` derives reshuffles and completed-call partition theorems from
+//!    the shared positive entailment cache; `contracts::check_flow_call_contracts`
+//!    checks call requirements, exit guarantees, arrivals and domain writes;
 //! 4. `multiplicity` checks linear obligations;
 //! 5. `crashes` checks crash exit edge isolation and operator invocation
 //!    custody, infers path-conditioned guard coverage, and checks published
 //!    ceiling coverage;
-//! 6. `content` infers identity-preserving reshuffles and composes partition
-//!    wrappers, then checks retained content custody;
+//! 6. `content` checks retained content custody;
 //! 7. `carry` rejects a call that may suspend while a suspension-forbidden
 //!    value is live;
 //! 8. `operators` checks operator resolution;
@@ -104,6 +104,13 @@ pub(crate) fn check_checked_facts_recording(
     let mut diagnostics = Vec::new();
     let call_frames = validation::CallFrameResolver::new(program);
     let incoming_guards = guard_index.index(program, call_frames.as_ref());
+    let proof_only = validation::proof_only_classification(program);
+    let mut entailment = contracts::ProvenExitExpressions::new(
+        program,
+        &proof_only,
+        call_frames.as_ref(),
+        proven_machine_contracts,
+    );
 
     if let Err(mut evidence_diagnostics) = contracts::bind_call_evidence_arguments(program, facts) {
         diagnostics.append(&mut evidence_diagnostics);
@@ -123,12 +130,19 @@ pub(crate) fn check_checked_facts_recording(
     case_access::check(program, facts, &mut diagnostics);
     atomic_fences::check(program, facts, &mut diagnostics);
 
+    // Content composition consumes the same retained positive judgments as
+    // exit checking. Authored guarantees are obligations, not theorem roots;
+    // preparing composition here makes completed-call evidence available to
+    // the caller's exit without letting its own unproved clause seed a cycle.
+    content::infer_identity_preserving_reshuffles(program, facts);
+    content::compose_partition_wrappers(program, facts, &mut entailment);
+
     match contracts::check_flow_call_contracts(
         program,
         facts,
         incoming_guards,
         call_frames.as_ref(),
-        proven_machine_contracts,
+        &mut entailment,
         expression_intervals,
     ) {
         Ok(decided) => {
@@ -168,9 +182,6 @@ pub(crate) fn check_checked_facts_recording(
     if let Err(mut crash_diagnostics) = crashes::check_published_ceiling_coverage(program, facts) {
         diagnostics.append(&mut crash_diagnostics);
     }
-
-    content::infer_identity_preserving_reshuffles(program, facts);
-    content::compose_partition_wrappers(program, facts);
 
     if let Err(mut content_diagnostics) = content::check_retained_content_custody(program, facts) {
         diagnostics.append(&mut content_diagnostics);

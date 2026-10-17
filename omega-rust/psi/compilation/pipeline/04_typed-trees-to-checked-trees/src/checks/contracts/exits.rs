@@ -264,6 +264,9 @@ pub(super) fn check_exit_ensures(
                             fact,
                             content_plans,
                         )
+                        || crate::checks::content::proves_composed_exit(
+                            facts, exit_flow, fact, content_plans,
+                        )
                         || super::integer_embeddings::proves_exit_equality(
                             program, state_flow, exit_flow, fact,
                         )

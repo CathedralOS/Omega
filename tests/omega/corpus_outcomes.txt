@@ -2097,10 +2097,25 @@ fail/control_flow/tuple_destructure_duplicate_binding_rejected rejected 1ms expe
 	tests/omega/fail/control_flow/tuple_destructure_duplicate_binding_rejected/main.omg:7:9: tuple destructure binding `value` is introduced by more than one subject; rename one binding with `as`
 fail/core/constant_false_crash_ceiling_forbids_body_crash rejected 1541ms expected @a9ae30e1c334+wt
 	machine `main` has an uncovered Trap crash at statement 0; publish a same-cause `crashes` route whose guard covers this site
+fail/core/content_conservation_changed_arrival rejected 2372ms expected @94192499b002+wt
+	cannot prove ensures contract for exit from Main::split_proved at statement 0: Owned.content(old(&whole)) == separate(Owned.content(&result.left), Owned.content(&result.right)); no exact incoming reference origin for whole
+fail/core/content_conservation_changed_call_result rejected 2366ms expected @94192499b002+wt
+	cannot prove ensures contract for exit from Main::split_proved at statement 2: Owned.content(old(&whole)) == separate(Owned.content(&result.left), Owned.content(&result.right))
+fail/core/content_conservation_changed_input rejected 2351ms expected @94192499b002+wt
+	cannot prove ensures contract for exit from Main::split_proved at statement 1: Owned.content(old(&whole)) == separate(Owned.content(&result.left), Owned.content(&result.right))
+fail/core/content_conservation_changed_intermediate rejected 1607ms expected @94192499b002+wt
+	cannot prove ensures contract for exit from Main::split_proved at statement 4: Owned.content(old(&whole)) == separate(Owned.content(&result.left), Owned.content(&result.right))
+fail/core/content_conservation_changed_state_input rejected 1597ms expected @94192499b002+wt
+	cannot prove ensures contract for exit from Main::split_proved at statement 2: Owned.content(old(&whole)) == separate(Owned.content(&result.left), Owned.content(&result.right)); no exact incoming reference origin for whole
 fail/core/content_conservation_constructed_duplicate_claim rejected 1226ms expected @a9ae30e1c334+wt
 	cannot use `left` in machine `combine` state `entry` (statement 0) after `left` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `left` first
 fail/core/content_conservation_constructed_wrong_qualification rejected 1542ms expected @a9ae30e1c334+wt
 	construction of `Pair` field `right` is not proven in domain `Chunk::Held`; a field declared `in Chunk::Held` requires every construction value to be established in that domain (construct with a literal its byte-predicate fact accepts, or a value already proven in the domain)
+fail/core/content_conservation_incomplete_exits rejected 1593ms expected @94192499b002+wt
+	cannot prove ensures contract for exit from Main::split_proved at statement 0: Owned.content(old(&whole)) == separate(Owned.content(&result.left), Owned.content(&result.right)); no exact incoming reference origin for whole
+	cannot prove ensures contract for exit from Main::split_proved at statement 2: Owned.content(old(&whole)) == separate(Owned.content(&result.left), Owned.content(&result.right)); no exact incoming reference origin for whole
+fail/core/content_conservation_mixed_call_results rejected 1533ms expected @94192499b002+wt
+	cannot prove ensures contract for exit from Main::split_proved at statement 5: Owned.content(old(&whole)) == separate(Owned.content(&result.left), Owned.content(&result.right))
 fail/core/content_conservation_unqualified_place rejected 928ms expected @a9ae30e1c334+wt
 	callable `InvalidSplit::split` has an invalid content-conservation contract: projection `Owned::content` requires exact qualification `Region::Owned`, but `old(&whole)` is not qualified by its type or an ordinary callable contract
 fail/core/content_issuance_consumed_constructed_claims rejected 1598ms expected @a9ae30e1c334+wt
@@ -7066,9 +7081,14 @@ pass/control_flow/transition_operand_schedule checked 1608ms @a9ae30e1c334+wt
 pass/control_flow/transition_tail_self_call checked 1738ms @a9ae30e1c334+wt
 pass/core/carry_permission_provider_adapter checked 11097ms check-target:macos_arm64 @83314997c2b2
 pass/core/content_conservation_constructed_argument checked 1711ms @5b58c9723867
+pass/core/content_conservation_constructed_result_exit checked 6863ms check-target:macos_arm64 @94192499b002+wt
 pass/core/content_conservation_contract_exit checked 23008ms check-target:macos_arm64 @e52673d2bcdb+wt
+pass/core/content_conservation_moved_result_exit checked 6824ms check-target:macos_arm64 @94192499b002+wt
 pass/core/content_conservation_nested_projected_exit checked 6221ms check-target:macos_arm64 @7bd69d0648b7
 pass/core/content_conservation_projected_exit checked 6219ms check-target:macos_arm64 @7bd69d0648b7
+pass/core/content_conservation_state_arrival_exit checked 6825ms check-target:macos_arm64 @94192499b002+wt
+pass/core/content_conservation_unobserved_write_exit checked 6825ms check-target:macos_arm64 @94192499b002+wt
+pass/core/content_conservation_wrapper_exit checked 3399ms check-target:macos_arm64 @94192499b002+wt
 pass/core/content_retained_custody_round_trip checked 11400ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/core/extent_core_surface checked 1673ms @a9ae30e1c334+wt
 pass/core/extent_root_provider_adapter checked 11044ms check-target:macos_arm64 @83314997c2b2

@@ -6,7 +6,7 @@ mod case_preservation;
 /// Transient, program-local results of positive entailment judgments. The
 /// runtime place prover need not duplicate structural or integer proof rules,
 /// but absence of a validation error is not evidence for any postcondition.
-pub(super) struct ProvenExitExpressions<'program, 'frames> {
+pub(in crate::checks) struct ProvenExitExpressions<'program, 'frames> {
     program: &'program dyn ::validation::CheckingInput,
     classification: &'program typed_trees::proof_only::ProofOnlyClassification,
     resolver: Option<&'frames validation::CallFrameResolver<'program>>,
@@ -15,9 +15,9 @@ pub(super) struct ProvenExitExpressions<'program, 'frames> {
     machines: Vec<MachineEntailmentOutcome>,
 }
 
-pub(super) struct MachineEntailmentOutcome {
+pub(in crate::checks) struct MachineEntailmentOutcome {
     machine: SymbolHandle,
-    pub(super) expressions: Vec<ExpressionHandle>,
+    pub(in crate::checks) expressions: Vec<ExpressionHandle>,
     entry_premises_preserved: bool,
 }
 
@@ -25,7 +25,7 @@ impl<'program, 'frames> ProvenExitExpressions<'program, 'frames> {
     /// The check pass owns one resolver for the immutable program window;
     /// `resolver` borrows it. `None` disables the isolated-proof-value path
     /// exactly as an unconstructable resolver did before.
-    pub(super) fn new(
+    pub(in crate::checks) fn new(
         program: &'program dyn ::validation::CheckingInput,
         classification: &'program typed_trees::proof_only::ProofOnlyClassification,
         resolver: Option<&'frames validation::CallFrameResolver<'program>>,
@@ -40,9 +40,45 @@ impl<'program, 'frames> ProvenExitExpressions<'program, 'frames> {
         }
     }
 
+    /// Add an independently established all-normal-return judgment. The caller
+    /// must cover the actual entry's complete outgoing graph; a theorem about
+    /// one local exit cannot bypass another state's missing origin evidence.
+    pub(in crate::checks) fn record_proved_normal_return(
+        &mut self,
+        facts: &checked_trees::CheckFacts,
+        machine: SymbolHandle,
+        expression: ExpressionHandle,
+    ) {
+        self.for_machine(facts, machine);
+        if let Some(outcome) = self
+            .machines
+            .iter_mut()
+            .find(|outcome| outcome.machine == machine)
+            && !outcome.expressions.contains(&expression)
+        {
+            outcome.expressions.push(expression);
+            let inherited = validation::matched_machine_law_guarantees(self.program, machine)
+                .into_iter()
+                .filter(|matching| {
+                    matching.machine == machine
+                        && matching
+                            .source_expressions
+                            .iter()
+                            .all(|source| outcome.expressions.contains(source))
+                })
+                .map(|matching| matching.expression)
+                .collect::<Vec<_>>();
+            for expression in inherited {
+                if !outcome.expressions.contains(&expression) {
+                    outcome.expressions.push(expression);
+                }
+            }
+        }
+    }
+
     /// The one judgment over a checked body is validation's retained row;
     /// this read is the prover's decision point — nothing rejudges it.
-    pub(super) fn for_machine(
+    pub(in crate::checks) fn for_machine(
         &mut self,
         facts: &checked_trees::CheckFacts,
         machine_symbol: SymbolHandle,

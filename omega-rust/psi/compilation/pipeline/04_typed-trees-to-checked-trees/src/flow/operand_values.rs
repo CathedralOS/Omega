@@ -242,14 +242,22 @@ fn reaching_store_values<'capture>(
     {
         return None;
     }
-    for statement in flow
-        .control
-        .statements
-        .span(state.statements)?
-        .iter()
-        .rev()
-        .filter(|statement| statement.statement_index < operand.statement_index)
-    {
+    // Storage order and execution order can differ across admitted assembly
+    // jumps. A missing executed row cannot assert that a value was preserved.
+    let typed_state = program.state_by_symbol(state.state_symbol)?;
+    let order = program
+        .statement_table
+        .admitted_execution_order(typed_state.statement_nodes);
+    let end = order.position(operand.statement_index).or_else(|| {
+        (operand.statement_index
+            == program
+                .statement_table
+                .statements(typed_state.statement_nodes)
+                .len())
+        .then_some(order.indices().len())
+    })?;
+    for &index in order.indices()[..end].iter().rev() {
+        let statement = flow.state_statement(state, index)?;
         if semantic.places.is_valid(statement.stored_destination)
             && flow.control.operands.is_valid(statement.stored_value)
         {
@@ -277,7 +285,14 @@ fn reaching_store_values<'capture>(
                     .expression_table
                     .expression_is_valid(stored.expression)
                     || !stored_type.is_valid()
-                    || !super::operand_contexts::operand_binds_stable_copy(program, stored_type)
+                    || !validation::project_type_reference_from_segments(
+                        program,
+                        stored_type,
+                        &source.segments[destination.segments.len()..],
+                    )
+                    .is_some_and(|projected| {
+                        super::operand_contexts::operand_binds_stable_copy(program, projected)
+                    })
                 {
                     return None;
                 }

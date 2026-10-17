@@ -321,3 +321,56 @@ pub(crate) fn content_path(
         })
         .collect()
 }
+
+/// Carrier fields read by a normalized content projection. Content equality
+/// requires these observations, not every qualification or unrelated field in
+/// the enclosing owner. Constants have no storage dependency.
+pub(crate) fn projection_observations(
+    expression: &language_semantics::content::ContentProjectionExpression,
+) -> Option<Vec<Vec<facts::PlaceSegment>>> {
+    use language_semantics::content::{ContentProjectionExpression, ContentScalarExpression};
+    fn scalar(
+        expression: &ContentScalarExpression,
+        paths: &mut Vec<Vec<facts::PlaceSegment>>,
+    ) -> Option<()> {
+        match expression {
+            ContentScalarExpression::SubjectField(fields)
+            | ContentScalarExpression::RuntimeScalarEmbedding(fields) => {
+                let path = fields
+                    .iter()
+                    .map(|field| {
+                        field
+                            .symbol
+                            .is_valid()
+                            .then_some(facts::PlaceSegment::Field {
+                                symbol: field.symbol,
+                            })
+                    })
+                    .collect::<Option<Vec<_>>>()?;
+                if !paths.contains(&path) {
+                    paths.push(path);
+                }
+            }
+            ContentScalarExpression::Natural(_) => {}
+            ContentScalarExpression::Successor(inner) => scalar(inner, paths)?,
+            ContentScalarExpression::Arithmetic { left, right, .. } => {
+                scalar(left, paths)?;
+                scalar(right, paths)?;
+            }
+        }
+        Some(())
+    }
+    let mut paths = Vec::new();
+    match expression {
+        ContentProjectionExpression::CountedQuantity { magnitude } => {
+            scalar(magnitude, &mut paths)?
+        }
+        ContentProjectionExpression::IntervalSet { members } => {
+            for member in members {
+                scalar(member.start(), &mut paths)?;
+                scalar(member.end(), &mut paths)?;
+            }
+        }
+    }
+    Some(paths)
+}

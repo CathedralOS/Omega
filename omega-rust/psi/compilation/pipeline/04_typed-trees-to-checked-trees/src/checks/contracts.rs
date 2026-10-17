@@ -11,8 +11,10 @@
 //! `check_flow_call_contracts` builds the content conservation plans and the
 //! declared field requirements of nominal parameters (`nominal_inputs`),
 //! checks every state's `asm` requires and ensures assertions (`assembly`),
-//! and prepares the exit entailment results (`entailment`) and the cyclic
-//! header invariants (`exits`). It then walks each state's flow:
+//! and prepares the cyclic header invariants (`exits`). The checks entry owns
+//! the exit entailment cache (`entailment`), shared with content composition
+//! so both consumers use the same preserved positive judgments. This check
+//! then walks each state's flow:
 //!
 //! 1. for each call: the scalar tail result domains (`exits`) and the call's
 //!    requirements (`calls`, which also checks the nominal inputs);
@@ -58,6 +60,7 @@ mod capture_coordinates;
 mod content_preservation;
 mod current_values;
 mod entailment;
+pub(super) use entailment::ProvenExitExpressions;
 mod float_predicate_domains;
 mod guard_operands;
 mod integer_embeddings;
@@ -83,7 +86,6 @@ use exits::{CyclicHeaderInvariants, check_exit_ensures};
 pub(crate) use exits::{
     exclusive_referent_type, is_readable_mutable_reference, value_provable_domain,
 };
-use symbols::SymbolHandle;
 use writes::check_domain_field_writes;
 
 pub(super) struct ContractDecisions {
@@ -97,7 +99,7 @@ pub(super) fn check_flow_call_contracts(
     facts: &CheckFacts,
     incoming_guards: &crate::checks::ranges::incoming_guards::IncomingGuardIndex,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
-    proven_machine_contracts: &[(SymbolHandle, validation::ProvenContractExpressions)],
+    entailment: &mut ProvenExitExpressions<'_, '_>,
     expression_intervals: &[validation::ExpressionInterval],
 ) -> Result<ContractDecisions, Vec<Diagnostic>> {
     let mut diagnostics =
@@ -117,12 +119,6 @@ pub(super) fn check_flow_call_contracts(
     // calls, even when their result is erased or no guarantee is consumed.
     // Recursive descent establishes termination, not a call's preconditions.
     let proof_only = validation::proof_only_classification(program);
-    let mut entailment = entailment::ProvenExitExpressions::new(
-        program,
-        &proof_only,
-        call_frames,
-        proven_machine_contracts,
-    );
     let mut cyclic_headers = CyclicHeaderInvariants::new();
     // Call targets carry the callee's ENTRY-STATE symbol (sub-state targets
     // carry that state's); resolve through states as well as the machine

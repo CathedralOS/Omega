@@ -23,6 +23,8 @@ pub(super) use projected_affine::transfers_owned_storage;
 mod instruction_dispositions;
 mod permission_events;
 mod permission_schedule;
+mod returned_claims;
+pub(crate) use returned_claims::{ReturnedClaim, ReturnedClaimSource, current_returned_claims};
 mod selected_cleanup;
 mod selected_evaluation;
 pub(crate) use permission_events::prepare_permission_events;

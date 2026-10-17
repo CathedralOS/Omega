@@ -3875,13 +3875,14 @@ and `mapped` need matching-host measurements, including the full-i32 status.
   theorem propagation and interval-set provider-body judgments under
   [content conservation](wiki/spec/resources/content_custody.md), using canonical
   `source/library/core/content.omg` identities.
-  - A wrapper that authors the input-to-separated-results conservation guarantee
-    cannot prove it after calling two theorem-free forwarding wrappers, although
-    the forwarding chain executes with its authored result. Derive content facts
-    from exact completed invocations through every successful return, retaining
-    argument substitution, entry/current revision and returned-claim correspondence.
-    Only proved bodies and admitted declarations supply theorem roots; unproved
-    authored guarantees and recursive cycles cannot seed their own evidence.
+  - A wrapper returning a match-selected completed partition call cannot prove
+    its authored conservation guarantee. Retain each reachable arm's completed
+    value, exact invocation and current returned claims; prove the same normalized
+    equation for every ordinary-return alternative before exporting a callable
+    guarantee. Preserve capture epochs and branch correlations through nested
+    selections and transparent construction. Only proved bodies and admitted
+    declarations supply theorem roots; unproved guarantees and recursive cycles
+    cannot seed their own evidence.
   - Interval-set provider bodies have no theorem judgment: the content tier stands
     down even when the body preserves the authored partition. Counted-quantity
     body judgment does not discharge interval separation or coverage.

@@ -1,47 +1,50 @@
 //! Returned partition invocations and the wrappers composed from them.
 
 use crate::checks::content::content_paths::{
-    content_path, content_segments_to_fact_path, unique_entry_claim_identity,
+    content_path, content_segments_to_fact_path, projection_observations,
 };
 use checked_trees::{
     CheckFacts, ContentPartitionCompositionFact, ContentPartitionPlaceSubstitution,
-    ContentPartitionResultRewrite, FlowClaimOutcomeSource,
+    ContentPartitionResultRewrite,
 };
 use language_semantics::content::{
     ContentConservationEquation, ContentConservationOwnerKind, ContentConservationPlan,
-    ContentConservationTerm, ContentPlaceRoot, ContentPlaceSegment, ContentPlaceVersion,
-    ContentStructuralPlace, conservation_report_fingerprint,
+    ContentConservationTerm, ContentPlaceRoot, ContentPlaceVersion, ContentStructuralPlace,
+    conservation_report_fingerprint,
 };
 use language_semantics::{
     PermissionAccess, PermissionClaimIdentity, PermissionEventKind, PermissionEventSource,
 };
 use symbols::SymbolHandle;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use typed_trees::expression::ExpressionHandle;
 use typed_trees::signature::StateParameter;
 use typed_trees::statement::{StatementNode, TransitionTargetNode};
 
+/// An executed value-producing call or a selected tail transfer, joined to
+/// one exact outgoing occurrence. Local bindings and constructors are already
+/// represented by the returned claim paths and need no separate source forms.
 #[derive(Debug, Clone)]
-
 pub(crate) struct ReturnedPartitionInvocation {
+    machine_symbol: SymbolHandle,
+    evaluation: checked_trees::FlowPermissionEvaluation,
     statement_index: usize,
+    call_ordinal: usize,
     pub(crate) target_symbol: SymbolHandle,
-    arguments: Vec<ExpressionHandle>,
-    form: ReturnedPartitionInvocationForm,
+    returned_at: arena::Handle<checked_trees::FlowStateOutgoingFact>,
+    result: InvocationResult,
 }
 
-#[derive(Debug, Clone, Copy)]
-enum ReturnedPartitionInvocationForm {
-    Expression(ExpressionHandle),
-    NamedTransition,
-    StagedLocal {
-        call_expression: ExpressionHandle,
-        local_symbol: SymbolHandle,
+#[derive(Debug, Clone)]
+enum InvocationResult {
+    Captured {
+        expression: ExpressionHandle,
+        claims: Vec<crate::checks::multiplicity::ReturnedClaim>,
     },
+    TailTransfer,
 }
 
 #[derive(Debug, Default)]
 struct PartitionCompositionEvidence {
-    call_ordinal: Option<usize>,
     input_claim_identities: Vec<PermissionClaimIdentity>,
     input_claim_bindings: Vec<checked_trees::ContentPartitionInputClaimBinding>,
     result_rewrites: Vec<ContentPartitionResultRewrite>,
@@ -55,91 +58,157 @@ pub(crate) struct AvailablePartitionSource {
     pub(crate) derivation_depth: u32,
 }
 
-pub(crate) fn returned_partition_invocations(
+/// The flow owner records ordinary outgoing edges even when no authored
+/// ensures clause exists. Keep that complete roster independently from the
+/// invocations that happen to have usable theorem evidence.
+pub(crate) fn ordinary_returns(
     program: &dyn ::validation::CheckingInput,
+    facts: &CheckFacts,
     state: &typed_trees::state::State,
-) -> Vec<ReturnedPartitionInvocation> {
-    let statements = program.statement_table.statements(state.statement_nodes);
-    let mut invocations = statements
+) -> Vec<arena::Handle<checked_trees::FlowStateOutgoingFact>> {
+    facts
+        .flow
+        .control
+        .outgoing
         .iter()
-        .enumerate()
-        .filter_map(|(statement_index, statement)| {
-            let local = statement.as_local_data()?;
-            let mut invocation =
-                direct_expression_invocation(program, statement_index, local.initial_value)?;
-            invocation.form = ReturnedPartitionInvocationForm::StagedLocal {
-                call_expression: local.initial_value,
-                local_symbol: local.symbol,
-            };
-            Some(invocation)
+        .filter_map(|(handle, outgoing)| {
+            if outgoing.state_symbol != state.symbol {
+                return None;
+            }
+            if outgoing.transition_target.is_valid() {
+                let Some(StatementNode::Transition(transition)) = program
+                    .statement_table
+                    .statement_at(state, outgoing.statement_index)
+                else {
+                    return None;
+                };
+                if transition.exit != typed_trees::statement::TransitionExit::Ordinary {
+                    return None;
+                }
+            }
+            Some(handle)
         })
-        .filter(|invocation| invocation.target_symbol.is_valid())
-        .collect::<Vec<_>>();
-    let mut returned = Vec::new();
-
-    for (statement_index, statement) in statements.iter().enumerate() {
-        match statement {
-            StatementNode::Expression(expression) if statement_index + 1 == statements.len() => {
-                if let Some(invocation) =
-                    direct_expression_invocation(program, statement_index, *expression)
-                {
-                    returned.push(invocation);
-                }
-            }
-            StatementNode::Transition(transition) => {
-                for target in transition.targets() {
-                    match program.statement_table.transition_target(target) {
-                        TransitionTargetNode::Named {
-                            path, arguments, ..
-                        } => {
-                            returned.push(ReturnedPartitionInvocation {
-                                statement_index,
-                                target_symbol: path.symbol,
-                                arguments: program
-                                    .statement_table
-                                    .expression_handles(*arguments)
-                                    .to_vec(),
-                                form: ReturnedPartitionInvocationForm::NamedTransition,
-                            });
-                        }
-                        TransitionTargetNode::Value(expression) => {
-                            if let Some(invocation) =
-                                direct_expression_invocation(program, statement_index, *expression)
-                            {
-                                returned.push(invocation);
-                            }
-                        }
-                        TransitionTargetNode::Terminal => {}
-                    }
-                }
-            }
-            _ => {}
-        }
-    }
-
-    if let [invocation] = returned.as_slice()
-        && invocation.target_symbol.is_valid()
-    {
-        invocations.push(invocation.clone());
-    }
-    invocations
+        .collect()
 }
 
-fn direct_expression_invocation(
+pub(crate) fn returned_partition_invocations(
     program: &dyn ::validation::CheckingInput,
-    statement_index: usize,
-    expression: ExpressionHandle,
-) -> Option<ReturnedPartitionInvocation> {
-    let call = program.expression_table.call_node(expression)?;
-    Some(ReturnedPartitionInvocation {
-        statement_index,
-        target_symbol: call.target_symbol,
-        arguments: program
-            .expression_table
-            .expression_handles(call.arguments)
-            .to_vec(),
-        form: ReturnedPartitionInvocationForm::Expression(expression),
-    })
+    facts: &CheckFacts,
+    state: &typed_trees::state::State,
+) -> Vec<ReturnedPartitionInvocation> {
+    let Some(state_flow) = facts
+        .flow
+        .control
+        .states
+        .iter()
+        .find_map(|(_, flow)| (flow.state_symbol == state.symbol).then_some(flow))
+    else {
+        return Vec::new();
+    };
+    let Some(machine) = program.machine_by_symbol(state_flow.machine_symbol) else {
+        return Vec::new();
+    };
+    let order = program
+        .statement_table
+        .admitted_execution_order(state.statement_nodes);
+    let mut invocations = Vec::new();
+    for returned_at in ordinary_returns(program, facts, state) {
+        let outgoing = facts.flow.control.outgoing.get(returned_at);
+        let claims = crate::checks::multiplicity::current_returned_claims(program, facts, outgoing);
+        for call in facts.flow.control.calls.span_or_empty(state_flow.calls) {
+            let (Some(call_position), Some(return_position)) = (
+                order.position(call.statement_index),
+                order.position(outgoing.statement_index).or_else(|| {
+                    (outgoing.statement_index
+                        == program
+                            .statement_table
+                            .statements(state.statement_nodes)
+                            .len())
+                    .then_some(order.indices().len())
+                }),
+            ) else {
+                continue;
+            };
+            if call_position > return_position {
+                continue;
+            }
+            let evaluation = crate::flow::call_permission_evaluation(
+                program,
+                machine,
+                state,
+                call.statement_index,
+                call.call_ordinal,
+            );
+            if evaluation == checked_trees::FlowPermissionEvaluation::Unknown {
+                continue;
+            }
+            let Some(site) = validation::find_call_site(
+                program,
+                state_flow.machine_symbol,
+                state.symbol,
+                call.statement_index,
+                call.call_ordinal,
+            ) else {
+                continue;
+            };
+            let result = match site {
+                validation::CallSite::Expression { expression, .. } => {
+                    // A syntax handle alone is not an invocation identity.
+                    // Retain the uniquely bound flow occurrence and its lane.
+                    let mut producers = facts
+                        .flow
+                        .control
+                        .calls
+                        .span_or_empty(state_flow.calls)
+                        .iter()
+                        .filter(|producer| {
+                            producer.statement_index == call.statement_index
+                                && producer.authored_expression == expression
+                        });
+                    if !producers
+                        .next()
+                        .is_some_and(|producer| std::ptr::eq(producer, call))
+                        || producers.next().is_some()
+                    {
+                        continue;
+                    }
+                    let Ok(claims) = &claims else {
+                        continue;
+                    };
+                    InvocationResult::Captured {
+                        expression,
+                        claims: claims.clone(),
+                    }
+                }
+                validation::CallSite::TransitionNamed { path, .. }
+                    if call.statement_index == outgoing.statement_index
+                        && outgoing.transition_target.is_valid() =>
+                {
+                    let TransitionTargetNode::Named { path: selected, .. } = program
+                        .statement_table
+                        .transition_target(outgoing.transition_target)
+                    else {
+                        continue;
+                    };
+                    if !std::ptr::eq(path, selected) {
+                        continue;
+                    }
+                    InvocationResult::TailTransfer
+                }
+                _ => continue,
+            };
+            invocations.push(ReturnedPartitionInvocation {
+                machine_symbol: machine.symbol,
+                evaluation,
+                statement_index: call.statement_index,
+                call_ordinal: call.call_ordinal,
+                target_symbol: call.target_symbol,
+                returned_at,
+                result,
+            });
+        }
+    }
+    invocations
 }
 
 pub(crate) fn equation_contains_partition(equation: &ContentConservationEquation) -> bool {
@@ -163,17 +232,8 @@ pub(crate) fn instantiate_partition_wrapper(
     source_derivation_depth: u32,
 ) -> Option<ContentPartitionCompositionFact> {
     let target_parameters = validation::call_target_parameters(program, invocation.target_symbol)?;
-    let call_ordinal = partition_invocation_call_ordinal(
-        program,
-        facts,
-        machine_symbol,
-        state.symbol,
-        invocation,
-    )?;
-    let mut evidence = PartitionCompositionEvidence {
-        call_ordinal: Some(call_ordinal),
-        ..PartitionCompositionEvidence::default()
-    };
+    let call_ordinal = invocation.call_ordinal;
+    let mut evidence = PartitionCompositionEvidence::default();
     let left = instantiate_partition_term(
         program,
         facts,
@@ -257,75 +317,13 @@ pub(crate) fn instantiate_partition_wrapper(
         source_plan: source.clone(),
         statement_index: invocation.statement_index,
         call_ordinal,
+        returned_at: invocation.returned_at,
         input_claim_identities: evidence.input_claim_identities,
         input_claim_bindings: evidence.input_claim_bindings,
         result_rewrites: evidence.result_rewrites,
         substitutions: evidence.substitutions,
         plan,
     })
-}
-
-fn partition_invocation_call_ordinal(
-    program: &dyn ::validation::CheckingInput,
-    facts: &CheckFacts,
-    machine_symbol: SymbolHandle,
-    state_symbol: SymbolHandle,
-    invocation: &ReturnedPartitionInvocation,
-) -> Option<usize> {
-    let state_flow = facts.flow.control.states.iter().find_map(|(_, state)| {
-        (state.machine_symbol == machine_symbol && state.state_symbol == state_symbol)
-            .then_some(state)
-    })?;
-    let ordinals = facts
-        .flow
-        .control
-        .calls
-        .span_or_empty(state_flow.calls)
-        .iter()
-        .filter(|call| {
-            call.statement_index == invocation.statement_index
-                && call.target_symbol == invocation.target_symbol
-        })
-        .filter_map(|call| {
-            let call_site = validation::find_call_site(
-                program,
-                machine_symbol,
-                state_symbol,
-                call.statement_index,
-                call.call_ordinal,
-            )?;
-            let exact = match (&invocation.form, call_site) {
-                (
-                    ReturnedPartitionInvocationForm::Expression(expected),
-                    validation::CallSite::Expression { expression, .. },
-                ) => *expected == expression,
-                (
-                    ReturnedPartitionInvocationForm::NamedTransition,
-                    validation::CallSite::TransitionNamed { arguments, .. },
-                ) => {
-                    program.statement_table.expression_handles(arguments)
-                        == invocation.arguments.as_slice()
-                }
-                (
-                    ReturnedPartitionInvocationForm::StagedLocal {
-                        call_expression, ..
-                    },
-                    validation::CallSite::Expression { expression, .. },
-                ) => *call_expression == expression,
-                _ => false,
-            };
-            exact.then_some(call.call_ordinal)
-        })
-        .fold(Vec::new(), |mut ordinals, ordinal| {
-            if !ordinals.contains(&ordinal) {
-                ordinals.push(ordinal);
-            }
-            ordinals
-        });
-    let [ordinal] = ordinals.as_slice() else {
-        return None;
-    };
-    Some(*ordinal)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -345,21 +343,35 @@ fn instantiate_partition_term(
             projection_machine,
             projection_report_fingerprint,
             subject,
-        } => Some(ContentConservationTerm::Projection {
-            domain: *domain,
-            semantic_domain: *semantic_domain,
-            projection_machine: *projection_machine,
-            projection_report_fingerprint: *projection_report_fingerprint,
-            subject: instantiate_partition_subject(
-                program,
-                facts,
-                caller_state,
-                invocation,
-                target_parameters,
-                subject,
-                evidence,
-            )?,
-        }),
+        } => {
+            let projection = facts
+                .qualifications
+                .content
+                .plans
+                .iter()
+                .find(|projection| {
+                    projection.domain == *domain
+                        && projection.semantic_domain == *semantic_domain
+                        && projection.machine == *projection_machine
+                })?;
+            let observations = projection_observations(&projection.expression)?;
+            Some(ContentConservationTerm::Projection {
+                domain: *domain,
+                semantic_domain: *semantic_domain,
+                projection_machine: *projection_machine,
+                projection_report_fingerprint: *projection_report_fingerprint,
+                subject: instantiate_partition_subject(
+                    program,
+                    facts,
+                    caller_state,
+                    invocation,
+                    target_parameters,
+                    subject,
+                    &observations,
+                    evidence,
+                )?,
+            })
+        }
         ContentConservationTerm::Separate(children) => Some(ContentConservationTerm::separate(
             children
                 .iter()
@@ -401,7 +413,10 @@ fn permission_event_at_invocation(
         == PermissionEventSource::Statement {
             statement_index: invocation.statement_index,
         };
-    event.state_symbol == caller_state_symbol && source_matches
+    event.machine_symbol == invocation.machine_symbol
+        && event.state_symbol == caller_state_symbol
+        && event.evaluation == invocation.evaluation
+        && source_matches
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -412,6 +427,7 @@ fn instantiate_partition_subject(
     invocation: &ReturnedPartitionInvocation,
     target_parameters: &[StateParameter],
     subject: &ContentStructuralPlace,
+    observations: &[Vec<facts::PlaceSegment>],
     evidence: &mut PartitionCompositionEvidence,
 ) -> Option<ContentStructuralPlace> {
     let target = match (&subject.root, subject.version) {
@@ -422,6 +438,7 @@ fn instantiate_partition_subject(
                 caller_state,
                 invocation,
                 subject,
+                observations,
                 evidence,
             )?
         }
@@ -445,58 +462,16 @@ fn instantiate_partition_subject(
                         })
                         .flatten()
                 })?;
-            let argument = argument_for_target_parameter(
-                target_parameters,
-                &invocation.arguments,
-                parameter.symbol,
-            )?;
-            let actual = partition_argument_place(
+            let (claim_identity, entry_place) = partition_entry_binding(
                 program,
-                caller_state.symbol,
-                invocation.statement_index,
-                argument,
-                &subject.segments,
-            )?;
-            let actual_root = actual.root.as_symbol()?;
-            let (caller_position, caller_parameter) = program
-                .state_parameters(caller_state)
-                .iter()
-                .enumerate()
-                .find(|(_, parameter)| parameter.symbol == actual_root)?;
-            let claim_identity = unique_entry_claim_identity(
                 facts,
-                caller_state.symbol,
-                actual_root,
-                &actual.segments,
+                caller_state,
+                invocation,
+                target_parameters,
+                parameter,
+                subject,
+                observations,
             )?;
-            let call_ordinal = evidence.call_ordinal?;
-            let transferred_to_invocation =
-                facts.flow.ownership.permissions.iter().any(|(_, event)| {
-                    permission_event_at_invocation(
-                        event,
-                        caller_state.symbol,
-                        invocation,
-                        call_ordinal,
-                    ) && event.kind == PermissionEventKind::Transfer
-                        && event.access == PermissionAccess::Owned
-                        && event.obligation_live
-                        && event.claim_identity == claim_identity
-                        && event.root == actual.root
-                        && facts.flow.ownership.segments.span_or_empty(event.segments)
-                            == actual.segments
-                });
-            if !transferred_to_invocation {
-                return None;
-            }
-            let entry_place = ContentStructuralPlace {
-                version: ContentPlaceVersion::Entry,
-                root: ContentPlaceRoot::Parameter {
-                    position: u32::try_from(caller_position).ok()?,
-                    symbol: caller_parameter.symbol,
-                    name: caller_parameter.name.as_str().to_owned(),
-                },
-                segments: content_path(program, &actual.segments)?,
-            };
             evidence
                 .input_claim_bindings
                 .push(checked_trees::ContentPartitionInputClaimBinding {
@@ -526,85 +501,289 @@ fn instantiate_partition_subject(
     Some(target)
 }
 
+/// Bind the actual captured value to its entry observation. The capture owner
+/// traces detached stores and constructions; the origin owner then proves that
+/// the reaching observation still has its entry contents. The permission join
+/// independently requires the same claim at this exact consuming occurrence.
+fn partition_entry_binding(
+    program: &dyn ::validation::CheckingInput,
+    facts: &CheckFacts,
+    state: &typed_trees::state::State,
+    invocation: &ReturnedPartitionInvocation,
+    parameters: &[StateParameter],
+    parameter: &StateParameter,
+    subject: &ContentStructuralPlace,
+    observations: &[Vec<facts::PlaceSegment>],
+) -> Option<(PermissionClaimIdentity, ContentStructuralPlace)> {
+    let state_flow = facts
+        .flow
+        .control
+        .states
+        .iter()
+        .find_map(|(_, flow)| (flow.state_symbol == state.symbol).then_some(flow))?;
+    let machine = program.machine_by_symbol(state_flow.machine_symbol)?;
+    let call = facts
+        .flow
+        .control
+        .calls
+        .span_or_empty(state_flow.calls)
+        .iter()
+        .find(|call| {
+            call.statement_index == invocation.statement_index
+                && call.call_ordinal == invocation.call_ordinal
+                && call.target_symbol == invocation.target_symbol
+        })?;
+    let position = typed_trees::signature::state_parameter_position(parameters, parameter.symbol)?;
+    let operand = facts
+        .flow
+        .control
+        .operands
+        .span_or_empty(call.argument_operands())
+        .get(position)?;
+    let path = content_segments_to_fact_path(&subject.segments)?;
+    let values = crate::flow::captured_operand_values(
+        program,
+        &facts.flow,
+        &facts.semantic,
+        state_flow,
+        operand,
+        parameter.type_reference,
+        &path,
+    )?;
+    let mut binding = None;
+    for value in &values {
+        let actuals = crate::flow::captured_observation_places(program, &facts.flow, value)?;
+        if actuals.is_empty() {
+            return None;
+        }
+        for actual in actuals {
+            let mut transfers = facts
+                .flow
+                .ownership
+                .permissions
+                .iter()
+                .filter(|(_, event)| {
+                    permission_event_at_invocation(
+                        event,
+                        state.symbol,
+                        invocation,
+                        invocation.call_ordinal,
+                    ) && event.expression == value.observation.expression
+                        && event.kind == PermissionEventKind::Transfer
+                        && event.access == PermissionAccess::Owned
+                        && event.obligation_live
+                        && event.claim_identity != PermissionClaimIdentity::Unknown
+                        && event.root == actual.projected.root
+                        && facts.flow.ownership.segments.span_or_empty(event.segments)
+                            == actual.projected.segments
+                })
+                .map(|(_, event)| event);
+            let transfer = transfers.next()?;
+            if transfers.next().is_some() {
+                return None;
+            }
+            let identity = transfer.claim_identity;
+            let mut entries = facts
+                .flow
+                .ownership
+                .permissions
+                .iter()
+                .filter(|(_, event)| {
+                    event.machine_symbol == state_flow.machine_symbol
+                        && event.state_symbol == state.symbol
+                        && event.source == PermissionEventSource::StateEntry
+                        && event.kind == PermissionEventKind::Establish
+                        && event.access == PermissionAccess::Owned
+                        && event.obligation_live
+                        && event.claim_identity == identity
+                })
+                .map(|(_, event)| event);
+            let entry = entries.next()?;
+            if entries.next().is_some() {
+                return None;
+            }
+            let root = entry.root.as_symbol()?;
+            let (position, entry_parameter) = program
+                .state_parameters(state)
+                .iter()
+                .enumerate()
+                .find(|(_, parameter)| parameter.symbol == root)?;
+            let entry_path = facts.flow.ownership.segments.span_or_empty(entry.segments);
+            for observation in observations {
+                let mut selected = path.clone();
+                selected.extend_from_slice(observation);
+                let captured = crate::flow::captured_operand_values(
+                    program,
+                    &facts.flow,
+                    &facts.semantic,
+                    state_flow,
+                    operand,
+                    parameter.type_reference,
+                    &selected,
+                )?;
+                if captured.is_empty() {
+                    return None;
+                }
+                let mut expected = validation::CanonicalPlace {
+                    root: entry.root,
+                    segments: entry_path.to_vec(),
+                };
+                expected.segments.extend_from_slice(observation);
+                for captured in &captured {
+                    let producers =
+                        crate::flow::captured_value_places(program, &facts.flow, captured)?;
+                    if producers.is_empty() {
+                        return None;
+                    }
+                    for producer in producers {
+                        if !crate::flow::operand_entry_origin_is_stable(
+                            program,
+                            &facts.flow,
+                            captured.operand,
+                            &producer.projected,
+                        ) {
+                            return None;
+                        }
+                        let origin = crate::flow::value_origin_before_statement(
+                            program,
+                            &facts.flow,
+                            machine,
+                            state_flow,
+                            captured.operand.statement_index,
+                            producer.projected,
+                            None,
+                            crate::flow::ValueObservation::Contents,
+                        )?;
+                        if origin != expected {
+                            return None;
+                        }
+                    }
+                }
+            }
+            let candidate = (
+                identity,
+                ContentStructuralPlace {
+                    version: ContentPlaceVersion::Entry,
+                    root: ContentPlaceRoot::Parameter {
+                        position: u32::try_from(position).ok()?,
+                        symbol: entry_parameter.symbol,
+                        name: entry_parameter.name.as_str().to_owned(),
+                    },
+                    segments: content_path(program, entry_path)?,
+                },
+            );
+            if binding
+                .as_ref()
+                .is_some_and(|previous| *previous != candidate)
+            {
+                return None;
+            }
+            binding = Some(candidate);
+        }
+    }
+    binding
+}
+
 fn instantiate_partition_result_subject(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     caller_state: &typed_trees::state::State,
     invocation: &ReturnedPartitionInvocation,
     subject: &ContentStructuralPlace,
+    observations: &[Vec<facts::PlaceSegment>],
     evidence: &mut PartitionCompositionEvidence,
 ) -> Option<ContentStructuralPlace> {
-    let ReturnedPartitionInvocationForm::StagedLocal { local_symbol, .. } = invocation.form else {
+    let InvocationResult::Captured { expression, claims } = &invocation.result else {
+        // This exact outgoing edge is the selected tail invocation. Its result
+        // is the caller's result; no intermediate caller-owned value exists.
         return Some(subject.clone());
     };
-    let local_segments = content_segments_to_fact_path(&subject.segments)?;
-    let call_ordinal = evidence.call_ordinal?;
-    let identities = facts
-        .flow
-        .ownership
-        .permissions
-        .iter()
-        .filter(|(_, event)| {
-            permission_event_at_invocation(event, caller_state.symbol, invocation, call_ordinal)
-                && event.kind == PermissionEventKind::Establish
-                && event.access == PermissionAccess::Owned
-                && event.obligation_live
-                && event.claim_identity != PermissionClaimIdentity::Unknown
-                && event.root == facts::PlaceRoot::Symbol(local_symbol)
-                && facts.flow.ownership.segments.span_or_empty(event.segments) == local_segments
-        })
-        .map(|(_, event)| event.claim_identity)
-        .fold(Vec::new(), |mut identities, identity| {
-            if !identities.contains(&identity) {
-                identities.push(identity);
-            }
-            identities
-        });
+    let source_path = content_segments_to_fact_path(&subject.segments)?;
+    let mut identities = Vec::new();
+    for (_, event) in facts.flow.ownership.permissions.iter() {
+        if !permission_event_at_invocation(
+            event,
+            caller_state.symbol,
+            invocation,
+            invocation.call_ordinal,
+        ) || event.kind != PermissionEventKind::Establish
+            || event.access != PermissionAccess::Owned
+            || !event.obligation_live
+            || event.claim_identity == PermissionClaimIdentity::Unknown
+        {
+            continue;
+        }
+        let Some((statement, produced, path)) =
+            validation::receiving_value(program, &facts.flow.ownership.segments, event)
+        else {
+            continue;
+        };
+        if statement == invocation.statement_index
+            && produced == *expression
+            && path == source_path
+            && !identities.contains(&event.claim_identity)
+        {
+            identities.push(event.claim_identity);
+        }
+    }
     let [claim_identity] = identities.as_slice() else {
         return None;
     };
-    let output_paths = facts
-        .flow
-        .ownership
-        .claim_outcome_maps
-        .iter()
-        .filter(|(_, map)| map.state_symbol == caller_state.symbol)
-        .flat_map(|(_, map)| {
-            facts
-                .flow
-                .ownership
-                .claim_outcome_entries
-                .span_or_empty(map.entries)
-        })
-        .filter_map(|entry| match entry.source {
-            FlowClaimOutcomeSource::Established {
-                claim_identity: outcome_identity,
-                ..
-            } if outcome_identity == *claim_identity => Some(
-                facts
-                    .flow
-                    .ownership
-                    .segments
-                    .span_or_empty(entry.output_segments)
-                    .to_vec(),
-            ),
-            FlowClaimOutcomeSource::Input { .. }
-            | FlowClaimOutcomeSource::Established { .. }
-            | FlowClaimOutcomeSource::Unknown => None,
-        })
-        .fold(Vec::new(), |mut paths, path| {
-            if !paths.contains(&path) {
-                paths.push(path);
-            }
-            paths
-        });
-    let [output_path] = output_paths.as_slice() else {
+    let mut outputs = claims.iter().filter(|claim| {
+        claim.source == crate::checks::multiplicity::ReturnedClaimSource::Live(*claim_identity)
+    });
+    let returned = outputs.next()?;
+    if outputs.next().is_some() {
         return None;
-    };
+    }
+    // Current custody and unchanged content are separate obligations. The
+    // retained capture trace follows stores through every receiving home and
+    // stops at writes; a claim surviving a field mutation cannot donate its
+    // producer's content theorem to this exit.
+    let outgoing = facts.flow.control.outgoing.get(invocation.returned_at);
+    let state_flow = facts
+        .flow
+        .control
+        .states
+        .iter()
+        .find_map(|(_, flow)| (flow.state_symbol == caller_state.symbol).then_some(flow))?;
+    let operand = facts.flow.control.operands.get(outgoing.returned_value);
+    for observation in observations {
+        let mut selected = returned.path.clone();
+        selected.extend_from_slice(observation);
+        let values = crate::flow::captured_operand_values(
+            program,
+            &facts.flow,
+            &facts.semantic,
+            state_flow,
+            operand,
+            operand.type_reference,
+            &selected,
+        )?;
+        let mut expected = validation::canonical_place_from_expression_in_state(
+            program,
+            caller_state.symbol,
+            invocation.statement_index,
+            *expression,
+        )?;
+        expected.segments.extend_from_slice(&source_path);
+        expected.segments.extend_from_slice(observation);
+        if values.is_empty()
+            || !values.iter().all(|value| {
+                crate::flow::captured_value_places(program, &facts.flow, value).is_some_and(
+                    |places| {
+                        !places.is_empty() && places.iter().all(|place| place.projected == expected)
+                    },
+                )
+            })
+        {
+            return None;
+        }
+    }
     let target = ContentStructuralPlace {
         version: ContentPlaceVersion::Current,
         root: ContentPlaceRoot::Result,
-        segments: content_path(program, output_path)?,
+        segments: content_path(program, &returned.path)?,
     };
     evidence
         .result_rewrites
@@ -614,78 +793,4 @@ fn instantiate_partition_result_subject(
             target: target.clone(),
         });
     Some(target)
-}
-
-fn argument_for_target_parameter(
-    parameters: &[StateParameter],
-    arguments: &[ExpressionHandle],
-    parameter_symbol: SymbolHandle,
-) -> Option<ExpressionHandle> {
-    let position = typed_trees::signature::state_parameter_position(parameters, parameter_symbol)?;
-    arguments.get(position).copied()
-}
-
-fn partition_argument_place(
-    program: &dyn ::validation::CheckingInput,
-    state_symbol: SymbolHandle,
-    statement_index: usize,
-    argument: ExpressionHandle,
-    projection_path: &[ContentPlaceSegment],
-) -> Option<validation::CanonicalPlace> {
-    let mut direct = validation::canonical_place_from_expression_in_state(
-        program,
-        state_symbol,
-        statement_index,
-        argument,
-    )?;
-    if matches!(direct.root, facts::PlaceRoot::Symbol(_)) {
-        direct
-            .segments
-            .extend(content_segments_to_fact_path(projection_path)?);
-        return Some(direct);
-    }
-    let leaf = aggregate_argument_projection(program, argument, projection_path)?;
-    let leaf = validation::canonical_place_from_expression_in_state(
-        program,
-        state_symbol,
-        statement_index,
-        leaf,
-    )?;
-    matches!(leaf.root, facts::PlaceRoot::Symbol(_)).then_some(leaf)
-}
-
-fn aggregate_argument_projection(
-    program: &dyn ::validation::CheckingInput,
-    expression: ExpressionHandle,
-    projection_path: &[ContentPlaceSegment],
-) -> Option<ExpressionHandle> {
-    let Some((head, tail)) = projection_path.split_first() else {
-        return Some(expression);
-    };
-    match (head, program.expression_table.expression(expression)) {
-        (ContentPlaceSegment::Case(expected), ExpressionNode::StructLiteral(literal))
-            if literal
-                .case_name
-                .as_ref()
-                .is_some_and(|case| case.as_str() == expected.name) =>
-        {
-            aggregate_argument_projection(program, expression, tail)
-        }
-        (ContentPlaceSegment::Field(expected), ExpressionNode::StructLiteral(literal)) => {
-            let field = program
-                .expression_table
-                .struct_fields(literal.fields)
-                .iter()
-                .find(|field| field.name.as_str() == expected.name)?;
-            aggregate_argument_projection(program, field.value, tail)
-        }
-        (ContentPlaceSegment::FixedIndex(index), ExpressionNode::ArrayLiteral(values)) => {
-            let value = program
-                .expression_table
-                .expression_handles(*values)
-                .get(usize::try_from(*index).ok()?)?;
-            aggregate_argument_projection(program, *value, tail)
-        }
-        _ => None,
-    }
 }
