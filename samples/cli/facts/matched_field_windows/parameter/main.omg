@@ -1,0 +1,31 @@
+// A match arm's integer pattern is that arm's value of the parameter.
+// The window `items[0..which + 2]` in the arm `which == 0` has length 2.
+// Expected exit: 0
+
+machine from_parameter<'row>(items: &'row mut [u8; 4], which: i64) -> &'row mut [u8]
+    ensures result.len == 2
+{
+    match which {
+        0 -> &mut items[0..which + 2]
+        _ -> &mut items[2..4]
+    }
+}
+
+machine write_pair(window: &mut [u8])
+    requires window.len >= 2
+{
+    window[0] = 9;
+    window[1] = 8;
+}
+
+machine main() crashes Trap {
+    let mut bytes: [u8; 4] = [1, 2, 3, 4];
+    let window: &mut [u8] = from_parameter(&mut bytes, 0);
+    write_pair(window);
+    transition bytes[0] == 9 && bytes[1] == 8 && bytes[2] == 3 {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

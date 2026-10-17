@@ -1,0 +1,37 @@
+// A match arm's integer pattern is that arm's value of the field.
+// The window `holder.bytes[0..holder.which + 2]` in `holder.which == 0`
+// has length 2.
+// Expected exit: 0
+
+data Holder {
+    which: i64;
+    bytes: [u8; 4];
+}
+
+machine from_field<'row>(holder: &'row mut Holder) -> &'row mut [u8]
+    ensures result.len == 2
+{
+    match holder.which {
+        0 -> &mut holder.bytes[0..holder.which + 2]
+        _ -> &mut holder.bytes[2..4]
+    }
+}
+
+machine write_pair(window: &mut [u8])
+    requires window.len >= 2
+{
+    window[0] = 9;
+    window[1] = 8;
+}
+
+machine main() crashes Trap {
+    let mut holder: Holder = Holder { which: 0, bytes: [1, 2, 3, 4] };
+    let window: &mut [u8] = from_field(&mut holder);
+    write_pair(window);
+    transition holder.bytes[0] == 9 && holder.bytes[1] == 8 && holder.bytes[2] == 3 {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

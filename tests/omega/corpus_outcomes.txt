@@ -5162,6 +5162,9 @@ fail/slices/match_index_guard_does_not_escape rejected 1510ms expected @a9ae30e1
 	cannot prove index `0` is within unknown slice length of `values` in observe::entry
 fail/slices/matched_open_window_end rejected 317ms expected @a4e565996e72+wt
 	exact arithmetic in machine `open_end` state `entry` terminal expression may overflow `i64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i64 in Wrapping`/`Saturating`/`Trapping`).
+fail/slices/matched_window_end_join_disagrees rejected 1112ms expected @fd94a7b8095c+wt
+	cannot prove ensures contract for exit from from_join at statement 0: result.len == 2
+	cannot prove every subslice range endpoint of `0..match flag { true => which + 2, false => 3 }` is non-negative
 fail/slices/matched_window_indexed_subject_write_overlap rejected 585ms expected @3384eccdf464
 	state `collide` receives `values[2]` while local borrow `view` is still active
 fail/slices/matched_window_lengths_disagree rejected 981ms expected @0e7ef4cb2ac8+wt
@@ -8827,6 +8830,7 @@ pass/slices/live_view_edge_write checked 9740ms @5041ef1af684+wt
 pass/slices/local_array_element_view_exit checked 11239ms check-target:macos_arm64 @1f63ee648905+wt
 pass/slices/local_record_array_state_view_exit checked 12143ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/slices/matched_window_before_later_field_effect checked 3642ms check-target:macos_arm64 @5c4c9bc0ebab
+pass/slices/matched_window_end_join_exit checked 6121ms check-target:macos_arm64 @fd94a7b8095c+wt
 pass/slices/matched_window_length_through_record_field checked 5723ms check-target:macos_arm64 @0e7ef4cb2ac8+wt
 pass/slices/mut_field_subview checked 9849ms @5041ef1af684+wt
 pass/slices/mut_slice_establish checked 9589ms @5041ef1af684+wt

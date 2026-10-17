@@ -1,0 +1,2 @@
+cannot prove ensures contract for exit from from_join at statement 0: result.len == 2
+cannot prove every subslice range endpoint of `0..match flag { true => which + 2, false => 3 }` is non-negative

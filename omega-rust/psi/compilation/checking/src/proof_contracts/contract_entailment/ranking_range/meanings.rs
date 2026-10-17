@@ -303,7 +303,41 @@ pub(super) fn admitted_carrier(
                 Some(None)
             }
         }
+        // A match admits an integer carrier when every arm admits one and
+        // those carriers agree. An anonymous literal joins a typed arm.
+        // An arm this query declines, or two different primitives, leaves
+        // the match outside the coordinate. Pattern facts stay with the walker.
+        ExpressionNode::Match(dispatch) => {
+            let arms = program.expression_table.match_arms(dispatch.arms);
+            if arms.is_empty() {
+                return None;
+            }
+            let mut joined = None;
+            for arm in arms {
+                let carrier = admitted_carrier(program, machine, state, arm.value, depth + 1)?;
+                joined = Some(match joined {
+                    None => carrier,
+                    Some(previous) => joined_integer_carrier(program, previous, carrier)?,
+                });
+            }
+            joined
+        }
         _ => None,
+    }
+}
+
+/// Two arm carriers name one integer when both are absent, one is an
+/// anonymous literal, or both are the same primitive.
+fn joined_integer_carrier(
+    program: &dyn crate::CheckingInput,
+    previous: Option<TypeReferenceHandle>,
+    next: Option<TypeReferenceHandle>,
+) -> Option<Option<TypeReferenceHandle>> {
+    match (previous, next) {
+        (None, carrier) | (carrier, None) => Some(carrier),
+        (Some(previous), Some(next)) => (program.primitive_type_reference(previous)
+            == program.primitive_type_reference(next))
+        .then_some(Some(previous)),
     }
 }
 

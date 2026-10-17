@@ -1,0 +1,12 @@
+// The joined end is 2 on one flag and 3 on the other, so the window does
+// not publish length 2.
+machine from_join<'row>(items: &'row mut [u8; 4], which: i64, flag: bool) -> &'row mut [u8]
+    ensures result.len == 2
+{
+    match which {
+        0 -> &mut items[0..(match flag { true -> which + 2, false -> 3 })]
+        _ -> &mut items[2..4]
+    }
+}
+
+machine main() {}

@@ -2708,6 +2708,7 @@ pass/slices/let_matched_mutable_window built 6008ms exit:0 @a4e565996e72+wt
 pass/slices/live_view_edge_write checked 17434ms @6c49683ce714
 pass/slices/local_array_element_view_exit built 34802ms exit:70 @6c49683ce714
 pass/slices/local_record_array_state_view_exit built 15451ms exit:70 @6c49683ce714
+pass/slices/matched_window_end_join_exit built 6133ms exit:0 @fd94a7b8095c+wt
 pass/slices/matched_window_length_through_record_field built 5649ms exit:0 @0e7ef4cb2ac8+wt
 pass/slices/mut_field_subview checked 18081ms @6c49683ce714
 pass/slices/mut_slice_establish checked 17392ms @6c49683ce714

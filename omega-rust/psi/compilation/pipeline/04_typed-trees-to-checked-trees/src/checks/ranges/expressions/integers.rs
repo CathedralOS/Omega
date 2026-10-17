@@ -79,6 +79,27 @@ pub(in crate::checks::ranges) fn expression_integer_value(
         ExpressionNode::Member(member) => {
             facts.field_integer(member.member_symbol, Some(member.member.as_str()))
         }
+        // A match denotes one integer when every arm denotes that integer
+        // under the facts already true at the match. The arm walker seeds a
+        // value pattern before it reads that arm, so this join does not copy
+        // one arm's pattern onto a later arm. Arms that denote different
+        // integers, or an arm that does not fold, leave the coordinate unknown.
+        ExpressionNode::Match(dispatch) => {
+            let mut joined = None;
+            let arms = program.expression_table.match_arms(dispatch.arms);
+            if arms.is_empty() {
+                return None;
+            }
+            for arm in arms {
+                let value = expression_integer_value(program, facts, arm.value)?;
+                match joined {
+                    None => joined = Some(value),
+                    Some(previous) if previous == value => {}
+                    Some(_) => return None,
+                }
+            }
+            joined
+        }
         _ => None,
     }
 }

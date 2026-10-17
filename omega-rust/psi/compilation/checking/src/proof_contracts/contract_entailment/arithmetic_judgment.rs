@@ -1307,8 +1307,39 @@ impl<'program> Engine<'program> {
                 // wrapping or saturation of an operation beneath the cast.
                 self.normalize(cast.value)
             }
+            // A match join denotes one term when every arm denotes that term
+            // after the bindings already installed for this occurrence. Value
+            // patterns are bound by the walker that selects the arm; this join
+            // does not give a later arm a pattern it failed. Differing arms
+            // stay outside the engine rather than picking one of them.
+            ExpressionNode::Match(dispatch) => self.normalize_matched_integer(&dispatch),
             _ => None,
         }
+    }
+
+    fn normalize_matched_integer(
+        &mut self,
+        dispatch: &typed_trees::expression::TableMatchExpression,
+    ) -> Option<Polynomial> {
+        let arms = self
+            .program
+            .expression_table
+            .match_arms(dispatch.arms)
+            .to_vec();
+        if arms.is_empty() {
+            return None;
+        }
+        let mut joined = None;
+        for arm in arms {
+            let normalized = self.normalize(arm.value)?;
+            let value = self.substituted(&normalized);
+            match &joined {
+                None => joined = Some(value),
+                Some(previous) if previous == &value => {}
+                Some(_) => return None,
+            }
+        }
+        joined
     }
 
     /// A builtin `+ - *` over a fixed integer carrier denotes its
