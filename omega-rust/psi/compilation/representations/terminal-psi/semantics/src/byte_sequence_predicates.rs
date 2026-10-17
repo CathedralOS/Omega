@@ -932,6 +932,10 @@ pub enum ScalarConstantOrigin {
 
 /// Recover a typed constant through unchanged block bindings. Unknown inputs,
 /// cycles and disagreeing predecessors provide no constant evidence.
+/// One invocation observes one immutable graph. Remember completed values,
+/// including unknowns: reconverging edges must not expand the same predecessor
+/// graph once per path. Sparse semantic identities use invocation-local rows,
+/// not an allocation sized by the largest externally supplied identity.
 pub fn scalar_constant_value(
     value: semantic_vocabulary::ValueId,
     mut origin: impl FnMut(semantic_vocabulary::ValueId) -> Option<ScalarConstantOrigin>,
@@ -943,29 +947,40 @@ pub fn scalar_constant_value(
         value: semantic_vocabulary::ValueId,
         origin: &mut impl FnMut(semantic_vocabulary::ValueId) -> Option<ScalarConstantOrigin>,
         active: &mut Vec<semantic_vocabulary::ValueId>,
+        completed: &mut Vec<(
+            semantic_vocabulary::ValueId,
+            Option<(
+                semantic_vocabulary::ScalarType,
+                semantic_vocabulary::IntegerValue,
+            )>,
+        )>,
     ) -> Option<(
         semantic_vocabulary::ScalarType,
         semantic_vocabulary::IntegerValue,
     )> {
+        if let Some((_, result)) = completed.iter().find(|(known, _)| *known == value) {
+            return *result;
+        }
         if active.contains(&value) {
             return None;
         }
         active.push(value);
-        let result = match origin(value)? {
+        let result = (|| match origin(value)? {
             ScalarConstantOrigin::Literal(ty, value) => Some((ty, value)),
             ScalarConstantOrigin::Incoming(values) => {
                 let mut values = values.into_iter();
-                let first = resolve(values.next()?, origin, active)?;
+                let first = resolve(values.next()?, origin, active, completed)?;
                 for value in values {
-                    if resolve(value, origin, active)? != first {
+                    if resolve(value, origin, active, completed)? != first {
                         return None;
                     }
                 }
                 Some(first)
             }
-        };
+        })();
         active.pop();
+        completed.push((value, result));
         result
     }
-    resolve(value, &mut origin, &mut Vec::new())
+    resolve(value, &mut origin, &mut Vec::new(), &mut Vec::new())
 }

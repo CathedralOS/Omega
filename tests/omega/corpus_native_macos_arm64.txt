@@ -174,6 +174,7 @@ pass/borrows/lifetime_return_borrow checked 9542ms @5041ef1af684+wt
 pass/borrows/linear_call_result_shared_observation_exit built 1783ms exit:70 @5889f8b8208f+wt
 pass/borrows/linear_owner_materialized_mutable_projection_exit built 1688ms exit:70 @566fa91d7f0d+wt
 pass/borrows/linear_owner_materialized_shared_reference_exit built 1687ms exit:70 @566fa91d7f0d+wt
+pass/borrows/literal_index_reference_copy_exit built 4408ms exit:0 @f2695b4cc065
 pass/borrows/loan_scalar_copies checked 9493ms @5041ef1af684+wt
 pass/borrows/local_fixed_array_shared_state_loan_exit built 15330ms exit:70 stdout:match @8df1d091a810
 pass/borrows/local_record_byte_field_snapshot_exit built 1744ms exit:70 @fef76bc46fc7+wt

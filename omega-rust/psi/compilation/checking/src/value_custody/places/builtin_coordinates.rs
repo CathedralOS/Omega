@@ -113,18 +113,51 @@ pub fn has_builtin_subslice_meaning(
     let Some(indexed) = program.expression_table.indexed_node(expression) else {
         return false;
     };
-    let Some(range) = program.expression_table.range_node(indexed.index) else {
+    if program.expression_table.range_node(indexed.index).is_none() {
+        return false;
+    }
+    indexed_operation_has_builtin_meaning(
+        program,
+        machine,
+        state,
+        expression,
+        declared_place_type_raw(program, machine, state, indexed.collection),
+    )
+}
+
+/// Authenticate this indexed occurrence, independently of how its collection
+/// was produced. A call result or an earlier declared operator may supply a
+/// collection without granting storage geometry for that whole expression.
+/// The caller supplies the actual collection carrier; this query establishes
+/// only operator meaning, not bounds, integer landing, or loan authority.
+pub fn indexed_operation_has_builtin_meaning(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: Option<&State>,
+    expression: ExpressionHandle,
+    collection: Option<typed_trees::types::TypeReferenceHandle>,
+) -> bool {
+    let Some(indexed) = program.expression_table.indexed_node(expression) else {
         return false;
     };
-    let operands = [
-        declared_place_type_raw(program, machine, state, indexed.collection),
-        declared_place_type_raw(program, machine, state, range.start),
-        declared_place_type_raw(program, machine, state, range.end),
-    ];
+    let Some(collection) = collection else {
+        return false;
+    };
+    let mut operands = [Some(collection), None, None];
+    let (spelling, operand_count) =
+        if let Some(range) = program.expression_table.range_node(indexed.index) {
+            operands[1] = declared_place_type_raw(program, machine, state, range.start);
+            operands[2] = declared_place_type_raw(program, machine, state, range.end);
+            (OperatorSpelling::Range, 3)
+        } else {
+            operands[1] = declared_place_type_raw(program, machine, state, indexed.index);
+            (OperatorSpelling::Index, 2)
+        };
+    let operands = &operands[..operand_count];
     typed_trees::operator::resolve_indexed_spelling_for_operands(
         program,
-        OperatorSpelling::Range,
-        &operands,
+        spelling,
+        operands,
         program.expression_table.source_span(expression),
     )
     .is_empty()
@@ -132,8 +165,8 @@ pub fn has_builtin_subslice_meaning(
             program,
             machine.symbol,
             expression,
-            OperatorSpelling::Range,
-            &operands,
+            spelling,
+            operands,
         )
 }
 
@@ -274,16 +307,8 @@ pub fn value_element_has_builtin_coordinate(
     if program.expression_table.range_node(indexed.index).is_some() {
         return false;
     }
-    let operands = [
-        Some(collection),
-        declared_place_type_raw(program, machine, state, indexed.index),
-    ];
-    typed_trees::operator::builtin_index_read_is_spelled(
-        program,
-        machine.symbol,
-        occurrence,
-        &operands,
-    ) && crate::has_builtin_bound_expression_meaning(program, machine, state, indexed.index)
+    indexed_operation_has_builtin_meaning(program, machine, state, occurrence, Some(collection))
+        && crate::has_builtin_bound_expression_meaning(program, machine, state, indexed.index)
 }
 
 /// The element type when `symbol` names a state parameter whose declared

@@ -1,5 +1,6 @@
 use super::{Builder, CheckedScalarExpressionRole, ExpressionHandle, SymbolHandle};
 use crate::values::scalar::call_lowering::call_is_boundary;
+use crate::values::scalar::scalar_lowering::land_anonymous_scalar_expression;
 
 impl Builder<'_, '_> {
     /// Index operands have mathematical carriers, not necessarily stored type
@@ -10,18 +11,29 @@ impl Builder<'_, '_> {
         &mut self,
         expression: ExpressionHandle,
     ) -> Option<checked_trees::CheckedScalarComputationHandle> {
-        let operand = self.integer_operand(expression, None)?;
-        let value = self.materialize_integer(operand)?;
-        let value = if self
-            .plans
-            .nodes
-            .get(value)
-            .primitive_type
-            .is_fixed_integer()
-        {
+        // Land the complete anonymous expression before materializing it:
+        // its rational intermediates must not become integer operations.
+        // Typed selectors instead retain their width, signedness and effects.
+        let value = if let Some(value) = land_anonymous_scalar_expression(
+            self.program,
+            self.operators,
+            expression,
+            typed_trees::types::PrimitiveType::U64,
+        ) {
+            let value = self.insert(
+                typed_trees::types::PrimitiveType::U64,
+                checked_trees::CheckedScalarComputationKind::Value(value),
+            );
+            self.plans.nodes.get_mut(value).value_source = expression;
             value
         } else {
-            self.expression(expression, typed_trees::types::PrimitiveType::U64)?
+            let operand = self.integer_operand(expression, None)?;
+            if !crate::values::scalar_expression_type(&operand.value)
+                .is_some_and(|primitive| primitive.is_fixed_integer())
+            {
+                return None;
+            }
+            self.materialize_integer(operand)?
         };
         self.plans.nodes.get_mut(value).authored_root = expression;
         Some(value)

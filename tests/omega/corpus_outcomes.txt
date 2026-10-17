@@ -1766,6 +1766,14 @@ fail/capabilities/undeclared_synchronous_invocation rejected 1341ms expected @a9
 	machine `EventProvider::fire_checked` does not refine `EventSource::fire`: its body may synchronously invoke binding `Handler`, but the requirement omits `invokes Handler;` (requirement invokes: [])
 fail/capabilities/via_producer_without_target_body rejected 10865ms expected @9f9aac0513f8+wt
 	ordinary external `via` producer `beeper_binding` has no body for target `windows_x86_64`
+fail/collections/anonymous_fractional_call_index rejected 191ms expected @f2695b4cc065
+	anonymous value `1/2` is not an integer and cannot land in `u64` in machine `invalid` state `entry` terminal expression; type an operand before division if integer division was intended
+fail/collections/anonymous_fractional_index rejected 175ms expected @f2695b4cc065
+	anonymous value `1/2` is not an integer and cannot land in `u64` in machine `invalid` state `entry` terminal expression; type an operand before division if integer division was intended
+fail/collections/anonymous_fractional_window rejected 174ms expected @f2695b4cc065
+	anonymous value `1/2` is not an integer and cannot land in `u64` in machine `invalid` state `entry` terminal expression; type an operand before division if integer division was intended
+fail/collections/anonymous_zero_divisor_window rejected 80ms expected @f2695b4cc065
+	anonymous division by zero has no exact numeric value
 fail/collections/array_child_membership_requires_issuance rejected 1539ms expected @a9ae30e1c334+wt
 	cannot prove default-domain field requirement for call observe from literal::entry: parameter values[1].ticket requires Ticket::Issued
 	construction of `Envelope` field `ticket` is not proven in domain `Ticket::Issued`; a field declared `in Ticket::Issued` requires every construction value to be established in that domain (construct with a literal its byte-predicate fact accepts, or a value already proven in the domain)
@@ -6552,6 +6560,7 @@ pass/borrows/lifetime_return_borrow checked 9696ms @5041ef1af684+wt
 pass/borrows/linear_call_result_shared_observation_exit checked 11336ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/linear_owner_materialized_mutable_projection_exit checked 11344ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/linear_owner_materialized_shared_reference_exit checked 11214ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/borrows/literal_index_reference_copy_exit checked 4277ms check-target:macos_arm64 @f2695b4cc065
 pass/borrows/loan_scalar_copies checked 9876ms @5041ef1af684+wt
 pass/borrows/local_fixed_array_shared_state_loan_exit checked 10851ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/local_record_byte_field_snapshot_exit checked 11140ms check-target:macos_arm64 @a9ae30e1c334+wt

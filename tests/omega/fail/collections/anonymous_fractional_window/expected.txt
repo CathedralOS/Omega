@@ -1,0 +1,1 @@
+anonymous value `1/2` is not an integer and cannot land in `u64`

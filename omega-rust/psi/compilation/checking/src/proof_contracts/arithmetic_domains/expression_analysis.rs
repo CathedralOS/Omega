@@ -297,6 +297,40 @@ impl ExpressionWalk<'_> {
                 crate::expression_traversal::children(self.program, node, analyze_child);
             }
         }
+        if let ExpressionNode::Indexed(indexed) = node
+            && crate::value_custody::places::indexed_operation_has_builtin_meaning(
+                self.program,
+                self.machine,
+                self.state,
+                expression,
+                crate::value_custody::expression_types::declaration_expression_result_type_reference(
+                    self.program,
+                    self.machine.symbol,
+                    &|operand| crate::declared_place_type_raw(
+                        self.program, self.machine, self.state, operand,
+                    ),
+                    indexed.collection,
+                ),
+            )
+        {
+            // Builtin coordinates are integer destinations, independently of
+            // the selected element's type. Checking their arithmetic children
+            // without a destination must not admit a fractional index merely
+            // because an integer bounds approximation happened to fit.
+            let endpoints = match self.program.expression_table.expression(indexed.index) {
+                ExpressionNode::Range(range) => [range.start, range.end],
+                _ => [indexed.index, ExpressionHandle::invalid()],
+            };
+            for endpoint in endpoints.into_iter().filter(|endpoint| endpoint.is_valid()) {
+                super::integer_ranges::validate_anonymous_integer_primitive_range(
+                    self.program,
+                    PrimitiveType::U64,
+                    endpoint,
+                    self.owner,
+                    diagnostics,
+                );
+            }
+        }
         let analysis = self.analyze_value(expression, node, diagnostics, decisions);
         decisions.expression_values.push(CheckedIntegerValue {
             expression,

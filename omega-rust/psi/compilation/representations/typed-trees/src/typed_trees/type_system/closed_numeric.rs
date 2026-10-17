@@ -1,7 +1,9 @@
 //! Exact closed numeric queries shared by type identity and semantic validation.
 //! The source expression and selected operation remain authoritative. Anonymous
 //! arithmetic stays rational until an operand lands; each typed node checks its
-//! own carrier. No parameter, field, call or flow fact becomes a static value.
+//! own carrier. Closed queries never turn runtime inputs into static values.
+//! The bound-expression query accepts explicit caller-established observations
+//! with their declared types, reusing that same arithmetic and selection owner.
 //! Completed endpoint literals retain their landing policy. Reading their bits
 //! does not erase it: surrounding closed operations use the same carrier/policy
 //! rules as evaluation, and mixed policies never acquire a common implicit type.
@@ -71,6 +73,7 @@ pub fn evaluate_anonymous_value<const ALLOW_DECIMAL_LITERALS: bool>(
         selected_arms,
         None,
         builtin,
+        &mut |_| None,
     )?;
     Some(AnonymousNumericValue {
         value: value.value,
@@ -112,15 +115,42 @@ impl TypedTrees {
         expression: ExpressionHandle,
         machine: symbols::SymbolHandle,
     ) -> Option<ClosedIntegerValue> {
-        let value =
-            evaluate_value::<true>(self, expression, &[], Some(machine), &mut |expression| {
-                has_anonymous_operator_meaning(self, expression)
-            })?;
+        let value = evaluate_value::<true>(
+            self,
+            expression,
+            &[],
+            Some(machine),
+            &mut |expression| has_anonymous_operator_meaning(self, expression),
+            &mut |_| None,
+        )?;
         Some(ClosedIntegerValue {
             value: value.value.to_integer_exact()?,
             primitive: value.primitive,
             type_reference: value.type_reference,
         })
+    }
+
+    /// Evaluate with caller-established exact scalar observations. Each binding
+    /// retains its declared carrier and policy; knowing its bits does not make
+    /// it anonymous. The caller owns observation currency and correspondence.
+    /// Operations still use ordinary selection, landing and arithmetic rules.
+    /// A failed judgment remains unknown, never an invitation to syntax folding.
+    pub fn integer_expression_value_with_bindings(
+        &self,
+        expression: ExpressionHandle,
+        machine: symbols::SymbolHandle,
+        binding: &mut impl FnMut(ExpressionHandle) -> Option<(BigInt, TypeReferenceHandle)>,
+    ) -> Option<BigInt> {
+        evaluate_value::<true>(
+            self,
+            expression,
+            &[],
+            Some(machine),
+            &mut |expression| has_anonymous_operator_meaning(self, expression),
+            binding,
+        )?
+        .value
+        .to_integer_exact()
     }
 }
 
@@ -140,6 +170,7 @@ fn evaluate_value<const ALLOW_DECIMAL_LITERALS: bool>(
     selected_arms: &[(ExpressionHandle, ExpressionHandle)],
     typed_owner: Option<symbols::SymbolHandle>,
     builtin: &mut impl FnMut(ExpressionHandle) -> bool,
+    binding: &mut impl FnMut(ExpressionHandle) -> Option<(BigInt, TypeReferenceHandle)>,
 ) -> Option<NumericValue> {
     enum Step {
         Enter(ExpressionHandle),
@@ -158,6 +189,20 @@ fn evaluate_value<const ALLOW_DECIMAL_LITERALS: bool>(
                     || active.contains(&expression)
                 {
                     return None;
+                }
+                if let Some((value, type_reference)) = binding(expression) {
+                    typed_owner?;
+                    let primitive = program
+                        .type_reference_table
+                        .primitive_type(type_reference)?;
+                    land_integer(&value, primitive)?;
+                    values.push(NumericValue {
+                        value: BigRational::from_integer(value),
+                        primitive: Some(primitive),
+                        type_reference: Some(type_reference),
+                        fractional_origin: ExpressionHandle::invalid(),
+                    });
+                    continue;
                 }
                 match program.expression_table.expression(expression) {
                     ExpressionNode::Match(dispatch) => {

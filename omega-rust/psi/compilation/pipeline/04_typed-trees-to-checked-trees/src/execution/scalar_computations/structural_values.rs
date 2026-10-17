@@ -625,13 +625,20 @@ impl Builder<'_, '_> {
                 backing_type,
                 source_value,
             }
-        } else if let Some(copied) = self.copied_place(expression, expected) {
+        } else if needs_copied_place_root(
+            self.program,
+            self.state,
+            self.statement_index,
+            expression,
+            expected,
+        ) {
             // Reading an already stored carrier copies that value, including
             // a shared view's captured extent. Its backing loan cannot replace
             // the descriptor with a newly formed whole-collection view.
             // Locals and owned parameters share this decision: affine
             // descriptor retirement does not forbid shared-carrier copying.
-            copied
+            // Failure to prepare a copy cannot turn it into an owned move.
+            self.copied_place(expression, expected)?
         } else if let Some(view) = self
             .subslice_view_place(expression, expected)
             .or_else(|| self.slice_view_place(expression, expected))

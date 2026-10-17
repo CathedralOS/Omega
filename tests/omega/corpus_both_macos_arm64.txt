@@ -24,6 +24,7 @@ pass/borrows/dynamic_window_return_custody_exit built 3403ms exit:0 interpreter-
 pass/borrows/fixed_array_reference_backing_exit built 3555ms exit:0 interpreter-exit:0 interpreter:agrees @c4c0ab7a5d11
 pass/borrows/fixed_array_reference_results_exit built 5592ms exit:0 interpreter-exit:0 interpreter:agrees @c772928b87e3+wt
 pass/borrows/later_state_reference_field_loan_exit built 5216ms exit:0 interpreter-exit:0 interpreter:agrees @d75fe4ba5012+wt
+pass/borrows/literal_index_reference_copy_exit built 4410ms exit:0 interpreter-exit:0 interpreter:agrees @f2695b4cc065
 pass/borrows/owned_reference_arrival_projection_exit built 4953ms exit:0 interpreter-exit:0 interpreter:agrees @ea7b63644a0a+wt
 pass/borrows/qualified_owner_state_loan_exit built 5562ms exit:0 interpreter-exit:0 interpreter:agrees @2ef2ab353498+wt
 pass/borrows/returned_primitive_reference_assignment_capture_exit built 3039ms exit:0 interpreter-exit:0 interpreter:agrees @c69e20ea61aa+wt

@@ -1,0 +1,79 @@
+// Expected exit: 0
+// A literal selector is landed before copying through an array reference.
+// The original array remains readable after the copied value is consumed.
+data Item [copy] { value: u64; }
+data Custom { value: u64; }
+
+// Declared indexing owns its parameter landing; builtin index restrictions
+// must not turn these floating-point parameters into integer destinations.
+machine [] Custom::at(items: &Custom, position: f64) -> u64 { items.value }
+machine [..] Custom::window(items: &Custom, start: f64, end: f64) -> u64 { items.value }
+
+machine produced() -> [Item; 2] {
+    [Item { value: 7 }, Item { value: 42 }]
+}
+
+machine select(items: &[Item; 2]) -> Item {
+    items[1]
+}
+
+machine divided<'row>(items: &'row [Item; 2], which: u64) -> &'row [Item]
+ensures result.len == 1 {
+    match which {
+        3 -> &items[0..which / 2]
+        _ -> &items[0..1]
+    }
+}
+
+machine wrapped(items: &[u8; 256], which: u8 in Wrapping) -> u8 {
+    match which {
+        255 -> items[which + 2]
+        _ -> items[0]
+    }
+}
+
+machine saturated(items: &[u8; 256], which: u8 in Saturating) -> u8 {
+    match which {
+        255 -> items[which + 2]
+        _ -> items[0]
+    }
+}
+
+machine main() crashes Trap {
+    let items: [Item; 2] = [Item { value: 7 }, Item { value: 42 }];
+    let borrowed: &[Item; 2] = &items;
+    let copied: Item = borrowed[1];
+    let returned: Item = select(&items);
+    let position: i32 = 1;
+    let selected: Item = borrowed[position];
+    let calculated: Item = borrowed[(3 / 2) * 2 - 2];
+    let from_call: Item = produced()[(3 / 2) * 2 - 2];
+    let custom: Custom = Custom { value: 42 };
+    let custom_index: u64 = custom[1 / 2];
+    let custom_window: u64 = custom[(1 / 2)..(3 / 2)];
+    let landed: Item = borrowed[(3u64 / 2u64) * 2u64 - 2u64];
+    let window: &[Item] = &items[((3 / 2) * 2 - 2)..2];
+    let typed_window: &[Item] = &items[((3u64 / 2u64) * 2u64 - 2u64)..1];
+    let divided_window: &[Item] = divided(&items, 3);
+    let mut bytes: [u8; 256];
+    bytes[1] = 42;
+    bytes[255] = 7;
+    let wrapped_value: u8 = wrapped(&bytes, 255);
+    let saturated_value: u8 = saturated(&bytes, 255);
+    let before: i32 = -1;
+    let signed: Item = borrowed[before + 2];
+    transition copied.value == 42 && returned.value == 42 && selected.value == 42
+        && calculated.value == 42
+        && from_call.value == 42 && custom_index == 42 && custom_window == 42
+        && landed.value == 7 && window.len == 1 && window[0].value == 42
+        && typed_window.len == 1 && typed_window[0].value == 7
+        && divided_window.len == 1 && divided_window[0].value == 7
+        && wrapped_value == 42 && saturated_value == 7
+        && signed.value == 42
+        && borrowed[0].value == 7 && items[1].value == 42 {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

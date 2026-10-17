@@ -489,7 +489,8 @@ pub use attached_storage::{
 pub use builtin_coordinates::{
     assignment_target_indexes, assignment_target_selectors, collection_length_receiver,
     declared_collection_extent, fixed_array_type_length, has_builtin_subslice_meaning,
-    mutable_byte_slice_parameter_element, subslice_expression, whole_collection_view_source,
+    indexed_operation_has_builtin_meaning, mutable_byte_slice_parameter_element,
+    subslice_expression, whole_collection_view_source,
 };
 pub use builtin_coordinates::{
     place_has_builtin_coordinates, value_element_has_builtin_coordinate,

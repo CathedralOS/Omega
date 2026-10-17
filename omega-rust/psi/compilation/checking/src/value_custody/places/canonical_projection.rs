@@ -6,7 +6,6 @@ use super::member_resolution::effective_member_symbol;
 use super::declared_symbols::first_valid_name_path_symbol;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode, MatchPattern};
 use symbols::{SymbolHandle, SymbolKind};
-use typed_trees::expression::BinaryOperator;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct CanonicalPlace {
@@ -176,8 +175,8 @@ fn exact_fixed_element(
     if depth >= 64 || !expression.is_valid() {
         return None;
     }
-    if let Some(value) = program.expression_table.constant_integer_value(expression) {
-        return usize::try_from(value).ok();
+    if let Some(value) = program.closed_integer_expression_value(expression) {
+        return value.to_u64().and_then(|value| usize::try_from(value).ok());
     }
     if let Some(value) =
         crate::value_custody::literals::closed_record_integer_projection(program, expression)
@@ -188,7 +187,7 @@ fn exact_fixed_element(
             .and_then(|element| usize::try_from(element).ok());
     }
     let bindings = match_arm_bindings(program, expression).unwrap_or_default();
-    if let Some(value) = folded_coordinate(program, expression, &bindings, 0) {
+    if let Some(value) = folded_coordinate(program, expression, &bindings) {
         return usize::try_from(value).ok();
     }
     if let Some(value) = standing_fixed_element(program, expression) {
@@ -293,11 +292,11 @@ fn range_coordinate(
     program: &dyn crate::CheckingInput,
     endpoint: ExpressionHandle,
 ) -> Option<usize> {
-    let value = if let Some(value) = program.expression_table.constant_integer_value(endpoint) {
-        value
+    let value = if let Some(value) = program.closed_integer_expression_value(endpoint) {
+        value.to_i64()?
     } else {
         let bindings = match_arm_bindings(program, endpoint)?;
-        folded_coordinate(program, endpoint, &bindings, 0)?
+        folded_coordinate(program, endpoint, &bindings)?
     };
     usize::try_from(value).ok()
 }
@@ -405,44 +404,60 @@ fn folded_coordinate(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     bindings: &[(ExpressionHandle, i64)],
-    depth: usize,
 ) -> Option<i64> {
-    if depth >= 64 || !expression.is_valid() {
+    if !expression.is_valid() {
         return None;
     }
-    let mut matched = bindings
-        .iter()
-        .filter(|(subject, _)| same_match_subject(program, *subject, expression))
-        .map(|(_, value)| *value);
-    if let Some(first) = matched.next() {
-        return matched.all(|value| value == first).then_some(first);
+    let mut states = states_naming(program, expression);
+    if states.is_empty() {
+        states.push(SymbolHandle::invalid());
     }
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Integer(literal) => literal.value_i64(),
-        ExpressionNode::Borrow(borrow) => {
-            folded_coordinate(program, borrow.target, bindings, depth + 1)
+    let mut result = None;
+    for state_symbol in states {
+        let machine_symbol = if state_symbol.is_valid() {
+            program.symbols.get(state_symbol).parent
+        } else {
+            SymbolHandle::invalid()
+        };
+        // Captured match subjects and ensured singleton results supply values,
+        // not replacement arithmetic. The shared evaluator retains the original
+        // carrier/policy and exact anonymous rational subexpressions around them.
+        let value = program
+            .integer_expression_value_with_bindings(expression, machine_symbol, &mut |operand| {
+                let mut matched = bindings
+                    .iter()
+                    .filter(|(subject, _)| same_match_subject(program, *subject, operand))
+                    .map(|(_, value)| *value);
+                let value = if let Some(first) = matched.next() {
+                    matched.all(|value| value == first).then_some(first)?
+                } else {
+                    let call = program.expression_table.call_node(operand)?;
+                    let (Some(low), Some(high)) =
+                        crate::normal_return_integer_bounds(program, call)?
+                    else {
+                        return None;
+                    };
+                    (low == high).then_some(low)?
+                };
+                let type_reference = if state_symbol.is_valid() {
+                    let (machine, state) = program.machine_state(machine_symbol, state_symbol)?;
+                    crate::expression_result_type_reference(program, machine, state, operand)?
+                } else {
+                    let call = program.expression_table.call_node(operand)?;
+                    crate::call_target_return_type(
+                        program,
+                        crate::call_target_symbol(program, call),
+                    )?
+                };
+                Some((numerics::bignum::BigInt::from_i64(value), type_reference))
+            })?
+            .to_i64()?;
+        if result.is_some_and(|prior| prior != value) {
+            return None;
         }
-        ExpressionNode::Binary(binary) => {
-            let left = folded_coordinate(program, binary.left, bindings, depth + 1)?;
-            let right = folded_coordinate(program, binary.right, bindings, depth + 1)?;
-            match binary.operator {
-                BinaryOperator::Add => left.checked_add(right),
-                BinaryOperator::Subtract => left.checked_sub(right),
-                BinaryOperator::Multiply => left.checked_mul(right),
-                BinaryOperator::Divide => (right != 0).then(|| left.checked_div(right)).flatten(),
-                BinaryOperator::Modulo => (right != 0).then(|| left.checked_rem(right)).flatten(),
-                _ => None,
-            }
-        }
-        ExpressionNode::Call(call) => {
-            let (low, high) = crate::normal_return_integer_bounds(program, call)?;
-            match (low, high) {
-                (Some(low), Some(high)) if low == high => Some(low),
-                _ => None,
-            }
-        }
-        _ => None,
+        result = Some(value);
     }
+    result
 }
 
 fn same_match_subject(

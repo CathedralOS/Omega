@@ -8,9 +8,7 @@
 //! rebuilding records field by field and discarding non-scalar evidence.
 
 use super::super::{Builder, ExpressionHandle, ExpressionNode, TypeReferenceNode};
-use super::place_types::{
-    needs_copied_place_root, projection_root_expression, readable_place_type,
-};
+use super::place_types::{projection_root_expression, readable_place_type};
 use checked_trees::CheckedStructuralValueKind;
 use typed_trees::types::TypeReferenceHandle;
 
@@ -115,15 +113,6 @@ impl Builder<'_, '_> {
         expression: ExpressionHandle,
         expected: TypeReferenceHandle,
     ) -> Option<CheckedStructuralValueKind> {
-        if !needs_copied_place_root(
-            self.program,
-            self.state,
-            self.statement_index,
-            expression,
-            expected,
-        ) {
-            return None;
-        }
         let (source, leaf, _) = self.borrowed_leaf_argument(expression, expected)?;
         for (ordinal, value) in source.computation_operands().enumerate() {
             self.push_scalar_root(
