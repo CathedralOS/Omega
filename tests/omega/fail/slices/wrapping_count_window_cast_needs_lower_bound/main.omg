@@ -1,0 +1,10 @@
+// `count <= 8` still admits a negative wrapping count, so `count as u64` is
+// not an exact conversion and cannot be the window length.
+machine open<'row>(cells: &'row [i32; 8], count: i32 in Wrapping) -> &'row [i32]
+requires count <= 8
+ensures result.len == count as u64
+{
+    &cells[0..count]
+}
+
+machine main() {}

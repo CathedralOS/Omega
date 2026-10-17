@@ -1,0 +1,53 @@
+// A window ending at a wrapping count has that count's exact u64 length.
+// The end is a parameter, a local copy of it, and a field. The caller also
+// reads the returned window from a call.
+// Expected native exit: 0
+data Held<'row> { values: &'row [i32]; }
+data Holder { count: i32 in Wrapping; cells: [i32; 8]; }
+
+machine from_parameter<'row>(cells: &'row [i32; 8], count: i32 in Wrapping) -> Held<'row>
+requires count >= 1 && count <= 4
+ensures result.values.len == count as u64
+{
+    Held { values: &cells[0..count] }
+}
+
+machine from_local<'row>(cells: &'row [i32; 8], count: i32 in Wrapping) -> Held<'row>
+requires count >= 1 && count <= 4
+ensures result.values.len == count as u64
+{
+    let end: i32 in Wrapping = count;
+    Held { values: &cells[0..end] }
+}
+
+machine from_field<'row>(holder: &'row Holder) -> Held<'row>
+requires holder.count >= 1 && holder.count <= 4
+ensures result.values.len == holder.count as u64
+{
+    Held { values: &holder.cells[0..holder.count] }
+}
+
+machine from_call<'row>(cells: &'row [i32; 8], count: i32 in Wrapping) -> Held<'row>
+requires count >= 1 && count <= 4
+ensures result.values.len == count as u64
+{
+    Held { values: &cells[0..count] }
+}
+
+machine main() crashes Trap {
+    let cells: [i32; 8] = [3, 1, 4, 7, 0, 0, 0, 0];
+    let count: i32 in Wrapping = 4;
+    let parameter: Held = from_parameter(&cells, count);
+    let local: Held = from_local(&cells, count);
+    let holder: Holder = Holder { count: count, cells: cells };
+    let field: Held = from_field(&holder);
+    let called: Held = from_call(&cells, count);
+    let parameter_length: u64 = parameter.values.len;
+    transition parameter_length == 4 && local.values.len == 4 && field.values.len == 4
+        && called.values.len == 4 && called.values[0] == 3 && called.values[3] == 7 {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

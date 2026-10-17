@@ -22,6 +22,13 @@
 //! builds that field from an equal window. An `ensures` bound that names a
 //! parameter is that call argument's value, so `result.values.len == count`
 //! arrives as the length the caller passed.
+//!
+//! An exact or trapping integer cast denotes its operand when the operand's
+//! carrier already fits in the target, or the live facts at that statement
+//! prove it does. Wrapping and saturating casts stay outside this equality:
+//! they are different values. The window length `end - start` can then meet
+//! `count as u64` for a nonnegative wrapping count, through a local, a field,
+//! a parameter, or a call, because each spelling is that same integer.
 use crate::checks::unsigned;
 use crate::values::scalar::structural_fields;
 use numerics::arithmetic::ArithmeticDomain;
@@ -474,6 +481,7 @@ impl<'program> CurrentScalarValues<'program> {
             program,
             machine,
             state,
+            self.statement_index,
             expression,
             &self.current,
             &self.lengths,
@@ -482,9 +490,11 @@ impl<'program> CurrentScalarValues<'program> {
             if let Some(proposition) = scoped(
                 machine,
                 state,
+                self.statement_index,
                 expression,
                 &self.current,
                 &self.lengths,
+                &self.hypotheses,
                 program,
             ) {
                 self.hypotheses
@@ -591,6 +601,7 @@ impl<'program> CurrentScalarValues<'program> {
             program,
             machine,
             state,
+            self.statement_index,
             expression,
             &self.current,
             &self.lengths,
@@ -600,9 +611,11 @@ impl<'program> CurrentScalarValues<'program> {
             scoped(
                 machine,
                 state,
+                self.statement_index,
                 expression,
                 &self.current,
                 &self.lengths,
+                &self.hypotheses,
                 program,
             )
         })
@@ -638,6 +651,7 @@ impl<'program> CurrentScalarValues<'program> {
             self.program,
             self.machine,
             self.state,
+            self.statement_index,
             expression,
             &self.initial,
             &self.lengths,
@@ -647,9 +661,11 @@ impl<'program> CurrentScalarValues<'program> {
             scoped(
                 self.machine,
                 self.state,
+                self.statement_index,
                 expression,
                 &self.initial,
                 &self.lengths,
+                &self.hypotheses,
                 self.program,
             )
         })
@@ -663,6 +679,7 @@ impl<'program> CurrentScalarValues<'program> {
             self.program,
             self.machine,
             self.state,
+            self.statement_index,
             expression,
             &self.current,
             &self.lengths,
@@ -672,9 +689,11 @@ impl<'program> CurrentScalarValues<'program> {
             scoped(
                 self.machine,
                 self.state,
+                self.statement_index,
                 expression,
                 &self.current,
                 &self.lengths,
+                &self.hypotheses,
                 self.program,
             )
         })
@@ -749,6 +768,7 @@ impl<'program> CurrentScalarValues<'program> {
             self.program,
             callee,
             state,
+            self.statement_index,
             expression,
             &formals,
             &lengths,
@@ -756,7 +776,16 @@ impl<'program> CurrentScalarValues<'program> {
         ) {
             return None;
         }
-        let mut goal = scoped(callee, state, expression, &formals, &lengths, self.program)?;
+        let mut goal = scoped(
+            callee,
+            state,
+            self.statement_index,
+            expression,
+            &formals,
+            &lengths,
+            &self.hypotheses,
+            self.program,
+        )?;
         for binding in &mut goal.bindings {
             // A callee field needs an actual-place substitution, including on
             // recursion. Its entry atom is never the caller's current field
@@ -1174,10 +1203,105 @@ fn observed_scalar(
     }
 }
 
+/// Operand of an exact or trapping fixed-integer value cast. This is formation
+/// only: wrapping and saturating casts are different values, and representability
+/// is decided separately from the live hypotheses.
+fn integer_cast_operand(
+    program: &dyn ::validation::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    expression: ExpressionHandle,
+) -> Option<ExpressionHandle> {
+    let ExpressionNode::Cast(cast) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    if cast.form.is_recast()
+        || !cast.semantic_domain.is_empty()
+        || !matches!(
+            cast.domain,
+            ArithmeticDomain::Exact | ArithmeticDomain::Trapping
+        )
+    {
+        return None;
+    }
+    let operand_type =
+        validation::expression_result_type_reference(program, machine, state, cast.value)
+            .and_then(|reference| program.primitive_type_reference(reference))?;
+    let target_type = program.primitive_type_reference(cast.target_type)?;
+    (operand_type.is_fixed_integer() && target_type.is_fixed_integer()).then_some(cast.value)
+}
+
+/// Operand of an exact or trapping integer cast that denotes that operand.
+/// A total carrier inclusion always does. A partial conversion does only when
+/// the same hypotheses prove the operand fits in the target.
+fn preserving_integer_cast_operand(
+    program: &dyn ::validation::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    statement_index: usize,
+    expression: ExpressionHandle,
+    bindings: &[Binding],
+    lengths: &[Length],
+    hypotheses: &[ScopedArithmeticHypothesis],
+) -> Option<ExpressionHandle> {
+    let operand = integer_cast_operand(program, machine, state, expression)?;
+    let (source_minimum, source_maximum) = integer_carrier_span(program, machine, state, operand)?;
+    let (target_minimum, target_maximum) =
+        integer_carrier_span(program, machine, state, expression)?;
+    if source_minimum >= target_minimum && source_maximum <= target_maximum {
+        return Some(operand);
+    }
+    let operand_value = ScopedArithmeticValue::Term(scoped(
+        machine,
+        state,
+        statement_index,
+        operand,
+        bindings,
+        lengths,
+        hypotheses,
+        program,
+    )?);
+    let minimum = ScopedArithmeticValue::Integer(target_minimum);
+    let maximum = ScopedArithmeticValue::Integer(target_maximum);
+    let fits = validation::scoped_arithmetic_values_relation(
+        program,
+        machine,
+        hypotheses,
+        BinaryOperator::GreaterOrEqual,
+        &operand_value,
+        &minimum,
+    ) == StrictArithmeticImplicationJudgment::Proven
+        && validation::scoped_arithmetic_values_relation(
+            program,
+            machine,
+            hypotheses,
+            BinaryOperator::LessOrEqual,
+            &operand_value,
+            &maximum,
+        ) == StrictArithmeticImplicationJudgment::Proven;
+    fits.then_some(operand)
+}
+
+fn integer_carrier_span(
+    program: &dyn ::validation::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    expression: ExpressionHandle,
+) -> Option<(numerics::bignum::BigInt, numerics::bignum::BigInt)> {
+    let minimum = super::ranges::types::expression_integer_carrier_minimum(
+        program, machine, state, expression,
+    )?;
+    let maximum = super::ranges::types::expression_integer_carrier_maximum(
+        program, machine, state, expression,
+    )?;
+    Some((minimum, numerics::bignum::BigInt::from_u64(maximum)))
+}
+
 fn admitted(
     program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     state: &State,
+    statement_index: usize,
     expression: ExpressionHandle,
     bindings: &[Binding],
     lengths: &[Length],
@@ -1188,12 +1312,26 @@ fn admitted(
     }
     match program.expression_table.expression(expression) {
         ExpressionNode::Integer(_) => true,
+        ExpressionNode::Cast(_) => integer_cast_operand(program, machine, state, expression)
+            .is_some_and(|operand| {
+                admitted(
+                    program,
+                    machine,
+                    state,
+                    statement_index,
+                    operand,
+                    bindings,
+                    lengths,
+                    depth + 1,
+                )
+            }),
         ExpressionNode::Call(_) => validation::integer_embedding_argument(program, expression)
             .is_some_and(|(_, argument)| {
                 admitted(
                     program,
                     machine,
                     state,
+                    statement_index,
                     argument,
                     bindings,
                     lengths,
@@ -1238,6 +1376,7 @@ fn admitted(
                 program,
                 machine,
                 state,
+                statement_index,
                 binary.left,
                 bindings,
                 lengths,
@@ -1246,6 +1385,7 @@ fn admitted(
                 program,
                 machine,
                 state,
+                statement_index,
                 binary.right,
                 bindings,
                 lengths,
@@ -1259,9 +1399,11 @@ fn admitted(
 fn scoped(
     machine: &Machine,
     state: &State,
+    statement_index: usize,
     expression: ExpressionHandle,
     bindings: &[Binding],
     lengths: &[Length],
+    hypotheses: &[ScopedArithmeticHypothesis],
     program: &dyn ::validation::CheckingInput,
 ) -> Option<ScopedArithmeticExpression> {
     let mut symbols = Vec::new();
@@ -1282,6 +1424,32 @@ fn scoped(
                 }
             }
             ExpressionNode::Integer(_) => {}
+            ExpressionNode::Cast(_) => {
+                let operand = preserving_integer_cast_operand(
+                    program,
+                    machine,
+                    state,
+                    statement_index,
+                    expression,
+                    bindings,
+                    lengths,
+                    hypotheses,
+                )?;
+                let value = scoped(
+                    machine,
+                    state,
+                    statement_index,
+                    operand,
+                    bindings,
+                    lengths,
+                    hypotheses,
+                    program,
+                )?;
+                projections.push(ScopedArithmeticBinding {
+                    binder: ScopedArithmeticBinder::Occurrence(expression),
+                    value: ScopedArithmeticValue::Term(value),
+                });
+            }
             ExpressionNode::Call(_) => {
                 let (_, argument) = validation::integer_embedding_argument(program, expression)?;
                 pending.push((argument, depth + 1));

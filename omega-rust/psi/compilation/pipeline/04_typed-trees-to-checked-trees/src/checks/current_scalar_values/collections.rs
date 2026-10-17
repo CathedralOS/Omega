@@ -86,6 +86,7 @@ impl CurrentScalarValues<'_> {
             self.program,
             self.machine,
             entry,
+            self.statement_index,
             expression,
             &bindings,
             &lengths,
@@ -96,9 +97,11 @@ impl CurrentScalarValues<'_> {
         let mut goal = scoped(
             self.machine,
             entry,
+            self.statement_index,
             expression,
             &bindings,
             &lengths,
+            &self.hypotheses,
             self.program,
         )?;
         if let Some(returned) = self.current(returned) {

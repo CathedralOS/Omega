@@ -5016,6 +5016,8 @@ fail/slices/utf8_subslice_byte_cut rejected 1820ms expected @a9ae30e1c334+wt
 	cannot prove requires contract for call inspect from relay: bytes[0..1] in [u8]::Utf8
 fail/slices/window_shrink_index_out_of_length rejected 1658ms expected @a9ae30e1c334+wt
 	cannot prove index `3` is within length 3
+fail/slices/wrapping_count_window_cast_needs_lower_bound rejected 308ms expected @d9b14477f4cf+wt
+	Exact integer cast in machine `open` state `entry` from `i32` to `u64` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
 fail/slices/written_nested_subslice_loses_byte_predicate rejected 587ms expected @007d2ab5180c+wt
 	cannot prove requires contract for call inspect from replace: inner in [u8]::Ascii (invalidated by prior mutation of inner; inner is part of [u8]::Ascii) in state `entry`
 fail/slices/written_subslice_loses_byte_predicate rejected 606ms expected @007d2ab5180c+wt
@@ -8517,6 +8519,7 @@ pass/slices/termination_slice_length_compile checked 1734ms @a9ae30e1c334+wt
 pass/slices/weak_vacant_extent checked 10561ms @5041ef1af684+wt
 pass/slices/whole_element_store checked 10238ms @5041ef1af684+wt
 pass/slices/window_shrink_min_length_tail_index_compile checked 1665ms @a9ae30e1c334+wt
+pass/slices/wrapping_count_window_length checked 5711ms check-target:macos_arm64 @d9b14477f4cf+wt
 pass/slices/zero_len_array checked 9722ms @5041ef1af684+wt
 pass/storage/computed_float_local_view_store_exit checked 13251ms check-target:macos_arm64 @589aedee8ebc+wt
 pass/storage/forwarded_context_bounded_byte_field_exit checked 11355ms check-target:macos_arm64 @a9ae30e1c334+wt

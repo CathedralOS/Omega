@@ -2816,6 +2816,7 @@ pass/slices/termination_slice_length_compile checked 3474ms @6c49683ce714
 pass/slices/weak_vacant_extent checked 17451ms @6c49683ce714
 pass/slices/whole_element_store checked 17547ms @6c49683ce714
 pass/slices/window_shrink_min_length_tail_index_compile checked 3363ms @6c49683ce714
+pass/slices/wrapping_count_window_length built 5651ms exit:0 @d9b14477f4cf+wt
 pass/slices/zero_len_array checked 17365ms @6c49683ce714
 pass/storage/computed_float_local_view_store_exit built 34657ms exit:0 @6c49683ce714
 pass/storage/forwarded_context_bounded_byte_field_exit built 15491ms exit:0 @6c49683ce714
