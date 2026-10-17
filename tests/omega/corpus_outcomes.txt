@@ -666,6 +666,8 @@ fail/borrows/borrow_unknown_index_pair_mut rejected 1580ms expected @a9ae30e1c33
 fail/borrows/boundary_argument_later_write_under_element_loan rejected 1640ms expected @a9ae30e1c334+wt
 	state `c_strnlen` receives `bytes` as both mutable and read-only
 	state `inspect` receives `constructed_bytes` as both mutable and read-only
+fail/borrows/boundary_constant_temporary_reference_escape rejected 618ms expected @1bce9ab2e5d5+wt
+	machine `escape` returns a view borrowing temporary storage, which does not outlive the call; return a view of storage that outlives the invocation instead
 fail/borrows/boundary_primitive_loan_mutable_from_shared rejected 3423ms expected @a9ae30e1c334+wt
 	argument `value` for state `read` is declared `&mut` (`&mut f32`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
 fail/borrows/boundary_returned_view_keeps_backing_loan rejected 1701ms expected @a9ae30e1c334+wt
@@ -704,6 +706,8 @@ fail/borrows/computed_case_copy_requires_live_bounds rejected 428ms expected @60
 fail/borrows/conditional_overlapping_field_loans rejected 4727ms expected @16ed47526a08
 fail/borrows/conditional_returned_descriptor_local_escape rejected 593ms expected @137efb5802df
 	machine `select` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+fail/borrows/constant_temporary_reference_escape rejected 620ms expected @1bce9ab2e5d5+wt
+	machine `escape` returns a view borrowing temporary storage, which does not outlive the call; return a view of storage that outlives the invocation instead
 fail/borrows/constructor_case_owner_mismatch rejected 812ms expected @a9ae30e1c334+wt
 	construction of `Holder` field `choice` expects the `Correct` data type but got `Other` in the `field` position; these are incompatible data types (a place is accepted structurally, but its declared type must match)
 fail/borrows/constructor_reference_element_mismatch rejected 903ms expected @a9ae30e1c334+wt
@@ -5946,6 +5950,7 @@ pass/borrows/carry_property_declared checked 9707ms @5041ef1af684+wt
 pass/borrows/case_payload_shared_transition_exit checked 11172ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/case_payload_state_loan_exit checked 10970ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/collection_element_loans_exit checked 5787ms check-target:macos_arm64 @d840c6ae9019+wt
+pass/borrows/constant_shared_boundary_exit checked 3644ms check-target:macos_arm64 @1bce9ab2e5d5+wt
 pass/borrows/constructor_reference_access checked 1653ms @a9ae30e1c334+wt
 pass/borrows/data_copy_property checked 9605ms @5041ef1af684+wt
 pass/borrows/disjoint_branch_closure_with_grandchild checked 10342ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -7212,6 +7217,7 @@ pass/drops/reference_rebinding_preserves_pointee_exit checked 2294ms check-targe
 pass/drops/runtime_abandoned_record_construction_prefix_exit checked 12772ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/drops/runtime_borrowed_nominal_replacement_exit checked 13039ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/drops/runtime_borrowed_selected_cleanup_postcondition_exit checked 12207ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/drops/runtime_borrowed_temporary_projection_cleanup_exit checked 3648ms check-target:macos_arm64 @0ec1d89748af
 pass/drops/runtime_case_selected_cleanup_continuations_exit checked 13091ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/drops/runtime_claim_bearing_temporary_cleanup_exit checked 11491ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/drops/runtime_cleanup_helper_normal_guarantee_exit checked 11650ms check-target:macos_arm64 @a9ae30e1c334+wt

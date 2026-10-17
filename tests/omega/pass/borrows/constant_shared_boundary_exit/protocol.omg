@@ -1,0 +1,5 @@
+module protocol;
+pub data Guid [copy] { tag: u32; bytes: [u8; 2]; }
+pub data Envelope [copy] { protocol: Guid; }
+pub const VALUE: Guid = Guid { tag: 7, bytes: [1, 2] };
+pub const ENVELOPE: Envelope = Envelope { protocol: VALUE };

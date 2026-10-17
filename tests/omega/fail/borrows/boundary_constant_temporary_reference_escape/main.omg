@@ -1,0 +1,6 @@
+data Packet [copy] { value: u64; }
+const PACKET: Packet = Packet { value: 17 };
+boundary trait Reader {
+    machine view<'storage>(packet: &'storage Packet) -> &'storage Packet;
+}
+machine escape() -> &Packet reaches Reader { Reader::view(&PACKET) }

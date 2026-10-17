@@ -1,0 +1,47 @@
+// Expected exit: 0. Each named constant use materializes a separate value;
+// checked and selected boundary calls observe it through the same loan route.
+use protocol::Guid;
+use protocol::Envelope;
+const PROTOCOL: Guid = Guid { tag: 7, bytes: [1, 2] };
+const Guid::SELECTED: Guid = PROTOCOL;
+const ENVELOPE: Envelope = Envelope { protocol: PROTOCOL };
+
+machine inspect(protocol: &Guid) -> u64 {
+    (protocol.tag as u64) + (protocol.bytes[0] as u64) + (protocol.bytes[1] as u64)
+}
+machine produce() -> Guid { PROTOCOL }
+data Receipt { value: u64; }
+machine Receipt::drop(receipt: &mut Receipt) {}
+machine issue() -> Receipt { Receipt { value: 23 } }
+boundary trait Reader {
+    machine read(protocol: &Guid) -> u64;
+    machine read_receipt(receipt: &Receipt) -> u64;
+}
+Provider satisfies Reader {
+    machine read(protocol: &Guid) -> u64 { inspect(protocol) }
+    machine read_receipt(receipt: &Receipt) -> u64 { receipt.value }
+}
+data Main {}
+machine Main::main(context: &mut Main) reaches Reader crashes Trap {
+    let direct: u64 = Reader::read(&PROTOCOL);
+    let projected: u64 = Reader::read(&ENVELOPE.protocol);
+    let returned: u64 = Reader::read(&produce());
+    let constructed: u64 = Reader::read(&Guid { tag: 7, bytes: [1, 2] });
+    let local: Guid = PROTOCOL;
+    let bound: u64 = Reader::read(&local);
+    let checked: u64 = inspect(&PROTOCOL);
+    let scoped: u64 = Reader::read(&Guid::SELECTED);
+    let imported: u64 = Reader::read(&protocol::VALUE);
+    let imported_field: u64 = Reader::read(&protocol::ENVELOPE.protocol);
+    let affine: u64 = Reader::read_receipt(&Receipt { value: 17 });
+    let issued: u64 = Reader::read_receipt(&issue());
+    transition direct == 10 && projected == 10 && returned == 10 &&
+               constructed == 10 && bound == 10 && checked == 10 &&
+               scoped == 10 && imported == 10 && imported_field == 10 &&
+               affine == 17 && issued == 23 {
+        true -> done()
+        _ -> wrong()
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}

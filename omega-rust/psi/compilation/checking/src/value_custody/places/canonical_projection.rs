@@ -487,9 +487,10 @@ pub fn canonical_place_from_expression(
             canonical_place_from_expression(program, cast.value)
         }
         ExpressionNode::Name(path) => {
-            // A case name produces a value, not storage owned by its type or
-            // variant declaration. A borrow captures that value occurrence.
-            if crate::exact_case_reference_owner(program, expression).is_some() {
+            // Constants and case names produce values, not storage owned by
+            // their declarations. A borrow captures this materialized copy;
+            // two uses of one declaration must not become the same home.
+            if name_materializes_value(program, expression) {
                 return Some(CanonicalPlace {
                     root: facts::PlaceRoot::Expression(expression),
                     segments: Vec::new(),
@@ -543,6 +544,19 @@ pub fn canonical_place_from_expression(
             segments: Vec::new(),
         }),
     }
+}
+
+pub(super) fn name_materializes_value(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+) -> bool {
+    crate::exact_case_reference_owner(program, expression).is_some()
+        || matches!(
+            program.expression_table.expression(expression),
+            ExpressionNode::Name(path)
+                if path.symbol.is_valid()
+                    && program.symbols.get(path.symbol).kind == SymbolKind::Const
+        )
 }
 
 pub fn canonical_place_from_expression_in_state(

@@ -4,8 +4,10 @@
 //! The completed producer supplies its retained storage type. Re-inferring
 //! that type from a literal's leaves loses contextual construction identity;
 //! the receiving reference formal must not supply a replacement owner type.
+//! Callee supply mode does not change the caller's temporary lifetime: a
+//! boundary call retains the same owner and closes the same loan on return.
+//! Provider admission is separate from this exact occurrence/claim join.
 use super::{Multiplicity, SymbolHandle};
-use crate::execution::terminal_unit::MachineSupplyMode;
 use crate::execution::terminal_unit::{
     PermissionAccess, PermissionClaimIdentity, PermissionEventKind, PermissionEventSource,
 };
@@ -19,14 +21,6 @@ pub(crate) fn validate(
     expression: typed_trees::expression::ExpressionHandle,
     owner_type: typed_trees::types::TypeReferenceHandle,
 ) -> Option<()> {
-    let target = program.machine_by_symbol(
-        validation::find_state(program, consumer.target_symbol)?
-            .0
-            .symbol,
-    )?;
-    if target.supply_mode != MachineSupplyMode::CheckedBody {
-        return None;
-    }
     let site = validation::find_call_site(
         program,
         machine,

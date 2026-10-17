@@ -36,7 +36,7 @@ pub fn contextual_canonical_place_from_expression(
             )
         }
         ExpressionNode::Name(path) => {
-            if crate::exact_case_reference_owner(program, expression).is_some() {
+            if super::canonical_projection::name_materializes_value(program, expression) {
                 return super::canonical_projection::canonical_place_from_expression(
                     program, expression,
                 );

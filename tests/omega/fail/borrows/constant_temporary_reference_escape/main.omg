@@ -1,0 +1,3 @@
+data Packet [copy] { value: u64; }
+const PACKET: Packet = Packet { value: 17 };
+machine escape() -> &Packet { &PACKET }
