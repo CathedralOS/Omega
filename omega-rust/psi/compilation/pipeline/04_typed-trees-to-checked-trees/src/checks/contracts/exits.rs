@@ -267,6 +267,9 @@ pub(super) fn check_exit_ensures(
                         || super::integer_embeddings::proves_exit_equality(
                             program, state_flow, exit_flow, fact,
                         )
+                        || super::integer_embeddings::proves_embedded_literal_exit(
+                            program, state_flow, exit_flow, fact,
+                        )
                         || float_meaning_reflexivity
                         || super::entailment::integral_parameter_reflexivity(program, fact)
                         || super::entailment::transparent_proposition_proves_exit(

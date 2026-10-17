@@ -1,0 +1,24 @@
+// Returning a fixed row's length makes that integer available to `embed`:
+// both the result itself and a record field initialized from the length.
+data Counted [copy] { count: u64; }
+
+machine measured(items: [i32; 3]) -> Counted
+ensures embed(result.count) == 3
+{
+    Counted { count: items.len }
+}
+
+machine direct(items: [i32; 3]) -> u64
+ensures embed(result) == 3
+{
+    items.len
+}
+
+machine main() crashes Trap {
+    let row: [i32; 3] = [2, 3, 4];
+    let counted: Counted = measured(row);
+    let value: u64 = direct(row);
+    transition counted.count == 3 && value == 3 { true -> done() false -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}
