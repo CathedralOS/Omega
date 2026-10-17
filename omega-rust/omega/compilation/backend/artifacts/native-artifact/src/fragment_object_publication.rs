@@ -168,7 +168,14 @@ pub fn publish_fragment_object(
             {
                 return Err(crate::native_artifact_error(
                     "physical entry stack",
-                    "source bootstrap exceeds the target's arrival stack guarantee",
+                    format!(
+                        "source bootstrap exceeds the target's arrival stack guarantee: demand {} bytes aligned to {}, reserve {} bytes, available {} bytes aligned to {}",
+                        demand.ceiling_bytes(),
+                        demand.stack_alignment(),
+                        guarantee.admission_reserve_bytes(),
+                        guarantee.guaranteed_available_bytes(),
+                        guarantee.required_alignment(),
+                    ),
                 ));
             }
         } else {
