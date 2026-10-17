@@ -541,6 +541,12 @@ defines the complete product bar.
     `pass/calls/inline_record_scalar_call_arguments_exit`,
     `pass/boundary/static_foreign_scalar_result_locals_exit`,
     `pass/boundary/later_state_requirement_scalar_result_exit` (exit 70).
+    `samples/cli/facts/matched_field_windows` carries the matched bound across
+    all nine fact places and writes the original backing through returned views.
+    Collection measures retain the captured descriptor separately from referent
+    contents. Portable calls use common public result equations and the union
+    of every retained body's writes; call premises substitute exact actuals
+    before interpreting extents, including when caller and formal names collide.
   - **Loan locals and projected storage.** **REFERENCE-LOCAL-BINDING-ROUTES**
     owns local loan establishment, reads, returned references and state
     forwarding; [representation-view checking](omega-rust/psi/compilation/checking/recasts.md)

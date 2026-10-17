@@ -43,7 +43,8 @@ pub(in crate::proof_contracts::contract_entailment) fn scalar_operand_is_observe
         StructuralTerm::ObservedValue { .. } => unreachable!("handled above"),
         // These are the existing declaration/prefix subject observations.
         // An authenticated input reference may bind a scalar completed value.
-        StructuralTerm::Variable(_)
+        StructuralTerm::CollectionMeasure { .. }
+        | StructuralTerm::Variable(_)
         | StructuralTerm::BoundValue(_)
         | StructuralTerm::BoundProjection { .. }
         | StructuralTerm::Integer(_)
@@ -92,6 +93,7 @@ pub(in crate::proof_contracts::contract_entailment) fn term_is_unobserved_descri
         StructuralTerm::ObservedValue {
             observed_type,
             value,
+            ..
         } => {
             program.primitive_type_reference(*observed_type).is_none()
                 || term_is_unobserved_descriptor(program, value)

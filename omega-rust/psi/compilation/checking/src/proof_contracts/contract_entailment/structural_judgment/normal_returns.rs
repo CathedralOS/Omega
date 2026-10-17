@@ -132,9 +132,13 @@ impl<'program> StructuralJudge<'program> {
             StructuralTerm::ObservedValue {
                 observed_type,
                 value,
+                descriptor,
             } => StructuralTerm::ObservedValue {
                 observed_type,
                 value: Box::new(self.completed_value_identity_at(*value, depth + 1)),
+                descriptor: descriptor.map(|descriptor| {
+                    Box::new(self.completed_value_identity_at(*descriptor, depth + 1))
+                }),
             },
             StructuralTerm::Constructor { data, case, fields } => StructuralTerm::Constructor {
                 data,
@@ -157,6 +161,16 @@ impl<'program> StructuralJudge<'program> {
                 left: Box::new(self.completed_value_identity_at(*left, depth + 1)),
                 right: Box::new(self.completed_value_identity_at(*right, depth + 1)),
             },
+            StructuralTerm::CollectionMeasure {
+                measure,
+                collection,
+            } => StructuralTerm::CollectionMeasure {
+                measure,
+                collection: Box::new(
+                    self.completed_value_identity_at(*collection, depth + 1)
+                        .into_collection_descriptor(),
+                ),
+            },
             StructuralTerm::Projection { subject, path } => {
                 let subject = self.completed_value_identity_at(*subject, depth + 1);
                 path.split('.')
@@ -173,7 +187,9 @@ impl<'program> StructuralJudge<'program> {
         };
         if !matches!(
             value.semantic_value(),
-            StructuralTerm::CapturedValue { .. } | StructuralTerm::Projection { .. }
+            StructuralTerm::CapturedValue { .. }
+                | StructuralTerm::Projection { .. }
+                | StructuralTerm::CollectionMeasure { .. }
         ) {
             return value;
         }
@@ -783,20 +799,13 @@ impl<'program> StructuralJudge<'program> {
                     // proof context. A stopped path is not an executed result.
                     return Some(None);
                 }
-                let post_storage = judge.capture_normal_call(
+                judge.complete_normal_call(
                     expression,
                     call_inputs.as_deref(),
                     environment,
                     scope,
-                );
-                // Arguments have completed, so their copied values keep their
-                // identities. Only later storage observations see these writes.
-                // Selected contracts separately require preserved live subjects;
-                // mutation cannot turn pre-state arguments into post-state facts.
-                judge.observe_storage_writes(scope.1, &writes)?;
-                for (coordinate, value) in post_storage.into_iter().flatten() {
-                    judge.retain_storage_value(coordinate, value, false);
-                }
+                    &writes,
+                )?;
                 let receiver_changed =
                     integer_field_read && judge.storage_write_sequence != receiver_write_sequence;
                 let captured_field = if receiver_changed {
@@ -898,14 +907,22 @@ impl<'program> StructuralJudge<'program> {
                     let [(_, collection), (_, index)] = inputs.as_slice() else {
                         return None;
                     };
-                    value = super::super::structural_terms::indexed_term_in_scope(
+                    if let Some(observed) = super::super::structural_terms::indexed_term_in_scope(
                         program,
                         Some(scope),
                         None,
                         expression,
                         collection.clone(),
                         index.clone(),
-                    )?;
+                    ) {
+                        value = observed;
+                    } else if !judge.runtime_body_values {
+                        return None;
+                    }
+                    // A completed runtime read still has its captured scalar
+                    // value when its collection's contents have no structural
+                    // denotation. A stable descriptor alone cannot reconstruct
+                    // an element identity from an earlier storage epoch.
                 }
                 if integer_field_read {
                     // Completing a typed read observes its actual value even
@@ -1002,6 +1019,7 @@ impl<'program> StructuralJudge<'program> {
                 {
                     StructuralTerm::ObservedValue {
                         observed_type: subject.type_reference,
+                        descriptor: None,
                         value: Box::new(value),
                     }
                 } else {
@@ -1047,11 +1065,64 @@ impl<'program> StructuralJudge<'program> {
         {
             Some(StructuralTerm::ObservedValue {
                 observed_type: subject.type_reference,
+                descriptor: None,
                 value: Box::new(value),
             })
         } else {
             Some(value)
         }
+    }
+
+    /// Observe this operation's own normal result immediately after its
+    /// captured operands. The entry traversal stops before later siblings;
+    /// completing the call here does not evaluate its operands a second time.
+    pub(in crate::proof_contracts::contract_entailment) fn normal_operation_results(
+        &self,
+        statement_index: usize,
+        expression: ExpressionHandle,
+        environment: &[(String, StructuralTerm)],
+        scope: ValueScope<'_>,
+    ) -> Option<Vec<NormalReturnPath<'program>>> {
+        let entries =
+            self.normal_operation_entries(statement_index, expression, environment, scope)?;
+        let mut results = Vec::with_capacity(entries.len());
+        for entry in entries {
+            let mut judge = entry.judge;
+            let writes = judge
+                .frame_resolver()?
+                .expression_may_write_paths(scope.0, expression)?;
+            judge.complete_normal_call(
+                expression,
+                Some(&entry.arguments),
+                environment,
+                scope,
+                &writes,
+            )?;
+            let value = judge
+                .normal_results
+                .iter()
+                .find(|(source, _)| *source == expression)?
+                .1
+                .clone();
+            results.push(NormalReturnPath { value, judge });
+        }
+        (!results.is_empty()).then_some(results)
+    }
+
+    fn complete_normal_call(
+        &mut self,
+        expression: ExpressionHandle,
+        actuals: Option<&[StructuralTerm]>,
+        environment: &[(String, StructuralTerm)],
+        scope: ValueScope<'_>,
+        writes: &[String],
+    ) -> Option<()> {
+        let post_storage = self.capture_normal_call(expression, actuals, environment, scope);
+        self.observe_storage_writes(scope.1, writes)?;
+        for (coordinate, value) in post_storage.into_iter().flatten() {
+            self.retain_storage_value(coordinate, value, false);
+        }
+        Some(())
     }
 
     fn capture_normal_call(
@@ -1149,11 +1220,21 @@ impl<'program> StructuralJudge<'program> {
             .zip(actuals)
             .filter_map(|(parameter, value)| {
                 let value = if crate::reference_shell(program, parameter.type_reference).is_some() {
-                    let subject = subjects
-                        .as_ref()?
-                        .iter()
-                        .find(|subject| subject.parameter == parameter.symbol)?;
-                    self.reference_subject_term(subject, environment, scope)?
+                    super::super::structural_terms::reference_argument_observation(
+                        program,
+                        parameter.type_reference,
+                        value,
+                        subjects
+                            .as_ref()
+                            .and_then(|subjects| {
+                                subjects
+                                    .iter()
+                                    .find(|subject| subject.parameter == parameter.symbol)
+                            })
+                            .and_then(|subject| {
+                                self.reference_subject_term(subject, environment, scope)
+                            }),
+                    )?
                 } else {
                     if !frames?.proof_value_is_caller_isolated(parameter.type_reference) {
                         return None;
@@ -1209,6 +1290,7 @@ impl<'program> StructuralJudge<'program> {
             {
                 StructuralTerm::ObservedValue {
                     observed_type: subject.type_reference,
+                    descriptor: None,
                     value: Box::new(value.clone()),
                 }
             } else {

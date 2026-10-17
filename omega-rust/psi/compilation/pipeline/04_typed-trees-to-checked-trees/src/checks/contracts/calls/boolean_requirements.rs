@@ -60,27 +60,6 @@ fn standing_domain_fact_proves_requirement(
     )
 }
 
-/// A `.len` over declared fixed storage is a closed value in the caller's own
-/// scope: `64 <= main.control.len` on a `[u8; 64]` field or a `&mut` loan of
-/// it decides without a carried premise. Anything else — a runtime-length
-/// slice, a non-length member, or no literal side — stays undecided and falls
-/// through to the bound, guard, and entailment channels unchanged.
-fn constant_extent_requirement_value(
-    program: &dyn ::validation::CheckingInput,
-    state_flow: &FlowStateFact,
-    expression: ExpressionHandle,
-) -> Option<bool> {
-    let (machine, state) = validation::machine_state_by_symbols(
-        program,
-        state_flow.machine_symbol,
-        state_flow.state_symbol,
-    )?;
-    let Some(binary) = program.expression_table.binary_node(expression) else {
-        return None;
-    };
-    super::super::call_bounds::constant_extent_comparison_value(program, machine, state, binary)
-}
-
 /// A call binding every parameter positionally substitutes the subject
 /// argument too (`Main::fill(main, 2, node)`): the instantiated
 /// judgment — the only channel that substitutes `self` — then decides
@@ -142,7 +121,6 @@ pub(super) fn proves(
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> bool {
     let proven = closed_boolean_value(program, &facts.operators, expression) == Some(true)
-        || constant_extent_requirement_value(program, state_flow, expression) == Some(true)
         || super::super::call_bounds::proves(
             program,
             facts,

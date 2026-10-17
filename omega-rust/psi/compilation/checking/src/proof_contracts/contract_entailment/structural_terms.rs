@@ -11,6 +11,11 @@ use typed_trees::expression::{ExpressionHandle, ExpressionNode, StaticMachineArg
 use super::StructuralTerm;
 
 mod binary;
+mod collection_measures;
+pub(super) use collection_measures::{
+    collection_measure_term, descriptor_only_observation, observed_collection_measure,
+    reference_argument_observation,
+};
 mod constructors;
 mod equality;
 mod indexed;
@@ -102,7 +107,11 @@ pub(super) fn term_contains(haystack: &StructuralTerm, needle: &StructuralTerm) 
         return true;
     }
     match haystack.semantic_value() {
-        StructuralTerm::Projection { subject, .. }
+        StructuralTerm::CollectionMeasure {
+            collection: subject,
+            ..
+        }
+        | StructuralTerm::Projection { subject, .. }
         | StructuralTerm::IntegerEmbedding { value: subject, .. } => term_contains(subject, needle),
         StructuralTerm::IndexedValue {
             collection, index, ..
@@ -146,9 +155,12 @@ pub(super) fn unfold_constant_applications(
         StructuralTerm::ObservedValue {
             observed_type,
             value,
+            descriptor,
         } => StructuralTerm::ObservedValue {
             observed_type,
             value: Box::new(unfold_constant_applications(program, *value)),
+            descriptor: descriptor
+                .map(|descriptor| Box::new(unfold_constant_applications(program, *descriptor))),
         },
         StructuralTerm::Application {
             result_type,
@@ -234,6 +246,15 @@ pub(super) fn unfold_constant_applications(
             collection: Box::new(unfold_constant_applications(program, *collection)),
             index: Box::new(unfold_constant_applications(program, *index)),
         },
+        StructuralTerm::CollectionMeasure {
+            measure,
+            collection,
+        } => StructuralTerm::CollectionMeasure {
+            measure,
+            collection: Box::new(
+                unfold_constant_applications(program, *collection).into_collection_descriptor(),
+            ),
+        },
         StructuralTerm::Projection { subject, path } => StructuralTerm::Projection {
             subject: Box::new(unfold_constant_applications(program, *subject)),
             path,
@@ -296,6 +317,14 @@ pub(super) fn term_spelling(program: &dyn crate::CheckingInput, term: &Structura
             arguments: values,
             ..
         } => format!("{machine}({}).{field_name}", arguments(values)),
+        StructuralTerm::CollectionMeasure {
+            measure,
+            collection,
+        } => format!(
+            "{}.{}",
+            term_spelling(program, collection),
+            measure.authored_spelling(),
+        ),
         StructuralTerm::Projection { subject, path } => {
             format!("{}.{path}", term_spelling(program, subject))
         }
@@ -625,6 +654,42 @@ pub(super) fn structural_term(
             fields: Vec::new(),
         }),
         ExpressionNode::Member(member) => {
+            // Contract projections can retain an unresolved member handle even
+            // when the receiver's declared record fixes the field. Rejoin that
+            // declaration rather than turning the projection into opaque source
+            // text: substitution must still be able to reach a returned record.
+            let receiver_type = if let Some((owner, parameters)) = frame {
+                crate::parameter_expression_result_type_reference(
+                    program,
+                    owner,
+                    parameters,
+                    member.receiver,
+                )
+            } else {
+                scope.and_then(|(machine, state, _)| {
+                    crate::expression_result_type_reference(
+                        program,
+                        machine,
+                        state,
+                        member.receiver,
+                    )
+                })
+            }
+            .or_else(|| {
+                // Declaration-wide conformance checks have no invocation
+                // frame. The reserved result still has an exact authored
+                // owner; recover its carrier rather than losing a functional
+                // postcondition's projections to opaque display text.
+                crate::reserved_result_place(program, member.receiver)
+                    .map(|place| place.type_reference)
+            });
+            if let Some(reference) = receiver_type
+                && let Some(measure) = collection_measure_term(program, member, reference, || {
+                    structural_term(program, scope, frame, member.receiver, bindings)
+                })
+            {
+                return Some(measure);
+            }
             if let Some(call) = program.expression_table.call_node(member.receiver)
                 && (!call.receiver.is_valid()
                     || static_call_receiver_for_target(
@@ -664,65 +729,6 @@ pub(super) fn structural_term(
                     });
                 }
             }
-            // A `.len` over declared fixed storage reads a closed extent in
-            // the declaring scope: `main.nodes.len` on a `[Node; 4]` field is
-            // the literal 4. Runtime-length receivers keep a substitutable
-            // projection below so a call instantiation can still decide them.
-            let is_length_member =
-                language_semantics::declaration_selection::CollectionMeasure::from_authored_spelling(
-                    member.member.as_str(),
-                )
-                    == Some(language_semantics::declaration_selection::CollectionMeasure::Length)
-                    && !member.member_symbol.is_valid()
-                    && member.case_variant.is_none();
-            if is_length_member
-                && let Some((machine, state, _)) = scope
-                && let Some(receiver) = crate::value_custody::places::collection_length_receiver(
-                    program,
-                    machine,
-                    Some(state),
-                    expression,
-                )
-                && let Some(extent) = crate::value_custody::places::declared_collection_extent(
-                    program,
-                    machine,
-                    Some(state),
-                    receiver,
-                )
-            {
-                return Some(StructuralTerm::Integer(numerics::bignum::BigInt::from_u64(
-                    extent as u64,
-                )));
-            }
-            // Contract projections can retain an unresolved member handle even
-            // when the receiver's declared record fixes the field. Rejoin that
-            // declaration rather than turning the projection into opaque source
-            // text: substitution must still be able to reach a returned record.
-            let receiver_type = if let Some((owner, parameters)) = frame {
-                crate::parameter_expression_result_type_reference(
-                    program,
-                    owner,
-                    parameters,
-                    member.receiver,
-                )
-            } else {
-                scope.and_then(|(machine, state, _)| {
-                    crate::expression_result_type_reference(
-                        program,
-                        machine,
-                        state,
-                        member.receiver,
-                    )
-                })
-            }
-            .or_else(|| {
-                // Declaration-wide conformance checks have no invocation
-                // frame. The reserved result still has an exact authored
-                // owner; recover its carrier rather than losing a functional
-                // postcondition's projections to opaque display text.
-                crate::reserved_result_place(program, member.receiver)
-                    .map(|place| place.type_reference)
-            });
             let declared_field = receiver_type
                 .and_then(|reference| {
                     let data =
@@ -739,9 +745,7 @@ pub(super) fn structural_term(
             // A field read off a value receiver: when the receiver termifies
             // to a closed constructor (a struct literal, an immutable local
             // tracing to one, or a nested projection already resolved), the
-            // field term is recoverable by name. Collection length remains
-            // a substitutable projection so call instantiation can recover
-            // the actual extent. Ordinary symbolic fields retain the same
+            // field term is recoverable by name. Ordinary symbolic fields retain the same
             // vocabulary as callee_term and citation intake.
             match structural_term(program, scope, frame, member.receiver, bindings) {
                 Some(StructuralTerm::Constructor { fields, .. }) => fields
@@ -760,9 +764,7 @@ pub(super) fn structural_term(
                     | StructuralTerm::CapturedValue { .. }
                     | StructuralTerm::CallProjection { .. }
                     | StructuralTerm::IndexedValue { .. }),
-                ) if (is_length_member || declared_field)
-                    && !term_is_unobserved_descriptor(program, &subject) =>
-                {
+                ) if declared_field && !term_is_unobserved_descriptor(program, &subject) => {
                     Some(StructuralTerm::Projection {
                         subject: Box::new(subject),
                         path: member.member.as_str().to_owned(),

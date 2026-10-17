@@ -11,7 +11,7 @@
 use super::StructuralTerm;
 
 impl StructuralTerm {
-    /// Stable key of an already authenticated completed scalar observation.
+    /// Stable key of an already authenticated completed value observation.
     /// Reuse this owner's semantic formatting, also used by polynomial keys:
     /// it erases observation-only shells exactly as semantic equality does.
     /// Event handles and capture sequence remain part of the key, so another
@@ -27,6 +27,9 @@ impl StructuralTerm {
                 StructuralTerm::Opaque(_) => false,
                 StructuralTerm::ObservedValue { value, .. } => available(value, depth + 1),
                 StructuralTerm::Projection { subject, .. } => available(subject, depth + 1),
+                StructuralTerm::CollectionMeasure { collection, .. } => {
+                    available(collection, depth + 1)
+                }
                 StructuralTerm::Constructor { fields, .. } => {
                     fields.iter().all(|(_, value)| available(value, depth + 1))
                 }
@@ -229,6 +232,19 @@ impl PartialEq for StructuralTerm {
                 };
                 (subject, path) == (other_subject, other_path)
             }
+            Self::CollectionMeasure {
+                measure,
+                collection,
+            } => {
+                let Self::CollectionMeasure {
+                    measure: other_measure,
+                    collection: other_collection,
+                } = other
+                else {
+                    return false;
+                };
+                (measure, collection) == (other_measure, other_collection)
+            }
             Self::ScalarBinary {
                 operator,
                 meaning,
@@ -352,6 +368,14 @@ impl std::fmt::Debug for StructuralTerm {
                 .debug_struct("Projection")
                 .field("subject", subject)
                 .field("path", path)
+                .finish(),
+            Self::CollectionMeasure {
+                measure,
+                collection,
+            } => formatter
+                .debug_struct("CollectionMeasure")
+                .field("measure", measure)
+                .field("collection", collection)
                 .finish(),
             Self::ScalarBinary {
                 operator,

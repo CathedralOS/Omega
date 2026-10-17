@@ -89,5 +89,6 @@ fn rewrite_key(term: &StructuralTerm) -> (u8, u64) {
         StructuralTerm::ObservedValue { .. } => (14, 0),
         StructuralTerm::IntegerEmbedding { .. } => (15, 0),
         StructuralTerm::MathematicalBinary { operator, .. } => (16, discriminant_key(operator)),
+        StructuralTerm::CollectionMeasure { measure, .. } => (17, discriminant_key(measure)),
     }
 }

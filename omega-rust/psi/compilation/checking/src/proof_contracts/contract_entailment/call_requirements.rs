@@ -430,16 +430,21 @@ impl super::structural_prefix::StructuralPrefixVisitor for CallRequirement<'_> {
                 let value = if self.call_expression.is_valid()
                     && crate::reference_shell(program, parameter.type_reference).is_some()
                 {
-                    subjects
-                        .iter()
-                        .find(|subject| subject.parameter == parameter.symbol)
-                        .and_then(|subject| {
-                            entry.judge.reference_subject_term(
-                                subject,
-                                environment,
-                                (machine, caller_state, caller_state.return_type),
-                            )
-                        })
+                    super::structural_terms::reference_argument_observation(
+                        program,
+                        parameter.type_reference,
+                        value,
+                        subjects
+                            .iter()
+                            .find(|subject| subject.parameter == parameter.symbol)
+                            .and_then(|subject| {
+                                entry.judge.reference_subject_term(
+                                    subject,
+                                    environment,
+                                    (machine, caller_state, caller_state.return_type),
+                                )
+                            }),
+                    )
                 } else if self.call_expression.is_valid()
                     && !entry.judge.frame_resolver().is_some_and(|frames| {
                         frames.proof_value_is_caller_isolated(parameter.type_reference)

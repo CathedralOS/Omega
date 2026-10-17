@@ -154,6 +154,7 @@ pub(super) fn ensured_call_operand(
     let arguments = program.expression_table.expression_handles(call.arguments);
     Some(Operand::Call {
         target: call.target_symbol,
+        occurrence: expression,
         arguments: arguments
             .iter()
             .map(|argument| operand(program, machine, state, *argument, None))

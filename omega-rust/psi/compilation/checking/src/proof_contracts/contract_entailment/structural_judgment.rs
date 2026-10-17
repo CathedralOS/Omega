@@ -45,12 +45,13 @@ pub(super) struct CaseGuarantee {
 #[derive(Clone)]
 pub(super) enum StructuralTerm {
     Variable(String),
-    /// A frame-authenticated scalar observation of an input referent. The
-    /// wrapped value retains its original identity; this declared type records
-    /// content authority, not reference descriptor identity or output origin.
+    /// A frame-authenticated observation of an input referent. Scalar reads
+    /// retain their declared content authority. A collection additionally keeps
+    /// its completed descriptor: its metadata never identifies referent contents.
     ObservedValue {
         observed_type: TypeReferenceHandle,
         value: Box<StructuralTerm>,
+        descriptor: Option<Box<StructuralTerm>>,
     },
     /// A completed call's exact local result. Its contract may classify this
     /// value, but neither its spelling nor its callee's body defines it here.
@@ -135,6 +136,13 @@ pub(super) enum StructuralTerm {
         subject: Box<StructuralTerm>,
         path: String,
     },
+    /// Authenticated collection value metadata, independent of referent
+    /// contents. The exact descriptor remains the subject; observing this
+    /// measure never makes that descriptor a readable referent snapshot.
+    CollectionMeasure {
+        measure: language_semantics::declaration_selection::CollectionMeasure,
+        collection: Box<StructuralTerm>,
+    },
     /// A builtin indexed observation of the same retained collection value and
     /// evaluated selector. The canonical element carrier is part of identity;
     /// the declaration handle retains observation authority after substitution.
@@ -196,6 +204,19 @@ impl StructuralTerm {
         match self {
             Self::ObservedValue { value, .. } => (*value).into_semantic_value(),
             other => other,
+        }
+    }
+
+    /// Metadata observes the completed descriptor, while ordinary observation
+    /// identity continues to name the separately authenticated referent value.
+    pub(super) fn into_collection_descriptor(self) -> Self {
+        match self {
+            Self::ObservedValue {
+                descriptor: Some(descriptor),
+                ..
+            } => descriptor.into_collection_descriptor(),
+            Self::ObservedValue { value, .. } => value.into_collection_descriptor(),
+            value => value,
         }
     }
 
@@ -743,6 +764,7 @@ impl<'program> StructuralJudge<'program> {
             (
                 StructuralTerm::Application { .. }
                 | StructuralTerm::CapturedValue { .. }
+                | StructuralTerm::CollectionMeasure { .. }
                 | StructuralTerm::Projection { .. }
                 | StructuralTerm::IndexedValue { .. }
                 | StructuralTerm::MathematicalBinary { .. }
@@ -758,6 +780,7 @@ impl<'program> StructuralJudge<'program> {
                 _,
                 StructuralTerm::Application { .. }
                 | StructuralTerm::CapturedValue { .. }
+                | StructuralTerm::CollectionMeasure { .. }
                 | StructuralTerm::Projection { .. }
                 | StructuralTerm::IndexedValue { .. }
                 | StructuralTerm::MathematicalBinary { .. }
@@ -828,10 +851,13 @@ impl<'program> StructuralJudge<'program> {
                 StructuralTerm::ObservedValue {
                     observed_type,
                     value,
+                    descriptor,
                 } => {
                     return StructuralTerm::ObservedValue {
                         observed_type,
                         value: Box::new(self.resolve_at(*value, depth + 1)),
+                        descriptor: descriptor
+                            .map(|descriptor| Box::new(self.resolve_at(*descriptor, depth + 1))),
                     };
                 }
                 StructuralTerm::CapturedValue { .. } => {
@@ -996,6 +1022,23 @@ impl<'program> StructuralJudge<'program> {
                         element_identity,
                         collection: Box::new(self.resolve_at(*collection, depth + 1)),
                         index: Box::new(self.resolve_at(*index, depth + 1)),
+                    };
+                    if let Some((_, replacement)) = self.rewrites.find(&resolved) {
+                        term = replacement.clone();
+                        continue;
+                    }
+                    return resolved;
+                }
+                StructuralTerm::CollectionMeasure {
+                    measure,
+                    collection,
+                } => {
+                    let resolved = StructuralTerm::CollectionMeasure {
+                        measure,
+                        collection: Box::new(
+                            self.resolve_at(*collection, depth + 1)
+                                .into_collection_descriptor(),
+                        ),
                     };
                     if let Some((_, replacement)) = self.rewrites.find(&resolved) {
                         term = replacement.clone();
@@ -1570,6 +1613,9 @@ impl<'program> StructuralJudge<'program> {
         {
             return Some(value.clone());
         }
+        if let Some(value) = self.completed_descriptor_binding(scope, expression, environment) {
+            return Some(value);
+        }
         if let Some(value) = self.stored_value_observation(
             scope.map(|(machine, state, _)| (machine, state)),
             expression,
@@ -1611,6 +1657,30 @@ impl<'program> StructuralJudge<'program> {
                 }
             }
             ExpressionNode::Member(member) => {
+                if let Some((machine, state, _)) = scope
+                    && let Some(reference) = crate::expression_result_type_reference(
+                        program,
+                        machine,
+                        state,
+                        member.receiver,
+                    )
+                    && let Some(measure) = super::structural_terms::collection_measure_term(
+                        program,
+                        member,
+                        reference,
+                        || {
+                            self.callee_term(
+                                member.receiver,
+                                environment,
+                                machine_environment,
+                                scope,
+                                depth + 1,
+                            )
+                        },
+                    )
+                {
+                    return Some(measure);
+                }
                 if let ExpressionNode::Call(call) =
                     program.expression_table.expression(member.receiver)
                     && (!call.receiver.is_valid()
@@ -1911,9 +1981,13 @@ impl<'program> StructuralJudge<'program> {
             StructuralTerm::ObservedValue {
                 observed_type,
                 value,
+                descriptor,
             } => StructuralTerm::ObservedValue {
                 observed_type: *observed_type,
                 value: Box::new(Self::substitute_call_term(value, map, machine_map)),
+                descriptor: descriptor.as_ref().map(|descriptor| {
+                    Box::new(Self::substitute_call_term(descriptor, map, machine_map))
+                }),
             },
             StructuralTerm::Integer(_)
             | StructuralTerm::Float(_)
@@ -1930,6 +2004,16 @@ impl<'program> StructuralJudge<'program> {
                 element_identity: *element_identity,
                 collection: Box::new(Self::substitute_call_term(collection, map, machine_map)),
                 index: Box::new(Self::substitute_call_term(index, map, machine_map)),
+            },
+            StructuralTerm::CollectionMeasure {
+                measure,
+                collection,
+            } => StructuralTerm::CollectionMeasure {
+                measure: *measure,
+                collection: Box::new(
+                    Self::substitute_call_term(collection, map, machine_map)
+                        .into_collection_descriptor(),
+                ),
             },
             StructuralTerm::Projection { subject, path } => StructuralTerm::Projection {
                 subject: Box::new(Self::substitute_call_term(subject, map, machine_map)),
@@ -2057,6 +2141,7 @@ impl<'program> StructuralJudge<'program> {
                         | StructuralTerm::ScalarBinary { .. }
                         | StructuralTerm::MathematicalBinary { .. }
                         | StructuralTerm::IntegerEmbedding { .. }
+                        | StructuralTerm::CollectionMeasure { .. }
                         | StructuralTerm::Projection { .. }
                         | StructuralTerm::IndexedValue { .. } => StructuralTerm::Projection {
                             subject: Box::new(replacement.clone()),
@@ -2101,7 +2186,11 @@ impl<'program> StructuralJudge<'program> {
                 Self::self_applications(collection, selected_target, found);
                 Self::self_applications(index, selected_target, found);
             }
-            StructuralTerm::Projection { subject, .. }
+            StructuralTerm::CollectionMeasure {
+                collection: subject,
+                ..
+            }
+            | StructuralTerm::Projection { subject, .. }
             | StructuralTerm::IntegerEmbedding { value: subject, .. } => {
                 Self::self_applications(subject, selected_target, found)
             }
@@ -2563,8 +2652,10 @@ impl<'program> StructuralJudge<'program> {
             StructuralTerm::ObservedValue {
                 observed_type,
                 value,
+                descriptor,
             } => Some(StructuralTerm::ObservedValue {
                 observed_type,
+                descriptor,
                 value: Box::new(self.resolve_case_subject(*value, depth + 1)?),
             }),
             StructuralTerm::Variable(ref name) => match self
@@ -2600,6 +2691,7 @@ impl<'program> StructuralJudge<'program> {
             | StructuralTerm::ScalarBinary { .. }
             | StructuralTerm::MathematicalBinary { .. }
             | StructuralTerm::IntegerEmbedding { .. }
+            | StructuralTerm::CollectionMeasure { .. }
             | StructuralTerm::Projection { .. }
             | StructuralTerm::IndexedValue { .. } => None,
         }

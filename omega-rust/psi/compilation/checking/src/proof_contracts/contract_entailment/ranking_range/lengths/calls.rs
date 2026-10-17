@@ -1,102 +1,165 @@
-//! A selected call's published normal-return length equation.
-//! Argument values come from the caller's captured arithmetic roster. The
-//! selected declaration supplies formal identity and its independent ensures;
-//! neither a callee name nor a range-shaped argument supplies result geometry.
+//! A completed call's metadata uses the shared normal-return value owner.
+//!
+//! Capture the exact operation after its earlier operands and before later
+//! siblings. Selected public equations, including the common target-family
+//! equations, describe this occurrence. No contract syntax or private body is
+//! reinterpreted here, and future facts cannot describe an earlier descriptor.
 
-use super::{BigInt, Engine, ExpressionNode};
-use crate::proof_contracts::contract_entailment::{
-    StrictArithmeticBindingValue, StrictArithmeticSymbolBinding,
-};
-use typed_trees::expression::{BinaryOperator, TableCallExpression};
-use typed_trees::signature::SignatureContractKind;
+use crate::proof_contracts::contract_entailment as entailment;
+use entailment::citations::CitationFacts;
+use entailment::structural_judgment::{StructuralJudge, StructuralTerm};
+use entailment::structural_prefix::{StructuralPrefixSite, StructuralPrefixVisitor};
+use language_semantics::declaration_selection::CollectionMeasure;
+use symbols::SymbolHandle;
+use typed_trees::expression::ExpressionHandle;
+use typed_trees::{machine::Machine, state::State, types::TypeReferenceHandle};
+
+type LengthSite = (SymbolHandle, SymbolHandle, ExpressionHandle);
+type ActiveLengthSite = (
+    SymbolHandle,
+    SymbolHandle,
+    ExpressionHandle,
+    std::thread::ThreadId,
+);
 
 pub(super) fn normal_return_length(
     program: &dyn crate::CheckingInput,
-    call: &TableCallExpression,
-    caller: &mut Engine<'_>,
+    machine: &Machine,
+    state: &State,
+    expression: ExpressionHandle,
 ) -> Option<u64> {
-    if !call.selects_only_nominal_route() || call.receiver.is_valid() {
+    // Bare mutable source inputs have no invocation guard. This optional proof
+    // query must decline instead of recursively assuming its own result.
+    let memos = crate::frozen_program::frozen_program_memos(program)?;
+    let site: LengthSite = (machine.symbol, state.symbol, expression);
+    if let Some(length) = memos.completed_collection_lengths.lock().ok()?.get(&site) {
+        return Some(*length);
+    }
+    let active = (site.0, site.1, site.2, std::thread::current().id());
+    if memos
+        .active_collection_lengths
+        .lock()
+        .ok()?
+        .insert(active, ())
+        .is_some()
+    {
         return None;
     }
-    let contract = crate::machine_calls::calls::callee_entry_contract(program, call.target_symbol)?;
-    if !crate::value_custody::type_shapes::has_slice_base(program, contract.return_type) {
-        return None;
-    }
-    let (machine, state) =
-        crate::machine_calls::calls::machine_state_by_symbol(program, call.target_symbol)?;
-    let arguments = program
-        .expression_table
-        .expression_handles(call.arguments)
-        .get(contract.leading_operands..)?;
-    if arguments.len() != contract.parameters.len() {
-        return None;
-    }
-    let bindings = contract
-        .parameters
-        .iter()
-        .zip(arguments)
-        .filter_map(|(parameter, argument)| {
-            if parameter.is_mutable
-                || parameter.is_const
-                || !program
-                    .primitive_type_reference(parameter.type_reference)
-                    .is_some_and(|primitive| primitive.is_fixed_integer())
-            {
-                return None;
-            }
-            caller
-                .normalize(*argument)
-                .and_then(|value| value.constant_value())
-                .map(|value| StrictArithmeticSymbolBinding {
-                    symbol: parameter.symbol,
-                    value: StrictArithmeticBindingValue::Integer(value),
-                })
-        })
-        .collect::<Vec<_>>();
-    let mut callee = Engine::strict(program, machine, &bindings);
-    let result_length = |expression| {
-        let Some(receiver) =
-            crate::collection_length_receiver(program, machine, Some(state), expression)
-        else {
-            return false;
-        };
-        crate::reserved_result_owner(program, receiver)
-            == Some((contract.callable, contract.return_type))
+    let _active = ActiveLengthQuery {
+        memos,
+        site: active,
     };
-    for expression in program.contract_expressions(
-        contract
-            .contracts
-            .iter()
-            .filter(|contract| contract.binding.is_none()),
-        SignatureContractKind::Ensures,
-    ) {
-        let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
-            continue;
-        };
-        if binary.operator != BinaryOperator::Equal
-            || !crate::proof_contracts::bound_expression_meaning::has_builtin_binary_expression_meaning(
+    let statement_index =
+        entailment::completed_values::expression_statement_index(program, state, expression)?;
+    let reference = crate::expression_result_type_reference(program, machine, state, expression)?;
+    crate::slice_view_shell(program, reference, &[])?;
+    let mut visitor = NormalReturnLength {
+        site: StructuralPrefixSite {
+            state: state.symbol,
+            statement_index,
+            in_transition_target: entailment::structural_prefix::expression_is_transition_target(
                 program,
-                machine,
-                Some(state),
+                state,
+                statement_index,
                 expression,
-            )
-        {
-            continue;
-        }
-        let value = if result_length(binary.left) {
-            binary.right
-        } else if result_length(binary.right) {
-            binary.left
-        } else {
-            continue;
-        };
-        if let Some(length) = callee
-            .normalize(value)
-            .and_then(|value| value.constant_value())
-            && length >= BigInt::zero()
-        {
-            return length.to_u64();
+            ),
+        },
+        expression,
+        reference,
+        length: None,
+        recognized: true,
+    };
+    entailment::structural_prefix::observe_runtime_state_prefix(
+        program,
+        machine,
+        state,
+        &mut visitor,
+    )?;
+    let length = visitor.recognized.then_some(visitor.length?)?;
+    // Only successful observations are cached. A declined recursive query is
+    // unavailable evidence, never a completed negative result for another path.
+    memos
+        .completed_collection_lengths
+        .lock()
+        .ok()?
+        .insert(site, length);
+    Some(length)
+}
+
+struct ActiveLengthQuery<'query> {
+    memos: &'query crate::frozen_program::CheckingMemos,
+    site: ActiveLengthSite,
+}
+
+impl Drop for ActiveLengthQuery<'_> {
+    fn drop(&mut self) {
+        if let Ok(mut active) = self.memos.active_collection_lengths.lock() {
+            active.remove(&self.site);
         }
     }
-    None
+}
+
+struct NormalReturnLength {
+    site: StructuralPrefixSite,
+    expression: ExpressionHandle,
+    reference: TypeReferenceHandle,
+    length: Option<u64>,
+    recognized: bool,
+}
+
+impl StructuralPrefixVisitor for NormalReturnLength {
+    fn site(&self) -> StructuralPrefixSite {
+        self.site
+    }
+
+    fn visit<'program>(
+        &mut self,
+        program: &'program dyn crate::CheckingInput,
+        machine: &Machine,
+        judge: &StructuralJudge<'program>,
+        environment: &[(String, StructuralTerm)],
+        hypotheses: &[(String, StructuralTerm)],
+        equations: &[(StructuralTerm, StructuralTerm)],
+        guarantees: &CitationFacts,
+    ) {
+        let mut judge = entailment::structural_case_arms::structural_arm_judge(
+            program, judge, hypotheses, equations,
+        );
+        if judge.hypotheses_contradictory {
+            return;
+        }
+        guarantees.intake(&mut judge);
+        let Some(state) = program.state_in_machine(machine, self.site.state) else {
+            self.recognized = false;
+            return;
+        };
+        let Some(outcomes) = judge.normal_operation_results(
+            self.site.statement_index,
+            self.expression,
+            environment,
+            (machine, state, self.reference),
+        ) else {
+            self.recognized = false;
+            return;
+        };
+        for outcome in outcomes {
+            let length = entailment::structural_terms::observed_collection_measure(
+                program,
+                self.reference,
+                CollectionMeasure::Length,
+                || Some(outcome.value),
+            )
+            .and_then(|measure| {
+                let StructuralTerm::Integer(value) = outcome.judge.resolve(measure) else {
+                    return None;
+                };
+                value.to_u64()
+            });
+            match (self.length, length) {
+                (None, Some(length)) => self.length = Some(length),
+                (Some(previous), Some(length)) if previous == length => {}
+                _ => self.recognized = false,
+            }
+        }
+    }
 }

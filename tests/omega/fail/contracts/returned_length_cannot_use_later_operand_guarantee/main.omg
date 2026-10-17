@@ -1,0 +1,13 @@
+// A later normal-return guarantee cannot justify an earlier index.
+// The boundary may reject/trap for other lengths; only its normal return
+// publishes this fact, after the first operand has already executed.
+boundary machine certify(bytes: &[u8]) -> bool
+ensures bytes.len == 2
+crashes Trap;
+machine forward<'a>(bytes: &'a [u8]) -> &'a [u8]
+ensures result.len == bytes.len { bytes }
+machine consume(first: u8, certified: bool) -> u8 { first }
+machine observe(bytes: &[u8]) -> u8 crashes Trap {
+    consume(forward(bytes)[1], certify(bytes))
+}
+machine main() {}

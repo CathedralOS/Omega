@@ -1,0 +1,9 @@
+// A stable slice descriptor does not preserve its old element contents.
+machine need(before: u8, after: u8) requires before == after {}
+machine set(items: &mut [u8]) requires items.len >= 1 { items[0] = 2; }
+machine stale(items: &mut [u8]) requires items.len >= 1 {
+    let before: u8 = items[0];
+    set(items);
+    need(before, items[0]);
+}
+machine main() { let mut bytes: [u8; 2] = [1, 3]; stale(&mut bytes[..]); }

@@ -895,7 +895,11 @@ fn term_has_complete_substitution(
                 .iter()
                 .all(|argument| term_has_complete_substitution(program, argument))
         }
-        StructuralTerm::Projection { subject, .. } => {
+        StructuralTerm::CollectionMeasure {
+            collection: subject,
+            ..
+        }
+        | StructuralTerm::Projection { subject, .. } => {
             // Term formation retains a selected field or collection measure;
             // its complete subject, not the display path alone, owns identity.
             term_has_complete_substitution(program, subject)

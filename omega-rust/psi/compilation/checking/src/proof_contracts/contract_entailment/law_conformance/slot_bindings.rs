@@ -117,8 +117,17 @@ pub(crate) fn rewrite_slot_applications(
         StructuralTerm::ObservedValue {
             observed_type,
             value,
+            descriptor,
         } => StructuralTerm::ObservedValue {
             observed_type: *observed_type,
+            descriptor: descriptor.as_ref().map(|descriptor| {
+                Box::new(rewrite_slot_applications(
+                    descriptor,
+                    slot_names,
+                    slot_bindings,
+                    missing,
+                ))
+            }),
             value: Box::new(rewrite_slot_applications(
                 value,
                 slot_names,
@@ -250,6 +259,18 @@ pub(crate) fn rewrite_slot_applications(
                 missing,
             )),
         },
+        StructuralTerm::CollectionMeasure {
+            measure,
+            collection,
+        } => StructuralTerm::CollectionMeasure {
+            measure: *measure,
+            collection: Box::new(rewrite_slot_applications(
+                collection,
+                slot_names,
+                slot_bindings,
+                missing,
+            )),
+        },
         StructuralTerm::Projection { subject, path } => StructuralTerm::Projection {
             subject: Box::new(rewrite_slot_applications(
                 subject,
@@ -270,7 +291,11 @@ pub(crate) fn term_mentions_variable(term: &StructuralTerm, variable: &String) -
         | StructuralTerm::MathematicalBinary { left, right, .. } => {
             term_mentions_variable(left, variable) || term_mentions_variable(right, variable)
         }
-        StructuralTerm::Projection { subject, .. }
+        StructuralTerm::CollectionMeasure {
+            collection: subject,
+            ..
+        }
+        | StructuralTerm::Projection { subject, .. }
         | StructuralTerm::IntegerEmbedding { value: subject, .. } => {
             term_mentions_variable(subject, variable)
         }
@@ -393,6 +418,14 @@ pub(crate) fn diagnostic_shape_match(
 /// Render a term back into citation-argument spelling.
 pub(crate) fn display_structural_term(term: &StructuralTerm) -> String {
     match term.semantic_value() {
+        StructuralTerm::CollectionMeasure {
+            measure,
+            collection,
+        } => format!(
+            "{}.{}",
+            display_structural_term(collection),
+            measure.authored_spelling(),
+        ),
         StructuralTerm::ObservedValue { .. } => unreachable!("semantic_value strips observations"),
         StructuralTerm::Variable(name) => name.clone(),
         StructuralTerm::BoundValue(symbol) => format!("<completed value {symbol:?}>"),

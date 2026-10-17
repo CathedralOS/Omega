@@ -1,0 +1,11 @@
+// Substituting an indexed precondition must retain the content-observation fence.
+machine set(items: &mut [u8]) requires items.len >= 1 { items[0] = 2; }
+machine need(items: &mut [u8], before: u8)
+requires items.len >= 1
+requires items[0] == before {}
+machine stale(items: &mut [u8]) requires items.len >= 1 {
+    let before: u8 = items[0];
+    set(items);
+    need(items, before);
+}
+machine main() { let mut bytes: [u8; 2] = [1, 3]; stale(&mut bytes[..]); }

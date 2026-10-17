@@ -1,0 +1,12 @@
+// The views share backing storage, but have distinct captured descriptors.
+machine short<'a>(items: &'a [u8; 4]) -> &'a [u8]
+ensures result.len == 1 { &items[0..1] }
+machine long<'a>(items: &'a [u8; 4]) -> &'a [u8]
+ensures result.len == 2 { &items[0..2] }
+machine same(left: &[u8], right: &[u8]) requires left.len == right.len {}
+machine main() {
+    let items: [u8; 4] = [1, 2, 3, 4];
+    let first: &[u8] = short(&items);
+    let second: &[u8] = long(&items);
+    same(first, second);
+}

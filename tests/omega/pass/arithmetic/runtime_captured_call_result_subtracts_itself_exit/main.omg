@@ -1,0 +1,22 @@
+// Expected exit: 0.
+// One completed effectful result stays the same value through a state argument.
+machine next(flag: &mut u64) -> u64
+ensures result >= result {
+    transition flag { 0 -> first(flag) _ -> (1) }
+    state first(flag: &mut u64) -> u64 { flag = 1; 0 }
+}
+machine same(flag: &mut u64) -> u64 {
+    let captured: u64 = next(flag);
+    transition { _ -> ready(captured) }
+    state ready(captured: u64) -> u64 { captured - captured }
+}
+machine main() crashes Trap {
+    let mut flag: u64 = 0;
+    let value: u64 = same(&mut flag);
+    transition value == 0 && flag == 1 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

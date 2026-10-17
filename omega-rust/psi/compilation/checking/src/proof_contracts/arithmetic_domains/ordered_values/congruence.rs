@@ -74,13 +74,20 @@ fn compare(relations: &[Relation], left: &Operand, right: &Operand, depth: usize
         (
             Operand::Call {
                 target: left_target,
+                occurrence: left_occurrence,
                 arguments: left,
             },
             Operand::Call {
                 target: right_target,
+                occurrence: right_occurrence,
                 arguments: right,
             },
-        ) => left_target.is_valid() && left_target == right_target && same_children(left, right),
+        ) => {
+            left_target.is_valid()
+                && left_target == right_target
+                && left_occurrence == right_occurrence
+                && same_children(left, right)
+        }
         (
             Operand::Binary {
                 operator: left_operator,

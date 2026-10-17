@@ -55,6 +55,10 @@ pub(super) enum Operand {
     ),
     Call {
         target: SymbolHandle,
+        /// A valid handle names one operation in this evaluation. Only the
+        /// repeatable denotation route leaves this invalid and uses argument
+        /// congruence across distinct source calls.
+        occurrence: ExpressionHandle,
         arguments: Vec<Operand>,
     },
     CollectionLength(Box<Operand>),
@@ -160,9 +164,16 @@ impl Operand {
                     immutable && program.primitive_type_reference(reference).is_some()
                 }) && declarations.next().is_none()
             }
-            Self::Call { arguments, .. } => arguments
-                .iter()
-                .all(|value| value.is_immutable_snapshot(program, state)),
+            Self::Call {
+                occurrence,
+                arguments,
+                ..
+            } => {
+                !occurrence.is_valid()
+                    && arguments
+                        .iter()
+                        .all(|value| value.is_immutable_snapshot(program, state))
+            }
             Self::Binary { operands, .. } => operands
                 .iter()
                 .all(|value| value.is_immutable_snapshot(program, state)),
@@ -184,8 +195,13 @@ impl Operand {
                 },
             ),
             Self::Integer(..) => true,
-            Self::Call { arguments, .. } => {
-                arguments.iter().all(|value| value.survives_paths(written))
+            Self::Call {
+                occurrence,
+                arguments,
+                ..
+            } => {
+                (!occurrence.is_valid() || written.is_empty())
+                    && arguments.iter().all(|value| value.survives_paths(written))
             }
             Self::CollectionLength(collection) => collection.survives(written),
             Self::Indexed {
@@ -247,7 +263,13 @@ impl Operand {
                     primitive: *primitive,
                 })
                 .collect(),
-            Self::Call { target, arguments } => {
+            // A raw runtime event is local to this evaluation. Only an exact
+            // direct binding above can carry its completed value across a state
+            // edge; argument rebinding cannot recreate another invocation.
+            Self::Call { occurrence, .. } if occurrence.is_valid() => Vec::new(),
+            Self::Call {
+                target, arguments, ..
+            } => {
                 let mut combinations = vec![Vec::new()];
                 for argument in arguments {
                     let alternatives = argument.rebound(bindings);
@@ -266,6 +288,7 @@ impl Operand {
                     .into_iter()
                     .map(|arguments| Self::Call {
                         target: *target,
+                        occurrence: ExpressionHandle::invalid(),
                         arguments,
                     })
                     .collect()
@@ -480,6 +503,7 @@ fn build_operand(
             }
             Some(Operand::Call {
                 target: call.target_symbol,
+                occurrence: ExpressionHandle::invalid(),
                 arguments: arguments
                     .iter()
                     .map(|argument| {

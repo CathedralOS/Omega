@@ -1,0 +1,11 @@
+// A write from any retained body retires a caller fact, including on other hosts.
+linux_x86_64 machine touch(value: &mut u64) {  }
+linux_arm64 machine touch(value: &mut u64) {  }
+macos_arm64 machine touch(value: &mut u64) {  }
+windows_x86_64 machine touch(value: &mut u64) { value = 2; }
+machine need(value: u64) requires value == 1 {}
+machine main() {
+    let mut value: u64 = 1;
+    touch(&mut value);
+    need(value);
+}

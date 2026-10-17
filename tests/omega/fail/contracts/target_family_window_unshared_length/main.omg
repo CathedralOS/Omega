@@ -1,0 +1,19 @@
+// All retained bodies participate: length 1 cannot publish length 2.
+linux_x86_64 machine window<'a>(items: &'a mut [u8; 4]) -> &'a mut [u8]
+ensures result.len == 2
+{ &mut items[0..2] }
+linux_arm64 machine window<'a>(items: &'a mut [u8; 4]) -> &'a mut [u8]
+ensures result.len == 2
+{ &mut items[0..2] }
+macos_arm64 machine window<'a>(items: &'a mut [u8; 4]) -> &'a mut [u8]
+ensures result.len == 2
+{ &mut items[0..2] }
+windows_x86_64 machine window<'a>(items: &'a mut [u8; 4]) -> &'a mut [u8]
+ensures result.len == 1
+{ &mut items[0..1] }
+machine need(items: &mut [u8]) requires items.len >= 2 { items[0] = 9; items[1] = 8; }
+machine main() {
+ let mut items: [u8; 4] = [1, 2, 3, 4];
+ let view: &mut [u8] = window(&mut items);
+ need(view);
+}

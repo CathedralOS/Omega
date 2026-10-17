@@ -451,6 +451,61 @@ impl StructuralJudge<'_> {
         Some(())
     }
 
+    /// A direct slice's descriptor is a completed value, independent of the
+    /// backing contents. Use the retained scope value only while its binding
+    /// home survives; never reconstruct it from its initializer or a pointee.
+    pub(super) fn completed_descriptor_binding(
+        &self,
+        scope: Option<(
+            &typed_trees::machine::Machine,
+            &State,
+            typed_trees::types::TypeReferenceHandle,
+        )>,
+        expression: ExpressionHandle,
+        environment: &[(String, super::StructuralTerm)],
+    ) -> Option<super::StructuralTerm> {
+        self.requires_value_preservation().then_some(())?;
+        let (_, state, _) = scope?;
+        let name = self.program.expression_table.name_path_node(expression)?;
+        if name.symbol != name.head_symbol || !self.storage_binding_invalidated(name.symbol) {
+            return None;
+        }
+        use crate::value_custody::places::binding_observations::{
+            BindingObservation, binding_is_exclusively_exposed, binding_is_written,
+        };
+        // A coarse outward frame can describe writes through a view without
+        // distinguishing its backing from its carrier slot. The binding owner
+        // separately establishes that this private descriptor home is neither
+        // replaced nor exposed; referent snapshots retain the stronger fence.
+        if binding_is_exclusively_exposed(self.program, state, name.symbol)
+            || binding_is_written(
+                self.program,
+                state,
+                name.symbol,
+                BindingObservation::Descriptor,
+            )
+        {
+            return None;
+        }
+        let reference = self
+            .program
+            .state_parameter_by_symbol(state, name.symbol)
+            .map(|parameter| parameter.type_reference)
+            .or_else(|| {
+                self.program
+                    .state_local_declaration(state, name.symbol)
+                    .map(|(_, local)| local.type_reference)
+            })?;
+        crate::slice_view_shell(self.program, reference, &[])?;
+        let binding = self.program.symbols.name(name.symbol);
+        let mut values = environment.iter().filter(|(name, _)| name == binding);
+        let value = values.next()?.1.clone();
+        values
+            .next()
+            .is_none()
+            .then(|| super::super::structural_terms::descriptor_only_observation(reference, value))
+    }
+
     pub(super) fn storage_observation_invalidated(&self, expression: ExpressionHandle) -> bool {
         crate::value_custody::places::expression_root_symbol(
             expression,

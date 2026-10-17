@@ -544,7 +544,11 @@ fn collect_applications<'term>(
             }
             applications.push(term);
         }
-        StructuralTerm::Projection { subject, .. }
+        StructuralTerm::CollectionMeasure {
+            collection: subject,
+            ..
+        }
+        | StructuralTerm::Projection { subject, .. }
         | StructuralTerm::IntegerEmbedding { value: subject, .. } => {
             collect_applications(subject, applications)
         }
@@ -761,6 +765,25 @@ pub(super) fn bound_term(
                 parameters,
                 member.receiver,
             )?;
+            if let Some(measure) = super::super::structural_terms::collection_measure_term(
+                program,
+                member,
+                reference,
+                || {
+                    bound_term(
+                        program,
+                        member.receiver,
+                        scope,
+                        parameters,
+                        callable,
+                        bindings,
+                        result,
+                        depth + 1,
+                    )
+                },
+            ) {
+                return Some(measure);
+            }
             let carrier =
                 crate::value_custody::places::unwrapped_type_reference(program, reference)?;
             let owner = crate::value_custody::type_shapes::head_data_symbol(program, carrier)?;

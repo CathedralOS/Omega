@@ -458,6 +458,32 @@ pub struct CheckingMemos {
             )>,
         >,
     >,
+    /// Closed metadata at one exact completed call occurrence. These queries
+    /// consume their own immutable state prefix, never an external engine roster.
+    pub(crate) completed_collection_lengths: Mutex<
+        symbols::SymbolKeyMap<
+            (
+                symbols::SymbolHandle,
+                symbols::SymbolHandle,
+                typed_trees::expression::ExpressionHandle,
+            ),
+            u64,
+        >,
+    >,
+    /// Recursive proof queries may revisit that occurrence. This invocation-
+    /// owned active set prevents same-thread recursion without treating another
+    /// worker's pending computation as a negative result or holding its lock.
+    pub(crate) active_collection_lengths: Mutex<
+        symbols::SymbolKeyMap<
+            (
+                symbols::SymbolHandle,
+                symbols::SymbolHandle,
+                typed_trees::expression::ExpressionHandle,
+                std::thread::ThreadId,
+            ),
+            (),
+        >,
+    >,
     pub(crate) binary_meanings:
         Mutex<symbols::SymbolKeyMap<(u32, u32, typed_trees::expression::ExpressionHandle), bool>>,
     /// Whole bound-expression meaning, including the remaining traversal

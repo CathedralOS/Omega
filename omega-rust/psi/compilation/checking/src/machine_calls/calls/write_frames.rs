@@ -261,6 +261,39 @@ fn known_call_written_paths_for_parts(
             Some((machine, state))
         })?;
 
+    // A portable head owns the union of every retained implementation's
+    // effects. It is bodyless, but its checked members are not an unknown
+    // boundary: summarize each against these same captured caller operands.
+    if callee_machine.target_family_interface {
+        if program.machine_states(callee_machine).first()?.symbol != callee_state.symbol {
+            return None;
+        }
+        let mut joined = Vec::new();
+        for member in super::topology::target_family_members(program, callee_machine)? {
+            let member = program.machine(member.machine)?;
+            let entry = program.machine_states(member).first()?;
+            for path in known_call_written_paths_for_parts(
+                program,
+                entry.symbol,
+                target,
+                receiver_members,
+                receiver_origins,
+                receiver_data_name,
+                arguments,
+                current_machine,
+                machine_symbols,
+                symbols,
+                inference,
+                argument_origins,
+            )? {
+                if !joined.contains(&path) {
+                    joined.push(path);
+                }
+            }
+        }
+        return Some(joined);
+    }
+
     // A signature-only callee -- boundary, requirement, admitted, or
     // externally realized -- has no authored body to summarize: its empty
     // statement list would claim an exclusive argument write never happened.
