@@ -164,30 +164,61 @@ impl Captures<'_> {
                     if matches!(transition.exit, TransitionExit::Crash(_)) {
                         continue;
                     }
-                    if transition.continuation.is_valid() {
-                        return None;
-                    }
-                    match self
-                        .program
-                        .statement_table
-                        .transition_target(transition.target)
-                    {
-                        TransitionTargetNode::Value(expression) => Some(*expression),
-                        TransitionTargetNode::Named { path, .. } => {
-                            if let Some(destination) = self.program.state_by_symbol(path.symbol)
-                                && self.flow(destination.symbol)?.machine_symbol
-                                    == self.flow(state.symbol)?.machine_symbol
-                                && !self.normal_completion_possible(destination)?
-                            {
-                                // A state transfer into a proved nonreturning subgraph
-                                // contributes no machine result. Missing capture rows on
-                                // any potentially normal route still decline below.
-                                continue;
+                    // Every arm returns from this machine. A value arm forms the
+                    // record here. A named arm forms it in that state, so the
+                    // captured origins are that state's. A proved nonreturning
+                    // arm contributes none. A foreign machine or a terminal
+                    // still has no complete origin in this body.
+                    let mut value_expression = None;
+                    let mut forwarded = false;
+                    for target in transition.targets() {
+                        match self.program.statement_table.transition_target(target) {
+                            TransitionTargetNode::Value(expression) => {
+                                if value_expression.is_some() {
+                                    return None;
+                                }
+                                value_expression = Some(*expression);
                             }
-                            None
+                            TransitionTargetNode::Named { path, .. } => {
+                                let Some(destination) = self.program.state_by_symbol(path.symbol)
+                                else {
+                                    return None;
+                                };
+                                if self.flow(destination.symbol)?.machine_symbol
+                                    != self.flow(state.symbol)?.machine_symbol
+                                {
+                                    return None;
+                                }
+                                if !self.normal_completion_possible(destination)? {
+                                    continue;
+                                }
+                                let nested = match self.returned(destination, active) {
+                                    Some(nested) => nested,
+                                    None if self.reference_leaves(destination)?.is_empty() => {
+                                        Vec::new()
+                                    }
+                                    None => return None,
+                                };
+                                for source in nested {
+                                    if !output.contains(&source) {
+                                        output.push(source);
+                                        if output.len() > super::MAX_REFERENCE_ORIGIN_LEAVES {
+                                            return None;
+                                        }
+                                    }
+                                }
+                                forwarded = true;
+                            }
+                            TransitionTargetNode::Terminal => return None,
                         }
-                        TransitionTargetNode::Terminal => return None,
                     }
+                    if value_expression.is_none() {
+                        if forwarded {
+                            completed = true;
+                        }
+                        continue;
+                    }
+                    value_expression
                 }
                 _ => continue,
             };
@@ -1180,6 +1211,19 @@ impl Captures<'_> {
             parameter.type_reference,
         )
         .then_some(true)
+    }
+
+    fn reference_leaves(
+        &self,
+        state: &typed_trees::state::State,
+    ) -> Option<Vec<CheckedReferenceResultSourcePlan>> {
+        record_carrier_sources(
+            self.program,
+            state.return_type,
+            CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
+                symbol: state.symbol,
+            },
+        )
     }
 
     /// Runtime element selections describe one typed element; erased windows

@@ -9078,6 +9078,7 @@ run/slices/computed_record_window checked 12426ms check-target:macos_arm64 @b88c
 run/slices/disjoint_local_state_windows checked 9595ms check-target:macos_arm64 @1810e541fd15+wt
 run/slices/matched_computed_window_end checked 5636ms check-target:macos_arm64 @a4e565996e72+wt
 run/slices/mutable_window_call_argument checked 5974ms check-target:macos_arm64 @218cc4d211aa
+run/slices/returned_record_fixed_array_window checked 5684ms check-target:macos_arm64 @dd3f1a3c88b6+wt
 run/stores/runtime_float_indexed_call_result_exit checked 16446ms check-target:macos_arm64 @77cde1c51efd+wt
 run/stores/runtime_float_store_selector_snapshot_exit checked 16333ms check-target:macos_arm64 @77cde1c51efd+wt
 run/traits/static_implementation_method_arguments checked 5547ms check-target:macos_arm64 @93ba1f664f65+wt

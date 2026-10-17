@@ -1,0 +1,50 @@
+// A returned record field is a subslice of a fixed array. The caller uses
+// that slice through a local, a field, a parameter, and a call result.
+// The two arms do not share one length; each arm's own window is non-empty.
+//
+// Expected exit: 0
+data Held<'row> { values: &'row mut [i32 in Wrapping]; }
+
+machine span<'row>(items: &'row mut [i32 in Wrapping; 4], which: i32 in Wrapping) -> Held<'row>
+ensures result.values.len >= 1
+{
+    transition which == 0 {
+        true -> one(items)
+        _ -> three(items)
+    }
+    state one(items: &'row mut [i32 in Wrapping; 4]) -> Held<'row> {
+        Held { values: &mut items[0..1] }
+    }
+    state three(items: &'row mut [i32 in Wrapping; 4]) -> Held<'row> {
+        Held { values: &mut items[1..4] }
+    }
+}
+
+machine exact<'row>(items: &'row mut [i32 in Wrapping; 4]) -> Held<'row>
+ensures result.values.len == 1
+{
+    Held { values: &mut items[0..1] }
+}
+
+machine write_first(window: &mut [i32 in Wrapping], tick: i32 in Wrapping)
+requires window.len >= 1 {
+    window[0] = tick;
+}
+
+machine main() crashes Trap {
+    let mut row: [i32 in Wrapping; 4] = [1, 2, 3, 4];
+    write_first(exact(&mut row).values, 1);
+    let held: Held = span(&mut row, 0);
+    let local_length: u64 = held.values.len;
+    write_first(held.values, 1);
+    let rest: Held = span(&mut row, 1);
+    let field_length: u64 = rest.values.len;
+    write_first(rest.values, 2);
+    transition local_length == 1 && field_length == 3 && row[0] == 1 && row[1] == 2
+        && row[2] == 3 && row[3] == 4 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
