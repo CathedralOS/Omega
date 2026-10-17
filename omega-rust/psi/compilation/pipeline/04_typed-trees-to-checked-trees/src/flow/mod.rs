@@ -28,10 +28,12 @@
 // The entrance and its sweep: the build state it carries, the incoming state
 // values whose changes decide another sweep, and the reach summaries it attaches.
 mod assignment_observations;
+pub(crate) mod atomic_effects;
 mod builder;
 mod context;
 mod reach;
 mod state_values;
+pub(crate) mod stored_views;
 
 pub(crate) use state_values::literal;
 

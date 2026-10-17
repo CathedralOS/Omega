@@ -152,7 +152,8 @@ pub use value_custody::{
 /// The sealed operation an [`AtomicCarrierAccess`] names.
 pub use access_plans::AtomicAccessOperation;
 pub use value_custody::atomic_operations::{
-    AtomicCarrierAccess, atomic_assignment_carrier, atomic_load_carrier, place_is_atomic_storage,
+    AtomicCarrierAccess, atomic_assignment_carrier, atomic_load_carrier,
+    atomic_resident_type_reference, atomic_value_operands, place_is_atomic_storage,
 };
 pub use value_custody::places::{
     AttachedStorageRoot, StructuralScalarField, StructuralSource, assignment_target_indexes,

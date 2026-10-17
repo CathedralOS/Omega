@@ -97,119 +97,22 @@ impl Execution<'_, '_, '_> {
         &mut self,
         source: &CanonicalPlace,
     ) -> Option<HandleSpan<FlowOperandReferent>> {
-        // Incoming borrowed parameters lend their referent, not a replaceable
-        // descriptor slot. Whole-referent writes therefore preserve this
-        // symbolic address. Stored fields and local descriptors still require
-        // the reaching capture and replacement checks below.
-        if source.segments.is_empty()
-            && source.root.as_symbol().is_some_and(|symbol| {
-                self.program
-                    .state_parameter_by_symbol(self.state, symbol)
-                    .is_some_and(|parameter| self.is_view_type(parameter.type_reference))
-            })
-        {
-            return None;
-        }
-        if !super::super::operand_contexts::binding_origin_is_stable(
-            self.program,
-            &self.context.control,
-            self.entry_origin_writes,
-            self.entry_origin_unknown_write,
-            source,
-        ) {
-            return Some(HandleSpan::empty());
-        }
         let statements = super::super::reference_spans::appended_span_since(
             &self.context.control.statements,
             self.context.state_statements_start,
         );
-        for statement in self
-            .context
-            .control
-            .statements
-            .span_or_empty(statements)
-            .iter()
-            .rev()
-            .filter(|statement| statement.statement_index != self.statement_index)
-        {
-            if self.semantic.places.is_valid(statement.stored_destination)
-                && self
-                    .context
-                    .control
-                    .operands
-                    .is_valid(statement.stored_value)
-            {
-                let destination = super::super::canonical_place_from_semantic_place(
-                    self.program,
-                    self.semantic,
-                    self.semantic.places.get(statement.stored_destination),
-                )?;
-                if destination.root == source.root
-                    && source.segments.starts_with(&destination.segments)
-                {
-                    let stored = self.context.control.operands.get(statement.stored_value);
-                    let path = &source.segments[destination.segments.len()..];
-                    if self.is_view_type(stored.type_reference) {
-                        let places = self
-                            .context
-                            .control
-                            .operand_referents
-                            .span_or_empty(stored.referents)
-                            .iter()
-                            .map(|referent| {
-                                super::super::operand_values::project_captured_view_place(
-                                    CanonicalPlace {
-                                        root: referent.root,
-                                        segments: self
-                                            .context
-                                            .control
-                                            .operand_referent_segments
-                                            .span_or_empty(referent.segments)
-                                            .to_vec(),
-                                    },
-                                    path,
-                                )
-                            })
-                            .collect::<Option<Vec<_>>>();
-                        return Some(places.map_or_else(HandleSpan::empty, |places| {
-                            self.append_referent_places(&places)
-                        }));
-                    }
-                    let Some((captured, reference)) =
-                        super::super::operand_values::captured_operand_at_path(
-                            self.program,
-                            &self.context.control,
-                            stored,
-                            stored.type_reference,
-                            path,
-                        )
-                    else {
-                        return Some(HandleSpan::empty());
-                    };
-                    if self.is_view_type(reference) {
-                        return Some(captured.referents);
-                    }
-                    return None;
-                }
-            }
-            if !super::super::operand_contexts::binding_origin_is_stable(
-                self.program,
-                &self.context.control,
-                statement.completed_writes,
-                statement.completed_unknown_write,
-                source,
-            ) {
-                return Some(HandleSpan::empty());
-            }
-        }
-        // A local view without a reaching capture is unresolved. Historical
-        // source declarations are not a replacement for produced storage.
-        source
-            .root
-            .as_symbol()
-            .and_then(|root| self.program.state_local_declaration(self.state, root))
-            .filter(|(_, local)| self.is_view_type(local.type_reference))
-            .map(|_| HandleSpan::empty())
+        let places = super::super::stored_views::before_statement(
+            self.program,
+            self.semantic,
+            &self.context.control,
+            self.state,
+            statements,
+            self.statement_index,
+            self.entry_origin_writes,
+            self.entry_origin_unknown_write,
+            source,
+        )?;
+        Some(self.append_referent_places(&places))
     }
 
     pub(super) fn capture_indexed_referents(

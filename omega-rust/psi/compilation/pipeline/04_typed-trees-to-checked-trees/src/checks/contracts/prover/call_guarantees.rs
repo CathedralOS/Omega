@@ -473,46 +473,19 @@ pub(in crate::checks) fn guarantee_scalar<'facts>(
                 return None;
             }
         }
-        let mut operands = facts
-            .flow
-            .control
-            .operands
-            .iter()
-            .map(|(_, operand)| operand)
-            .filter(|operand| {
-                operand.state_symbol == caller.state_symbol
-                    && operand.statement_index == call.statement_index
-                    && operand.expression == actual
-            });
-        let operand = operands.next()?;
-        let mut place = validation::canonical_place_from_expression_in_state(
-            program,
-            caller.state_symbol,
-            call.statement_index,
-            actual,
-        )
-        .unwrap_or(CanonicalPlace {
-            root: PlaceRoot::Expression(actual),
-            segments: Vec::new(),
-        });
-        place.segments.extend_from_slice(&path);
-        if !operands.all(|other| {
-            if post_state {
-                crate::flow::operand_bindings_agree(program, &facts.flow, operand, other, &place)
-            } else {
-                crate::flow::operand_observations_agree(
-                    program,
-                    &facts.flow,
-                    operand,
-                    other,
-                    &place,
-                )
-            }
-        }) {
-            return None;
-        }
+        let operand =
+            captured_actual_operand(program, facts, caller, call, actual, &path, post_state)?;
         observe(operand, &path, primitive, post_state)
     };
+    if projection.is_empty() && primitive == typed_trees::types::PrimitiveType::Bool {
+        if let Some(facts::ScalarValue::Boolean(value)) = crate::flow::literal(program, expression)
+        {
+            return Some(validation::ScopedArithmeticValue::Integer(
+                numerics::bignum::BigInt::from_u128(u128::from(value)),
+            ));
+        }
+        return bind(expression, projection, primitive, observe);
+    }
     if projection.is_empty() {
         arithmetic::scalar_term(
             program,
@@ -524,6 +497,82 @@ pub(in crate::checks) fn guarantee_scalar<'facts>(
     } else {
         bind(expression, projection, primitive, observe)
     }
+}
+
+/// Bind a declaration-owned place to the actual captured by this exact call.
+/// Reference effect queries consume the address, not the referent's numeric
+/// contents. Result projections and exclusive post-state values remain with
+/// their existing guarantee judgments.
+pub(super) fn guarantee_input<'facts>(
+    program: &dyn validation::CheckingInput,
+    facts: &'facts checked_trees::CheckFacts,
+    caller: &FlowStateFact,
+    call: &FlowCallFact,
+    expression: ExpressionHandle,
+    suffix: &[facts::PlaceSegment],
+) -> Option<(
+    &'facts checked_trees::FlowOperandFact,
+    Vec<facts::PlaceSegment>,
+)> {
+    let supplied = invocation(program, caller, call.statement_index, call.call_ordinal)?;
+    let formal = formal_place(program, &supplied, expression)?;
+    let parameter = supplied
+        .callable
+        .parameters(program)
+        .iter()
+        .find(|parameter| formal.root == PlaceRoot::Symbol(parameter.symbol))?;
+    // The existing post-state binding judge handles exclusive parameters;
+    // borrowing their pre-call address cannot establish an exit descriptor.
+    if crate::values::exclusive_reference(program, parameter.type_reference) {
+        return None;
+    }
+    let (actual, mut path) = actual_projection(program, &supplied, expression)?;
+    path.extend_from_slice(suffix);
+    let operand = captured_actual_operand(program, facts, caller, call, actual, &path, false)?;
+    Some((operand, path))
+}
+fn captured_actual_operand<'facts>(
+    program: &dyn validation::CheckingInput,
+    facts: &'facts checked_trees::CheckFacts,
+    caller: &FlowStateFact,
+    call: &FlowCallFact,
+    actual: ExpressionHandle,
+    path: &[facts::PlaceSegment],
+    post_state: bool,
+) -> Option<&'facts checked_trees::FlowOperandFact> {
+    let mut operands = facts
+        .flow
+        .control
+        .operands
+        .iter()
+        .map(|(_, operand)| operand)
+        .filter(|operand| {
+            operand.state_symbol == caller.state_symbol
+                && operand.statement_index == call.statement_index
+                && operand.expression == actual
+        });
+    let operand = operands.next()?;
+    let mut place = validation::canonical_place_from_expression_in_state(
+        program,
+        caller.state_symbol,
+        call.statement_index,
+        actual,
+    )
+    .unwrap_or(CanonicalPlace {
+        root: PlaceRoot::Expression(actual),
+        segments: Vec::new(),
+    });
+    place.segments.extend_from_slice(&path);
+    if !operands.all(|other| {
+        if post_state {
+            crate::flow::operand_bindings_agree(program, &facts.flow, operand, other, &place)
+        } else {
+            crate::flow::operand_observations_agree(program, &facts.flow, operand, other, &place)
+        }
+    }) {
+        return None;
+    }
+    Some(operand)
 }
 
 fn invocation<'program>(

@@ -1,0 +1,4 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "atomic_release_boolean_disposition");
+    Build::select_provider<Completion, CompletionProvider>(builder);
+}

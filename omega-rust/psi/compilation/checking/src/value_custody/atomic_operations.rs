@@ -44,51 +44,30 @@ pub(crate) fn assignment_receiver_polarity(
     state: Option<&State>,
     assignment: &TableAssignment,
 ) -> BorrowPolarity {
-    let ExpressionNode::Atomic(atomic) = program.expression_table.expression(assignment.value)
-    else {
-        return BorrowPolarity::Exclusive;
-    };
-    let Some(operation) = carried_atomic_operation(program, atomic) else {
-        return BorrowPolarity::Exclusive;
-    };
-    if !place_is_atomic_storage(program, machine, state, assignment.target) {
-        return BorrowPolarity::Exclusive;
-    }
-    AccessOperation::Atomic(operation).receiver_polarity()
+    target_atomic_operation(program, machine, state, assignment.target, assignment.value)
+        .map_or(BorrowPolarity::Exclusive, |operation| {
+            AccessOperation::Atomic(operation).receiver_polarity()
+        })
 }
 
-/// The sealed atomic operation an assignment-position carrier denotes.
-/// `None` for a load (a load carrier is the assigned value, never an
-/// operation on the target) or a read-modify-write whose interpreter model is
-/// not one of the fetch families.
-pub(crate) fn carried_atomic_operation(
+/// A normalized atomic operation accesses its cell through the operation's
+/// receiver; it never replaces a descriptor used to reach that cell. Share
+/// exact source decoding with execution rather than recognizing the synthetic
+/// arithmetic update formula independently in borrow and origin checks.
+pub(crate) fn target_atomic_operation(
     program: &dyn crate::CheckingInput,
-    atomic: &TableAtomicExpression,
+    machine: &Machine,
+    state: Option<&State>,
+    target: ExpressionHandle,
+    value: ExpressionHandle,
 ) -> Option<AtomicAccessOperation> {
-    match atomic.ordering {
-        AtomicOrderingPlan::Load(_) => None,
-        AtomicOrderingPlan::Store(ordering) => Some(AtomicAccessOperation::Store(ordering)),
-        AtomicOrderingPlan::ReadModifyWrite(ordering) => {
-            let Some(binary) = program.expression_table.binary_node(atomic.value) else {
-                return None;
-            };
-            Some(match binary.operator {
-                BinaryOperator::Add => AtomicAccessOperation::FetchAdd(ordering),
-                BinaryOperator::Subtract => AtomicAccessOperation::FetchSub(ordering),
-                BinaryOperator::BitwiseXor => AtomicAccessOperation::FetchXor(ordering),
-                BinaryOperator::BitwiseOr => AtomicAccessOperation::FetchOr(ordering),
-                BinaryOperator::BitwiseAnd => AtomicAccessOperation::FetchAnd(ordering),
-                _ => return None,
-            })
-        }
-        AtomicOrderingPlan::Swap(ordering) => Some(AtomicAccessOperation::Swap(ordering)),
-        AtomicOrderingPlan::CompareExchange { success, failure } => {
-            Some(AtomicAccessOperation::CompareExchange { success, failure })
-        }
-        AtomicOrderingPlan::CompareExchangeOnce { success, failure } => {
-            Some(AtomicAccessOperation::CompareExchangeOnce { success, failure })
-        }
+    if !place_is_atomic_storage(program, machine, state, target) {
+        return None;
     }
+    let ExpressionNode::Atomic(atomic) = program.expression_table.expression(value) else {
+        return None;
+    };
+    atomic_write_operands(program, atomic).map(|(operation, _)| operation)
 }
 
 /// Whether a place's declared type is one of the dedicated atomic core types.
@@ -190,7 +169,7 @@ pub fn atomic_assignment_carrier(
 /// and the result destination. Formation checks must use this same decoding as
 /// execution: compare-exchange does not evaluate a subtraction of replacement
 /// and prior, and fetch arithmetic has the sealed atomic operation's policy.
-pub(crate) fn atomic_value_operands(
+pub fn atomic_value_operands(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<Vec<ExpressionHandle>> {
@@ -201,6 +180,40 @@ pub(crate) fn atomic_value_operands(
         return None;
     };
     atomic_write_operands(program, atomic).map(|(_, operands)| operands)
+}
+
+/// The sealed ordinary value carrier the atomic cell receives. Anonymous
+/// literals have no standalone result type; their checked operation supplies
+/// this receiving type just as an ordinary call supplies each formal type.
+/// Cell and resident identities remain distinct even when layout is equal.
+pub fn atomic_resident_type_reference(
+    program: &dyn crate::CheckingInput,
+    cell: typed_trees::types::TypeReferenceHandle,
+) -> Option<typed_trees::types::TypeReferenceHandle> {
+    let cell = program.type_reference_table.peeled_type_reference(cell);
+    let TypeReferenceNode::Named { symbol, .. } = program.type_reference_table.type_reference(cell)
+    else {
+        return None;
+    };
+    if !program.symbols.builtin_type_atom(*symbol)?.is_atomic() {
+        return None;
+    }
+    let primitive = program.primitive_type_reference(cell)?;
+    let mut residents = program
+        .symbols
+        .child_handles(program.symbols.root())?
+        .filter_map(|symbol| {
+            let atom = program.symbols.builtin_type_atom(symbol)?;
+            if atom.is_atomic() {
+                return None;
+            }
+            let reference = program
+                .type_reference_table
+                .find_named_type_reference(symbol)?;
+            (program.primitive_type_reference(reference) == Some(primitive)).then_some(reference)
+        });
+    let resident = residents.next()?;
+    residents.next().is_none().then_some(resident)
 }
 
 fn atomic_write_operands(

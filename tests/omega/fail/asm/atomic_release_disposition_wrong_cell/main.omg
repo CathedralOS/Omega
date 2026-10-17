@@ -1,0 +1,24 @@
+// REFUSE: an unperformed, mismatched or already spent store cannot settle a claim.
+use omega::language::core::assembly_model;
+data Cell { value: AtomicU64; }
+data Ack [linear] { nonce: u64; }
+boundary trait Completion {
+ machine complete(ack: Ack, word: &Cell, other: &Cell);
+}
+proposition acknowledged(ack: Ack, word: &Cell) = atomic_release_written<AtomicU64, u64>(&word.value, ack.nonce);
+machine finish(ack: Ack, word: &Cell, other: &Cell) satisfies Completion::complete
+ensures acknowledged(ack, word);
+{
+ other.value.store(ack.nonce, Publish);
+}
+CompletionProvider satisfies Completion { Completion::complete = finish; }
+machine main() reaches Completion crashes Trap {
+ let mut word: Cell;
+ let mut other: Cell;
+ let ack: Ack = Ack { nonce: 37 };
+ Completion::complete(ack, &word, &other);
+ let observed: u64 in Wrapping = word.value.load(Receive);
+ transition observed == 37 { true -> done() false -> bad() }
+ state done() {}
+ state bad() { crash Trap; }
+}

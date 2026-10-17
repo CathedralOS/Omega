@@ -1,0 +1,28 @@
+// Expected exit: 0. One release store completes one exact linear claim.
+use omega::language::core::assembly_model;
+data Cell { value: AtomicU64; }
+data Envelope { word: &Cell; }
+data Ack [linear] { nonce: u64; }
+boundary trait Completion {
+ machine complete(ack: Ack, envelope: &Envelope);
+}
+proposition acknowledged(ack: Ack, envelope: &Envelope) = atomic_release_written<AtomicU64, u64>(&envelope.word.value, ack.nonce);
+machine write_nonce(envelope: &Envelope, nonce: u64)
+ensures atomic_release_written<AtomicU64, u64>(&envelope.word.value, nonce);
+{ envelope.word.value.store(nonce, Publish); }
+machine finish(ack: Ack, envelope: &Envelope) satisfies Completion::complete
+ensures acknowledged(ack, envelope);
+{
+ write_nonce(envelope, ack.nonce);
+}
+CompletionProvider satisfies Completion { Completion::complete = finish; }
+machine main() reaches Completion crashes Trap {
+ let mut word: Cell;
+ let ack: Ack = Ack { nonce: 37 };
+ let envelope: Envelope = Envelope { word: &word };
+ Completion::complete(ack, &envelope);
+ let observed: u64 in Wrapping = word.value.load(Receive);
+ transition observed == 37 { true -> done() false -> bad() }
+ state done() {}
+ state bad() { crash Trap; }
+}

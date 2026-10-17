@@ -164,7 +164,8 @@ impl<'scope> Values<'scope> {
             });
             Some(value)
         };
-        if !projection.is_empty()
+        if primitive == PrimitiveType::Bool
+            || !projection.is_empty()
             || matches!(
                 program.expression_table.expression(operand.expression),
                 ExpressionNode::Call(_)
@@ -281,7 +282,8 @@ impl<'scope> Values<'scope> {
                 unsigned: !primitive.is_signed_integer(),
             })
         };
-        if !projection.is_empty()
+        if primitive == PrimitiveType::Bool
+            || !projection.is_empty()
             || matches!(
                 program.expression_table.expression(expression),
                 ExpressionNode::Call(_)
@@ -337,20 +339,22 @@ pub(super) fn operand_matches(
         frames: &frames,
     };
     let mut captures = Vec::new();
-    let Some(captured) = values.captured(operand, &[], primitive, &mut captures) else {
+    let capture_result = values.captured(operand, &[], primitive, &mut captures);
+    let Some(captured) = capture_result else {
         return false;
     };
-    let Some(current) = arguments.scoped_value(
+    let current = arguments.scoped_value(
         program,
         facts,
         required,
         &[],
         primitive,
-        &mut |expression, path, primitive| values.current(expression, path, primitive, &captures),
-    ) else {
-        return false;
-    };
-    values.equal(&captured, &current)
+        &mut |expression, path, primitive| {
+            let value = values.current(expression, path, primitive, &captures);
+            value
+        },
+    );
+    current.is_some_and(|current| values.equal(&captured, &current))
 }
 
 pub(super) fn guarantee_matches(
@@ -369,7 +373,7 @@ pub(super) fn guarantee_matches(
     let Some(contract) = validation::instruction_effect_contract(program, candidate) else {
         return false;
     };
-    if contract.operation != operation {
+    if contract.operation != facts::InstructionEffectOperation::Register(operation) {
         return false;
     }
     let Some(supplied) = QueryArguments::new(program, &contract) else {
@@ -381,6 +385,46 @@ pub(super) fn guarantee_matches(
     if frame.arguments.len() != required.len() {
         return false;
     }
+    frame
+        .arguments
+        .iter()
+        .zip(required)
+        .zip(operation.input_carriers())
+        .all(|((supplied_argument, required), carrier)| {
+            let Some(primitive) = PrimitiveType::from_name(carrier.name()) else {
+                return false;
+            };
+            guarantee_value_matches(
+                program,
+                facts,
+                flow,
+                state,
+                statement,
+                contexts,
+                call,
+                &supplied,
+                *supplied_argument,
+                arguments,
+                *required,
+                primitive,
+            )
+        })
+}
+
+pub(super) fn guarantee_value_matches(
+    program: &dyn validation::CheckingInput,
+    facts: &CheckFacts,
+    flow: &FlowStateFact,
+    state: &typed_trees::state::State,
+    statement: usize,
+    contexts: &[facts::FactContextHandle],
+    call: &checked_trees::FlowCallFact,
+    supplied: &QueryArguments<'_>,
+    supplied_argument: QueryArgument,
+    arguments: &QueryArguments<'_>,
+    required: QueryArgument,
+    primitive: PrimitiveType,
+) -> bool {
     let Some(frames) = validation::CallFrameResolver::new(program) else {
         return false;
     };
@@ -393,83 +437,93 @@ pub(super) fn guarantee_matches(
         contexts,
         frames: &frames,
     };
-    frame
-        .arguments
-        .iter()
-        .zip(required)
-        .zip(operation.input_carriers())
-        .all(|((supplied_argument, required), carrier)| {
-            let Some(primitive) = PrimitiveType::from_name(carrier.name()) else {
-                return false;
-            };
-            let mut captures = Vec::new();
-            let Some(captured) = supplied.scoped_value(
+    let mut captures = Vec::new();
+    let Some(captured) = supplied.scoped_value(
+        program,
+        facts,
+        supplied_argument,
+        &[],
+        primitive,
+        &mut |expression, projection, primitive| {
+            super::super::call_guarantees::guarantee_scalar(
                 program,
                 facts,
-                *supplied_argument,
-                &[],
+                flow,
+                call,
+                expression,
+                projection,
                 primitive,
-                &mut |expression, projection, primitive| {
-                    super::super::call_guarantees::guarantee_scalar(
-                        program,
-                        facts,
-                        flow,
-                        call,
-                        expression,
-                        projection,
-                        primitive,
-                        &frames,
-                        &mut |operand, path, primitive, post_state| {
-                            if post_state {
-                                if !post_binding_preserved(
-                                    program,
-                                    facts,
-                                    operand,
-                                    state.symbol,
-                                    statement,
-                                    &frames,
-                                ) {
-                                    return None;
-                                }
-                                let place = value_place(program, state.symbol, statement, operand.expression, path)?;
-                            let returned_contexts = facts.flow.semantic_constraint_contexts(call.exit_constraints).collect::<Vec<_>>();
-                            let scalar = super::super::scalar_value_at_place(program, &facts.semantic,
-                                returned_contexts.iter().map(|context| facts.semantic.contexts.get(*context)), &place);
-                            let value = if let Some(facts::ScalarValue::Integer(value)) = scalar {
-                                ScopedArithmeticValue::Integer(value)
-                            } else {
-                                ScopedArithmeticValue::Atom {
-                                    identity: format!("\0instruction-return:{:?}:{}:{}:{primitive:?}:{place:?}",
-                                        state.symbol, call.statement_index, call.call_ordinal),
-                                    unsigned: !primitive.is_signed_integer(),
-                                }
-                            };
-                            captures.push(Capture { frontier: CaptureFrontier::NormalReturn(call), primitive,
-                                place, origin: None, value: value.clone() });
-                            Some(value)
-                            } else {
-                                values.captured(operand, path, primitive, &mut captures)
+                &frames,
+                &mut |operand, path, primitive, post_state| {
+                    if post_state {
+                        if !post_binding_preserved(
+                            program,
+                            facts,
+                            operand,
+                            state.symbol,
+                            statement,
+                            &frames,
+                        ) {
+                            return None;
+                        }
+                        let place = value_place(
+                            program,
+                            state.symbol,
+                            statement,
+                            operand.expression,
+                            path,
+                        )?;
+                        let returned_contexts = facts
+                            .flow
+                            .semantic_constraint_contexts(call.exit_constraints)
+                            .collect::<Vec<_>>();
+                        let scalar = super::super::scalar_value_at_place(
+                            program,
+                            &facts.semantic,
+                            returned_contexts
+                                .iter()
+                                .map(|context| facts.semantic.contexts.get(*context)),
+                            &place,
+                        );
+                        let value = if let Some(facts::ScalarValue::Integer(value)) = scalar {
+                            ScopedArithmeticValue::Integer(value)
+                        } else {
+                            ScopedArithmeticValue::Atom {
+                                identity: format!(
+                                    "\0instruction-return:{:?}:{}:{}:{primitive:?}:{place:?}",
+                                    state.symbol, call.statement_index, call.call_ordinal
+                                ),
+                                unsigned: !primitive.is_signed_integer(),
                             }
-                        },
-                    )
+                        };
+                        captures.push(Capture {
+                            frontier: CaptureFrontier::NormalReturn(call),
+                            primitive,
+                            place,
+                            origin: None,
+                            value: value.clone(),
+                        });
+                        Some(value)
+                    } else {
+                        values.captured(operand, path, primitive, &mut captures)
+                    }
                 },
-            ) else {
-                return false;
-            };
-            let Some(current) = arguments.scoped_value(
-                program,
-                facts,
-                *required,
-                &[],
-                primitive,
-                &mut |expression, path, primitive| {
-                    values.current(expression, path, primitive, &captures)
-                },
-            ) else {
-                return false;
-            };
-            values.equal(&captured, &current)
-        })
+            )
+        },
+    ) else {
+        return false;
+    };
+    let Some(current) = arguments.scoped_value(
+        program,
+        facts,
+        required,
+        &[],
+        primitive,
+        &mut |expression, path, primitive| values.current(expression, path, primitive, &captures),
+    ) else {
+        return false;
+    };
+    values.equal(&captured, &current)
 }
 
 fn post_binding_preserved(
@@ -574,7 +628,15 @@ fn value_place(
                 root: facts::PlaceRoot::Expression(expression),
                 segments: Vec::new(),
             });
-    place.segments.extend_from_slice(projection);
+    if !projection.is_empty() {
+        let reference =
+            validation::canonical_place_type_reference(program, state, statement, &place)?;
+        place
+            .segments
+            .extend(crate::values::applied_projection_segments(
+                program, reference, projection,
+            )?);
+    }
     Some(place)
 }
 fn known_integer(
@@ -598,12 +660,18 @@ fn known_integer(
             &place,
         )? {
             facts::ScalarValue::Integer(value) => Some(value),
+            facts::ScalarValue::Boolean(value) if primitive == PrimitiveType::Bool => {
+                Some(numerics::bignum::BigInt::from_u128(u128::from(value)))
+            }
             _ => None,
         };
     }
     if !matches!(
         program.expression_table.expression(expression),
-        ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Integer(_)
+        ExpressionNode::Name(_)
+            | ExpressionNode::Member(_)
+            | ExpressionNode::Integer(_)
+            | ExpressionNode::Boolean(_)
     ) {
         return None;
     }
@@ -611,6 +679,9 @@ fn known_integer(
         program, facts, state, statement, contexts, expression, primitive,
     )? {
         facts::ScalarValue::Integer(value) => Some(value),
+        facts::ScalarValue::Boolean(value) if primitive == PrimitiveType::Bool => {
+            Some(numerics::bignum::BigInt::from_u128(u128::from(value)))
+        }
         _ => None,
     }
 }

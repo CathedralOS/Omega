@@ -320,6 +320,35 @@ fail/arrays/qualified_array_literal_rejects_element_policy_conversion rejected 8
 	store in array literal element of type `u32` implicitly converts `u32 in Saturating` to `u32 in Wrapping` (implicit domain weakening); a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u32 in Wrapping`)
 fail/arrays/window_copy_preserves_inherited_element_policy rejected 316ms expected @308fbdc54ba0
 	array window replacement source must preserve the complete destination element type, including its qualifications
+fail/asm/atomic_release_disposition_bypass rejected 1383ms expected @4bfe01cd2128
+	cannot prove asm `ensures` fact at block exit in finish state `skipped` (statement 4): proposition:fact:atomic_release_written<AtomicU64,u64>(shared word.value,ack.nonce)
+	linear value `ack` reaches scope exit without being consumed or transferred
+fail/asm/atomic_release_disposition_changed_value rejected 1323ms expected @4bfe01cd2128
+	cannot prove ensures contract for exit from finish at statement 2: proposition:fact:atomic_release_written<AtomicU64,u64>(shared word.value,ack.nonce)
+	linear value `ack` reaches scope exit without being consumed or transferred
+fail/asm/atomic_release_disposition_impostor rejected 354ms expected @4bfe01cd2128
+	checked machine `finish` cannot establish proposition ensure `proposition:fact:atomic_release_written<AtomicU64,u64>(shared word.value,ack.nonce)` in state `entry`; require it, cite a checked/accepted proof that ensures it, or supply its declared evidence
+fail/asm/atomic_release_disposition_missing_store rejected 1364ms expected @4bfe01cd2128
+	cannot prove ensures contract for exit from finish at statement 1: proposition:fact:atomic_release_written<AtomicU64,u64>(shared word.value,ack.nonce)
+	linear value `ack` reaches scope exit without being consumed or transferred
+fail/asm/atomic_release_disposition_rebound_descriptor rejected 1379ms expected @4bfe01cd2128
+	cannot prove ensures contract for exit from finish at statement 2: proposition:fact:atomic_release_written<AtomicU64,u64>(shared word.value,ack.nonce); no exact incoming reference origin for word
+	linear value `ack` reaches scope exit without being consumed or transferred
+fail/asm/atomic_release_disposition_relaxed rejected 1399ms expected @4bfe01cd2128
+	cannot prove ensures contract for exit from finish at statement 1: proposition:fact:atomic_release_written<AtomicU64,u64>(shared word.value,ack.nonce)
+	linear value `ack` reaches scope exit without being consumed or transferred
+fail/asm/atomic_release_disposition_reused_event rejected 1556ms expected @4bfe01cd2128
+	cannot prove ensures contract for exit from finish at statement 1: proposition:fact:atomic_release_written<AtomicU64,u64>(shared word.value,second.nonce)
+	linear value `second` reaches scope exit without being consumed or transferred
+fail/asm/atomic_release_disposition_wrong_cell rejected 1471ms expected @4bfe01cd2128
+	cannot prove ensures contract for exit from finish at statement 1: proposition:fact:atomic_release_written<AtomicU64,u64>(shared word.value,ack.nonce)
+	linear value `ack` reaches scope exit without being consumed or transferred
+fail/asm/atomic_release_disposition_wrong_value rejected 1449ms expected @4bfe01cd2128
+	cannot prove ensures contract for exit from finish at statement 1: proposition:fact:atomic_release_written<AtomicU64,u64>(shared word.value,ack.nonce)
+	linear value `ack` reaches scope exit without being consumed or transferred
+fail/asm/atomic_release_disposition_wrong_width rejected 1470ms expected @4bfe01cd2128
+	cannot prove ensures contract for exit from finish at statement 1: proposition:fact:atomic_release_written<AtomicU64,u32>(shared word.value,37)
+	linear value `ack` reaches scope exit without being consumed or transferred
 fail/asm/backward_write_stale_ensures rejected 1154ms expected @6d0b8da07bdd+wt
 	cannot prove asm `ensures` fact at block exit in Subject::change state `change` (statement 5): subject.ready
 fail/asm/borrow_read_after_backward_write rejected 1165ms expected @6d0b8da07bdd+wt
@@ -429,6 +458,8 @@ fail/atomics/atomic_operand_call_argument rejected 163ms expected @e460ea1df091+
 fail/atomics/atomic_operand_implicit_narrowing rejected 162ms expected @e460ea1df091+wt
 	store in machine `replace` state `entry` assignment implicitly converts `u64` to `u32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u32`)
 	store in machine `replace` state `entry` assignment implicitly converts `u64` to `u32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u32`)
+fail/atomics/atomic_record_shared_replacement rejected 367ms expected @4bfe01cd2128
+	machine `reset` state `entry` assignment cannot write `word` because it is not mutable in this state (if `word` is undeclared -- a typo -- no such field or local exists)
 fail/atomics/atomic_store_receive_ordering_rejected rejected 1ms expected @c043a6de8fe3+wt
 	tests/omega/fail/atomics/atomic_store_receive_ordering_rejected/main.omg:1:1: atomic store cannot use `Receive` ordering; use `NoOrdering`, `Publish`, or `GlobalOrder`
 fail/atomics/case_payload_non_event_write rejected 930ms expected @a9ae30e1c334+wt
@@ -6130,6 +6161,15 @@ pass/arrays/runtime_completed_array_window_replacement_exit checked 6861ms check
 pass/arrays/runtime_computed_float_element_store_exit checked 12987ms check-target:macos_arm64 @589aedee8ebc+wt
 pass/arrays/runtime_index_recast checked 12378ms @5041ef1af684+wt
 pass/arrays/subject_field_where_index checked 9537ms @5041ef1af684+wt
+pass/asm/atomic_release_boolean_disposition checked 7958ms @4bfe01cd2128
+pass/asm/atomic_release_disposition_exit checked 7969ms check-target:linux_x86_64 @4bfe01cd2128
+pass/asm/atomic_release_disposition_generic_exit checked 8387ms check-target:linux_x86_64 @4bfe01cd2128
+pass/asm/atomic_release_disposition_literal_exit checked 8425ms check-target:linux_x86_64 @4bfe01cd2128
+pass/asm/atomic_release_disposition_pair_exit checked 7925ms check-target:linux_x86_64 @4bfe01cd2128
+pass/asm/atomic_release_disposition_reference_exit checked 7899ms check-target:linux_x86_64 @4bfe01cd2128
+pass/asm/atomic_release_disposition_replaced_contents_exit checked 8225ms check-target:linux_x86_64 @4bfe01cd2128
+pass/asm/atomic_release_disposition_returned_view_exit checked 8156ms check-target:linux_x86_64 @4bfe01cd2128
+pass/asm/atomic_release_disposition_state_exit checked 8014ms check-target:linux_x86_64 @4bfe01cd2128
 pass/asm/checked_label_borrow_last_use_exit checked 3422ms check-target:macos_arm64 @7c138f5545aa
 pass/asm/checked_label_call_result_exit checked 3419ms check-target:macos_arm64 @7c138f5545aa
 pass/asm/checked_label_edges_exit checked 3399ms check-target:macos_arm64 @7c138f5545aa

@@ -101,7 +101,10 @@ pub use control::{
     FlowStatementFact, RetiredFlowCall,
 };
 pub use invalidations::{FlowInvalidationFact, FlowInvalidationSource};
-pub use operand::{FlowCaseAccessFact, FlowOperandChild, FlowOperandFact, FlowOperandReferent};
+pub use operand::{
+    FlowAtomicExecutionFact, FlowCaseAccessFact, FlowOperandChild, FlowOperandFact,
+    FlowOperandReferent,
+};
 pub use ownership::{
     FlowBorrowClaimFact, FlowClaimJoinAlternative, FlowClaimJoinAlternativeSource,
     FlowClaimJoinExit, FlowClaimJoinExitKind, FlowClaimJoinReceipt, FlowClaimOutcomeEntryFact,

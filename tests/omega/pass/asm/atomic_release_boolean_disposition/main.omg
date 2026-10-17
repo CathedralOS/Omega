@@ -1,0 +1,26 @@
+// Checked-only: release-store evidence retains Boolean identity, without integer arithmetic.
+use omega::language::core::assembly_model;
+data Cell { value: AtomicBool; }
+data Ack [linear] { nonce: bool; }
+boundary trait Completion {
+ machine complete(ack: Ack, word: &Cell);
+}
+proposition acknowledged(ack: Ack, word: &Cell) = atomic_release_written<AtomicBool, bool>(&word.value, ack.nonce);
+machine write_nonce(word: &Cell, nonce: bool)
+ensures atomic_release_written<AtomicBool, bool>(&word.value, nonce);
+{ word.value.store(nonce, Publish); }
+machine finish(ack: Ack, word: &Cell) satisfies Completion::complete
+ensures acknowledged(ack, word);
+{
+ write_nonce(word, ack.nonce);
+}
+CompletionProvider satisfies Completion { Completion::complete = finish; }
+machine main() reaches Completion crashes Trap {
+ let mut word: Cell;
+ let ack: Ack = Ack { nonce: true };
+ Completion::complete(ack, &word);
+ let observed: bool = word.value.load(Receive);
+ transition observed == true { true -> done() false -> bad() }
+ state done() {}
+ state bad() { crash Trap; }
+}

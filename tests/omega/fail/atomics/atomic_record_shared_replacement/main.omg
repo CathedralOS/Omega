@@ -1,0 +1,3 @@
+// REFUSE: whole-cell replacement requires exclusive backing, even for a fresh value.
+data Cell { value: AtomicU64; }
+machine reset(word: &Cell) { word = Cell { value: 0 }; }

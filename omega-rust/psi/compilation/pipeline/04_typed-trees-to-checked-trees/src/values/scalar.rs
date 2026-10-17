@@ -71,6 +71,6 @@ pub(crate) use scalar_lowering::{
     lower_unit_scalar_argument_for_places, unit_scalar_binding_symbols,
 };
 pub(crate) use structural_fields::{
-    exclusive_reference, resolve_structural_parameter_path, structural_data,
-    structural_parameter_place,
+    applied_projection_segments, exclusive_reference, resolve_structural_parameter_path,
+    structural_data, structural_parameter_place,
 };

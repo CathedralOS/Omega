@@ -64,3 +64,14 @@ pub struct FlowOperandChild {
     /// An unresolved type remains the invalid handle, never the source type.
     pub type_reference: typed_trees::types::TypeReferenceHandle,
 }
+
+/// Actual source operands of one performed atomic expression. The generated
+/// update formula and result placeholder are not executed inputs. Each source
+/// operand retains its completion before later inputs or the final store.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct FlowAtomicExecutionFact {
+    pub state_symbol: symbols::SymbolHandle,
+    pub statement_index: usize,
+    pub expression: ExpressionHandle,
+    pub operands: HandleSpan<FlowOperandFact>,
+}

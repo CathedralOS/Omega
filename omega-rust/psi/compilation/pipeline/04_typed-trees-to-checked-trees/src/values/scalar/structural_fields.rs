@@ -839,8 +839,35 @@ pub(crate) fn structural_storage_place(
             (storage_root, local.type_reference, local.is_mutable)
         }
     };
+    let path = structural_projection_path(program, &place.segments)?;
+    let (segments, type_reference, _) =
+        resolve_structural_path(program, declared_type, is_mutable, &path, &mut |_, _| {
+            Some(())
+        })?;
+    if segments != place.segments {
+        return None;
+    }
+    Some((storage_root, path, type_reference))
+}
+
+/// Rebind a declaration-owned projection through the actual receiver's
+/// retained nominal identities. This uses the same path judgment as source
+/// parameter observations; template symbols are selectors, not applied slots.
+pub(crate) fn applied_projection_segments(
+    program: &dyn validation::CheckingInput,
+    reference: TypeReferenceHandle,
+    segments: &[facts::PlaceSegment],
+) -> Option<Vec<facts::PlaceSegment>> {
+    let path = structural_projection_path(program, segments)?;
+    resolve_structural_path(program, reference, false, &path, &mut |_, _| Some(()))
+        .map(|(segments, _, _)| segments)
+}
+fn structural_projection_path(
+    program: &dyn validation::CheckingInput,
+    segments: &[facts::PlaceSegment],
+) -> Option<Vec<CheckedStructuralPredicatePathSegment>> {
     let mut path = Vec::new();
-    for segment in &place.segments {
+    for segment in segments {
         path.push(match segment {
             facts::PlaceSegment::Field { symbol } => {
                 let field = program
@@ -877,14 +904,7 @@ pub(crate) fn structural_storage_place(
             _ => return None,
         });
     }
-    let (segments, type_reference, _) =
-        resolve_structural_path(program, declared_type, is_mutable, &path, &mut |_, _| {
-            Some(())
-        })?;
-    if segments != place.segments {
-        return None;
-    }
-    Some((storage_root, path, type_reference))
+    Some(path)
 }
 
 /// Resolve an indexed element's member under its exact current declaration.

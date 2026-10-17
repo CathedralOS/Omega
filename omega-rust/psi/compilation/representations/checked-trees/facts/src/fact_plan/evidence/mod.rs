@@ -172,13 +172,22 @@ pub enum ProofObligationKind {
     GuardedTransition,
 }
 
+/// Performed events consumed by the checked effect proof. An operation names
+/// neither a storage authority nor a resource disposal; the captured flow
+/// occurrence supplies operands and the ordinary claim ledger owns discharge.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InstructionEffectOperation {
+    Register(language_core::inline_assembly::AsmRegisterOperation),
+    AtomicReleaseStore,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FactPayload {
     /// One completed catalog operation. `Fact::point` names its exact flow
     /// invocation; operands keep their independently captured completion facts.
     /// This historical event is not a current-storage qualification or disposal.
     InstructionEffect {
-        operation: language_core::inline_assembly::AsmRegisterOperation,
+        operation: InstructionEffectOperation,
     },
     /// Normal execution of this exact invocation, independently of any
     /// proposition its postconditions may preserve from the entry context.

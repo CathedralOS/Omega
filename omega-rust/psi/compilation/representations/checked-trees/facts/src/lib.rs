@@ -29,8 +29,9 @@ pub use fact_plan::contexts::{
 pub use fact_plan::evidence::{
     ContractFactKind, DataDefinitionFactDependency, DataDefinitionFactRecord,
     DomainDefinitionFactDependency, DomainDefinitionFactRecord, Fact, FactOrigin, FactPayload,
-    FloatPredicate, InstantiatedExpression, IntegerRange, ProofObligationKind,
-    QualificationCorrespondence, QualificationEvidence, QualificationPayloadIdentity, ScalarValue,
+    FloatPredicate, InstantiatedExpression, InstructionEffectOperation, IntegerRange,
+    ProofObligationKind, QualificationCorrespondence, QualificationEvidence,
+    QualificationPayloadIdentity, ScalarValue,
 };
 pub use fact_plan::places::resolution::{
     canonical_place_label_from_parts, effective_member_symbol, payload_variant_for_field,

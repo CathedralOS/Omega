@@ -123,6 +123,7 @@ impl FlowBoundaryFacts {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct FlowControlFacts {
+    pub atomic_executions: Arena<super::FlowAtomicExecutionFact>,
     pub case_accesses: Arena<super::FlowCaseAccessFact>,
     pub operator_invocations: Arena<super::FlowOperatorInvocationFact>,
     pub operands: Arena<super::FlowOperandFact>,
@@ -158,6 +159,7 @@ impl FlowControlFacts {
     ) -> Self {
         Self {
             statements,
+            atomic_executions: Arena::default(),
             case_accesses: Arena::default(),
             operator_invocations: Arena::default(),
             operands: Arena::default(),

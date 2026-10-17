@@ -9,6 +9,7 @@ use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::proposition::PropositionApplication;
 use typed_trees::types::PrimitiveType;
+mod atomic;
 mod operands;
 use operands::operand_matches;
 
@@ -170,8 +171,16 @@ fn evidence_inner(
     };
     let arguments = QueryArguments::new(program, &contract)?;
     let required = arguments.frames.last()?.arguments.clone();
-    let carriers = operation.input_carriers();
-    if required.len() != carriers.len() {
+    let carriers = match operation {
+        facts::InstructionEffectOperation::Register(operation) => operation.input_carriers(),
+        facts::InstructionEffectOperation::AtomicReleaseStore => &[],
+    };
+    let arity = if operation == facts::InstructionEffectOperation::AtomicReleaseStore {
+        2
+    } else {
+        carriers.len()
+    };
+    if required.len() != arity {
         return None;
     }
     for context in contexts {
@@ -181,6 +190,29 @@ fn evidence_inner(
             .span_or_empty(facts.semantic.contexts.get(*context).facts)
         {
             let event = facts.semantic.facts.get(reference.fact);
+            if operation == facts::InstructionEffectOperation::AtomicReleaseStore
+                && matches!(
+                    event.payload,
+                    FactPayload::InstructionEffect {
+                        operation: facts::InstructionEffectOperation::AtomicReleaseStore
+                    }
+                )
+            {
+                if atomic::matches_store(
+                    program, facts, flow, state, statement, contexts, event, &arguments, &required,
+                ) {
+                    let receipt = InstructionEffectEvidence {
+                        event: reference.fact,
+                        contract: Default::default(),
+                        children: Vec::new(),
+                        observation,
+                    };
+                    if !spent.iter().any(|other| receipt.overlaps(facts, other)) {
+                        return Some(receipt);
+                    }
+                }
+                continue;
+            }
             let ProgramPoint::CallEnsures {
                 machine_symbol,
                 state_symbol: event_state,
@@ -225,10 +257,30 @@ fn evidence_inner(
                     else {
                         continue;
                     };
-                    if !operands::guarantee_matches(
-                        program, facts, flow, state, statement, contexts, call, candidate,
-                        &arguments, &required, operation,
-                    ) {
+                    let matches = match operation {
+                        facts::InstructionEffectOperation::Register(register_operation) => {
+                            operands::guarantee_matches(
+                                program,
+                                facts,
+                                flow,
+                                state,
+                                statement,
+                                contexts,
+                                call,
+                                candidate,
+                                &arguments,
+                                &required,
+                                register_operation,
+                            )
+                        }
+                        facts::InstructionEffectOperation::AtomicReleaseStore => {
+                            atomic::guarantee_matches(
+                                program, facts, flow, state, statement, contexts, call, candidate,
+                                &arguments, &required,
+                            )
+                        }
+                    };
+                    if !matches {
                         continue;
                     }
                     let Some(callee_flow) = facts
@@ -356,6 +408,7 @@ enum QueryArgument {
 }
 struct QueryFrame<'program> {
     declaration: &'program typed_trees::proposition::PropositionDefinition,
+    application: &'program PropositionApplication,
     arguments: Vec<QueryArgument>,
 }
 struct QueryArguments<'program> {
@@ -400,6 +453,7 @@ impl<'program> QueryArguments<'program> {
             }
             frames.push(QueryFrame {
                 declaration,
+                application,
                 arguments,
             });
         }
@@ -434,8 +488,7 @@ impl<'program> QueryArguments<'program> {
             )?;
             Some((position, segments))
         };
-        if !projection.is_empty() {
-            let (position, mut segments) = project(expression)?;
+        if let Some((position, mut segments)) = project(expression) {
             segments.extend_from_slice(projection);
             return self.scoped_value(
                 program,
@@ -470,5 +523,52 @@ impl<'program> QueryArguments<'program> {
                 }
             },
         )
+    }
+}
+
+impl QueryArguments<'_> {
+    fn source_projection(
+        &self,
+        program: &dyn validation::CheckingInput,
+        argument: QueryArgument,
+        suffix: &[facts::PlaceSegment],
+    ) -> Option<(ExpressionHandle, Vec<facts::PlaceSegment>)> {
+        match argument {
+            QueryArgument::Source(expression) => Some((expression, suffix.to_vec())),
+            QueryArgument::Parameter { frame, expression } => {
+                let frame = self.frames.get(frame)?;
+                let parameters = program.proposition_parameters(frame.declaration);
+                let (position, path, _) =
+                    crate::values::structural_parameter_place(program, parameters, expression)?;
+                let (_, mut segments, _, _) = crate::values::resolve_structural_parameter_path(
+                    program, parameters, position, &path,
+                )?;
+                segments.extend_from_slice(suffix);
+                self.source_projection(program, *frame.arguments.get(position as usize)?, &segments)
+            }
+        }
+    }
+    fn binder_symbol(
+        &self,
+        program: &dyn validation::CheckingInput,
+        frame: usize,
+        position: usize,
+    ) -> Option<SymbolHandle> {
+        let current = self.frames.get(frame)?;
+        let argument = current.application.binder_arguments.get(position)?;
+        if argument.kind != typed_trees::proposition::PropositionBinderArgumentKind::Type {
+            return None;
+        }
+        if let Some(previous) = frame.checked_sub(1) {
+            let declaration = self.frames.get(previous)?.declaration;
+            if let Some(position) = program
+                .proposition_binders(declaration)
+                .iter()
+                .position(|binder| binder.symbol == argument.symbol)
+            {
+                return self.binder_symbol(program, previous, position);
+            }
+        }
+        argument.symbol.is_valid().then_some(argument.symbol)
     }
 }

@@ -61,9 +61,9 @@ pub(crate) fn mutable_scalar_parameter_type(
 }
 
 pub(crate) use scalar::{
-    assignment_target_primitive_type, build_checked_scalar_expression_plans,
-    evaluate_closed_boolean_expression, exclusive_reference, is_scalar_return_call,
-    landed_for_primitive, lower_callable_parameter_range_requirements,
+    applied_projection_segments, assignment_target_primitive_type,
+    build_checked_scalar_expression_plans, evaluate_closed_boolean_expression, exclusive_reference,
+    is_scalar_return_call, landed_for_primitive, lower_callable_parameter_range_requirements,
     lower_callable_scalar_contract_predicate, lower_entry_predicate, lower_entry_scalar,
     lower_machine_entry_boolean_expression, lower_machine_entry_crash_contract_expression,
     lower_machine_parameter_boolean_expression, lower_operator_crash_contract_expression,

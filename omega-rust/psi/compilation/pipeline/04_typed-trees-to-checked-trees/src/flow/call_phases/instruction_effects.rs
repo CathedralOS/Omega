@@ -22,7 +22,9 @@ pub(in crate::flow) fn append(
         .and_then(|builtin| AsmRegisterOperation::from_intrinsic_name(builtin.name()))
         .filter(|operation| operation.is_admitted())
     {
-        Some(operation) => FactPayload::InstructionEffect { operation },
+        Some(operation) => FactPayload::InstructionEffect {
+            operation: facts::InstructionEffectOperation::Register(operation),
+        },
         None => FactPayload::CallCompletion {
             target: call.target_symbol,
         },

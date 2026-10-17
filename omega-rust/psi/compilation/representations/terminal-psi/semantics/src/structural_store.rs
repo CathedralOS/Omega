@@ -142,7 +142,11 @@ fn fields_are_disposable<'types>(
             StructuralFieldType::Scalar(_)
             | StructuralFieldType::BoundedInteger(_)
             | StructuralFieldType::RefinedScalar(_)
-            | StructuralFieldType::IeeeFloat(_) => true,
+            | StructuralFieldType::IeeeFloat(_)
+            // This judge consumes a complete owned, claim-free value into
+            // exclusive storage. Retiring its atomic cells is not a shared
+            // resident observation or permission to copy a borrowed cell.
+            | StructuralFieldType::Atomic(_) => true,
             StructuralFieldType::Structural(identity) => {
                 disposable_storage(types.clone(), *identity, descriptor_cleanup, visiting)
             }
@@ -150,6 +154,6 @@ fn fields_are_disposable<'types>(
             | StructuralFieldType::PredicateByteSequence { carrier, .. } => {
                 descriptor_cleanup || matches!(carrier, ByteSequenceCarrier::BoundedOwned { .. })
             }
-            StructuralFieldType::Atomic(_) | StructuralFieldType::Erased { .. } => false,
+            StructuralFieldType::Erased { .. } => false,
         })
 }

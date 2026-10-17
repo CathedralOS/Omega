@@ -529,6 +529,17 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
             active_contexts,
             active_constraints,
         );
+        super::atomic_effects::append(
+            program,
+            semantic,
+            build,
+            machine,
+            state,
+            statement_index,
+            statement,
+            active_contexts,
+            active_constraints,
+        );
         build
             .control
             .statements

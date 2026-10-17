@@ -4,3 +4,8 @@
 // establish them, independently of any package's selected implementation.
 pub proposition port_written(port: u16, byte: u8);
 pub proposition model_specific_written(index: u32, value: u64);
+
+// One performed release (or stronger) atomic store to this exact cell and value.
+// This records the write event; it grants no backing authority, publication
+// claim, reads-from relation, or synchronization by itself.
+pub proposition atomic_release_written<Cell, Value>(destination: &Cell, value: Value);

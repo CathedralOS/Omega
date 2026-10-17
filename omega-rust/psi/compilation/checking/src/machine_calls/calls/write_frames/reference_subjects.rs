@@ -199,6 +199,17 @@ pub(super) fn reference_value_replaces_binding(
     target: ExpressionHandle,
     value: ExpressionHandle,
 ) -> bool {
+    if crate::value_custody::atomic_operations::target_atomic_operation(
+        program,
+        machine,
+        Some(state),
+        target,
+        value,
+    )
+    .is_some()
+    {
+        return false;
+    }
     // An exclusive borrowed parameter grants access to its referent, not a
     // mutable home for its incoming descriptor. A local or projected field
     // can instead own descriptor storage. A shared parameter cannot write its

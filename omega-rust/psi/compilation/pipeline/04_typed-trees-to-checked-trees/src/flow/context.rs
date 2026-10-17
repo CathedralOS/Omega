@@ -215,8 +215,6 @@ pub(super) struct FlowBuildContext<'plans> {
     /// state's `entry_origin_chains` row.
     machine_parameter_origins:
         HashMap<SymbolHandle, Rc<crate::flow::entry_origins::MachineParameterOrigins>>,
-    reference_candidate_places:
-        HashMap<(SymbolHandle, usize, SymbolHandle), Option<Rc<Vec<validation::CanonicalPlace>>>>,
     /// Statement storage-write places per site: the answer is program-pure on
     /// (state, statement index) -- the machine and statement are implied by
     /// the key and the shared call-frame resolver is the same `call_frames`
@@ -311,7 +309,6 @@ impl<'plans> FlowBuildContext<'plans> {
             transition_call_targets: HashMap::default(),
             entry_origin_chains: HashMap::default(),
             machine_parameter_origins: HashMap::default(),
-            reference_candidate_places: HashMap::default(),
             statement_storage_writes: HashMap::default(),
             correspondence_root_types: HashMap::default(),
             expression_occurrences: HashMap::default(),
@@ -668,28 +665,6 @@ impl<'plans> FlowBuildContext<'plans> {
             .unwrap_or(&[])
     }
 
-    pub(super) fn reference_candidate_places_at(
-        &mut self,
-        program: &dyn ::validation::CheckingInput,
-        state_symbol: SymbolHandle,
-        statement_index: usize,
-        root: SymbolHandle,
-    ) -> Option<Rc<Vec<validation::CanonicalPlace>>> {
-        self.reference_candidate_places
-            .entry((state_symbol, statement_index, root))
-            .or_insert_with(|| {
-                crate::flow::reference_result_candidates_before_statement(
-                    program,
-                    state_symbol,
-                    statement_index,
-                    root,
-                    self.call_frames,
-                )
-                .map(Rc::new)
-            })
-            .clone()
-    }
-
     /// Storage-write places for one statement site. The enumeration walks
     /// local origins, origin paths, and alias closures per statement, all
     /// program-pure on (state, index): the statement sits at that index in
@@ -744,6 +719,7 @@ impl<'plans> FlowBuildContext<'plans> {
         discard_output_arena(&mut self.boundaries.edges);
         discard_output_arena(&mut self.control.statements);
         discard_output_arena(&mut self.control.operator_invocations);
+        discard_output_arena(&mut self.control.atomic_executions);
         discard_output_arena(&mut self.control.operands);
         discard_output_arena(&mut self.control.case_accesses);
         discard_output_arena(&mut self.control.operand_children);

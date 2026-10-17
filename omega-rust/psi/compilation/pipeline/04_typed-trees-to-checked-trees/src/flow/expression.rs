@@ -33,7 +33,7 @@ use checked_trees::{
 use facts::{FactPlan, ProgramPoint};
 use typed_trees::expression::{BinaryOperator, UnaryOperator};
 use typed_trees::statement::{TableTransition, TransitionTargetHandle, TransitionTargetNode};
-use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+use typed_trees::types::TypeReferenceHandle;
 
 mod constructed_values;
 mod dispatch;
@@ -793,19 +793,8 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         })
     }
 
-    fn is_view_type(&self, mut reference: typed_trees::types::TypeReferenceHandle) -> bool {
-        if !reference.is_valid() {
-            return false;
-        }
-        loop {
-            match self.program.type_reference_table.type_reference(reference) {
-                TypeReferenceNode::Constrained { base_type, .. } => reference = *base_type,
-                TypeReferenceNode::Reference { .. } | TypeReferenceNode::Slice { .. } => {
-                    return true;
-                }
-                _ => return false,
-            }
-        }
+    fn is_view_type(&self, reference: typed_trees::types::TypeReferenceHandle) -> bool {
+        super::operand_contexts::operand_binds_live_view(self.program, reference)
     }
 
     fn reference_operand_referents(
@@ -815,7 +804,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         if let Some(referents) = self.stored_view_referents(expression) {
             return referents;
         }
-        let Some(referents) = crate::flow::reference_expression_storage_places(
+        let Some(referents) = crate::flow::reference_expression_storage_places_including_shared(
             self.program,
             self.state.symbol,
             self.statement_index,
@@ -1282,8 +1271,39 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                     self.record_case_access(expression, *constraints);
                 }
             }
-            ExpressionNode::Atomic(atomic) => {
-                self.expression(atomic.value, contexts, constraints);
+            ExpressionNode::Atomic(_) => {
+                if let Some(inputs) = validation::atomic_value_operands(self.program, expression) {
+                    let load = validation::atomic_load_carrier(self.program, expression).is_some();
+                    let resident =
+                        validation::atomic_resident_type_reference(self.program, destination);
+                    let mut captured = Vec::with_capacity(inputs.len());
+                    for input in inputs {
+                        let reference = if load {
+                            self.context.expression_result_type_at(
+                                self.program,
+                                self.machine,
+                                self.state,
+                                input,
+                            )
+                        } else {
+                            resident
+                        }
+                        .unwrap_or_default();
+                        captured.push(
+                            self.evaluated_operand_as(input, reference, contexts, constraints)
+                                .capture,
+                        );
+                    }
+                    let operands = self.context.control.operands.insert_many(captured);
+                    self.context.control.atomic_executions.append(
+                        checked_trees::flow::FlowAtomicExecutionFact {
+                            state_symbol: self.state.symbol,
+                            statement_index: self.statement_index,
+                            expression,
+                            operands,
+                        },
+                    );
+                }
             }
             ExpressionNode::Cast(cast) => {
                 self.expression(cast.value, contexts, constraints);

@@ -516,7 +516,7 @@ fn valid_effect_tree(
     facts: &CheckFacts,
     handle: arena::Handle<checked_trees::flow::FlowInstructionEffectReceiptFact>,
     event: facts::FactHandle,
-    operation: language_core::inline_assembly::AsmRegisterOperation,
+    operation: facts::InstructionEffectOperation,
 ) -> bool {
     let arena = &facts.flow.ownership.instruction_effect_receipts;
     if !arena.is_valid(handle) {
@@ -535,6 +535,45 @@ fn valid_effect_tree(
         let effect = facts.semantic.facts.get(receipt.event);
         if !effect_visible_at(facts, receipt.observation, receipt.event) {
             return false;
+        }
+        if operation == facts::InstructionEffectOperation::AtomicReleaseStore
+            && matches!(
+                effect.payload,
+                facts::FactPayload::InstructionEffect {
+                    operation: facts::InstructionEffectOperation::AtomicReleaseStore
+                }
+            )
+        {
+            let facts::ProgramPoint::Statement {
+                machine_symbol,
+                state_symbol,
+                statement_index,
+            } = effect.point
+            else {
+                return false;
+            };
+            let Some(machine) = program.machine_by_symbol(machine_symbol) else {
+                return false;
+            };
+            let Some(state) = program.state_by_symbol(state_symbol) else {
+                return false;
+            };
+            let Some(statement) = program
+                .statement_table
+                .statements(state.statement_nodes)
+                .get(statement_index)
+            else {
+                return false;
+            };
+            if crate::flow::atomic_effects::release_store(program, machine, state, statement)
+                .is_none()
+                || !arena
+                    .span(receipt.children)
+                    .is_some_and(|children| children.is_empty())
+            {
+                return false;
+            }
+            continue;
         }
         let facts::ProgramPoint::CallEnsures {
             machine_symbol,
@@ -573,6 +612,7 @@ fn valid_effect_tree(
                             builtin.name(),
                         )
                     })
+                    .map(facts::InstructionEffectOperation::Register)
                     != Some(operation)
             {
                 return false;
