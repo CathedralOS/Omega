@@ -4,8 +4,9 @@ use super::contextual_projection::contextual_canonical_place_from_expression;
 use super::member_resolution::effective_member_symbol;
 
 use super::declared_symbols::first_valid_name_path_symbol;
-use checked_trees::expression::{ExpressionHandle, ExpressionNode};
-use symbols::SymbolHandle;
+use checked_trees::expression::{ExpressionHandle, ExpressionNode, MatchPattern};
+use symbols::{SymbolHandle, SymbolKind};
+use typed_trees::expression::BinaryOperator;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct CanonicalPlace {
@@ -166,25 +167,219 @@ fn fixed_half_open_range(
     range: &typed_trees::expression::TableRangeExpression,
 ) -> Option<(usize, usize)> {
     let start = if range.start.is_valid() {
-        usize::try_from(
-            program
-                .expression_table
-                .constant_integer_value(range.start)?,
-        )
-        .ok()?
+        range_coordinate(program, range.start)?
     } else {
         0
     };
     if !range.end.is_valid() {
         return None;
     }
-    let end = usize::try_from(program.expression_table.constant_integer_value(range.end)?).ok()?;
-    let end = if range.end_inclusive {
-        end.checked_add(1)?
-    } else {
-        end
-    };
+    let mut end = range_coordinate(program, range.end)?;
+    if range.end_inclusive {
+        end = end.checked_add(1)?;
+    }
     Some((start, end))
+}
+
+/// A half-open window coordinate. Literals fold as before. A selected match
+/// arm additionally substitutes its integer pattern for the subject, and an
+/// ensured call result substitutes that exact integer. `which + 2` in
+/// `match which { 0 -> items[0..which + 2] }` is therefore the same fixed
+/// window as `items[0..2]`. A wildcard arm assigns no pattern, so its
+/// endpoint stays a runtime index.
+fn range_coordinate(
+    program: &dyn crate::CheckingInput,
+    endpoint: ExpressionHandle,
+) -> Option<usize> {
+    let value = if let Some(value) = program.expression_table.constant_integer_value(endpoint) {
+        value
+    } else {
+        let bindings = match_arm_bindings(program, endpoint)?;
+        folded_coordinate(program, endpoint, &bindings, 0)?
+    };
+    usize::try_from(value).ok()
+}
+
+/// Bindings from value arms that contain `endpoint`. Contradictory patterns
+/// for one subject leave the coordinate unknown. A call inside the endpoint
+/// may store a field before a later read, so a field subject is not
+/// substituted through that call; the call's own ensured result still folds.
+fn match_arm_bindings(
+    program: &dyn crate::CheckingInput,
+    endpoint: ExpressionHandle,
+) -> Option<Vec<(ExpressionHandle, i64)>> {
+    let contains_call = expression_contains_call(program, endpoint);
+    let mut bindings = Vec::new();
+    for state_symbol in states_naming(program, endpoint) {
+        let machine_symbol = program.symbols.get(state_symbol).parent;
+        let Some((_, state)) = program.machine_state(machine_symbol, state_symbol) else {
+            continue;
+        };
+        for statement in program.statement_table.statements(state.statement_nodes) {
+            for (_, root) in program.tables.expression_roots(statement) {
+                collect_arm_bindings(program, root, endpoint, &mut bindings);
+            }
+        }
+    }
+    if contains_call {
+        bindings.retain(|(subject, _)| !subject_is_stored_field(program, *subject));
+    }
+    let mut consistent = Vec::new();
+    for (subject, value) in bindings {
+        if let Some((_, prior)) = consistent
+            .iter()
+            .find(|(existing, _)| same_match_subject(program, *existing, subject))
+        {
+            if *prior != value {
+                return None;
+            }
+            continue;
+        }
+        consistent.push((subject, value));
+    }
+    Some(consistent)
+}
+
+fn collect_arm_bindings(
+    program: &dyn crate::CheckingInput,
+    root: ExpressionHandle,
+    endpoint: ExpressionHandle,
+    bindings: &mut Vec<(ExpressionHandle, i64)>,
+) {
+    let mut nodes = Vec::new();
+    crate::expression_traversal::collect_expression_tree(program, root, &mut nodes);
+    for node in nodes {
+        let ExpressionNode::Match(dispatch) = program.expression_table.expression(node) else {
+            continue;
+        };
+        for arm in program.expression_table.match_arms(dispatch.arms) {
+            let MatchPattern::Value(pattern) = arm.pattern else {
+                continue;
+            };
+            let Some(value) = program
+                .expression_table
+                .integer_node(pattern)
+                .and_then(|literal| literal.value_i64())
+            else {
+                continue;
+            };
+            let mut arm_nodes = Vec::new();
+            crate::expression_traversal::collect_expression_tree(
+                program,
+                arm.value,
+                &mut arm_nodes,
+            );
+            if arm_nodes.contains(&endpoint) {
+                bindings.push((dispatch.subject, value));
+            }
+        }
+    }
+}
+
+fn states_naming(
+    program: &dyn crate::CheckingInput,
+    endpoint: ExpressionHandle,
+) -> Vec<SymbolHandle> {
+    let mut nodes = Vec::new();
+    crate::expression_traversal::collect_expression_tree(program, endpoint, &mut nodes);
+    let mut states = Vec::new();
+    for node in nodes {
+        let ExpressionNode::Name(path) = program.expression_table.expression(node) else {
+            continue;
+        };
+        if !path.head_symbol.is_valid() {
+            continue;
+        }
+        let declaration = program.symbols.get(path.head_symbol);
+        if !matches!(declaration.kind, SymbolKind::Parameter | SymbolKind::Local) {
+            continue;
+        }
+        if !states.contains(&declaration.parent) {
+            states.push(declaration.parent);
+        }
+    }
+    states
+}
+
+fn folded_coordinate(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+    bindings: &[(ExpressionHandle, i64)],
+    depth: usize,
+) -> Option<i64> {
+    if depth >= 64 || !expression.is_valid() {
+        return None;
+    }
+    let mut matched = bindings
+        .iter()
+        .filter(|(subject, _)| same_match_subject(program, *subject, expression))
+        .map(|(_, value)| *value);
+    if let Some(first) = matched.next() {
+        return matched.all(|value| value == first).then_some(first);
+    }
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Integer(literal) => literal.value_i64(),
+        ExpressionNode::Borrow(borrow) => {
+            folded_coordinate(program, borrow.target, bindings, depth + 1)
+        }
+        ExpressionNode::Binary(binary) => {
+            let left = folded_coordinate(program, binary.left, bindings, depth + 1)?;
+            let right = folded_coordinate(program, binary.right, bindings, depth + 1)?;
+            match binary.operator {
+                BinaryOperator::Add => left.checked_add(right),
+                BinaryOperator::Subtract => left.checked_sub(right),
+                BinaryOperator::Multiply => left.checked_mul(right),
+                BinaryOperator::Divide => (right != 0).then(|| left.checked_div(right)).flatten(),
+                BinaryOperator::Modulo => (right != 0).then(|| left.checked_rem(right)).flatten(),
+                _ => None,
+            }
+        }
+        ExpressionNode::Call(call) => {
+            let (low, high) = crate::normal_return_integer_bounds(program, call)?;
+            match (low, high) {
+                (Some(low), Some(high)) if low == high => Some(low),
+                _ => None,
+            }
+        }
+        _ => None,
+    }
+}
+
+fn same_match_subject(
+    program: &dyn crate::CheckingInput,
+    subject: ExpressionHandle,
+    expression: ExpressionHandle,
+) -> bool {
+    if subject == expression {
+        return true;
+    }
+    let Some(subject_place) = canonical_place_from_expression(program, subject) else {
+        return false;
+    };
+    canonical_place_from_expression(program, expression).is_some_and(|place| place == subject_place)
+}
+
+fn subject_is_stored_field(program: &dyn crate::CheckingInput, subject: ExpressionHandle) -> bool {
+    canonical_place_from_expression(program, subject).is_some_and(|place| {
+        place
+            .segments
+            .iter()
+            .any(|segment| matches!(segment, facts::PlaceSegment::Field { .. }))
+    })
+}
+
+fn expression_contains_call(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+) -> bool {
+    let mut nodes = Vec::new();
+    crate::expression_traversal::collect_expression_tree(program, expression, &mut nodes);
+    nodes.into_iter().any(|node| {
+        matches!(
+            program.expression_table.expression(node),
+            ExpressionNode::Call(_)
+        )
+    })
 }
 
 pub fn push_field_place_segments(

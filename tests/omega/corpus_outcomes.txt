@@ -9016,6 +9016,7 @@ run/proofs/embed_collection_length_exit checked 5426ms check-target:macos_arm64 
 run/proofs/quotient_copy_paths checked 19698ms check-target:macos_arm64 @73e466d6222f+wt
 run/providers/module_named_float_conversion_family_exit checked 16353ms check-target:macos_arm64 @77cde1c51efd+wt
 run/slices/call_result_mutable_window_exit checked 13049ms check-target:macos_arm64 @73e11f08dcbb+wt
+run/slices/computed_record_window checked 12426ms check-target:macos_arm64 @b88c1c4b1ca5+wt
 run/slices/disjoint_local_state_windows checked 9595ms check-target:macos_arm64 @1810e541fd15+wt
 run/slices/matched_computed_window_end checked 5636ms check-target:macos_arm64 @a4e565996e72+wt
 run/slices/mutable_window_call_argument checked 5974ms check-target:macos_arm64 @218cc4d211aa
