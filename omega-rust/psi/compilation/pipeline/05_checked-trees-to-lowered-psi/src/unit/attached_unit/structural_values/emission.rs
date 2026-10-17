@@ -1351,15 +1351,32 @@ impl Emission<'_, '_, '_> {
             "structural operand call did not publish its result",
         ))?;
         // A nested call's result has its own source occurrence even when a
-        // projection becomes the authored local. Cleanup must retain the
-        // producing home, not reconstruct it from that projected value.
+        // projection becomes the authored local. An ordinary call publishes
+        // an operation result; selected leaves publish one completed arrival.
+        // Retain that exact home and custody instead of choosing a leaf or
+        // reconstructing the producer from the receiving local.
         let node = structural_values(self.checked).nodes.get(call.value);
-        let StructuralPlaceKind::OperationResult {
-            structural_type, ..
-        } = completed.kind
-        else {
-            return unsupported("structural operand call has no produced storage");
-        };
+        let binding = self
+            .operations
+            .structural_values
+            .iter()
+            .rev()
+            .find(|(_, binding)| binding.place() == completed.id)
+            .map(|(_, binding)| binding)
+            .ok_or(LoweringError::Unsupported(
+                "structural operand call has no completed binding",
+            ))?;
+        let result = completed_storage::completed_result(
+            completed.id,
+            &completed,
+            self.operations,
+            self.evaluation.structural_root_parameters(),
+            binding.claims(),
+        )?;
+        let structural_type = result.structural_type;
+        // Enclosing value completion must see the call's authenticated claim
+        // frontier even when its storage is the dispatch continuation.
+        self.arrival_claims.push((completed.id, result.claims));
         crate::expression_preparation::bindings::retain_completed_structural_homes(
             &mut self.evaluation.structural_locals,
             &[
@@ -1659,9 +1676,6 @@ impl Emission<'_, '_, '_> {
                     return unsupported("structural operand call is duplicated");
                 }
                 let declaration = self.emit_operand_call(identities, call)?;
-                let StructuralPlaceKind::OperationResult { .. } = declaration.kind else {
-                    return unsupported("structural operand call has no result place");
-                };
                 self.completed(identities, declaration.id, continuation)
             }
             CheckedStructuralValueKind::Projection {
