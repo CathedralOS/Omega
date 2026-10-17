@@ -213,7 +213,10 @@ pub(super) fn returned_value_loans(
     machine_symbol: SymbolHandle,
     statement: &StatementNode,
     loan_trackers: &[StateLoanTracker],
-) -> Vec<StatementBorrowLoan> {
+) -> Vec<(
+    checked_trees::statement::TransitionTargetHandle,
+    StatementBorrowLoan,
+)> {
     use checked_trees::statement::{TransitionExit, TransitionTargetNode};
 
     if !is_reference_type(program, state.return_type)
@@ -221,7 +224,7 @@ pub(super) fn returned_value_loans(
     {
         return Vec::new();
     }
-    let mut returned_value = checked_trees::statement::TableLocalData {
+    let returned_value = checked_trees::statement::TableLocalData {
         role: language_core::LocalBindingRole::Value,
         symbol: state.symbol,
         name: state.name.clone(),
@@ -232,7 +235,19 @@ pub(super) fn returned_value_loans(
         is_operand_capture: false,
         relevance: language_core::BindingRelevance::Relevant,
     };
-    let expression = match statement {
+    let expression_loans = |expression| {
+        let mut value = returned_value.clone();
+        value.initial_value = expression;
+        value_borrow_loans(
+            program,
+            state,
+            statement_index,
+            machine_symbol,
+            &StatementNode::LocalData(value),
+            loan_trackers,
+        )
+    };
+    let transition = match statement {
         StatementNode::Expression(expression)
             if statement_index + 1
                 == program
@@ -240,85 +255,82 @@ pub(super) fn returned_value_loans(
                     .statements(state.statement_nodes)
                     .len() =>
         {
-            *expression
+            return expression_loans(*expression)
+                .into_iter()
+                .map(|loan| (Default::default(), loan))
+                .collect();
         }
-        StatementNode::Transition(transition)
-            if transition.exit == TransitionExit::Ordinary
-                && !transition.continuation.is_valid() =>
-        {
-            match program.statement_table.transition_target(transition.target) {
-                TransitionTargetNode::Value(expression) => *expression,
-                TransitionTargetNode::Named {
-                    path, arguments, ..
-                } => {
-                    use crate::borrow::view_link::{
-                        ViewReturnFieldSource, ViewReturnSource, resolve_view_return_source,
-                    };
-
-                    let Some((_, target)) = validation::find_state(program, path.symbol)
-                        .or_else(|| validation::find_machine_head(program, path.symbol))
-                    else {
-                        return Vec::new();
-                    };
-                    // Preparation has selected this state's declaration. Its
-                    // declared lifetime frontier remains conservative across
-                    // the edge; ordinary source formation authenticates the
-                    // actuals against the caller's current descriptor roster.
-                    let fields = match resolve_view_return_source(program, target) {
-                        ViewReturnSource::Fields { fields } => fields,
-                        ViewReturnSource::Parameter { parameter_index } => {
-                            let Some(kind) =
-                                reference_borrow_access_kind(program, target.return_type)
-                            else {
-                                return Vec::new();
-                            };
-                            let Some(parameter) =
-                                program.state_parameters(target).get(parameter_index)
-                            else {
-                                return Vec::new();
-                            };
-                            vec![ViewReturnFieldSource {
-                                source:
-                                    validation::borrow_contracts::ViewReturnInputSource::Referent,
-                                owner_path: Vec::new(),
-                                source_path: Vec::new(),
-                                source_type: parameter.type_reference,
-                                parameter_index,
-                                kind,
-                            }]
-                        }
-                        ViewReturnSource::NotApplicable | ViewReturnSource::Ambiguous(_) => {
-                            return Vec::new();
-                        }
-                    };
-                    return aggregate_loans::result_source_loans(
-                        program,
-                        state.symbol,
-                        statement_index,
-                        machine_symbol,
-                        &returned_value,
-                        target.symbol,
-                        program.statement_table.expression_handles(*arguments),
-                        fields,
-                        &[],
-                        &[],
-                        loan_trackers,
-                    );
-                }
-                TransitionTargetNode::Terminal => return Vec::new(),
-            }
+        StatementNode::Transition(transition) if transition.exit == TransitionExit::Ordinary => {
+            transition
         }
         _ => return Vec::new(),
     };
-    returned_value.initial_value = expression;
-    value_borrow_loans(
-        program,
-        state,
-        statement_index,
-        machine_symbol,
-        &StatementNode::LocalData(returned_value),
-        loan_trackers,
-    )
+    // Each selected arm forms its own normal result. The target handle is
+    // retained beside the loan: sharing a statement does not make alternatives
+    // simultaneous, nor let a captured sibling cover missing formation.
+    let mut returned = Vec::new();
+    for target_handle in transition.targets() {
+        let loans = match program.statement_table.transition_target(target_handle) {
+            TransitionTargetNode::Value(expression) => expression_loans(*expression),
+            TransitionTargetNode::Named {
+                path, arguments, ..
+            } => {
+                use crate::borrow::view_link::{
+                    ViewReturnFieldSource, ViewReturnSource, resolve_view_return_source,
+                };
+
+                let Some((_, target)) = validation::find_state(program, path.symbol)
+                    .or_else(|| validation::find_machine_head(program, path.symbol))
+                else {
+                    continue;
+                };
+                // Preparation has selected this state's declaration. Its
+                // declared lifetime frontier remains conservative across
+                // the edge; ordinary source formation authenticates the
+                // actuals against the caller's current descriptor roster.
+                let fields = match resolve_view_return_source(program, target) {
+                    ViewReturnSource::Fields { fields } => fields,
+                    ViewReturnSource::Parameter { parameter_index } => {
+                        let Some(kind) = reference_borrow_access_kind(program, target.return_type)
+                        else {
+                            continue;
+                        };
+                        let Some(parameter) = program.state_parameters(target).get(parameter_index)
+                        else {
+                            continue;
+                        };
+                        vec![ViewReturnFieldSource {
+                            source: validation::borrow_contracts::ViewReturnInputSource::Referent,
+                            owner_path: Vec::new(),
+                            source_path: Vec::new(),
+                            source_type: parameter.type_reference,
+                            parameter_index,
+                            kind,
+                        }]
+                    }
+                    ViewReturnSource::NotApplicable | ViewReturnSource::Ambiguous(_) => {
+                        continue;
+                    }
+                };
+                aggregate_loans::result_source_loans(
+                    program,
+                    state.symbol,
+                    statement_index,
+                    machine_symbol,
+                    &returned_value,
+                    target.symbol,
+                    program.statement_table.expression_handles(*arguments),
+                    fields,
+                    &[],
+                    &[],
+                    loan_trackers,
+                )
+            }
+            TransitionTargetNode::Terminal => Vec::new(),
+        };
+        returned.extend(loans.into_iter().map(|loan| (target_handle, loan)));
+    }
+    returned
 }
 
 pub(super) fn statement_borrow_loans(

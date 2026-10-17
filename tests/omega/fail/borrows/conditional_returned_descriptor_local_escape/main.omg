@@ -1,0 +1,9 @@
+data Found<'input> { bytes: &'input [u8]; }
+machine select<'input>(bytes: &'input [u8], take: bool) -> Found<'input> {
+    let local: [u8; 1] = [29];
+    transition take {
+        true -> Found { bytes: bytes }
+        false -> Found { bytes: &local[..] }
+    }
+}
+machine main() {}

@@ -119,7 +119,10 @@ pub(super) fn check_formed_aggregates<'p>(
         .borrow
         .returned_loans
         .span_or_empty(borrow_state.returned_loans)
-        .chunk_by(|left, right| left.statement_index == right.statement_index)
+        .chunk_by(|left, right| {
+            left.statement_index == right.statement_index
+                && left.transition_target == right.transition_target
+        })
     {
         if loans.len() < 2 {
             continue;

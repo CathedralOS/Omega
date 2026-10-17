@@ -1,0 +1,65 @@
+// Expected exit: 0
+use omega::language::core::option;
+// Logical index 1 in the suffix denotes physical index 3, captured once.
+data Cell [copy] { value: i32; }
+trait Locate<T> {
+    machine pick(values: &[T]) -> Optional<&i32>;
+}
+machine scalar<'input>(values: &'input [i32], position: u64) -> &'input i32
+requires position < values.len { &values[position] }
+machine field<'input>(values: &'input [Cell], position: u64) -> &'input i32
+requires position < values.len { &values[position].value }
+Scalars satisfies Locate<i32> {
+    machine pick(values: &[i32]) -> Optional<&i32> {
+        transition values.len > 1 {
+            true -> Optional::Some { value: &values[1] }
+            false -> Optional::None
+        }
+    }
+}
+Fields satisfies Locate<Cell> {
+    machine pick(values: &[Cell]) -> Optional<&i32> {
+        transition values.len > 1 {
+            true -> Optional::Some { value: &values[1].value }
+            false -> Optional::None
+        }
+    }
+}
+machine observed(value: &i32) -> i32 { value }
+machine observed_optional(found: Optional<&i32>, expected: i32) -> bool {
+    transition found {
+        Optional::Some { value } -> (observed(value) == expected)
+        Optional::None -> false
+    }
+}
+machine main() crashes Trap {
+    let numbers: [i32; 5] = [91, 92, 31, 44, 55];
+    let cells: [Cell; 5] = [Cell { value: 81 }, Cell { value: 82 },
+        Cell { value: 61 }, Cell { value: 74 }, Cell { value: 85 }];
+    let number_window: &[i32] = &numbers[2..5];
+    let cell_window: &[Cell] = &cells[2..5];
+    transition number_window.len > 1 && cell_window.len > 1
+        && numbers[0] == 91 && cells[0].value == 81 {
+        true -> inspect(number_window, cell_window)
+        false -> bad()
+    }
+    state inspect(numbers: &[i32], cells: &[Cell])
+    requires numbers.len > 1 && cells.len > 1 {
+        let scalar_locator: dyn Locate<i32> = Scalars as dyn Locate<i32>;
+        let field_locator: dyn Locate<Cell> = Fields as dyn Locate<Cell>;
+        let scalar_reference: &i32 = scalar(numbers, 1);
+        let scalar_result: Optional<&i32> = Locate::pick(scalar_locator, numbers);
+        let field_reference: &i32 = field(cells, 1);
+        let field_result: Optional<&i32> = Locate::pick(field_locator, cells);
+        let scalar_correct: bool = observed(scalar_reference) == 44;
+        let dynamic_scalar_correct: bool = observed_optional(scalar_result, 44);
+        let field_correct: bool = observed(field_reference) == 74;
+        let dynamic_field_correct: bool = observed_optional(field_result, 74);
+        transition scalar_correct && dynamic_scalar_correct && field_correct && dynamic_field_correct {
+            true -> done()
+            false -> bad()
+        }
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

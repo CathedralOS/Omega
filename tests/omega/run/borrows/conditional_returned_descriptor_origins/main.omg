@@ -1,0 +1,54 @@
+// Expected exit: 0
+use omega::language::core::option;
+data Found<'input> { bytes: &'input [u8]; }
+machine observed(found: Optional<Found>, expected: u8) -> bool {
+    transition found {
+        Optional::Some { value } -> inspect(value, expected)
+        Optional::None -> false
+    }
+    state inspect(found: Found, expected: u8) -> bool {
+        transition found.bytes.len == 1 { true -> contents(found, expected) false -> false }
+    }
+    state contents(found: Found, expected: u8) -> bool requires found.bytes.len == 1 {
+        found.bytes[0] == expected
+    }
+}
+machine absent(found: Optional<Found>) -> bool {
+    transition found { Optional::Some { value } -> false Optional::None -> true }
+}
+
+machine choose<'input>(left: &'input [u8], right: &'input [u8], which: bool) -> Optional<Found<'input>> {
+    transition which {
+        true -> Optional::Some { value: Found { bytes: left } }
+        false -> Optional::Some { value: Found { bytes: right } }
+    }
+}
+machine cycling<'input>(left: &'input [u8], right: &'input [u8], remaining: u64) -> Optional<Found<'input>> {
+    transition { _ -> next(left, right, remaining) }
+    state next(left: &'input [u8], right: &'input [u8], remaining: u64) -> Optional<Found<'input>> {
+        transition remaining > 0 {
+            true -> compare(right, left, remaining - 1)
+            false -> Optional::Some { value: Found { bytes: left } }
+        }
+    }
+    state compare(left: &'input [u8], right: &'input [u8], remaining: u64) -> Optional<Found<'input>> {
+        transition { _ -> next(left, right, remaining) }
+    }
+}
+// A complete None-only successor contributes no captured reference slot.
+machine only_none<'input>(bytes: &'input [u8]) -> Optional<Found<'input>> {
+    transition { _ -> empty(bytes) }
+    state empty(bytes: &'input [u8]) -> Optional<Found<'input>> { Optional::None }
+}
+
+machine main() crashes Trap {
+    let left: [u8; 1] = [11]; let right: [u8; 1] = [22];
+    transition absent(only_none(&left[..])) && observed(choose(&left[..], &right[..], true), 11)
+        && observed(choose(&left[..], &right[..], false), 22)
+        && observed(cycling(&left[..], &right[..], 1), 22)
+        && observed(cycling(&left[..], &right[..], 2), 11) {
+
+        true -> done() false -> bad()
+    }
+    state done() {} state bad() { crash Trap; }
+}

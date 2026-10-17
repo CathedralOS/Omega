@@ -47,19 +47,8 @@ impl TerminalExecution<'_> {
                 })
                 .collect::<Result<Vec<_>, _>>()?;
             if !prefix.is_empty() {
-                let view = match selected.view_tip {
-                    Some(AggregateViewTip::Aggregate { view, .. }) => Some(view),
-                    _ => None,
-                };
-                let Some(projected) = self.resolve_reference_view_path_with_leaf_type(
-                    &selected.value,
-                    &prefix,
-                    Some(backing.access),
-                    terminal_psi::StructuralFieldType::canonical_leaf_type,
-                    view,
-                    selected.placed_ram.clone(),
-                    selected.array_loan.clone(),
-                )?
+                let Some(projected) =
+                    self.resolve_origin_projection(&selected, &prefix, backing.access)?
                 else {
                     return Ok(None);
                 };
@@ -85,7 +74,7 @@ impl TerminalExecution<'_> {
                 Some(AggregateViewTip::Aggregate { view, .. }) => view.structural_type,
                 _ => selected.value.structural_type,
             };
-            let (collection, projection) = if matches!(
+            if matches!(
                 types
                     .get(&logical_type)
                     .map(|declaration| &declaration.shape),
@@ -101,43 +90,41 @@ impl TerminalExecution<'_> {
                 let Some(index) = view.captured_structural_index(&actual.view) else {
                     return Ok(None);
                 };
-                view.structural_projection(
-                    &types,
-                    &[StructuralPathSegment::FixedIndex(index)],
-                    backing.access != StructuralAccess::SharedBorrow,
+                let interpretation = match selected.view_tip {
+                    Some(AggregateViewTip::Aggregate { view, .. }) => Some(view),
+                    _ => None,
+                };
+                let Some(projected) = self.resolve_captured_element_origin(
+                    view,
+                    index,
+                    backing.access,
+                    interpretation,
+                    selected.placed_ram.clone(),
                 )?
-            } else {
-                if selected.value.opaque_identity != actual.view.opaque_identity {
-                    return Ok(None);
-                }
-                let Some(suffix) = actual
-                    .view
-                    .path
-                    .strip_prefix(selected.value.path.as_slice())
                 else {
                     return Ok(None);
                 };
-                let Some(StructuralPathSegment::FixedIndex(index)) = suffix.first() else {
-                    return Ok(None);
-                };
-                (
-                    selected.value.clone(),
-                    vec![StructuralPathSegment::FixedIndex(*index)],
-                )
+                selected = projected;
+                captured_view = None;
+                remaining = &remaining[position + 1..];
+                continue;
+            }
+            if selected.value.opaque_identity != actual.view.opaque_identity {
+                return Ok(None);
+            }
+            let Some(suffix) = actual
+                .view
+                .path
+                .strip_prefix(selected.value.path.as_slice())
+            else {
+                return Ok(None);
             };
-            let view = match selected.view_tip {
-                Some(AggregateViewTip::Aggregate { view, .. }) => Some(view),
-                _ => None,
+            let Some(StructuralPathSegment::FixedIndex(index)) = suffix.first() else {
+                return Ok(None);
             };
-            let Some(projected) = self.resolve_reference_view_path_with_leaf_type(
-                &collection,
-                &projection,
-                Some(backing.access),
-                terminal_psi::StructuralFieldType::canonical_leaf_type,
-                view,
-                selected.placed_ram.clone(),
-                selected.array_loan.clone(),
-            )?
+            let projection = vec![StructuralPathSegment::FixedIndex(*index)];
+            let Some(projected) =
+                self.resolve_origin_projection(&selected, &projection, backing.access)?
             else {
                 return Ok(None);
             };
@@ -145,6 +132,140 @@ impl TerminalExecution<'_> {
             captured_view = None;
             remaining = &remaining[position + 1..];
         }
+    }
+
+    /// Continue within an already authenticated backing. An empty suffix must
+    /// preserve its endpoint and codec. Inline children keep the supplying
+    /// activation home; a descriptor crossing uses that descriptor's own capture.
+    fn resolve_origin_projection(
+        &self,
+        source: &ResolvedStructuralProjection,
+        path: &[StructuralPathSegment],
+        access: StructuralAccess,
+    ) -> Result<Option<ResolvedStructuralProjection>, TerminalInterpretError> {
+        if path.is_empty() {
+            return Ok(Some(source.clone()));
+        }
+        let interpretation = match source.view_tip {
+            Some(AggregateViewTip::Aggregate { view, .. }) => Some(view),
+            _ => None,
+        };
+        let Some(mut projected) = self.resolve_reference_view_path_with_leaf_type(
+            &source.value,
+            path,
+            Some(access),
+            terminal_psi::StructuralFieldType::canonical_leaf_type,
+            interpretation,
+            source.placed_ram.clone(),
+            source.array_loan.clone(),
+        )?
+        else {
+            return Ok(None);
+        };
+        if let Some(home) = &source.collection_home {
+            let types = self.program.structural_types();
+            if terminal_semantics::reference_storage_region(
+                types.values(),
+                source.value.structural_type,
+                path,
+            )
+            .is_some()
+            {
+                let mut selected_home = home.clone();
+                selected_home.path.extend_from_slice(path);
+                match types
+                    .get(&projected.value.structural_type)
+                    .map(|declaration| &declaration.shape)
+                {
+                    Some(StructuralTypeShape::PrimitiveScalar(_))
+                        if projected.primitive_storage.is_none() =>
+                    {
+                        projected.primitive_storage = Some(
+                            self.primitive_home_access(
+                                selected_home.storage,
+                                access != StructuralAccess::SharedBorrow,
+                                &selected_home.path,
+                            )?
+                            .0,
+                        );
+                    }
+                    Some(StructuralTypeShape::FixedArray { length, .. })
+                        if projected.array_loan.is_none() =>
+                    {
+                        projected.array_loan = Some(
+                            crate::element_views::ElementView::structural(
+                                projected.value.clone(),
+                                usize::try_from(*length).map_err(|_| malformed())?,
+                                access,
+                                Some(selected_home.clone()),
+                                selected_home.storage.scalar_array_frame().1,
+                            )
+                            .with_descriptor_home(projected.value.clone()),
+                        );
+                    }
+                    _ => {}
+                }
+                projected.collection_home = Some(selected_home);
+            }
+        }
+        Ok(Some(projected))
+    }
+
+    /// Geometry selects the original collection with a physical index; storage
+    /// lookup consumes the logical view index. Applying the narrowed companion
+    /// to that physical index again would add its start twice. Both operations
+    /// use this exact captured view, preserving its activation, access and codec.
+    fn resolve_captured_element_origin(
+        &self,
+        view: &crate::element_views::ElementView,
+        index: u64,
+        access: StructuralAccess,
+        interpretation: Option<AggregateViewRegion>,
+        placed: Option<PlacedRamReference>,
+    ) -> Result<Option<ResolvedStructuralProjection>, TerminalInterpretError> {
+        let types = self.program.structural_types();
+        let logical_path = [StructuralPathSegment::FixedIndex(index)];
+        let (collection, physical_path) = view.structural_projection(
+            &types,
+            &logical_path,
+            access != StructuralAccess::SharedBorrow,
+        )?;
+        let Some(mut projected) = self.resolve_reference_view_path_with_leaf_type(
+            &collection,
+            &physical_path,
+            Some(access),
+            terminal_psi::StructuralFieldType::canonical_leaf_type,
+            interpretation,
+            placed,
+            None,
+        )?
+        else {
+            return Ok(None);
+        };
+        match types
+            .get(&projected.value.structural_type)
+            .map(|declaration| &declaration.shape)
+        {
+            Some(StructuralTypeShape::PrimitiveScalar(_))
+                if projected.primitive_storage.is_none() =>
+            {
+                projected.primitive_storage = Some(
+                    view.scalar_storage(
+                        self,
+                        &logical_path,
+                        access != StructuralAccess::SharedBorrow,
+                    )?
+                    .0,
+                );
+            }
+            Some(StructuralTypeShape::FixedArray { .. }) => {
+                projected.array_loan =
+                    Some(view.project_array(&types, &logical_path, &projected.value)?);
+            }
+            _ => {}
+        }
+        projected.collection_home = view.captured_storage_home(&types, &logical_path)?;
+        Ok(Some(projected))
     }
 
     /// Narrow a captured region using the returned descriptor's physical
@@ -165,19 +286,12 @@ impl TerminalExecution<'_> {
             let Some(index) = view.captured_structural_index(&actual.view) else {
                 return Ok(None);
             };
-            let (collection, path) = view.structural_projection(
-                &self.program.structural_types(),
-                &[StructuralPathSegment::FixedIndex(index)],
-                access != StructuralAccess::SharedBorrow,
-            )?;
-            let Some(element) = self.resolve_reference_view_path_with_leaf_type(
-                &collection,
-                &path,
-                Some(access),
-                terminal_psi::StructuralFieldType::canonical_leaf_type,
+            let Some(element) = self.resolve_captured_element_origin(
+                view,
+                index,
+                access,
                 None,
                 region.placed_ram.clone(),
-                None,
             )?
             else {
                 return Ok(None);
@@ -233,16 +347,7 @@ impl TerminalExecution<'_> {
                 "returned input region requires captured byte backing",
             ));
         }
-        let Some(mut projected) = self.resolve_reference_view_path_with_leaf_type(
-            &region.value,
-            path,
-            Some(access),
-            terminal_psi::StructuralFieldType::canonical_leaf_type,
-            None,
-            region.placed_ram.clone(),
-            region.array_loan.clone(),
-        )?
-        else {
+        let Some(mut projected) = self.resolve_origin_projection(&region, path, access)? else {
             return Ok(None);
         };
         if let Some(view) = actual.aggregate_view {

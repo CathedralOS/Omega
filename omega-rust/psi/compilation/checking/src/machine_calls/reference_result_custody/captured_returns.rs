@@ -9,6 +9,8 @@
 //! selects one element. Region provenance never establishes an exact descriptor
 //! extent or equality between independently captured windows.
 
+mod named_returns;
+
 use super::{
     StoredCarrierSource, is_mutable_structural_parameter, loan_owner_path, loan_place_segments,
     record_carrier_sources, reference_access_can_supply, stored_carrier_sources, stored_loan_parts,
@@ -52,20 +54,22 @@ pub(super) fn terminal_call_sources(
 ) -> Option<Vec<CheckedReturnedReferencePlan>> {
     let captures = Captures { program, facts };
     let flow = captures.flow(state.symbol)?;
-    let mut occurrences = facts
-        .flow
-        .control
-        .calls
-        .span(flow.calls)?
-        .iter()
-        .filter(|candidate| {
-            candidate.statement_index == call.statement_index
-                && !candidate.authored_expression.is_valid()
-        });
-    if occurrences.next()? != call || occurrences.next().is_some() {
+    let machine = program.machine_by_symbol(flow.machine_symbol)?;
+    let target = crate::transition_call_target(
+        program,
+        machine,
+        state,
+        call.statement_index,
+        call.call_ordinal,
+    )?;
+    if captures.transition_call(state, call.statement_index, target)? != call {
         return None;
     }
-    captures.normal_returns(state, &mut vec![state.symbol], Some(call.statement_index))
+    captures.normal_returns(
+        state,
+        &mut vec![state.symbol],
+        Some((call.statement_index, target)),
+    )
 }
 
 /// Actual captures can remove inactive formal case slots, never create loans.
@@ -117,7 +121,7 @@ impl Captures<'_> {
         &self,
         state: &typed_trees::state::State,
         active: &mut Vec<SymbolHandle>,
-        selected_statement: Option<usize>,
+        selected_site: Option<(usize, typed_trees::statement::TransitionTargetHandle)>,
     ) -> Option<Vec<CheckedReturnedReferencePlan>> {
         let mut states = self
             .facts
@@ -136,13 +140,7 @@ impl Captures<'_> {
             .borrow
             .returned_loans
             .span(borrowed.returned_loans)?;
-        let leaves = record_carrier_sources(
-            self.program,
-            state.return_type,
-            CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
-                symbol: state.symbol,
-            },
-        )?;
+        let leaves = self.reference_leaves(state)?;
         let statements = typed_trees::statement::reachable_state_statements(
             self.program
                 .statement_table
@@ -151,97 +149,57 @@ impl Captures<'_> {
         let mut output = Vec::new();
         let mut completed = false;
         for (statement_index, statement) in statements.iter().enumerate() {
-            if selected_statement.is_some_and(|selected| selected != statement_index) {
+            if selected_site.is_some_and(|(selected, _)| selected != statement_index) {
                 continue;
             }
-            let expression = match statement {
+            let mut sites = Vec::new();
+            match statement {
                 StatementNode::Expression(expression)
                     if statement_index + 1 == statements.len() =>
                 {
-                    Some(*expression)
+                    sites.push((Default::default(), Some(*expression), None));
                 }
                 StatementNode::Transition(transition) => {
                     if matches!(transition.exit, TransitionExit::Crash(_)) {
                         continue;
                     }
-                    // Every arm returns from this machine. A value arm forms the
-                    // record here. A named arm forms it in that state, so the
-                    // captured origins are that state's. A proved nonreturning
-                    // arm contributes none. A foreign machine or a terminal
-                    // still has no complete origin in this body.
-                    let mut value_expression = None;
-                    let mut forwarded = false;
                     for target in transition.targets() {
+                        if selected_site.is_some_and(|(_, selected)| selected != target) {
+                            continue;
+                        }
                         match self.program.statement_table.transition_target(target) {
                             TransitionTargetNode::Value(expression) => {
-                                if value_expression.is_some() {
-                                    return None;
-                                }
-                                value_expression = Some(*expression);
+                                sites.push((target, Some(*expression), None));
                             }
-                            TransitionTargetNode::Named { path, .. } => {
-                                let Some(destination) = self.program.state_by_symbol(path.symbol)
-                                else {
-                                    return None;
-                                };
-                                if self.flow(destination.symbol)?.machine_symbol
-                                    != self.flow(state.symbol)?.machine_symbol
+                            TransitionTargetNode::Named { .. } => {
+                                let call = self.transition_call(state, statement_index, target)?;
+                                if let Some(destination) =
+                                    crate::call_target_state(self.program, call.target_symbol)
+                                    && self.flow(destination.symbol)?.machine_symbol
+                                        == self.flow(state.symbol)?.machine_symbol
+                                    && !self.normal_completion_possible(destination)?
                                 {
-                                    return None;
-                                }
-                                if !self.normal_completion_possible(destination)? {
                                     continue;
                                 }
-                                let nested = match self.returned(destination, active) {
-                                    Some(nested) => nested,
-                                    None if self.reference_leaves(destination)?.is_empty() => {
-                                        Vec::new()
-                                    }
-                                    None => return None,
-                                };
-                                for source in nested {
-                                    if !output.contains(&source) {
-                                        output.push(source);
-                                        if output.len() > super::MAX_REFERENCE_ORIGIN_LEAVES {
-                                            return None;
-                                        }
-                                    }
-                                }
-                                forwarded = true;
+                                // The source state captured this edge's actual
+                                // descriptors. Successor formal ordinals are
+                                // another namespace, and recursively copying
+                                // them both misroutes reordered inputs and
+                                // mistakes a returning loop for missing data.
+                                sites.push((target, None, Some(call)));
                             }
                             TransitionTargetNode::Terminal => return None,
                         }
                     }
-                    if value_expression.is_none() {
-                        if forwarded {
-                            completed = true;
-                        }
-                        continue;
-                    }
-                    value_expression
                 }
                 _ => continue,
-            };
-            completed = true;
-            for leaf in &leaves {
-                let owner_path = loan_owner_path(self.program, state.return_type, &leaf.path)?;
-                let mut captured = false;
-                for loan in loans
-                    .iter()
-                    .filter(|loan| loan.statement_index == statement_index)
-                {
-                    if self.facts.borrow.owner_segments.span(loan.owner_path)? != owner_path {
-                        continue;
-                    }
-                    if leaf.source.access.borrow_access_kind()? != loan.kind {
-                        return None;
-                    }
-                    captured = true;
-                    for origin in self.return_origins(state, loan, leaf, expression, loans)? {
-                        let source = CheckedReturnedReferencePlan {
-                            path: leaf.path.clone(),
-                            source: origin,
-                        };
+            }
+            for (transition_target, expression, call) in sites {
+                completed = true;
+                if let Some(call) = call {
+                    for source in
+                        self.named_return_sources(state, transition_target, call, loans, active)?
+                    {
                         if !output.contains(&source) {
                             output.push(source);
                             if output.len() > super::MAX_REFERENCE_ORIGIN_LEAVES {
@@ -249,10 +207,40 @@ impl Captures<'_> {
                             }
                         }
                     }
+                    continue;
                 }
-                if !captured {
-                    let present = if let Some(expression) = expression {
-                        self.expression_leaf_present(
+                let expression = expression?;
+                for leaf in &leaves {
+                    let owner_path = loan_owner_path(self.program, state.return_type, &leaf.path)?;
+                    let mut captured = false;
+                    for loan in loans.iter().filter(|loan| {
+                        loan.statement_index == statement_index
+                            && loan.transition_target == transition_target
+                    }) {
+                        if self.facts.borrow.owner_segments.span(loan.owner_path)? != owner_path {
+                            continue;
+                        }
+                        if leaf.source.access.borrow_access_kind()? != loan.kind {
+                            return None;
+                        }
+                        captured = true;
+                        for origin in
+                            self.return_origins(state, loan, leaf, Some(expression), loans)?
+                        {
+                            let source = CheckedReturnedReferencePlan {
+                                path: leaf.path.clone(),
+                                source: origin,
+                            };
+                            if !output.contains(&source) {
+                                output.push(source);
+                                if output.len() > super::MAX_REFERENCE_ORIGIN_LEAVES {
+                                    return None;
+                                }
+                            }
+                        }
+                    }
+                    if !captured {
+                        let present = self.expression_leaf_present(
                             state,
                             statement_index,
                             expression,
@@ -260,34 +248,48 @@ impl Captures<'_> {
                             &leaf.path,
                             None,
                             active,
-                        )?
-                    } else {
-                        let flow = self.flow(state.symbol)?;
-                        let mut calls = self
-                            .facts
-                            .flow
-                            .control
-                            .calls
-                            .span(flow.calls)?
-                            .iter()
-                            .filter(|call| {
-                                call.statement_index == statement_index
-                                    && !call.authored_expression.is_valid()
-                            });
-                        let call = calls.next()?;
-                        if calls.next().is_some() {
+                        )?;
+                        // Missing formation never establishes an inactive
+                        // payload. Every normal alternative owes its own row
+                        // or positive completed-value evidence of absence.
+                        if present {
                             return None;
                         }
-                        self.call_paths(call, active)?.contains(&leaf.path)
-                    };
-                    // A live leaf without its formation is incomplete, not empty.
-                    if present {
-                        return None;
                     }
                 }
             }
         }
         completed.then_some(output)
+    }
+
+    fn transition_call(
+        &self,
+        state: &typed_trees::state::State,
+        statement_index: usize,
+        target: typed_trees::statement::TransitionTargetHandle,
+    ) -> Option<&checked_trees::FlowCallFact> {
+        let flow = self.flow(state.symbol)?;
+        let machine = self.program.machine_by_symbol(flow.machine_symbol)?;
+        let mut calls = self
+            .facts
+            .flow
+            .control
+            .calls
+            .span(flow.calls)?
+            .iter()
+            .filter(|call| {
+                call.statement_index == statement_index
+                    && !call.authored_expression.is_valid()
+                    && crate::transition_call_target(
+                        self.program,
+                        machine,
+                        state,
+                        statement_index,
+                        call.call_ordinal,
+                    ) == Some(target)
+            });
+        let call = calls.next()?;
+        calls.next().is_none().then_some(call)
     }
 
     /// Conservative normal-completion reachability over admitted state control.
@@ -402,8 +404,13 @@ impl Captures<'_> {
         if loan.incoming_reference.is_valid() {
             return None;
         }
-        let operand =
-            self.completed_return_operand(state, loan.statement_index, expression?, &leaf.path)?;
+        let operand = self.completed_return_operand(
+            state,
+            loan.statement_index,
+            loan.transition_target,
+            expression?,
+            &leaf.path,
+        )?;
         if operand.expression != loan.formation_expression {
             return None;
         }
@@ -430,6 +437,7 @@ impl Captures<'_> {
             // selecting just the convenient alternative would lose custody.
             if !loans.iter().any(|candidate| {
                 candidate.statement_index == loan.statement_index
+                    && candidate.transition_target == loan.transition_target
                     && candidate.formation_expression == operand.expression
                     && candidate.root == referent.root
                     && candidate.kind == loan.kind
@@ -460,8 +468,9 @@ impl Captures<'_> {
         &self,
         state: &typed_trees::state::State,
         statement_index: usize,
+        transition_target: typed_trees::statement::TransitionTargetHandle,
         expression: ExpressionHandle,
-        mut path: &[CheckedUnitStructuralPathSegment],
+        path: &[CheckedUnitStructuralPathSegment],
     ) -> Option<&checked_trees::FlowOperandFact> {
         let flow = self.flow(state.symbol)?;
         let control = &self.facts.flow.control;
@@ -469,12 +478,13 @@ impl Captures<'_> {
             exit.machine_symbol == flow.machine_symbol
                 && exit.state_symbol == state.symbol
                 && exit.statement_index == statement_index
+                && exit.transition_target == transition_target
         });
         let exit = exits.next()?;
         if exits.next().is_some() || !control.operands.is_valid(exit.returned_value) {
             return None;
         }
-        let mut operand = control.operands.get(exit.returned_value);
+        let operand = control.operands.get(exit.returned_value);
         if operand.state_symbol != state.symbol
             || operand.statement_index != statement_index
             || operand.expression != expression
@@ -485,28 +495,7 @@ impl Captures<'_> {
         {
             return None;
         }
-        while !path.is_empty() {
-            let mut selected = None;
-            for child in control.operand_children.span(operand.children)? {
-                let (destination, _) = self.structural_path(
-                    operand.type_reference,
-                    control.operand_child_paths.span(child.path)?,
-                )?;
-                if !destination.is_empty() && path.starts_with(&destination) {
-                    if selected.is_some() || !control.operands.is_valid(child.value) {
-                        return None;
-                    }
-                    selected = Some((control.operands.get(child.value), destination.len()));
-                }
-            }
-            let (child, length) = selected?;
-            if child.state_symbol != state.symbol || child.statement_index != statement_index {
-                return None;
-            }
-            operand = child;
-            path = &path[length..];
-        }
-        Some(operand)
+        self.completed_operand_leaf(operand, path)
     }
 
     fn return_origin(
@@ -516,6 +505,18 @@ impl Captures<'_> {
         leaf: &CheckedReferenceResultSourcePlan,
         segments: &[facts::PlaceSegment],
         loans: &[checked_trees::BorrowReturnedLoanFact],
+    ) -> Option<Vec<CheckedReferenceOriginSourcePlan>> {
+        self.return_origin_with_frame(state, loan, leaf, segments, loans, None)
+    }
+
+    fn return_origin_with_frame(
+        &self,
+        state: &typed_trees::state::State,
+        loan: &checked_trees::BorrowReturnedLoanFact,
+        leaf: &CheckedReferenceResultSourcePlan,
+        segments: &[facts::PlaceSegment],
+        loans: &[checked_trees::BorrowReturnedLoanFact],
+        captured: Option<&[crate::ReferenceResultLeafOrigin]>,
     ) -> Option<Vec<CheckedReferenceOriginSourcePlan>> {
         let incoming = if loan.incoming_reference.is_valid() {
             if !self
@@ -608,7 +609,13 @@ impl Captures<'_> {
         let parameter_index = u32::try_from(parameter_index).ok()?;
         let frame = crate::CallFrameResolver::new(self.program)?;
         let result_path = loan_place_segments(self.program, state.return_type, &leaf.path)?;
-        let origins = frame.reference_result_leaf_origins(state.symbol);
+        let inferred;
+        let origins = if let Some(captured) = captured {
+            Some(captured)
+        } else {
+            inferred = frame.reference_result_leaf_origins(state.symbol);
+            inferred.as_deref()
+        };
         let has_presentation = origins.as_ref().is_some_and(|origins| {
             origins.iter().any(|origin| {
                 origin.result_path == result_path
@@ -633,7 +640,8 @@ impl Captures<'_> {
         // or recover a checked presentation of another endpoint type.
         // A retained interpretation still needs its codec, even if its target
         // type equals the original endpoint. Type equality cannot erase a view.
-        if !has_presentation
+        if captured.is_none()
+            && !has_presentation
             && let Some((suffix, endpoint, extent)) = self.origin_path(selected, &segments)
             && self.program.normalized_type_identity(endpoint) == leaf.source.type_identity
         {
@@ -716,6 +724,9 @@ impl Captures<'_> {
                 }
                 return (!output.is_empty()).then_some(output);
             }
+        }
+        if captured.is_some() {
+            return None;
         }
         // Loan formation can capture an input region without a public typed
         // subprojection, notably for a bodyless call's returned descriptor.
@@ -1458,6 +1469,16 @@ fn frame_origin_fits_loan(origin: &crate::LocalWriteSource, loan: &[facts::Place
             || candidate
                 .get(..loan.len())
                 .is_some_and(|prefix| captured_address_refines(loan, prefix))
+            // Both summaries retain a region in this same collection
+            // dimension. This is provenance coverage, never equality of
+            // windows: publication keeps WithinRegion, and formation retains
+            // the descriptor's actual offset and extent. Static parents and
+            // pointer/field boundaries still have to match exactly.
+            || match (candidate.split_last(), loan.split_last()) {
+                (Some((facts::PlaceSegment::OpaqueRange, candidate)),
+                 Some((facts::PlaceSegment::OpaqueRange, loan))) => captured_address_refines(loan, candidate),
+                _ => false,
+            }
     };
     if within(&origin.segments) {
         return true;

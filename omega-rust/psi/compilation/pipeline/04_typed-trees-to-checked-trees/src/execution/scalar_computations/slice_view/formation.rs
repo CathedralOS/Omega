@@ -98,6 +98,7 @@ impl Builder<'_, '_> {
         }) {
             retain_capture(loan.root, loan.segments, &loan.kind)?;
         }
+        let mut returned_site = None;
         for returned in self
             .borrow
             .returned_loans
@@ -108,6 +109,13 @@ impl Builder<'_, '_> {
                     && returned.formation_expression == expression
             })
         {
+            if returned_site.is_some_and(|site| site != returned.transition_target) {
+                // An expression identity reused by separate outgoing arms is
+                // not one permission occurrence. This query cannot choose a
+                // sibling's formation when its consumer has no arm coordinate.
+                return None;
+            }
+            returned_site = Some(returned.transition_target);
             retain_capture(returned.root, returned.segments, &returned.kind)?;
         }
         for call in self

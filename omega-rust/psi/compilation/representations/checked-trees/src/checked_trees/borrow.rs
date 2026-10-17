@@ -93,6 +93,9 @@ pub struct StateBorrowFact {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct BorrowReturnedLoanFact {
     pub statement_index: usize,
+    /// The selected normal-return arm. Zero denotes a final expression.
+    /// Mutually exclusive arms never authenticate each other's formations.
+    pub transition_target: typed_trees::statement::TransitionTargetHandle,
     pub formation_expression: ExpressionHandle,
     pub incoming_reference: Handle<IncomingReferenceIdentity>,
     pub root: facts::PlaceRoot,

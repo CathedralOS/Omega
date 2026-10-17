@@ -66,6 +66,7 @@ pub(crate) enum AggregateViewTip {
 /// One resolved endpoint in its actual backing declaration. A byte snapshot
 /// also needs the final field's storage identity, not its rendered name or an
 /// identity looked up against the original (possibly reference-valued) root.
+#[derive(Clone)]
 pub(crate) struct ResolvedStructuralProjection {
     pub(crate) array_loan: Option<crate::element_views::ElementView>,
     placed_ram: Option<PlacedRamReference>,

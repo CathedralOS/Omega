@@ -994,14 +994,32 @@ impl Retirement<'_> {
         let Some(path) = transport::carrier_path(self.program, self.state.return_type, path) else {
             return false;
         };
-        let (statement_index, expression) = match returned.completion {
+        let (statement_index, expression, transition_target) = match returned.completion {
             checked_trees::CheckedStructuralReturnCompletion::Value {
                 statement_index,
                 expression,
-                ..
-            } => (statement_index as usize, Some(expression)),
+                evaluation,
+            } => {
+                let target = match evaluation {
+                    checked_trees::FlowPermissionEvaluation::Statement => Default::default(),
+                    checked_trees::FlowPermissionEvaluation::TransitionTarget(target) => target,
+                    _ => return false,
+                };
+                (statement_index as usize, Some(expression), target)
+            }
             checked_trees::CheckedStructuralReturnCompletion::Call { coordinate } => {
-                (coordinate.statement_index as usize, None)
+                let Some(machine) = self.program.machine_by_symbol(self.machine) else {
+                    return false;
+                };
+                let target = validation::transition_call_target(
+                    self.program,
+                    machine,
+                    self.state,
+                    coordinate.statement_index as usize,
+                    coordinate.call_ordinal as usize,
+                )
+                .unwrap_or_default();
+                (coordinate.statement_index as usize, None, target)
             }
         };
         if loan.last_use_statement_index != statement_index {
@@ -1021,6 +1039,7 @@ impl Retirement<'_> {
             .is_some_and(|captured| {
                 captured.iter().any(|captured| {
                     captured.statement_index == statement_index
+                        && captured.transition_target == transition_target
                         && expression
                             .is_none_or(|expression| captured.formation_expression == expression)
                         && captured.root == loan.root

@@ -77,7 +77,7 @@ pub(super) fn append_state_borrow_facts(
         // Capture result leaves against the same current roster as a local or
         // store. Reconstructing them later from historical loans loses entry
         // referents and revives overwritten carrier contents.
-        for returned in returned_value_loans(
+        for (transition_target, returned) in returned_value_loans(
             program,
             state,
             statement_index,
@@ -91,6 +91,7 @@ pub(super) fn append_state_borrow_facts(
                 &mut returned_loans_span,
                 checked_trees::BorrowReturnedLoanFact {
                     statement_index,
+                    transition_target,
                     formation_expression: returned.formation_expression,
                     incoming_reference: returned.place.incoming_reference,
                     root: returned.place.root,
