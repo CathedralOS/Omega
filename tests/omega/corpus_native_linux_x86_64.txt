@@ -3408,7 +3408,7 @@ run/providers/module_named_float_conversion_family_exit built 14758ms exit:0 std
 run/slices/call_result_mutable_window_exit built 14090ms exit:0 @73e11f08dcbb+wt
 run/slices/computed_record_window built 12594ms exit:0 @b88c1c4b1ca5+wt
 run/slices/disjoint_local_state_windows built 9466ms exit:12 @1810e541fd15+wt
-run/slices/matched_record_window_lower_bound built 5446ms exit:0 @d9b14477f4cf+wt
+run/slices/matched_record_window_lower_bound built 5707ms exit:0 @548790fb8a08
 run/slices/mutable_window_call_argument built 5683ms exit:0 @218cc4d211aa
 run/slices/returned_record_fixed_array_window built 5459ms exit:0 @5292c662f1eb
 run/slices/returned_record_parameter_length built 5654ms exit:0 @d9b14477f4cf+wt
