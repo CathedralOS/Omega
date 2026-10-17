@@ -4,5 +4,6 @@
 The selected provider calls a private issuer, returns its qualified resource in
 an acquisition result, and the caller transfers it into another state, observes
 identity 73, and consumes it. The public requirement is not an issuer.
-The entry's explicitly provisioned `Binding<Source>` authorizes the call; Build
-selects `CheckedSource` as its implementation.
+The entry calls `Source::open` directly with `reaches Source invokes Source`;
+Build selects the named implementation `CheckedSource` as its provider, and
+package review admits the installation.

@@ -1,7 +1,6 @@
 // Expected exit: 0.
 // A checked provider forwards privately issued resources without becoming
 // another authorized issuer. The caller retains custody through a state edge.
-use omega::language::core::binding;
 pub data Resource { identity: u64; }
 pub domain Resource::Open(resource)
 requires resource.identity != 0
@@ -17,16 +16,17 @@ machine acquire(identity: u64) -> Resource in Open requires identity != 0 {
 pub boundary trait Source {
     machine open() -> Acquisition;
 }
-data CheckedSource {}
-machine CheckedSource::open() -> Acquisition satisfies Source::open {
-    Acquisition::Ok { resource: acquire(73) }
+pub CheckedSource satisfies Source {
+    machine open() -> Acquisition {
+        Acquisition::Ok { resource: acquire(73) }
+    }
 }
 machine observe(resource: &Resource in Open) -> u64 { resource.identity }
 machine close(resource: Resource in Open) {}
 
-data Main { source: Binding<Source>; }
-machine Main::main(context: &mut Main) reaches Source crashes Trap {
-    let acquired: Acquisition = Source::open(&context.source);
+data Main { }
+machine Main::main(context: &mut Main) reaches Source invokes Source; crashes Trap {
+    let acquired: Acquisition = Source::open();
     transition acquired {
         Acquisition::Ok { resource } -> received(resource)
         _ -> wrong()
