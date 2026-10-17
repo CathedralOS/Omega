@@ -180,6 +180,7 @@ pub(crate) fn derive_provider_plans(
                         language_semantics::type_identity::normalize_requirement_lifetime_partition(
                             &clause.trait_lifetime_arguments,
                         ),
+                    admitted_same_stack_bytes: machine.admitted_same_stack_bytes,
                     binding,
                 });
                 plans[position]
@@ -373,6 +374,7 @@ fn derive_named_provider_plans(
                     method: row.requirement_name.as_str().to_owned(),
                     requirement_identity,
                     requirement_lifetime_partition: lifetime_partition,
+                    admitted_same_stack_bytes: machine.admitted_same_stack_bytes,
                     binding,
                 });
                 provenance.row_requirements.push(row.requirement);
@@ -518,6 +520,7 @@ fn derive_top_level_requirement_plans(
                 method: schema_method.name.clone(),
                 requirement_identity,
                 requirement_lifetime_partition: Vec::new(),
+                admitted_same_stack_bytes: machine.admitted_same_stack_bytes,
                 binding,
             });
             plans[position]
@@ -676,6 +679,7 @@ fn derive_boundary_operator_plans(
                 method: "realize".to_owned(),
                 requirement_identity,
                 requirement_lifetime_partition: Vec::new(),
+                admitted_same_stack_bytes: machine.admitted_same_stack_bytes,
                 binding,
             });
             plans[position]
@@ -893,6 +897,7 @@ fn derive_placed_accessor_plans(
                     method: operation.operation.clone(),
                     requirement_identity,
                     requirement_lifetime_partition: Vec::new(),
+                    admitted_same_stack_bytes: machine.admitted_same_stack_bytes,
                     binding: ProviderBinding::CompilerIntrinsic {
                         machine: accessor
                             .binding_identity(context)

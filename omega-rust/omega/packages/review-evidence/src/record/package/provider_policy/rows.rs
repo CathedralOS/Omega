@@ -14,6 +14,9 @@ pub struct PackagePolicyProviderRow {
     /// toolchain settlement table entry, so this stays `None`.
     pub(crate) realization: Option<PackageReviewNominalIdentity>,
     pub(crate) requirement_lifetime_partition: Vec<u32>,
+    /// Authored same-stack demand in bytes. Zero means the realization wrote
+    /// no `stack N bytes` clause.
+    pub(crate) admitted_same_stack_bytes: u64,
     pub(crate) binding: PackagePolicyProviderBinding,
     pub(crate) compiler_intrinsic_execution: Option<PackageReviewCompilerIntrinsicExecution>,
     pub(crate) installation_reach: Option<PackageReviewSelectedInstallationReach>,
@@ -34,6 +37,10 @@ impl PackagePolicyProviderRow {
 
     pub fn requirement_lifetime_partition(&self) -> &[u32] {
         &self.requirement_lifetime_partition
+    }
+
+    pub fn admitted_same_stack_bytes(&self) -> u64 {
+        self.admitted_same_stack_bytes
     }
 
     pub fn binding(&self) -> &PackagePolicyProviderBinding {

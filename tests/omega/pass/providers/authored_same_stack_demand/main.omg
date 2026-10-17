@@ -1,0 +1,44 @@
+// An authored `stack N bytes` clause on a bodyless `via` leaf is that
+// provider's same-stack demand. The same leaf is reached through a local,
+// a field, a parameter, and a call result, and again from a later state.
+// A table-function leaf in the same machine carries its own demand.
+
+pub boundary trait TextOutput {
+    machine output_string(this: addr);
+    machine query(table: addr);
+}
+
+data Protocol { reset: addr; output_string: addr; }
+uefi_x86_64 machine Protocol::output(this: addr)
+    satisfies TextOutput::output_string
+    via ForeignBinding::VtableField(output_string)
+    stack 4096 bytes;
+
+data BootServices { query: addr; }
+uefi_x86_64 machine BootServices::query_leaf(table: addr)
+    satisfies TextOutput::query
+    via ForeignBinding::TableFunction(query)
+    stack 8192 bytes;
+
+data Main { protocol: addr; services: addr; }
+
+machine forward(protocol: addr) reaches TextOutput invokes TextOutput; {
+    TextOutput::output_string(protocol);
+}
+
+machine protocol_of(main: &Main) -> addr {
+    transition { _ -> (main.protocol) }
+}
+
+machine Main::main(main: &mut Main) reaches TextOutput invokes TextOutput; {
+    let local: addr = main.protocol;
+    TextOutput::output_string(local);
+    TextOutput::output_string(main.protocol);
+    forward(main.protocol);
+    let carried: addr = protocol_of(main);
+    TextOutput::output_string(carried);
+    transition { _ -> other(main) }
+    state other(main: &mut Main) {
+        TextOutput::query(main.services);
+    }
+}

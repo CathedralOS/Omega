@@ -4492,6 +4492,14 @@ fail/providers/applied_entry_nested_binding_wrong_receiver rejected 3322ms expec
 	selected ProgramEntry Binding field `Main::session::parent` requires a selected Fused provider for boundary `Parent`
 fail/providers/applied_provider_declaration_operand rejected 568ms expected @80bdb14533eb+wt
 	provider selection operands must name bare declarations, not applied types, conformance applications, values or projections
+fail/providers/authored_same_stack_checked_body rejected 6ms @fa0a8b1267bb+wt
+	tests/omega/fail/providers/authored_same_stack_checked_body/main.omg:5:65: `stack N bytes` admits demand only on a bodyless external realization
+fail/providers/authored_same_stack_duplicate rejected 4ms @fa0a8b1267bb+wt
+	tests/omega/fail/providers/authored_same_stack_duplicate/main.omg:8:5: duplicate `stack N bytes` clause
+fail/providers/authored_same_stack_without_via rejected 1ms @fa0a8b1267bb+wt
+	tests/omega/fail/providers/authored_same_stack_without_via/main.omg:5:52: `stack N bytes` requires a `satisfies ... via ...` binding
+fail/providers/authored_same_stack_zero rejected 0ms @fa0a8b1267bb+wt
+	tests/omega/fail/providers/authored_same_stack_zero/main.omg:7:11: `stack` demand must be a positive byte count; zero does not admit a foreign leaf
 fail/providers/binding_formal_runtime_operand rejected 243ms expected @a8cedb3946d5+wt
 	machine `bad` state `entry` parameter `binding` uses an invalid routed service carrier: open operands do not close a requirement instance
 fail/providers/borrowed_binding_local_fabricated_carrier rejected 123ms expected @619f89e4fed6+wt
@@ -8167,6 +8175,8 @@ pass/providers/applied_binding_field_telescopes_exit checked 6307ms check-target
 pass/providers/applied_entry_nested_binding_context_exit checked 2785ms check-target:macos_arm64 @c61d64ccecc5+wt
 pass/providers/applied_header_dependent_const_carrier_exit checked 12536ms check-target:macos_arm64 @37afc401493b+wt
 pass/providers/applied_requirement_calls_exit checked 6806ms check-target:macos_arm64 @308fbdc54ba0
+pass/providers/authored_same_stack_demand checked 1130ms @fa0a8b1267bb+wt
+pass/providers/authored_same_stack_import checked 6207ms check-target:linux_x86_64 @fa0a8b1267bb+wt
 pass/providers/bare_byte_array_boundary_argument checked 11588ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/providers/binding_formal_type_const_operands checked 477ms @a8cedb3946d5+wt
 pass/providers/binding_param_capability checked 9419ms @5041ef1af684+wt

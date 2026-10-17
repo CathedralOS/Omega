@@ -1,0 +1,35 @@
+// A fixed 16-byte pure-INTEGER record remains one by-value SysV AMD64
+// operand. The leading scalar consumes rdi, the record consumes rsi/rdx, and
+// the returned record spills from rax/rdx into one result place.
+// The binding is an evaluated typed locator: `aggregate_binding` returns the
+// compiler-owned `ForeignBinding::DllImport` value carrying one exact versioned-ELF
+// import, so raw foreign bytes stay data.
+use omega::language::core::external_binding;
+
+pub data Pair {
+    first: u64;
+    second: u64;
+}
+
+pub boundary trait AggregateImport {
+    machine call(tag: u64, pair: Pair) -> Pair;
+}
+
+linux_x86_64 machine aggregate_binding() -> ForeignBinding<18, 32, 7> {
+    ForeignBinding::DllImport {
+        import: DllImport::ElfVersioned {
+            object: "libomega-probes.so",
+            symbol: "omega_sysv_small_aggregate_probe",
+            version: "OMEGA_1",
+        },
+    }
+}
+
+// `stack 16384 bytes` is this import leaf's admitted same-stack demand.
+linux_x86_64 machine aggregate_import(tag: u64, pair: Pair) -> Pair satisfies AggregateImport::call via aggregate_binding() stack 16384 bytes;
+
+data Main { result: Pair; }
+machine Main::main(main: &mut Main) reaches AggregateImport {
+    let pair: Pair = Pair { first: 1, second: 2 };
+    main.result = AggregateImport::call(7, pair);
+}
