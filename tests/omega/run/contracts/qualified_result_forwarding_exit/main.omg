@@ -1,0 +1,33 @@
+// Expected exit: 0
+// A completed result carries its public equation through a local and a
+// reordered wrapper, independently of the input storage changed by the call.
+use omega_language_std::console;
+data Status [copy] { code: u64; }
+data Counter { value: u64; }
+data Main {}
+
+machine read(counter: &mut Counter, selected: u64) -> Status
+requires selected == 42
+ensures result.code == 7; {
+    counter.value = 9;
+    Status { code: 7 }
+}
+
+machine forward(selected: u64, counter: &mut Counter) -> Status
+requires selected == 42
+ensures result.code == 7; {
+    let saved: u64 = selected;
+    let status: Status = read(counter, saved);
+    status
+}
+
+machine Main::main(main: &mut Main) reaches Console {
+    let mut counter: Counter = Counter { value: 0 };
+    let status: Status = forward(42, &mut counter);
+    transition status.code == 7 && counter.value == 9 {
+        true -> good()
+        false -> bad()
+    }
+    state good() { Console::exit_process(0); }
+    state bad() { Console::exit_process(1); }
+}

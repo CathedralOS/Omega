@@ -1956,6 +1956,8 @@ fail/contracts/nested_array_boolean_requires rejected 1551ms expected @a9ae30e1c
 fail/contracts/normal_return_written_premise rejected 9914ms expected @46f9e865d179+wt
 	cannot prove ensures contract for exit from wrong at statement 1: result.code == 7 && counter.value != 0
 	cannot prove ensures contract for exit from wrong_operand at statement 1: result.code == 7 && counter.value != 0
+fail/contracts/normal_return_written_state_premise rejected 1752ms expected @7c5ee11ecfb7+wt
+	cannot prove ensures contract for exit from wrong at statement 1: result.code == 7 && original.value != 0
 fail/contracts/observed_borrowed_scalar_bound rejected 624ms expected @7e164e32caf5+wt
 	cannot prove requires contract for call bounded from receive: count <= buffer.len (needs fact `count <= buffer.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/contracts/projected_result_guarantee_after_overwrite rejected 1583ms expected @a9ae30e1c334+wt
@@ -4580,6 +4582,22 @@ fail/providers/provider_type_slot_unknown rejected 2727ms expected @a9ae30e1c334
 	build selects provider `MissingProvider` for slot `Pick`, but no candidate exists in the loaded dependency closure
 fail/providers/provider_type_target_default_conflict rejected 178ms expected @a9ae30e1c334+wt
 	slot `Pick` has conflicting target-package defaults: `FirstProvider`, `SecondProvider` -- a target supplies at most one default provider type per slot
+fail/providers/qualified_foreign_result_forwarding_carrier rejected 1718ms expected @7c5ee11ecfb7+wt
+	cannot prove requires contract for call read from wrong: view.protocol in Guid::Selected (invalidated by prior mutation of view.protocol.value; view.protocol.value is part of Guid::Selected) in state `entry`
+	cannot prove ensures contract for exit from wrong at statement 1: result.code == 0
+fail/providers/qualified_foreign_result_forwarding_instance rejected 1778ms expected @7c5ee11ecfb7+wt
+	cannot prove requires contract for call read from wrong: value in Coordinate<integer:u64:7> in state `entry`
+	cannot prove ensures contract for exit from wrong at statement 0: result.code == 0
+fail/providers/qualified_foreign_result_forwarding_missing rejected 1753ms expected @7c5ee11ecfb7+wt
+	cannot prove requires contract for call read from wrong: value == 42 (needs fact `value == 42` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove ensures contract for exit from wrong at statement 0: result.code == 0
+fail/providers/qualified_foreign_result_forwarding_state rejected 1708ms expected @7c5ee11ecfb7+wt
+	cannot prove requires contract for call read from wrong: renamed in Guid::Selected (invalidated by prior mutation of renamed.value; renamed.value is part of Guid::Selected) in state `next`
+	cannot prove ensures contract for exit from wrong at statement 1: result.code == 0
+fail/providers/qualified_foreign_result_forwarding_written rejected 1792ms expected @7c5ee11ecfb7+wt
+	state `read` receives `protocol` as both mutable and read-only
+	cannot prove requires contract for call read from wrong: protocol in Guid::Selected in state `entry`
+	cannot prove ensures contract for exit from wrong at statement 0: result.code == 0
 fail/providers/satisfier_extra_parameter_rejected rejected 1269ms expected @a9ae30e1c334+wt
 	machine `MappedTally::add` state `add` declares 2 parameter(s), but trait `Tally` machine `add` declares 1: a satisfier declares no parameter its requirement lacks; a provider holds no state, so state that outlives a call passes through the requirement's declared parameters
 	machine `stateful_reset` state `entry` declares 1 parameter(s), but trait `Tally` machine `reset` declares 0: a satisfier declares no parameter its requirement lacks; a provider holds no state, so state that outlives a call passes through the requirement's declared parameters
@@ -8215,6 +8233,7 @@ pass/providers/owned_array_operand_epochs_exit checked 10855ms check-target:maco
 pass/providers/portable_contract checked 9330ms @5041ef1af684+wt
 pass/providers/provider_const_endpoint checked 19169ms @5041ef1af684+wt
 pass/providers/provider_type_target_default_override checked 11443ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/providers/qualified_foreign_result_forwarding checked 6546ms @7c5ee11ecfb7+wt
 pass/providers/runtime_adapter_dispatch_exit checked 11788ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/providers/runtime_boundary_array_construction_exit checked 11278ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/providers/runtime_boundary_array_forwarding_exit checked 11348ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -9055,6 +9074,7 @@ run/calls/static_binding_authority checked 8787ms check-target:macos_arm64 @3ac3
 run/calls/table_report_call_survival checked 5492ms check-target:macos_arm64 @589aedee8ebc+wt
 run/contained_health_loop_command_branch checked 12047ms check-target:macos_arm64 @bb086b40ea65+wt
 run/contracts/captured_bound_unused_mutation checked 5150ms check-target:macos_arm64 @7e164e32caf5+wt
+run/contracts/qualified_result_forwarding_exit checked 10542ms check-target:macos_arm64 @7c5ee11ecfb7+wt
 run/contracts/target_family_forwarded_result checked 71300ms check-target:linux_x86_64 @46f9e865d179+wt
 run/domains/byte_view_predicates_keep_selected_extent checked 6676ms check-target:macos_arm64 @a0e6514a9ab2
 run/domains/checked_provider_issued_field checked 5543ms check-target:macos_arm64 @e5140c7a7be2+wt

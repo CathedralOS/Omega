@@ -320,8 +320,15 @@ impl<'program> StructuralJudge<'program> {
         judged_machine: &Machine,
         requires: &[ExpressionHandle],
     ) -> Self {
-        let mut judge = Self::from_case_requires(program, judged_machine, requires);
+        // Install premises under the runtime value resolver. Installing them
+        // in tag-only mode first can resolve the new equation through its own
+        // case substitution and discard its scalar value consequence.
+        let mut judge = Self::from_case_requires(program, judged_machine, &[]);
         judge.runtime_body_values = true;
+        judge.premise_facts.extend_from_slice(requires);
+        for fact in requires {
+            judge.intake(program, *fact);
+        }
         judge
     }
 
@@ -528,8 +535,18 @@ impl<'program> StructuralJudge<'program> {
     ) -> Option<ObservedEqualityTerms> {
         let left = self.declaration_term(binary.left)?;
         let right = self.declaration_term(binary.right)?;
-        let resolve_observed = |expression, term: &StructuralTerm| {
-            let reference = self.declaration_expression_type(expression)?;
+        // Anonymous literals have no standalone declaration type. Resolve the
+        // selected binary's operand carriers together, just as guarantee
+        // capture does; an untyped literal must not erase an entry equation.
+        let references = [binary.left, binary.right]
+            .map(|expression| self.declaration_expression_type(expression));
+        let references = crate::value_custody::expression_types::builtin_scalar_operand_references(
+            self.program,
+            binary,
+            references,
+            None,
+        )?;
+        let resolve_observed = |reference, term: &StructuralTerm| {
             let resolved = self.resolve(term.clone());
             if !super::structural_terms::scalar_operand_is_observed(
                 self.program,
@@ -540,8 +557,8 @@ impl<'program> StructuralJudge<'program> {
             }
             Some(resolved)
         };
-        let resolved_left = resolve_observed(binary.left, &left)?;
-        let resolved_right = resolve_observed(binary.right, &right)?;
+        let resolved_left = resolve_observed(references[0], &left)?;
+        let resolved_right = resolve_observed(references[1], &right)?;
         Some(ObservedEqualityTerms {
             source: [left, right],
             resolved: [resolved_left, resolved_right],

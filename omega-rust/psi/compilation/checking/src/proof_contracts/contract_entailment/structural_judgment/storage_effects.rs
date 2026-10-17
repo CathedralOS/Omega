@@ -42,6 +42,23 @@ impl StructuralJudge<'_> {
         for parameter in program.state_parameters(state) {
             consider(parameter.symbol, parameter.type_reference);
         }
+        // A named state may receive an earlier state's reference under a new
+        // binder. The exit contract still names the original binder; retiring
+        // only this state's spelling would revive its entry observation. As
+        // with current reference-bearing roots, a write conservatively retires
+        // reference-bearing parameters in the enclosing invocation as well.
+        if let Some(machine) = program.machine(self.machine_symbol) {
+            for earlier in program.machine_states(machine) {
+                if earlier.symbol == state.symbol {
+                    continue;
+                }
+                for parameter in program.state_parameters(earlier) {
+                    if !frames.value_is_reference_free(parameter.type_reference) {
+                        consider(parameter.symbol, parameter.type_reference);
+                    }
+                }
+            }
+        }
         for statement in program.statement_table.statements(state.statement_nodes) {
             if let Some(local) = statement.as_local_data() {
                 consider(local.symbol, local.type_reference);

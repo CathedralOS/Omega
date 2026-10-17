@@ -1,0 +1,24 @@
+data Status [copy] { code: u64; }
+data Table { read: addr; }
+data Guid [copy] { value: u64; }
+domain Guid::Selected(value) requires value.value == 42;
+boundary trait Reports {
+    machine read(table: &Table, protocol: &Guid) -> Status
+    requires protocol in Guid::Selected
+    ensures result.code == 0;
+}
+uefi_x86_64 machine Table::read(table: &Table, protocol: &Guid) -> Status
+satisfies Reports::read via ForeignBinding::TableFunction(read)
+requires protocol in Guid::Selected
+ensures result.code == 0;
+
+// A renamed state parameter does not keep a membership after its mutation.
+machine wrong(table: &Table, original: &mut Guid) -> Status
+requires original in Guid::Selected
+ensures result.code == 0; {
+    transition { _ -> next(table, original) }
+    state next(table: &Table, renamed: &mut Guid) {
+        renamed.value = 0;
+        Table::read(table, renamed)
+    }
+}

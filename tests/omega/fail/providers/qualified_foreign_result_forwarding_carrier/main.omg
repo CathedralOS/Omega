@@ -1,0 +1,22 @@
+data Status [copy] { code: u64; }
+data Table { read: addr; }
+data Guid [copy] { value: u64; }
+data View { protocol: &mut Guid; }
+domain Guid::Selected(value) requires value.value == 42;
+boundary trait Reports {
+    machine read(table: &Table, view: View) -> Status
+    requires view.protocol in Guid::Selected
+    ensures result.code == 0;
+}
+uefi_x86_64 machine Table::read(table: &Table, view: View) -> Status
+satisfies Reports::read via ForeignBinding::TableFunction(read)
+requires view.protocol in Guid::Selected
+ensures result.code == 0;
+
+// Owning the descriptor carrier does not detach its live reference leaves.
+machine wrong(table: &Table, view: View) -> Status
+requires view.protocol in Guid::Selected
+ensures result.code == 0; {
+    view.protocol.value = 0;
+    Table::read(table, view)
+}

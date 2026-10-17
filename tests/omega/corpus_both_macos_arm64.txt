@@ -877,6 +877,7 @@ run/calls/qualified_atomic_operation_names built 5597ms exit:0 interpreter-exit:
 run/calls/selected_provider_range_arguments built 11365ms exit:0 interpreter-exit:0 interpreter:agrees terminal-inspections:match @a68c584655e1+wt
 run/calls/static_binding_authority built 5912ms exit:0 interpreter-exit:0 interpreter:agrees @8073da6ab7ac
 run/contracts/captured_bound_unused_mutation built 5614ms exit:0 interpreter-exit:0 interpreter:agrees @7e164e32caf5+wt
+run/contracts/qualified_result_forwarding_exit built 11559ms exit:0 interpreter-exit:0 interpreter:agrees @7c5ee11ecfb7+wt
 run/domains/checked_provider_issued_field built 5882ms exit:0 interpreter-exit:0 interpreter:agrees @e5140c7a7be2+wt
 run/domains/checked_provider_issued_root built 5665ms exit:0 interpreter-exit:0 interpreter:agrees @e5140c7a7be2+wt
 run/domains/fixed_byte_array_content_observations_exit built 5509ms exit:0 interpreter-exit:0 interpreter:agrees @75cbf5dc1d21

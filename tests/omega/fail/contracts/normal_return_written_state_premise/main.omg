@@ -1,0 +1,15 @@
+data Counter { value: u64; }
+data Status [copy] { code: u64; }
+
+// A state transfer renames the same borrowed storage. Its mutation must
+// invalidate entry observations even when the returned status is established.
+machine wrong(original: &mut Counter) -> Status
+requires original.value == 9
+ensures result.code == 7 && original.value != 0; {
+    transition { _ -> next(original) }
+    state next(renamed: &mut Counter) {
+        renamed.value = 0;
+        Status { code: 7 }
+    }
+}
+machine main() {}

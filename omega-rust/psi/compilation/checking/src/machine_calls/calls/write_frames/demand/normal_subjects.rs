@@ -82,54 +82,55 @@ impl<'program> CallFrameResolver<'program> {
         if origins.arguments.len() != arguments.len() {
             return None;
         }
-        let mut subjects = Vec::new();
-        for (parameter, origins) in parameters
+        // Observation is per formal. An output descriptor or an opaque owned
+        // aggregate supplies no readable subject, but cannot suppress the
+        // independently authenticated input subjects of this invocation.
+        // Consumers look up each required formal and refuse missing rows.
+        let subjects = parameters
             .iter()
             .zip(origins.arguments.get(leading_operands..)?)
-        {
-            let Some(shell) = crate::reference_shell(program, parameter.type_reference) else {
-                // An owned aggregate can itself carry live reference leaves.
-                // A detached whole-value term is not their post-state relation.
-                if !self.proof_value_is_caller_isolated(parameter.type_reference) {
+            .filter_map(|(parameter, origins)| {
+                let shell = crate::reference_shell(program, parameter.type_reference)?;
+                if !shell.access.is_readable() {
                     return None;
                 }
-                continue;
-            };
-            if !shell.access.is_readable() {
-                return None;
-            }
-            let origins = origins.as_ref()?;
-            let source = origins.first()?;
-            if !source.root.is_valid()
-                || source.collection_coarse
-                || !source.recasts.is_empty()
-                || source.representation.is_some()
-                || origins.iter().any(|candidate| candidate != source)
-            {
-                return None;
-            }
-            let root_type =
-                reference_subjects::source_root_type(program, state, index, source.root)?;
-            let root_type = reference_subjects::carrier_storage_type(program, root_type)?;
-            reference_subjects::validate_owned_projection(program, root_type, &source.segments)?;
-            let type_reference =
-                stored_origins::projected_type(program, root_type, &source.segments)?;
-            if !crate::declared_carriers_match(program, type_reference, shell.referee)
-                || program.arithmetic_domain_for_type_reference(type_reference)
-                    != program.arithmetic_domain_for_type_reference(shell.referee)
-            {
-                return None;
-            }
-            subjects.push(InvocationReferenceSubject {
-                parameter: parameter.symbol,
-                source: source.clone(),
-                type_reference,
-                preserved_on_return: !parameter.is_mutable
-                    && !writes
-                        .iter()
-                        .any(|written| super::frame_paths_overlap(written, &source.path)),
-            });
-        }
+                let origins = origins.as_ref()?;
+                let source = origins.first()?;
+                if !source.root.is_valid()
+                    || source.collection_coarse
+                    || !source.recasts.is_empty()
+                    || source.representation.is_some()
+                    || origins.iter().any(|candidate| candidate != source)
+                {
+                    return None;
+                }
+                let root_type =
+                    reference_subjects::source_root_type(program, state, index, source.root)?;
+                let root_type = reference_subjects::carrier_storage_type(program, root_type)?;
+                reference_subjects::validate_owned_projection(
+                    program,
+                    root_type,
+                    &source.segments,
+                )?;
+                let type_reference =
+                    stored_origins::projected_type(program, root_type, &source.segments)?;
+                if !crate::declared_carriers_match(program, type_reference, shell.referee)
+                    || program.arithmetic_domain_for_type_reference(type_reference)
+                        != program.arithmetic_domain_for_type_reference(shell.referee)
+                {
+                    return None;
+                }
+                Some(InvocationReferenceSubject {
+                    parameter: parameter.symbol,
+                    source: source.clone(),
+                    type_reference,
+                    preserved_on_return: !parameter.is_mutable
+                        && !writes
+                            .iter()
+                            .any(|written| super::frame_paths_overlap(written, &source.path)),
+                })
+            })
+            .collect();
         Some(subjects)
     }
 }

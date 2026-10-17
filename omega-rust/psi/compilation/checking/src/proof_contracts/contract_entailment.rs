@@ -551,13 +551,29 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
         Vec::new()
     };
     let judge_normal_return = |fact: ExpressionHandle| -> Option<StructuralJudgment> {
-        let paths = sole_arm_result.as_ref()?;
+        // Both a direct tail and a named-state/branch leaf own a completed
+        // runtime observation frame. Consume that frame, not a reconstruction
+        // from the machine entry that would lose writes or returned guarantees.
+        let paths: Vec<_> = if let Some(paths) = &sole_arm_result {
+            paths
+                .iter()
+                .map(|path| (&path.judge, &path.value))
+                .collect()
+        } else if structural.has_runtime_body_values() {
+            case_arms
+                .as_ref()?
+                .iter()
+                .map(|arm| (&arm.normal_judge, &arm.value))
+                .collect()
+        } else {
+            return None;
+        };
         let mut verdict = StructuralJudgment::Proven;
-        for path in paths {
-            let mut bound = path.judge.clone();
+        for (judge, value) in paths {
+            let mut bound = judge.clone();
             if !result_is_parameter {
                 std::sync::Arc::make_mut(&mut bound.substitutions)
-                    .insert(0, (RESULT_BINDER.to_owned(), path.value.clone()));
+                    .insert(0, (RESULT_BINDER.to_owned(), value.clone()));
             }
             match bound.judge(program, fact) {
                 StructuralJudgment::Refuted => return Some(StructuralJudgment::Refuted),

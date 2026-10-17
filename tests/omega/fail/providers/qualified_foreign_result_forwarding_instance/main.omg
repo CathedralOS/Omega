@@ -1,0 +1,19 @@
+data Status [copy] { code: u64; }
+data Table { read: addr; }
+domain<const Axis: u64> u64::Coordinate<Axis>;
+boundary trait Reports {
+    machine read(table: &Table, value: u64) -> Status
+    requires value in u64::Coordinate<7>
+    ensures result.code == 0;
+}
+uefi_x86_64 machine Table::read(table: &Table, value: u64) -> Status
+satisfies Reports::read via ForeignBinding::TableFunction(read)
+requires value in u64::Coordinate<7>
+ensures result.code == 0;
+
+// The domain family matches, but the complete instance does not.
+machine wrong(table: &Table, value: u64) -> Status
+requires value in u64::Coordinate<8>
+ensures result.code == 0; {
+    Table::read(table, value)
+}

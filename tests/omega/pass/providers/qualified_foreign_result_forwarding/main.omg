@@ -1,0 +1,86 @@
+// Entry obligations and normal-return guarantees have different storage
+// epochs. A foreign output write does not erase the independently returned
+// status, but its input observations cannot become post-state equations.
+data Status [copy] { code: u64; }
+data Table { read: addr; scalar: addr; }
+data Record { value: u64; }
+data Guid [copy] { value: u64; }
+domain Guid::Selected(value) requires value.value == 42;
+domain<const Axis: u64> u64::Coordinate<Axis>;
+
+boundary trait Reports {
+    machine read(table: &Table, protocol: &Guid, output: &mut &Record) -> Status
+    requires protocol in Guid::Selected
+    ensures result.code == 0;
+    machine scalar(table: &Table, value: u64) -> Status
+    requires value == 42
+    ensures result.code == 0;
+    machine indexed(table: &Table, value: u64) -> Status
+    requires value in u64::Coordinate<7>
+    ensures result.code == 0;
+}
+
+uefi_x86_64 machine Table::read(table: &Table, protocol: &Guid, output: &mut &Record) -> Status
+satisfies Reports::read via ForeignBinding::TableFunction(read)
+requires protocol in Guid::Selected
+ensures result.code == 0;
+
+uefi_x86_64 machine Table::scalar(table: &Table, value: u64) -> Status
+satisfies Reports::scalar via ForeignBinding::TableFunction(scalar)
+requires value == 42
+ensures result.code == 0;
+
+uefi_x86_64 machine Table::indexed(table: &Table, value: u64) -> Status
+satisfies Reports::indexed via ForeignBinding::TableFunction(scalar)
+requires value in u64::Coordinate<7>
+ensures result.code == 0;
+
+FirmwareReports satisfies Reports {
+    machine indexed(table: &Table, value: u64) -> Status
+    requires value in u64::Coordinate<7>
+    ensures result.code == 0; {
+        Table::indexed(table, value)
+    }
+    machine read(table: &Table, protocol: &Guid, output: &mut &Record) -> Status
+    requires protocol in Guid::Selected
+    ensures result.code == 0; {
+        Table::read(table, protocol, output)
+    }
+    machine scalar(table: &Table, value: u64) -> Status
+    requires value == 42
+    ensures result.code == 0; {
+        let saved: u64 = value;
+        let status: Status = Table::scalar(table, saved);
+        status
+    }
+}
+
+machine forward(table: &Table, protocol: &Guid, output: &mut &Record) -> Status
+requires protocol in Guid::Selected
+ensures result.code == 0; {
+    let status: Status = Table::read(table, protocol, output);
+    status
+}
+
+machine scalar_forward(table: &Table, value: u64) -> Status
+requires value == 42
+ensures result.code == 0; {
+    Table::scalar(table, value)
+}
+
+machine reordered(value: u64, table: &Table) -> Status
+requires value == 42
+ensures result.code == 0; {
+    Table::scalar(table, value)
+}
+
+machine state_forward(table: &Table, protocol: &Guid, output: &mut &Record) -> Status
+requires protocol in Guid::Selected
+ensures result.code == 0; {
+    transition { _ -> ready(protocol, output, table) }
+    state ready(selected: &Guid, destination: &mut &Record, firmware: &Table)
+    requires selected in Guid::Selected
+    {
+        Table::read(firmware, selected, destination)
+    }
+}

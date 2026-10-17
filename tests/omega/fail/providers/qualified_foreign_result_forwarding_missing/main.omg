@@ -1,0 +1,17 @@
+data Status [copy] { code: u64; }
+data Table { read: addr; }
+boundary trait Reports {
+    machine read(table: &Table, value: u64) -> Status
+    requires value == 42
+    ensures result.code == 0;
+}
+uefi_x86_64 machine Table::read(table: &Table, value: u64) -> Status
+satisfies Reports::read via ForeignBinding::TableFunction(read)
+requires value == 42
+ensures result.code == 0;
+
+// A declared guarantee is not unconditional evidence for this call.
+machine wrong(table: &Table, value: u64) -> Status
+ensures result.code == 0; {
+    Table::read(table, value)
+}

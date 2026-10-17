@@ -1,0 +1,1 @@
+cannot prove ensures contract for exit from wrong at statement 1: result.code == 7 && original.value != 0

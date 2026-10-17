@@ -33,7 +33,10 @@ use typed_trees::statement::{
 /// occurrences; diagnostic names do not select the imported contract. Cyclic
 /// state paths and unsupported effect statements decline recognition rather
 /// than replaying runtime observations as mathematical calls.
-pub(crate) struct StructuralCaseArm {
+pub(crate) struct StructuralCaseArm<'program> {
+    /// The completed path keeps its writes and observations. Reconstructing
+    /// a runtime leaf from entry hypotheses would revive invalidated storage.
+    pub(super) normal_judge: StructuralJudge<'program>,
     /// Entry parameter names, positionally matching self-call arguments.
     pub(crate) parameter_names: Vec<String>,
     /// Case refinements accumulated along the path to this leaf. A variable
@@ -65,11 +68,11 @@ pub(crate) struct StructuralCaseArm {
 /// value still become induction hypotheses only when the separate recursion
 /// validator proves their declared measure decreases, so recognizing this
 /// body shape cannot license an ungrounded induction.
-pub(crate) fn recognize_guarded_structural_value_arms(
-    program: &dyn crate::CheckingInput,
+pub(crate) fn recognize_guarded_structural_value_arms<'program>(
+    program: &'program dyn crate::CheckingInput,
     machine: &Machine,
-    judge: &StructuralJudge<'_>,
-) -> Option<Vec<StructuralCaseArm>> {
+    judge: &StructuralJudge<'program>,
+) -> Option<Vec<StructuralCaseArm<'program>>> {
     let [root] = program.machine_states(machine) else {
         return None;
     };
@@ -149,6 +152,7 @@ pub(crate) fn recognize_guarded_structural_value_arms(
             judge.normal_return_paths(*value, &environment, (machine, root, root.return_type))?
         {
             leaves.push(StructuralCaseArm {
+                normal_judge: outcome.judge.clone(),
                 parameter_names: parameter_names.clone(),
                 case_hypotheses: Vec::new(),
                 case_equations: Vec::new(),
@@ -234,7 +238,7 @@ pub(crate) fn recognize_structural_case_arms<'a>(
     classification: &typed_trees::proof_only::ProofOnlyClassification,
     diagnostics: &mut Vec<Diagnostic>,
     mut requirement: Option<&mut dyn StructuralPrefixVisitor>,
-) -> Option<Vec<StructuralCaseArm>> {
+) -> Option<Vec<StructuralCaseArm<'a>>> {
     let states = program.machine_states(machine);
     let root = states.first()?;
     let parameter_names: Vec<String> = program
@@ -282,7 +286,7 @@ pub(super) fn recognize_structural_state_prefix<'a>(
     classification: &typed_trees::proof_only::ProofOnlyClassification,
     diagnostics: &mut Vec<Diagnostic>,
     requirement: &mut dyn StructuralPrefixVisitor,
-) -> Option<Vec<StructuralCaseArm>> {
+) -> Option<Vec<StructuralCaseArm<'a>>> {
     let parameters = program.state_parameters(state);
     let parameter_names = parameters
         .iter()
@@ -332,7 +336,7 @@ fn recognize_structural_state_leaves<'a>(
     fresh: &mut usize,
     requirement: &mut Option<&mut dyn StructuralPrefixVisitor>,
     established_guarantees: CitationFacts,
-) -> Option<Vec<StructuralCaseArm>> {
+) -> Option<Vec<StructuralCaseArm<'a>>> {
     recognize_structural_state_leaves_from(
         program,
         machine,
@@ -375,7 +379,7 @@ fn recognize_structural_state_leaves_from<'a>(
     requirement: &mut Option<&mut dyn StructuralPrefixVisitor>,
     mut established_guarantees: CitationFacts,
     start_index: usize,
-) -> Option<Vec<StructuralCaseArm>> {
+) -> Option<Vec<StructuralCaseArm<'a>>> {
     if !state.symbol.is_valid() || (start_index == 0 && path.contains(&state.symbol)) {
         return None;
     }
@@ -971,10 +975,10 @@ fn recognize_structural_state_leaves_from<'a>(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn finalize_structural_case_arm(
+fn finalize_structural_case_arm<'program>(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
-    judge: &StructuralJudge<'_>,
+    judge: &StructuralJudge<'program>,
     classification: &typed_trees::proof_only::ProofOnlyClassification,
     diagnostics: &mut Vec<Diagnostic>,
     parameter_names: &[String],
@@ -982,7 +986,7 @@ fn finalize_structural_case_arm(
     case_equations: Vec<(StructuralTerm, StructuralTerm)>,
     pending_citations: Vec<PendingStructuralCitation>,
     value: StructuralTerm,
-) -> StructuralCaseArm {
+) -> StructuralCaseArm<'program> {
     let mut arm_judge = structural_arm_judge(program, judge, &case_hypotheses, &case_equations);
     let vacuous = arm_judge.hypotheses_contradictory;
 
@@ -1029,6 +1033,7 @@ fn finalize_structural_case_arm(
     }
 
     StructuralCaseArm {
+        normal_judge: arm_judge,
         parameter_names: parameter_names.to_vec(),
         case_hypotheses,
         case_equations,

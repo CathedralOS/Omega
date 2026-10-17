@@ -841,21 +841,20 @@ impl<'program> StructuralJudge<'program> {
         else {
             return;
         };
-        let bindings = parameters
+        // Entry requirements observe the arguments before this call's writes.
+        // Guarantees may use only formals whose observations survive return.
+        // Keep both substitutions: dropping a mutable input's post-state
+        // observation must not erase a proven entry requirement or an
+        // independent guarantee about the captured result.
+        let entry_bindings = parameters
             .iter()
             .zip(actuals)
             .filter_map(|(parameter, value)| {
-                if parameter.is_mutable {
-                    return None;
-                }
                 let value = if crate::reference_shell(program, parameter.type_reference).is_some() {
                     let subject = subjects
                         .as_ref()?
                         .iter()
                         .find(|subject| subject.parameter == parameter.symbol)?;
-                    if !subject.preserved_on_return {
-                        return None;
-                    }
                     self.reference_subject_term(subject, environment, scope)?
                 } else {
                     if !frames?.proof_value_is_caller_isolated(parameter.type_reference) {
@@ -865,6 +864,25 @@ impl<'program> StructuralJudge<'program> {
                 };
                 Some((parameter.symbol, value))
             })
+            .collect::<Vec<_>>();
+        let bindings = entry_bindings
+            .iter()
+            .filter(|(symbol, _)| {
+                let Some(parameter) = parameters
+                    .iter()
+                    .find(|parameter| parameter.symbol == *symbol)
+                else {
+                    return false;
+                };
+                !parameter.is_mutable
+                    && (crate::reference_shell(program, parameter.type_reference).is_none()
+                        || subjects.as_ref().is_some_and(|subjects| {
+                            subjects.iter().any(|subject| {
+                                subject.parameter == *symbol && subject.preserved_on_return
+                            })
+                        }))
+            })
+            .cloned()
             .collect::<Vec<_>>();
         let callable = match owner {
             SelectedCallContract::Concrete(machine, _) => machine.symbol,
@@ -895,7 +913,8 @@ impl<'program> StructuralJudge<'program> {
         // An overwritten referent supplies no stable input observation, but
         // does not erase independent guarantees about this returned value.
         // Equations requiring an omitted formal fail exact substitution.
-        let Some(equations) = self.selected_guarantee_equations(&owner, &bindings, &captured, 0)
+        let Some(equations) =
+            self.selected_guarantee_equations(&owner, &entry_bindings, &bindings, &captured, 0)
         else {
             return;
         };

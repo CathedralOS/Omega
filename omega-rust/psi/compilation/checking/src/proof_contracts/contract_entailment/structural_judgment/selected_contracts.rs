@@ -243,7 +243,7 @@ impl StructuralJudge<'_> {
             .zip(arguments)
             .map(|(parameter, value)| (parameter.symbol, value.clone()))
             .collect::<Vec<_>>();
-        self.selected_guarantee_equations(&owner, &bindings, application, depth)
+        self.selected_guarantee_equations(&owner, &bindings, &bindings, application, depth)
     }
 
     /// A portable family guarantees only equations supplied by every member.
@@ -253,6 +253,7 @@ impl StructuralJudge<'_> {
     pub(super) fn selected_guarantee_equations(
         &self,
         owner: &SelectedCallContract<'_>,
+        entry_bindings: &[(SymbolHandle, StructuralTerm)],
         bindings: &[(SymbolHandle, StructuralTerm)],
         result: &StructuralTerm,
         depth: usize,
@@ -274,19 +275,22 @@ impl StructuralJudge<'_> {
                 if parameters.len() != member_parameters.len() {
                     return None;
                 }
-                let member_bindings = parameters
-                    .iter()
-                    .zip(member_parameters)
-                    .filter_map(|(parameter, member)| {
-                        bindings
-                            .iter()
-                            .find(|(symbol, _)| *symbol == parameter.symbol)
-                            .map(|(_, value)| (member.symbol, value.clone()))
-                    })
-                    .collect::<Vec<_>>();
+                let member_bindings = |bindings: &[(SymbolHandle, StructuralTerm)]| {
+                    parameters
+                        .iter()
+                        .zip(member_parameters)
+                        .filter_map(|(parameter, member)| {
+                            bindings
+                                .iter()
+                                .find(|(symbol, _)| *symbol == parameter.symbol)
+                                .map(|(_, value)| (member.symbol, value.clone()))
+                        })
+                        .collect::<Vec<_>>()
+                };
                 let equations = self.declared_guarantee_equations(
                     &SelectedCallContract::Concrete(machine, entry),
-                    &member_bindings,
+                    &member_bindings(entry_bindings),
+                    &member_bindings(bindings),
                     result,
                     depth,
                 )?;
@@ -303,12 +307,13 @@ impl StructuralJudge<'_> {
             }
             return common;
         }
-        self.declared_guarantee_equations(owner, bindings, result, depth)
+        self.declared_guarantee_equations(owner, entry_bindings, bindings, result, depth)
     }
 
     fn declared_guarantee_equations(
         &self,
         owner: &SelectedCallContract<'_>,
+        entry_bindings: &[(SymbolHandle, StructuralTerm)],
         bindings: &[(SymbolHandle, StructuralTerm)],
         result: &StructuralTerm,
         depth: usize,
@@ -326,20 +331,24 @@ impl StructuralJudge<'_> {
             .filter(|contract| contract.kind == SignatureContractKind::Requires)
         {
             for fact in program.proof_facts.span_or_empty(contract.facts) {
-                let ProofFact::Expression(required) = fact else {
-                    return None;
-                };
-                if !matches!(
-                    selected_requirement_judgment(
+                let judgment = match fact {
+                    ProofFact::Expression(required) => selected_requirement_judgment(
                         self,
                         *required,
                         callable,
                         parameters,
-                        bindings,
+                        entry_bindings,
                         depth + 1,
                     ),
-                    StructuralJudgment::Proven
-                ) {
+                    ProofFact::Membership(required) => self.selected_membership_requirement(
+                        required,
+                        callable,
+                        parameters,
+                        entry_bindings,
+                    ),
+                    ProofFact::Proposition(_) => StructuralJudgment::Unknown,
+                };
+                if !matches!(judgment, StructuralJudgment::Proven) {
                     return None;
                 }
             }
@@ -365,6 +374,84 @@ impl StructuralJudge<'_> {
             }
         }
         Some(equations)
+    }
+
+    /// Transport an exact declared membership over its still-live subject.
+    /// This does not derive membership from a domain's predicate or equate
+    /// distinct instances. State entry facts are separate invocations, and a
+    /// prior write retires their source observations before this query.
+    fn selected_membership_requirement(
+        &self,
+        required: &typed_trees::domain::ProofMembershipFact,
+        callable: SymbolHandle,
+        parameters: &[typed_trees::signature::StateParameter],
+        bindings: &[(SymbolHandle, StructuralTerm)],
+    ) -> StructuralJudgment {
+        let program = self.program;
+        if !self.runtime_body_values
+            || self.case_facts_only
+            || !required.semantic_domain.is_valid()
+            || !required.domain_symbol.is_valid()
+        {
+            return StructuralJudgment::Unknown;
+        }
+        let Some(subject) = bound_term(
+            program,
+            required.value,
+            callable,
+            parameters,
+            callable,
+            bindings,
+            None,
+            0,
+        ) else {
+            return StructuralJudgment::Unknown;
+        };
+        let Some(machine) = program.machine(self.machine_symbol) else {
+            return StructuralJudgment::Unknown;
+        };
+        let state = if self.declaration_state.is_valid() {
+            program.state_in_machine(machine, self.declaration_state)
+        } else {
+            program.machine_states(machine).first()
+        };
+        let Some(state) = state else {
+            return StructuralJudgment::Unknown;
+        };
+        for contract in owner_contracts(program, &SelectedCallContract::Concrete(machine, state))
+            .filter(|contract| contract.kind == SignatureContractKind::Requires)
+        {
+            for fact in program.proof_facts.span_or_empty(contract.facts) {
+                let ProofFact::Membership(premise) = fact else {
+                    continue;
+                };
+                if premise.domain_symbol != required.domain_symbol
+                    || premise.semantic_domain != required.semantic_domain
+                {
+                    continue;
+                }
+                let mut expressions = Vec::new();
+                crate::expression_traversal::collect_expression_tree(
+                    program,
+                    premise.value,
+                    &mut expressions,
+                );
+                if expressions.iter().any(|expression| {
+                    crate::value_custody::places::expression_root_symbol(
+                        *expression,
+                        &program.expression_table,
+                        self.machine_symbol,
+                    )
+                    .is_some_and(|symbol| self.storage_binding_invalidated(symbol))
+                }) {
+                    continue;
+                }
+                if self.declaration_term(premise.value).as_ref() == Some(&subject) {
+                    return StructuralJudgment::Proven;
+                }
+            }
+        }
+        StructuralJudgment::Unknown
     }
 }
 

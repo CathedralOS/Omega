@@ -1,0 +1,25 @@
+data Status [copy] { code: u64; }
+data Table { read: addr; }
+data Guid [copy] { value: u64; }
+domain Guid::Selected(value) requires value.value == 42;
+boundary trait Reports {
+    machine read(table: &Table, protocol: &Guid, token: u64) -> Status
+    requires protocol in Guid::Selected
+    ensures result.code == 0;
+}
+uefi_x86_64 machine Table::read(table: &Table, protocol: &Guid, token: u64) -> Status
+satisfies Reports::read via ForeignBinding::TableFunction(read)
+requires protocol in Guid::Selected
+ensures result.code == 0;
+
+machine clear(protocol: &mut Guid) -> u64 {
+    protocol.value = 0;
+    0
+}
+
+// An eager sibling writes the referent before the foreign invocation begins.
+machine wrong(table: &Table, protocol: &mut Guid) -> Status
+requires protocol in Guid::Selected
+ensures result.code == 0; {
+    Table::read(table, protocol, clear(protocol))
+}
