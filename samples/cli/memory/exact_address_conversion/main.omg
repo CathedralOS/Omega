@@ -28,6 +28,10 @@ machine to_count(address: addr, witness: u64) -> u64
 requires embed(address) == embed(witness)
 { address as u64 }
 
+machine model_count(context: &Main) -> u64
+requires addr::Bound == 18446744073709551616
+{ context.base as u64 }
+
 machine from_snapshot(cell: &mut Cell, witness: addr) -> addr
 requires embed(cell.value) == embed(witness)
 {
@@ -36,17 +40,20 @@ requires embed(cell.value) == embed(witness)
     saved as addr
 }
 
-machine Main::main(context: &mut Main) crashes Trap {
+machine Main::main(context: &mut Main) crashes Trap
+requires addr::Bound == 18446744073709551616
+{
     let witness: addr = 4096;
     let packet: Packet = Packet { cell: Cell { value: 4095 } };
     let first: addr = from_field(&packet, witness);
     let second: addr = from_result(4096, witness);
     context.base = in_state(4096, witness);
     let restored: u64 = to_count(witness, 4096);
+    let model_restored: u64 = model_count(context);
     let mut snapshot: Cell = Cell { value: 4096 };
     let saved_address: addr = from_snapshot(&mut snapshot, witness);
     transition first == 4095 && second == witness &&
-               context.base == witness && restored == 4096 &&
+               context.base == witness && restored == 4096 && model_restored == 4096 &&
                saved_address == witness && snapshot.value == 18446744073709551615 {
         true -> done()
         _ -> wrong()

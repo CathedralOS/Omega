@@ -5927,6 +5927,10 @@ fail/traits/transparent_refinement_widening_axis rejected 29ms expected @a9ae30e
 	refinement clause asserts `suspends` on `write`, but base trait `Logger` does not declare it — a refinement narrows, it cannot add an axis
 fail/types/addr_plus_addr_rejected rejected 2901ms expected @a9ae30e1c334+wt
 	meaningless address arithmetic in machine `Main::main` state `main` local `r`: `addr` composes with counts (`addr + u64`, `addr - u64`) or differences with itself (`addr - addr` is the count between two addresses); `+` over these operands conflates the address and count axes.
+fail/types/address_model_conversion_narrow rejected 183ms expected @8eeea22df054+wt
+	Exact integer cast in machine `invalid` state `entry` from `addr` to `u32` is not provably representable; prove the embedded address fits the destination integer range at this occurrence; count and address widths are independent.
+fail/types/address_model_conversion_wide rejected 183ms expected @8eeea22df054+wt
+	Exact integer cast in machine `invalid` state `entry` from `addr` to `u64` is not provably representable; prove the embedded address fits the destination integer range at this occurrence; count and address widths are independent.
 fail/types/exact_address_conversion_exclusive_bound rejected 203ms expected @3b422f31da30+wt
 	Exact integer cast in machine `invalid` state `entry` from `u64` to `addr` is not provably representable; prove 0 <= embed(source) < addr::Bound at this occurrence; count and address widths are independent.
 fail/types/exact_address_conversion_fixed_bound rejected 198ms expected @3b422f31da30+wt
@@ -9351,6 +9355,7 @@ pass/traits/trait_member_effects checked 9242ms @5041ef1af684+wt
 pass/traits/trait_operator_token checked 8832ms @5041ef1af684+wt
 pass/traits/trait_parent_inherit checked 8738ms @5041ef1af684+wt
 pass/traits/transparent_refinement_declaration checked 10672ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/types/address_model_conversion checked 3733ms check-target:macos_arm64 @8eeea22df054+wt
 pass/types/exact_address_conversion checked 3826ms check-target:macos_arm64 @3b422f31da30+wt
 pass/types/runtime_addr_algebra_exit checked 11700ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/types/runtime_addr_conversion_trap_exit checked 11872ms check-target:macos_arm64 @a9ae30e1c334+wt

@@ -1,0 +1,4 @@
+machine invalid(value: addr) -> u32
+requires addr::Bound == 18446744073709551616
+{ value as u32 }
+machine main() {}

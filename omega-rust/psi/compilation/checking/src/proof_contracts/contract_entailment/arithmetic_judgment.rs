@@ -695,8 +695,14 @@ impl<'program> Engine<'program> {
                 self.harvest_substitution(left, right);
             }
         }
-        // Second pass: re-normalize under the substitutions and store bounds.
-        let mut lower_bounds = Vec::new();
+        // Premises arrive in formation order: intrinsic carrier bounds can
+        // precede an equality fixing their symbolic ceiling. Re-normalize the
+        // retained bounds too, or that equality disappears into substitution
+        // while earlier inequalities keep an atom the goal no longer uses.
+        let mut lower_bounds = std::mem::take(&mut self.bounds);
+        for (polynomial, _) in &mut lower_bounds {
+            *polynomial = self.substituted(polynomial);
+        }
         let mut nonzero_differences = Vec::new();
         for (operator, left, right) in comparisons {
             let left = self.substituted(&left);
