@@ -1,0 +1,21 @@
+// A runtime count copied into a local still indexes a byte view.
+// Expected exit: 0
+machine read_at<Index: u32>(items: &[u8]) -> u8
+requires Index < items.len;
+{
+    items[Index]
+}
+
+machine indexed(items: &[u8]) -> u8
+requires items.len == 4;
+{
+    let count: u32 = 1;
+    read_at<count>(items)
+}
+
+machine main() crashes Trap {
+    let bytes: [u8; 4] = [9, 8, 7, 6];
+    transition indexed(&bytes[..]) == 8 { true -> done() _ -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}

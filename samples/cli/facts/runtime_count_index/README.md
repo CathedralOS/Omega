@@ -1,12 +1,23 @@
 # Runtime count index
 
-A byte view is indexed by a runtime count. The count is a local, a record
-field, a parameter, and a call result. The reads happen in a state reached
-after the array is created. Bytes `[9, 8, 7, 6]` produce `8`, `9`, `6`, and
-`7`. Exit 0 means all four reads matched. A mismatch traps.
+A byte view is indexed by a runtime count. Bytes `[9, 8, 7, 6]` indexed at
+`1` produce `8`. Exit 0 means that read matched. A mismatch traps.
+
+The count is one value-binder argument. Each directory is one place, the same
+row as `samples/cli/facts/length/`: a local, a field, a parameter, a call
+result, a match join, a const name, another state, another machine, and
+another target body.
 
 ```sh
-omega run samples/cli/facts/runtime_count_index/main.omg
+omega run samples/cli/facts/runtime_count_index/local/main.omg
+omega run samples/cli/facts/runtime_count_index/field/main.omg
+omega run samples/cli/facts/runtime_count_index/parameter/main.omg
+omega run samples/cli/facts/runtime_count_index/call_result/main.omg
+omega run samples/cli/facts/runtime_count_index/match_join/main.omg
+omega run samples/cli/facts/runtime_count_index/const_name/main.omg
+omega run samples/cli/facts/runtime_count_index/other_state/main.omg
+omega run samples/cli/facts/runtime_count_index/other_machine/main.omg
+omega run samples/cli/facts/runtime_count_index/target_body/main.omg
 ```
 
 Expected exit: 0.
