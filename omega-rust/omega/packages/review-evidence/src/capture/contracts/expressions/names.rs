@@ -144,6 +144,12 @@ pub(crate) fn project_contract_name_expression(
                 context.subject_kind, context.subject_name
             ))]);
         }
+        // Compiler carrier members have closed semantic identity, not package
+        // provenance. Exact symbol lookup keeps authored same-spelled names
+        // on the nominal route and preserves the selected model symbolically.
+        if let Some(member) = compilation.symbols.builtin_type_member(path.symbol) {
+            return Ok(PackageReviewContractExpression::BuiltinTypeMember(member));
+        }
         return nominal_identity(compilation, path.symbol)
             .map(PackageReviewContractExpression::Nominal);
     };

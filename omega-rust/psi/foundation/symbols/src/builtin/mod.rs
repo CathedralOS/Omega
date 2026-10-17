@@ -1046,7 +1046,7 @@ pub fn fixed_core_declaration_symbols()
 
 /// Mathematical members owned by a builtin carrier. Their child slots, not
 /// authored names, identify them after resolution.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum BuiltinTypeMember {
     /// The selected address model's exclusive upper bound in proof Int.
     AddressBound,

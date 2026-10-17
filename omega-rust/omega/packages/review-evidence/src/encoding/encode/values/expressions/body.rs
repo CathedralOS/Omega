@@ -133,6 +133,15 @@ pub(super) fn encode_contract_expression_body(
             encoder.tag("nominal", 5);
             encoder.field("identity", |encoder| encode_nominal(encoder, identity))?;
         }
+        PackageReviewContractExpression::BuiltinTypeMember(member) => {
+            encoder.tag("builtin_type_member", 25);
+            encoder.field("member", |encoder| {
+                match member {
+                    symbols::BuiltinTypeMember::AddressBound => encoder.tag("address_bound", 0),
+                };
+                Ok(())
+            })?;
+        }
         PackageReviewContractExpression::CaseMembership { subject, case } => {
             encoder.tag("case_membership", 22);
             encoder.field("subject", |encoder| {

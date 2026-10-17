@@ -1,0 +1,20 @@
+// Expected exit: 0.
+// The selected 64-bit address-model premise crosses a reviewed package boundary.
+use model::main;
+data Main {}
+
+machine Main::main(context: &mut Main) crashes Trap
+requires addr::Bound == 18446744073709551616
+{
+    let address: addr = physical_address(4096);
+    let echoed: u64 = echo(17);
+    let declared: u64 = authored_bound();
+    let bytes: [u8; 16] = [0, 0, 0, 0, 0, 0, 0, 0, 42, 0, 0, 0, 0, 0, 0, 0];
+    let word: u64 = read_word(&bytes, 8);
+    transition address == 4096 && echoed == 17 && declared == 17 && word == 42 {
+        true -> done()
+        _ -> wrong()
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}

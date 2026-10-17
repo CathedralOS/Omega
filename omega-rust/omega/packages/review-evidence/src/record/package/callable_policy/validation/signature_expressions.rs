@@ -15,7 +15,10 @@ pub(in crate::record) fn expression(
     depth(nesting)?;
     use PackageReviewContractExpression as Expression;
     match value {
-        Expression::Boolean(_) | Expression::Float(_) | Expression::ByteSequence(_) => {}
+        Expression::Boolean(_)
+        | Expression::Float(_)
+        | Expression::ByteSequence(_)
+        | Expression::BuiltinTypeMember(_) => {}
         Expression::Integer(value) => text(value)?,
         Expression::DomainSubject => {
             if !scope.domain_subject {

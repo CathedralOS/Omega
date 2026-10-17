@@ -490,6 +490,13 @@ fn condition_belongs_to_state(
     }
     match program.expression_table.expression(expression) {
         ExpressionNode::Name(path) => {
+            // Compiler-owned carrier members have no state-local binder.
+            // Recognize their resolved identity before the lexical-owner test;
+            // rejecting one would discard unrelated conjuncts over this state's
+            // parameters. This grants scope only, not a concrete target value.
+            if program.symbols.builtin_type_member(path.symbol).is_some() {
+                return true;
+            }
             path.symbol.is_valid()
                 && path.head_symbol.is_valid()
                 && ((program

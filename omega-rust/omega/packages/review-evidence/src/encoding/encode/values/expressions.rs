@@ -34,3 +34,29 @@ pub(crate) fn encode_contract_operator_meaning(
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod codec_tests {
+    use super::*;
+
+    #[test]
+    fn builtin_carrier_member_has_a_closed_wire_identity() {
+        let expression = PackageReviewContractExpression::BuiltinTypeMember(
+            symbols::BuiltinTypeMember::AddressBound,
+        );
+        let mut encoder = Encoder::bounded(2);
+        encode_contract_expression(&mut encoder, &expression).unwrap();
+        assert_eq!(encoder.finish().unwrap(), [25, 0]);
+    }
+
+    #[test]
+    fn same_spelled_unresolved_nominal_still_requires_ownership() {
+        let expression =
+            PackageReviewContractExpression::Nominal(crate::record::PackageReviewNominalIdentity {
+                owner: crate::record::PackageReviewNominalOwner::Unresolved,
+                path: "addr::Bound".to_owned(),
+            });
+        let mut encoder = Encoder::bounded(64);
+        assert!(encode_contract_expression(&mut encoder, &expression).is_err());
+    }
+}

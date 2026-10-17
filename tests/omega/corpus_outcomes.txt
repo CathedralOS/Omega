@@ -4767,6 +4767,8 @@ fail/ranges/subject_guard_compound_index_mutated rejected 2230ms expected @a9ae3
 fail/ranges/sum_payload_non_case_guard_unproven rejected 5163ms expected @a9ae30e1c334+wt
 	cannot prove selected case for payload access
 	cannot prove requires contract for call use_v from Main::main: main.p::One.v in i32::Fifty (invalidated by prior mutation of main.p; main.p::One.v is part of i32::Fifty)
+fail/recast/address_model_does_not_bound_offset rejected 297ms expected @f908755ec590
+	machine `read` state `inspect`: cannot bound the recast offset `offset` -- the region holds 16 bytes, but no declared range, dominating incoming guard, or boundary-ensures witness bounds the offset below the footprint
 fail/recast/boolean_view_requires_byte_region_representation rejected 870ms expected @a9ae30e1c334+wt
 	machine `read` state `entry`: a shared recast may weaken established facts but cannot strengthen them; a raw byte region cannot establish the target's representation facts
 fail/recast/boolean_view_requires_source_representation rejected 981ms expected @a9ae30e1c334+wt
@@ -8438,6 +8440,7 @@ pass/ranges/subject_field_where_fact_index_bound checked 1899ms @a9ae30e1c334+wt
 pass/ranges/subject_guard_compound_index_successor checked 1818ms @a9ae30e1c334+wt
 pass/ranges/subject_unsigned_computed_index_lower_bound checked 1562ms @a9ae30e1c334+wt
 pass/ranges/sum_payload_range_arith_narrowed_exit checked 11383ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/recast/address_model_preserves_state_bounds checked 6839ms check-target:macos_arm64 @f908755ec590
 pass/recast/bool_byte_view_compile checked 1567ms @a9ae30e1c334+wt
 pass/recast/borrowed_byte_scalar_views_exit checked 6868ms check-target:macos_arm64 @e76af65b0403
 pass/recast/boundary_postcondition_backing_scalar_exit checked 3377ms check-target:macos_arm64 @2430f497a77c+wt

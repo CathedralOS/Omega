@@ -1,0 +1,27 @@
+pub machine physical_address(value: u64) -> addr
+requires addr::Bound == 18446744073709551616
+{ value as addr }
+
+// An authored binder with the same member spelling is not a compiler atom.
+pub machine echo(Bound: u64) -> u64
+ensures result == Bound
+{ Bound }
+
+pub data Limits {}
+pub const Limits::Bound: u64 = 17;
+
+pub machine authored_bound() -> u64
+ensures result == Limits::Bound
+{ Limits::Bound }
+
+pub machine read_word(buffer: &[u8; 16], offset: u64 in Trapping) -> u64
+requires addr::Bound == 18446744073709551616 && offset <= 8
+{
+    transition { _ -> inspect(buffer, offset) }
+    state inspect(buffer: &[u8; 16], offset: u64 in Trapping) -> u64
+    requires addr::Bound == 18446744073709551616 && offset <= 8
+    {
+        let word: &u64 = &buffer[offset] as &u64;
+        word
+    }
+}

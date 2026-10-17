@@ -15,6 +15,33 @@ use crate::record::{
 };
 use symbols::BuiltinFunction;
 
+#[cfg(test)]
+mod codec_tests {
+    use super::super::PackagePolicyRecoveryLimits;
+    use super::*;
+
+    #[test]
+    fn builtin_carrier_member_recovers_without_nominal_ownership() {
+        let bytes = [25, 0];
+        let mut reader = Reader::new(&bytes, PackagePolicyRecoveryLimits::default()).unwrap();
+        assert_eq!(
+            expression(&mut reader).unwrap(),
+            PackageReviewContractExpression::BuiltinTypeMember(
+                symbols::BuiltinTypeMember::AddressBound,
+            )
+        );
+        reader.finish().unwrap();
+    }
+
+    #[test]
+    fn unknown_or_truncated_builtin_carrier_members_are_rejected() {
+        for bytes in [&[25, 1][..], &[25, 255][..], &[25][..]] {
+            let mut reader = Reader::new(bytes, PackagePolicyRecoveryLimits::default()).unwrap();
+            assert!(expression(&mut reader).is_err());
+        }
+    }
+}
+
 pub(in crate::encoding::recovery) fn expression(
     reader: &mut Reader<'_>,
 ) -> Result<PackageReviewContractExpression, Error> {
@@ -135,6 +162,9 @@ pub(in crate::encoding::recovery) fn expression(
                     })
                 })?,
             },
+            25 => Expression::BuiltinTypeMember(super::tag!(reader => {
+                0 => symbols::BuiltinTypeMember::AddressBound,
+            })),
         }))
     })
 }

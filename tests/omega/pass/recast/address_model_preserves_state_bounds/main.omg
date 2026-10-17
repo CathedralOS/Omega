@@ -1,0 +1,22 @@
+// Expected exit: 0.
+data Main {}
+machine read(buffer: &[u8; 16], offset: u64 in Trapping) -> u64
+requires addr::Bound == 18446744073709551616 && offset <= 8
+{
+    transition { _ -> inspect(buffer, offset) }
+    state inspect(buffer: &[u8; 16], offset: u64 in Trapping) -> u64
+    requires addr::Bound == 18446744073709551616 && offset <= 8
+    {
+        let word: &u64 = &buffer[offset] as &u64;
+        word
+    }
+}
+machine Main::main(context: &mut Main) crashes Trap
+requires addr::Bound == 18446744073709551616
+{
+    let bytes: [u8; 16] = [0, 0, 0, 0, 0, 0, 0, 0, 42, 0, 0, 0, 0, 0, 0, 0];
+    let word: u64 = read(&bytes, 8);
+    transition word == 42 { true -> done() _ -> wrong() }
+    state done() {}
+    state wrong() { crash Trap; }
+}

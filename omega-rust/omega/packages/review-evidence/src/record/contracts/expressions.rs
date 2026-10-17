@@ -295,6 +295,10 @@ pub enum PackageReviewContractExpression {
     Parameter(u32),
     Result,
     GenericBinder(u32),
+    /// Compiler-owned carrier member, authenticated by its resolved symbol.
+    /// Its symbolic meaning survives review without an authored nominal owner
+    /// or a target-width substitution.
+    BuiltinTypeMember(symbols::BuiltinTypeMember),
     Nominal(PackageReviewNominalIdentity),
     /// Exact nominal tag observation. The case is a classifier, not a
     /// constructed value or a selected equality overload.
