@@ -1,0 +1,16 @@
+// `count - used` under `used <= count` is non-negative in exact u32.
+// `data where count <= 11` keeps that fact standing for `as i32`.
+// Compile-checked only: no Main::exit.
+data Main where count <= 11 { count: u32; j: u32; out: i32; }
+
+machine Main::main(main: &mut Main)
+    requires main.j <= main.count
+{
+    transition { _ -> finish(main, main.count, main.j) }
+    state finish(main: &mut Main, count: u32, used: u32)
+        requires used <= count && count <= 11
+    {
+        let remaining: u32 = count - used;
+        main.out = remaining as i32;
+    }
+}

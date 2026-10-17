@@ -95,6 +95,16 @@ impl CopiedIntegerValue {
                 &written,
                 environment,
             );
+            self.ordered_relations
+                .extend(ordered_values::delivered_value_orderings(
+                    program,
+                    machine,
+                    state,
+                    local.initial_value,
+                    &destination,
+                    &written,
+                    environment,
+                ));
         }
     }
 
@@ -160,6 +170,16 @@ impl CopiedIntegerValue {
                 self.capture_scalar_equality(length, destination.clone(), written);
             }
         }
+        self.ordered_relations
+            .extend(ordered_values::delivered_value_orderings(
+                program,
+                machine,
+                state,
+                assignment.value,
+                &destination,
+                written,
+                environment,
+            ));
     }
 
     fn capture_relations(

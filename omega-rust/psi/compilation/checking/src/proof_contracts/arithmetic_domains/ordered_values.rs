@@ -28,9 +28,12 @@ use crate::value_custody::places::collection_length_receiver;
 use symbols::SymbolHandle;
 
 mod congruence;
+mod delivered;
 mod requirements;
 mod storage;
 mod transport;
+pub(crate) use delivered::delivered_value_orderings;
+use delivered::{call_result_orderings, ensured_call_operand, match_subtract_floor};
 pub use requirements::validate_ordered_requirement_call_totality;
 pub(super) use transport::rebind_relations;
 
@@ -835,21 +838,107 @@ pub(super) fn subtract_floor(
     left: ExpressionHandle,
     right: ExpressionHandle,
 ) -> Option<i64> {
-    if environment.ordered_values.is_empty() {
+    subtract_floor_limited(program, machine, state, environment, left, right, 0)
+}
+
+/// `left - right` is at least this floor when a live ordering says so.
+///
+/// A match on either side keeps the floor every arm proves. A call operand
+/// contributes the orderings its proved `ensures` states about that result.
+/// Both are the same ordering query, not a separate subtraction recognizer.
+pub(super) fn subtract_floor_limited(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: Option<&State>,
+    environment: &ValueEnvironment,
+    left: ExpressionHandle,
+    right: ExpressionHandle,
+    depth: usize,
+) -> Option<i64> {
+    if depth > 8 {
         return None;
     }
     let state = state?;
-    let left = operand(program, machine, state, left, None)?;
-    let right = operand(program, machine, state, right, None)?;
-    environment
-        .ordered_values
-        .iter()
-        .filter(|relation| {
-            congruence::same_value(&environment.ordered_values, &relation.left, &left)
-                && congruence::same_value(&environment.ordered_values, &relation.right, &right)
-        })
-        .filter_map(Relation::minimum_difference)
-        .max()
+    if matches!(
+        program.expression_table.expression(right),
+        ExpressionNode::Match(_)
+    ) {
+        return match_subtract_floor(program, machine, state, environment, left, right, depth);
+    }
+    if matches!(
+        program.expression_table.expression(left),
+        ExpressionNode::Match(_)
+    ) {
+        // `match - right` is not the ordered floor of `left - match`. Ask
+        // each left arm against the same right; the join takes the minimum.
+        let ExpressionNode::Match(dispatch) = program.expression_table.expression(left) else {
+            return None;
+        };
+        let arms = program.expression_table.match_arms(dispatch.arms);
+        let arm_environments = super::dispatch_arm_environments(
+            program,
+            machine,
+            Some(state),
+            left,
+            dispatch,
+            environment,
+        );
+        if arms.is_empty() || arm_environments.len() != arms.len() {
+            return None;
+        }
+        let mut floor = None;
+        for (arm, arm_environment) in arms.iter().zip(&arm_environments) {
+            let arm_floor = subtract_floor_limited(
+                program,
+                machine,
+                Some(state),
+                arm_environment,
+                arm.value,
+                right,
+                depth + 1,
+            )?;
+            floor = Some(floor.map_or(arm_floor, |existing: i64| existing.min(arm_floor)));
+        }
+        return floor;
+    }
+    let left_named = operand(program, machine, state, left, None);
+    let right_named = operand(program, machine, state, right, None);
+    // Identical observations cancel. The ensures-call identity is not that
+    // observation: it names one occurrence and must not equate two calls.
+    if let (Some(left_named), Some(right_named)) = (&left_named, &right_named)
+        && left_named == right_named
+    {
+        return Some(0);
+    }
+    let left_operand = left_named.or_else(|| ensured_call_operand(program, machine, state, left));
+    let right_operand =
+        right_named.or_else(|| ensured_call_operand(program, machine, state, right));
+    let (Some(left_operand), Some(right_operand)) = (left_operand, right_operand) else {
+        return None;
+    };
+    let call_orderings = call_result_orderings(program, machine, state, left)
+        .into_iter()
+        .chain(call_result_orderings(program, machine, state, right))
+        .collect::<Vec<_>>();
+    if environment.ordered_values.is_empty() && call_orderings.is_empty() {
+        return None;
+    }
+    let relation_floor = |relations: &[Relation]| {
+        relations
+            .iter()
+            .filter(|relation| {
+                congruence::same_value(relations, &relation.left, &left_operand)
+                    && congruence::same_value(relations, &relation.right, &right_operand)
+            })
+            .filter_map(Relation::minimum_difference)
+            .max()
+    };
+    if call_orderings.is_empty() {
+        return relation_floor(&environment.ordered_values);
+    }
+    let mut relations = environment.ordered_values.clone();
+    relations.extend(call_orderings);
+    relation_floor(&relations)
 }
 
 /// Query a live comparison without widening an unequal value into an interval
