@@ -98,6 +98,11 @@ pub struct ProviderPlanRow {
     /// lifetime application on this exact realization edge. Empty for a
     /// lifetime-free trait, operator, or top-level requirement.
     pub requirement_lifetime_partition: Vec<u32>,
+    /// Authored same-stack demand of this realization, in bytes. Zero means
+    /// the source wrote no demand; foreign-call admission then keeps the
+    /// historical unmeasured reserve. Checked adapters and toolchain rows
+    /// stay zero because they are not opaque foreign leaves.
+    pub admitted_same_stack_bytes: u64,
     pub binding: ProviderBinding,
 }
 
@@ -222,6 +227,7 @@ impl ProviderPlanRow {
         self.method == other.method
             && self.requirement_identity == other.requirement_identity
             && self.requirement_lifetime_partition == other.requirement_lifetime_partition
+            && self.admitted_same_stack_bytes == other.admitted_same_stack_bytes
             && match (&self.binding, &other.binding) {
                 (
                     ProviderBinding::CheckedAdapter {
@@ -299,6 +305,7 @@ impl ProviderPlan {
             for ordinal in &row.requirement_lifetime_partition {
                 encoder.u64(u64::from(*ordinal));
             }
+            encoder.u64(row.admitted_same_stack_bytes);
             encoder.provider_binding(&row.binding, &self.identities);
         }
         encoder.package_identity(self.origin_package_identity);
@@ -473,10 +480,11 @@ impl ProviderPlan {
                 binding => format!("{binding:?}"),
             };
             rendered.push_str(&format!(
-                "\nr:{}/{}/lifetimes:{:?}/{}",
+                "\nr:{}/{}/lifetimes:{:?}/stack:{}/{}",
                 row.method,
                 self.identities.text(row.requirement_identity),
                 row.requirement_lifetime_partition,
+                row.admitted_same_stack_bytes,
                 binding_identity
             ));
         }

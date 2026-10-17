@@ -86,6 +86,10 @@ pub struct Machine {
     pub blocks_keyword_source_spans: Vec<source::SourceSpan>,
     pub suspends: bool,
     pub blocks: bool,
+    /// Authored same-stack demand of a bodyless `via` realization, in bytes.
+    /// Zero means the author wrote no `stack N bytes` clause. The reserve for
+    /// an unmeasured foreign leaf stays downstream; this field does not invent one.
+    pub admitted_same_stack_bytes: u64,
     pub contracts: HandleSpan<CapabilityContract>,
     pub states: HandleSpan<StateHandle>,
 }

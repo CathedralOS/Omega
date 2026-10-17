@@ -169,6 +169,7 @@ fn mint_toolchain_settled_plan(
             requirement_identity: identities
                 .intern(schema.identity_text(method.requirement_identity)),
             requirement_lifetime_partition: Vec::new(),
+            admitted_same_stack_bytes: 0,
             binding: ProviderBinding::Syscall {
                 number: leaf.number,
             },

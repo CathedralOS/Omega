@@ -1,0 +1,9 @@
+// A checked body is not an opaque foreign leaf, so it cannot author a
+// same-stack contribution.
+pub boundary trait TextOutput { machine output_string(this: addr); }
+
+machine checked(this: addr) satisfies TextOutput::output_string stack 4096 bytes; {
+    TextOutput::output_string(this);
+}
+
+machine main() {}

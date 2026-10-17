@@ -171,6 +171,7 @@ fn collects_bounded_type_sites() {
         blocks_keyword_source_spans: Vec::new(),
         suspends: false,
         blocks: false,
+        admitted_same_stack_bytes: 0,
         contracts: HandleSpan::empty(),
         states: HandleSpan::from_parts(state_handle, 1),
     }));

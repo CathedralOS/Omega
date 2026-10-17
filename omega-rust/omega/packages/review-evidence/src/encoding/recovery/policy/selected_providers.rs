@@ -87,6 +87,7 @@ pub(in crate::encoding::recovery) fn row(
                 resolved: reader.sequence(41, nominal)?,
             })
         })?,
+        admitted_same_stack_bytes: reader.u64()?,
     })
 }
 

@@ -1,0 +1,7 @@
+// The demand clause belongs to a `via` binding. A bodyless machine with no
+// external realization cannot author one.
+pub boundary trait TextOutput { machine output_string(this: addr); }
+
+machine bare() satisfies TextOutput::output_string stack 4096 bytes;
+
+machine main() {}

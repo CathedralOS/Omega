@@ -125,6 +125,10 @@ fn row(
                 encoder.sequence(&reach.resolved, encode_nominal)
             })
         })
+    })?;
+    encoder.field("admitted_same_stack_bytes", |encoder| {
+        encoder.u64(row.admitted_same_stack_bytes);
+        Ok(())
     })
 }
 

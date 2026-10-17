@@ -1,0 +1,4 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "authored_same_stack_import");
+    Build::bind(builder, linux_x86_64::ProgramEntry, Main::main);
+}
