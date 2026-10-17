@@ -145,7 +145,7 @@ blocks;
 }
 
 macos_x86_64 machine TimeHostNativeProvider::provider_defaults(defaults: &mut TimeHostNativeProvider) {
-    TimeHostNativeProvider::select_provider<TimeHost, TimeHostNativeProvider>(defaults);
+    TimeHostNativeProvider::select_provider<TimeHost, NativeTimeHost>(defaults);
     TimeHostNativeProvider::select_provider<DarwinX64TimeRead::clock_nanoseconds, DarwinX64TimeImports>(defaults);
     TimeHostNativeProvider::select_provider<DarwinX64TimeRead::poll, DarwinX64TimeImports>(defaults);
 }

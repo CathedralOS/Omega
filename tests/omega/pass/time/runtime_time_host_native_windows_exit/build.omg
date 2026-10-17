@@ -1,0 +1,7 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "runtime_time_host_native_windows_exit");
+    Build::depend(builder, Source::Path {
+        location: "../../../../../source/library/std"
+    });
+    Build::bind(builder, windows_x86_64::ProgramEntry, Main::main);
+}

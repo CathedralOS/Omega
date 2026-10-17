@@ -21,10 +21,8 @@ use omega_language_std::filesystem;
 use omega_language_std::time;
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
     fs: Filesystem;
     time: Time;
 }
@@ -179,5 +177,5 @@ machine Main::main(context: &mut Main) reaches Console {
         transition true { true -> done(context, next_passed) _ -> done(context, next_passed) }
     }
 
-    state done(context: &mut Main, passed: i32 in Wrapping) { context.console.exit_process(passed as i32); }
+    state done(context: &mut Main, passed: i32 in Wrapping) { Console::exit_process(passed as i32); }
 }

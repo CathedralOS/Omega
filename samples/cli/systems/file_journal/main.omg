@@ -5,11 +5,9 @@
 // Expected exit: 7.
 use omega_language_std::filesystem;
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
     filesystem: Filesystem;
-    console: Binding<Console>;
     result: UnitResult;
     opened: OpenResult;
     transferred: IoResult;
@@ -96,5 +94,5 @@ machine Main::main(main: &mut Main) reaches Console {
         main.passed = main.passed + 1;
         transition { _ -> done(main) }
     }
-    state done(main: &mut Main) { main.console.exit_process(main.passed as i32); }
+    state done(main: &mut Main) { Console::exit_process(main.passed as i32); }
 }

@@ -9637,7 +9637,8 @@ pass/time/runtime_fs_mtime_system_time_interop_exit checked 23161ms check-target
 pass/time/runtime_kernel_clock_wait_loans_exit checked 11642ms check-target:linux_x86_64 @a9ae30e1c334+wt
 pass/time/runtime_time_elapsed_since_exit checked 16005ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/time/runtime_time_host_native_darwin_exit checked 14978ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/time/runtime_time_host_native_darwin_x86_64_exit checked 14425ms check-target:windows_x86_64 @a9ae30e1c334+wt
+pass/time/runtime_time_host_native_darwin_x86_64_exit checked 6152ms check-target:macos_x86_64 @1dcced2fa00f+wt
+pass/time/runtime_time_host_native_windows_exit checked 6204ms check-target:windows_x86_64 @1dcced2fa00f+wt
 pass/time/runtime_time_host_virtual_exit checked 13948ms @a9ae30e1c334+wt
 pass/time/static_duration_accessors checked 14893ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/traits/applied_callable_law_equality_exit checked 11957ms check-target:macos_arm64 @589aedee8ebc+wt

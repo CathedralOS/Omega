@@ -178,7 +178,7 @@ blocks;
 }
 
 linux_x86_64 machine TimeHostNativeProvider::provider_defaults(defaults: &mut TimeHostNativeProvider) {
-    TimeHostNativeProvider::select_provider<TimeHost, TimeHostNativeProvider>(defaults);
+    TimeHostNativeProvider::select_provider<TimeHost, NativeTimeHost>(defaults);
     TimeHostNativeProvider::select_provider<LinuxX64TimeRead::clock_gettime, LinuxX64TimeImports>(defaults);
     TimeHostNativeProvider::select_provider<LinuxX64TimeRead::poll, LinuxX64TimeImports>(defaults);
 }

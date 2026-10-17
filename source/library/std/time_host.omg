@@ -46,6 +46,35 @@ use targets::windows_x86_64::time_host_impl;
 // compiler-folded answers. Unsupported targets retain their settlement gap.
 pub data TimeHostNativeProvider { }
 
+// The target namespace is not a whole-trait implementation. Select this
+// complete map; each inline member makes an ordinary call to its exact target
+// body, retaining that body's raw-provider closure and operational contract.
+pub NativeTimeHost satisfies TimeHost {
+    machine monotonic_ticks() -> u64 reaches TimeHost {
+        TimeHostNativeProvider::monotonic_ticks()
+    }
+
+    machine monotonic_ticks_per_second() -> u64 {
+        TimeHostNativeProvider::monotonic_ticks_per_second()
+    }
+
+    machine wall_clock_raw() -> u64 reaches TimeHost {
+        TimeHostNativeProvider::wall_clock_raw()
+    }
+
+    machine wall_clock_units_per_second() -> u64 {
+        TimeHostNativeProvider::wall_clock_units_per_second()
+    }
+
+    machine wall_clock_epoch_offset_seconds() -> u64 {
+        TimeHostNativeProvider::wall_clock_epoch_offset_seconds()
+    }
+
+    machine sleep(milliseconds: u32) reaches TimeHost blocks; {
+        block TimeHostNativeProvider::sleep(milliseconds);
+    }
+}
+
 pub boundary trait TimeHost {
     // Monotonic, never-decreasing tick counter since an unspecified epoch.
     // Only differences are meaningful.

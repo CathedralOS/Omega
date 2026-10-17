@@ -170,7 +170,7 @@ windows_x86_64 machine TimeHostNativeProvider::sleep(milliseconds: u32)
     blocks;
 
 windows_x86_64 machine TimeHostNativeProvider::provider_defaults(defaults: &mut TimeHostNativeProvider) {
-    TimeHostNativeProvider::select_provider<TimeHost, TimeHostNativeProvider>(defaults);
+    TimeHostNativeProvider::select_provider<TimeHost, NativeTimeHost>(defaults);
     TimeHostNativeProvider::select_provider<WindowsTimeRead::query_performance_counter, WindowsTimeImports>(defaults);
     TimeHostNativeProvider::select_provider<WindowsTimeRead::query_performance_frequency, WindowsTimeImports>(defaults);
     TimeHostNativeProvider::select_provider<WindowsTimeRead::system_time_as_file_time, WindowsTimeImports>(defaults);

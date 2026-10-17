@@ -1,0 +1,61 @@
+// All six operations of the selected Windows TimeHost implementation.
+// A checked inline sleep member must retain the exact kernel32 Sleep import.
+// Real clocks use inequalities; no fixed native timestamp is assumed.
+// Expected exit: 70.
+use omega_language_std::time_host;
+use omega_language_std::console;
+
+data Main {}
+
+machine Main::main(context: &mut Main) reaches Console + TimeHost {
+    let first_ticks: u64 = TimeHost::monotonic_ticks();
+    block TimeHost::sleep(30);
+    let second_ticks: u64 = TimeHost::monotonic_ticks();
+    transition second_ticks > first_ticks {
+        true -> frequency(context)
+        false -> bad(context)
+    }
+
+    state frequency(context: &mut Main) {
+        let frequency: u64 = TimeHost::monotonic_ticks_per_second();
+        transition frequency > 0 {
+            true -> units(context)
+            false -> bad(context)
+        }
+    }
+
+    state units(context: &mut Main) {
+        let units: u64 = TimeHost::wall_clock_units_per_second();
+        transition units == 10000000 {
+            true -> epoch(context)
+            false -> bad(context)
+        }
+    }
+
+    state epoch(context: &mut Main) {
+        let offset: u64 = TimeHost::wall_clock_epoch_offset_seconds();
+        transition offset == 11644473600 {
+            true -> wall(context)
+            false -> bad(context)
+        }
+    }
+
+    state wall(context: &mut Main) {
+        let raw: u64 = TimeHost::wall_clock_raw();
+        let seconds: u64 = raw / 10000000;
+        transition seconds > 13411699200 {
+            true -> upper(context, seconds)
+            false -> bad(context)
+        }
+    }
+
+    state upper(context: &mut Main, seconds: u64) {
+        transition seconds < 14994473600 {
+            true -> good(context)
+            false -> bad(context)
+        }
+    }
+
+    state good(context: &mut Main) { Console::exit_process(70); }
+    state bad(context: &mut Main) { Console::exit_process(1); }
+}

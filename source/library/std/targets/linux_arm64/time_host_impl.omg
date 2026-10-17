@@ -152,7 +152,7 @@ blocks;
 }
 
 linux_arm64 machine TimeHostNativeProvider::provider_defaults(defaults: &mut TimeHostNativeProvider) {
-    TimeHostNativeProvider::select_provider<TimeHost, TimeHostNativeProvider>(defaults);
+    TimeHostNativeProvider::select_provider<TimeHost, NativeTimeHost>(defaults);
     TimeHostNativeProvider::select_provider<LinuxArm64TimeRead::clock_gettime, LinuxArm64TimeImports>(defaults);
     TimeHostNativeProvider::select_provider<LinuxArm64TimeRead::nanosleep, LinuxArm64TimeImports>(defaults);
 }
