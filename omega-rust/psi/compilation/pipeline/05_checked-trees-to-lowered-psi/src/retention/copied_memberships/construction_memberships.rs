@@ -88,6 +88,8 @@ pub(super) fn retained(
     projected_qualifications.sort();
     projected_qualifications.dedup();
     Some(PayloadMembershipContract {
+        scalar_observations: Vec::new(),
+        scalar_requirements: Vec::new(),
         carrier: result.structural_type,
         qualifications: Vec::new(),
         projected_qualifications,

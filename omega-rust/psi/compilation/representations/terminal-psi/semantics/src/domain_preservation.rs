@@ -60,7 +60,11 @@ fn term_dependencies<'a>(
         _ => return None,
     };
     if observation.0 != subject
-        || crate::primitive_place_type(types, carrier, &observation.1)? != observation.2
+        || crate::primitive_read_projection_type(
+            types.clone(),
+            carrier,
+            &storage_path(types, carrier, &observation.1)?,
+        )? != observation.2
     {
         return None;
     }

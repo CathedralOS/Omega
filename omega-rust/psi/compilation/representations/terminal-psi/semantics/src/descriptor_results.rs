@@ -23,7 +23,9 @@ pub use boundary_calls::{
 };
 mod compatibility;
 mod contents;
+mod payload_entry;
 mod payload_history;
+mod payload_predicates;
 pub use contents::{
     DescriptorContentsOperand, DescriptorContentsQuery, DescriptorContentsStep,
     DescriptorContentsTransfer, DescriptorPayloadTarget, ElementPayloadMemberships,
@@ -32,6 +34,7 @@ pub use contents::{
     terminal_payload_contract,
 };
 pub use payload_history::current_payload_contract;
+pub use payload_predicates::{PayloadScalarObservation, scalar_payload_expression};
 mod owned_shape;
 mod replay;
 pub use compatibility::{DescriptorCompatibilityFailure, DescriptorCompatibilityRequirement};
@@ -346,6 +349,26 @@ pub struct DescriptorMachine {
     /// Payload writes not described by structural value derivations. These
     /// retire value memberships independently of descriptor pointer contents.
     pub payload_producers: BTreeMap<DescriptorPosition, PlaceId>,
+    /// Caller-owed entry propositions in their original formal namespace.
+    pub payload_entry_predicates: Option<(
+        semantic_vocabulary::PropositionContext,
+        Vec<semantic_vocabulary::Proposition>,
+    )>,
+    /// Closed scalar contents captured from actual constructor/store operands.
+    /// Unknown operands supply no observation and still invalidate old contents.
+    /// New dynamic instances retire premises about earlier instances of these
+    /// SSA identities, including block formals on loop arrivals.
+    pub payload_scalar_definitions: BTreeMap<DescriptorPosition, Vec<semantic_vocabulary::ValueId>>,
+    pub payload_scalar_parameters:
+        BTreeMap<semantic_vocabulary::BlockId, Vec<semantic_vocabulary::ValueId>>,
+    /// Exact typed scalar reads capture immutable values from current storage.
+    pub scalar_payload_reads:
+        BTreeMap<DescriptorPosition, Vec<(DescriptorLocation, semantic_vocabulary::ScalarTerm)>>,
+    /// Selected Boolean facts, in the flow step's exact successor order.
+    pub payload_edge_predicates:
+        BTreeMap<DescriptorPosition, Vec<Option<semantic_vocabulary::Proposition>>>,
+    pub scalar_payload_writes:
+        BTreeMap<DescriptorPosition, Vec<(DescriptorLocation, semantic_vocabulary::ScalarTerm)>>,
     pub payload_invalidations: BTreeMap<DescriptorPosition, Vec<Option<DescriptorContentsQuery>>>,
     /// Nonexact value arrivals retain their actual typed read query, indexed
     /// by successor ordinal. They supplement membership transport only: exact

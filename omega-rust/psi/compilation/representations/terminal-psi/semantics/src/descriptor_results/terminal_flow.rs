@@ -34,6 +34,26 @@ pub(super) fn adapt(
         contents_transfers: BTreeMap::new(),
         payload_invalidations: BTreeMap::new(),
         payload_producers: BTreeMap::new(),
+        payload_entry_predicates: Some((
+            semantic_vocabulary::PropositionContext::from_value_types_and_places(
+                machine
+                    .parameters
+                    .iter()
+                    .chain(&machine.contract.erased_scalar_formals)
+                    .map(|value| (value.id, value.scalar_type)),
+                machine
+                    .structural_places
+                    .iter()
+                    .map(|place| (place.id, place.kind)),
+            )
+            .ok()?,
+            machine.contract.requires.clone(),
+        )),
+        scalar_payload_writes: BTreeMap::new(),
+        scalar_payload_reads: BTreeMap::new(),
+        payload_scalar_definitions: BTreeMap::new(),
+        payload_scalar_parameters: BTreeMap::new(),
+        payload_edge_predicates: BTreeMap::new(),
         payload_arrivals: BTreeMap::new(),
         unresolved_contents_writes: BTreeSet::new(),
         storage_derivations: BTreeSet::new(),
@@ -62,8 +82,65 @@ pub(super) fn adapt(
         )
     };
     for block in &machine.blocks {
+        graph.payload_scalar_parameters.insert(
+            block.id,
+            block.parameters.iter().map(|value| value.id).collect(),
+        );
         for (index, operation) in block.operations.iter().enumerate() {
             let position = (block.id, u32::try_from(index).ok()?);
+            if let Some(result) = operation.result.scalar_ref() {
+                graph
+                    .payload_scalar_definitions
+                    .insert(position, vec![result.id]);
+            }
+            if let OperationKind::StructuralScalarFieldStore {
+                destination,
+                path,
+                field,
+                value,
+                ..
+            } = &operation.kind
+                && let Some(literal) =
+                    super::payload_predicates::terminal_scalar_literal(machine, *value)
+            {
+                graph
+                    .scalar_payload_writes
+                    .entry(position)
+                    .or_default()
+                    .push((location(*destination, path, Some(*field))?, literal));
+            }
+            if let OperationKind::ScalarStructuralField {
+                source,
+                path,
+                field,
+            }
+            | OperationKind::BooleanStructuralField {
+                source,
+                path,
+                field,
+            } = &operation.kind
+            {
+                let mut path = path.clone();
+                path.push(semantic_vocabulary::CanonicalStructuralPathSegment::Field(
+                    *field,
+                ));
+                if let Some(location) = crate::descriptor_lifetimes::canonical_descriptor_location(
+                    &module.structural_types,
+                    *source,
+                    *graph.place_types.get(source)?,
+                    &path,
+                ) && let Some(result) = operation.result.scalar_ref()
+                {
+                    graph
+                        .scalar_payload_reads
+                        .entry(position)
+                        .or_default()
+                        .push((
+                            location,
+                            semantic_vocabulary::ScalarTerm::value(result.id, result.scalar_type),
+                        ));
+                }
+            }
             let mut step = DescriptorFlowStep::default();
             operation.kind.clone().map_structural_uses(&mut |place| {
                 step.inputs.push(DescriptorLocation::whole(place));
@@ -614,21 +691,30 @@ pub(super) fn adapt(
                         }
                     }
                     for (field_ordinal, field) in fields.iter().enumerate() {
+                        let destination = match &operation.kind {
+                            OperationKind::EstablishStructuralCase { result_case, .. } => {
+                                let shape = &module.structural_type(result?.structural_type)?.shape;
+                                let path = terminal_psi::structural_case_initializer_path(
+                                    shape,
+                                    *result_case,
+                                    field_ordinal,
+                                    field.field,
+                                )?;
+                                location(result?.place, &path, None)?
+                            }
+                            _ => location(result?.place, &[], Some(field.field))?,
+                        };
+                        if let terminal_psi::RecordFieldValue::Scalar { value, .. } = &field.value
+                            && let Some(literal) =
+                                super::payload_predicates::terminal_scalar_literal(machine, *value)
+                        {
+                            graph
+                                .scalar_payload_writes
+                                .entry(position)
+                                .or_default()
+                                .push((destination.clone(), literal));
+                        }
                         if let Some(source) = field.value.as_structural() {
-                            let destination = match &operation.kind {
-                                OperationKind::EstablishStructuralCase { result_case, .. } => {
-                                    let shape =
-                                        &module.structural_type(result?.structural_type)?.shape;
-                                    let path = terminal_psi::structural_case_initializer_path(
-                                        shape,
-                                        *result_case,
-                                        field_ordinal,
-                                        field.field,
-                                    )?;
-                                    location(result?.place, &path, None)?
-                                }
-                                _ => location(result?.place, &[], Some(field.field))?,
-                            };
                             if let Some(source) = location(source.place, &source.path, None) {
                                 step.derivations.push((source, destination));
                             } else {
@@ -936,6 +1022,23 @@ pub(super) fn adapt(
             _ => {
                 graph.normal_exits.push(position);
             }
+        }
+        if let Terminator::Conditional { condition, .. } = &block.terminator
+            && let Some(term) =
+                super::payload_predicates::terminal_scalar_expression(machine, *condition)
+        {
+            graph.payload_edge_predicates.insert(
+                position,
+                [true, false]
+                    .into_iter()
+                    .map(|polarity| {
+                        Some(semantic_vocabulary::Proposition::Equal(
+                            semantic_vocabulary::ScalarTerm::Boolean(polarity),
+                            term.clone(),
+                        ))
+                    })
+                    .collect(),
+            );
         }
         // Mutable output descriptors are observed on normal completion even
         // for Unit/scalar returns; their borrowed backing escapes activation.

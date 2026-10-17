@@ -61,6 +61,8 @@ impl StructuralSourceContract<'_> {
         &self,
     ) -> terminal_semantics::descriptor_results::PayloadMembershipContract {
         terminal_semantics::descriptor_results::PayloadMembershipContract {
+            scalar_observations: Vec::new(),
+            scalar_requirements: Vec::new(),
             carrier: self.structural_type,
             qualifications: self.qualifications.to_vec(),
             projected_qualifications: self.projected_qualifications.to_vec(),

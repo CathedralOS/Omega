@@ -1,0 +1,41 @@
+// Expected exit: 0. Predicate membership follows the actual captured record
+// through parameter requirements, guards, projected fields and state arrivals.
+data Amount [copy] { number: i32; neighbor: i32; }
+data Envelope [copy] { amount: Amount; }
+domain Amount::Nonnegative(amount) requires amount.number >= 0;
+
+machine number(amount: Amount in Amount::Nonnegative) -> i32 { amount.number }
+
+machine from_requirement(amount: Amount) -> Amount in Amount::Nonnegative
+requires amount.number >= 0 {
+    amount as Amount in Nonnegative
+}
+
+machine from_field(envelope: Envelope) -> Amount in Amount::Nonnegative
+requires envelope.amount.number >= 0 {
+    envelope.amount as Amount in Nonnegative
+}
+
+machine from_guard(amount: Amount) -> Amount in Amount::Nonnegative crashes Trap {
+    transition amount.number >= 0 {
+        true -> accepted(amount)
+        false -> refused()
+    }
+    state accepted(amount: Amount) -> Amount in Amount::Nonnegative
+    requires amount.number >= 0 { amount as Amount in Nonnegative }
+    state refused() { crash Trap; }
+}
+
+machine main() crashes Trap {
+    let first: Amount in Nonnegative = from_requirement(Amount { number: 3, neighbor: 1 });
+    let second: Amount in Nonnegative = from_field(Envelope { amount: Amount { number: 4, neighbor: 2 } });
+    let third: Amount in Nonnegative = from_guard(Amount { number: 5, neighbor: 3 });
+
+    transition number(first) == 3 && number(second) == 4
+        && number(third) == 5 {
+        true -> passed()
+        false -> failed()
+    }
+    state passed() {}
+    state failed() { crash Trap; }
+}

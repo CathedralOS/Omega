@@ -301,6 +301,33 @@ fn adapt(
         contents_transfers: BTreeMap::new(),
         payload_invalidations: BTreeMap::new(),
         payload_producers: BTreeMap::new(),
+        payload_entry_predicates: function.verified_contract.as_ref().and_then(|contract| {
+            Some((
+                semantic_vocabulary::PropositionContext::from_value_types_and_places(
+                    function
+                        .parameters
+                        .iter()
+                        .map(|value| (value.value, value.scalar_type))
+                        .chain(
+                            contract
+                                .erased_scalar_formals
+                                .iter()
+                                .map(|value| (value.id, value.scalar_type)),
+                        ),
+                    function
+                        .structural_places
+                        .iter()
+                        .map(|place| (place.id, place.kind)),
+                )
+                .ok()?,
+                contract.requires.clone(),
+            ))
+        }),
+        scalar_payload_writes: BTreeMap::new(),
+        scalar_payload_reads: BTreeMap::new(),
+        payload_scalar_definitions: BTreeMap::new(),
+        payload_scalar_parameters: BTreeMap::new(),
+        payload_edge_predicates: BTreeMap::new(),
         payload_arrivals: BTreeMap::new(),
         unresolved_contents_writes: BTreeSet::new(),
         storage_derivations: BTreeSet::new(),
@@ -340,6 +367,10 @@ fn adapt(
         });
     }
     for block in &function.blocks {
+        graph.payload_scalar_parameters.insert(
+            block.id,
+            block.parameters.iter().map(|value| value.value).collect(),
+        );
         for (position, parameter) in block.structural_parameters.iter().enumerate() {
             if declaration(parameter.place)?.kind
                 != (StructuralPlaceKind::BlockParameter {
@@ -413,7 +444,61 @@ fn adapt(
             let position = (block.id, u32::try_from(index).ok()?);
             let selected = operation(function, node)?;
             let operation = selected.as_ref();
+            if let O::StructuralScalarFieldStore {
+                destination,
+                path,
+                field,
+                value,
+                ..
+            } = operation
+                && let Some(literal) = scalar_literal(function, value.value)
+            {
+                graph
+                    .scalar_payload_writes
+                    .entry(position)
+                    .or_default()
+                    .push((location(destination.place(), path, Some(*field))?, literal));
+            }
             let result = operation.structural_result().map(|(_, result)| result);
+            if !node.definitions.is_empty() {
+                graph.payload_scalar_definitions.insert(
+                    position,
+                    node.definitions.iter().map(|value| value.value).collect(),
+                );
+            }
+            if let O::StructuralScalarFieldRead {
+                source,
+                path,
+                field,
+                result,
+                ..
+            } = operation
+            {
+                let mut path = path.clone();
+                path.push(semantic_vocabulary::CanonicalStructuralPathSegment::Field(
+                    *field,
+                ));
+                if let Some(location) =
+                    terminal_semantics::descriptor_lifetimes::canonical_descriptor_location(
+                        types,
+                        *source,
+                        *graph.place_types.get(source)?,
+                        &path,
+                    )
+                {
+                    graph
+                        .scalar_payload_reads
+                        .entry(position)
+                        .or_default()
+                        .push((
+                            location,
+                            semantic_vocabulary::ScalarTerm::value(
+                                result.value,
+                                result.scalar_type,
+                            ),
+                        ));
+                }
+            }
             let mut step = DescriptorFlowStep {
                 inputs: crate::unit_validation::function_structure::operation_place_inputs(
                     operation,
@@ -919,23 +1004,32 @@ fn adapt(
                         }
                     }
                     for (field_ordinal, field) in fields.iter().enumerate() {
+                        let destination = match operation {
+                            O::EstablishCase { result_case, .. } => {
+                                let shape = &types
+                                    .iter()
+                                    .find(|row| row.id == result.structural_type)?
+                                    .shape;
+                                let path = terminal_psi::structural_case_initializer_path(
+                                    shape,
+                                    *result_case,
+                                    field_ordinal,
+                                    field.field,
+                                )?;
+                                location(result.place, &path, None)?
+                            }
+                            _ => location(result.place, &[], Some(field.field))?,
+                        };
+                        if let terminal_psi::RecordFieldValue::Scalar { value, .. } = &field.value
+                            && let Some(literal) = scalar_literal(function, *value)
+                        {
+                            graph
+                                .scalar_payload_writes
+                                .entry(position)
+                                .or_default()
+                                .push((destination.clone(), literal));
+                        }
                         if let terminal_psi::RecordFieldValue::Structural(source) = &field.value {
-                            let destination = match operation {
-                                O::EstablishCase { result_case, .. } => {
-                                    let shape = &types
-                                        .iter()
-                                        .find(|row| row.id == result.structural_type)?
-                                        .shape;
-                                    let path = terminal_psi::structural_case_initializer_path(
-                                        shape,
-                                        *result_case,
-                                        field_ordinal,
-                                        field.field,
-                                    )?;
-                                    location(result.place, &path, None)?
-                                }
-                                _ => location(result.place, &[], Some(field.field))?,
-                            };
                             if let Some(source) = location(source.place, &source.path, None) {
                                 step.derivations.push((source, destination));
                             } else {
@@ -1300,6 +1394,22 @@ fn adapt(
                     });
                 }
             }
+            if let O::Conditional { condition, .. } = operation
+                && let Some(term) = scalar_expression(function, *condition)
+            {
+                graph.payload_edge_predicates.insert(
+                    position,
+                    [true, false]
+                        .into_iter()
+                        .map(|polarity| {
+                            Some(semantic_vocabulary::Proposition::Equal(
+                                semantic_vocabulary::ScalarTerm::Boolean(polarity),
+                                term.clone(),
+                            ))
+                        })
+                        .collect(),
+                );
+            }
             if graph.flow.insert(position, step).is_some() {
                 return None;
             }
@@ -1359,4 +1469,122 @@ pub fn captured_scalar_ordering(
         function, functions,
     )
     .into_ordering()
+}
+
+fn scalar_literal(
+    function: &PsiOptimizationFunction,
+    value: semantic_vocabulary::ValueId,
+) -> Option<semantic_vocabulary::ScalarTerm> {
+    if let Some(literal) = function
+        .block_nodes()
+        .find_map(|node| match node.operation {
+            O::BooleanConstant {
+                result,
+                value: literal,
+                ..
+            } if result == value => Some(literal),
+            _ => None,
+        })
+    {
+        return Some(semantic_vocabulary::ScalarTerm::Boolean(literal));
+    }
+    let (scalar_type, literal) =
+        terminal_semantics::scalar_constant_value(value, |value| {
+            if let Some((scalar_type, literal)) = function.block_nodes().find_map(|node| match node
+                .operation
+            {
+                O::IntegerConstant {
+                    result,
+                    scalar_type,
+                    value: literal,
+                    ..
+                } if result == value => Some((scalar_type, literal)),
+                _ => None,
+            }) {
+                return Some(terminal_semantics::ScalarConstantOrigin::Literal(
+                    scalar_type,
+                    literal,
+                ));
+            }
+            let owner = function.blocks.iter().find(|block| {
+                block
+                    .parameters
+                    .iter()
+                    .any(|parameter| parameter.value == value)
+            })?;
+            if owner.id == function.entry {
+                return None;
+            }
+            let incoming = function
+                .block_nodes()
+                .flat_map(|node| &node.successors)
+                .filter(|edge| edge.target == owner.id)
+                .map(|edge| edge.binding(value).map(|binding| binding.argument))
+                .collect::<Option<Vec<_>>>()?;
+            Some(terminal_semantics::ScalarConstantOrigin::Incoming(incoming))
+        })?;
+    let semantic_vocabulary::ScalarType::Integer(integer) = scalar_type else {
+        return None;
+    };
+    Some(semantic_vocabulary::ScalarTerm::Integer {
+        scalar_type: integer,
+        value: literal,
+    })
+}
+
+fn scalar_expression(
+    function: &PsiOptimizationFunction,
+    value: semantic_vocabulary::ValueId,
+) -> Option<semantic_vocabulary::ScalarTerm> {
+    use semantic_vocabulary::ScalarTerm as T;
+    let types: BTreeMap<_, _> = function
+        .parameters
+        .iter()
+        .chain(function.blocks.iter().flat_map(|block| &block.parameters))
+        .chain(function.block_nodes().flat_map(|node| &node.definitions))
+        .map(|value| (value.value, value.scalar_type))
+        .collect();
+    kernel::scalar_payload_expression(value, &|value| {
+        let scalar_type = *types.get(&value)?;
+        if let Some(literal) = scalar_literal(function, value) {
+            return Some((scalar_type, Some(literal)));
+        }
+        let term = |value| Some(Box::new(T::value(value, *types.get(&value)?)));
+        let integer = |value| types.get(&value)?.as_integer();
+        let denotation = function
+            .block_nodes()
+            .find(|node| {
+                node.definitions
+                    .iter()
+                    .any(|definition| definition.value == value)
+            })
+            .and_then(|node| {
+                Some(match &node.operation {
+                    O::BooleanNot { operand, .. } => T::BooleanNot {
+                        operand: term(*operand)?,
+                    },
+                    O::BooleanEqual { left, right, .. } => T::BooleanEqual {
+                        left: term(*left)?,
+                        right: term(*right)?,
+                    },
+                    O::IntegerEqual { left, right, .. } => T::IntegerEqual {
+                        scalar_type: integer(*left)?,
+                        left: term(*left)?,
+                        right: term(*right)?,
+                    },
+                    O::IntegerLessThan { left, right, .. } => T::IntegerLessThan {
+                        scalar_type: integer(*left)?,
+                        left: term(*left)?,
+                        right: term(*right)?,
+                    },
+                    O::IntegerLessOrEqual { left, right, .. } => T::IntegerLessOrEqual {
+                        scalar_type: integer(*left)?,
+                        left: term(*left)?,
+                        right: term(*right)?,
+                    },
+                    _ => return None,
+                })
+            });
+        Some((scalar_type, denotation))
+    })
 }

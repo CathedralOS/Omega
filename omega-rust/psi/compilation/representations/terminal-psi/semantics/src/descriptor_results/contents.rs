@@ -227,6 +227,8 @@ pub enum DescriptorPayloadTarget {
 /// Disposable membership metadata selected from a current storage contract.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PayloadMembershipContract {
+    pub scalar_observations: Vec<super::PayloadScalarObservation>,
+    pub scalar_requirements: Vec<semantic_vocabulary::Proposition>,
     pub carrier: StructuralTypeId,
     pub qualifications: Vec<semantic_vocabulary::StructuralDomainId>,
     pub projected_qualifications: Vec<terminal_psi::StructuralPathQualification>,
@@ -289,11 +291,24 @@ pub(super) fn select_payload_memberships(
         qualifications.sort();
         qualifications.dedup();
     }
-    Some(PayloadMembershipContract {
+    let mut selected = PayloadMembershipContract {
+        scalar_requirements: contract.scalar_requirements.clone(),
+        scalar_observations: contract
+            .scalar_observations
+            .iter()
+            .filter_map(|observation| {
+                Some(super::PayloadScalarObservation {
+                    path: observation.path.strip_prefix(address)?.to_vec(),
+                    value: observation.value.clone(),
+                })
+            })
+            .collect(),
         carrier,
         qualifications,
         projected_qualifications,
-    })
+    };
+    super::payload_predicates::close(types, domains, &mut selected);
+    Some(selected)
 }
 
 /// Copy only memberships held by every possible backing subtree. Unknown or
@@ -323,6 +338,12 @@ pub fn payload_memberships(
                 return None;
             }
             common
+                .scalar_requirements
+                .retain(|premise| selected.scalar_requirements.contains(premise));
+            common
+                .scalar_observations
+                .retain(|observation| selected.scalar_observations.contains(observation));
+            common
                 .qualifications
                 .retain(|domain| selected.qualifications.contains(domain));
             common
@@ -344,6 +365,7 @@ fn close_predicate_memberships(
     domains: &[terminal_psi::StructuralDomainDeclaration],
     contract: &mut PayloadMembershipContract,
 ) {
+    super::payload_predicates::close(types, domains, contract);
     contract
         .qualifications
         .extend(implied_predicate_memberships(
@@ -450,6 +472,8 @@ pub fn terminal_payload_contract(
 ) -> Option<PayloadMembershipContract> {
     if let Some(parameter) = crate::arrival_parameter(machine, place) {
         return Some(PayloadMembershipContract {
+            scalar_observations: Vec::new(),
+            scalar_requirements: Vec::new(),
             carrier: parameter.structural_type,
             qualifications: parameter.qualifications.clone(),
             projected_qualifications: parameter.projected_qualifications.clone(),
@@ -460,6 +484,8 @@ pub fn terminal_payload_contract(
             && result.place == place
         {
             return Some(PayloadMembershipContract {
+                scalar_observations: Vec::new(),
+                scalar_requirements: Vec::new(),
                 carrier: result.structural_type,
                 qualifications: result.qualifications.clone(),
                 projected_qualifications: result.projected_qualifications.clone(),
@@ -473,6 +499,8 @@ pub fn terminal_payload_contract(
             && *destination == place
         {
             return Some(PayloadMembershipContract {
+                scalar_observations: Vec::new(),
+                scalar_requirements: Vec::new(),
                 carrier: machine
                     .structural_place(place)?
                     .kind

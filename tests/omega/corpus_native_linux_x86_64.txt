@@ -3328,6 +3328,7 @@ run/contained_health_loop_command_branch built 5560ms exit:0 stdout:match @bb086
 run/contracts/captured_bound_unused_mutation built 17613ms exit:0 @6c49683ce714
 run/domains/checked_provider_issued_field built 17430ms exit:0 @6c49683ce714
 run/domains/checked_provider_issued_root built 18134ms exit:0 @6c49683ce714
+run/domains/current_record_predicate_captures built 6676ms exit:0 @41a9c695da4e
 run/domains/fixed_byte_array_content_observations_exit built 8667ms exit:0 @bee4a8dcfd7e
 run/domains/fixed_byte_array_empty_observations_exit built 5265ms exit:0 @bee4a8dcfd7e
 run/domains/fixed_byte_array_runtime_predicate_exit built 5232ms exit:0 @bee4a8dcfd7e

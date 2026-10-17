@@ -1,0 +1,9 @@
+// A caller premise describes the incoming payload, not a replacement field.
+data Quantity [copy] { value: i32; }
+domain Quantity::Additive(quantity) requires quantity.value >= 0;
+machine replace(mut quantity: Quantity) -> Quantity in Additive
+requires quantity.value >= 0 {
+    quantity.value = -1;
+    quantity as Quantity in Additive
+}
+machine main() { _ = replace(Quantity { value: 3 }); }

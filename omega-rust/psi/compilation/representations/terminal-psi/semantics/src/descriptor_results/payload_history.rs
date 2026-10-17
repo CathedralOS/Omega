@@ -30,7 +30,9 @@ pub fn current_payload_contract(
         for place in &machine.places {
             if matches!(place.definition, DescriptorDefinition::Parameter { .. }) {
                 failure = "entry payload contract is absent";
-                initial.insert(place.place, source(place.place)?);
+                let mut contract = source(place.place)?;
+                super::payload_entry::close(types, domains, machine, place.place, &mut contract);
+                initial.insert(place.place, contract);
             }
         }
         let mut snapshots = BTreeMap::from([(machine.entry, initial)]);
@@ -41,7 +43,10 @@ pub fn current_payload_contract(
             failure = "payload history worklist exceeded its finite budget";
             remaining = remaining.checked_sub(1)?;
             failure = "payload history flow position is absent";
-            let before = snapshots.get(&current)?.clone();
+            let mut before = snapshots.get(&current)?.clone();
+            if let Some(definitions) = machine.payload_scalar_definitions.get(&current) {
+                retire_scalar_instances(&mut before, definitions);
+            }
             let step = machine.flow.get(&current)?;
             let mut after = before.clone();
             if let Some(writes) = machine.payload_invalidations.get(&current) {
@@ -61,7 +66,7 @@ pub fn current_payload_contract(
                                                 contract.carrier,
                                                 &location.path,
                                             )?;
-                                            retire(contract, &path);
+                                            retire(contract, &path, &location.path);
                                         }
                                     }
                                     DescriptorPayloadTarget::Incoming(_) => clear(&mut after),
@@ -114,7 +119,7 @@ pub fn current_payload_contract(
                 };
                 failure = "structural store path has no typed coordinate";
                 let path = descriptor_path(types, contract.carrier, &destination.path)?;
-                retire(contract, &path);
+                retire(contract, &path, &destination.path);
                 if !strong {
                     continue;
                 }
@@ -128,6 +133,7 @@ pub fn current_payload_contract(
                 if path.is_empty() {
                     *contract = incoming;
                 } else {
+                    append_scalar_observations(contract, &incoming, &destination.path);
                     terminal_psi::StructuralPathQualification::append_under(
                         &incoming.qualifications,
                         &incoming.projected_qualifications,
@@ -138,10 +144,113 @@ pub fn current_payload_contract(
             }
             if let Some(producer) = machine.payload_producers.get(&current) {
                 failure = "established payload contract is absent";
-                after.insert(*producer, source(*producer)?);
+                let mut produced = source(*producer)?;
+                // Constructors and copies snapshot their actual children before
+                // consuming them. A result annotation supplies no scalar content.
+                for (actual, destination) in &step.derivations {
+                    if destination.root != *producer
+                        || machine.storage_derivations.contains(&(
+                            current,
+                            actual.clone(),
+                            destination.clone(),
+                        ))
+                    {
+                        continue;
+                    }
+                    if let Some(incoming) = before.get(&actual.root).and_then(|contract| {
+                        select_payload_memberships(types, domains, contract, &actual.path)
+                    }) {
+                        let path = descriptor_path(types, produced.carrier, &destination.path)?;
+                        let destination_carrier = crate::qualification_path_carrier(
+                            types.iter(),
+                            produced.carrier,
+                            &path,
+                        )?;
+                        let Some(incoming) =
+                            incoming.presented(types, domains, destination_carrier)
+                        else {
+                            continue;
+                        };
+                        append_scalar_observations(&mut produced, &incoming, &destination.path);
+                        if path.is_empty() {
+                            produced.qualifications.extend(&incoming.qualifications);
+                            produced
+                                .projected_qualifications
+                                .extend(incoming.projected_qualifications.clone());
+                        } else {
+                            terminal_psi::StructuralPathQualification::append_under(
+                                &incoming.qualifications,
+                                &incoming.projected_qualifications,
+                                &path,
+                                &mut produced.projected_qualifications,
+                            );
+                        }
+                        produced.qualifications.sort();
+                        produced.qualifications.dedup();
+                        produced.projected_qualifications.sort();
+                        produced.projected_qualifications.dedup();
+                    }
+                }
+                after.insert(*producer, produced);
+            }
+            if let Some(writes) = machine.scalar_payload_writes.get(&current) {
+                for (destination, value) in writes {
+                    let Some(contract) = after.get_mut(&destination.root) else {
+                        continue;
+                    };
+                    if super::payload_predicates::observation_type(
+                        types,
+                        contract.carrier,
+                        &destination.path,
+                    ) != Some(value.scalar_type())
+                    {
+                        continue;
+                    }
+                    contract.scalar_observations.retain(|observation| {
+                        !observation.path.starts_with(&destination.path)
+                            && !destination.path.starts_with(&observation.path)
+                    });
+                    contract
+                        .scalar_observations
+                        .push(super::PayloadScalarObservation {
+                            path: destination.path.clone(),
+                            value: value.clone(),
+                        });
+                }
+            }
+            if let Some(reads) = machine.scalar_payload_reads.get(&current) {
+                for (location, value) in reads {
+                    if let Some(contract) = after.get_mut(&location.root) {
+                        contract
+                            .scalar_observations
+                            .retain(|observation| observation.path != location.path);
+                        contract
+                            .scalar_observations
+                            .push(super::PayloadScalarObservation {
+                                path: location.path.clone(),
+                                value: value.clone(),
+                            });
+                    }
+                }
+            }
+            for contract in after.values_mut() {
+                super::payload_predicates::close(types, domains, contract);
             }
             for (ordinal, edge) in step.successors.iter().enumerate() {
                 let mut arrival = after.clone();
+                if let Some(Some(predicate)) = machine
+                    .payload_edge_predicates
+                    .get(&current)
+                    .and_then(|rows| rows.get(ordinal))
+                {
+                    for contract in arrival.values_mut() {
+                        if !contract.scalar_requirements.contains(predicate) {
+                            contract.scalar_requirements.push(predicate.clone());
+                        }
+                        super::payload_predicates::close(types, domains, contract);
+                    }
+                }
+                let edge_source = arrival.clone();
                 for parameter in &edge.parameters {
                     arrival.remove(&parameter.root);
                 }
@@ -151,7 +260,7 @@ pub fn current_payload_contract(
                     if !parameter.path.is_empty() {
                         return None;
                     }
-                    if let Some(contract) = after.get(&actual.root).and_then(|contract| {
+                    if let Some(contract) = edge_source.get(&actual.root).and_then(|contract| {
                         select_payload_memberships(types, domains, contract, &actual.path)
                     }) {
                         // Exact descriptor bindings also carry reference access
@@ -181,7 +290,7 @@ pub fn current_payload_contract(
                             let targets =
                                 analysis.arrival_payload_targets(identity, current, query)?;
                             payload_memberships(types, domains, targets, |root| {
-                                after.get(&root).cloned()
+                                edge_source.get(&root).cloned()
                             })
                         });
                         if let Some(contract) = contract {
@@ -198,6 +307,9 @@ pub fn current_payload_contract(
                 for (parameter, contract) in bindings {
                     arrival.insert(parameter, contract);
                 }
+                if let Some(parameters) = machine.payload_scalar_parameters.get(&edge.target.0) {
+                    retire_scalar_instances(&mut arrival, parameters);
+                }
                 let changed = if let Some(existing) = snapshots.get_mut(&edge.target) {
                     let old = existing.clone();
                     existing.retain(|place, contract| {
@@ -207,6 +319,12 @@ pub fn current_payload_contract(
                         if contract.carrier != incoming.carrier {
                             return false;
                         }
+                        contract
+                            .scalar_requirements
+                            .retain(|premise| incoming.scalar_requirements.contains(premise));
+                        contract.scalar_observations.retain(|observation| {
+                            incoming.scalar_observations.contains(observation)
+                        });
                         contract
                             .qualifications
                             .retain(|domain| incoming.qualifications.contains(domain));
@@ -264,7 +382,14 @@ pub fn current_payload_contract(
     result.ok_or(failure)
 }
 
-fn retire(contract: &mut PayloadMembershipContract, path: &[StructuralPathSegment]) {
+fn retire(
+    contract: &mut PayloadMembershipContract,
+    path: &[StructuralPathSegment],
+    scalar_path: &[crate::descriptor_lifetimes::DescriptorPathSegment],
+) {
+    contract.scalar_observations.retain(|observation| {
+        !observation.path.starts_with(scalar_path) && !scalar_path.starts_with(&observation.path)
+    });
     contract.qualifications.clear();
     contract
         .projected_qualifications
@@ -275,5 +400,54 @@ fn clear(state: &mut State) {
     for contract in state.values_mut() {
         contract.qualifications.clear();
         contract.projected_qualifications.clear();
+        contract.scalar_observations.clear();
+    }
+}
+
+fn append_scalar_observations(
+    destination: &mut PayloadMembershipContract,
+    source: &PayloadMembershipContract,
+    prefix: &[crate::descriptor_lifetimes::DescriptorPathSegment],
+) {
+    for premise in &source.scalar_requirements {
+        if !destination.scalar_requirements.contains(premise) {
+            destination.scalar_requirements.push(premise.clone());
+        }
+    }
+    for observation in &source.scalar_observations {
+        let mut path = prefix.to_vec();
+        path.extend_from_slice(&observation.path);
+        destination
+            .scalar_observations
+            .retain(|previous| previous.path != path);
+        destination
+            .scalar_observations
+            .push(super::PayloadScalarObservation {
+                path,
+                value: observation.value.clone(),
+            });
+    }
+}
+
+/// SSA names acquire new dynamic instances on repeated execution. Completed
+/// payload memberships survive; observations and premises naming old instances
+/// must not classify newly read values or rebound block formals.
+fn retire_scalar_instances(state: &mut State, definitions: &[semantic_vocabulary::ValueId]) {
+    if definitions.is_empty() {
+        return;
+    }
+    for contract in state.values_mut() {
+        contract.scalar_observations.retain(|observation| {
+            !observation
+                .value
+                .any_value_id(|value| definitions.contains(&value))
+        });
+        contract.scalar_requirements.retain(|premise| {
+            let mut changed = false;
+            let closed = premise.visit_value_ids(|value| {
+                changed |= definitions.contains(&value);
+            });
+            closed && !changed
+        });
     }
 }
