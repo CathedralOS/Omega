@@ -1,0 +1,32 @@
+// A byte owner written through a mutable loan and read through a shared loan after a selected case edge observes the written byte.
+// Place: const name.
+// Expected exit: 0.
+const INDEX: u64 = 0;
+data ReadOutcome {
+    case Complete(count: u64);
+    case End(count: u64);
+    case Full(count: u64);
+    case Invalid;
+}
+machine receive(line: &mut [u8; 64]) -> ReadOutcome {
+    line[INDEX] = 37;
+    ReadOutcome::Complete { count: 5 }
+}
+machine main() crashes Trap {
+    let mut line: [u8; 64];
+    let result: ReadOutcome = receive(&mut line);
+    transition result {
+        ReadOutcome::Complete { count } -> observe(&line, count)
+        ReadOutcome::End { count } -> observe(&line, count)
+        ReadOutcome::Full { count } -> done()
+        ReadOutcome::Invalid -> done()
+    }
+    state observe(line: &[u8; 64], count: u64) {
+        transition (line[INDEX] as u64 in Wrapping + count as u64 in Wrapping) == 42 {
+            true -> done()
+            false -> wrong()
+        }
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}

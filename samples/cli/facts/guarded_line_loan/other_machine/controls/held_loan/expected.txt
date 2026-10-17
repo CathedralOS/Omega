@@ -1,0 +1,1 @@
+state `forward` receives `line` while local borrow `held` is still active
