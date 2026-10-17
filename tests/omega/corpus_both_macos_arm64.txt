@@ -485,6 +485,7 @@ pass/drops/runtime_unobserved_owned_state_transfer_exit built 1544ms exit:0 inte
 pass/effects/finite_requirement_block_acknowledged_exit built 4282ms exit:0 interpreter-exit:0 interpreter:agrees @9eea1120d923
 pass/effects/runtime_empty_boundary_reach_exit built 5250ms exit:70 interpreter-exit:70 interpreter:agrees @9eea1120d923
 pass/errors/runtime_trap_process_presentation built 11674ms exit:signal signal:5 interpreter:trapped @5833e7d00af3
+pass/expressions/anonymous_structural_match_results_exit built 3885ms exit:0 interpreter-exit:0 interpreter:agrees @5c4c9bc0ebab
 pass/expressions/borrow_carrying_data_field_exit built 1274ms exit:70 interpreter-exit:70 interpreter:agrees @efc0f5f0f7a9+wt
 pass/expressions/declared_operator_match_result built 3170ms exit:70 interpreter-exit:70 interpreter:agrees @dfece6e7f6a1+wt
 pass/expressions/mixed_integer_comparison_places built 2717ms exit:70 interpreter-exit:70 interpreter:agrees @cba4ef8c9ab1
@@ -745,6 +746,7 @@ pass/slices/captured_collection_measure built 12122ms exit:0 interpreter-exit:0 
 pass/slices/captured_field_window_subjects built 13150ms exit:0 interpreter-exit:0 interpreter:agrees @f22c0e54a812
 pass/slices/captured_returned_field_observations built 4198ms exit:0 interpreter-exit:0 interpreter:agrees @e0119fc0aaa2
 pass/slices/generic_projected_array_write built 2949ms exit:0 interpreter-exit:0 interpreter:agrees @ef9160ae9c0b+wt
+pass/slices/matched_window_before_later_field_effect built 3815ms exit:0 interpreter-exit:0 interpreter:agrees @5c4c9bc0ebab
 pass/slices/mutable_matched_window_length built 4819ms exit:0 interpreter-exit:0 interpreter:agrees @68bc166bb593
 pass/slices/returned_collection_window_copy built 4118ms exit:0 interpreter-exit:0 interpreter:agrees @e0119fc0aaa2
 pass/slices/returned_mutable_view_record_state_call built 4060ms exit:0 interpreter-exit:0 interpreter:agrees @3fd4c8bce0d8

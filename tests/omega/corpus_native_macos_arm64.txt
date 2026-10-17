@@ -1187,6 +1187,7 @@ pass/errors/runtime_result_match_exit built 820ms exit:70 @33ff1bce07c2454b95a44
 pass/errors/trap_unrecoverable_statement checked 168ms
 pass/expressions/acquires_helper_return checked 9479ms @5041ef1af684+wt
 pass/expressions/anonymous_numeric_match_subject checked 193ms
+pass/expressions/anonymous_structural_match_results_exit built 3908ms exit:0 @5c4c9bc0ebab
 pass/expressions/arithmetic_domain_cast_exit built 582ms exit:70
 pass/expressions/arithmetic_domain_range_proven_exact_exit built 603ms exit:70
 pass/expressions/arithmetic_domain_requires_proven_exact_exit built 614ms exit:70
@@ -2015,6 +2016,7 @@ pass/slices/inclusive_subslice_literal_bounds_compile checked 207ms
 pass/slices/live_view_edge_write checked 9612ms @5041ef1af684+wt
 pass/slices/local_array_element_view_exit built 1877ms exit:70 @48008365d839
 pass/slices/local_record_array_state_view_exit built 1512ms exit:70 @b33d826687a3
+pass/slices/matched_window_before_later_field_effect built 3834ms exit:0 @5c4c9bc0ebab
 pass/slices/mut_field_subview checked 9454ms @5041ef1af684+wt
 pass/slices/mut_slice_establish checked 9512ms @5041ef1af684+wt
 pass/slices/mutable_byte_field_range_local_initializer_exit built 981ms exit:0 @a39c093a0400+wt

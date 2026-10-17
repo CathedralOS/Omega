@@ -2866,6 +2866,13 @@ fail/effects/top_level_callback_reach_required rejected 337ms expected @c5a7c1ce
 fail/entry/service_foreign_domain_rejected rejected 917ms expected @a9ae30e1c334+wt
 	data `Main` field `service` uses an invalid routed service carrier: the core `Binding` carrier is closed; it admits no authored qualification
 	value-qualified machine calls are retired; use a declaration namespace and explicit arguments
+fail/expressions/anonymous_structural_match_undefined_pattern rejected 80ms expected @5c4c9bc0ebab
+	anonymous division by zero has no exact numeric value
+fail/expressions/anonymous_structural_match_undefined_subject rejected 79ms expected @5c4c9bc0ebab
+	anonymous division by zero has no exact numeric value
+fail/expressions/anonymous_structural_match_unselected_arm_type rejected 161ms expected @5c4c9bc0ebab
+	match arms produce incompatible values
+	machine `supply` state `entry` terminal expression expects `Payload`, got `match expression`
 fail/expressions/arithmetic_domain_literal_target_overflow rejected 2800ms expected @a9ae30e1c334+wt
 	anonymous integer value `300` does not fit destination `u8` in machine `Main::main` state `main` local `c`
 fail/expressions/arithmetic_domain_mixed rejected 2717ms expected @a9ae30e1c334+wt
@@ -7571,6 +7578,7 @@ pass/errors/runtime_trap_process_presentation checked 10784ms check-target:macos
 pass/errors/trap_unrecoverable_statement checked 1632ms @a9ae30e1c334+wt
 pass/expressions/acquires_helper_return checked 10017ms @5041ef1af684+wt
 pass/expressions/anonymous_numeric_match_subject checked 1655ms @a9ae30e1c334+wt
+pass/expressions/anonymous_structural_match_results_exit checked 3643ms check-target:macos_arm64 @5c4c9bc0ebab
 pass/expressions/arithmetic_domain_cast_exit checked 11576ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/expressions/arithmetic_domain_range_proven_exact_exit checked 11631ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/expressions/arithmetic_domain_requires_proven_exact_exit checked 10973ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -8785,7 +8793,7 @@ pass/slices/let_matched_mutable_window checked 5872ms check-target:macos_arm64 @
 pass/slices/live_view_edge_write checked 9740ms @5041ef1af684+wt
 pass/slices/local_array_element_view_exit checked 11239ms check-target:macos_arm64 @1f63ee648905+wt
 pass/slices/local_record_array_state_view_exit checked 12143ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/slices/matched_window_before_later_field_effect checked 693ms @ef751ffeeea5
+pass/slices/matched_window_before_later_field_effect checked 3642ms check-target:macos_arm64 @5c4c9bc0ebab
 pass/slices/matched_window_length_through_record_field checked 5723ms check-target:macos_arm64 @0e7ef4cb2ac8+wt
 pass/slices/mut_field_subview checked 9849ms @5041ef1af684+wt
 pass/slices/mut_slice_establish checked 9589ms @5041ef1af684+wt
