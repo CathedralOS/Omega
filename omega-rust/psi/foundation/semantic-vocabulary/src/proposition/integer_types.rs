@@ -2,7 +2,7 @@
 //! values and math literals they admit, and the math terms built over them.
 
 use crate::ValueId;
-use crate::proposition::PropositionError;
+use crate::proposition::{PropositionError, ScalarTerm, ScalarType};
 use std::cmp::Ordering;
 mod bit_ranges;
 
@@ -94,7 +94,10 @@ impl IntegerType {
     }
 
     pub fn can_exact_cast_to(self, target: Self) -> bool {
-        self.carrier == IntegerCarrier::Fixed && target.carrier == IntegerCarrier::Fixed
+        // This selects a denotation, not a total conversion. Its operation
+        // still proves representability in the exact destination carrier.
+        // Address model changes are not count interpretation and remain out.
+        self.carrier == IntegerCarrier::Fixed || target.carrier == IntegerCarrier::Fixed
     }
 
     pub fn exact_cast_value_to(self, target: Self, value: IntegerValue) -> Option<IntegerValue> {
@@ -932,6 +935,10 @@ pub enum IntegerMathTerm {
         source_type: IntegerType,
         value: ValueId,
     },
+    /// The mathematical value of one finite observation or expression. Its
+    /// carrier and arithmetic policy remain inside the scalar term; embedding
+    /// never reinterprets a wrapping operation as an unbounded operation.
+    Embed(Box<ScalarTerm>),
     Add(Box<Self>, Box<Self>),
     Subtract(Box<Self>, Box<Self>),
     Multiply(Box<Self>, Box<Self>),
@@ -945,7 +952,7 @@ impl IntegerMathTerm {
     /// The direct sub-term operands in authored order; leaves have none.
     pub fn operands(&self) -> Vec<&IntegerMathTerm> {
         match self {
-            Self::MathValue { .. } | Self::IntegerLiteral(_) => Vec::new(),
+            Self::MathValue { .. } | Self::IntegerLiteral(_) | Self::Embed(_) => Vec::new(),
             Self::Add(left, right) | Self::Subtract(left, right) | Self::Multiply(left, right) => {
                 vec![left.as_ref(), right.as_ref()]
             }
@@ -956,7 +963,7 @@ impl IntegerMathTerm {
     /// [`Self::operands`] with mutable access.
     pub fn operands_mut(&mut self) -> Vec<&mut IntegerMathTerm> {
         match self {
-            Self::MathValue { .. } | Self::IntegerLiteral(_) => Vec::new(),
+            Self::MathValue { .. } | Self::IntegerLiteral(_) | Self::Embed(_) => Vec::new(),
             Self::Add(left, right) | Self::Subtract(left, right) | Self::Multiply(left, right) => {
                 vec![left.as_mut(), right.as_mut()]
             }
@@ -966,6 +973,23 @@ impl IntegerMathTerm {
 
     pub fn literal(value: IntegerValue) -> Self {
         Self::IntegerLiteral(IntegerMathLiteral::from_integer_value(value))
+    }
+
+    /// Keep the canonical value/literal spelling when no compound observation
+    /// is needed. Callers still validate the term in its actual namespace.
+    pub fn embed(term: ScalarTerm) -> Option<Self> {
+        term.scalar_type().as_integer()?;
+        Some(match term {
+            ScalarTerm::Value {
+                id,
+                scalar_type: ScalarType::Integer(source_type),
+            } => Self::MathValue {
+                source_type,
+                value: id,
+            },
+            ScalarTerm::Integer { value, .. } => Self::literal(value),
+            term => Self::Embed(Box::new(term)),
+        })
     }
 
     pub fn validate(&self) -> Result<(), PropositionError> {
@@ -980,6 +1004,18 @@ impl IntegerMathTerm {
                 // conversion or storage authority; context validation still
                 // checks the source type against the named value.
                 Self::MathValue { .. } => {}
+                Self::Embed(term) => {
+                    term.validate()?;
+                    if term.scalar_type().as_integer().is_none() {
+                        return Err(PropositionError::IntegerMathEmbeddingNotInteger);
+                    }
+                    if matches!(
+                        term.as_ref(),
+                        ScalarTerm::Value { .. } | ScalarTerm::Integer { .. }
+                    ) {
+                        return Err(PropositionError::NonCanonicalIntegerMathEmbedding);
+                    }
+                }
                 Self::IntegerLiteral(literal) => {
                     if literal.negative && literal.magnitude == 0 {
                         return Err(PropositionError::NegativeZeroIntegerMathLiteral);

@@ -303,7 +303,7 @@ fn mixed_integer_predicate_denotation_keeps_exact_value_carriers() {
 }
 
 #[test]
-fn mixed_math_guard_substitutes_only_cited_endpoints_and_representable_literals() {
+fn mixed_math_guard_substitutes_cited_fields_without_a_common_finite_carrier() {
     use semantic_vocabulary::{
         CanonicalStructuralPathSegment, IntegerMathTerm, PlaceId, StructuralFieldId,
         StructuralPlaceKind,
@@ -349,29 +349,16 @@ fn mixed_math_guard_substitutes_only_cited_endpoints_and_representable_literals(
         ];
         let denotation =
             super::check_value_equality_denotation(&context, &guard, &equations).unwrap();
-        if bound == 12 {
-            assert_eq!(
-                denotation,
-                Proposition::LessThan(field.clone(), literal(12))
-            );
-        } else {
-            let Proposition::Equal(first, second) = denotation else {
-                panic!("unrepresentable literal must retain independent carriers")
-            };
-            let comparison = if first == ScalarTerm::Boolean(true) {
-                second
-            } else {
-                first
-            };
-            let ScalarTerm::IntegerLessThan { left, right, .. } = comparison else {
-                panic!("mixed comparison retained")
-            };
-            assert_eq!(left.scalar_type(), ScalarType::Integer(signed));
-            assert_eq!(right.scalar_type(), ScalarType::Integer(unsigned));
-        }
+        assert_eq!(
+            denotation,
+            Proposition::IntegerMathLessThan(
+                IntegerMathTerm::embed(field.clone()).unwrap(),
+                IntegerMathTerm::literal(IntegerValue::Unsigned(bound)),
+            ),
+        );
         let missing =
             super::check_value_equality_denotation(&context, &guard, &equations[..1]).unwrap();
-        assert_ne!(missing, Proposition::LessThan(field.clone(), literal(12)));
+        assert_ne!(missing, denotation);
     }
 }
 
@@ -440,7 +427,11 @@ fn concatenated_live_length_sum_uses_only_cited_integer_equations() {
     let Proposition::IntegerMathLessOrEqual(IntegerMathTerm::Add(left, _), _) = transported else {
         panic!("exact mathematical sum")
     };
-    assert_eq!(*left, embedded(1));
+    // The cited finite expression is retained, not lifted to unbounded addition.
+    assert_eq!(
+        *left,
+        IntegerMathTerm::embed(sum(value(3), literal(1))).unwrap(),
+    );
 }
 
 #[test]

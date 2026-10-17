@@ -771,6 +771,8 @@ fn term_has_complete_substitution(
         | StructuralTerm::BoundProjection { .. }
         | StructuralTerm::Projection { .. }
         | StructuralTerm::IndexedValue { .. }
+        | StructuralTerm::MathematicalBinary { .. }
+        | StructuralTerm::IntegerEmbedding { .. }
         | StructuralTerm::Opaque(_) => false,
         StructuralTerm::Application {
             target,

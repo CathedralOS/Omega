@@ -1,6 +1,6 @@
 //! Mathematical contract terms retain finite value identity at their leaves.
 
-use super::{IntegerMathTerm, LoweringError, PredicateTerms, ScalarTerm, ScalarType, unsupported};
+use super::{IntegerMathTerm, LoweringError, PredicateTerms, unsupported};
 use checked_trees::CheckedScalarExpression;
 
 /// Mathematical operations have no finite carrier and cannot inherit the
@@ -31,22 +31,9 @@ pub(super) fn lower(
         match expression.terms.get(handle) {
             CheckedIntegerMathTerm::Embed { operand, .. } => {
                 let scalar = terms.scalar(identities, operand)?;
-                match scalar {
-                    ScalarTerm::Value {
-                        id,
-                        scalar_type: ScalarType::Integer(source_type),
-                    } => Ok(IntegerMathTerm::MathValue {
-                        source_type,
-                        value: id,
-                    }),
-                    ScalarTerm::Integer { value, .. } => Ok(IntegerMathTerm::literal(value)),
-                    // A computed finite operand needs its own exact value
-                    // identity. Reinterpreting its operation tree as math
-                    // would erase Wrapping/Saturating policy and is unsound.
-                    _ => unsupported(
-                        "mathematical embedding requires an exact scalar value identity",
-                    ),
-                }
+                IntegerMathTerm::embed(scalar).ok_or(LoweringError::Unsupported(
+                    "mathematical embedding requires an integer scalar denotation",
+                ))
             }
             CheckedIntegerMathTerm::Literal(literal) => {
                 let term = IntegerMathTerm::IntegerLiteral(*literal);

@@ -37,7 +37,9 @@ impl StructuralTerm {
                 StructuralTerm::IndexedValue {
                     collection, index, ..
                 } => available(collection, depth + 1) && available(index, depth + 1),
-                StructuralTerm::ScalarBinary { left, right, .. } => {
+                StructuralTerm::IntegerEmbedding { value, .. } => available(value, depth + 1),
+                StructuralTerm::ScalarBinary { left, right, .. }
+                | StructuralTerm::MathematicalBinary { left, right, .. } => {
                     available(left, depth + 1) && available(right, depth + 1)
                 }
                 _ => true,
@@ -104,6 +106,18 @@ impl PartialEq for StructuralTerm {
                     return false;
                 };
                 value == other_value
+            }
+            Self::IntegerEmbedding { reference, value } => {
+                matches!(other, Self::IntegerEmbedding { reference: other_reference, value: other_value }
+                    if reference == other_reference && value == other_value)
+            }
+            Self::MathematicalBinary {
+                operator,
+                left,
+                right,
+            } => {
+                matches!(other, Self::MathematicalBinary { operator: other_operator, left: other_left, right: other_right }
+                    if operator == other_operator && left == other_left && right == other_right)
             }
             Self::Float(value) => {
                 let Self::Float(other_value) = other else {
@@ -269,6 +283,21 @@ impl std::fmt::Debug for StructuralTerm {
                 .field("path", path)
                 .finish(),
             Self::Integer(value) => formatter.debug_tuple("Integer").field(value).finish(),
+            Self::IntegerEmbedding { reference, value } => formatter
+                .debug_struct("IntegerEmbedding")
+                .field("reference", reference)
+                .field("value", value)
+                .finish(),
+            Self::MathematicalBinary {
+                operator,
+                left,
+                right,
+            } => formatter
+                .debug_struct("MathematicalBinary")
+                .field("operator", operator)
+                .field("left", left)
+                .field("right", right)
+                .finish(),
             Self::Float(value) => formatter.debug_tuple("Float").field(value).finish(),
             Self::Constructor { data, case, fields } => formatter
                 .debug_struct("Constructor")

@@ -113,6 +113,10 @@ pub(super) fn encode_proposition(bytes: &mut CanonicalBytes, proposition: &Propo
 
 fn encode_integer_math_term(bytes: &mut CanonicalBytes, term: &IntegerMathTerm) {
     match term {
+        IntegerMathTerm::Embed(term) => {
+            bytes.u8(7);
+            encode_scalar_term(bytes, term);
+        }
         IntegerMathTerm::IntegerLiteral(literal) => {
             bytes.u8(1);
             bytes.boolean(literal.negative());

@@ -313,21 +313,20 @@ pub(super) fn instantiated_selected_fact_judgment(
     // A preserved runtime prefix can recognize the very same selected
     // Boolean predicate after captured-actual substitution. This is truth
     // transport, not an interval law or an equality on floating values.
+    // Term construction owns selected builtin meaning. Reclassifying this as
+    // fixed-width bound syntax would discard mathematical Int predicates over
+    // those same captured actuals.
     if judge.has_runtime_body_values()
-        && crate::has_builtin_parameter_bound_expression_meaning(
+        && let Some(
+            term
+            @ (StructuralTerm::ScalarBinary { .. } | StructuralTerm::MathematicalBinary { .. }),
+        ) = super::structural_terms::structural_term(
             program,
-            callee_owner,
-            callee_parameters,
+            None,
+            Some((callee_owner, callee_parameters)),
             fact,
+            None,
         )
-        && let Some(term @ StructuralTerm::ScalarBinary { .. }) =
-            super::structural_terms::structural_term(
-                program,
-                None,
-                Some((callee_owner, callee_parameters)),
-                fact,
-                None,
-            )
     {
         let term = StructuralJudge::substitute_call_term(&term, map, machine_map);
         match judge.judge_observed_predicate(term, 0) {

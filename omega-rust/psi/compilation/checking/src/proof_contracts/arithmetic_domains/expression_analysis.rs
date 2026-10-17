@@ -169,6 +169,7 @@ pub(super) fn analyze(
         owner,
         infer_call_bodies,
         checks_trap_coverage: true,
+        checks_occurrence_fit: true,
     }
     .analyze(expression, diagnostics, &mut decisions);
     CheckedAnalysis { value, decisions }
@@ -201,6 +202,7 @@ pub(super) fn analyze_meaning(
         owner,
         infer_call_bodies: false,
         checks_trap_coverage: false,
+        checks_occurrence_fit: false,
     }
     .analyze(expression, &mut Vec::new(), &mut decisions);
     CheckedAnalysis { value, decisions }
@@ -210,6 +212,9 @@ pub(super) fn analyze_meaning(
 /// facts hold, and which destination the enclosing statement names.
 #[derive(Clone, Copy)]
 struct ExpressionWalk<'a> {
+    /// Meaning-only queries must not recursively execute the runtime-prefix
+    /// proof owner. Only the validating walk publishes formation decisions.
+    checks_occurrence_fit: bool,
     program: &'a dyn crate::CheckingInput,
     machine: &'a Machine,
     state: Option<&'a State>,

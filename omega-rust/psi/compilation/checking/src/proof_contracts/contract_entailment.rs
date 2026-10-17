@@ -82,6 +82,7 @@ mod completed_values;
 mod const_ranges;
 mod content_conservation;
 mod contract_refinement;
+mod exact_casts;
 mod exit_coverage;
 mod fact_mentions;
 mod inductive_judgment;
@@ -102,6 +103,7 @@ mod strict_arithmetic;
 mod structural_case_arms;
 pub(crate) mod structural_judgment;
 mod structural_prefix;
+pub(crate) use exact_casts::exact_cast_fits_at_occurrence;
 mod structural_terms;
 mod transparent_applications;
 

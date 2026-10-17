@@ -369,12 +369,7 @@ pub(crate) fn substitute_runtime_requirement_scalar_values(
                 ScalarTerm::Value { id, scalar_type } => {
                     match scalar_type {
                         ScalarType::Boolean | ScalarType::IeeeFloat(_) => {}
-                        ScalarType::Integer(integer_type) if !integer_type.is_address() => {}
-                        _ => {
-                            return unsupported(
-                                "runtime requirement value has an unsupported carrier",
-                            );
-                        }
+                        ScalarType::Integer(_) => {}
                     }
                     let actual = substitutions.get(id).ok_or(LoweringError::Unsupported(
                         "runtime requirement scalar formal has no exact actual argument",
@@ -410,6 +405,29 @@ pub(crate) fn substitute_runtime_requirement_scalar_values(
 
     match proposition {
         Proposition::Truth | Proposition::Falsehood => Ok(()),
+        semantic_vocabulary::integer_math_comparison_operands!(left, right) => {
+            let mut pending = vec![left, right];
+            while let Some(term) = pending.pop() {
+                match term {
+                    semantic_vocabulary::IntegerMathTerm::MathValue { source_type, value } => {
+                        let scalar = substitute_term(
+                            &ScalarTerm::value(*value, ScalarType::Integer(*source_type)),
+                            substitutions,
+                        )?;
+                        *term = semantic_vocabulary::IntegerMathTerm::embed(scalar).ok_or(
+                            LoweringError::Unsupported(
+                                "mathematical requirement lost its integer carrier",
+                            ),
+                        )?;
+                    }
+                    semantic_vocabulary::IntegerMathTerm::Embed(scalar) => {
+                        **scalar = substitute_term(scalar, substitutions)?;
+                    }
+                    term => pending.extend(term.operands_mut()),
+                }
+            }
+            Ok(())
+        }
         semantic_vocabulary::ordered_comparison_operands!(left, right) => {
             let rebound_left = substitute_term(left, substitutions)?;
             let rebound_right = substitute_term(right, substitutions)?;

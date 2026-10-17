@@ -89,66 +89,11 @@ impl<'input> ValueEqualities<'input> {
                 **conclusion = self.proposition(conclusion, budget, depth + 1)?;
             }
             semantic_vocabulary::integer_math_comparison_operands!(left, right) => {
-                // A cited exact scalar definition can introduce mathematical
-                // constructors even when this comparison originally names only
-                // values. Use the same transport for both forms. Opaque policy
-                // images remain typed scalar values; field observations below
-                // retain their existing scalar comparison vocabulary.
-                let expanded_left = self.mathematical(left, budget, depth + 1)?;
-                let expanded_right = self.mathematical(right, budget, depth + 1)?;
-                let is_operation = |term: &IntegerMathTerm| {
-                    matches!(
-                        term,
-                        IntegerMathTerm::Add(..)
-                            | IntegerMathTerm::Subtract(..)
-                            | IntegerMathTerm::Multiply(..)
-                            | IntegerMathTerm::ShiftLeft { .. }
-                    )
-                };
-                if is_operation(left)
-                    || is_operation(right)
-                    || is_operation(&expanded_left)
-                    || is_operation(&expanded_right)
-                {
-                    *left = expanded_left;
-                    *right = expanded_right;
-                    return Ok(transported);
-                }
-                // Leaf comparisons can also rejoin scalar field observations.
-                // MathValue embeds this exact typed scalar value.
-                let carrier = [&*left, &*right].into_iter().find_map(|term| match term {
-                    IntegerMathTerm::MathValue { source_type, .. } => Some(*source_type),
-                    _ => None,
-                });
-                let scalar = |term: &IntegerMathTerm| match term {
-                    IntegerMathTerm::MathValue { source_type, value } => {
-                        Some(ScalarTerm::value(*value, ScalarType::Integer(*source_type)))
-                    }
-                    IntegerMathTerm::IntegerLiteral(literal) => {
-                        let carrier = carrier?;
-                        ScalarTerm::integer(carrier, literal.as_integer_value(carrier)?).ok()
-                    }
-                    _ => None,
-                };
-                let (Some(left), Some(right)) = (scalar(left), scalar(right)) else {
-                    return Ok(transported);
-                };
-                let left = self.scalar(&left, budget, depth + 1, &mut Vec::new())?;
-                let right = self.scalar(&right, budget, depth + 1, &mut Vec::new())?;
-                let Some(carrier) = left.scalar_type().as_integer() else {
-                    return Err(PredicateDenotationError::InvalidValueEquality);
-                };
-                let comparison = match original {
-                    Proposition::IntegerMathEqual(..) => {
-                        ScalarTerm::integer_equal(carrier, left, right)
-                    }
-                    Proposition::IntegerMathLessThan(..) => {
-                        ScalarTerm::integer_less_than(carrier, left, right)
-                    }
-                    _ => ScalarTerm::integer_less_or_equal(carrier, left, right),
-                }
-                .map_err(PredicateDenotationError::Malformed)?;
-                transported = Proposition::Equal(comparison, ScalarTerm::boolean(true));
+                // One transport preserves scalar observations below arbitrary
+                // mathematical context. Field leaves and policy-bearing finite
+                // computations no longer need a separate comparison fallback.
+                *left = self.mathematical(left, budget, depth + 1)?;
+                *right = self.mathematical(right, budget, depth + 1)?;
             }
             // Structural places remain independently named observations.
             Proposition::IeeeFloatComparison { .. }
@@ -171,6 +116,15 @@ impl<'input> ValueEqualities<'input> {
     ) -> Result<IntegerMathTerm, PredicateDenotationError> {
         budget.step(depth)?;
         Ok(match original {
+            IntegerMathTerm::Embed(operand) => {
+                let scalar = self.scalar(operand, budget, depth + 1, &mut Vec::new())?;
+                if scalar.scalar_type() != operand.scalar_type() {
+                    return Err(PredicateDenotationError::InvalidValueEquality);
+                }
+                crate::proof::integer_math_normalization::lift_exact_integer_term(&scalar)
+                    .or_else(|| IntegerMathTerm::embed(scalar))
+                    .ok_or(PredicateDenotationError::InvalidValueEquality)?
+            }
             IntegerMathTerm::MathValue { source_type, value } => {
                 let scalar = self.scalar(
                     &ScalarTerm::value(*value, ScalarType::Integer(*source_type)),
@@ -184,15 +138,9 @@ impl<'input> ValueEqualities<'input> {
                 if scalar.scalar_type() != ScalarType::Integer(*source_type) {
                     return Err(PredicateDenotationError::InvalidValueEquality);
                 }
-                // Address literals can discharge address-geometry obligations
-                // under their retained model too. Keep nonliteral address terms
-                // opaque: this does not reinterpret arbitrary address arithmetic.
-                if let ScalarTerm::Integer { value, .. } = scalar {
-                    IntegerMathTerm::literal(value)
-                } else {
-                    crate::proof::integer_math_normalization::lift_exact_integer_term(&scalar)
-                        .unwrap_or_else(|| original.clone())
-                }
+                crate::proof::integer_math_normalization::lift_exact_integer_term(&scalar)
+                    .or_else(|| IntegerMathTerm::embed(scalar))
+                    .ok_or(PredicateDenotationError::InvalidValueEquality)?
             }
             IntegerMathTerm::IntegerLiteral(_) => original.clone(),
             IntegerMathTerm::Add(left, right) => IntegerMathTerm::Add(

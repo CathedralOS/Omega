@@ -1232,8 +1232,41 @@ fn exact_address_subtraction_preserves_roles_and_wide_operand_ranges() {
                 .is_err()
         );
     }
-    assert!(!address.can_exact_cast_to(count));
-    assert!(!count.can_exact_cast_to(address));
+    assert!(!address.can_widen_to(count));
+    assert!(!count.can_widen_to(address));
+}
+
+#[test]
+fn exact_address_conversion_preserves_value_without_assuming_width_order() {
+    let count = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
+    let signed = IntegerType::new(IntegerSign::Signed, 64).unwrap();
+    let narrow_address = IntegerType::address(32).unwrap();
+    let wide_address = IntegerType::address(128).unwrap();
+    assert!(count.can_exact_cast_to(narrow_address));
+    assert!(wide_address.can_exact_cast_to(count));
+    assert_eq!(
+        count.exact_cast_value_to(narrow_address, IntegerValue::Unsigned(4096)),
+        Some(IntegerValue::Unsigned(4096))
+    );
+    assert_eq!(
+        count.exact_cast_value_to(narrow_address, IntegerValue::Unsigned(1u128 << 32)),
+        None
+    );
+    assert_eq!(
+        signed.exact_cast_value_to(narrow_address, IntegerValue::Signed(-1)),
+        None
+    );
+    assert_eq!(
+        wide_address.exact_cast_value_to(count, IntegerValue::Unsigned(1u128 << 100)),
+        None
+    );
+    assert_eq!(
+        wide_address.exact_cast_value_to(count, IntegerValue::Unsigned(4096)),
+        Some(IntegerValue::Unsigned(4096))
+    );
+    assert!(!narrow_address.can_exact_cast_to(wide_address));
+    assert!(!count.can_widen_to(narrow_address));
+    assert!(!wide_address.can_widen_to(count));
 }
 
 #[test]
@@ -1253,6 +1286,45 @@ fn address_math_embedding_preserves_exact_context_type() {
         PropositionContext::from_value_types([(identity, ScalarType::Integer(count))]).unwrap();
     assert!(address_context.validate(&proposition).is_ok());
     assert!(count_context.validate(&proposition).is_err());
+}
+
+#[test]
+fn finite_math_embedding_preserves_policy_and_nested_value_context() {
+    let byte = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+    let value = ValueId::new(1).unwrap();
+    let scalar = ScalarTerm::WrappingIntegerAdd {
+        scalar_type: byte,
+        left: Box::new(ScalarTerm::value(value, ScalarType::Integer(byte))),
+        right: Box::new(ScalarTerm::integer(byte, IntegerValue::Unsigned(1)).unwrap()),
+    };
+    let embedded = IntegerMathTerm::embed(scalar.clone()).unwrap();
+    assert_eq!(embedded, IntegerMathTerm::Embed(Box::new(scalar)));
+    let mut proposition = Proposition::IntegerMathEqual(embedded.clone(), embedded);
+    let context =
+        PropositionContext::from_value_types([(value, ScalarType::Integer(byte))]).unwrap();
+    assert_eq!(context.validate(&proposition), Ok(()));
+    let wrong_context =
+        PropositionContext::from_value_types([(value, ScalarType::Boolean)]).unwrap();
+    assert!(wrong_context.validate(&proposition).is_err());
+    let mut visited = Vec::new();
+    assert!(proposition.visit_value_ids(|identity| visited.push(identity)));
+    assert_eq!(visited, [value, value]);
+    let replacement = ValueId::new(2).unwrap();
+    proposition.remap_value_ids(|_| replacement);
+    assert!(proposition.any_value_id(|identity| identity == replacement));
+    assert!(!proposition.any_value_id(|identity| identity == value));
+    assert_eq!(
+        IntegerMathTerm::Embed(Box::new(ScalarTerm::boolean(true))).validate(),
+        Err(PropositionError::IntegerMathEmbeddingNotInteger),
+    );
+    assert_eq!(
+        IntegerMathTerm::Embed(Box::new(ScalarTerm::value(
+            value,
+            ScalarType::Integer(byte)
+        )))
+        .validate(),
+        Err(PropositionError::NonCanonicalIntegerMathEmbedding),
+    );
 }
 
 #[test]

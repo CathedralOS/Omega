@@ -15,6 +15,10 @@ pub(crate) fn encode_integer_math_term(
         return Err(CodecError::ScalarTermNestingTooDeep);
     }
     match term {
+        IntegerMathTerm::Embed(term) => {
+            writer.u8(7);
+            super::scalar_term_wire::encode_scalar_term(writer, term, depth + 1)?;
+        }
         IntegerMathTerm::IntegerLiteral(literal) => {
             writer.u8(1);
             writer.boolean(literal.negative());
@@ -54,6 +58,10 @@ pub(crate) fn decode_integer_math_term(
         return Err(CodecError::ScalarTermNestingTooDeep);
     }
     Ok(match reader.u8()? {
+        7 => IntegerMathTerm::Embed(Box::new(super::scalar_term_wire::decode_scalar_term(
+            reader,
+            depth + 1,
+        )?)),
         1 => IntegerMathTerm::IntegerLiteral(
             IntegerMathLiteral::new(
                 match reader.u8()? {

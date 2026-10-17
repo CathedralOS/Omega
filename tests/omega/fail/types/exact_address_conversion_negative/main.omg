@@ -1,0 +1,2 @@
+machine invalid() -> addr { let value: i64 = -1; value as addr }
+machine main() {}

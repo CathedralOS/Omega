@@ -101,6 +101,53 @@ impl IntegerObservations<'_> {
 }
 
 impl StructuralJudge<'_> {
+    /// Ask about one completed operand, before introducing its cast result.
+    /// The address ceiling remains the builtin symbolic model bound; the
+    /// hosted producer's current Addr64 representation is not a premise.
+    pub(in crate::proof_contracts::contract_entailment) fn observed_integer_fits(
+        &self,
+        value: StructuralTerm,
+        source_reference: typed_trees::types::TypeReferenceHandle,
+        target: PrimitiveType,
+    ) -> bool {
+        let value = StructuralTerm::IntegerEmbedding {
+            reference: source_reference,
+            value: Box::new(value),
+        };
+        let (minimum, maximum, upper_operator) = if target == PrimitiveType::Addr {
+            let Some(bound) = self
+                .program
+                .symbols
+                .builtin_type_member_symbol(symbols::BuiltinTypeMember::AddressBound)
+            else {
+                return false;
+            };
+            (
+                BigInt::zero(),
+                StructuralTerm::BoundValue(bound),
+                BinaryOperator::Less,
+            )
+        } else {
+            let Some((minimum, maximum)) = target.integer_bounds() else {
+                return false;
+            };
+            (
+                BigInt::from_i128(minimum),
+                StructuralTerm::Integer(BigInt::from_i128(maximum)),
+                BinaryOperator::LessOrEqual,
+            )
+        };
+        self.proves_observed_integer_predicate(&StructuralTerm::MathematicalBinary {
+            operator: BinaryOperator::LessOrEqual,
+            left: Box::new(StructuralTerm::Integer(minimum)),
+            right: Box::new(value.clone()),
+        }) && self.proves_observed_integer_predicate(&StructuralTerm::MathematicalBinary {
+            operator: upper_operator,
+            left: Box::new(value),
+            right: Box::new(maximum),
+        })
+    }
+
     pub(in crate::proof_contracts::contract_entailment) fn judge_observed_predicate(
         &self,
         predicate: StructuralTerm,
@@ -182,6 +229,29 @@ impl StructuralJudge<'_> {
         predicate: &StructuralTerm,
         observations: &mut IntegerObservations<'_>,
     ) -> Option<(BinaryOperator, Polynomial, Polynomial)> {
+        if let StructuralTerm::MathematicalBinary {
+            operator,
+            left,
+            right,
+        } = predicate.semantic_value()
+        {
+            if !matches!(
+                operator,
+                BinaryOperator::Equal
+                    | BinaryOperator::NotEqual
+                    | BinaryOperator::Less
+                    | BinaryOperator::LessOrEqual
+                    | BinaryOperator::Greater
+                    | BinaryOperator::GreaterOrEqual
+            ) {
+                return None;
+            }
+            return Some((
+                *operator,
+                self.mathematical_value(left, observations, 0)?,
+                self.mathematical_value(right, observations, 0)?,
+            ));
+        }
         let StructuralTerm::ScalarBinary {
             references,
             operator,
@@ -305,6 +375,18 @@ impl StructuralJudge<'_> {
         // A complete observed value has its selected operand's carrier. These
         // intrinsic bounds apply only to opaque leaves, never to a computation
         // waiting to prove formation or to an anonymous integer literal.
+        if primitive == PrimitiveType::Addr {
+            let bound = observations.engine.address_model_bound()?;
+            observations.carrier_facts.extend([
+                (
+                    BinaryOperator::GreaterOrEqual,
+                    value.clone(),
+                    Polynomial::constant(BigInt::zero()),
+                ),
+                (BinaryOperator::Less, value.clone(), bound),
+            ]);
+            return Some(value);
+        }
         let (minimum, maximum) = primitive.integer_bounds()?;
         observations.carrier_facts.extend([
             (
@@ -319,6 +401,52 @@ impl StructuralJudge<'_> {
             ),
         ]);
         Some(value)
+    }
+
+    fn mathematical_value(
+        &self,
+        value: &StructuralTerm,
+        observations: &mut IntegerObservations<'_>,
+        depth: usize,
+    ) -> Option<Polynomial> {
+        if depth >= 64 {
+            return None;
+        }
+        let value = self.resolve(value.clone());
+        match value.semantic_value() {
+            StructuralTerm::Integer(value) => Some(Polynomial::constant(value.clone())),
+            StructuralTerm::BoundValue(symbol)
+                if self.program.symbols.builtin_type_member(*symbol)
+                    == Some(symbols::BuiltinTypeMember::AddressBound) =>
+            {
+                observations.engine.address_model_bound()
+            }
+            StructuralTerm::IntegerEmbedding { reference, value } => {
+                let (primitive, _) = super::super::structural_terms::scalar_operand_meaning(
+                    self.program,
+                    *reference,
+                    value,
+                )?;
+                self.integer_value(value, primitive, observations, depth + 1)
+            }
+            StructuralTerm::MathematicalBinary {
+                operator,
+                left,
+                right,
+            } => {
+                let left = self.mathematical_value(left, observations, depth + 1)?;
+                let right = self.mathematical_value(right, observations, depth + 1)?;
+                match operator {
+                    BinaryOperator::Add => Some(left.add(&right)),
+                    BinaryOperator::Subtract => Some(left.sub(&right)),
+                    BinaryOperator::Multiply => left.checked_mul(&right),
+                    // Quotient and remainder need their own nonzero formation
+                    // evidence. They remain opaque, never cancellation laws.
+                    _ => None,
+                }
+            }
+            _ => None,
+        }
     }
 }
 

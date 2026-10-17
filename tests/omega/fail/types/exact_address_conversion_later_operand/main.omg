@@ -1,0 +1,7 @@
+data Cell { value: u64; }
+machine clear(cell: &mut Cell) -> u64 { cell.value = 0; 0 }
+machine consume(address: addr, ignored: u64) -> addr { address }
+machine invalid(cell: &mut Cell) -> addr {
+    consume(cell.value as addr, clear(cell))
+}
+machine main() {}

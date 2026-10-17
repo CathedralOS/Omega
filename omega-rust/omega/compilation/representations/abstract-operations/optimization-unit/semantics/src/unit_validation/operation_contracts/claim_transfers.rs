@@ -217,6 +217,16 @@ pub(crate) fn proposition_structural_roots(proposition: &Proposition) -> BTreeSe
 
     fn collect(proposition: &Proposition, roots: &mut BTreeSet<PlaceId>) {
         match proposition {
+            semantic_vocabulary::integer_math_comparison_operands!(left, right) => {
+                let mut pending = vec![left, right];
+                while let Some(term) = pending.pop() {
+                    if let semantic_vocabulary::IntegerMathTerm::Embed(scalar) = term {
+                        scalar_term_roots(scalar, roots);
+                    } else {
+                        pending.extend(term.operands());
+                    }
+                }
+            }
             semantic_vocabulary::scalar_comparison_operands!(left, right) => {
                 scalar_term_roots(left, roots);
                 scalar_term_roots(right, roots);
@@ -252,12 +262,7 @@ pub(crate) fn proposition_structural_roots(proposition: &Proposition) -> BTreeSe
                 collect(premise, roots);
                 collect(conclusion, roots);
             }
-            Proposition::Truth
-            | Proposition::Falsehood
-            | Proposition::Atom(_)
-            | Proposition::IntegerMathEqual(_, _)
-            | Proposition::IntegerMathLessThan(_, _)
-            | Proposition::IntegerMathLessOrEqual(_, _) => {}
+            Proposition::Truth | Proposition::Falsehood | Proposition::Atom(_) => {}
         }
     }
 

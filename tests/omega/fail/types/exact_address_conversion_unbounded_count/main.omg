@@ -1,0 +1,2 @@
+machine invalid(value: addr) -> u64 { value as u64 }
+machine main() {}

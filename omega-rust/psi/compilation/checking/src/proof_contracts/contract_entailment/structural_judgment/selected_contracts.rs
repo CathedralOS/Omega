@@ -544,14 +544,18 @@ fn collect_applications<'term>(
             }
             applications.push(term);
         }
-        StructuralTerm::Projection { subject, .. } => collect_applications(subject, applications),
+        StructuralTerm::Projection { subject, .. }
+        | StructuralTerm::IntegerEmbedding { value: subject, .. } => {
+            collect_applications(subject, applications)
+        }
         StructuralTerm::IndexedValue {
             collection, index, ..
         } => {
             collect_applications(collection, applications);
             collect_applications(index, applications);
         }
-        StructuralTerm::ScalarBinary { left, right, .. } => {
+        StructuralTerm::ScalarBinary { left, right, .. }
+        | StructuralTerm::MathematicalBinary { left, right, .. } => {
             collect_applications(left, applications);
             collect_applications(right, applications);
         }

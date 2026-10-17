@@ -25,7 +25,7 @@ pub(in crate::proof_contracts::contract_entailment) struct NormalReturnPath<'pro
     pub judge: StructuralJudge<'program>,
 }
 
-pub(in crate::proof_contracts::contract_entailment) struct NormalCallEntry<'program> {
+pub(in crate::proof_contracts::contract_entailment) struct NormalOperationEntry<'program> {
     pub arguments: Vec<StructuralTerm>,
     pub judge: StructuralJudge<'program>,
 }
@@ -114,6 +114,21 @@ impl<'program> StructuralJudge<'program> {
             return value;
         }
         let value = match value {
+            StructuralTerm::IntegerEmbedding { reference, value } => {
+                StructuralTerm::IntegerEmbedding {
+                    reference,
+                    value: Box::new(self.completed_value_identity_at(*value, depth + 1)),
+                }
+            }
+            StructuralTerm::MathematicalBinary {
+                operator,
+                left,
+                right,
+            } => StructuralTerm::MathematicalBinary {
+                operator,
+                left: Box::new(self.completed_value_identity_at(*left, depth + 1)),
+                right: Box::new(self.completed_value_identity_at(*right, depth + 1)),
+            },
             StructuralTerm::ObservedValue {
                 observed_type,
                 value,
@@ -195,16 +210,17 @@ impl<'program> StructuralJudge<'program> {
         )
     }
 
-    /// Observe one exact call entry after its enclosing statement's preceding
-    /// operands, including separate roots such as named-transition arguments.
-    /// The snapshot precedes the selected call's guarantee intake.
-    pub(in crate::proof_contracts::contract_entailment) fn normal_call_entries(
+    /// Observe an operation after its operands complete, including preceding
+    /// statement roots such as named-transition arguments. The snapshot is
+    /// before the operation itself: a call cannot donate its own guarantee,
+    /// and a cast cannot supply its own destination range.
+    pub(in crate::proof_contracts::contract_entailment) fn normal_operation_entries(
         &self,
         statement_index: usize,
         call: ExpressionHandle,
         environment: &[(String, StructuralTerm)],
         scope: ValueScope<'_>,
-    ) -> Option<Vec<NormalCallEntry<'program>>> {
+    ) -> Option<Vec<NormalOperationEntry<'program>>> {
         let operands = self.statement_observation_operands(
             statement_index,
             call,
@@ -337,7 +353,7 @@ impl<'program> StructuralJudge<'program> {
         parameters: &[typed_trees::signature::StateParameter],
         environment: &[(String, StructuralTerm)],
         scope: ValueScope<'_>,
-    ) -> Option<Vec<NormalCallEntry<'program>>> {
+    ) -> Option<Vec<NormalOperationEntry<'program>>> {
         if arguments.len() != parameters.len() {
             return None;
         }
@@ -361,7 +377,7 @@ impl<'program> StructuralJudge<'program> {
                     &mut Vec::new(),
                 )?
                 .into_iter()
-                .map(|(judge, values)| NormalCallEntry {
+                .map(|(judge, values)| NormalOperationEntry {
                     arguments: values.into_iter().map(|(_, value)| value).collect(),
                     judge,
                 })
@@ -375,8 +391,8 @@ impl<'program> StructuralJudge<'program> {
         environment: &[(String, StructuralTerm)],
         scope: ValueScope<'_>,
         depth: usize,
-        requested_call: ExpressionHandle,
-        entries: &mut Vec<NormalCallEntry<'program>>,
+        requested_operation: ExpressionHandle,
+        entries: &mut Vec<NormalOperationEntry<'program>>,
     ) -> Option<Vec<(Self, Vec<(ExpressionHandle, StructuralTerm)>)>> {
         let mut contexts = vec![(self, Vec::new())];
         for &NormalOperand {
@@ -392,7 +408,7 @@ impl<'program> StructuralJudge<'program> {
                     environment,
                     (scope.0, scope.1, reference),
                     depth + 1,
-                    requested_call,
+                    requested_operation,
                     entries,
                     demand,
                 )? {
@@ -412,8 +428,8 @@ impl<'program> StructuralJudge<'program> {
         environment: &[(String, StructuralTerm)],
         scope: ValueScope<'_>,
         depth: usize,
-        requested_call: ExpressionHandle,
-        entries: &mut Vec<NormalCallEntry<'program>>,
+        requested_operation: ExpressionHandle,
+        entries: &mut Vec<NormalOperationEntry<'program>>,
         demand: NormalValueDemand<'_>,
     ) -> Option<Vec<NormalReturnPath<'program>>> {
         if depth >= 64 || !program_expression_is_live(self.program, expression) {
@@ -468,7 +484,7 @@ impl<'program> StructuralJudge<'program> {
                 environment,
                 scope,
                 depth + 1,
-                requested_call,
+                requested_operation,
                 entries,
                 NormalValueDemand::Value,
             )? {
@@ -492,7 +508,7 @@ impl<'program> StructuralJudge<'program> {
                             environment,
                             scope,
                             depth + 1,
-                            requested_call,
+                            requested_operation,
                             entries,
                             demand,
                         )? {
@@ -518,7 +534,7 @@ impl<'program> StructuralJudge<'program> {
                 environment,
                 scope,
                 depth + 1,
-                requested_call,
+                requested_operation,
                 entries,
                 NormalValueDemand::Value,
             )?;
@@ -533,7 +549,7 @@ impl<'program> StructuralJudge<'program> {
                             environment,
                             scope,
                             depth + 1,
-                            requested_call,
+                            requested_operation,
                             entries,
                             NormalValueDemand::Value,
                         )? {
@@ -590,7 +606,7 @@ impl<'program> StructuralJudge<'program> {
                                 environment,
                                 scope,
                                 depth + 1,
-                                requested_call,
+                                requested_operation,
                                 entries,
                                 demand,
                             )? {
@@ -603,7 +619,7 @@ impl<'program> StructuralJudge<'program> {
                             environment,
                             scope,
                             depth + 1,
-                            requested_call,
+                            requested_operation,
                             entries,
                             demand,
                         )? {
@@ -719,7 +735,7 @@ impl<'program> StructuralJudge<'program> {
             environment,
             scope,
             depth,
-            requested_call,
+            requested_operation,
             entries,
         )?;
         contexts
@@ -731,10 +747,10 @@ impl<'program> StructuralJudge<'program> {
                 ) {
                     // Only the completed descendants are requested. No value
                     // identity or equation is published for this unused result.
-                    return Some(NormalReturnPath {
+                    return Some(Some(NormalReturnPath {
                         value: StructuralTerm::Opaque("unrequested result".to_owned()),
                         judge,
-                    });
+                    }));
                 }
                 let call_inputs = if let Some(call) = program.expression_table.call_node(expression)
                 {
@@ -756,11 +772,16 @@ impl<'program> StructuralJudge<'program> {
                 } else {
                     None
                 };
-                if requested_call == expression {
-                    entries.push(NormalCallEntry {
-                        arguments: call_inputs.as_ref()?.clone(),
+                if requested_operation == expression {
+                    entries.push(NormalOperationEntry {
+                        arguments: call_inputs.clone().unwrap_or_else(|| {
+                            inputs.iter().map(|(_, value)| value.clone()).collect()
+                        }),
                         judge: judge.clone(),
                     });
+                    // Nothing after this operation is part of its incoming
+                    // proof context. A stopped path is not an executed result.
+                    return Some(None);
                 }
                 judge.capture_normal_call(expression, call_inputs.as_deref(), environment, scope);
                 // Arguments have completed, so their copied values keep their
@@ -889,9 +910,12 @@ impl<'program> StructuralJudge<'program> {
                         );
                     }
                 }
-                Some(NormalReturnPath { value, judge }.at_expression(expression))
+                Some(Some(
+                    NormalReturnPath { value, judge }.at_expression(expression),
+                ))
             })
-            .collect()
+            .collect::<Option<Vec<_>>>()
+            .map(|paths| paths.into_iter().flatten().collect())
     }
 
     fn capture_unknown_value(

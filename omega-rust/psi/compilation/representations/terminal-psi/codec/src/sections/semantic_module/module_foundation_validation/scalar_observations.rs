@@ -207,6 +207,16 @@ fn validate(
     let mut scalars = Vec::new();
     while let Some(proposition) = propositions.pop() {
         match proposition {
+            semantic_vocabulary::integer_math_comparison_operands!(left, right) => {
+                let mut pending = vec![left, right];
+                while let Some(term) = pending.pop() {
+                    if let semantic_vocabulary::IntegerMathTerm::Embed(term) = term {
+                        scalars.push((term.as_ref(), false));
+                    } else {
+                        pending.extend(term.operands());
+                    }
+                }
+            }
             Proposition::StructuralIdentity { left, right } => {
                 if left.structural_type() != right.structural_type() {
                     return malformed("structural identity operands have different declared types");
@@ -269,6 +279,29 @@ fn validate_terms(
     value_type: &impl Fn(ValueId) -> Option<ScalarType>,
 ) -> Result<(), CodecError> {
     while let Some((term, selector)) = scalars.pop() {
+        if let ScalarTerm::BooleanField { root, path }
+        | ScalarTerm::IntegerField { root, path, .. }
+        | ScalarTerm::IeeeFloatField { root, path, .. } = term
+        {
+            let Some(root) = root_type(*root) else {
+                return malformed("scalar field predicate has no readable declared root");
+            };
+            let projections = path
+                .iter()
+                .cloned()
+                .map(semantic_vocabulary::ScalarReadProjection::Static)
+                .collect::<Vec<_>>();
+            if terminal_semantics::structural_read_scalar_type(
+                module.structural_types.iter(),
+                root,
+                &projections,
+            ) != Some(term.scalar_type())
+            {
+                return malformed(
+                    "scalar field predicate disagrees with its declaration path or scalar carrier",
+                );
+            }
+        }
         if let ScalarTerm::StructuralRead {
             root,
             path,

@@ -69,7 +69,9 @@ pub(in crate::proof_contracts::contract_entailment) fn scalar_operand_is_observe
         // A produced aggregate's reference field is still a descriptor. An
         // exact input subject projection instead starts at its retained binder.
         StructuralTerm::Projection { subject, .. } => !has_produced_subject(subject),
-        StructuralTerm::Opaque(_) => false,
+        StructuralTerm::Opaque(_)
+        | StructuralTerm::IntegerEmbedding { .. }
+        | StructuralTerm::MathematicalBinary { .. } => false,
     }
 }
 
@@ -139,6 +141,13 @@ pub(in crate::proof_contracts::contract_entailment) fn term_is_unobserved_descri
         } => {
             !scalar_operand_is_observed(program, references[0], left)
                 || !scalar_operand_is_observed(program, references[1], right)
+        }
+        StructuralTerm::IntegerEmbedding { reference, value } => {
+            !scalar_operand_is_observed(program, *reference, value)
+        }
+        StructuralTerm::MathematicalBinary { left, right, .. } => {
+            term_is_unobserved_descriptor(program, left)
+                || term_is_unobserved_descriptor(program, right)
         }
         _ => false,
     }

@@ -1011,6 +1011,9 @@ impl Denotation {
         &mut self,
         term: &IntegerMathTerm,
     ) -> Result<TermHandle, BoundedDenotationError> {
+        if let IntegerMathTerm::Embed(term) = term {
+            return self.fixed_scalar_term(term);
+        }
         let key = match ClosedIntegerEvaluator::default().evaluate_closed(term) {
             Ok(Some(value)) => MathTermKey::Closed(value),
             Ok(None) => {

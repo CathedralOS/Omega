@@ -372,7 +372,7 @@ impl super::structural_prefix::StructuralPrefixVisitor for CallRequirement<'_> {
             return;
         };
         let entries = if self.call_expression.is_valid() {
-            let Some(entries) = site_judge.normal_call_entries(
+            let Some(entries) = site_judge.normal_operation_entries(
                 self.statement_index,
                 self.call_expression,
                 environment,
@@ -513,6 +513,11 @@ fn runtime_equality_fact(
                 machine.symbol,
                 program.state_parameters(state),
                 expression,
+            ) || runtime_fact_for_parameters(
+                program,
+                machine.symbol,
+                program.state_parameters(state),
+                expression,
             )
         }
         _ => runtime_fact_for_parameters(
@@ -541,6 +546,19 @@ fn runtime_fact_for_parameters(
             );
         }
     }
+    let term = super::structural_terms::structural_term(
+        program,
+        None,
+        Some((owner, parameters)),
+        expression,
+        None,
+    );
+    if term
+        .as_ref()
+        .is_some_and(StructuralTerm::is_mathematical_predicate)
+    {
+        return true;
+    }
     if crate::parameter_expression_result_type_reference(program, owner, parameters, expression)
         .and_then(|reference| program.primitive_type_reference(reference))
         != Some(typed_trees::types::PrimitiveType::Bool)
@@ -548,13 +566,7 @@ fn runtime_fact_for_parameters(
         return false;
     }
     matches!(
-        super::structural_terms::structural_term(
-            program,
-            None,
-            Some((owner, parameters)),
-            expression,
-            None
-        ),
+        term,
         Some(StructuralTerm::ScalarBinary { .. } | StructuralTerm::Constructor { .. }),
     )
 }

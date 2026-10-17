@@ -90,6 +90,31 @@ fn predicate_dependencies<'a>(
         }
         match clause {
             Proposition::Truth | Proposition::Falsehood => Some(()),
+            semantic_vocabulary::integer_math_comparison_operands!(left, right) => {
+                let mut pending = vec![(left, depth + 1), (right, depth + 1)];
+                while let Some((term, depth)) = pending.pop() {
+                    if depth > 256 {
+                        return None;
+                    }
+                    match term {
+                        semantic_vocabulary::IntegerMathTerm::Embed(scalar) => term_dependencies(
+                            types.clone(),
+                            carrier,
+                            subject,
+                            scalar,
+                            output,
+                            depth + 1,
+                        )?,
+                        semantic_vocabulary::IntegerMathTerm::MathValue { .. } => return None,
+                        term => pending.extend(
+                            term.operands()
+                                .into_iter()
+                                .map(|operand| (operand, depth + 1)),
+                        ),
+                    }
+                }
+                Some(())
+            }
             Proposition::Equal(left, right)
             | Proposition::LessThan(left, right)
             | Proposition::LessOrEqual(left, right) => {

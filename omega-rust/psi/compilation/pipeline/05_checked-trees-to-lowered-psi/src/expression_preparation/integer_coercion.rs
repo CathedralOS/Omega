@@ -1,18 +1,13 @@
 //! Exact authored integer carrier changes, independent of result policy.
 //!
 //! Fixed-integer widening is total; partial conversion retains the source
-//! checker's occurrence decision. An address keeps its own carrier and is
-//! interpreted as a count only through its distance from address zero. That
-//! established subtraction evaluates the original address once and retains
-//! its independent formation obligation; it never grants address authority to
-//! an ordinary integer. Address models wider than u64 need another denotation.
+//! checker's occurrence decision. Count/address interpretation uses the same
+//! exact conversion, with both carriers intact and no storage authority.
+//! Width equality never replaces the source checker's symbolic fit proof.
 
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
-use crate::emission::operation_emission::integer::LoweredIntegerBinaryKind;
-use crate::emission::scalar_types::integer_scalar_type;
 use crate::lowering_error::{LoweringError, unsupported};
-use checked_trees::types::PrimitiveType;
-use semantic_vocabulary::{IntegerValue, ScalarType};
+use semantic_vocabulary::ScalarType;
 
 pub(crate) fn coerce_integer_carrier(
     operand: LoweredDirectExpression,
@@ -28,32 +23,10 @@ pub(crate) fn coerce_integer_carrier(
     if source_type == target_type {
         return Ok(operand);
     }
-    if target_type.is_address() {
-        return unsupported("exact integer coercion to an address has no admitted denotation");
+    if !source_type.can_exact_cast_to(target_type) {
+        return unsupported("exact integer coercion cannot change address models");
     }
-    let operand = if source_type.is_address() {
-        if source_type.bits() > 64 {
-            return unsupported("exact coercion from an address wider than the count carrier");
-        }
-        LoweredDirectExpression::IntegerBinary {
-            kind: LoweredIntegerBinaryKind::ExactSubtract,
-            scalar_type: integer_scalar_type(PrimitiveType::U64)?,
-            left: Box::new(operand),
-            right: Box::new(LoweredDirectExpression::IntegerLiteral {
-                scalar_type: ScalarType::Integer(source_type),
-                value: IntegerValue::Unsigned(0),
-            }),
-            formation_decided: false,
-        }
-    } else {
-        operand
-    };
-    let Some(source_type) = operand.scalar_type().as_integer() else {
-        return unsupported("integer coercion lost its integer carrier");
-    };
-    if source_type == target_type {
-        Ok(operand)
-    } else if source_type.can_widen_to(target_type) {
+    if source_type.can_widen_to(target_type) {
         Ok(LoweredDirectExpression::IntegerWiden {
             scalar_type: target,
             operand: Box::new(operand),

@@ -1102,6 +1102,7 @@ fn validate_integer_math_term_depth(term: &IntegerMathTerm) -> Result<(), CodecE
         }
         match term {
             IntegerMathTerm::MathValue { .. } | IntegerMathTerm::IntegerLiteral(_) => {}
+            IntegerMathTerm::Embed(term) => validate_scalar_term_depth_from(term, depth + 1)?,
             IntegerMathTerm::Add(left, right)
             | IntegerMathTerm::Subtract(left, right)
             | IntegerMathTerm::Multiply(left, right) => {
@@ -1158,7 +1159,11 @@ fn canonical_scalar_term_bytes(term: &ScalarTerm) -> Result<Vec<u8>, CodecError>
 }
 
 fn validate_scalar_term_depth(term: &ScalarTerm) -> Result<(), CodecError> {
-    let mut pending = vec![(term, 0_usize)];
+    validate_scalar_term_depth_from(term, 0)
+}
+
+fn validate_scalar_term_depth_from(term: &ScalarTerm, depth: usize) -> Result<(), CodecError> {
+    let mut pending = vec![(term, depth)];
     while let Some((term, depth)) = pending.pop() {
         if depth > MAX_SCALAR_TERM_DEPTH {
             return Err(CodecError::ScalarTermNestingTooDeep);

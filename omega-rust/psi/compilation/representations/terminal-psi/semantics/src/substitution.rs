@@ -130,15 +130,18 @@ pub fn substitute_proposition_structural_places(
             substitute_scalar_term_places(left, substitutions),
             substitute_scalar_term_places(right, substitutions),
         ),
-        Proposition::IntegerMathEqual(left, right) => {
-            Proposition::IntegerMathEqual(left.clone(), right.clone())
-        }
-        Proposition::IntegerMathLessThan(left, right) => {
-            Proposition::IntegerMathLessThan(left.clone(), right.clone())
-        }
-        Proposition::IntegerMathLessOrEqual(left, right) => {
-            Proposition::IntegerMathLessOrEqual(left.clone(), right.clone())
-        }
+        Proposition::IntegerMathEqual(left, right) => Proposition::IntegerMathEqual(
+            substitute_integer_math_term_places(left, substitutions),
+            substitute_integer_math_term_places(right, substitutions),
+        ),
+        Proposition::IntegerMathLessThan(left, right) => Proposition::IntegerMathLessThan(
+            substitute_integer_math_term_places(left, substitutions),
+            substitute_integer_math_term_places(right, substitutions),
+        ),
+        Proposition::IntegerMathLessOrEqual(left, right) => Proposition::IntegerMathLessOrEqual(
+            substitute_integer_math_term_places(left, substitutions),
+            substitute_integer_math_term_places(right, substitutions),
+        ),
         Proposition::IeeeFloatComparison {
             kind,
             format,
@@ -251,21 +254,16 @@ fn substitute_integer_math_term_values(
     substitutions: &BTreeMap<ValueId, ScalarTerm>,
 ) -> IntegerMathTerm {
     match term {
+        IntegerMathTerm::Embed(scalar) => {
+            IntegerMathTerm::embed(substitute_scalar_term_values(scalar, substitutions))
+                .unwrap_or_else(|| term.clone())
+        }
         IntegerMathTerm::MathValue { source_type, value } => substitutions
             .get(value)
-            .and_then(|replacement| match replacement {
-                ScalarTerm::Value {
-                    id,
-                    scalar_type: semantic_vocabulary::ScalarType::Integer(actual),
-                } if actual == source_type => Some(IntegerMathTerm::MathValue {
-                    source_type: *source_type,
-                    value: *id,
-                }),
-                ScalarTerm::Integer {
-                    scalar_type: actual,
-                    value,
-                } if actual == source_type => Some(IntegerMathTerm::literal(*value)),
-                _ => None,
+            .and_then(|replacement| {
+                (replacement.scalar_type().as_integer() == Some(*source_type))
+                    .then(|| IntegerMathTerm::embed(replacement.clone()))
+                    .flatten()
             })
             .unwrap_or_else(|| term.clone()),
         IntegerMathTerm::IntegerLiteral(_) => term.clone(),
@@ -286,6 +284,22 @@ fn substitute_integer_math_term_values(
             count: Box::new(substitute_integer_math_term_values(count, substitutions)),
         },
     }
+}
+
+fn substitute_integer_math_term_places(
+    term: &IntegerMathTerm,
+    substitutions: &BTreeMap<PlaceId, (PlaceId, Vec<CanonicalStructuralPathSegment>)>,
+) -> IntegerMathTerm {
+    let mut term = term.clone();
+    let mut pending = vec![&mut term];
+    while let Some(term) = pending.pop() {
+        if let IntegerMathTerm::Embed(scalar) = term {
+            **scalar = substitute_scalar_term_places(scalar, substitutions);
+        } else {
+            pending.extend(term.operands_mut());
+        }
+    }
+    term
 }
 
 fn substitute_scalar_term_places(

@@ -50,6 +50,7 @@ impl Proposition {
                     }
                 },
                 Pending::IntegerMath(term) => match term {
+                    IntegerMathTerm::Embed(term) => pending.push(Pending::Scalar(term)),
                     IntegerMathTerm::IntegerLiteral(_) => {}
                     IntegerMathTerm::MathValue { value, .. } => *value = map(*value),
                     term => {

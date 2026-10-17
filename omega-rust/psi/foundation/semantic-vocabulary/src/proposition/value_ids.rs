@@ -112,6 +112,7 @@ fn walk(
                 }
             },
             Pending::IntegerMath(term) => match term {
+                IntegerMathTerm::Embed(term) => pending.push(Pending::Scalar(term)),
                 IntegerMathTerm::IntegerLiteral(_) => {}
                 IntegerMathTerm::MathValue { value, .. } => {
                     if visit(*value) {

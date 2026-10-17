@@ -1367,7 +1367,9 @@ fn eval_math_term(term: &IntegerMathTerm) -> Option<BigInt> {
         IntegerMathTerm::Multiply(left, right) => {
             Some(eval_math_term(left)?.mul(&eval_math_term(right)?))
         }
-        IntegerMathTerm::ShiftLeft { .. } | IntegerMathTerm::MathValue { .. } => None,
+        IntegerMathTerm::ShiftLeft { .. }
+        | IntegerMathTerm::MathValue { .. }
+        | IntegerMathTerm::Embed(_) => None,
     }
 }
 

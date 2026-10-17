@@ -1,0 +1,56 @@
+// Expected exit: 0.
+// Counts and addresses remain distinct. Each exact conversion proves fit from
+// the values at that occurrence; no native-width equality or memory grant.
+data Main { base: addr; }
+data Cell [copy] { value: u64; }
+data Packet [copy] { cell: Cell; }
+
+machine identity(value: u64) -> u64 ensures result == value { value }
+
+machine from_field(packet: &Packet, witness: addr) -> addr
+requires embed(packet.cell.value) + 1 <= embed(witness)
+{ packet.cell.value as addr }
+
+machine from_result(value: u64, witness: addr) -> addr
+requires embed(value) == embed(witness)
+{ identity(value) as addr }
+
+machine in_state(value: u64, witness: addr) -> addr
+requires embed(value) == embed(witness)
+{
+    transition { _ -> convert(value, witness) }
+    state convert(value: u64, witness: addr) -> addr
+    requires embed(value) == embed(witness)
+    { value as addr }
+}
+
+machine to_count(address: addr, witness: u64) -> u64
+requires embed(address) == embed(witness)
+{ address as u64 }
+
+machine from_snapshot(cell: &mut Cell, witness: addr) -> addr
+requires embed(cell.value) == embed(witness)
+{
+    let saved: u64 = cell.value;
+    cell.value = 18446744073709551615;
+    saved as addr
+}
+
+machine Main::main(context: &mut Main) crashes Trap {
+    let witness: addr = 4096;
+    let packet: Packet = Packet { cell: Cell { value: 4095 } };
+    let first: addr = from_field(&packet, witness);
+    let second: addr = from_result(4096, witness);
+    context.base = in_state(4096, witness);
+    let restored: u64 = to_count(witness, 4096);
+    let mut snapshot: Cell = Cell { value: 4096 };
+    let saved_address: addr = from_snapshot(&mut snapshot, witness);
+    transition first == 4095 && second == witness &&
+               context.base == witness && restored == 4096 &&
+               saved_address == witness && snapshot.value == 18446744073709551615 {
+        true -> done()
+        _ -> wrong()
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}

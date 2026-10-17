@@ -69,7 +69,11 @@ pub(super) fn project_field(value: StructuralTerm, field_name: &str) -> Option<S
         StructuralTerm::Constructor { fields, .. } => fields
             .into_iter()
             .find_map(|(name, value)| (name == field_name).then_some(value)),
-        StructuralTerm::Variable(name) | StructuralTerm::Opaque(name) => {
+        StructuralTerm::Variable(name) => Some(StructuralTerm::Projection {
+            subject: Box::new(StructuralTerm::Variable(name)),
+            path: field_name.to_owned(),
+        }),
+        StructuralTerm::Opaque(name) => {
             Some(StructuralTerm::Opaque(format!("{name}.{field_name}")))
         }
         StructuralTerm::BoundValue(subject) => Some(StructuralTerm::BoundProjection {
@@ -96,6 +100,8 @@ pub(super) fn project_field(value: StructuralTerm, field_name: &str) -> Option<S
         StructuralTerm::Integer(_)
         | StructuralTerm::Float(_)
         | StructuralTerm::ScalarBinary { .. }
+        | StructuralTerm::MathematicalBinary { .. }
+        | StructuralTerm::IntegerEmbedding { .. }
         | StructuralTerm::ObservedValue { .. } => None,
     }
 }

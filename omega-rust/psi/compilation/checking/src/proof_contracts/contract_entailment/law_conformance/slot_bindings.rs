@@ -162,6 +162,34 @@ pub(crate) fn rewrite_slot_applications(
                 arguments,
             }
         }
+        StructuralTerm::IntegerEmbedding { reference, value } => StructuralTerm::IntegerEmbedding {
+            reference: *reference,
+            value: Box::new(rewrite_slot_applications(
+                value,
+                slot_names,
+                slot_bindings,
+                missing,
+            )),
+        },
+        StructuralTerm::MathematicalBinary {
+            operator,
+            left,
+            right,
+        } => StructuralTerm::MathematicalBinary {
+            operator: *operator,
+            left: Box::new(rewrite_slot_applications(
+                left,
+                slot_names,
+                slot_bindings,
+                missing,
+            )),
+            right: Box::new(rewrite_slot_applications(
+                right,
+                slot_names,
+                slot_bindings,
+                missing,
+            )),
+        },
         StructuralTerm::ScalarBinary {
             references,
             operator,
@@ -238,10 +266,14 @@ pub(crate) fn rewrite_slot_applications(
 pub(crate) fn term_mentions_variable(term: &StructuralTerm, variable: &String) -> bool {
     match term.semantic_value() {
         StructuralTerm::ObservedValue { .. } => unreachable!("semantic_value strips observations"),
-        StructuralTerm::ScalarBinary { left, right, .. } => {
+        StructuralTerm::ScalarBinary { left, right, .. }
+        | StructuralTerm::MathematicalBinary { left, right, .. } => {
             term_mentions_variable(left, variable) || term_mentions_variable(right, variable)
         }
-        StructuralTerm::Projection { subject, .. } => term_mentions_variable(subject, variable),
+        StructuralTerm::Projection { subject, .. }
+        | StructuralTerm::IntegerEmbedding { value: subject, .. } => {
+            term_mentions_variable(subject, variable)
+        }
         StructuralTerm::IndexedValue {
             collection, index, ..
         } => {
@@ -373,6 +405,18 @@ pub(crate) fn display_structural_term(term: &StructuralTerm) -> String {
             format!("<completed value {subject:?}>.{path}")
         }
         StructuralTerm::Integer(value) => value.to_string(),
+        StructuralTerm::IntegerEmbedding { value, .. } => {
+            format!("embed({})", display_structural_term(value))
+        }
+        StructuralTerm::MathematicalBinary {
+            operator,
+            left,
+            right,
+        } => format!(
+            "math:{operator:?}({},{})",
+            display_structural_term(left),
+            display_structural_term(right)
+        ),
         StructuralTerm::Float(value) => value.text().to_owned(),
         StructuralTerm::Constructor { data, case, fields } => {
             if fields.is_empty() {

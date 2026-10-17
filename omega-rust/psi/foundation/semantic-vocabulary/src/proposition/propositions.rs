@@ -312,6 +312,7 @@ impl PropositionContext {
         let mut pending = vec![term];
         while let Some(term) = pending.pop() {
             match term {
+                IntegerMathTerm::Embed(term) => self.validate_term(term)?,
                 IntegerMathTerm::MathValue { source_type, value } => {
                     let Some(expected) = self.value_types.get(value) else {
                         return Err(PropositionError::UnknownValue(*value));
@@ -509,6 +510,8 @@ pub enum PropositionError {
         maximum: IntegerValue,
     },
     NegativeZeroIntegerMathLiteral,
+    IntegerMathEmbeddingNotInteger,
+    NonCanonicalIntegerMathEmbedding,
     NonCanonicalIntegerMathEqualityOperands,
     IntegerLiteralOutsideType {
         scalar_type: IntegerType,

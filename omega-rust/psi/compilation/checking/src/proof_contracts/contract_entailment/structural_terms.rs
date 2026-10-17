@@ -26,6 +26,24 @@ pub(super) use scalar_operands::{
     scalar_operand_is_observed, scalar_operand_meaning, term_is_unobserved_descriptor,
 };
 
+/// The builtin embedding observes the authenticated payload, not the source
+/// expression at a later proof query. Shared and owned views retain their
+/// original observation authority through the raw argument reference.
+pub(super) fn integer_embedding_term(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+    value: StructuralTerm,
+) -> Option<StructuralTerm> {
+    let (_, argument) =
+        crate::proof_contracts::proof_embeddings::integer_embedding_argument(program, expression)?;
+    let reference =
+        crate::proof_contracts::proof_embeddings::expression_type_reference(program, argument)?;
+    Some(StructuralTerm::IntegerEmbedding {
+        reference,
+        value: Box::new(value),
+    })
+}
+
 /// Both anonymous peers compare as exact rationals after builtin selection,
 /// without choosing a fixed carrier for either intermediate computation.
 pub(super) fn builtin_anonymous_comparison_term(
@@ -57,11 +75,13 @@ pub(super) fn term_contains(haystack: &StructuralTerm, needle: &StructuralTerm) 
         return true;
     }
     match haystack.semantic_value() {
-        StructuralTerm::Projection { subject, .. } => term_contains(subject, needle),
+        StructuralTerm::Projection { subject, .. }
+        | StructuralTerm::IntegerEmbedding { value: subject, .. } => term_contains(subject, needle),
         StructuralTerm::IndexedValue {
             collection, index, ..
         } => term_contains(collection, needle) || term_contains(index, needle),
-        StructuralTerm::ScalarBinary { left, right, .. } => {
+        StructuralTerm::ScalarBinary { left, right, .. }
+        | StructuralTerm::MathematicalBinary { left, right, .. } => {
             term_contains(left, needle) || term_contains(right, needle)
         }
         StructuralTerm::Constructor { fields, .. } => {
@@ -83,6 +103,19 @@ pub(super) fn unfold_constant_applications(
     term: StructuralTerm,
 ) -> StructuralTerm {
     match term {
+        StructuralTerm::IntegerEmbedding { reference, value } => StructuralTerm::IntegerEmbedding {
+            reference,
+            value: Box::new(unfold_constant_applications(program, *value)),
+        },
+        StructuralTerm::MathematicalBinary {
+            operator,
+            left,
+            right,
+        } => StructuralTerm::MathematicalBinary {
+            operator,
+            left: Box::new(unfold_constant_applications(program, *left)),
+            right: Box::new(unfold_constant_applications(program, *right)),
+        },
         StructuralTerm::ObservedValue {
             observed_type,
             value,
@@ -246,7 +279,15 @@ pub(super) fn term_spelling(program: &dyn crate::CheckingInput, term: &Structura
             term_spelling(program, collection),
             term_spelling(program, index)
         ),
-        StructuralTerm::ScalarBinary {
+        StructuralTerm::IntegerEmbedding { value, .. } => {
+            format!("embed({})", term_spelling(program, value))
+        }
+        StructuralTerm::MathematicalBinary {
+            operator,
+            left,
+            right,
+        }
+        | StructuralTerm::ScalarBinary {
             operator,
             left,
             right,
@@ -386,7 +427,11 @@ pub(crate) fn source_operations_have_same_meaning(
         match term {
             StructuralTerm::BoundValue(symbol) => symbol.is_valid(),
             StructuralTerm::Integer(_) | StructuralTerm::Float(_) => true,
-            StructuralTerm::ScalarBinary { left, right, .. } => complete(left) && complete(right),
+            StructuralTerm::ScalarBinary { left, right, .. }
+            | StructuralTerm::MathematicalBinary { left, right, .. } => {
+                complete(left) && complete(right)
+            }
+            StructuralTerm::IntegerEmbedding { value, .. } => complete(value),
             _ => false,
         }
     }
@@ -422,11 +467,25 @@ pub(super) fn structural_term(
     if let Some(term) = bindings.and_then(|bindings| bindings(expression)) {
         return Some(term);
     }
+    if let Some((_, argument)) =
+        crate::proof_contracts::proof_embeddings::integer_embedding_argument(program, expression)
+    {
+        return integer_embedding_term(
+            program,
+            expression,
+            structural_term(program, scope, frame, argument, bindings)?,
+        );
+    }
     if let Some(value) = super::proof_integer::anonymous_integer_value(program, expression) {
         return Some(StructuralTerm::Integer(value));
     }
     match program.expression_table.expression(expression) {
         ExpressionNode::Name(path) => {
+            if program.symbols.builtin_type_member(path.symbol)
+                == Some(symbols::BuiltinTypeMember::AddressBound)
+            {
+                return Some(StructuralTerm::BoundValue(path.symbol));
+            }
             let members = program.expression_table.name_path_members(path.members);
             match members {
                 [single] => {

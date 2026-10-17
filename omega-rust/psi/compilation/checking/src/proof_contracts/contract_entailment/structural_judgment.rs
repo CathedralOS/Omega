@@ -70,6 +70,20 @@ pub(super) enum StructuralTerm {
     },
     /// Exact literal value, independent of radix or authored spelling.
     Integer(numerics::bignum::BigInt),
+    /// Exact mathematical observation of one already evaluated integer or
+    /// address. Its declared carrier supplies bounds, never a new value or
+    /// permission to reread the source storage.
+    IntegerEmbedding {
+        reference: TypeReferenceHandle,
+        value: Box<StructuralTerm>,
+    },
+    /// Builtin unbounded integer meaning, distinct from every finite runtime
+    /// carrier and its arithmetic policy. Children retain captured identities.
+    MathematicalBinary {
+        operator: BinaryOperator,
+        left: Box<StructuralTerm>,
+        right: Box<StructuralTerm>,
+    },
     /// A determinate float literal, carried as its exact decimal spelling.
     /// UndeterminedNaN never termifies, so this term is never NaN from
     /// source text; synthesized spellings are still NaN-checked where the
@@ -153,6 +167,13 @@ mod rewrite_table;
 mod term_identity;
 
 impl StructuralTerm {
+    pub(super) fn is_mathematical_predicate(&self) -> bool {
+        matches!(self.semantic_value(), Self::MathematicalBinary { operator, .. }
+            if matches!(operator, BinaryOperator::Equal | BinaryOperator::NotEqual
+                | BinaryOperator::Less | BinaryOperator::LessOrEqual
+                | BinaryOperator::Greater | BinaryOperator::GreaterOrEqual))
+    }
+
     fn is_closed_value(&self) -> bool {
         match self {
             Self::Integer(_) => true,
@@ -676,13 +697,19 @@ impl<'program> StructuralJudge<'program> {
         {
             self.intake_preserved_predicate(binary.left);
             self.intake_preserved_predicate(binary.right);
-        } else if self
-            .declaration_expression_type(fact)
-            .and_then(|reference| program.primitive_type_reference(reference))
-            == Some(typed_trees::types::PrimitiveType::Bool)
-            && let Some(term @ StructuralTerm::ScalarBinary { .. }) = self.declaration_term(fact)
-        {
-            self.intake_equation(term, value_predicates::boolean_term(true), 0);
+        } else if let Some(term) = self.declaration_term(fact) {
+            let predicate = match &term {
+                StructuralTerm::MathematicalBinary { .. } => term.is_mathematical_predicate(),
+                StructuralTerm::ScalarBinary { .. } => {
+                    self.declaration_expression_type(fact)
+                        .and_then(|reference| program.primitive_type_reference(reference))
+                        == Some(typed_trees::types::PrimitiveType::Bool)
+                }
+                _ => false,
+            };
+            if predicate {
+                self.intake_equation(term, value_predicates::boolean_term(true), 0);
+            }
         }
     }
 
@@ -744,6 +771,8 @@ impl<'program> StructuralJudge<'program> {
                 | StructuralTerm::CapturedValue { .. }
                 | StructuralTerm::Projection { .. }
                 | StructuralTerm::IndexedValue { .. }
+                | StructuralTerm::MathematicalBinary { .. }
+                | StructuralTerm::IntegerEmbedding { .. }
                 | StructuralTerm::ScalarBinary { .. },
                 _,
             ) => {
@@ -757,6 +786,8 @@ impl<'program> StructuralJudge<'program> {
                 | StructuralTerm::CapturedValue { .. }
                 | StructuralTerm::Projection { .. }
                 | StructuralTerm::IndexedValue { .. }
+                | StructuralTerm::MathematicalBinary { .. }
+                | StructuralTerm::IntegerEmbedding { .. }
                 | StructuralTerm::ScalarBinary { .. },
             ) => {
                 if !term_contains(&left, &right) {
@@ -1056,6 +1087,29 @@ impl<'program> StructuralJudge<'program> {
                     }
                     if let Some(folded) = fold_scalar_binary(operator, meaning, &left, &right) {
                         return folded;
+                    }
+                    return resolved;
+                }
+                StructuralTerm::IntegerEmbedding { reference, value } => {
+                    let value = self.resolve_at(*value, depth + 1);
+                    return StructuralTerm::IntegerEmbedding {
+                        reference,
+                        value: Box::new(value),
+                    };
+                }
+                StructuralTerm::MathematicalBinary {
+                    operator,
+                    left,
+                    right,
+                } => {
+                    let resolved = StructuralTerm::MathematicalBinary {
+                        operator,
+                        left: Box::new(self.resolve_at(*left, depth + 1)),
+                        right: Box::new(self.resolve_at(*right, depth + 1)),
+                    };
+                    if let Some((_, replacement)) = self.rewrites.find(&resolved) {
+                        term = replacement.clone();
+                        continue;
                     }
                     return resolved;
                 }
@@ -1552,10 +1606,23 @@ impl<'program> StructuralJudge<'program> {
             return None;
         }
         let program = self.program;
+        if let Some((_, argument)) =
+            crate::proof_contracts::proof_embeddings::integer_embedding_argument(
+                program, expression,
+            )
+        {
+            return super::structural_terms::integer_embedding_term(
+                program,
+                expression,
+                self.callee_term(argument, environment, machine_environment, scope, depth + 1)?,
+            );
+        }
         match program.expression_table.expression(expression) {
             ExpressionNode::Name(path) => {
                 if path.symbol.is_valid()
-                    && program.symbols.get(path.symbol).kind == symbols::SymbolKind::Const
+                    && (program.symbols.get(path.symbol).kind == symbols::SymbolKind::Const
+                        || program.symbols.builtin_type_member(path.symbol)
+                            == Some(symbols::BuiltinTypeMember::AddressBound))
                 {
                     return Some(StructuralTerm::BoundValue(path.symbol));
                 }
@@ -1836,6 +1903,21 @@ impl<'program> StructuralJudge<'program> {
         )],
     ) -> StructuralTerm {
         match term {
+            StructuralTerm::IntegerEmbedding { reference, value } => {
+                StructuralTerm::IntegerEmbedding {
+                    reference: *reference,
+                    value: Box::new(Self::substitute_call_term(value, map, machine_map)),
+                }
+            }
+            StructuralTerm::MathematicalBinary {
+                operator,
+                left,
+                right,
+            } => StructuralTerm::MathematicalBinary {
+                operator: *operator,
+                left: Box::new(Self::substitute_call_term(left, map, machine_map)),
+                right: Box::new(Self::substitute_call_term(right, map, machine_map)),
+            },
             StructuralTerm::ObservedValue {
                 observed_type,
                 value,
@@ -1983,6 +2065,8 @@ impl<'program> StructuralJudge<'program> {
                         | StructuralTerm::CapturedValue { .. }
                         | StructuralTerm::ObservedValue { .. }
                         | StructuralTerm::ScalarBinary { .. }
+                        | StructuralTerm::MathematicalBinary { .. }
+                        | StructuralTerm::IntegerEmbedding { .. }
                         | StructuralTerm::Projection { .. }
                         | StructuralTerm::IndexedValue { .. } => StructuralTerm::Projection {
                             subject: Box::new(replacement.clone()),
@@ -2027,10 +2111,12 @@ impl<'program> StructuralJudge<'program> {
                 Self::self_applications(collection, selected_target, found);
                 Self::self_applications(index, selected_target, found);
             }
-            StructuralTerm::Projection { subject, .. } => {
+            StructuralTerm::Projection { subject, .. }
+            | StructuralTerm::IntegerEmbedding { value: subject, .. } => {
                 Self::self_applications(subject, selected_target, found)
             }
-            StructuralTerm::ScalarBinary { left, right, .. } => {
+            StructuralTerm::ScalarBinary { left, right, .. }
+            | StructuralTerm::MathematicalBinary { left, right, .. } => {
                 Self::self_applications(left, selected_target, found);
                 Self::self_applications(right, selected_target, found);
             }
@@ -2522,6 +2608,8 @@ impl<'program> StructuralJudge<'program> {
             | StructuralTerm::BoundProjection { .. }
             | StructuralTerm::Opaque(_)
             | StructuralTerm::ScalarBinary { .. }
+            | StructuralTerm::MathematicalBinary { .. }
+            | StructuralTerm::IntegerEmbedding { .. }
             | StructuralTerm::Projection { .. }
             | StructuralTerm::IndexedValue { .. } => None,
         }

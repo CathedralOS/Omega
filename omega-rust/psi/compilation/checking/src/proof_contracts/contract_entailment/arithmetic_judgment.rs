@@ -1372,7 +1372,9 @@ impl<'program> Engine<'program> {
             })
     }
 
-    fn address_model_bound(&mut self) -> Option<Polynomial> {
+    pub(in crate::proof_contracts::contract_entailment) fn address_model_bound(
+        &mut self,
+    ) -> Option<Polynomial> {
         let bound = self
             .program
             .symbols

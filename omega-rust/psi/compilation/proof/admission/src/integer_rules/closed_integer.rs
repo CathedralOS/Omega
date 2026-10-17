@@ -90,6 +90,21 @@ impl ClosedIntegerEvaluator {
             }
             match term {
                 IntegerMathTerm::MathValue { .. } | IntegerMathTerm::IntegerLiteral(_) => {}
+                IntegerMathTerm::Embed(scalar) => {
+                    let mut pending = vec![(scalar.as_ref(), depth + 1)];
+                    while let Some((scalar, depth)) = pending.pop() {
+                        charge_limit(&mut self.term_nodes, 1, MAXIMUM_TERM_NODES)?;
+                        if depth > MAXIMUM_TERM_DEPTH {
+                            return Err(ClosedIntegerEvaluationError::ResourceLimitExceeded);
+                        }
+                        pending.extend(
+                            scalar
+                                .operands()
+                                .into_iter()
+                                .map(|operand| (operand, depth + 1)),
+                        );
+                    }
+                }
                 term => {
                     for operand in term.operands().into_iter().rev() {
                         pending.push((operand, depth + 1));
@@ -107,6 +122,12 @@ impl ClosedIntegerEvaluator {
     ) -> Result<Option<BigInt>, ClosedIntegerEvaluationError> {
         let (left, right) = match term {
             IntegerMathTerm::MathValue { .. } => return Ok(None),
+            IntegerMathTerm::Embed(scalar) => {
+                self.charge(8, 8)?;
+                return Ok(scalar.integer_value().map(|(_, value)| {
+                    big_integer_literal(IntegerMathLiteral::from_integer_value(value))
+                }));
+            }
             IntegerMathTerm::IntegerLiteral(literal) => {
                 self.charge(8, 8)?;
                 return Ok(Some(big_integer_literal(*literal)));
@@ -172,7 +193,9 @@ impl ClosedIntegerEvaluator {
             IntegerMathTerm::Subtract(_, _) => left.sub(&right),
             IntegerMathTerm::Multiply(_, _) => left.mul(&right),
             IntegerMathTerm::ShiftLeft { .. } => left.shl_bits(shift_count),
-            IntegerMathTerm::MathValue { .. } | IntegerMathTerm::IntegerLiteral(_) => {
+            IntegerMathTerm::MathValue { .. }
+            | IntegerMathTerm::IntegerLiteral(_)
+            | IntegerMathTerm::Embed(_) => {
                 return Ok(None);
             }
         };
@@ -309,6 +332,31 @@ mod tests {
         assert_eq!(
             compare_integer_math_terms(&shift(integer(1), integer(-1)), &integer(0)),
             Ok(None)
+        );
+    }
+
+    #[test]
+    fn embedding_observes_wrapped_result_not_unbounded_sum() {
+        use semantic_vocabulary::ScalarTerm;
+        let byte = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+        let scalar = ScalarTerm::WrappingIntegerAdd {
+            scalar_type: byte,
+            left: Box::new(ScalarTerm::integer(byte, IntegerValue::Unsigned(255)).unwrap()),
+            right: Box::new(ScalarTerm::integer(byte, IntegerValue::Unsigned(1)).unwrap()),
+        };
+        let embedded = IntegerMathTerm::embed(scalar).unwrap();
+        assert_eq!(
+            compare_integer_math_terms(&embedded, &integer(0)),
+            Ok(Some(Ordering::Equal))
+        );
+        assert_eq!(
+            compare_integer_math_terms(&embedded, &integer(256)),
+            Ok(Some(Ordering::Less))
+        );
+        let mathematical = IntegerMathTerm::Add(Box::new(integer(255)), Box::new(integer(1)));
+        assert_eq!(
+            compare_integer_math_terms(&mathematical, &integer(256)),
+            Ok(Some(Ordering::Equal))
         );
     }
 

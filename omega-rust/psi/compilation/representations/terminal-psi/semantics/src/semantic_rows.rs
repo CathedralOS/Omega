@@ -104,8 +104,10 @@ pub enum OperationSemanticError {
         right: ScalarType,
     },
     ExactArithmeticRequiresValueOrLiteralOperand,
-    ExactCastRequiresFixedSourceInteger(IntegerType),
-    ExactCastRequiresFixedTargetInteger(IntegerType),
+    ExactCastUnsupportedCarriers {
+        source: IntegerType,
+        target: IntegerType,
+    },
     ExactCastOperandTypeMismatch {
         declared: IntegerType,
         actual: ScalarType,

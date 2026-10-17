@@ -100,6 +100,9 @@ impl Budget {
         depth: usize,
     ) -> Result<(), PredicateDenotationError> {
         self.step(depth)?;
+        if let IntegerMathTerm::Embed(term) = value {
+            return self.scalar(term, depth + 1);
+        }
         for operand in value.operands() {
             self.mathematical(operand, depth + 1)?;
         }

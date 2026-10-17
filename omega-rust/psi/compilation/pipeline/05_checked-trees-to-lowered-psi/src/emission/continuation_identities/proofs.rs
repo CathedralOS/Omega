@@ -63,6 +63,7 @@ impl super::IdentityMap {
         let mut pending = vec![term];
         while let Some(term) = pending.pop() {
             match term {
+                IntegerMathTerm::Embed(term) => self.scalar_term(term),
                 IntegerMathTerm::MathValue { value, .. } => *value = self.value(*value),
                 IntegerMathTerm::IntegerLiteral(_) => {}
                 IntegerMathTerm::Add(left, right)

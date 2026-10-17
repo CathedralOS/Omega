@@ -494,15 +494,11 @@ fn exact_cast_representability_proposition(
     target_type: IntegerType,
     operand: &ScalarTerm,
 ) -> Result<Proposition, OperationSemanticError> {
-    if source_type.carrier() != IntegerCarrier::Fixed {
-        return Err(OperationSemanticError::ExactCastRequiresFixedSourceInteger(
-            source_type,
-        ));
-    }
-    if target_type.carrier() != IntegerCarrier::Fixed {
-        return Err(OperationSemanticError::ExactCastRequiresFixedTargetInteger(
-            target_type,
-        ));
+    if !source_type.can_exact_cast_to(target_type) {
+        return Err(OperationSemanticError::ExactCastUnsupportedCarriers {
+            source: source_type,
+            target: target_type,
+        });
     }
     if operand.scalar_type() != ScalarType::Integer(source_type) {
         return Err(OperationSemanticError::ExactCastOperandTypeMismatch {

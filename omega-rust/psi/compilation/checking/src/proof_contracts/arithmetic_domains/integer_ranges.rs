@@ -253,17 +253,24 @@ pub(crate) fn primitive_range(primitive: PrimitiveType) -> Option<Interval> {
 }
 
 /// Whether every value admitted by `source` is representable by the target
-/// integer carrier. Unbounded endpoints compare structurally: an unbounded
-/// source side is accepted only when the target is unbounded on that side too.
+/// integer carrier. Unknown interval endpoints use exact fixed-carrier bounds,
+/// never infinity. The address ceiling remains symbolic; a finite observed
+/// address interval can still prove conversion to a fixed integer.
 pub(crate) fn integer_interval_fits_primitive(
     source: Interval,
     source_primitive: PrimitiveType,
     target: PrimitiveType,
 ) -> bool {
+    // An unknown endpoint is an interval approximation, not an unbounded
+    // destination carrier. Address fit needs the selected model's symbolic
+    // bound; identity alone is independent of that model.
+    if target == PrimitiveType::Addr {
+        return source_primitive == target;
+    }
     let Some(source_range) = primitive_range(source_primitive) else {
         return false;
     };
-    let Some(target) = primitive_range(target) else {
+    let Some((target_minimum, target_maximum)) = target.integer_bounds() else {
         return false;
     };
     // Every runtime value is already constrained by its source carrier. Keep a
@@ -276,17 +283,19 @@ pub(crate) fn integer_interval_fits_primitive(
     } else {
         source_range
     };
-    let low_fits = match (source.low, target.low) {
-        (_, None) => true,
-        (Some(source), Some(target)) => source >= target,
-        (None, Some(_)) => false,
-    };
-    let high_fits = match (source.high, target.high) {
-        (_, None) => true,
-        (Some(source), Some(target)) => source <= target,
-        (None, Some(_)) => false,
-    };
-    low_fits && high_fits
+    let fixed_source = (source_primitive != PrimitiveType::Addr)
+        .then(|| source_primitive.integer_bounds())
+        .flatten();
+    let minimum = source
+        .low
+        .map(i128::from)
+        .or_else(|| fixed_source.map(|bounds| bounds.0));
+    let maximum = source
+        .high
+        .map(i128::from)
+        .or_else(|| fixed_source.map(|bounds| bounds.1));
+    minimum.is_some_and(|minimum| minimum >= target_minimum)
+        && maximum.is_some_and(|maximum| maximum <= target_maximum)
 }
 
 /// The bit width of an integer primitive (the F8 shift-count bound), or `None`

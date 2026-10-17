@@ -71,7 +71,7 @@ pub(super) fn analyze(
         diagnostics,
     );
     require_float_to_integer_denotation(walk, cast, &source, primitive, diagnostics);
-    require_exact_integer_fit(walk, expression, &source, primitive, diagnostics);
+    let exact_fit = require_exact_integer_fit(walk, expression, &source, primitive, diagnostics);
     if !diagnostics[first_diagnostic..]
         .iter()
         .any(Diagnostic::is_error)
@@ -79,8 +79,9 @@ pub(super) fn analyze(
         && source_type != target_type
         && primitive_range(source_type).is_some()
         && primitive_range(target_type).is_some()
-        && integer_interval_fits_primitive(source.interval, source_type, target_type)
-        && let (Some(minimum), Some(maximum)) = (source_interval.low, source_interval.high)
+        && exact_fit
+        && let Some((minimum, maximum)) =
+            checked_cast_bounds(source_interval, source_type, target_type)
     {
         decisions
             .exact_integer_casts
@@ -88,8 +89,8 @@ pub(super) fn analyze(
                 expression,
                 source_type,
                 target_type,
-                minimum: numerics::bignum::BigInt::from_i64(minimum),
-                maximum: numerics::bignum::BigInt::from_i64(maximum),
+                minimum,
+                maximum,
             });
     }
     Analysis {
@@ -237,13 +238,28 @@ fn require_exact_integer_fit(
     source: &Analysis,
     primitive: Option<PrimitiveType>,
     diagnostics: &mut Vec<Diagnostic>,
-) {
-    if let Some(source_primitive) = source
+) -> bool {
+    let Some(source_primitive) = source
         .primitive
         .filter(|source| primitive_range(*source).is_some())
-        && let Some(target) = primitive.filter(|target| primitive_range(*target).is_some())
-        && !integer_interval_fits_primitive(source.interval, source_primitive, target)
-    {
+    else {
+        return false;
+    };
+    let Some(target) = primitive.filter(|target| primitive_range(*target).is_some()) else {
+        return false;
+    };
+    let fits = integer_interval_fits_primitive(source.interval, source_primitive, target)
+        || (walk.checks_occurrence_fit
+            && (source_primitive == PrimitiveType::Addr || target == PrimitiveType::Addr)
+            && walk.state.is_some_and(|state| {
+                crate::proof_contracts::contract_entailment::exact_cast_fits_at_occurrence(
+                    walk.program,
+                    walk.machine,
+                    state,
+                    expression,
+                )
+            }));
+    if !fits && walk.checks_occurrence_fit {
         let source_span = walk.program.expression_table.source_span(expression);
         // The executing scanner and enclosing arithmetic walk can both reach
         // this same authored coercion. Its occurrence owns one obligation;
@@ -254,23 +270,60 @@ fn require_exact_integer_fit(
                     && existing.message.starts_with("Exact integer cast in ")
             })
         {
-            return;
+            return false;
         }
         diagnostics.push(
             Diagnostic::error(format!(
                 "Exact integer cast in machine `{}`{} from `{}` to `{}` is not provably \
-             representable; constrain the source with a range or dominating guard, \
-             or use a named Wrapping, Saturating, or Trapping conversion.",
+                 representable; {}",
                 walk.machine.name,
                 walk.state
                     .map(|state| format!(" state `{}`", state.name))
                     .unwrap_or_default(),
                 primitive_name(source_primitive),
                 primitive_name(target),
+                if target == PrimitiveType::Addr {
+                    "prove 0 <= embed(source) < addr::Bound at this occurrence; count and address widths are independent."
+                } else if source_primitive == PrimitiveType::Addr {
+                    "prove the embedded address fits the destination integer range at this occurrence; count and address widths are independent."
+                } else {
+                    "constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion."
+                },
             ))
             .with_source_span(source_span),
         );
     }
+    fits
+}
+
+/// Retain payload bounds only after fit has been established. A symbolic
+/// address ceiling cannot be squeezed into an i64 interval; fixed carriers
+/// supply their exact endpoints, and an address-to-fixed proof supplies the
+/// destination endpoint. Unknown never means infinity or successful fit.
+fn checked_cast_bounds(
+    interval: Interval,
+    source: PrimitiveType,
+    target: PrimitiveType,
+) -> Option<(numerics::bignum::BigInt, numerics::bignum::BigInt)> {
+    use numerics::bignum::BigInt;
+    let source_bounds = (source != PrimitiveType::Addr)
+        .then(|| source.integer_bounds())
+        .flatten();
+    let target_bounds = (target != PrimitiveType::Addr)
+        .then(|| target.integer_bounds())
+        .flatten();
+    let minimum = interval
+        .low
+        .map(i128::from)
+        .or_else(|| source_bounds.map(|bounds| bounds.0))?
+        .max(target_bounds.map_or(0, |bounds| bounds.0));
+    let maximum = interval
+        .high
+        .map(i128::from)
+        .or_else(|| source_bounds.map(|bounds| bounds.1))
+        .or_else(|| target_bounds.map(|bounds| bounds.1))?;
+    let maximum = target_bounds.map_or(maximum, |bounds| maximum.min(bounds.1));
+    (minimum <= maximum).then(|| (BigInt::from_i128(minimum), BigInt::from_i128(maximum)))
 }
 
 /// Numeric conversion of a Boolean preserves its binary value. Keep that

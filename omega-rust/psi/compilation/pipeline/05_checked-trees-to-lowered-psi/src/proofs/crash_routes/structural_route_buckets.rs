@@ -676,6 +676,16 @@ pub(crate) fn substitute_structural_crash_route_roots(
         >,
     ) -> Result<(), LoweringError> {
         match proposition {
+            semantic_vocabulary::integer_math_comparison_operands!(left, right) => {
+                let mut pending = vec![left, right];
+                while let Some(term) = pending.pop() {
+                    if let semantic_vocabulary::IntegerMathTerm::Embed(scalar) = term {
+                        substitute_term(scalar, substitutions)?;
+                    } else {
+                        pending.extend(term.operands_mut());
+                    }
+                }
+            }
             semantic_vocabulary::ordered_comparison_operands!(left, right) => {
                 substitute_term(left, substitutions)?;
                 substitute_term(right, substitutions)?;
@@ -746,12 +756,7 @@ pub(crate) fn substitute_structural_crash_route_roots(
             Proposition::ContentConservation(_) => {
                 return unsupported("content conservation requires its own call correspondence");
             }
-            Proposition::Truth
-            | Proposition::Falsehood
-            | Proposition::Atom(_)
-            | Proposition::IntegerMathEqual(..)
-            | Proposition::IntegerMathLessThan(..)
-            | Proposition::IntegerMathLessOrEqual(..) => {}
+            Proposition::Truth | Proposition::Falsehood | Proposition::Atom(_) => {}
         }
         Ok(())
     }

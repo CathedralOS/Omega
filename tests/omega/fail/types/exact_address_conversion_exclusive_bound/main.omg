@@ -1,0 +1,4 @@
+machine invalid(value: u64) -> addr
+requires embed(value) == addr::Bound
+{ value as addr }
+machine main() {}
