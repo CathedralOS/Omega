@@ -435,8 +435,8 @@ fail/atomics/case_payload_non_event_write rejected 930ms expected @a9ae30e1c334+
 	machine `overwrite` state `entry` assignment cannot write `choice` because it is not mutable in this state (if `choice` is undeclared -- a typo -- no such field or local exists)
 fail/atomics/fence_authored_bodyless_lookalike rejected 10ms expected @b2d763407d51+wt
 	`Atomic::fence` names a compiler primitive, but only the sealed toolchain declaration supplies it; merely naming a declaration `Atomic::fence` grants no primitive implementation or proof authority
-fail/atomics/fence_does_not_identify_observations rejected 413ms expected @289501b5c2fe+wt
-	cannot prove requires contract for call same from observe: before == after (needs fact `before == after` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/atomics/fence_does_not_identify_observations rejected 1401ms expected @1c8b4ab0e733+wt
+	cannot prove requires contract for call same from observe: before == after (needs fact `before == after` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/atomics/fence_false_result_case rejected 375ms expected @b2d763407d51+wt
 	cannot prove ensures contract for exit from wrong at statement 0: result == FenceOrdering::Publish
 fail/atomics/fence_no_ordering rejected 167ms expected @b2d763407d51+wt
@@ -6146,16 +6146,17 @@ pass/atomics/runtime_atomic_after_quoted_write_exit checked 10962ms check-target
 pass/atomics/runtime_atomic_bitwise_widths_exit checked 11190ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/atomics/runtime_atomic_case_field_state_exit checked 4692ms check-target:macos_arm64 @6c0183cab07b
 pass/atomics/runtime_atomic_compare_exchange_exit checked 10896ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/atomics/runtime_atomic_computed_operands_exit checked 5819ms check-target:macos_arm64 @e460ea1df091+wt
+pass/atomics/runtime_atomic_computed_operands_exit checked 8321ms check-target:macos_arm64 @1c8b4ab0e733+wt
 pass/atomics/runtime_atomic_computed_updates_exit checked 5819ms check-target:macos_arm64 @e460ea1df091+wt
 pass/atomics/runtime_atomic_fence_captured_ordering_exit checked 4305ms check-target:macos_arm64 @b2d763407d51+wt
-pass/atomics/runtime_atomic_fences_exit checked 4314ms check-target:macos_arm64 @b2d763407d51+wt
+pass/atomics/runtime_atomic_fences_exit checked 8164ms check-target:macos_arm64 @1c8b4ab0e733+wt
 pass/atomics/runtime_atomic_fetch_add_exit checked 10884ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/atomics/runtime_atomic_operand_order_exit checked 5819ms check-target:macos_arm64 @e460ea1df091+wt
 pass/atomics/runtime_authored_fence_name_exit checked 4288ms check-target:macos_arm64 @b2d763407d51+wt
 pass/atomics/runtime_case_payload_atomic_events_exit checked 4669ms check-target:macos_arm64 @6c0183cab07b
 pass/atomics/runtime_mixed_common_atomic_cell_exit checked 10589ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/atomics/runtime_nested_case_payload_atomic_event_exit checked 4666ms check-target:macos_arm64 @6c0183cab07b
+pass/atomics/runtime_projected_state_operands_exit checked 7742ms check-target:linux_x86_64 @1c8b4ab0e733+wt
 pass/atomics/runtime_shared_case_waived_atomic_exit checked 11071ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/atomics/runtime_stored_reference_atomic_events_exit checked 10420ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/atomics/shared_receiver_atomic_store checked 11103ms check-target:macos_arm64 @a9ae30e1c334+wt

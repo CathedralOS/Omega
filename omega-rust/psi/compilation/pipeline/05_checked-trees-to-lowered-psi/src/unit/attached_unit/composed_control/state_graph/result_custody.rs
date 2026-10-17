@@ -42,3 +42,30 @@ pub(super) fn local_loan_backing(
     lent.source
         .current_result_binding(&state.operations[..position])
 }
+
+/// The storage an edge borrows, independent of whether its reference formation
+/// is a direct projection or an already completed operand. A completed
+/// descriptor lends its source only through its explicit referent presentation.
+pub(super) fn loan_subject<'plans>(
+    source: &'plans checked_trees::CheckedStructuralControlTransferSourcePlan,
+    values: &'plans checked_trees::CheckedStructuralValuePlans,
+) -> Option<(
+    &'plans checked_trees::CheckedUnitStructuralArgumentPlan,
+    bool,
+)> {
+    use checked_trees::{
+        CheckedStructuralControlTransferSourcePlan as Source,
+        CheckedUnitStructuralPathSegment as Path,
+    };
+    match source {
+        Source::ProjectedLoan { subject, .. } => Some((subject, false)),
+        Source::EstablishedValue {
+            establishment,
+            presentation,
+            ..
+        } if matches!(presentation.path.first(), Some(Path::Referent)) => establishment
+            .established_reference_source(values)
+            .map(|subject| (subject, presentation.path.len() != 1)),
+        _ => None,
+    }
+}

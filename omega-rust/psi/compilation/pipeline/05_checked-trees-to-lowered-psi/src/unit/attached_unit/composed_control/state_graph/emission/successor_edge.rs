@@ -260,6 +260,17 @@ impl StateGraphEmission<'_, '_> {
                                             Some((next_value, operations)),
                                         )?;
                                         self.catalogs.scalar_calls.next_call_obligation = calls.next_obligation_identity;
+                                        if super::super::result_custody::loan_subject(&transfer.source, &checked.facts.values.structural_values).is_some() {
+                                            let source = operations.iter().find_map(|operation| {
+                                                if operation.result.structural().is_some_and(|result| result.place == place) {
+                                                    match &operation.kind { OperationKind::EstablishReference { source, .. } => Some(source), _ => None }
+                                                } else { None }
+                                            }).ok_or(LoweringError::Unsupported("completed state reference lost its emitted formation"))?;
+                                            captured_backing = Some((source.place, source.path.clone()));
+                                            if let Some(group) = self.captured_loans.group(target, target_index as u32) {
+                                                captured_loans.push((group, place));
+                                            }
+                                        }
                                         completed_binding = Some(binding);
                                         Ok(place)
                                     })
@@ -587,9 +598,14 @@ impl StateGraphEmission<'_, '_> {
                 if chain_arrival.is_some() {
                     let lender = match &transfer.source {
                         checked_trees::CheckedStructuralControlTransferSourcePlan::EstablishedValue { .. } => {
-                            Some(std::borrow::Cow::Borrowed(completed_binding.as_ref().ok_or(
-                                LoweringError::Unsupported("Unit graph completed loan lost its emitted home"),
-                            )?))
+                            if let Some(binding) = super::super::result_custody::loan_subject(&transfer.source, &checked.facts.values.structural_values)
+                                .and_then(|(subject, _)| subject.source.current_result_binding(&state.operations)) {
+                                Some(case_emission::result(state, binding, operations)?)
+                            } else {
+                                Some(std::borrow::Cow::Borrowed(completed_binding.as_ref().ok_or(
+                                    LoweringError::Unsupported("Unit graph completed loan lost its emitted home"),
+                                )?))
+                            }
                         }
                         checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedLoan { subject, .. } => {
                             subject.source.current_result_binding(&state.operations)
@@ -636,7 +652,10 @@ impl StateGraphEmission<'_, '_> {
                 {
                     let loaned_binding = match &transfer.source {
                         checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult { binding_ordinal } => Some(*binding_ordinal),
-                        checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedLoan { subject, .. } => subject.source.current_result_binding(&state.operations),
+                        checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedLoan { .. }
+                        | checked_trees::CheckedStructuralControlTransferSourcePlan::EstablishedValue { .. } =>
+                            super::super::result_custody::loan_subject(&transfer.source, &checked.facts.values.structural_values)
+                                .and_then(|(subject, _)| subject.source.current_result_binding(&state.operations)),
                         // A subslice of an owned local lends that local's home,
                         // not a fresh array. The descriptor is the successor's
                         // parameter; the home stays with the activation.

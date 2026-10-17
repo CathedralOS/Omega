@@ -71,6 +71,7 @@ fn forwarded(source: &Source) -> Option<u32> {
 impl CapturedLoans {
     pub(super) fn plan(
         plan: &CheckedComposedUnitControlMachinePlan,
+        values: &checked_trees::CheckedStructuralValuePlans,
         live: &[bool],
         views: &[Vec<StructuralParameterDeclaration>],
         headers: &[BlockId],
@@ -153,33 +154,50 @@ impl CapturedLoans {
                             "captured loan target disappeared",
                         ))?;
                 for transfer in &edge.transfers {
-                    if let Source::ProjectedLoan {
-                        carrier_type_identity,
-                        subject,
-                        ..
-                    } = &transfer.source
-                        && carrier_type_identity.is_valid()
-                        && subject.path.iter().any(|segment| {
+                    let carrier_type_identity = match &transfer.source {
+                        Source::ProjectedLoan {
+                            carrier_type_identity,
+                            subject,
+                            ..
+                        } if subject.path.iter().any(|segment| {
                             matches!(segment,
-                            checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex(_)
-                            | checked_trees::CheckedUnitStructuralPathSegment::ComputedIndex(_))
-                        })
+                                checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex(_)
+                                | checked_trees::CheckedUnitStructuralPathSegment::ComputedIndex(_))
+                        }) =>
+                        {
+                            Some(*carrier_type_identity)
+                        }
+                        Source::EstablishedValue { establishment, .. }
+                            if super::super::result_custody::loan_subject(
+                                &transfer.source,
+                                values,
+                            )
+                            .is_some() =>
+                        {
+                            establishment
+                                .structural_result_binding()
+                                .map(|result| result.type_identity)
+                        }
+                        _ => None,
+                    };
+                    if let Some(carrier_type_identity) =
+                        carrier_type_identity.filter(|identity| identity.is_valid())
                     {
                         let group = nodes[target][transfer.target_parameter_index as usize];
                         if let Some((_, previous)) =
                             types.iter().find(|(candidate, _)| *candidate == group)
                         {
-                            if previous != carrier_type_identity {
+                            if *previous != carrier_type_identity {
                                 return Err(LoweringError::Unsupported(
                                     "captured loan forwarding changes descriptor type",
                                 ));
                             }
                         } else {
-                            types.push((group, *carrier_type_identity));
+                            types.push((group, carrier_type_identity));
                         }
                         let carrier = crate::terminal_identities::lookup_type_id(
                             &catalogs.type_ids,
-                            carrier_type_identity,
+                            &carrier_type_identity,
                         )?;
                         if plan.states[target].structural_parameters
                             [transfer.target_parameter_index as usize]
@@ -226,7 +244,8 @@ impl CapturedLoans {
                             "captured loan target disappeared",
                         ))?;
                 for transfer in &edge.transfers {
-                    if let Source::ProjectedLoan { subject, .. } = &transfer.source
+                    if let Some((subject, _)) =
+                        super::super::result_custody::loan_subject(&transfer.source, values)
                         && let Root::Parameter { parameter_index } = subject.source
                     {
                         let parent = nodes[position][parameter_index as usize];

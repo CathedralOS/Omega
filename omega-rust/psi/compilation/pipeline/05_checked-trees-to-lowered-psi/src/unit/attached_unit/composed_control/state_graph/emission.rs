@@ -560,6 +560,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
     };
     let loan_chains = loan_chains::LoanChains::plan(
         plan,
+        &checked.facts.values.structural_values,
         &admitted.live,
         &admitted.entry_aliases,
         entry_reentered,
@@ -581,6 +582,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         .collect();
     let captured_loans = captured_loans::CapturedLoans::plan(
         plan,
+        &checked.facts.values.structural_values,
         &admitted.live,
         &state_views,
         &state_ids,

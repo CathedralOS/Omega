@@ -162,6 +162,7 @@ impl LoanChains {
     /// dense order, before emission.
     pub(super) fn plan(
         plan: &CheckedComposedUnitControlMachinePlan,
+        values: &checked_trees::CheckedStructuralValuePlans,
         live: &[bool],
         aliased: &[BTreeMap<u32, u32>],
         entry_reentered: bool,
@@ -237,7 +238,7 @@ impl LoanChains {
                     .enumerate()
                 {
                     let destination = node(target, dense as u32);
-                    match loan_source(&transfer.source, &state.operations) {
+                    match loan_source(&transfer.source, &state.operations, values) {
                         LoanSource::Local { binding, projected } => {
                             if let Some(destination) = destination {
                                 arrivals[destination].push(Arrival::Local {
@@ -298,7 +299,7 @@ impl LoanChains {
                             // home exactly as a whole shared loan does.
                             if !block_owned(source)
                                 && let Some(binding) =
-                                    projected_local(&transfer.source, &state.operations)
+                                    projected_local(&transfer.source, &state.operations, values)
                             {
                                 entry_loans.entry(binding).or_default().push(None);
                             }
@@ -769,7 +770,27 @@ fn retain_unless_lent(
 fn loan_source(
     source: &CheckedStructuralControlTransferSourcePlan,
     operations: &[checked_trees::CheckedUnitEffectOperationPlan],
+    values: &checked_trees::CheckedStructuralValuePlans,
 ) -> LoanSource {
+    if let Some((subject, projected)) = super::super::result_custody::loan_subject(source, values) {
+        if let Some(binding) = subject.source.current_result_binding(operations) {
+            return LoanSource::Local {
+                binding,
+                projected: projected || !subject.path.is_empty(),
+            };
+        }
+        return match subject.source {
+            CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index }
+                if !projected && subject.path.is_empty() =>
+            {
+                LoanSource::Parameter(parameter_index)
+            }
+            CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => {
+                LoanSource::ProjectedParameter(parameter_index)
+            }
+            _ => LoanSource::Other,
+        };
+    }
     match source {
         CheckedStructuralControlTransferSourcePlan::EstablishedValue {
             establishment,
@@ -795,23 +816,6 @@ fn loan_source(
         CheckedStructuralControlTransferSourcePlan::Parameter { index } => {
             LoanSource::Parameter(*index)
         }
-        CheckedStructuralControlTransferSourcePlan::ProjectedLoan { subject, .. } => {
-            if let Some(binding) = subject.source.current_result_binding(operations) {
-                return LoanSource::Local {
-                    binding,
-                    projected: !subject.path.is_empty(),
-                };
-            }
-            match (&subject.source, subject.path.is_empty()) {
-                (CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index }, true) => {
-                    LoanSource::Parameter(*parameter_index)
-                }
-                (CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index }, false) => {
-                    LoanSource::ProjectedParameter(*parameter_index)
-                }
-                _ => LoanSource::Other,
-            }
-        }
         _ => LoanSource::Other,
     }
 }
@@ -820,13 +824,12 @@ fn loan_source(
 fn projected_local(
     source: &CheckedStructuralControlTransferSourcePlan,
     operations: &[checked_trees::CheckedUnitEffectOperationPlan],
+    values: &checked_trees::CheckedStructuralValuePlans,
 ) -> Option<u32> {
-    match source {
-        CheckedStructuralControlTransferSourcePlan::ProjectedLoan { subject, .. } => {
-            subject.source.current_result_binding(operations)
-        }
-        _ => None,
-    }
+    super::super::result_custody::loan_subject(source, values)?
+        .0
+        .source
+        .current_result_binding(operations)
 }
 
 fn representative(links: &mut [usize], mut node: usize) -> usize {

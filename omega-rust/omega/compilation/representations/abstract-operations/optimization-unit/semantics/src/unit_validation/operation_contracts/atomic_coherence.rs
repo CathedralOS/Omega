@@ -62,8 +62,10 @@ pub(crate) fn validate_function_atomic_coherence(
                 {
                     return None;
                 }
-                let before = crate::unit_validation::arrival_storage::root_before_edge(edge, root)?;
-                if mapped.is_some_and(|earlier| earlier != before) {
+                let (source, path) =
+                    crate::unit_validation::arrival_storage::projection_before_edge(edge, root);
+                let before = (source, path.to_vec());
+                if mapped.as_ref().is_some_and(|earlier| earlier != &before) {
                     return None;
                 }
                 mapped = Some(before);

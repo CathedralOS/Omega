@@ -58,12 +58,18 @@ pub(crate) fn root_before_edge(
     edge: &optimization_unit::OptimizationEdge,
     place: PlaceId,
 ) -> Option<PlaceId> {
+    let (root, path) = projection_before_edge(edge, place);
+    path.is_empty().then_some(root)
+}
+
+/// Retain a binding's complete projection. The binding's type, access and
+/// availability are validated separately; this query grants no permission.
+pub(crate) fn projection_before_edge(
+    edge: &optimization_unit::OptimizationEdge,
+    place: PlaceId,
+) -> (PlaceId, &[terminal_psi::StructuralPathSegment]) {
     match edge.structural_binding(place) {
-        Some(binding) => binding
-            .argument
-            .path
-            .is_empty()
-            .then_some(binding.argument.place),
-        None => Some(place),
+        Some(binding) => (binding.argument.place, &binding.argument.path),
+        None => (place, &[]),
     }
 }

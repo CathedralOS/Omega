@@ -1,0 +1,25 @@
+// Expected exit: 0. A nested cell retains its exact address through helper
+// invocation, completed reference operands and successive named states.
+data Counter { value: AtomicU32; }
+data Counters { items: [Counter; 2]; }
+machine publish(counter: &Counter, value: u32) { counter.value.store(value, Publish); }
+machine advance(counter: &Counter, remaining: u32) -> u32 in Wrapping {
+    transition { _ -> step(counter, remaining) }
+    state step(counter: &Counter, remaining: u32) -> u32 in Wrapping {
+        let prior: u32 in Wrapping = counter.value.fetch_add(remaining, ReceivePublish);
+        transition { _ -> finished(counter) }
+    }
+    state finished(counter: &Counter) -> u32 in Wrapping {
+        let result: u32 in Wrapping = counter.value.load(Receive);
+        result
+    }
+}
+machine main() crashes Trap {
+    let counters: Counters = Counters { items: [Counter { value: 11 }, Counter { value: 3 }] };
+    publish(&counters.items[1], 37);
+    let observed: u32 in Wrapping = advance(&counters.items[1], 5);
+    let untouched: u32 in Wrapping = counters.items[0].value.load(Receive);
+    transition observed == 42 && untouched == 11 { true -> done() false -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}

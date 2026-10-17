@@ -13,17 +13,17 @@
 //! (`happens_before_atomic_coherence_violation`), so this producer must name
 //! exactly the write the event observes or immediately follows. Trace the
 //! location backward from the event, stopping at the latest write on each path.
-//! Whole-storage edge bindings rename the root while retaining its path and
-//! field. Ordinary control edges preserve a dominating name. Projected or
-//! ambiguous bindings cannot establish this exact-location relation.
+//! Exact edge bindings compose their projection prefix with the queried path,
+//! retaining the field. Ordinary control edges preserve a dominating name.
+//! Ambiguous bindings cannot establish this exact-location relation.
 //!
 //! The frontier contains invocation residency, an atomic write, or an exact
 //! intervening effect. An effect boundary expires knowledge of residency; the
 //! next instruction observes current backing without claiming an internal
 //! writer or reusing old facts. Independent replay requires that exact latest
 //! effect on every path. Only one unanimous frontier supplies a retained edge;
-//! branch-selected writes and ambiguous mutation refuse. The finite (block, root)
-//! worklist follows cycles without treating a repeated visit as new evidence.
+//! branch-selected writes and ambiguous mutation refuse. The backward worklist follows exact projected locations; a cycle that changes
+//! a projection remains unknown rather than growing an unbounded path.
 //! Event locations stay block-local so downstream authority and native address
 //! checks use the actual arrival declaration, not an invented invocation alias.
 use std::collections::{BTreeMap, BTreeSet};
@@ -207,7 +207,15 @@ fn reaching_fact(
                     (operation.id == target).then(|| match &operation.kind {
                         OperationKind::AtomicAccess {
                             place, path, field, ..
-                        } => Some((block.id, index, (*place, path.clone(), *field))),
+                        } => Some((
+                            block.id,
+                            index,
+                            AbstractAtomicLocation {
+                                root: *place,
+                                path: path.clone(),
+                                field: *field,
+                            },
+                        )),
                         _ => None,
                     })
                 })
@@ -221,15 +229,21 @@ fn reaching_fact(
         .collect::<BTreeMap<_, _>>();
     let mut reached = BTreeSet::new();
     let mut visited = BTreeSet::new();
-    let mut pending = vec![(target_block, target_index, location.0)];
-    while let Some((block, before, root)) = pending.pop() {
-        // The target prefix and a full revisit through a backedge are different
-        // execution points. A write in the latter belongs to an earlier turn.
-        if !visited.insert((block, before, root)) {
+    let mut pending = vec![(target_block, target_index, location, Vec::new())];
+    while let Some((block, before, location, mut ancestry)) = pending.pop() {
+        if !visited.insert((block, before, location.clone())) {
             continue;
         }
+        let coordinate = (block, before, location.root);
+        // A cycle that changes the projection names no stable storage
+        // coordinate. Do not grow a path forever or manufacture residency.
+        if ancestry.contains(&coordinate) {
+            reached.insert(Reaching::Unknown);
+            continue;
+        }
+        ancestry.push(coordinate);
         let declaration = blocks.get(&block).ok_or_else(unsupported)?;
-        let local = (root, location.1.clone(), location.2);
+        let local = (location.root, location.path.clone(), location.field);
         if let Some(write) = declaration.operations[..before]
             .iter()
             .rev()
@@ -243,7 +257,7 @@ fn reaching_fact(
                 if machine
                     .structural_parameters
                     .iter()
-                    .any(|row| row.place == root)
+                    .any(|row| row.place == location.root)
                 {
                     Reaching::Initial
                 } else {
@@ -257,9 +271,25 @@ fn reaching_fact(
                 continue;
             }
             has_predecessor = true;
-            match terminal_semantics::root_before_edge(machine, block, predecessor, root) {
+            match terminal_semantics::projection_before_edge(
+                machine,
+                block,
+                predecessor,
+                location.root,
+            ) {
                 Some(source) => {
-                    pending.push((predecessor.id, predecessor.operations.len(), source))
+                    let mut path = source.path.to_vec();
+                    path.extend_from_slice(&location.path);
+                    pending.push((
+                        predecessor.id,
+                        predecessor.operations.len(),
+                        AbstractAtomicLocation {
+                            root: source.root,
+                            path,
+                            field: location.field,
+                        },
+                        ancestry.clone(),
+                    ));
                 }
                 None => {
                     reached.insert(Reaching::Unknown);

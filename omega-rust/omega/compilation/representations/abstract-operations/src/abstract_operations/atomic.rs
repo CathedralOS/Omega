@@ -528,8 +528,9 @@ impl AbstractAtomicEvent {
 /// binding. Each path stops at its latest write or at the actual invocation
 /// entrance. Only the singleton initial fact or one exact latest writer can
 /// authorize a claim; revisiting a cycle supplies no initial-residency fact.
-/// `root_before_edge` receives predecessor, successor and successor-local root;
-/// `None` means the edge cannot preserve that whole-storage identity.
+/// `projection_before_edge` receives predecessor, successor and successor-local root;
+/// it returns the exact source root and projection prefix. `None` means
+/// the edge cannot preserve that storage coordinate.
 /// `projections_may_alias` reconstructs current root authority independently: distinct
 /// local names alone do not establish disjoint storage.
 ///
@@ -542,8 +543,8 @@ impl AbstractAtomicEvent {
 /// An `AfterEffect` boundary must name that exact latest operation on every
 /// path; it supplies no knowledge of internal writes or their values. Effects
 /// with no retained operation identity and ambiguous frontiers still refuse.
-/// Whole-storage edge bindings rename the
-/// queried root; paths and fields never change. Returns the
+/// Edge bindings compose their exact prefix with the queried path; the field
+/// remains unchanged. Projection-changing cycles remain unknown. Returns the
 /// offending event's block and node position together with the refusal,
 /// or `None` when every retained edge is coherent.
 pub fn happens_before_atomic_coherence_violation(
@@ -551,7 +552,11 @@ pub fn happens_before_atomic_coherence_violation(
     predecessors: &BTreeMap<BlockId, BTreeSet<BlockId>>,
     dominators: &BTreeMap<BlockId, BTreeSet<BlockId>>,
     entry: BlockId,
-    root_before_edge: impl Fn(BlockId, BlockId, PlaceId) -> Option<PlaceId>,
+    projection_before_edge: impl Fn(
+        BlockId,
+        BlockId,
+        PlaceId,
+    ) -> Option<(PlaceId, Vec<StructuralPathSegment>)>,
     projections_may_alias: impl Fn(
         PlaceId,
         &[StructuralPathSegment],
@@ -600,7 +605,7 @@ pub fn happens_before_atomic_coherence_violation(
                         *block,
                         index,
                         location,
-                        &root_before_edge,
+                        &projection_before_edge,
                         &projections_may_alias,
                     )
                 })
@@ -657,7 +662,11 @@ fn reaching_writes(
     block: BlockId,
     index: usize,
     location: &AbstractAtomicLocation,
-    root_before_edge: &impl Fn(BlockId, BlockId, PlaceId) -> Option<PlaceId>,
+    projection_before_edge: &impl Fn(
+        BlockId,
+        BlockId,
+        PlaceId,
+    ) -> Option<(PlaceId, Vec<StructuralPathSegment>)>,
     projections_may_alias: &impl Fn(
         PlaceId,
         &[StructuralPathSegment],
@@ -667,11 +676,17 @@ fn reaching_writes(
 ) -> BTreeSet<ReachingWrite> {
     let mut reached = BTreeSet::new();
     let mut visited = BTreeSet::new();
-    let mut pending = vec![(block, index, location.clone())];
-    while let Some((block, end, location)) = pending.pop() {
+    let mut pending = vec![(block, index, location.clone(), Vec::new())];
+    while let Some((block, end, location, mut ancestry)) = pending.pop() {
         if !visited.insert((block, end, location.clone())) {
             continue;
         }
+        let coordinate = (block, end, location.root);
+        if ancestry.contains(&coordinate) {
+            reached.insert(ReachingWrite::Unknown);
+            continue;
+        }
+        ancestry.push(coordinate);
         let Some(operations) = blocks.get(&block) else {
             reached.insert(ReachingWrite::Unknown);
             continue;
@@ -707,7 +722,8 @@ fn reaching_writes(
             reached.insert(ReachingWrite::Unknown);
         }
         for predecessor in incoming.into_iter().flatten() {
-            let Some(root) = root_before_edge(*predecessor, block, location.root) else {
+            let Some((root, mut path)) = projection_before_edge(*predecessor, block, location.root)
+            else {
                 reached.insert(ReachingWrite::Unknown);
                 continue;
             };
@@ -715,14 +731,16 @@ fn reaching_writes(
                 reached.insert(ReachingWrite::Unknown);
                 continue;
             };
+            path.extend_from_slice(&location.path);
             pending.push((
                 *predecessor,
                 operations.len(),
                 AbstractAtomicLocation {
                     root,
-                    path: location.path.clone(),
+                    path,
                     field: location.field,
                 },
+                ancestry.clone(),
             ));
         }
     }

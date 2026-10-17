@@ -199,6 +199,20 @@ pub fn root_before_edge(
     predecessor: &Block,
     place: PlaceId,
 ) -> Option<PlaceId> {
+    let projection = projection_before_edge(machine, block, predecessor, place)?;
+    projection.path.is_empty().then_some(projection.root)
+}
+
+/// The exact source projection a checked edge binds to this arrival. The path
+/// is retained rather than treating a pointee or field as its carrier root.
+/// This names storage only; access, custody and type correspondence remain
+/// independently checked. Conflicting edges and case payloads supply no match.
+pub fn projection_before_edge<'edge>(
+    machine: &TerminalMachine,
+    block: BlockId,
+    predecessor: &'edge Block,
+    place: PlaceId,
+) -> Option<terminal_psi::OperationProjection<'edge>> {
     let Some(position) = machine
         .structural_places
         .iter()
@@ -210,7 +224,10 @@ pub fn root_before_edge(
             _ => None,
         })
     else {
-        return Some(place);
+        return Some(terminal_psi::OperationProjection {
+            root: place,
+            path: &[],
+        });
     };
     if reaches_by_case(predecessor, block) {
         return None;
@@ -221,10 +238,14 @@ pub fn root_before_edge(
             continue;
         }
         let argument = arguments.get(position as usize)?;
-        if !argument.path.is_empty() || forwarded.is_some_and(|earlier| earlier != argument.place) {
+        let projection = terminal_psi::OperationProjection {
+            root: argument.place,
+            path: &argument.path,
+        };
+        if forwarded.is_some_and(|earlier| earlier != projection) {
             return None;
         }
-        forwarded = Some(argument.place);
+        forwarded = Some(projection);
     }
     forwarded
 }
