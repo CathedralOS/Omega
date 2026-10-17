@@ -1,0 +1,3 @@
+machine limited(value: i32, operator: i32) -> i32
+requires value >= 0; operator < value; { value }
+machine probe() -> i32 { limited(5, 5) }

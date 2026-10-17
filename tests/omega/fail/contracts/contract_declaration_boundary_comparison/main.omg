@@ -1,0 +1,5 @@
+// Neither a contextual declaration name nor an identifier followed by `<`
+// starts a declaration when it is an ordinary fact in this contract.
+machine limited(value: i32, domain: i32, trait: i32) -> i32
+requires value >= 0; domain >= 0; trait >= 0; value < 100; { value }
+machine probe() -> i32 { limited(100, 0, 0) }

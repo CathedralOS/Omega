@@ -1,0 +1,4 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "contract_declaration_boundary");
+    Build::select_provider<ForeignReports, FirmwareReports>(builder);
+}

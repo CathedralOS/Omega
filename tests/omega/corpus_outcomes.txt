@@ -1884,6 +1884,10 @@ fail/contracts/case_requirement_selector_changed rejected 384ms expected @6c0183
 	cannot prove requires contract for call observe from exercise: choices[position.index] == constructor:6:Choice9:name:Cell (needs fact `choice == Choice::Cell` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/contracts/case_requires_other_case_payload_read rejected 1647ms expected @e03f48653b6a
 	machine `observe` state `entry` statement 0: cannot prove selected case for payload access
+fail/contracts/contract_declaration_boundary_comparison rejected 172ms expected @fcbc37bb531f+wt
+	machine `probe` state `entry` value call to `limited` violates required fact `value < 100`: the instantiated fact is structurally false (`100 < 100`)
+fail/contracts/contract_declaration_boundary_operator rejected 173ms expected @fcbc37bb531f+wt
+	machine `probe` state `entry` value call to `limited` violates required fact `operator < value`: the instantiated fact is structurally false (`5 < 5`)
 fail/contracts/copied_field_guarantee_after_overwrite rejected 1175ms expected @ea24f0fe7101
 	cannot prove requires contract for call equal_float from float_copies: saved.value == value (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call equal from scalar_inputs: initial == replacement (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
@@ -6676,6 +6680,7 @@ pass/contracts/call_write_keeps_disjoint_guard_assert_exit checked 2820ms check-
 pass/contracts/call_write_keeps_disjoint_guard_exit checked 5761ms check-target:macos_arm64 @a036414cf2c9
 pass/contracts/carry_contract_decl checked 9441ms @5041ef1af684+wt
 pass/contracts/case_requires_payload_field_read_exit checked 13093ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/contracts/contract_declaration_boundary checked 3479ms @fcbc37bb531f+wt
 pass/contracts/current_computed_scalar_guard_exit checked 5137ms check-target:macos_arm64 @635eb3f2e180+wt
 pass/contracts/disequality_disjoin checked 9565ms @5041ef1af684+wt
 pass/contracts/disjunctive_ensures checked 9250ms @5041ef1af684+wt

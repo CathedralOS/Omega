@@ -1,0 +1,58 @@
+// A bodyless contract's final semicolon separates declarations regardless of
+// the following declaration's visibility or generic implementation telescope.
+pub data Status [copy] { code: u64; }
+pub data Table { read: addr; }
+pub boundary trait ForeignReports {
+    machine read(table: &Table) -> Status ensures result.code == 0;
+}
+trait Identity<T> { machine same(value: T) -> T; }
+data Wrapped<T> { value: T; }
+
+uefi_x86_64 machine Table::read(table: &Table) -> Status
+satisfies ForeignReports::read via ForeignBinding::TableFunction(read)
+ensures result.code == 0;
+pub FirmwareReports satisfies ForeignReports {
+    machine read(table: &Table) -> Status ensures result.code == 0; {
+        Table::read(table)
+    }
+}
+
+boundary machine before_private() -> i32 ensures result == 0;
+PrivateIdentity satisfies Identity<i32> {
+    machine same(value: i32) -> i32 { value }
+}
+boundary machine before_generic() -> i32 ensures result == 0;
+GenericIdentity<T> satisfies Identity<T> {
+    machine same(value: T) -> T { value }
+}
+boundary machine before_binders() -> i32 ensures result == 0;
+BoundIdentity<'scope, T, const Bytes: [u8; 2], machine Observe> satisfies Identity<T>
+where machine Observe(value: T) -> T;
+{
+    machine same(value: T) -> T { value }
+}
+boundary machine before_nested_binder() -> i32 ensures result == 0;
+NestedIdentity<const Value: Wrapped<Wrapped<u8>>> satisfies Identity<i32> {
+    machine same(value: i32) -> i32 { value }
+}
+boundary machine before_trait() -> i32 ensures result == 0;
+trait Marker { machine mark(value: i32) -> i32; }
+boundary machine before_constant() -> i32 ensures result == 0;
+const LIMIT: i32 = 42;
+boundary machine before_domain() -> i32 ensures result == 0;
+domain i32::Positive(value) requires value > 0;
+boundary machine before_slice_domain() -> i32 ensures result == 0;
+domain [u8]::Nonempty(bytes) requires bytes.len > 0;
+boundary machine before_array_domain() -> i32 ensures result == 0;
+domain<const N: u64> [u8; 2]::NonemptyArray<N>(bytes) requires N > 0;
+boundary machine before_operator() -> i32 ensures result == 0;
+operator identity<T>(value: T) -> T;
+boundary machine before_fixed_operator() -> i32 ensures result == 0;
+operator + i32::add(left: i32, right: i32) -> i32;
+
+machine checked_body(value: i32, domain: i32, trait: i32, operator: i32) -> i32
+requires value >= 0; domain >= 0; domain <= 100; trait >= 0;
+         operator >= 0; operator <= 100; value < 100;
+         operator + domain >= 0;
+         operator < value; operator == domain;
+ensures result == value; { value }

@@ -27,8 +27,10 @@ pub(crate) enum ParsedDeclaration {
 }
 
 /// Contract semicolons also terminate bodyless declarations. Identify the next
-/// declaration by its head, not by target spelling: a target-named value in a
-/// proof fact is still an expression unless a machine head follows it.
+/// declaration by its head, not by a name alone: contextual keywords and
+/// target-named values remain ordinary expressions in proof facts. A named
+/// implementation needs its complete telescope followed by `satisfies`; `<`
+/// alone is also a comparison and cannot terminate the current contract.
 pub(crate) fn starts_following_item(input: Input<'_, '_>) -> bool {
     if input.at_keyword(KeywordKind::Pub) {
         let after = Input::new(input.source_id, input.tokens.get(1..).unwrap_or_default());
@@ -37,9 +39,46 @@ pub(crate) fn starts_following_item(input: Input<'_, '_>) -> bool {
     if input.at_keyword(KeywordKind::Machine)
         || input.at_keyword(KeywordKind::Data)
         || input.at_keyword(KeywordKind::Use)
+        || input.at_keyword(KeywordKind::Let)
+        || input.at_keyword(KeywordKind::Capability)
         || target_machine_prefix(input).is_some()
+        || named_implementation_prefix(input).is_some()
     {
         return true;
+    }
+    if [
+        "module",
+        "package",
+        "const",
+        "proposition",
+        "measure",
+        "trait",
+    ]
+    .iter()
+    .any(|keyword| input.at_contextual_then_name(keyword))
+    {
+        return true;
+    }
+    if input.at_contextual("operator") || input.at_contextual("domain") {
+        // These heads overlap expressions: `operator + offset > 0` and
+        // `domain[0] > 0` are facts, while fixed-token operators and bracketed
+        // domain carriers are declarations. Use their actual bodyless grammar
+        // in a disposable arena instead of maintaining another type/expression
+        // parser. This probe never scans a following executable machine body,
+        // and never publishes speculative nodes into the caller's syntax.
+        let mut probe = SyntaxTrees::new(input.source_id);
+        // A token-only operator signature can also be a whole fact:
+        // `operator < limit;`. Preserve the existing fact interpretation
+        // whenever the expression grammar consumes that complete fact. A
+        // declaration with typed parameters cannot be such an expression.
+        if crate::expressions::parse_expression::parse_proof_fact_expression_handle(
+            &mut probe, input,
+        )
+        .is_ok_and(|(_, rest)| rest.at_punctuation(PunctuationKind::Semicolon))
+        {
+            return false;
+        }
+        return parse_declared_item(&mut probe, input).is_ok();
     }
     if !input.at_contextual("boundary") {
         return false;
@@ -47,9 +86,55 @@ pub(crate) fn starts_following_item(input: Input<'_, '_>) -> bool {
     let after = Input::new(input.source_id, input.tokens.get(1..).unwrap_or_default());
     after.at_keyword(KeywordKind::Machine)
         || after.at_keyword(KeywordKind::Data)
+        || after.at_keyword(KeywordKind::Let)
         || after.at_contextual("requirement")
         || after.at_contextual("operator")
         || after.at_contextual("trait")
+}
+
+/// Probe only a named implementation's unambiguous head. The real parser owns
+/// binder validity and diagnostics. Parenthesized/array type operands may
+/// contain comparisons or shifts, so their punctuation does not close the
+/// outer telescope. No syntax nodes are allocated during contract lookahead.
+fn named_implementation_prefix<'tokens, 'source>(
+    input: Input<'tokens, 'source>,
+) -> Option<(Identifier, Input<'tokens, 'source>)> {
+    let (name, rest) = input.take_identifier().ok()?;
+    if rest.at_contextual("satisfies") {
+        return Some((name, rest));
+    }
+    if !rest.at_punctuation(PunctuationKind::Less) {
+        return None;
+    }
+    let mut angle_depth = 0usize;
+    let mut operand_depth = 0usize;
+    for (token_index, token) in rest.tokens.iter().enumerate() {
+        match token.punctuation() {
+            Some(PunctuationKind::LeftParen | PunctuationKind::LeftBracket) => {
+                operand_depth += 1;
+            }
+            Some(PunctuationKind::RightParen | PunctuationKind::RightBracket) => {
+                operand_depth = operand_depth.checked_sub(1)?;
+            }
+            _ if operand_depth != 0 => continue,
+            Some(PunctuationKind::Less) => angle_depth += 1,
+            Some(PunctuationKind::Greater) => angle_depth = angle_depth.checked_sub(1)?,
+            Some(PunctuationKind::GreaterGreater) => {
+                angle_depth = angle_depth.checked_sub(2)?;
+            }
+            Some(
+                PunctuationKind::Semicolon
+                | PunctuationKind::LeftBrace
+                | PunctuationKind::RightBrace,
+            ) => return None,
+            _ => continue,
+        }
+        if angle_depth == 0 && operand_depth == 0 {
+            let after = Input::new(input.source_id, &rest.tokens[token_index + 1..]);
+            return after.at_contextual("satisfies").then_some((name, rest));
+        }
+    }
+    None
 }
 
 /// Shared by declaration dispatch and contract lookahead. Consume only the
@@ -379,9 +464,14 @@ fn parse_declared_item<'tokens, 'source>(
 
     // A named implementation owns its complete requirement map and telescope.
     // Its name is code identity, never a data subject or implicit argument.
+    if let Some((alias, rest)) = named_implementation_prefix(input) {
+        return super::conformance::parse_conformance(syntax_trees, alias, rest);
+    }
+    // In declaration position these incomplete/retired heads still deserve
+    // the conformance parser's diagnostic. They are not contract boundaries:
+    // an ordinary comparison fact also starts with a name followed by `<`.
     if let Ok((alias, rest)) = input.take_identifier()
-        && (rest.at_contextual("satisfies")
-            || rest.at_punctuation(PunctuationKind::Colon)
+        && (rest.at_punctuation(PunctuationKind::Colon)
             || rest.at_punctuation(PunctuationKind::Less))
     {
         return super::conformance::parse_conformance(syntax_trees, alias, rest);
