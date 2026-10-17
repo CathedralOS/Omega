@@ -1,0 +1,7 @@
+// An entry premise is not a postcondition after replacing its referent.
+machine increment(counter: &mut u64)
+requires counter == 0
+ensures counter == 0 {
+    counter = counter + 1;
+}
+machine main() { let mut counter: u64 = 0; increment(&mut counter); }

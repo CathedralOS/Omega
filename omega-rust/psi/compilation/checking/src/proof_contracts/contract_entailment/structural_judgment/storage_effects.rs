@@ -39,6 +39,13 @@ pub(super) struct CapturedStorageValue {
     current: Option<super::StructuralTerm>,
 }
 
+/// One authenticated store destination, frozen before replacement evaluation.
+#[derive(Clone)]
+pub(super) struct CapturedStoreDestination {
+    coordinate: CapturedStorageCoordinate,
+    written: Vec<String>,
+}
+
 impl StructuralJudge<'_> {
     pub(in crate::proof_contracts::contract_entailment) fn observe_storage_writes(
         &mut self,
@@ -396,58 +403,85 @@ impl StructuralJudge<'_> {
         }
     }
 
-    pub(in crate::proof_contracts::contract_entailment) fn observe_exact_store(
-        &mut self,
+    pub(super) fn capture_store_destination(
+        &self,
         machine: &typed_trees::machine::Machine,
         state: &State,
         statement: &typed_trees::statement::StatementNode,
-        value: super::StructuralTerm,
-    ) -> Option<()> {
+    ) -> Option<CapturedStoreDestination> {
         let assignment = statement.as_assignment()?;
         self.ordinary_storage_path(Some((machine, state)), assignment.target)
             .then_some(())?;
         let program = self.program;
-        let place = crate::value_custody::places::canonical_place_from_expression(
-            program,
-            assignment.target,
-        )?;
-        let root = place.root.as_symbol()?;
-        if !(program.state_parameter_by_symbol(state, root).is_some()
-            || program.state_local_declaration(state, root).is_some())
-            || !place.segments.iter().all(|segment| {
-                matches!(segment,
-                facts::PlaceSegment::Field { symbol } if symbol.is_valid())
-            })
-        {
-            return None;
-        }
-        let reference = crate::value_custody::places::declared_place_type_raw(
-            program,
-            machine,
-            Some(state),
-            assignment.target,
-        )?;
+        let reference = crate::assignment_stored_value_type(program, machine, state, assignment)?;
         let frames = self.frame_resolver()?;
-        if !frames.value_is_reference_free(reference)
-            || !frames
-                .statement_value_write_frame(machine, statement)
-                .into_complete_paths()?
-                .is_empty()
-        {
+        // Reference-bearing replacement needs its own carried-origin operation;
+        // a storage coordinate alone cannot establish its loans or descriptor.
+        if !frames.value_is_reference_free(reference) {
             return None;
         }
+        let origins = frames.assignment_storage_origins(machine, statement)?;
+        let place = match origins.destinations.as_slice() {
+            [origin]
+                if origin.root.is_valid()
+                    && !origin.is_image_storage
+                    && origin.recasts.is_empty()
+                    && origin.representation.is_none() =>
+            {
+                crate::CanonicalPlace {
+                    root: facts::PlaceRoot::Symbol(origin.root),
+                    segments: origin.segments.clone(),
+                }
+            }
+            [] => {
+                // Replacing a plain owned binding names the binding itself;
+                // the frame owner intentionally publishes no referent origins.
+                let place = crate::value_custody::places::canonical_place_from_expression(
+                    program,
+                    assignment.target,
+                )?;
+                let root = place.root.as_symbol()?;
+                let declared = program
+                    .state_parameter_by_symbol(state, root)
+                    .map(|parameter| parameter.type_reference)
+                    .or_else(|| {
+                        program
+                            .state_local_declaration(state, root)
+                            .map(|(_, local)| local.type_reference)
+                    })?;
+                if !place.segments.is_empty() || !frames.value_is_reference_free(declared) {
+                    return None;
+                }
+                place
+            }
+            // Multiple backing alternatives cannot install one exact value.
+            _ => return None,
+        };
+        let root = place.root.as_symbol()?;
         let written = frames
             .assignment_write_frame(machine, statement)
             .into_complete_paths()?;
-        let coordinate = crate::frame_coordinate_path(program, root, &place.segments)?;
-        // No coarse region or rebased alias can stand in for this destination.
-        if written.as_slice() != [coordinate] {
+        let footprint = crate::frame_coordinate_path(program, root, &place.segments)?;
+        if written.as_slice() != [footprint] {
             return None;
         }
-        self.observe_storage_writes(state, &written)?;
-        let coordinate =
-            self.captured_storage_coordinate(Some((machine, state)), assignment.target)?;
-        self.retain_storage_value(coordinate, value, false);
+        // Frame paths deliberately coarsen collections for invalidation only.
+        // Exact storage retains the already completed selector value identities.
+        let coordinate = self.capture_storage_place(place)?;
+        Some(CapturedStoreDestination {
+            coordinate,
+            written,
+        })
+    }
+
+    pub(super) fn observe_captured_store(
+        &mut self,
+        state: &State,
+        destination: CapturedStoreDestination,
+        value: super::StructuralTerm,
+    ) -> Option<()> {
+        self.observe_storage_writes(state, &destination.written)?;
+        self.retain_storage_value(destination.coordinate, value, false);
         Some(())
     }
 
@@ -504,6 +538,26 @@ impl StructuralJudge<'_> {
             .next()
             .is_none()
             .then(|| super::super::structural_terms::descriptor_only_observation(reference, value))
+    }
+
+    /// Source-only engines do not consume the current storage roster. They
+    /// may use a declaration observation only while its entry epoch survives.
+    pub(super) fn entry_storage_observations_preserved(
+        &self,
+        expression: ExpressionHandle,
+    ) -> bool {
+        if !self.requires_value_preservation() {
+            return true;
+        }
+        let mut expressions = Vec::new();
+        crate::expression_traversal::collect_expression_tree(
+            self.program,
+            expression,
+            &mut expressions,
+        );
+        !expressions
+            .into_iter()
+            .any(|expression| self.storage_observation_invalidated(expression))
     }
 
     pub(super) fn storage_observation_invalidated(&self, expression: ExpressionHandle) -> bool {

@@ -13,8 +13,8 @@ use super::StructuralTerm;
 mod binary;
 mod collection_measures;
 pub(super) use collection_measures::{
-    collection_measure_term, descriptor_only_observation, observed_collection_measure,
-    reference_argument_observation,
+    collection_measure_term, completed_collection_measure, descriptor_only_observation,
+    observed_collection_measure, reference_argument_observation,
 };
 mod constructors;
 mod equality;

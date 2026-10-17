@@ -1,0 +1,7 @@
+machine equal(before: u8, after: u8) requires before == after {}
+machine main() {
+    let mut bytes: [u8; 2] = [1, 2];
+    let before: u8 = bytes[0];
+    bytes[0] = 70;
+    equal(before, bytes[0]);
+}

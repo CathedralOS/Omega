@@ -94,3 +94,37 @@ pub(in crate::proof_contracts::contract_entailment) fn descriptor_only_observati
         descriptor: Some(Box::new(descriptor.into_collection_descriptor())),
     }
 }
+
+/// Immutable geometry belongs to the completed typed value, even when a caller
+/// observes it under a slice formal or its backing contents were invalidated.
+/// Do not recover a source expression or use capacity as live length. Untyped
+/// binders and unresolved projections supply no new geometry here.
+pub(in crate::proof_contracts::contract_entailment) fn completed_collection_measure(
+    program: &dyn crate::CheckingInput,
+    measure: CollectionMeasure,
+    collection: &StructuralTerm,
+) -> Option<StructuralTerm> {
+    if measure != CollectionMeasure::Length {
+        return None;
+    }
+    let reference = match collection {
+        StructuralTerm::CapturedValue { result_type, .. }
+        | StructuralTerm::Application { result_type, .. } => *result_type,
+        StructuralTerm::IndexedValue { element_type, .. } => *element_type,
+        StructuralTerm::CallProjection {
+            result_type,
+            field,
+            field_name,
+            ..
+        } => {
+            program
+                .closed_data_member_field(*result_type, *field, field_name)?
+                .type_reference
+        }
+        _ => return None,
+    };
+    let extent = crate::value_custody::places::fixed_array_type_length(program, reference)?;
+    Some(StructuralTerm::Integer(numerics::bignum::BigInt::from_u64(
+        u64::try_from(extent).ok()?,
+    )))
+}

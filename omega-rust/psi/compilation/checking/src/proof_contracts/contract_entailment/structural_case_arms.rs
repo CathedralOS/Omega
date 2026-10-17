@@ -541,40 +541,16 @@ fn recognize_structural_state_leaves_from<'a>(
                     }
                     return Some(leaves);
                 }
-                StatementNode::Assignment(assignment)
+                StatementNode::Assignment(_)
                     if !saw_transition && judge.has_runtime_body_values() =>
                 {
-                    // Static place operands and a value-preserving RHS do not
-                    // depend on the unresolved store operand evaluation order.
-                    // Capture the RHS once, then let the storage owner retire
-                    // old observations and establish the exact destination.
-                    let frames = judge.frame_resolver()?;
-                    if !frames
-                        .statement_value_write_frame(machine, statement)
-                        .into_complete_paths()?
-                        .is_empty()
-                    {
-                        return None;
-                    }
-                    let reference = crate::value_custody::places::declared_place_type_raw(
-                        program,
-                        machine,
-                        Some(state),
-                        assignment.target,
-                    )?;
-                    let outcomes = judge.normal_return_paths(
-                        assignment.value,
+                    let outcomes = judge.normal_assignment_paths(
+                        statement,
                         &environment,
-                        (machine, state, reference),
+                        (machine, state, state.return_type),
                     )?;
                     let mut leaves = Vec::new();
-                    for mut outcome in outcomes {
-                        outcome.judge.observe_exact_store(
-                            machine,
-                            state,
-                            statement,
-                            outcome.value,
-                        )?;
+                    for outcome in outcomes {
                         leaves.extend(recognize_structural_state_leaves_from(
                             program,
                             machine,

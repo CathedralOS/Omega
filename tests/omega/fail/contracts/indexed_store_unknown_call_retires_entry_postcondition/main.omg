@@ -1,0 +1,6 @@
+// A call without a post-state equation cannot retain an entry observation.
+machine unknown(counter: &mut u64) { counter = 1; }
+machine preserve(counter: &mut u64)
+requires counter == 0
+ensures counter == 0 { unknown(counter); }
+machine main() { let mut counter: u64 = 0; preserve(&mut counter); }

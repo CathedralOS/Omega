@@ -521,6 +521,43 @@ impl<'program> StructuralJudge<'program> {
     }
 
     fn declaration_term(&self, expression: ExpressionHandle) -> Option<StructuralTerm> {
+        if self.requires_value_preservation() {
+            let machine = self.program.machine(self.machine_symbol)?;
+            let state = if self.declaration_state.is_valid() {
+                self.program
+                    .state_in_machine(machine, self.declaration_state)?
+            } else {
+                self.program.machine_states(machine).first()?
+            };
+            let mut environment = self
+                .program
+                .state_parameters(state)
+                .iter()
+                .map(|parameter| {
+                    let name = parameter.name.as_str().to_owned();
+                    (name.clone(), StructuralTerm::Variable(name))
+                })
+                .collect::<Vec<_>>();
+            if !environment
+                .iter()
+                .any(|(name, _)| name == super::RESULT_BINDER)
+            {
+                environment.push((
+                    super::RESULT_BINDER.to_owned(),
+                    StructuralTerm::Variable(super::RESULT_BINDER.to_owned()),
+                ));
+            }
+            // A runtime predicate observes this path's current storage through
+            // the same read owner as completed operands. Exact replacements
+            // can be observed; retired roots still decline there. Abstract
+            // entry terms must never reinterpret an old binder as new contents.
+            return self.callee_term_in_scope(
+                Some((machine, state, state.return_type)),
+                expression,
+                &environment,
+                0,
+            );
+        }
         super::structural_terms::structural_term(
             self.program,
             None,
@@ -1033,12 +1070,19 @@ impl<'program> StructuralJudge<'program> {
                     measure,
                     collection,
                 } => {
+                    let collection = self
+                        .resolve_at(*collection, depth + 1)
+                        .into_collection_descriptor();
+                    if let Some(value) = super::structural_terms::completed_collection_measure(
+                        self.program,
+                        measure,
+                        &collection,
+                    ) {
+                        return value;
+                    }
                     let resolved = StructuralTerm::CollectionMeasure {
                         measure,
-                        collection: Box::new(
-                            self.resolve_at(*collection, depth + 1)
-                                .into_collection_descriptor(),
-                        ),
+                        collection: Box::new(collection),
                     };
                     if let Some((_, replacement)) = self.rewrites.find(&resolved) {
                         term = replacement.clone();
@@ -2232,19 +2276,6 @@ impl<'program> StructuralJudge<'program> {
         program: &dyn crate::CheckingInput,
         fact: ExpressionHandle,
     ) -> StructuralJudgment {
-        if self.requires_value_preservation() {
-            let mut expressions = Vec::new();
-            crate::expression_traversal::collect_expression_tree(program, fact, &mut expressions);
-            if expressions
-                .iter()
-                .any(|expression| self.storage_observation_invalidated(*expression))
-            {
-                // Entry equations describe the old contents. A source-level
-                // exit predicate cannot reinterpret them after a write;
-                // captured return values remain independent observations.
-                return StructuralJudgment::Unknown;
-            }
-        }
         if self.case_facts_only && !super::call_requirements::case_fact_only(program, fact) {
             return StructuralJudgment::Unknown;
         }
@@ -2255,6 +2286,11 @@ impl<'program> StructuralJudge<'program> {
                 crate::mathematical_applications::selected_definition(program, call).is_some()
             })
         {
+            // This engine consumes source entry observations rather than this
+            // path's completed storage terms. Keep its separate epoch fence.
+            if !self.entry_storage_observations_preserved(fact) {
+                return StructuralJudgment::Unknown;
+            }
             // Mathematical facts consume their prepared term in the same
             // judgment entrance, including proof-only Strict results. A result
             // carrier or source call shape does not select another body walk.
@@ -2324,7 +2360,8 @@ impl<'program> StructuralJudge<'program> {
                 if let Some(judgment) = self.judge_ieee_equality(fact) {
                     return judgment;
                 }
-                if let Some(holds) = crate::proof_contracts::float_projection_bindings::semantic_values::closed_float_meaning_equality(
+                if self.entry_storage_observations_preserved(fact)
+                    && let Some(holds) = crate::proof_contracts::float_projection_bindings::semantic_values::closed_float_meaning_equality(
                     program, self.machine_symbol, fact,
                 ) {
                     return if holds { StructuralJudgment::Proven } else { StructuralJudgment::Refuted };

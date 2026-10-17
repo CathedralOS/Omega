@@ -353,11 +353,70 @@ impl<'program> StructuralJudge<'program> {
                     NormalOperand {
                         expression: root,
                         reference,
-                        demand,
+                        demand: if self
+                            .program
+                            .statement_table
+                            .statements(scope.1.statement_nodes)
+                            .get(statement_index)
+                            .and_then(|statement| statement.as_assignment())
+                            .is_some_and(|assignment| assignment.target == root)
+                        {
+                            NormalValueDemand::Location
+                        } else {
+                            demand
+                        },
                     }
                 })
                 .collect(),
         )
+    }
+
+    /// A store captures its destination before evaluating the replacement.
+    /// The location demand completes selectors without reading or moving the
+    /// old destination. Its captured backing and selector values then survive
+    /// RHS effects; the final write retires current contents before installation.
+    pub(in crate::proof_contracts::contract_entailment) fn normal_assignment_paths(
+        &self,
+        statement: &typed_trees::statement::StatementNode,
+        environment: &[(String, StructuralTerm)],
+        scope: ValueScope<'_>,
+    ) -> Option<Vec<NormalReturnPath<'program>>> {
+        let assignment = statement.as_assignment()?;
+        let reference =
+            crate::assignment_stored_value_type(self.program, scope.0, scope.1, assignment)?;
+        let scope = (scope.0, scope.1, reference);
+        let destinations = self.clone().evaluate_normal_paths(
+            assignment.target,
+            environment,
+            scope,
+            0,
+            ExpressionHandle::invalid(),
+            &mut Vec::new(),
+            NormalValueDemand::Location,
+        )?;
+        let mut paths = Vec::new();
+        for destination in destinations {
+            let captured = destination
+                .judge
+                .capture_store_destination(scope.0, scope.1, statement)?;
+            for mut result in destination.judge.evaluate_normal_paths(
+                assignment.value,
+                environment,
+                scope,
+                0,
+                ExpressionHandle::invalid(),
+                &mut Vec::new(),
+                NormalValueDemand::Value,
+            )? {
+                result.judge.observe_captured_store(
+                    scope.1,
+                    captured.clone(),
+                    result.value.clone(),
+                )?;
+                paths.push(result);
+            }
+        }
+        Some(paths)
     }
 
     /// Complete a declaration's actuals in source order before checking its

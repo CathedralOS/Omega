@@ -61,21 +61,6 @@ pub(super) fn expression_prefix_roots(
         .statement_table
         .statements(state.statement_nodes)
         .get(statement_index)?;
-    if matches!(statement, StatementNode::Assignment(_)) {
-        // The inventory is not authority for store operand timing (owner
-        // question store-evaluation-order). Both operand subtrees must preserve
-        // values regardless of which executes first. The eventual destination
-        // write is not an operand.
-        let machine = program.machine_holding_state(state.symbol)?;
-        let frames = crate::machine_calls::calls::CallFrameResolver::new(program)?;
-        if !frames
-            .statement_value_write_frame(machine, statement)
-            .into_complete_paths()?
-            .is_empty()
-        {
-            return None;
-        }
-    }
     if let StatementNode::Transition(transition) = statement
         && program
             .statement_table
@@ -107,13 +92,6 @@ pub(super) fn expression_prefix_roots(
     let (position, _) = owners.next()?;
     if owners.next().is_some() {
         return None;
-    }
-    if matches!(statement, StatementNode::Assignment(_)) {
-        // Even a value-preserving call may establish a new normal-return fact.
-        // Until store operand order is settled, neither operand may consume
-        // guarantees from the other: prove it from its own executed root and
-        // the incoming statement facts.
-        return Some(vec![roots[position]]);
     }
     roots.truncate(position + 1);
     Some(roots)

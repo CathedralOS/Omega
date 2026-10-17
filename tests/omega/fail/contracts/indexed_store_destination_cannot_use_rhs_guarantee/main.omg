@@ -1,0 +1,7 @@
+machine select(flag: &u64) -> u64 requires flag == 1 ensures result == 1 { 1 }
+machine replacement(flag: &mut u64) -> u8 ensures flag == 1 { flag = 1; 70 }
+machine main() {
+    let mut bytes: [u8; 4] = [0, 0, 0, 0];
+    let mut flag: u64 = 0;
+    bytes[select(&flag)] = replacement(&mut flag);
+}
