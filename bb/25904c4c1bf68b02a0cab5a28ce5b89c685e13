@@ -1,0 +1,4 @@
+owner: DeepSeek Harness / deepseek-v4.1-flash / guarded-line-loan
+provenance: agent=deepseek-harness model=deepseek-v4.1-flash effort=high item=samples/cli/facts/guarded_line_loan
+ticket: f2b393f8ccc9472dbc3de1d905009846
+published_utc: 2026-10-17T22:56:45.804965+00:00
