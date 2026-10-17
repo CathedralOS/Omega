@@ -131,8 +131,7 @@ pub machine Cavity::balanced(cavity: &Cavity) -> bool {
 
 // One arrival row is four ticks. The gate cell and the other three ticks are
 // separate windows. Each returned record publishes that window's length.
-// Realizing that returned loan is still refused, so the running report does
-// not call these machines; package checking still proves the postconditions.
+// The running report calls arrival_row_holds before publishing a cavity.
 data HeldTicks<'row> { values: &'row mut [i32 in Wrapping]; }
 
 machine gate_window<'row>(items: &'row mut [i32 in Wrapping; 4]) -> HeldTicks<'row>

@@ -32,6 +32,12 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
     state simulate(main: &mut Main, cavity: &mut Cavity) {
+        transition arrival_row_holds() {
+            true -> advance(main, cavity)
+            _ -> unbalanced(main)
+        }
+    }
+    state advance(main: &mut Main, cavity: &mut Cavity) {
         Cavity::simulate(cavity);
         transition Cavity::balanced(cavity) {
             true -> publish(main, cavity)
