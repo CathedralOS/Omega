@@ -1,0 +1,14 @@
+data Holder where which <= 1 { which: u64; route: [u64; 4]; }
+data Report<'input> { changed: u64; events: &'input [u64]; }
+machine change(value: &mut u64) -> u64 ensures value == 1 && result == 2 {
+    value = 1;
+    2
+}
+machine selected<'input>(holder: &'input mut Holder) -> Report<'input>
+ensures result.events.len == 1 {
+    match holder.which {
+        0 -> Report { changed: change(&mut holder.which), events: &holder.route[0..holder.which + 1] }
+        _ -> Report { changed: 0, events: &holder.route[0..1] }
+    }
+}
+machine main() {}

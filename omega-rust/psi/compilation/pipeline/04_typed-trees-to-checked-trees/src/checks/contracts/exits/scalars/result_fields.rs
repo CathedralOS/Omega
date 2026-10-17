@@ -11,7 +11,10 @@
 //! never publish one arm's extent as the other's. A value arm measures its
 //! window after the pattern integer replaces the matched subject, so
 //! `match which { 0 -> Route { events: &route[0..which + 1] } }` has length 1
-//! in that arm. The failed-pattern arm does not keep that integer.
+//! in that arm. A binding retains the selected arm and ordered pattern prefix:
+//! earlier failed patterns or constructor fields may change the live subject.
+//! The shared occurrence query admits the equality only before such effects;
+//! later writes cannot invalidate a window already captured.
 
 use validation::CanonicalPlace;
 
@@ -22,6 +25,14 @@ use facts::PlaceRoot;
 use typed_trees::expression::{BinaryOperator, ExpressionNode};
 use typed_trees::state::State;
 use typed_trees::types::PrimitiveType;
+
+#[derive(Clone)]
+struct MatchedReturnInteger {
+    subject: ExpressionHandle,
+    value: numerics::bignum::BigInt,
+    patterns: Vec<ExpressionHandle>,
+    arm: ExpressionHandle,
+}
 
 impl ExitScalars<'_, '_> {
     /// Return substitution and call substitution meet in the same scoped solver.
@@ -489,7 +500,7 @@ impl ExitScalars<'_, '_> {
         expression: ExpressionHandle,
         reference: typed_trees::types::TypeReferenceHandle,
         segments: &[facts::PlaceSegment],
-        matched: &[(ExpressionHandle, numerics::bignum::BigInt)],
+        matched: &[MatchedReturnInteger],
     ) -> Option<Vec<u64>> {
         if let ExpressionNode::Match(dispatch) =
             self.program.expression_table.expression(expression)
@@ -499,10 +510,21 @@ impl ExitScalars<'_, '_> {
                 return None;
             }
             let mut lengths = Vec::new();
+            let mut patterns = Vec::new();
             for arm in arms {
+                if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+                    patterns.push(pattern);
+                }
                 let mut arm_matched = matched.to_vec();
-                if let Some(binding) = self.matched_arm_integer(dispatch.subject, arm.pattern) {
-                    arm_matched.push(binding);
+                if let Some((subject, value)) =
+                    self.matched_arm_integer(dispatch.subject, arm.pattern)
+                {
+                    arm_matched.push(MatchedReturnInteger {
+                        subject,
+                        value,
+                        patterns: patterns.clone(),
+                        arm: arm.value,
+                    });
                 }
                 lengths.extend(self.collection_lengths_through(
                     state,
@@ -518,12 +540,27 @@ impl ExitScalars<'_, '_> {
             if !self.return_expression_is_stable(expression) {
                 return None;
             }
+            // A projected field is evaluated within its whole constructor.
+            // Its own inert subtree cannot authenticate an earlier match value
+            // after a failed pattern or preceding field changed the subject.
+            let current_matches: Vec<_> = matched
+                .iter()
+                .filter(|binding| {
+                    validation::expression_traversal::expression_has_inert_prefix(
+                        self.program,
+                        &binding.patterns,
+                        binding.arm,
+                        expression,
+                    )
+                })
+                .map(|binding| (binding.subject, binding.value.clone()))
+                .collect();
             return validation::closed_collection_length_under_matches(
                 self.program,
                 self.machine,
                 state,
                 expression,
-                matched,
+                &current_matches,
             )
             .map(|length| vec![length]);
         }

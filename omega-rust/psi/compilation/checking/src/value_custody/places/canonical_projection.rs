@@ -367,7 +367,9 @@ fn collect_arm_bindings(
             else {
                 continue;
             };
-            if coordinate_has_inert_prefix(program, &patterns, arm.value, endpoint) {
+            if crate::expression_traversal::expression_has_inert_prefix(
+                program, &patterns, arm.value, endpoint,
+            ) {
                 bindings.push((dispatch.subject, value));
             }
         }
@@ -455,73 +457,6 @@ fn same_match_subject(
         return false;
     };
     canonical_place_from_expression(program, expression).is_some_and(|place| place == subject_place)
-}
-
-/// This expression-only query has no flow-frame judgment for a completed
-/// invocation. Decline match substitution after any call or atomic event,
-/// regardless of whether the subject is a field, scalar or indexed place.
-/// Walk executable edges in source order, including earlier sibling operands;
-/// the enclosing call executes only after its arguments. Later effects cannot
-/// change a coordinate already captured. Repeated handles remain occurrences,
-/// so one earlier visit cannot conceal a later read following an effect.
-/// The checked route binds selected authored operators to ordinary Call nodes
-/// during 03b preparation, including declared indexing. This query consumes
-/// that prepared input; operator syntax is not an independent purity claim.
-fn coordinate_has_inert_prefix(
-    program: &dyn crate::CheckingInput,
-    patterns: &[ExpressionHandle],
-    root: ExpressionHandle,
-    endpoint: ExpressionHandle,
-) -> bool {
-    struct Prefix {
-        effect_seen: bool,
-        found: bool,
-        stable: bool,
-    }
-    fn visit(
-        program: &dyn crate::CheckingInput,
-        expression: ExpressionHandle,
-        endpoint: ExpressionHandle,
-        depth: usize,
-        prefix: &mut Prefix,
-    ) -> bool {
-        if !expression.is_valid() {
-            return true;
-        }
-        if depth >= 64 {
-            return false;
-        }
-        let node = program.expression_table.expression(expression);
-        let mut complete = true;
-        crate::expression_traversal::executable_children(program, node, |child| {
-            complete &= visit(program, child, endpoint, depth + 1, prefix);
-        });
-        if matches!(node, ExpressionNode::Call(_) | ExpressionNode::Atomic(_)) {
-            prefix.effect_seen = true;
-        }
-        if expression == endpoint {
-            prefix.found = true;
-            prefix.stable &= !prefix.effect_seen;
-        }
-        complete
-    }
-    let mut prefix = Prefix {
-        effect_seen: false,
-        found: false,
-        stable: true,
-    };
-    let mut complete = true;
-    for pattern in patterns {
-        complete &= visit(program, *pattern, endpoint, 0, &mut prefix);
-    }
-    // A coordinate evaluated by a pattern precedes this arm's equality.
-    // Even a repeated handle in the selected body cannot grant that earlier
-    // occurrence an observation established only after pattern evaluation.
-    if prefix.found {
-        return false;
-    }
-    complete &= visit(program, root, endpoint, 0, &mut prefix);
-    complete && prefix.found && prefix.stable
 }
 
 pub fn push_field_place_segments(

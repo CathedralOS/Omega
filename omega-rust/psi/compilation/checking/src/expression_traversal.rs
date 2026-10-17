@@ -8,7 +8,9 @@
 //! `collect_expression_nodes` is the recursive preorder used for occurrence
 //! queries. It ignores zero handles and records each generational handle once.
 //! This is structural traversal; it does not select executable match arms or
-//! propagate destination types.
+//! propagate destination types. `expression_has_inert_prefix` instead retains
+//! executable occurrences and ordered effects before a particular captured read;
+//! match-derived place and returned-window proofs share that evidence query.
 
 use std::collections::HashSet;
 use typed_trees::expression::{
@@ -57,6 +59,73 @@ pub fn inert_value_tree_with_calls(
                 | ExpressionNode::Match(_)
         )
     })
+}
+
+/// This expression-only query has no flow-frame judgment for a completed
+/// invocation. Decline match substitution after any call or atomic event,
+/// regardless of whether the subject is a field, scalar or indexed place.
+/// Walk executable edges in source order, including earlier sibling operands;
+/// the enclosing call executes only after its arguments. Later effects cannot
+/// change a coordinate already captured. Repeated handles remain occurrences,
+/// so one earlier visit cannot conceal a later read following an effect.
+/// The checked route binds selected authored operators to ordinary Call nodes
+/// during 03b preparation, including declared indexing. This query consumes
+/// that prepared input; operator syntax is not an independent purity claim.
+pub fn expression_has_inert_prefix(
+    program: &dyn crate::CheckingInput,
+    patterns: &[ExpressionHandle],
+    root: ExpressionHandle,
+    endpoint: ExpressionHandle,
+) -> bool {
+    struct Prefix {
+        effect_seen: bool,
+        found: bool,
+        stable: bool,
+    }
+    fn visit(
+        program: &dyn crate::CheckingInput,
+        expression: ExpressionHandle,
+        endpoint: ExpressionHandle,
+        depth: usize,
+        prefix: &mut Prefix,
+    ) -> bool {
+        if !expression.is_valid() {
+            return true;
+        }
+        if depth >= 64 {
+            return false;
+        }
+        let node = program.expression_table.expression(expression);
+        let mut complete = true;
+        executable_children(program, node, |child| {
+            complete &= visit(program, child, endpoint, depth + 1, prefix);
+        });
+        if matches!(node, ExpressionNode::Call(_) | ExpressionNode::Atomic(_)) {
+            prefix.effect_seen = true;
+        }
+        if expression == endpoint {
+            prefix.found = true;
+            prefix.stable &= !prefix.effect_seen;
+        }
+        complete
+    }
+    let mut prefix = Prefix {
+        effect_seen: false,
+        found: false,
+        stable: true,
+    };
+    let mut complete = true;
+    for pattern in patterns {
+        complete &= visit(program, *pattern, endpoint, 0, &mut prefix);
+    }
+    // A coordinate evaluated by a pattern precedes this arm's equality.
+    // Even a repeated handle in the selected body cannot grant that earlier
+    // occurrence an observation established only after pattern evaluation.
+    if prefix.found {
+        return false;
+    }
+    complete &= visit(program, root, endpoint, 0, &mut prefix);
+    complete && prefix.found && prefix.stable
 }
 
 pub fn children(
