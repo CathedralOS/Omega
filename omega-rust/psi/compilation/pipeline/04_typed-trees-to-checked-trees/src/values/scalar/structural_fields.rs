@@ -190,23 +190,46 @@ fn indexed_read_has_builtin_meaning(
     collection_type: TypeReferenceHandle,
     index: ExpressionHandle,
 ) -> bool {
-    let Some((machine_index, state_index)) =
+    // Index meaning belongs to the declaration telescope, not necessarily an
+    // executable state. Domain subjects and requirement formals have the same
+    // collection operation; only body-local lookup needs a state environment.
+    // The retained state roster also identifies zero-parameter bodies. Do not
+    // require a first formal merely to resolve one of their body-local names.
+    let (owner, index_type) = if let Some((machine_index, state_index)) =
         program.state_position_for_parameter_symbols(parameters)
-    else {
-        return false;
+    {
+        let machine = &program.machines()[machine_index as usize];
+        let state = &program.machine_states(machine)[state_index as usize];
+        (
+            machine.symbol,
+            validation::declared_place_type_raw(program, machine, Some(state), index),
+        )
+    } else {
+        let Some(first) = parameters
+            .first()
+            .filter(|parameter| parameter.symbol.is_valid())
+        else {
+            return false;
+        };
+        let scope = program.symbols.get(first.symbol).parent;
+        if !scope.is_valid()
+            || program.symbols.get(scope).kind == symbols::SymbolKind::State
+            || parameters.iter().any(|parameter| {
+                !parameter.symbol.is_valid()
+                    || program.symbols.get(parameter.symbol).parent != scope
+            })
+        {
+            return false;
+        }
+        (
+            scope,
+            validation::parameter_expression_result_type_reference(
+                program, scope, parameters, index,
+            ),
+        )
     };
-    let machine = &program.machines()[machine_index as usize];
-    let state = &program.machine_states(machine)[state_index as usize];
-    let operands = [
-        Some(collection_type),
-        validation::declared_place_type_raw(program, machine, Some(state), index),
-    ];
-    typed_trees::operator::builtin_index_read_is_spelled(
-        program,
-        machine.symbol,
-        expression,
-        &operands,
-    )
+    let operands = [Some(collection_type), index_type];
+    typed_trees::operator::builtin_index_read_is_spelled(program, owner, expression, &operands)
 }
 
 pub(crate) fn structural_parameter_field_path(

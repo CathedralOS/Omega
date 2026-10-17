@@ -1,14 +1,10 @@
-use arena::Handle;
-use checked_trees::{BoundaryQualificationAuthorization, ContractProofFact};
+use checked_trees::ContractProofFact;
 use facts::{FactPayload, QualificationEvidence};
 use language_semantics::{
     DomainEstablishmentRoute, MachineSupplyMode, QualificationEvidenceOrigin,
 };
-use symbols::JoinedPath;
 use symbols::SymbolHandle;
-use typed_trees::domain::ProofFact;
 use typed_trees::machine::Machine;
-use typed_trees::signature::{SignatureContractKind, StateSignature};
 use typed_trees::types::TypeReferenceHandle;
 
 pub(crate) fn domain_definition(
@@ -16,60 +12,6 @@ pub(crate) fn domain_definition(
     domain_symbol: SymbolHandle,
 ) -> Option<&typed_trees::domain::DomainDefinition> {
     program.domain_definition(domain_symbol)
-}
-
-pub(crate) fn boundary_qualification_authorization(
-    program: &dyn ::validation::CheckingInput,
-    owner_symbol: SymbolHandle,
-    signature: &StateSignature,
-    contract_kind: SignatureContractKind,
-    fact: Handle<ProofFact>,
-) -> Option<BoundaryQualificationAuthorization> {
-    if contract_kind != SignatureContractKind::Ensures
-        || !program
-            .traits()
-            .iter()
-            .any(|definition| definition.symbol == owner_symbol && definition.is_boundary)
-    {
-        return None;
-    }
-
-    let membership = program.proof_facts.get(fact).as_membership()?;
-    let subject_carrier = ensured_subject_carrier(program, signature, membership.value)?;
-    if membership_carry_permission(program, membership).is_some() {
-        return Some(BoundaryQualificationAuthorization {
-            requirement_symbol: owner_symbol,
-            signature_symbol: signature.symbol,
-        });
-    }
-    if !membership.domain_symbol.is_valid() {
-        return None;
-    }
-    let domain = domain_definition(program, membership.domain_symbol)?;
-    if membership.authored_domain_selection.is_none()
-        || membership.domain_arguments.len() != domain.type_parameters.len()
-    {
-        return None;
-    }
-    if !domain.establishment_routes.iter().any(|route| {
-        matches!(
-            route,
-            DomainEstablishmentRoute::BoundaryRequirement {
-                boundary_trait,
-                requirement,
-            } if *boundary_trait == owner_symbol && *requirement == signature.symbol
-        )
-    }) {
-        return None;
-    }
-    if !return_type_matches_domain_target(program, subject_carrier, domain.target_type) {
-        return None;
-    }
-
-    Some(BoundaryQualificationAuthorization {
-        requirement_symbol: owner_symbol,
-        signature_symbol: signature.symbol,
-    })
 }
 
 pub(crate) fn call_contract_evidence(
@@ -281,78 +223,6 @@ pub(crate) fn operator_contract_evidence(
         operator_symbol,
     )
 }
-/// The carrier an `ensures` membership mints into: `result` for the exact
-/// result, or the exact `&mut` non-self parameter a boundary requirement
-/// mints through caller storage it borrows mutably. Other parameters are
-/// caller premises — nothing may establish into them.
-fn ensured_subject_carrier(
-    program: &dyn ::validation::CheckingInput,
-    signature: &StateSignature,
-    expression: typed_trees::expression::ExpressionHandle,
-) -> Option<TypeReferenceHandle> {
-    if program.expression_table.names_reserved_result(expression) {
-        return Some(signature.return_type);
-    }
-    let Some((path, name)) = program.expression_table.single_name_member(expression) else {
-        return None;
-    };
-    program
-        .state_signature_parameters(signature)
-        .iter()
-        .find(|parameter| {
-            (crate::checks::contracts::is_readable_mutable_reference(
-                program,
-                parameter.type_reference,
-            )) && (parameter.name.as_str() == name.as_str()
-                || parameter.symbol == path.symbol
-                || parameter.symbol == path.head_symbol)
-        })
-        .map(|parameter| parameter.type_reference)
-}
-
-fn membership_carry_permission(
-    program: &dyn ::validation::CheckingInput,
-    membership: &typed_trees::domain::ProofMembershipFact,
-) -> Option<language_semantics::CarryPermission> {
-    carry_permission_from_path(program, membership.domain)
-}
-
-fn carry_permission_from_path(
-    program: &dyn ::validation::CheckingInput,
-    domain: arena::HandleSpan<typed_trees::name::Identifier>,
-) -> Option<language_semantics::CarryPermission> {
-    let name = program.domain_path_members(domain).joined_path();
-    language_semantics::CarryPermission::from_name(&name)
-}
-
-/// A boundary requirement's return type realizes the domain target. An
-/// explicitly lifetime-parameterized carrier spells its result as
-/// `PendingRead<'a>` while the domain target is the bare nominal; the lifetime
-/// slot is erased from the semantic identity, so both sides compare by head
-/// nominal when no runtime generic arguments remain.
-fn return_type_matches_domain_target(
-    program: &dyn ::validation::CheckingInput,
-    return_type: TypeReferenceHandle,
-    domain_target: TypeReferenceHandle,
-) -> bool {
-    if unwrapped_type_references_match(program, return_type, domain_target) {
-        return true;
-    }
-    nominal_head_symbol(program, return_type)
-        .zip(nominal_head_symbol(program, domain_target))
-        .is_some_and(|(left, right)| left == right)
-}
-
-fn nominal_head_symbol(
-    program: &dyn ::validation::CheckingInput,
-    type_reference: TypeReferenceHandle,
-) -> Option<SymbolHandle> {
-    let unwrapped = program.unwrapped_type_reference(type_reference)?;
-    program
-        .type_reference_table
-        .closed_nominal_symbol(unwrapped)
-}
-
 pub(crate) fn unwrapped_type_references_match(
     program: &dyn ::validation::CheckingInput,
     left: TypeReferenceHandle,

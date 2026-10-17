@@ -268,20 +268,46 @@ pub(crate) fn finalize_scalar_actions(
                 else {
                     return None;
                 };
-                replacements.push((
-                    identity,
-                    selected_actions(
-                        program,
-                        facts,
-                        &targets,
-                        &mut shapes,
-                        state_flow.machine_symbol,
-                        state_flow.state_symbol,
-                        coordinate,
-                        facts::PlaceRoot::Expression(expression),
-                        source,
-                    )?,
-                ));
+                let retained_value = facts.values.structural_values.root_for_expression(
+                    state_flow.state_symbol,
+                    coordinate.statement_index,
+                    expression,
+                )?;
+                let reference = retained_value.type_reference;
+                let selected =
+                    if validation::reference_result_custody::stored_loan_parts(program, reference)
+                        .is_some()
+                    {
+                        // The completed descriptor owns a lifetime even without
+                        // a source-local contextual disposition. End that exact
+                        // carrier, never the backing beneath Referent. Stored
+                        // output copies retain their independently tracked loans;
+                        // the ordinary custody check still verifies their backing.
+                        // Nominal
+                        // temporary owners still require their selected hooks.
+                        let type_identity = shapes.add_type(reference, &[], &[])?;
+                        vec![CheckedNormalCleanupAction::Discard(
+                            checked_trees::CheckedUnitPartialAffineDiscardPlan {
+                                source,
+                                path: Vec::new(),
+                                type_identity,
+                                case_conditions: Default::default(),
+                            },
+                        )]
+                    } else {
+                        selected_actions(
+                            program,
+                            facts,
+                            &targets,
+                            &mut shapes,
+                            state_flow.machine_symbol,
+                            state_flow.state_symbol,
+                            coordinate,
+                            facts::PlaceRoot::Expression(expression),
+                            source,
+                        )?
+                    };
+                replacements.push((identity, selected));
             }
         }
         Some(replacements)

@@ -237,81 +237,34 @@ fn call_guarantees(
     functions: &BTreeMap<MachineId, &PsiOptimizationFunction>,
     scalar_types: &[(ValueId, ScalarType)],
 ) -> Option<Vec<Proposition>> {
-    let (callee, arguments, result) = match operation {
-        O::Call {
-            callee,
-            arguments,
-            result,
-            scalar_type,
-            ..
-        } => (
-            *callee,
-            arguments,
-            abstract_operations::AbstractResult {
-                value: *result,
-                scalar_type: *scalar_type,
-            },
-        ),
-        O::CallStructural {
-            callee,
-            arguments,
-            result,
-            ..
-        } => (callee.machine()?, arguments, result.scalar()?),
-        _ => return None,
-    };
-    let callee = functions.get(&callee)?;
-    let contract = callee.verified_contract.as_ref()?;
-    let signature = callee.result.scalar()?;
-    // A formal denotes its pre-call argument, while the result denotes the
-    // completed value. Reusing one identifier would erase that distinction.
-    if arguments.contains(&result.value)
-        || signature.scalar_type != result.scalar_type
-        || arguments.len() != callee.parameters.len()
-        || !arguments
-            .iter()
-            .zip(&callee.parameters)
-            .all(|(actual, formal)| {
-                scalar_types.contains(&(*actual, formal.scalar_type))
-                    && scalar_types.iter().all(|(value, scalar_type)| {
-                        value != actual || *scalar_type == formal.scalar_type
-                    })
-            })
-        || !contract.erased_scalar_formals.is_empty()
-        || !contract.erased_proof_formals.is_empty()
-    {
-        return None;
-    }
-    let mut bindings = callee
-        .parameters
+    let guarantees = crate::descriptor_results::scalar_call_guarantees(
+        operation,
+        &|identity| functions.get(&identity).copied(),
+        &|identity| {
+            let (_, selected) = scalar_types.iter().find(|(value, _)| *value == identity)?;
+            scalar_types
+                .iter()
+                .all(|(value, candidate)| *value != identity || candidate == selected)
+                .then_some(*selected)
+        },
+    )?;
+    let bindings = scalar_types
         .iter()
-        .zip(arguments)
-        .map(|(formal, actual)| {
+        .map(|(value, scalar_type)| {
             (
-                formal.value,
-                semantic_vocabulary::ScalarTerm::value(*actual, formal.scalar_type),
+                *value,
+                semantic_vocabulary::ScalarTerm::value(*value, *scalar_type),
             )
         })
+        .collect::<BTreeMap<_, _>>()
+        .into_iter()
         .collect::<Vec<_>>();
-    bindings.push((
-        signature.value,
-        semantic_vocabulary::ScalarTerm::value(result.value, signature.scalar_type),
-    ));
-    if bindings
-        .iter()
-        .enumerate()
-        .any(|(index, row)| bindings[..index].iter().any(|other| other.0 == row.0))
-    {
-        return None;
-    }
     Some(
-        contract
-            .ensures
+        guarantees
             .iter()
             .flat_map(|clause| {
                 terminal_semantics::scalar_ordering::instantiate_contract_ordering(
-                    &clause.proposition,
-                    &bindings,
+                    clause, &bindings,
                 )
             })
             .collect(),

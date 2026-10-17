@@ -312,6 +312,27 @@ impl OperationBuffer {
         self.structural_values.push((ordinal, value));
     }
 
+    /// A completed value keeps its producer contract when its operations move
+    /// into a sealed block. The binding roster survives that move; a projected
+    /// alias names a subtree and cannot impersonate its containing root.
+    pub(crate) fn structural_result_contract(
+        &self,
+        place: PlaceId,
+    ) -> Option<&terminal_psi::StructuralOperationResult> {
+        self.operations
+            .iter()
+            .filter_map(|operation| operation.result.structural())
+            .chain(
+                self.structural_values
+                    .iter()
+                    .filter_map(|(_, binding)| match binding {
+                        StructuralBinding::OperationResult(result) => Some(result),
+                        _ => None,
+                    }),
+            )
+            .find(|result| result.place == place)
+    }
+
     /// Publish the claims transported by completed constructor operands.
     /// The operation owns the result home; its receiving binding is separate.
     pub(crate) fn set_structural_result_claims(

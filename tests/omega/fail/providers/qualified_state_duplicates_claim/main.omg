@@ -1,0 +1,16 @@
+use omega::language::core::drop;
+data Root [linear] { value: u64; }
+machine Root::drop(root: &mut Root) {}
+domain Root::Granted established by Grant::grant;
+boundary trait Grant {
+    machine grant(root: Root) -> Root ensures result in Root::Granted;
+}
+data Main {}
+machine Main::main(context: &mut Main) reaches Grant {
+    let root: Root = Grant::grant(Root { value: 42 });
+    transition { _ -> consume(root, root) }
+    state consume(first: Root in Granted, second: Root in Granted) {
+        drop(first);
+        drop(second);
+    }
+}

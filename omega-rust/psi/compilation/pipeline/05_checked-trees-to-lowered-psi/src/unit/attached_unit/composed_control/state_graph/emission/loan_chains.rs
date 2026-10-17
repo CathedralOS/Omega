@@ -35,9 +35,13 @@
 //!   block parameter (`00_terminal-psi-to-abstract-operations` admits stores
 //!   only through exclusive parameters and owned operation results).
 //!
-//! Every exclusive member's arrival must lend a whole local or forward a
-//! member: a caller-owned or projected loan from outside cannot be disposed
-//! of at the chain's ends, so that join stays refused. A member may re-lend
+//! Every exclusive member's arrival must lend a local or forward a member.
+//! A projected local lends its selected path but retains its complete home,
+//! including a reference descriptor whose referent is caller-owned. The home
+//! is disposed at the chain's end, never the caller's referent. Such a chain
+//! cannot use transferred storage: its parameters describe only the selection.
+//! A caller-owned arrival from outside has no local home to dispose, so a join
+//! of those different ownership relations stays refused. A member may re-lend
 //! its storage onward, shared or exclusive, whole or by projection
 //! (`report(&parser.output)`): the successor's parameter then joins the chain
 //! as a derived member, every arrival into it must come from the chain, and
@@ -118,7 +122,7 @@ pub(super) enum ChainArrival {
 /// How one transition argument relates to a whole exclusive loan.
 enum LoanSource {
     /// The emitting state's own local, by result binding ordinal.
-    Local(u32),
+    Local { binding: u32, projected: bool },
     /// A completed value established on this exact edge. Its binding ordinal
     /// is local to the edge's operand frame, not the source state's locals.
     Completed(u32),
@@ -135,6 +139,9 @@ enum Arrival {
     Local {
         lender: usize,
         binding: u32,
+        /// A selected subtree retains the entire lender home, never moves it
+        /// into a parameter whose type describes only the borrowed selection.
+        projected: bool,
         /// Exact edge and target dense coordinate of a completed producer.
         /// Several selected edges may reuse one scratch binding ordinal.
         completed: Option<(usize, usize)>,
@@ -231,11 +238,12 @@ impl LoanChains {
                 {
                     let destination = node(target, dense as u32);
                     match loan_source(&transfer.source, &state.operations) {
-                        LoanSource::Local(binding) => {
+                        LoanSource::Local { binding, projected } => {
                             if let Some(destination) = destination {
                                 arrivals[destination].push(Arrival::Local {
                                     lender: source,
                                     binding,
+                                    projected,
                                     completed: None,
                                 });
                             }
@@ -253,6 +261,7 @@ impl LoanChains {
                                 arrivals[destination].push(Arrival::Local {
                                     lender: source,
                                     binding,
+                                    projected: false,
                                     completed: Some((edge_index, dense)),
                                 });
                             }
@@ -350,6 +359,7 @@ impl LoanChains {
                     lender,
                     binding,
                     completed,
+                    ..
                 } = *arrival
                     && (block_owned(lender) || completed.is_some())
                     && (exclusive(index)
@@ -396,7 +406,26 @@ impl LoanChains {
                             lender,
                             binding,
                             completed,
-                        } => (*lender, *binding, *completed),
+                            projected,
+                        } => {
+                            // The checked loan already retains its exact selected
+                            // type and path. Its backing has the containing type:
+                            // compare whole homes only for whole-value arrivals.
+                            // Projected arrivals force retained-home lifetime,
+                            // so no subtree can become ownership of its parent.
+                            derived |= projected;
+                            if !projected
+                                && !presents(
+                                    local_result(*lender, *binding, *completed)?.type_identity,
+                                    parameter,
+                                )
+                            {
+                                return Err(LoweringError::Unsupported(
+                                    "Unit graph state loan chain changes its referent type",
+                                ));
+                            }
+                            (*lender, *binding, *completed)
+                        }
                         Arrival::Forward => continue,
                         Arrival::Projected => {
                             derived = true;
@@ -409,11 +438,6 @@ impl LoanChains {
                         }
                     };
                     let result = local_result(lender, binding, completed)?;
-                    if !presents(result.type_identity, parameter) {
-                        return Err(LoweringError::Unsupported(
-                            "Unit graph state loan chain changes its referent type",
-                        ));
-                    }
                     let home = match result.multiplicity {
                         Multiplicity::Affine => StructuralMultiplicity::Affine,
                         Multiplicity::Unrestricted => StructuralMultiplicity::Unrestricted,
@@ -763,16 +787,20 @@ fn loan_source(
                 .unwrap_or(LoanSource::Other)
         }
         CheckedStructuralControlTransferSourcePlan::StructuralResult { binding_ordinal } => {
-            LoanSource::Local(*binding_ordinal)
+            LoanSource::Local {
+                binding: *binding_ordinal,
+                projected: false,
+            }
         }
         CheckedStructuralControlTransferSourcePlan::Parameter { index } => {
             LoanSource::Parameter(*index)
         }
         CheckedStructuralControlTransferSourcePlan::ProjectedLoan { subject, .. } => {
-            if subject.path.is_empty()
-                && let Some(binding) = subject.source.current_result_binding(operations)
-            {
-                return LoanSource::Local(binding);
+            if let Some(binding) = subject.source.current_result_binding(operations) {
+                return LoanSource::Local {
+                    binding,
+                    projected: !subject.path.is_empty(),
+                };
             }
             match (&subject.source, subject.path.is_empty()) {
                 (CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index }, true) => {

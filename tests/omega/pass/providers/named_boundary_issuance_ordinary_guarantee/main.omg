@@ -1,0 +1,11 @@
+data Token { value: u64; }
+domain Token::Issued established by Issuer::issue;
+boundary trait Issuer {
+    machine issue() -> Token
+    ensures result in Token::Issued
+    ensures result.value == 7;
+}
+Provider satisfies Issuer {
+    machine issue() -> Token ensures result.value == 7 { Token { value: 7 } }
+}
+machine main() {}

@@ -119,6 +119,98 @@ impl IntegerArithmetic {
         self.obligation
     }
 
+    /// Denotation after successful execution. Exact arithmetic's existing
+    /// range obligation still governs admission; this records no new proof.
+    pub fn scalar_term(
+        self,
+        scalar_type: IntegerType,
+        left: semantic_vocabulary::ScalarTerm,
+        right: semantic_vocabulary::ScalarTerm,
+    ) -> semantic_vocabulary::ScalarTerm {
+        use IntegerArithmeticOperator as Operator;
+        use IntegerOverflowPolicy as Policy;
+        use semantic_vocabulary::ScalarTerm as Term;
+        let left = Box::new(left);
+        let right = Box::new(right);
+        match (self.policy, self.operator) {
+            (Policy::Exact, Operator::Add) => Term::ExactIntegerAdd {
+                scalar_type,
+                left,
+                right,
+            },
+            (Policy::Exact, Operator::Subtract) => Term::ExactIntegerSubtract {
+                scalar_type,
+                left,
+                right,
+            },
+            (Policy::Exact, Operator::Multiply) => Term::ExactIntegerMultiply {
+                scalar_type,
+                left,
+                right,
+            },
+            (Policy::Exact, Operator::Divide) => Term::ExactIntegerDivide {
+                scalar_type,
+                left,
+                right,
+            },
+            (Policy::Exact, Operator::Remainder) => Term::ExactIntegerRemainder {
+                scalar_type,
+                left,
+                right,
+            },
+            (Policy::Wrapping, Operator::Add) => Term::WrappingIntegerAdd {
+                scalar_type,
+                left,
+                right,
+            },
+            (Policy::Wrapping, Operator::Subtract) => Term::WrappingIntegerSubtract {
+                scalar_type,
+                left,
+                right,
+            },
+            (Policy::Wrapping, Operator::Multiply) => Term::WrappingIntegerMultiply {
+                scalar_type,
+                left,
+                right,
+            },
+            (Policy::Wrapping, Operator::Divide) => Term::WrappingIntegerDivide {
+                scalar_type,
+                left,
+                right,
+            },
+            (Policy::Wrapping, Operator::Remainder) => Term::WrappingIntegerRemainder {
+                scalar_type,
+                left,
+                right,
+            },
+            (Policy::Saturating, Operator::Add) => Term::SaturatingIntegerAdd {
+                scalar_type,
+                left,
+                right,
+            },
+            (Policy::Saturating, Operator::Subtract) => Term::SaturatingIntegerSubtract {
+                scalar_type,
+                left,
+                right,
+            },
+            (Policy::Saturating, Operator::Multiply) => Term::SaturatingIntegerMultiply {
+                scalar_type,
+                left,
+                right,
+            },
+            (Policy::Saturating, Operator::Divide) => Term::SaturatingIntegerDivide {
+                scalar_type,
+                left,
+                right,
+            },
+            (Policy::Saturating, Operator::Remainder) => Term::SaturatingIntegerRemainder {
+                scalar_type,
+                left,
+                right,
+            },
+        }
+    }
+
     /// The exact language result over two admitted operands of
     /// `scalar_type`, or `None` when the pair has no value for them (an
     /// unrepresentable exact result or a zero divisor).

@@ -68,10 +68,7 @@ pub(super) fn close(
             collect_value_types(&observation.value, &mut value_types, 0);
         }
         for premise in &contract.scalar_requirements {
-            if let Proposition::Equal(left, right) = premise {
-                collect_value_types(left, &mut value_types, 0);
-                collect_value_types(right, &mut value_types, 0);
-            }
+            collect_proposition_types(premise, &mut value_types);
         }
         let Ok(context) = PropositionContext::from_value_types_and_places(
             value_types,
@@ -82,7 +79,11 @@ pub(super) fn close(
         ) else {
             continue;
         };
-        let mut equations = Vec::new();
+        // These premises came from entry obligations, completed calls or
+        // selected edges. Their unconditional equalities may rewrite captured
+        // scalar operands just as the independently reconstructed field
+        // equations do; the requested domain supplies neither roster.
+        let mut equations = contract.scalar_requirements.clone();
         for observation in &contract.scalar_observations {
             let Some(path) = canonical_path(&observation.path) else {
                 continue;
@@ -101,14 +102,14 @@ pub(super) fn close(
             };
             equations.push(Proposition::Equal(observed, observation.value.clone()));
         }
-        if proof_admission::check_predicate_denotations_with_value_equalities(
+        let checked = proof_admission::check_predicate_denotations_with_value_equalities(
             &context,
             &predicate.proposition,
             &contract.scalar_requirements,
             &equations,
-        )
-        .is_ok_and(|checked| {
-            super::payload_entry::prove(checked.goal(), checked.requirements(), 0)
+        );
+        if checked.is_ok_and(|checked| {
+            super::payload_entry::prove(&context, checked.goal(), checked.requirements(), 0)
                 .is_some_and(|proof| checked.check_certificate(&context, &proof).is_ok())
         }) {
             contract.qualifications.push(domain.id);
@@ -131,6 +132,50 @@ fn collect_value_types(
     }
     for operand in term.operands() {
         collect_value_types(operand, output, depth + 1);
+    }
+}
+
+fn collect_proposition_types(
+    proposition: &Proposition,
+    output: &mut Vec<(semantic_vocabulary::ValueId, ScalarType)>,
+) {
+    use semantic_vocabulary::IntegerMathTerm;
+    enum Pending<'a> {
+        Proposition(&'a Proposition),
+        Math(&'a IntegerMathTerm),
+    }
+    let mut pending = vec![Pending::Proposition(proposition)];
+    while let Some(item) = pending.pop() {
+        match item {
+            Pending::Proposition(proposition) => match proposition {
+                semantic_vocabulary::scalar_comparison_operands!(left, right) => {
+                    collect_value_types(left, output, 0);
+                    collect_value_types(right, output, 0);
+                }
+                semantic_vocabulary::integer_math_comparison_operands!(left, right) => {
+                    pending.push(Pending::Math(left));
+                    pending.push(Pending::Math(right));
+                }
+                Proposition::Conjunction(children) | Proposition::Disjunction(children) => {
+                    pending.extend(children.iter().map(Pending::Proposition))
+                }
+                Proposition::Implication {
+                    premise,
+                    conclusion,
+                } => {
+                    pending.push(Pending::Proposition(premise));
+                    pending.push(Pending::Proposition(conclusion));
+                }
+                _ => {}
+            },
+            Pending::Math(term) => match term {
+                IntegerMathTerm::Embed(term) => collect_value_types(term, output, 0),
+                IntegerMathTerm::MathValue { source_type, value } => {
+                    output.push((*value, ScalarType::Integer(*source_type)))
+                }
+                _ => pending.extend(term.operands().into_iter().map(Pending::Math)),
+            },
+        }
     }
 }
 
@@ -209,8 +254,9 @@ pub(super) fn terminal_scalar_literal(
     })
 }
 
-/// Expand only total scalar denotations. Reads remain immutable SSA snapshots;
-/// their relationship to current storage belongs to payload history below.
+/// Expand completed scalar denotations, whose operation obligations remain
+/// independently checked. Reads remain immutable SSA snapshots; their
+/// relationship to current storage belongs to payload history below.
 pub fn scalar_payload_expression(
     value: semantic_vocabulary::ValueId,
     origin: &impl Fn(semantic_vocabulary::ValueId) -> Option<(ScalarType, Option<ScalarTerm>)>,
@@ -279,9 +325,16 @@ pub(super) fn terminal_scalar_expression(
                 crate::goal_free_scalar_leaf_semantics(operation, &types)
                     .ok()
                     .flatten()
+                    .map(|semantics| semantics.result_equation().clone())
+                    .or_else(|| {
+                        crate::proof_bearing_scalar_leaf_semantics(operation, &types)
+                            .ok()
+                            .flatten()
+                            .map(|semantics| semantics.result_equation().clone())
+                    })
             })
-            .and_then(|semantics| match semantics.result_equation() {
-                Proposition::Equal(_, right) => Some(right.clone()),
+            .and_then(|equation| match equation {
+                Proposition::Equal(_, right) => Some(right),
                 _ => None,
             });
         Some((scalar_type, denotation))

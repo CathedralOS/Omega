@@ -1,0 +1,14 @@
+data Token { value: u64; }
+domain Token::Issued established by Issuer::issue;
+boundary trait Issuer {
+    machine issue() -> Token ensures result in Token::Issued;
+}
+Provider satisfies Issuer {
+    machine issue() -> Token { Token { value: 7 } }
+}
+machine consume(token: Token in Issued) {}
+machine main() reaches Issuer {
+    let issued: Token = Issuer::issue();
+    let erased: Token = issued as Token;
+    consume(erased);
+}

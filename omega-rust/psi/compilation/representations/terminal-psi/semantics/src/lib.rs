@@ -167,7 +167,9 @@ pub use reference_views::{
     reference_storage_view_is_compatible, representation_view_declaration,
     scalar_reference_view_is_total, scalar_reference_view_value, shared_descriptor_copy_matches,
 };
-pub use scalar_array::{scalar_array_leaf_declaration, scalar_array_leaf_shape};
+pub use scalar_array::{
+    scalar_array_leaf_declaration, scalar_array_leaf_path, scalar_array_leaf_shape,
+};
 pub use scalar_field_requirements::{
     scalar_field_accepts_literal, scalar_field_accepts_zero, scalar_field_requirement,
     scalar_field_requires_evidence,

@@ -339,7 +339,7 @@ pub(super) fn validate_establish_reference(
     } else {
         structural_fields::declared_memberships(machine, source.place).is_some_and(
             |(whole, projected)| {
-                let Ok(captured) = terminal_semantics::reference_source_memberships(
+                let Ok(mut captured) = terminal_semantics::reference_source_memberships(
                     module.structural_types.iter(),
                     source_type,
                     whole,
@@ -349,6 +349,52 @@ pub(super) fn validate_establish_reference(
                 ) else {
                     return false;
                 };
+                if *access == terminal_psi::StructuralAccess::SharedBorrow
+                    && result
+                        .projected_qualifications
+                        .iter()
+                        .any(|row| !captured.contains(row))
+                {
+                    let position = machine.blocks.iter().find_map(|block| {
+                        block
+                            .operations
+                            .iter()
+                            .position(|candidate| candidate.id == operation.id)
+                            .and_then(|ordinal| {
+                                u32::try_from(ordinal)
+                                    .ok()
+                                    .map(|ordinal| (block.id, ordinal))
+                            })
+                    });
+                    let Some(position) = position else {
+                        return false;
+                    };
+                    let graph = terminal_semantics::descriptor_results::terminal_graph(module);
+                    let Ok(current) =
+                        terminal_semantics::descriptor_results::current_selected_payload_contract(
+                            &module.structural_types,
+                            &module.structural_domains,
+                            &graph,
+                            machine.id,
+                            position,
+                            source.place,
+                            source_path,
+                            &|place| {
+                                terminal_semantics::descriptor_results::terminal_payload_contract(
+                                    machine, place,
+                                )
+                            },
+                        )
+                    else {
+                        return false;
+                    };
+                    terminal_psi::StructuralPathQualification::append_under(
+                        &current.qualifications,
+                        &current.projected_qualifications,
+                        &[terminal_psi::StructuralPathSegment::Referent],
+                        &mut captured,
+                    );
+                }
                 result.projected_qualifications.iter().all(|row| captured.contains(row))
                 // Mutable formation retains preservation obligations, not just
                 // optional observations. Erasing a row cannot erase a debt.

@@ -1,0 +1,70 @@
+// Expected exit: 0. A plain local retains the issued result's membership
+// and transfers its one linear claim into a qualified state parameter.
+use omega::language::core::drop;
+use omega::language::core::content;
+data Root [linear] { value: u64; }
+machine Root::drop(root: &mut Root) {}
+domain Root::Granted established by Grant::grant;
+data ByteUnit {}
+machine Granted::content(root: &Root) -> CountedQuantity<ByteUnit>
+satisfies Content<Root, CountedQuantity<ByteUnit>>::project {
+    CountedQuantity { magnitude: embed(root.value) as Nat }
+}
+boundary trait Grant {
+    machine grant(root: Root) -> Root ensures result in Root::Granted;
+}
+Provider satisfies Grant {
+    machine grant(root: Root) -> Root { root }
+}
+data Main {}
+machine Main::main(context: &mut Main) reaches Grant crashes Trap {
+    through_parameter(Grant::grant(Root { value: 42 }));
+    through_field();
+    through_inline_result();
+    let root: Root = Grant::grant(Root { value: 42 });
+    transition { _ -> consume(root) }
+    state consume(root: Root in Granted) {
+        let value: u64 = root.value;
+        drop(root);
+        transition value == 42 { true -> done() _ -> wrong() }
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}
+
+machine through_parameter(root: Root)
+requires root in Root::Granted
+crashes Trap {
+    transition { _ -> consume(root) }
+    state consume(root: Root in Granted) {
+        let value: u64 = root.value;
+        drop(root);
+        transition value == 42 { true -> done() _ -> wrong() }
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}
+
+data Holder { root: Root in Granted; }
+machine through_field() reaches Grant crashes Trap {
+    let holder: Holder = Holder { root: Grant::grant(Root { value: 42 }) };
+    transition { _ -> consume(holder.root) }
+    state consume(root: Root in Granted) {
+        let value: u64 = root.value;
+        drop(root);
+        transition value == 42 { true -> done() _ -> wrong() }
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}
+
+machine through_inline_result() reaches Grant crashes Trap {
+    transition { _ -> consume(Grant::grant(Root { value: 42 })) }
+    state consume(root: Root in Granted) {
+        let value: u64 = root.value;
+        drop(root);
+        transition value == 42 { true -> done() _ -> wrong() }
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}

@@ -190,7 +190,6 @@ impl Builder<'_, '_> {
         arguments: &[ExpressionHandle],
         parameters: &[typed_trees::signature::StateParameter],
     ) -> Option<ComputedCallOperands> {
-        use typed_trees::types::TypeReferenceNode;
         if arguments.len() != parameters.len()
             || parameters.iter().any(|parameter| {
                 parameter.is_const
@@ -227,23 +226,10 @@ impl Builder<'_, '_> {
             } else {
                 let state =
                     validation::find_state_in_machine(self.program, self.machine, self.state)?;
-                // Owned operands consume the established value, not a live
-                // view of storage which a later argument can replace. Borrowed
-                // operands keep their loan route; only computed temporaries
-                // need an established owner on that route.
-                let reference_formal = matches!(
-                    self.program
-                        .type_reference_table
-                        .type_reference(parameter.type_reference),
-                    TypeReferenceNode::Reference { .. }
-                );
-                // Binding mutability controls writes inside the callee;
-                // every owned actual still establishes an independent value.
-                let retained = if !reference_formal {
-                    self.retain_structural_argument(*argument, parameter.type_reference)
-                } else {
-                    None
-                };
+                // Value planning owns both snapshots and loans. A borrowed
+                // operand retains its occurrence and source evidence without
+                // becoming an owned copy of the referent.
+                let retained = self.retain_structural_argument(*argument, parameter.type_reference);
                 let argument_ordinal = u32::try_from(structural_arguments.len()).ok()?;
                 let argument_plan = if let Some(value) = retained {
                     self.retained_call_argument(
@@ -315,21 +301,7 @@ impl Builder<'_, '_> {
                             *argument,
                         )
                     })
-                    .or_else(|| {
-                        if !reference_formal || parameter.is_mutable {
-                            return None;
-                        }
-                        let value =
-                            self.retain_structural_argument(*argument, parameter.type_reference)?;
-                        self.retained_call_argument(
-                            source_call,
-                            *argument,
-                            parameter,
-                            value,
-                            argument_ordinal,
-                            &mut temporary_cleanups,
-                        )
-                    })?
+                    ?
                 };
                 structural_actuals.push(*argument);
                 structural_arguments.push(
@@ -387,22 +359,14 @@ impl Builder<'_, '_> {
         // unsized owned referent. Use the same carrier
         // classification as ordinary calls and arrivals.
         let descriptor = validation::slice_view_shell(self.program, parameter.type_reference, &[]);
-        // Share the source-selected transport query with value registration
-        // and receiving plans. Loan formation keeps its separate backing-owner
-        // schedule; the formal annotation cannot invent a descriptor value.
-        let stored = validation::reference_result_custody::stored_loan_parts(
-            self.program,
-            parameter.type_reference,
-        )
-        .and_then(|_| {
-            crate::values::reference_sources::transported_value_type(
-                self.program,
-                self.program.machine_by_symbol(self.machine)?,
-                self.program.state_by_symbol(self.state)?,
-                self.statement_index,
-                argument,
-            )
-        });
+        // The completed producer identifies a stored descriptor, whether it
+        // was formed here, copied from a local, or returned by a call. Its
+        // reference shell crosses Referent exactly once; it is not an owned
+        // temporary referent requiring a second loan settlement.
+        let producer_type = self.structural_values.nodes.get(value).type_reference;
+        let stored =
+            validation::reference_result_custody::stored_loan_parts(self.program, producer_type)
+                .map(|_| producer_type);
         let (access, referent) = if let Some(actual) = stored {
             validation::checked_argument_matches_type_reference(
                 self.program,
@@ -444,14 +408,17 @@ impl Builder<'_, '_> {
                     )?
                     .1,
                 ),
-                TypeReferenceNode::Reference { .. } => return None,
+                TypeReferenceNode::Reference {
+                    access, referee, ..
+                } => ((*access).into(), *referee),
                 _ => (
                     checked_trees::CheckedStructuralAccess::Owned,
                     parameter.type_reference,
                 ),
             }
         };
-        let (expression, owner_type, mut path) = self.retained_argument_owner(value, referent)?;
+        let (expression, owner_type, mut path) =
+            self.retained_argument_owner(value, producer_type)?;
         // The owned-value contract cannot manufacture a
         // reference. A descriptor instead retains the
         // formation/call's already admitted loan custody.

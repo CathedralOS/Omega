@@ -1130,17 +1130,19 @@ fn foreign_scalar_shape(scalar_type: ScalarType) -> Option<calling_conventions::
 /// structural formal — only for the exact source-rooted borrowed flat-record
 /// lane the lowering owns: every argument carries a nonempty field-only path
 /// rooted at a caller structural parameter, matches its declared formal's
-/// position and access, that formal is borrowed, unrestricted, and
-/// unqualified, and the observed plan places each formal's referent pointer
+/// position and access, that formal is borrowed and unrestricted, and the
+/// observed plan places each formal's referent pointer
 /// as exactly one pointer-width word. `Ok(None)` names a valid signature
-/// shape this lane cannot prove — a callback-bearing signature, an owned or
-/// qualified formal, or an argument
+/// shape this lane cannot prove — a callback-bearing signature, an owned
+/// formal, or an argument
 /// that is not such a projection — so the artifact retains no complete
 /// physical evidence rather than claiming an unprovable custody join.
 /// `Err` names contradictory retained custody: an argument count, declared
 /// formal position, or access that changed between declaration and call, or
 /// an observed plan whose parameter rows no longer realize each formal's
 /// pointer word.
+/// Semantic qualification custody is retained in the settlement identity and
+/// checked at the source call; membership adds no physical transport word.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn normalized_foreign_structural_parameter_shapes(
     structural_arguments: &[terminal_psi::StructuralArgument],
@@ -1194,8 +1196,6 @@ pub(crate) fn normalized_foreign_structural_parameter_shapes(
                 | terminal_psi::StructuralAccess::MutableBorrow
                 | terminal_psi::StructuralAccess::WriteOnlyBorrow
         ) || parameter.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
-            || !parameter.qualifications.is_empty()
-            || !parameter.projected_qualifications.is_empty()
             || argument.path.is_empty()
             || argument
                 .path

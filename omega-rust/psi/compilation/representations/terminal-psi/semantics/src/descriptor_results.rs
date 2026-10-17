@@ -26,6 +26,7 @@ mod contents;
 mod payload_entry;
 mod payload_history;
 mod payload_predicates;
+mod scalar_contracts;
 pub use contents::{
     DescriptorContentsOperand, DescriptorContentsQuery, DescriptorContentsStep,
     DescriptorContentsTransfer, DescriptorPayloadTarget, ElementPayloadMemberships,
@@ -33,8 +34,9 @@ pub use contents::{
     element_payload_memberships, element_payload_memberships_in, payload_memberships,
     terminal_payload_contract,
 };
-pub use payload_history::current_payload_contract;
+pub use payload_history::{current_payload_contract, current_selected_payload_contract};
 pub use payload_predicates::{PayloadScalarObservation, scalar_payload_expression};
+pub use scalar_contracts::instantiate_payload_scalar_guarantees;
 mod owned_shape;
 mod replay;
 pub use compatibility::{DescriptorCompatibilityFailure, DescriptorCompatibilityRequirement};
@@ -359,6 +361,10 @@ pub struct DescriptorMachine {
     /// New dynamic instances retire premises about earlier instances of these
     /// SSA identities, including block formals on loop arrivals.
     pub payload_scalar_definitions: BTreeMap<DescriptorPosition, Vec<semantic_vocabulary::ValueId>>,
+    /// Independently checked scalar guarantees become available only after
+    /// this exact normal-return operation; no structural storage facts enter.
+    pub payload_scalar_postconditions:
+        BTreeMap<DescriptorPosition, Vec<semantic_vocabulary::Proposition>>,
     pub payload_scalar_parameters:
         BTreeMap<semantic_vocabulary::BlockId, Vec<semantic_vocabulary::ValueId>>,
     /// Exact typed scalar reads capture immutable values from current storage.
@@ -367,6 +373,17 @@ pub struct DescriptorMachine {
     /// Selected Boolean facts, in the flow step's exact successor order.
     pub payload_edge_predicates:
         BTreeMap<DescriptorPosition, Vec<Option<semantic_vocabulary::Proposition>>>,
+    /// Scalar arrivals in successor order. Simultaneous binding observes the
+    /// old SSA instances before target formals acquire their new instances.
+    pub payload_scalar_bindings: BTreeMap<
+        DescriptorPosition,
+        Vec<
+            Vec<(
+                semantic_vocabulary::ValueId,
+                semantic_vocabulary::ScalarTerm,
+            )>,
+        >,
+    >,
     pub scalar_payload_writes:
         BTreeMap<DescriptorPosition, Vec<(DescriptorLocation, semantic_vocabulary::ScalarTerm)>>,
     pub payload_invalidations: BTreeMap<DescriptorPosition, Vec<Option<DescriptorContentsQuery>>>,

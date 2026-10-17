@@ -43,7 +43,7 @@ pub(super) fn close(
             ) else {
                 continue;
             };
-            let Some(proof) = prove(checked.goal(), checked.requirements(), 0) else {
+            let Some(proof) = prove(context, checked.goal(), checked.requirements(), 0) else {
                 continue;
             };
             if checked.check_certificate(context, &proof).is_err() {
@@ -102,6 +102,7 @@ pub(super) fn close(
 }
 
 pub(super) fn prove(
+    context: &semantic_vocabulary::PropositionContext,
     goal: &Proposition,
     requirements: &[Proposition],
     depth: usize,
@@ -109,10 +110,21 @@ pub(super) fn prove(
     if depth > 64 {
         return None;
     }
-    if *goal == Proposition::Truth {
+    // Predicate conversion preserves arithmetic constructors. Ask the existing
+    // kernel for their primitive judgment instead of treating only literal
+    // predicates as provable or introducing a second arithmetic evaluator.
+    if let Some(judgment) = [
+        terminal_psi::PrimitiveJudgment::Truth,
+        terminal_psi::PrimitiveJudgment::ReflexiveEquality,
+        terminal_psi::PrimitiveJudgment::ClosedIntegerRelation,
+        terminal_psi::PrimitiveJudgment::IntegerCarrierBound,
+    ]
+    .into_iter()
+    .find(|judgment| proof_admission::decide_primitive(context, goal, *judgment).is_ok())
+    {
         return Some(ProofNode {
             conclusion: goal.clone(),
-            rule: ProofRule::Primitive(terminal_psi::PrimitiveJudgment::Truth),
+            rule: ProofRule::Primitive(judgment),
         });
     }
     for (index, requirement) in requirements.iter().enumerate() {
@@ -127,7 +139,7 @@ pub(super) fn prove(
     if let Proposition::Conjunction(children) = goal {
         let proofs = children
             .iter()
-            .map(|child| prove(child, requirements, depth + 1))
+            .map(|child| prove(context, child, requirements, depth + 1))
             .collect::<Option<Vec<_>>>()?;
         return Some(ProofNode {
             conclusion: goal.clone(),

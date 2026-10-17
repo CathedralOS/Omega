@@ -1,0 +1,28 @@
+data Token { value: u64; }
+data Holder { token: Token; }
+domain Token::Issued(value) requires value.value == 7 established by Issuer::issue;
+boundary trait Issuer {
+    machine issue() -> Token ensures result in Token::Issued;
+}
+Direct satisfies Issuer {
+    machine issue() -> Token { Token { value: 8 } }
+}
+Local satisfies Issuer {
+    machine issue() -> Token { let token: Token = Token { value: 8 }; token }
+}
+Field satisfies Issuer {
+    machine issue() -> Token { let holder: Holder = Holder { token: Token { value: 8 } }; holder.token }
+}
+machine make_token() -> Token ensures result.value == 8 { Token { value: 8 } }
+Called satisfies Issuer {
+    machine issue() -> Token { make_token() }
+}
+Later satisfies Issuer {
+    machine issue() -> Token {
+        transition { _ -> finish() }
+        state finish() -> Token { Token { value: 8 } }
+    }
+}
+data Attached {}
+machine Attached::issue() -> Token satisfies Issuer::issue { make_token() }
+machine main() {}

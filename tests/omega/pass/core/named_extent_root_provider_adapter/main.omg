@@ -1,0 +1,14 @@
+use omega::language::core::extent;
+
+// Named ownership and an attached exact edge owe the same requirement.
+// The adapter returns geometry; only the admitted boundary grants authority.
+RootProvider satisfies ExtentRootProvider {
+    machine grant(geometry: Extent) -> Extent { geometry }
+}
+
+machine consume(root: Extent in Granted) -> Extent { root as Extent }
+machine forward(geometry: Extent) -> Extent reaches ExtentRootProvider {
+    let granted: Extent = ExtentRootProvider::grant(geometry);
+    consume(granted)
+}
+machine main() {}

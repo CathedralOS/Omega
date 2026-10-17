@@ -188,7 +188,9 @@ pub(crate) fn captured_operand_values<'capture>(
             type_reference: selected_type,
             projection,
         };
-        if let Some(mut stored) = reaching_store_values(program, flow, semantic, state, &value) {
+        if let Some(mut stored) =
+            reaching_store_values(program, flow, semantic, state, &value, None)
+        {
             for origin in &mut stored {
                 origin.observation = value.observation;
                 origin.observation_type = value.observation_type;
@@ -202,6 +204,36 @@ pub(crate) fn captured_operand_values<'capture>(
     Some(values)
 }
 
+/// An invocation observes a borrowed scalar after every operand completes.
+/// Resolve its reaching value at that epoch, not when its address was captured.
+/// Snapshot operands already have their own completed origin and stay unchanged.
+pub(crate) fn observe_captured_values<'capture>(
+    program: &dyn ::validation::CheckingInput,
+    flow: &'capture FlowFacts,
+    semantic: &FactPlan,
+    state: &FlowStateFact,
+    values: Vec<CapturedValue<'capture>>,
+    epoch: &'capture FlowOperandFact,
+) -> Vec<CapturedValue<'capture>> {
+    let mut observed = Vec::new();
+    for value in values {
+        if super::operand_contexts::operand_binds_live_view(program, value.type_reference)
+            && let Some(mut stored) =
+                reaching_store_values(program, flow, semantic, state, &value, Some(epoch))
+        {
+            for origin in &mut stored {
+                origin.observation = value.observation;
+                origin.observation_type = value.observation_type;
+                origin.observation_projection = value.observation_projection.clone();
+            }
+            observed.extend(stored);
+        } else {
+            observed.push(value);
+        }
+    }
+    observed
+}
+
 /// A stored copy retains the completed RHS, not a fresh interpretation of its
 /// initializer. Walk produced stores and writes backwards; each successful hop
 /// strictly decreases the statement frontier. Unknown writes stop provenance,
@@ -212,8 +244,9 @@ fn reaching_store_values<'capture>(
     semantic: &FactPlan,
     state: &FlowStateFact,
     value: &CapturedValue<'capture>,
+    observation: Option<&FlowOperandFact>,
 ) -> Option<Vec<CapturedValue<'capture>>> {
-    let operand = value.operand;
+    let operand = observation.unwrap_or(value.operand);
     let observed_type = validation::project_type_reference_from_segments(
         program,
         value.type_reference,
@@ -224,19 +257,18 @@ fn reaching_store_values<'capture>(
     // the containing owner's unrelated custody or mutable fields. A live view
     // still observes invocation storage; tracing its old store would freeze
     // referent predicates across later operand writes.
-    if super::operand_contexts::operand_binds_live_view(program, value.type_reference)
+    if (observation.is_none()
+        && super::operand_contexts::operand_binds_live_view(program, value.type_reference))
         || operand.state_symbol != state.state_symbol
         || !super::operand_contexts::operand_binds_stable_copy(program, observed_type)
     {
         return None;
     }
-    let mut source = validation::canonical_place_from_expression_in_state(
-        program,
-        operand.state_symbol,
-        operand.statement_index,
-        value.projection.expression,
-    )?;
-    source.extend_segments(&value.projection.remaining);
+    let sources = captured_value_places(program, flow, value)?;
+    let [source] = sources.as_slice() else {
+        return None;
+    };
+    let source = &source.projected;
     if !matches!(source.root, PlaceRoot::Symbol(_))
         || !super::operand_entry_origin_is_stable(program, flow, operand, &source)
     {

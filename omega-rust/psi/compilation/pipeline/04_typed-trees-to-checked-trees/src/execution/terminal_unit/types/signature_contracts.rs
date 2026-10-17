@@ -98,112 +98,59 @@ pub(in crate::execution::terminal_unit) fn checked_structural_signature_has_plan
         })
 }
 
-pub(in crate::execution::terminal_unit) fn boundary_domain_requirements(
+/// Retain one structural requirement roster for opaque machines and trait
+/// signatures. Qualified parameters and explicit membership clauses describe
+/// the same admission obligation; scalar clauses keep their separate lane.
+pub(in crate::execution::terminal_unit) fn boundary_domain_requirements<'a>(
     program: &dyn ::validation::CheckingInput,
-    facts: &CheckFacts,
     shapes: &mut ShapeCollector<'_>,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    source_parameters: &[typed_trees::signature::StateParameter],
+    contracts: impl Iterator<Item = &'a typed_trees::signature::SignatureContract>,
     structural_parameters: &[CheckedUnitStructuralParameterPlan],
     binders: &[(SymbolHandle, String)],
 ) -> Option<Vec<CheckedUnitStructuralDomainRequirementPlan>> {
-    let source_parameters = program.state_parameters(state);
-    // A satisfying machine's state also carries the rows its conformance
-    // inherits from the trait requirement. Those restate a clause the
-    // conformance check already matched against this signature, and their
-    // membership expressions name the requirement's own formals, not this
-    // state's parameters; the authored clauses alone describe the plan.
-    let checked_requires = facts
-        .proof
-        .contract_facts
-        .iter()
-        .filter(|(_, fact)| {
-            fact.kind == ContractProofFactKind::Requires
-                && fact.inherited_scope.is_none()
-                && (matches!(
-                    fact.owner,
-                    ContractProofFactOwner::Machine { machine_symbol }
-                        if machine_symbol == machine.symbol
-                ) || matches!(
-                    fact.owner,
-                    ContractProofFactOwner::MachineState { machine_symbol, state_symbol }
-                        if machine_symbol == machine.symbol && state_symbol == state.symbol
-                ))
-        })
-        .map(|(_, fact)| fact)
-        .collect::<Vec<_>>();
-    let authored_requires = program
-        .machine_contracts(machine)
-        .iter()
-        .chain(program.state_contracts(state))
-        .filter(|contract| contract.kind == SignatureContractKind::Requires)
-        .map(|contract| contract.facts.count() as usize)
-        .sum::<usize>();
-    if checked_requires.len() != authored_requires {
-        return None;
-    }
-
     let mut output = Vec::new();
-    for checked in checked_requires {
-        let Some(membership) = program.proof_facts.get(checked.fact).as_membership() else {
-            // Authored and implicit entry predicates use the scalar lane.
-            // Its complete clause projection refuses unsupported facts rather
-            // than dropping a requirement this structural roster cannot carry.
-            continue;
-        };
-        if validation::scalar_membership_carrier(program, membership).is_some() {
-            // A scalar subject may itself be an expression. Its declaration-
-            // local projection, not a structural root-only place recognizer,
-            // establishes the subject in boundary_scalar_requires.
-            continue;
+    for (argument_index, parameter) in structural_parameters.iter().enumerate() {
+        for domain in &parameter.qualifications {
+            output.push(CheckedUnitStructuralDomainRequirementPlan {
+                argument_index: u32::try_from(argument_index).ok()?,
+                domain: *domain,
+            });
         }
-        let place = validation::canonical_place_from_expression_in_state(
-            program,
-            state.symbol,
-            0,
-            membership.value,
-        )?;
-        if !place.segments.is_empty() {
-            return None;
+    }
+    for contract in contracts.filter(|contract| contract.kind == SignatureContractKind::Requires) {
+        for fact in program.proof_facts.span_or_empty(contract.facts) {
+            let Some(membership) = fact.as_membership() else {
+                continue;
+            };
+            if validation::scalar_membership_carrier(program, membership).is_some() {
+                continue;
+            }
+            let root = validation::single_segment_name_symbol(program, membership.value)?;
+            let source_position = source_parameters
+                .iter()
+                .position(|parameter| parameter.symbol == root)?;
+            let argument_index = structural_parameters
+                .iter()
+                .position(|parameter| parameter.position as usize == source_position)?;
+            let domain = membership.semantic_domain;
+            if !domain.is_valid() {
+                return None;
+            }
+            let carrier = program
+                .unwrapped_type_reference(source_parameters[source_position].type_reference)?;
+            shapes.add_selected_domain(
+                domain,
+                membership.domain_symbol,
+                carrier,
+                binders,
+                false,
+            )?;
+            output.push(CheckedUnitStructuralDomainRequirementPlan {
+                argument_index: u32::try_from(argument_index).ok()?,
+                domain,
+            });
         }
-        let root = place.root.as_symbol()?;
-        let source_position = source_parameters
-            .iter()
-            .position(|parameter| parameter_is_root(parameter, root))?;
-        // Scalar qualifications use the complete predicate lane published by
-        // boundary_scalar_requires, including implicit entry clauses. They do
-        // not invent a structural argument or gain routed domain authority.
-        if program
-            .primitive_type_reference(source_parameters[source_position].type_reference)
-            .is_some()
-        {
-            continue;
-        }
-        let argument_index = structural_parameters
-            .iter()
-            .position(|parameter| parameter.position as usize == source_position)?;
-        let domain = type_domain_semantic_id(
-            program,
-            source_parameters[source_position].type_reference,
-            membership.domain_symbol,
-        )?;
-        let definition = program.domain_definition(membership.domain_symbol)?;
-        let carrier = type_domain_carrier(
-            program,
-            source_parameters[source_position].type_reference,
-            membership.domain_symbol,
-        )
-        .or_else(|| {
-            definition
-                .index_arguments
-                .is_empty()
-                .then_some(definition.target_type)
-        })?;
-        shapes.add_domain(domain, carrier, binders)?;
-        output.push(CheckedUnitStructuralDomainRequirementPlan {
-            argument_index: u32::try_from(argument_index).ok()?,
-            domain,
-        });
     }
     output.sort_by_key(|requirement| (requirement.argument_index, requirement.domain.0));
     output.dedup();
@@ -344,12 +291,12 @@ pub(in crate::execution::terminal_unit) fn fold_authorized_result_domains(
             let Some(membership) = program.proof_facts.get(fact).as_membership() else {
                 continue;
             };
-            if crate::facts::qualification_evidence::boundary_qualification_authorization(
+            if ::validation::boundary_qualification_authorization(
                 program,
                 owner_symbol,
                 signature,
                 contract.kind.clone(),
-                fact,
+                program.proof_facts.get(fact),
             )
             .is_none()
             {
@@ -660,49 +607,4 @@ pub(super) fn type_domain_semantic_id(
             .filter(|semantic_id| semantic_id.is_valid()),
         _ => None,
     }
-}
-
-pub(super) fn type_domain_carrier(
-    program: &dyn ::validation::CheckingInput,
-    type_reference: TypeReferenceHandle,
-    domain: SymbolHandle,
-) -> Option<TypeReferenceHandle> {
-    fn collect(
-        program: &dyn ::validation::CheckingInput,
-        type_reference: TypeReferenceHandle,
-        domain: SymbolHandle,
-        matches: &mut Vec<TypeReferenceHandle>,
-    ) {
-        if !type_reference.is_valid() {
-            return;
-        }
-        match program.type_reference_table.type_reference(type_reference) {
-            TypeReferenceNode::Reference { referee, .. } => {
-                collect(program, *referee, domain, matches);
-            }
-            TypeReferenceNode::Constrained {
-                base_type,
-                constraints,
-            } => {
-                collect(program, *base_type, domain, matches);
-                if program
-                    .type_reference_table
-                    .constraints(*constraints)
-                    .iter()
-                    .any(|constraint| matches!(constraint, TypeConstraintNode::Domain(candidate) if candidate.symbol == domain))
-                    && !matches.contains(base_type)
-                {
-                    matches.push(*base_type);
-                }
-            }
-            _ => {}
-        }
-    }
-
-    let mut matches = Vec::new();
-    collect(program, type_reference, domain, &mut matches);
-    let [carrier] = matches.as_slice() else {
-        return None;
-    };
-    Some(*carrier)
 }

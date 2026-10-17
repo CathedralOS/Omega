@@ -48,9 +48,10 @@ impl Emission<'_, '_, '_> {
         })
     }
 
-    /// A value binding may explicitly forget predicate memberships while its
-    /// exact owned occurrence and claims cross the ordinary arrival edge.
-    /// The declaration cannot introduce a membership absent from that source.
+    /// A receiving annotation constrains the source; it does not erase the
+    /// initializer's checked postconditions or conserved Content. Preserve the
+    /// actual roster across the owned edge, and require every declared member
+    /// to be present already rather than treating the annotation as evidence.
     pub(super) fn value_binding_parameter(
         &self,
         _identities: &mut terminal_psi::TerminalIdentityTableBuilder,
@@ -58,7 +59,7 @@ impl Emission<'_, '_, '_> {
         place: PlaceId,
         position: u32,
     ) -> Result<StructuralParameterDeclaration, LoweringError> {
-        let mut parameter = self.transported_parameter(
+        let parameter = self.transported_parameter(
             source,
             place,
             position,
@@ -99,20 +100,6 @@ impl Emission<'_, '_, '_> {
                 "owned binding cannot establish a receiving membership",
             ));
         }
-        let content = |id| {
-            self.domain_declarations
-                .iter()
-                .find(|domain| domain.id == id)
-                .is_none_or(|domain| domain.content_projection.is_some())
-        };
-        if parameter
-            .qualifications
-            .iter()
-            .any(|domain| content(*domain) && !whole.contains(domain))
-        {
-            return unsupported("owned binding cannot forget a conserved Content projection");
-        }
-        parameter.qualifications = whole;
         Ok(parameter)
     }
 
@@ -126,9 +113,7 @@ impl Emission<'_, '_, '_> {
         &[terminal_psi::StructuralPathQualification],
     )> {
         self.operations
-            .iter()
-            .filter_map(|operation| operation.result.structural())
-            .find(|result| result.place == place)
+            .structural_result_contract(place)
             .map(|result| {
                 (
                     result.qualifications.as_slice(),

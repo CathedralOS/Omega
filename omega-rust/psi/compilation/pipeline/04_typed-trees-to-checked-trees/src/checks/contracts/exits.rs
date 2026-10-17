@@ -41,6 +41,7 @@ mod cyclic_headers;
 mod result_domains;
 pub(super) use result_domains::exact_scalar_membership;
 mod scalars;
+pub(super) use scalars::BoundaryRefutations;
 
 pub(super) use cyclic_headers::CyclicHeaderInvariants;
 pub(super) use result_domains::{

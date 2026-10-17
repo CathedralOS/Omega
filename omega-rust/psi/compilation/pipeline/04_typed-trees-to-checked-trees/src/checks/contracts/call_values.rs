@@ -132,7 +132,7 @@ pub(crate) fn captured_values<'facts>(
     actual: &Actual<'_>,
 ) -> Option<Vec<crate::flow::CapturedValue<'facts>>> {
     let operand = captured_operand(program, facts, state, call, actual)?;
-    crate::flow::captured_operand_values(
+    let values = crate::flow::captured_operand_values(
         program,
         &facts.flow,
         &facts.semantic,
@@ -140,7 +140,18 @@ pub(crate) fn captured_values<'facts>(
         operand,
         actual.parameter.type_reference,
         &actual.path,
-    )
+    )?;
+    let epoch = crate::flow::captured_call_operands(program, &facts.flow, state, call)?
+        .0
+        .last()?;
+    Some(crate::flow::observe_captured_values(
+        program,
+        &facts.flow,
+        &facts.semantic,
+        state,
+        values,
+        epoch,
+    ))
 }
 
 fn captured_value<'facts>(
@@ -314,6 +325,9 @@ pub(crate) fn captured_arithmetic_observation(
 pub(super) struct MembershipEvidence {
     pub contexts: Vec<FactContextHandle>,
     pub referents: Option<Vec<CanonicalPlace>>,
+    // Exact completed operand for a whole-formal membership. A projected
+    // requirement cannot qualify the enclosing operand.
+    pub whole_argument: Option<ExpressionHandle>,
 }
 
 /// Bind the subject and evidence epoch of a declared membership's exact formal. A
@@ -456,6 +470,7 @@ pub(super) fn membership_evidence(
     Some(MembershipEvidence {
         contexts,
         referents,
+        whole_argument: actual.path.is_empty().then_some(actual.argument).flatten(),
     })
 }
 

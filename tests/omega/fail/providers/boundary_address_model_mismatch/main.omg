@@ -1,0 +1,7 @@
+boundary trait Reader {
+    machine read(value: u64) -> u64
+    requires addr::Bound == 4294967296;
+}
+machine read_in_different_model() -> u64 reaches Reader
+requires addr::Bound == 18446744073709551616
+{ Reader::read(42) }

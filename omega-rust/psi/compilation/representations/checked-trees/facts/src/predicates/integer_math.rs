@@ -21,6 +21,9 @@ pub enum CheckedIntegerMathTerm {
         operand: CheckedScalarExpression,
     },
     Literal(IntegerMathLiteral),
+    /// Retain the compiler-owned member symbolically until the Terminal
+    /// producer selects the same concrete carrier as ordinary address values.
+    BuiltinTypeMember(symbols::BuiltinTypeMember),
     Add {
         left: Handle<Self>,
         right: Handle<Self>,
@@ -59,7 +62,8 @@ impl CheckedIntegerMathExpression {
                         return true;
                     }
                 }
-                CheckedIntegerMathTerm::Literal(_) => {}
+                CheckedIntegerMathTerm::Literal(_)
+                | CheckedIntegerMathTerm::BuiltinTypeMember(_) => {}
                 CheckedIntegerMathTerm::Add { left, right }
                 | CheckedIntegerMathTerm::Subtract { left, right }
                 | CheckedIntegerMathTerm::Multiply { left, right } => {

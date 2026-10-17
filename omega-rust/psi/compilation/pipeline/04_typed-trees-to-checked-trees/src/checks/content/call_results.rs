@@ -577,12 +577,12 @@ fn authorized_ensures_signature(
         .trait_definition_by_symbol(owner_symbol)
         .and_then(|owner| program.trait_machine_signature_by_symbol(owner, state_symbol))
         .is_some_and(|signature| {
-            crate::facts::qualification_evidence::boundary_qualification_authorization(
+            ::validation::boundary_qualification_authorization(
                 program,
                 owner_symbol,
                 signature,
                 typed_trees::signature::SignatureContractKind::Ensures,
-                fact,
+                program.proof_facts.get(fact),
             )
             .is_some()
         })

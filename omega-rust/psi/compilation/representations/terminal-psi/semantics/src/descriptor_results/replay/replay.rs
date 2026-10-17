@@ -1267,7 +1267,10 @@ mod snapshot_tests {
         // incoming family is retained even when the stored payloads match.
         assert!(merge_state(&mut joined, &before));
         let mut expected = original.clone();
-        expected.insert(Origin::IncomingContents(query.clone(), Projection::new(&[])));
+        expected.insert(Origin::IncomingContents(
+            query.clone(),
+            Projection::new(&[]),
+        ));
         assert_eq!(joined.contents.get(&query), Some(&Some(expected)));
         assert_eq!(before.contents.get(&query), Some(&Some(original)));
         assert!(!merge_state(&mut joined, &before));

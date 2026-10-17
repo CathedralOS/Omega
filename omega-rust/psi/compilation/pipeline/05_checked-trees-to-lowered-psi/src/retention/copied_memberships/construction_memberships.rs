@@ -10,6 +10,8 @@ pub(super) fn retained(
     module: &TerminalModule,
     machine: &terminal_psi::TerminalMachine,
     operation: &terminal_psi::Operation,
+    position: (semantic_vocabulary::BlockId, u32),
+    graph: &[descriptors::DescriptorMachine],
 ) -> Option<PayloadMembershipContract> {
     let result = operation.result.structural()?;
     let shape = &module.structural_type(result.structural_type)?.shape;
@@ -31,6 +33,29 @@ pub(super) fn retained(
                 source.access,
             )
             .ok()?;
+            // Shared observation may capture predicates proved at this exact
+            // occurrence. Exclusive capture retains declared restoration debts;
+            // an incidental current value must not invent a new invariant that
+            // an otherwise legal later mutation would have to preserve.
+            if source.access == terminal_psi::StructuralAccess::SharedBorrow
+                && let Ok(current) = descriptors::current_selected_payload_contract(
+                    &module.structural_types,
+                    &module.structural_domains,
+                    graph,
+                    machine.id,
+                    position,
+                    source.place,
+                    path,
+                    &|place| descriptors::terminal_payload_contract(machine, place),
+                )
+            {
+                StructuralPathQualification::append_under(
+                    &current.qualifications,
+                    &current.projected_qualifications,
+                    &[StructuralPathSegment::Referent],
+                    &mut projected_qualifications,
+                );
+            }
         }
         OperationKind::EstablishStructuralArray { elements } => {
             for (ordinal, argument) in elements.iter().enumerate() {

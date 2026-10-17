@@ -12,7 +12,8 @@ pub(crate) fn borrowed_arguments_from_roots<'checked>(
 ) -> Result<Vec<&'checked checked_trees::CheckedUnitStructuralArgumentPlan>, LoweringError> {
     let plans = &checked.facts.values.scalar_computations;
     let mut arguments = Vec::new();
-    for handle in reachable_nodes(checked, roots)? {
+    let mut structural_roots = Vec::new();
+    for handle in collect_reachable_nodes(checked, roots, &mut structural_roots)? {
         if let CheckedScalarComputationKind::Call {
             structural_arguments,
             ..
@@ -30,6 +31,26 @@ pub(crate) fn borrowed_arguments_from_roots<'checked>(
                 {
                     arguments.push(argument);
                 }
+            }
+        }
+    }
+    // A retained reference operand observes its backing address before the
+    // call observes the descriptor. Walk the produced value graph too: looking
+    // only at the final call arguments loses scalar homes beneath formations.
+    let mut visited = Vec::new();
+    for root in structural_roots {
+        for value in structural_dependencies(checked, root)?.values {
+            if visited.contains(&value) {
+                continue;
+            }
+            visited.push(value);
+            match &checked.facts.values.structural_values.nodes.get(value).kind {
+                checked_trees::CheckedStructuralValueKind::Reference { source, .. }
+                | checked_trees::CheckedStructuralValueKind::BorrowedSliceView { source, .. }
+                | checked_trees::CheckedStructuralValueKind::MutableSliceView { source, .. } => {
+                    arguments.push(source);
+                }
+                _ => {}
             }
         }
     }

@@ -235,6 +235,15 @@ impl RouteTerms<'_> {
                     self.parameters,
                     self.structural_types,
                 ),
+                CheckedScalarExpression::StructuralParameterIndexedRead { .. } => {
+                    super::structural_members::lower_structural_indexed_term(
+                        identities,
+                        expression,
+                        self.parameters,
+                        self.structural_types,
+                        &mut |identities, selector| self.lower_scalar_term(identities, selector),
+                    )
+                }
                 _ => unsupported(
                     "structural crash integer predicate contains an unsupported operand",
                 ),

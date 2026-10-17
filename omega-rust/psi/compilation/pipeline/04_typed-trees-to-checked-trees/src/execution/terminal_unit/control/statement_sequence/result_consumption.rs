@@ -116,6 +116,43 @@ pub(in crate::execution::terminal_unit) struct CapturedReferenceResult<'operatio
     storage_loans: Vec<arena::Handle<checked_trees::BorrowLoanFact>>,
 }
 
+/// Every named carrier retains its own lexical uses and borrowers, regardless
+/// of whether a call, constructor, or reference formation produced it. An
+/// anonymous carrier has no later authored uses; the result dependency graph
+/// still retains it for descriptors formed from it.
+fn captured_storage_lifetime(
+    program: &dyn ::validation::CheckingInput,
+    facts: &CheckFacts,
+    machine: SymbolHandle,
+    state: SymbolHandle,
+    results: &[(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)],
+    result: &CheckedUnitStructuralResultBindingPlan,
+) -> Option<(u32, Vec<arena::Handle<checked_trees::BorrowLoanFact>>)> {
+    let mut owners = results.iter().filter(|(binding, _)| binding == result);
+    let (_, owner) = owners.next()?;
+    if owners.next().is_some() {
+        return None;
+    }
+    let facts::PlaceRoot::Symbol(owner) = owner else {
+        return Some((0, Vec::new()));
+    };
+    let authored = program.state_by_symbol(state)?;
+    let (formation, _) = program.state_local_declaration(authored, *owner)?;
+    if formation != result.statement_index as usize {
+        return None;
+    }
+    Some((
+        validation::reference_result_custody::whole_local_release_boundary(
+            program,
+            facts,
+            machine,
+            authored,
+            result.statement_index,
+        )?,
+        validation::reference_result_custody::local_storage_loans(facts, machine, state, *owner)?,
+    ))
+}
+
 pub(in crate::execution::terminal_unit) fn captured_reference_result<'operation>(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
@@ -179,11 +216,13 @@ pub(in crate::execution::terminal_unit) fn captured_reference_result<'operation>
         }),
     };
     if let Some((result, loans)) = direct {
+        let (whole_storage_boundary, storage_loans) =
+            captured_storage_lifetime(program, facts, machine, state, results, result)?;
         return Some(CapturedReferenceResult {
             result,
             loans,
-            whole_storage_boundary: 0,
-            storage_loans: Vec::new(),
+            whole_storage_boundary,
+            storage_loans,
         });
     }
     let (result, _) = operation.discardable_structural_result()?;
@@ -239,19 +278,13 @@ pub(in crate::execution::terminal_unit) fn captured_reference_result<'operation>
     if loans.is_empty() {
         return None;
     }
+    let (whole_storage_boundary, storage_loans) =
+        captured_storage_lifetime(program, facts, machine, state, results, result)?;
     Some(CapturedReferenceResult {
         result,
         loans,
-        whole_storage_boundary: validation::reference_result_custody::whole_local_release_boundary(
-            program,
-            facts,
-            machine,
-            authored_state,
-            result.statement_index,
-        )?,
-        storage_loans: validation::reference_result_custody::local_storage_loans(
-            facts, machine, state, *owner,
-        )?,
+        whole_storage_boundary,
+        storage_loans,
     })
 }
 

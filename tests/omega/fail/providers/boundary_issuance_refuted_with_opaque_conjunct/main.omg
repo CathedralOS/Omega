@@ -1,0 +1,8 @@
+data Token { value: u64; }
+domain Token::Opaque;
+domain Token::Issued(value)
+requires value in Token::Opaque, value.value == 7
+established by Issuer::issue;
+boundary trait Issuer { machine issue() -> Token ensures result in Token::Issued; }
+Provider satisfies Issuer { machine issue() -> Token { Token { value: 8 } } }
+machine main() {}

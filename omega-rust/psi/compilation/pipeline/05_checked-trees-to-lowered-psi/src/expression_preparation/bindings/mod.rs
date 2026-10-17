@@ -678,6 +678,17 @@ impl ScalarBindings {
         argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
         parameters: &[checked_trees::signature::StateParameter],
     ) -> Result<StructuralArgument, LoweringError> {
+        if matches!(
+            argument.source,
+            checked_trees::CheckedUnitStructuralArgumentSourcePlan::ScalarParameter { .. }
+        ) {
+            return self.scalar_parameter_borrow(
+                identities,
+                checked,
+                argument,
+                self.structural_declarations(),
+            );
+        }
         let mut source = self.borrowed_structural_home(argument, parameters)?;
         let root = self
             .structural_argument_type(&source)

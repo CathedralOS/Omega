@@ -262,14 +262,15 @@ pub(crate) fn structural_call_arguments(
             // may consume an anonymous home here; owned transfers of retained
             // operands settle through the produced-result arm above.
             let expression = place.root.as_expression()?;
-            let descriptor =
-                validation::slice_view_shell(program, target.type_reference, &[]);
+            let descriptor = validation::slice_view_shell(program, target.type_reference, &[]);
             let authored = *explicit_arguments.get(explicit_index.checked_sub(1)?)?;
             let (access, referent) = match program
                 .type_reference_table
                 .type_reference(target.type_reference)
             {
-                typed_trees::types::TypeReferenceNode::Reference { access, .. } if descriptor.is_some() => {
+                typed_trees::types::TypeReferenceNode::Reference { access, .. }
+                    if descriptor.is_some() =>
+                {
                     ((*access).into(), target.type_reference)
                 }
                 typed_trees::types::TypeReferenceNode::Reference {
@@ -293,20 +294,14 @@ pub(crate) fn structural_call_arguments(
                 expression,
             )?;
             let node = facts.values.structural_values.nodes.get(retained.root);
-            let (owner, path) = match &node.kind {
-                checked_trees::CheckedStructuralValueKind::Projection {
-                    source,
-                    path,
-                    ..
-                } if !path.is_empty() => (*source, path.clone()),
-                _ => (retained.root, Vec::new()),
-            };
-            let owner_expression = facts
-                .values
-                .structural_values
-                .nodes
-                .get(owner)
-                .expression;
+            let (owner, path) =
+                match &node.kind {
+                    checked_trees::CheckedStructuralValueKind::Projection {
+                        source, path, ..
+                    } if !path.is_empty() => (*source, path.clone()),
+                    _ => (retained.root, Vec::new()),
+                };
+            let owner_expression = facts.values.structural_values.nodes.get(owner).expression;
             let owner_type = if owner == retained.root {
                 referent
             } else {
@@ -343,9 +338,7 @@ pub(crate) fn structural_call_arguments(
                     expression: owner_expression,
                 },
                 path,
-                type_identity: validation::structural_type_identity(
-                    program, referent, &[], &[],
-                ),
+                type_identity: validation::structural_type_identity(program, referent, &[], &[]),
                 access,
             });
             continue;

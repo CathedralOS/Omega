@@ -22,6 +22,10 @@ pub use declarations::traits::{ProviderRegionCorrespondence, provider_region_cor
 pub use machine_calls::attached_method_bounds::validate_selected_attached_method_bounds;
 pub use machine_calls::machine_parameters::validate_callable_parameter_refinement;
 pub use machine_calls::{compiler_operations, contract_identities};
+pub use proof_contracts::qualification_evidence::boundary_qualification_authorization;
+pub use proof_contracts::qualification_evidence::{
+    BoundaryQualificationObligation, boundary_provider_qualification_obligations,
+};
 pub use proof_contracts::{contract_structure, expression_owners, mathematical_applications};
 pub use value_custody::partial_affine_residuals::{
     CaseSelectedCleanupRegion, CleanupCaseCondition, CleanupCaseReachability, reconstruct,
@@ -79,7 +83,7 @@ pub use proof_contracts::collection_predicates::{length_member, premises_prove_e
 pub use proof_contracts::contract_entailment::{
     CapturedScalarObservation, captured_collection_length, captured_integer_value,
     captured_scalar_observations, closed_collection_length, closed_collection_length_at_place,
-    closed_collection_length_under_matches, unique_literal_field,
+    closed_collection_length_under_matches, completed_value_refutes_domain, unique_literal_field,
 };
 pub use proof_contracts::contract_results::{
     ReservedResultPlace, reserved_result_owner, reserved_result_place,

@@ -165,17 +165,43 @@ pub(crate) fn bind_parameters(
                     parameter.type_reference,
                 )
             }
-            Scalar::StructuralParameterField {
-                parameter_position,
-                path,
-                ..
-            } => {
+            Scalar::StructuralParameterField { .. }
+            | Scalar::StructuralParameterIndexedRead { .. } => {
+                let (parameter_position, path) = match operand {
+                    Scalar::StructuralParameterField {
+                        parameter_position,
+                        path,
+                        ..
+                    } => (*parameter_position, path.clone()),
+                    Scalar::StructuralParameterIndexedRead {
+                        root,
+                        path,
+                        index,
+                        element_path,
+                        ..
+                    } => {
+                        use checked_trees::CheckedScalarReadProjection;
+                        let mut projections = path
+                            .iter()
+                            .cloned()
+                            .map(CheckedScalarReadProjection::Static)
+                            .collect::<Vec<_>>();
+                        projections
+                            .push(CheckedScalarReadProjection::RuntimeIndex((**index).clone()));
+                        projections.extend_from_slice(element_path);
+                        (
+                            root.parameter()?,
+                            CheckedScalarReadProjection::static_path(&projections)?,
+                        )
+                    }
+                    _ => return None,
+                };
                 let (root, segments, reference, _) =
                     crate::values::resolve_structural_parameter_path(
                         program,
                         parameters,
-                        *parameter_position,
-                        path,
+                        parameter_position,
+                        &path,
                     )?;
                 // An empty projection can observe a whole primitive loan.
                 // Bind its readable referent carrier, as scalar contract
@@ -436,11 +462,7 @@ fn domain_predicates(
 ) -> Option<Vec<BoundPredicate>> {
     let (_, _, symbol, identity) = fact.payload.domain_membership()?;
     let domain = program.domain_definition(symbol)?;
-    if domain.semantic_id != identity
-        || !domain.type_parameters.is_empty()
-        || !domain.index_arguments.is_empty()
-        || domain.alias.is_some()
-    {
+    if domain.semantic_id != identity {
         return None;
     }
     let place = fact.place.as_place()?;
@@ -449,59 +471,79 @@ fn domain_predicates(
         semantic,
         semantic.places.get(place),
     )?;
+    domain_predicates_for_subject(program, operators, domain, &subject)
+}
+
+/// Bind a domain's predicates to an independently selected live subject.
+/// This supplies goals, not membership premises: admission may use the same
+/// binding to veto a refuted claim without assuming the claim under judgment.
+pub(crate) fn domain_predicates_for_subject(
+    program: &dyn ::validation::CheckingInput,
+    operators: &checked_trees::CheckedOperatorFacts,
+    domain: &typed_trees::domain::DomainDefinition,
+    subject: &CanonicalPlace,
+) -> Option<Vec<BoundPredicate>> {
+    if !domain.type_parameters.is_empty()
+        || !domain.index_arguments.is_empty()
+        || domain.alias.is_some()
+    {
+        return None;
+    }
     let parameters = [typed_trees::signature::StateParameter {
         symbol: domain.subject_symbol,
         name: domain.subject_name.clone(),
         type_reference: domain.target_type,
         ..Default::default()
     }];
-    program
-        .proof_facts(domain)
-        .iter()
-        .map(|fact| {
-            let expression = match fact {
-                typed_trees::domain::ProofFact::Expression(expression) => {
-                    crate::values::lower_callable_scalar_contract_predicate(
-                        program,
-                        operators,
-                        domain.symbol,
-                        &parameters,
-                        TypeReferenceHandle::invalid(),
-                        *expression,
-                        false,
-                        &mut 4096,
-                    )?
+    Some(
+        program
+            .proof_facts(domain)
+            .iter()
+            .filter_map(|fact| {
+                let expression = match fact {
+                    typed_trees::domain::ProofFact::Expression(expression) => {
+                        crate::values::lower_callable_scalar_contract_predicate(
+                            program,
+                            operators,
+                            domain.symbol,
+                            &parameters,
+                            TypeReferenceHandle::invalid(),
+                            *expression,
+                            false,
+                            &mut 4096,
+                        )?
+                    }
+                    typed_trees::domain::ProofFact::Membership(membership) => {
+                        crate::values::scalar::result_contract::lower_callable_scalar_membership(
+                            program,
+                            operators,
+                            domain.symbol,
+                            &parameters,
+                            membership,
+                            &mut 4096,
+                        )?
+                    }
+                    typed_trees::domain::ProofFact::Proposition(_) => return None,
+                };
+                let mut predicate = bind_parameters(
+                    program,
+                    domain.symbol,
+                    domain.symbol,
+                    &parameters,
+                    expression,
+                )?;
+                for binding in &mut predicate.bindings {
+                    if binding.place.root != facts::PlaceRoot::Symbol(domain.subject_symbol) {
+                        return None;
+                    }
+                    let mut place = subject.clone();
+                    place.extend_segments(&binding.place.segments);
+                    binding.place = place;
                 }
-                typed_trees::domain::ProofFact::Membership(membership) => {
-                    crate::values::scalar::result_contract::lower_callable_scalar_membership(
-                        program,
-                        operators,
-                        domain.symbol,
-                        &parameters,
-                        membership,
-                        &mut 4096,
-                    )?
-                }
-                typed_trees::domain::ProofFact::Proposition(_) => return None,
-            };
-            let mut predicate = bind_parameters(
-                program,
-                domain.symbol,
-                domain.symbol,
-                &parameters,
-                expression,
-            )?;
-            for binding in &mut predicate.bindings {
-                if binding.place.root != facts::PlaceRoot::Symbol(domain.subject_symbol) {
-                    return None;
-                }
-                let mut place = subject.clone();
-                place.extend_segments(&binding.place.segments);
-                binding.place = place;
-            }
-            Some(predicate)
-        })
-        .collect()
+                Some(predicate)
+            })
+            .collect(),
+    )
 }
 
 struct Values<'a, Resolve> {
@@ -887,6 +929,7 @@ pub(crate) fn map_scalar(
     match expression {
         Scalar::Parameter { .. }
         | Scalar::StructuralParameterField { .. }
+        | Scalar::StructuralParameterIndexedRead { .. }
         | Scalar::Local { .. }
         | Scalar::StorageRead { .. } => map(expression)?,
         Scalar::Boolean(expression) => map_observations(expression, map)?,
@@ -901,9 +944,7 @@ pub(crate) fn map_scalar(
         Scalar::IntegerLiteral { .. }
         | Scalar::IeeeFloatLiteral { .. }
         | Scalar::ImplementationSelection { .. } => {}
-        Scalar::StructuralSequenceLength { .. }
-        | Scalar::ErasedParameter { .. }
-        | Scalar::StructuralParameterIndexedRead { .. } => return None,
+        Scalar::StructuralSequenceLength { .. } | Scalar::ErasedParameter { .. } => return None,
     }
     Some(())
 }

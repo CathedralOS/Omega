@@ -546,7 +546,8 @@ fn argument_contract(
                     );
                     let (owner, owner_type) = if referent_place.as_ref() == Some(place) {
                         (source, produced_type?)
-                    } else if place.segments.is_empty() && source == referent_expression
+                    } else if place.segments.is_empty()
+                        && source == referent_expression
                         && let Some(producer) = referent_place
                             .as_ref()
                             .and_then(|place| place.root.as_expression())

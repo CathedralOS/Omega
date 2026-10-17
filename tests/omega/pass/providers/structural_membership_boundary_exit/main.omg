@@ -1,0 +1,63 @@
+// Expected exit: 0. Explicit structural membership and qualified parameters
+// retain the same nominal obligation through checked boundary dispatch.
+data Guid { tag: u32; bytes: [u8; 2]; }
+domain Guid::Selected(value)
+requires value.tag == 7 && value.bytes[0] == 1 && value.bytes[1] == 2;
+boundary trait Reader {
+    machine read(prefix: u64, protocol: &Guid, suffix: u32) -> u64 requires protocol in Guid::Selected;
+    machine qualified(protocol: &Guid in Selected) -> u64;
+}
+Provider satisfies Reader {
+    machine read(prefix: u64, renamed: &Guid, suffix: u32) -> u64 requires renamed in Guid::Selected { 42 }
+    machine qualified(renamed: &Guid in Selected) -> u64 { 43 }
+}
+data Main { protocol: Guid; }
+machine forwarded(protocol: &Guid) -> u64 reaches Reader
+requires protocol in Guid::Selected {
+    Reader::read(31, protocol, 32)
+}
+machine mutate(protocol: &mut Guid) { protocol.tag = 8; }
+machine second_byte() -> u8 ensures result == 2 { 2 }
+machine constructed(tag: u32, first: u8) -> bool reaches Reader
+requires tag == 7 && first == 1 {
+    let computed: u8 = first + 1;
+    let protocol: Guid = Guid { tag: tag, bytes: [first, computed] };
+    let second: u8 = second_byte();
+    let returned: Guid = Guid { tag: tag, bytes: [first, second] };
+    let computed_result: u64 = Reader::read(0, &protocol, 0);
+    let returned_result: u64 = Reader::read(0, &returned, 0);
+    computed_result == 42 && returned_result == 42
+}
+machine looped(value: u8) -> bool reaches Reader
+requires value < 2 {
+    transition { _ -> step(value) }
+    state step(current: u8) -> bool requires current < 2 {
+        let next: u8 = current + 1;
+        transition next == 2 {
+            true -> chosen(next)
+            _ -> step(next)
+        }
+    }
+    state chosen(second: u8) -> bool requires second == 2 {
+        let protocol: Guid = Guid { tag: 7, bytes: [1, second] };
+        let result: u64 = Reader::read(0, &protocol, 0);
+        result == 42
+    }
+}
+machine Main::main(context: &mut Main) reaches Reader crashes Trap {
+    context.protocol = Guid { tag: 7, bytes: [1, 2] };
+    let local: Guid = Guid { tag: 7, bytes: [1, 2] };
+    let direct: u64 = Reader::read(11, &local, 12);
+    let projected: u64 = Reader::read(21, &context.protocol, 22);
+    let qualified: u64 = Reader::qualified(&context.protocol);
+    let forwarded: u64 = forwarded(&context.protocol);
+    let constructed: bool = constructed(7, 1);
+    let looped: bool = looped(0);
+    mutate(&mut context.protocol);
+    transition direct == 42 && projected == 42 && qualified == 43 && forwarded == 42 && constructed && looped && context.protocol.tag == 8 {
+        true -> done()
+        _ -> wrong()
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}

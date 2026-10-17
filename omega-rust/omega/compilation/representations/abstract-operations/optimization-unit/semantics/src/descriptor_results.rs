@@ -326,8 +326,10 @@ fn adapt(
         scalar_payload_writes: BTreeMap::new(),
         scalar_payload_reads: BTreeMap::new(),
         payload_scalar_definitions: BTreeMap::new(),
+        payload_scalar_postconditions: BTreeMap::new(),
         payload_scalar_parameters: BTreeMap::new(),
         payload_edge_predicates: BTreeMap::new(),
+        payload_scalar_bindings: BTreeMap::new(),
         payload_arrivals: BTreeMap::new(),
         unresolved_contents_writes: BTreeSet::new(),
         storage_derivations: BTreeSet::new(),
@@ -444,6 +446,22 @@ fn adapt(
             let position = (block.id, u32::try_from(index).ok()?);
             let selected = operation(function, node)?;
             let operation = selected.as_ref();
+            if let Some(guarantees) = scalar_call_guarantees(
+                operation,
+                &|identity| {
+                    let mut matching = functions
+                        .iter()
+                        .copied()
+                        .filter(|candidate| candidate.machine == identity);
+                    let candidate = matching.next()?;
+                    matching.next().is_none().then_some(candidate)
+                },
+                &|value| scalar_expression(function, value).map(|term| term.scalar_type()),
+            ) {
+                graph
+                    .payload_scalar_postconditions
+                    .insert(position, guarantees);
+            }
             if let O::StructuralScalarFieldStore {
                 destination,
                 path,
@@ -451,13 +469,13 @@ fn adapt(
                 value,
                 ..
             } = operation
-                && let Some(literal) = scalar_literal(function, value.value)
+                && let Some(value) = scalar_expression(function, value.value)
             {
                 graph
                     .scalar_payload_writes
                     .entry(position)
                     .or_default()
-                    .push((location(destination.place(), path, Some(*field))?, literal));
+                    .push((location(destination.place(), path, Some(*field))?, value));
             }
             let result = operation.structural_result().map(|(_, result)| result);
             if !node.definitions.is_empty() {
@@ -959,6 +977,24 @@ fn adapt(
                     }
                     step.inputs = vec![DescriptorLocation::whole(*source)];
                 }
+                O::EstablishScalarArray {
+                    result, elements, ..
+                } => {
+                    for (ordinal, value) in elements.iter().enumerate() {
+                        let path = terminal_semantics::scalar_array_leaf_path(
+                            types.iter(),
+                            result.structural_type,
+                            u64::try_from(ordinal).ok()?,
+                        )?;
+                        if let Some(value) = scalar_expression(function, *value) {
+                            graph
+                                .scalar_payload_writes
+                                .entry(position)
+                                .or_default()
+                                .push((location(result.place, &path, None)?, value));
+                        }
+                    }
+                }
                 O::EstablishStructuralArray {
                     result, elements, ..
                 } => {
@@ -1021,13 +1057,13 @@ fn adapt(
                             _ => location(result.place, &[], Some(field.field))?,
                         };
                         if let terminal_psi::RecordFieldValue::Scalar { value, .. } = &field.value
-                            && let Some(literal) = scalar_literal(function, *value)
+                            && let Some(value) = scalar_expression(function, *value)
                         {
                             graph
                                 .scalar_payload_writes
                                 .entry(position)
                                 .or_default()
-                                .push((destination.clone(), literal));
+                                .push((destination.clone(), value));
                         }
                         if let terminal_psi::RecordFieldValue::Structural(source) = &field.value {
                             if let Some(source) = location(source.place, &source.path, None) {
@@ -1344,6 +1380,21 @@ fn adapt(
                     {
                         return None;
                     }
+                    let scalar_bindings = target
+                        .parameters
+                        .iter()
+                        .map(|parameter| {
+                            let binding = edge.binding(parameter.value)?;
+                            let value = scalar_expression(function, binding.argument)?;
+                            (value.scalar_type() == parameter.scalar_type)
+                                .then_some((parameter.value, value))
+                        })
+                        .collect::<Option<Vec<_>>>()?;
+                    graph
+                        .payload_scalar_bindings
+                        .entry(position)
+                        .or_default()
+                        .push(scalar_bindings);
                     let parameters = target
                         .structural_parameters
                         .iter()
@@ -1471,6 +1522,66 @@ pub fn captured_scalar_ordering(
     .into_ordering()
 }
 
+/// Apply an exact current call signature once for payload and ordering facts.
+/// The two consumers project different consequences, not different call rules.
+pub(crate) fn scalar_call_guarantees<'function>(
+    operation: &O,
+    callee: &impl Fn(MachineId) -> Option<&'function PsiOptimizationFunction>,
+    scalar_type: &impl Fn(semantic_vocabulary::ValueId) -> Option<semantic_vocabulary::ScalarType>,
+) -> Option<Vec<semantic_vocabulary::Proposition>> {
+    let (identity, arguments, result) = match operation {
+        O::Call {
+            callee,
+            arguments,
+            result,
+            scalar_type,
+            ..
+        } => (
+            *callee,
+            arguments,
+            abstract_operations::AbstractResult {
+                value: *result,
+                scalar_type: *scalar_type,
+            },
+        ),
+        O::CallStructural {
+            callee,
+            arguments,
+            result,
+            ..
+        } => (callee.machine()?, arguments, result.scalar()?),
+        _ => return None,
+    };
+    let callee = callee(identity)?;
+    let contract = callee.verified_contract.as_ref()?;
+    let signature = callee.result.scalar()?;
+    if arguments.contains(&result.value)
+        || signature.scalar_type != result.scalar_type
+        || arguments.len() != callee.parameters.len()
+        || !contract.erased_scalar_formals.is_empty()
+        || !contract.erased_proof_formals.is_empty()
+    {
+        return None;
+    }
+    let mut bindings = Vec::new();
+    for (formal, actual) in callee.parameters.iter().zip(arguments) {
+        if scalar_type(*actual) != Some(formal.scalar_type) {
+            return None;
+        }
+        bindings.push((
+            formal.value,
+            semantic_vocabulary::ScalarTerm::value(*actual, formal.scalar_type),
+        ));
+    }
+    bindings.push((
+        signature.value,
+        semantic_vocabulary::ScalarTerm::value(result.value, result.scalar_type),
+    ));
+    Some(kernel::instantiate_payload_scalar_guarantees(
+        contract, &bindings,
+    ))
+}
+
 fn scalar_literal(
     function: &PsiOptimizationFunction,
     value: semantic_vocabulary::ValueId,
@@ -1560,6 +1671,13 @@ fn scalar_expression(
             })
             .and_then(|node| {
                 Some(match &node.operation {
+                    O::IntegerArithmetic {
+                        arithmetic,
+                        scalar_type,
+                        left,
+                        right,
+                        ..
+                    } => arithmetic.scalar_term(*scalar_type, *term(*left)?, *term(*right)?),
                     O::BooleanNot { operand, .. } => T::BooleanNot {
                         operand: term(*operand)?,
                     },

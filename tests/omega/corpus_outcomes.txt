@@ -1526,18 +1526,18 @@ fail/calls/constructor_child_membership_precedes_repair rejected 1600ms expected
 	cannot prove requires contract for call observe from main: holder.ticket in Ticket::Issued
 fail/calls/constructor_child_named_state_epochs_not_equal rejected 1603ms expected @a9ae30e1c334+wt
 	cannot prove requires contract for call selected from main: constructor:4:Pair6:record17:common:name:first13:holder.amount20:common:name:replaced39:Holder.replace(mut holder, replacement)18:common:name:second13:holder.amount.first == constructor:4:Pair6:record17:common:name:first13:holder.amount20:common:name:replaced39:Holder.replace(mut holder, replacement)18:common:name:second13:holder.amount.second (needs fact `captured.first == captured.second` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
-fail/calls/constructor_projected_membership_precedes_repair rejected 1685ms expected @a9ae30e1c334+wt
-	cannot prove requires contract for call observe from main: holder.envelope.ticket in Ticket::Issued
+fail/calls/constructor_projected_membership_precedes_repair rejected 684ms expected @d75fe4ba5012+wt
+	cannot prove requires contract for call observe from main: holder.envelope.ticket in Ticket::Issued in state `entry`
 fail/calls/copied_argument_ensures_cannot_restore_callee_mutated_source rejected 851ms expected @ef7962801508
 	cannot prove requires contract for call take_ascii from Main::main: ascii_only(main.line) (needs fact `ascii_only(value)` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `capture`
 fail/calls/copied_argument_ensures_cannot_restore_mutated_source rejected 801ms expected @ef7962801508
 	cannot prove requires contract for call take_ascii from Main::main: ascii_only(main.line) (needs fact `ascii_only(value)` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `capture`
-fail/calls/copied_argument_inherited_membership_precedes_repair rejected 1673ms expected @a9ae30e1c334+wt
-	cannot prove requires contract for call observe from main: holder.ticket in Ticket::Issued
+fail/calls/copied_argument_inherited_membership_precedes_repair rejected 683ms expected @d75fe4ba5012+wt
+	cannot prove requires contract for call observe from main: holder.ticket in Ticket::Issued in state `entry`
 fail/calls/copied_argument_routed_ensures_cannot_restore_callee_mutated_source rejected 1639ms expected @a9ae30e1c334+wt
 	cannot prove requires contract for call require_issued from main: holder.ticket in Ticket::Issued (invalidated by prior mutation of holder.ticket; holder.ticket is part of Ticket::Issued)
-fail/calls/copied_argument_routed_ensures_cannot_restore_mutated_source rejected 1607ms expected @a9ae30e1c334+wt
-	cannot prove requires contract for call require_issued from main: holder.ticket in Ticket::Issued (invalidated by prior mutation of holder.ticket; holder.ticket is part of Ticket::Issued)
+fail/calls/copied_argument_routed_ensures_cannot_restore_mutated_source rejected 683ms expected @d75fe4ba5012+wt
+	cannot prove requires contract for call require_issued from main: holder.ticket in Ticket::Issued (invalidated by prior mutation of holder.ticket; holder.ticket is part of Ticket::Issued) in state `entry`
 fail/calls/copied_constructor_child_ensures_cannot_restore_mutated_source rejected 1697ms expected @a9ae30e1c334+wt
 	cannot prove requires contract for call require_issued from main: holder.ticket in Ticket::Issued (invalidated by prior mutation of holder.ticket; holder.ticket is part of Ticket::Issued)
 fail/calls/copied_nominal_argument_precedes_field_repair rejected 195ms expected @dca1c7cd7e6f+wt
@@ -2158,6 +2158,10 @@ fail/core/guarded_trap_ceiling_wider_than_primitive_rejected rejected 5338ms exp
 fail/core/interrupt_obligation_construction_rejected rejected 885ms expected @a9ae30e1c334+wt
 	opaque boundary data `InterruptAcknowledgement` has no public constructor; a boundary provider must establish its values
 	value-qualified machine calls are retired; use a declaration namespace and explicit arguments
+fail/core/named_boundary_wrong_issuer rejected 312ms expected @d75fe4ba5012+wt
+	machine `RootProvider::grant` realizes `Impostor::grant` but does not guarantee its `ensures result in Extent::Granted`; callers of the requirement assume it
+fail/core/named_extent_root_adapter_direct_call rejected 679ms expected @d75fe4ba5012+wt
+	cannot prove requires contract for call consume from direct: unqualified in Extent::Granted in state `entry`
 fail/core/numeric_exact_conversion_above_signed_maximum_rejected rejected 2792ms expected @a9ae30e1c334+wt
 	machine `Main::main` state `main` value call to `narrow_u64_to_i64_exact` violates required fact `value <= 9223372036854775807`: the instantiated fact is structurally false
 fail/core/numeric_exact_conversion_unproven_argument_rejected rejected 5444ms expected @a9ae30e1c334+wt
@@ -4621,6 +4625,26 @@ fail/providers/binding_formal_runtime_operand rejected 243ms expected @a8cedb394
 	machine `bad` state `entry` parameter `binding` uses an invalid routed service carrier: open operands do not close a requirement instance
 fail/providers/borrowed_binding_local_fabricated_carrier rejected 123ms expected @619f89e4fed6+wt
 	opaque boundary data `Binding` has no public constructor; a boundary provider must establish its values
+fail/providers/borrowed_membership_current_subject rejected 686ms expected @d75fe4ba5012+wt
+	state `read_after` receives `item` as both mutable and read-only
+	cannot prove requires contract for call read_after from later_operand: item in Item::Selected in state `entry`
+	cannot prove requires contract for call read from after_mutation: item in Item::Selected in state `entry`
+	cannot prove requires contract for call read from sibling: pair.right in Item::Selected in state `entry`
+	cannot prove requires contract for call read from partial_branch: item in Item::Selected in state `join`
+fail/providers/boundary_address_model_mismatch rejected 683ms expected @d75fe4ba5012+wt
+	cannot prove requires contract for call read from read_in_different_model: addr::Bound == 4294967296 (needs fact `addr::Bound == 4294967296` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/providers/boundary_issuance_refuted_completed_value rejected 688ms expected @d75fe4ba5012+wt
+	boundary qualification is refuted at exit of Direct::issue in state `issue` for requirement `issue`: Token::Issued
+	boundary qualification is refuted at exit of Local::issue in state `issue` for requirement `issue`: Token::Issued
+	boundary qualification is refuted at exit of Field::issue in state `issue` for requirement `issue`: Token::Issued
+	boundary qualification is refuted at exit of Called::issue in state `issue` for requirement `issue`: Token::Issued
+	boundary qualification is refuted at exit of Later::issue in state `finish` for requirement `issue`: Token::Issued
+	boundary qualification is refuted at exit of Attached::issue in state `issue` for requirement `issue`: Token::Issued
+fail/providers/boundary_issuance_refuted_mutable_value rejected 688ms expected @d75fe4ba5012+wt
+	boundary qualification is refuted at exit of Provider::issue in state `issue` for requirement `issue`: Token::Issued
+	boundary qualification is refuted at exit of Later::issue in state `finish` for requirement `issue`: Token::Issued
+fail/providers/boundary_issuance_refuted_with_opaque_conjunct rejected 686ms expected @d75fe4ba5012+wt
+	boundary qualification is refuted at exit of Provider::issue in state `issue` for requirement `issue`: Token::Issued
 fail/providers/boundary_lent_linear_satisfier_narrowed rejected 939ms expected @a8e8aff75d6e+wt
 	machine `TokenScaleProvider::weigh` state `weigh` does not satisfy trait `TokenScale` machine `weigh` parameter `token`: expected `&Token`, got `&Token[in Token::Issued]`
 fail/providers/boundary_operator_without_provider rejected 6595ms expected @308fbdc54ba0
@@ -4639,6 +4663,8 @@ fail/providers/consuming_requirement_without_provider rejected 5554ms expected @
 	no provider is selected for boundary requirement `Receipt::ack`, which the program entry reaches on target `windows_x86_64`
 fail/providers/consuming_trait_requirement_without_provider rejected 6626ms expected @308fbdc54ba0
 	no provider is selected for boundary requirement `Acknowledgement::ack`, which the program entry reaches on target `windows_x86_64`
+fail/providers/erased_routed_result_not_recovered rejected 687ms expected @d75fe4ba5012+wt
+	cannot prove requires contract for call consume from main: erased in Token::Issued in state `entry`
 fail/providers/external_boundary_requires_preserved rejected 3059ms expected @5aabaabbdd54+wt
 	machine `Main::main` state `main` value call to `absolute` violates required fact `value > -2147483648`: the instantiated fact is structurally false (`-2147483648 > -2147483648`)
 fail/providers/finite_requirement_boolean_outside_roster rejected 3413ms expected @a9ae30e1c334+wt
@@ -4683,6 +4709,8 @@ fail/providers/module_operator_hidden_signature_rejected rejected 1290ms expecte
 	machine `Provider::wrong` operator realization `Policy::convert` does not retain the exact selected overload
 fail/providers/module_operator_satisfier_signature_mismatch rejected 1977ms expected @71e65af3059c+wt
 	machine `Supplier::wrong` does not match one exact overload of operator requirement `Conversion::read`; its entry parameter and result types must equal one declared requirement signature
+fail/providers/named_boundary_issuance_ordinary_guarantee rejected 312ms expected @d75fe4ba5012+wt
+	machine `Provider::issue` realizes `Issuer::issue` but does not guarantee its `ensures result.value == 7`; callers of the requirement assume it
 fail/providers/named_provider_wrong_requirement_owner rejected 27ms expected @a9ae30e1c334+wt
 	closed conformance `WrongProvider satisfies CounterOperations` has no inherited requirement slot `OtherOperations::read`
 fail/providers/named_target_family_sibling_guarantee_rejected rejected 587ms expected @d7fd01f47497+wt
@@ -4728,6 +4756,10 @@ fail/providers/qualified_foreign_result_forwarding_written rejected 1792ms expec
 	state `read` receives `protocol` as both mutable and read-only
 	cannot prove requires contract for call read from wrong: protocol in Guid::Selected in state `entry`
 	cannot prove ensures contract for exit from wrong at statement 0: result.code == 0
+fail/providers/qualified_state_duplicates_claim rejected 701ms expected @d75fe4ba5012+wt
+	linear value `root` was already transferred or consumed; it cannot be moved here
+fail/providers/qualified_state_without_issuance rejected 692ms expected @d75fe4ba5012+wt
+	cannot prove requires contract for call consume from Main::main: root in Root::Granted in state `main`
 fail/providers/satisfier_extra_parameter_rejected rejected 1333ms expected @3b422f31da30+wt
 	machine `MappedTally::add` state `add` declares 2 parameter(s), but trait `Tally` machine `add` declares 1: a satisfier declares no parameter its requirement lacks; a provider holds no state, so state that outlives a call passes through the requirement's declared parameters
 	machine `stateful_reset` state `entry` declares 1 parameter(s), but trait `Tally` machine `reset` declares 0: a satisfier declares no parameter its requirement lacks; a provider holds no state, so state that outlives a call passes through the requirement's declared parameters
@@ -4742,6 +4774,8 @@ fail/providers/scalar_membership_boundary_issuer rejected 780ms expected @8d82e5
 	cannot prove requires contract for call accept from bad: 128 in u32::Issued in state `entry`
 fail/providers/service_nonboundary_requirement_rejected rejected 829ms expected @a9ae30e1c334+wt
 	data `Main` field `service` uses an invalid routed service carrier: `Binding<Local>` requires a boundary trait; ordinary traits are local interfaces
+fail/providers/structural_membership_boundary_wrong_value rejected 691ms expected @d75fe4ba5012+wt
+	cannot prove requires contract for call read from main: wrong in Guid::Selected in state `entry`
 fail/providers/target_contract_requires_preserved rejected 1475ms expected @eca66ed24a79+wt
 	cannot prove requires contract for call absolute from Main::main: -2147483648 > -2147483648 (needs fact `value > -2147483648` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `main`
 fail/providers/via_signature_mismatch_rejected rejected 1339ms expected @a9ae30e1c334+wt
@@ -6065,6 +6099,7 @@ pass/borrows/fixed_array_reference_backing_exit checked 3328ms check-target:maco
 pass/borrows/fixed_array_reference_results_exit checked 9558ms check-target:macos_arm64 @b7c17b88b59d
 pass/borrows/indexed_record_field_replacement_exit checked 11018ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/interleaved_parameter_field_replacement_exit checked 11225ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/borrows/later_state_reference_field_loan_exit checked 5181ms check-target:macos_arm64 @d75fe4ba5012+wt
 pass/borrows/lifetime_return_borrow checked 9696ms @5041ef1af684+wt
 pass/borrows/linear_call_result_shared_observation_exit checked 11336ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/linear_owner_materialized_mutable_projection_exit checked 11344ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -7093,6 +7128,7 @@ pass/core/content_retained_custody_round_trip checked 11400ms check-target:macos
 pass/core/extent_core_surface checked 1673ms @a9ae30e1c334+wt
 pass/core/extent_root_provider_adapter checked 11044ms check-target:macos_arm64 @83314997c2b2
 pass/core/interrupt_obligations_surface checked 2415ms @eac8a2f4b8cc+wt
+pass/core/named_extent_root_provider_adapter checked 725ms @d75fe4ba5012+wt
 pass/core/numeric_cross_signed_conversion_surface checked 11733ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/core/numeric_signed_narrowing_policies checked 15095ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/core/numeric_signed_to_unsigned_policies checked 15266ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -8375,6 +8411,7 @@ pass/providers/boundary_declaration_structural_result_return_exit checked 11322m
 pass/providers/boundary_ensures_relation checked 9560ms @5041ef1af684+wt
 pass/providers/boundary_entry_param checked 9360ms @5041ef1af684+wt
 pass/providers/boundary_extent_caller checked 9554ms @5041ef1af684+wt
+pass/providers/boundary_issuance_independent_predicates checked 3817ms @d75fe4ba5012+wt
 pass/providers/boundary_machine_opaque checked 21525ms @3b422f31da30+wt
 pass/providers/boundary_multi_effects checked 9362ms @5041ef1af684+wt
 pass/providers/boundary_operator_contract checked 9282ms @5041ef1af684+wt
@@ -8426,6 +8463,9 @@ pass/providers/linear_structural_provider_pure_exit checked 9151ms check-target:
 pass/providers/linear_structural_provider_return_exit checked 27483ms check-target:macos_arm64 @7e6c0ae564d2+wt
 pass/providers/local_record_foreign_borrow_exit checked 11406ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/providers/module_named_operator_result_domain_satisfaction checked 12148ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/providers/named_boundary_applied_issuance checked 756ms @d75fe4ba5012+wt
+pass/providers/named_boundary_issuance_ordinary_guarantee checked 728ms @d75fe4ba5012+wt
+pass/providers/named_boundary_mutable_issuance checked 748ms @d75fe4ba5012+wt
 pass/providers/named_foreign_record_result_contract checked 71284ms @46f9e865d179+wt
 pass/providers/nested_binding_borrowed_call_exit checked 10664ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/providers/occurrence_region_binding_exit checked 5895ms check-target:macos_arm64 @f523463c7783+wt
@@ -8436,7 +8476,9 @@ pass/providers/portable_contract checked 9330ms @5041ef1af684+wt
 pass/providers/provider_const_endpoint checked 19169ms @5041ef1af684+wt
 pass/providers/provider_type_target_default_override checked 11443ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/providers/qualified_foreign_result_forwarding checked 6546ms @7c5ee11ecfb7+wt
+pass/providers/qualified_foreign_structural_arguments checked 13698ms check-target:macos_arm64 @d75fe4ba5012+wt
 pass/providers/runtime_adapter_dispatch_exit checked 11788ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/providers/runtime_boundary_address_model_exit checked 3842ms check-target:macos_arm64 @d75fe4ba5012+wt
 pass/providers/runtime_boundary_array_construction_exit checked 11278ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/providers/runtime_boundary_array_forwarding_exit checked 11348ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/providers/runtime_boundary_array_result_exit checked 11091ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -8444,6 +8486,7 @@ pass/providers/runtime_boundary_linear_borrowed_argument_exit checked 4495ms che
 pass/providers/runtime_boundary_linear_result_exit checked 5080ms check-target:macos_arm64 @20ad71d6e3a6+wt
 pass/providers/runtime_boundary_owned_array_cycle_exit checked 11933ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/providers/runtime_boundary_primitive_array_argument_exit checked 11479ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/providers/runtime_boundary_qualified_state_exit checked 3879ms check-target:macos_arm64 @d75fe4ba5012+wt
 pass/providers/runtime_foreign_leaf_borrowed_byte_argument_exit checked 16157ms check-target:macos_arm64 @7e6c0ae564d2+wt
 pass/providers/runtime_foreign_leaf_slice_element_argument_exit checked 16098ms check-target:macos_arm64 @7e6c0ae564d2+wt
 pass/providers/runtime_generic_boundary_relay_exit checked 7246ms check-target:linux_x86_64 @ff34e63b5705+wt
@@ -8467,6 +8510,7 @@ pass/providers/specialized_mixed_structural_fixed_operator_hosted_native checked
 pass/providers/specialized_mixed_structural_result_operator_hosted_native checked 11332ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/providers/specialized_structural_fixed_operator_hosted_native checked 10708ms @a9ae30e1c334+wt
 pass/providers/specialized_structural_fixed_operator_terminal_custody checked 11484ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/providers/structural_membership_boundary_exit checked 12526ms check-target:macos_arm64 @d75fe4ba5012+wt
 pass/providers/target_contract_adjacency_exit checked 5079ms check-target:macos_arm64 @eca66ed24a79+wt
 pass/providers/target_family_entry checked 9609ms @5041ef1af684+wt
 pass/providers/token_machine_family_override_exit checked 11111ms check-target:macos_arm64 @a9ae30e1c334+wt

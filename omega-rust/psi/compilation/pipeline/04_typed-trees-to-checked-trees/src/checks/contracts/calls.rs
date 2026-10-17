@@ -5,17 +5,10 @@ mod labels;
 mod predicate_domains;
 mod state_preservation;
 mod transition_guards;
-use labels::{
-    instantiate_state_parameter_label, label_conjunct_matches, label_subject_interval,
-    split_label_conjuncts,
-};
-use predicate_domains::{
-    predicate_only_domain_interval, predicate_only_domain_labels, predicate_only_domain_predicates,
-    requirement_subject_expression,
-};
+use labels::instantiate_state_parameter_label;
+use predicate_domains::predicate_only_domain_predicates;
 use state_preservation::{
     caller_state_preserves_field, caller_state_preserves_label_names,
-    caller_state_preserves_predicate_premise,
     caller_state_preserves_self_fields_against_call_writes, collect_expression_self_fields,
 };
 pub(super) use transition_guards::transition_guard_proves_boolean_requirement;
@@ -44,6 +37,7 @@ pub(super) fn check_call_requires(
     expression_intervals: &[validation::ExpressionInterval],
     call_frames: Option<&validation::CallFrameResolver<'_>>,
     constant_obligations: &mut Vec<checked_trees::ConstantPredicateObligation>,
+    value_qualifications: &mut arena::Arena<checked_trees::CheckedValueQualification>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     // The state-parameter domain facts (origin StateParameterDomain, surfaced at
@@ -183,10 +177,8 @@ pub(super) fn check_call_requires(
                         state_flow,
                         call_flow,
                         requirement_contexts,
-                        incoming_guards,
                         fact,
                         call_frames,
-                        expression_intervals,
                     )));
 
             let satisfied = satisfied
@@ -196,6 +188,26 @@ pub(super) fn check_call_requires(
                     requirement_contexts,
                     fact,
                 );
+            // Preserve the successful judgment at the captured operand, not
+            // on its source home or every later use of the same expression.
+            // Terminal publication consumes this ordinary value-formation row;
+            // the receiving signature alone never supplies membership.
+            if satisfied
+                && let Some(expression) = membership
+                    .as_ref()
+                    .and_then(|evidence| evidence.whole_argument)
+                && let Some((_, _, _, semantic_domain)) = fact.payload.domain_membership()
+                && let Ok(statement_index) = u32::try_from(call_flow.statement_index)
+            {
+                value_qualifications.append(checked_trees::CheckedValueQualification {
+                    machine: state_flow.machine_symbol,
+                    state: state_flow.state_symbol,
+                    statement_index,
+                    expression,
+                    semantic_domain,
+                    structural_value: checked_trees::CheckedStructuralValueHandle::invalid(),
+                });
+            }
             if !satisfied {
                 if let FactPayload::ContractBooleanExpression { expression, .. } = fact.payload
                     && let Some((target_machine, target_state)) =
@@ -493,37 +505,6 @@ fn value_call_return_domain_grants(
         })
 }
 
-/// PREDICATE -> MEMBERSHIP: a predicate-only domain's whole content is the
-/// `requires self ...` proof facts it declares, so a caller that has already
-/// proven every one of them AT THE SUBJECT has established membership without
-/// a validating boundary call. This is the direction opposite to the
-/// membership -> predicate reading `contracts::domains` runs at use sites,
-/// and the same discharge `transition_guard_proves_requires` applies to a
-/// call on the guarded arm itself -- extended here to the premises an
-/// ordinary statement call can see. `predicate_only_domain_labels` refuses
-/// routed, aliased or indexed domains, so no provenance obligation is ever
-/// bypassed, and `predicate_only_domain_interval` declines a domain whose
-/// predicates are not all readable bounds, so interval containment never
-/// stands in for an unrecognized conjunct.
-///
-/// Two premise shapes qualify:
-/// - a LIVE entry-context boolean fact (an authored `requires`, a `where`, a
-///   transported call guarantee). Flow's mutation invalidation has already
-///   retired anything a prior write could have staled, so what the context
-///   states is what the call receives: an exact label, an `&&` clause, or the
-///   subject's proven interval landing inside the domain's own.
-/// - a DOMINATING incoming guard the ranges walk-back reconstructed at this
-///   state's entry. The walk fences intermediate-state writes but not the
-///   caller's OWN statements, so a guard premise additionally owes the gates
-///   `incoming_guard_proves_requires` applies, re-expressed over the
-///   substituted labels and the subject place -- never over the domain
-///   predicate's bare `self`: every field the subject and the instantiated
-///   predicates read preserved by `caller_state_preserves_field`, every name
-///   the labels spell preserved by `caller_state_preserves_label_names`.
-///
-/// Whatever the premise, the jump's own earlier operands must leave the
-/// membership's callee-formal reads unwritten (`guard_operands`).
-
 /// The invocation's call site plus its target signature parameters.
 fn call_site_target_parameters<'p>(
     program: &'p dyn ::validation::CheckingInput,
@@ -550,244 +531,60 @@ fn proven_predicates_grant_domain(
     state_flow: &FlowStateFact,
     call_flow: &FlowCallFact,
     entry_contexts: &[facts::FactContextHandle],
-    incoming: &[crate::checks::ranges::incoming_guards::IncomingGuard],
     fact: &facts::Fact,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
-    expression_intervals: &[validation::ExpressionInterval],
 ) -> bool {
-    let Some((_, _, domain_symbol, _)) = fact.payload.domain_membership() else {
-        return false;
-    };
-    let Some(predicate_expressions) = predicate_only_domain_predicates(program, domain_symbol)
+    let facts::FactPayload::ContractDomainMembership {
+        value,
+        domain_symbol,
+        ..
+    } = fact.payload
     else {
         return false;
     };
-    let Some(labels) = predicate_only_domain_labels(program, facts, fact) else {
+    let Some(domain) = program.domain_definition(domain_symbol) else {
         return false;
     };
-    let Some((call_site, target_parameters)) =
-        call_site_target_parameters(program, state_flow, call_flow)
-    else {
+    let Some(predicates) = predicate_only_domain_predicates(program, domain_symbol) else {
         return false;
     };
-    let Some((_machine, state)) =
-        program.state_flow_site(state_flow.machine_symbol, state_flow.state_symbol)
-    else {
+    let Some(subject) = validation::canonical_place_from_expression(program, value) else {
         return false;
     };
-    // Every instantiated predicate clause must be established; splitting `&&`
-    // lets each piece come from a different premise, and a missing piece fails
-    // the whole membership.
-    let required_labels: Vec<String> = labels
-        .iter()
-        .flat_map(|label| {
-            split_label_conjuncts(label)
-                .into_iter()
-                .map(str::to_owned)
-                .collect::<Vec<_>>()
-        })
-        .collect();
-    // The caller-terms boolean premises the live entry contexts carry. An
-    // instantiated contract fact keeps only its label -- its raw expression
-    // names the producer's scope, not this one's -- while a declaration-shaped
-    // fact still owns the authored handle for conjunct and interval reads.
-    let context_premises: Vec<(Option<typed_trees::expression::ExpressionHandle>, String)> =
-        entry_contexts
-            .iter()
-            .flat_map(|&handle| {
-                let context = facts.semantic.contexts.get(handle);
-                facts
-                    .semantic
-                    .context_view(context)
-                    .facts()
-                    .filter_map(|candidate| {
-                        let label = crate::labels::semantic_boolean_fact_label(
-                            program,
-                            &facts.semantic,
-                            candidate,
-                        )
-                        .or_else(|| {
-                            facts
-                                .semantic
-                                .proposition_fact_label(program, candidate)
-                                .and_then(|label| label.strip_prefix("boolean:").map(str::to_owned))
-                        })?;
-                        let expression = match candidate.payload {
-                            FactPayload::BooleanExpression(expression) => Some(expression),
-                            FactPayload::ContractBooleanExpression {
-                                expression,
-                                instantiated,
-                                ..
-                            } if !instantiated.is_valid() => Some(expression),
-                            _ => None,
-                        };
-                        Some((expression, label))
-                    })
-                    .collect::<Vec<_>>()
-            })
-            .collect();
-    // The domain's interval is whole-domain evidence: when every predicate is
-    // a recognized bound, proving the subject inside it establishes all of
-    // them at once, and no per-label match is needed.
-    let interval = predicate_only_domain_interval(program, facts, fact).map(
-        |(subject_label, required_low, required_high)| {
-            let contains = |(low, high): (numerics::bignum::BigInt, numerics::bignum::BigInt)| {
-                low >= required_low && high <= required_high
-            };
-            let by_context = context_premises.iter().any(|(expression, label)| {
-                expression.is_some_and(|expression| {
-                    super::intervals::guard_interval_for_label(program, expression, &subject_label)
-                        .is_some_and(contains)
-                }) || label_subject_interval(label, &subject_label).is_some_and(contains)
-            }) || requirement_subject_expression(facts, fact).is_some_and(
-                // The arithmetic walk bounded the argument where the call
-                // evaluates it, with declared ranges, guards and refuted arms.
-                |argument| {
-                    validation::expression_interval(expression_intervals, argument).is_some_and(
-                        |interval| {
-                            contains((
-                                numerics::bignum::BigInt::from_i64(
-                                    interval.low.unwrap_or(i64::MIN),
-                                ),
-                                numerics::bignum::BigInt::from_i64(
-                                    interval.high.unwrap_or(i64::MAX),
-                                ),
-                            ))
-                        },
-                    )
-                },
-            );
-            let by_guard = !by_context
-                && incoming
-                    .iter()
-                    .filter(|guard| guard.applies_at(state_flow.state_symbol))
-                    .any(|guard| {
-                        let interval = if guard.is_negated() {
-                            super::prover::has_builtin_operators(
-                                program,
-                                &facts.operators,
-                                guard.guard(),
-                            )
-                            .then(|| {
-                                super::intervals::negated_guard_interval_for_label(
-                                    program,
-                                    guard.guard(),
-                                    &subject_label,
-                                )
-                            })
-                            .flatten()
-                        } else {
-                            super::intervals::guard_interval_for_label(
-                                program,
-                                guard.guard(),
-                                &subject_label,
-                            )
-                        };
-                        interval.is_some_and(contains)
-                            || guard.direct_arguments().is_some_and(|arguments| {
-                                let renamed = instantiate_state_parameter_label(
-                                    program,
-                                    state,
-                                    arguments,
-                                    &subject_label,
-                                );
-                                let interval = if guard.is_negated() {
-                                    super::intervals::negated_guard_interval_for_label(
-                                        program,
-                                        guard.guard(),
-                                        &renamed,
-                                    )
-                                } else {
-                                    super::intervals::guard_interval_for_label(
-                                        program,
-                                        guard.guard(),
-                                        &renamed,
-                                    )
-                                };
-                                interval.is_some_and(contains)
-                            })
-                    });
-            (by_context, by_guard)
-        },
-    );
-    let mut premise_used_guard = interval.as_ref().is_some_and(|(_, by_guard)| *by_guard);
-    let proven = interval
-        .as_ref()
-        .is_some_and(|(by_context, by_guard)| *by_context || *by_guard)
-        || required_labels.iter().all(|required| {
-            context_premises.iter().any(|(expression, label)| {
-                label_conjunct_matches(label, required)
-                    || expression.is_some_and(|expression| {
-                        guard_conjunct_matches(program, expression, required)
-                    })
-            }) || {
-                let proven = incoming
-                    .iter()
-                    .filter(|guard| guard.applies_at(state_flow.state_symbol))
-                    .any(|guard| {
-                        if guard.is_negated() {
-                            super::prover::has_builtin_operators(
-                                program,
-                                &facts.operators,
-                                guard.guard(),
-                            ) && (negated_guard_conjunct_matches(program, guard.guard(), required)
-                                || guard.direct_arguments().is_some_and(|arguments| {
-                                    let renamed = instantiate_state_parameter_label(
-                                        program, state, arguments, required,
-                                    );
-                                    negated_guard_conjunct_matches(program, guard.guard(), &renamed)
-                                }))
-                        } else {
-                            guard_conjunct_matches(program, guard.guard(), required)
-                                || guard.direct_arguments().is_some_and(|arguments| {
-                                    let renamed = instantiate_state_parameter_label(
-                                        program, state, arguments, required,
-                                    );
-                                    guard_conjunct_matches(program, guard.guard(), &renamed)
-                                })
-                        }
-                    });
-                premise_used_guard |= proven;
-                proven
-            }
-        });
-    let arguments = validation::call_site_argument_expressions(program, &call_site);
-    let mentioned = super::guard_operands::fact_requirement_mentions(program, facts, fact);
-    proven
-        // Only the guard half needs caller-state gates: the walk-back has
-        // already fenced intermediate-state writes, so what remains is this
-        // state's own statements up to the call.
-        && (!premise_used_guard
-            || caller_state_preserves_predicate_premise(
+    // The declaration supplies goals, never premises. Bind its subject to the
+    // exact formal, then use the same captured actuals and observation epochs
+    // as an ordinary Boolean contract. Display labels cannot identify storage
+    // or transport a named state's parameters through a constructor.
+    let Some(goals) = crate::facts::boolean_predicates::domain_predicates_for_subject(
+        program,
+        &facts.operators,
+        domain,
+        &subject,
+    ) else {
+        return false;
+    };
+    goals.len() == predicates.len()
+        && goals.iter().all(|goal| {
+            super::call_values::proves_bound_predicate(
                 program,
                 facts,
                 state_flow,
                 call_flow,
-                state,
-                fact,
-                &predicate_expressions,
-                &required_labels,
-                &super::guard_operands::requirement_argument_reads(
-                    arguments,
-                    target_parameters,
-                    &mentioned,
-                ),
-            ))
-        // The statement scans above stop where the statement begins; the
-        // jump's own operands run after them and before the membership's read.
-        && super::guard_operands::requirement_reads_survive_earlier_operand_writes(
-            program,
-            facts,
-            state_flow,
-            call_flow,
-            arguments,
-            target_parameters,
-            &mentioned,
-            call_frames,
-        )
+                entry_contexts,
+                goal,
+                call_frames,
+                &|observation| {
+                    super::call_values::observation_actual(
+                        program,
+                        state_flow,
+                        call_flow,
+                        observation,
+                    )
+                },
+            )
+        })
 }
 
-/// Whole-caller-state preservation for a premise established BEFORE this
 /// Clear "needs fact X here" guidance for a proof-backed operator/contract that
 /// is missing a required boolean fact (for example an index bound or a
 /// domain-sensitive operator precondition). The caller has not established the

@@ -45,52 +45,6 @@ pub(super) fn guard_interval_for_label(
     }
 }
 
-/// The comparison `!` distributes over, under builtin operator semantics: the
-/// complement that the negated (continuation) arm's `!guard` states.
-/// `!(a && b)` refutes an unspecified operand, so it carries no complement.
-
-/// The closed interval `!guard` establishes for the place spelled
-/// `subject_label` -- the negated-arm read of `guard_interval_for_label`.
-/// `!(a || b)` keeps both refuted operands and intersects exactly as `&&`
-/// does positively; `!(a && b)` cannot isolate an operand, so it contributes
-/// nothing.
-pub(super) fn negated_guard_interval_for_label(
-    program: &dyn ::validation::CheckingInput,
-    guard: ExpressionHandle,
-    subject_label: &str,
-) -> Option<(BigInt, BigInt)> {
-    let Some(binary) = program.expression_table.binary_node(guard) else {
-        return None;
-    };
-    match binary.operator {
-        BinaryOperator::Or => {
-            let left = negated_guard_interval_for_label(program, binary.left, subject_label);
-            let right = negated_guard_interval_for_label(program, binary.right, subject_label);
-            match (left, right) {
-                (Some((left_low, left_high)), Some((right_low, right_high))) => {
-                    Some((left_low.max(right_low), left_high.min(right_high)))
-                }
-                (bound, None) | (None, bound) => bound,
-            }
-        }
-        BinaryOperator::Equal
-            if matches!(
-                program.expression_table.expression(binary.right),
-                ExpressionNode::Boolean(true)
-            ) =>
-        {
-            negated_guard_interval_for_label(program, binary.left, subject_label)
-        }
-        _ => {
-            let operator = binary.operator.complement()?;
-            // `!(a != b)` spells `a == b` -- a point bound. `!(a == b)`
-            // spells `a != b`, which bounds nothing closed.
-            (operator != BinaryOperator::NotEqual)
-                .then(|| comparison_bound(program, binary, operator, subject_label))?
-        }
-    }
-}
-
 /// `comparison_bound` under a caller-selected operator, so the negated arm
 /// can read the complement comparison the same way.
 fn comparison_bound(

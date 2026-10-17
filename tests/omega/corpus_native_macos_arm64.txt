@@ -1900,6 +1900,7 @@ pass/providers/owned_array_operand_epochs_exit built 1562ms exit:0 @c27519066a03
 pass/providers/portable_contract checked 9492ms @5041ef1af684+wt
 pass/providers/provider_const_endpoint checked 19171ms @5041ef1af684+wt
 pass/providers/provider_type_target_default_override built 257ms
+pass/providers/qualified_foreign_structural_arguments built 14991ms exit:70 @d75fe4ba5012+wt
 pass/providers/runtime_adapter_dispatch_exit built 576ms exit:70
 pass/providers/runtime_boundary_array_construction_exit built 2510ms exit:70 @b6846d69ce88+wt
 pass/providers/runtime_boundary_array_forwarding_exit built 6861ms exit:70 @72a43a5bee12+wt

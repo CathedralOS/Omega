@@ -15,6 +15,7 @@ pub(super) fn boundary_scalar_requires(
     owner: SymbolHandle,
     parameters: &[typed_trees::signature::StateParameter],
     structural_parameters: &[checked_trees::CheckedUnitStructuralParameterPlan],
+    domain_requirements: &[checked_trees::CheckedUnitStructuralDomainRequirementPlan],
     result_type: typed_trees::types::TypeReferenceHandle,
     contracts: &[typed_trees::signature::SignatureContract],
     entry_contracts: &[typed_trees::signature::SignatureContract],
@@ -65,12 +66,15 @@ pub(super) fn boundary_scalar_requires(
                                     .position(|parameter| parameter.symbol == symbol)
                             })
                             .is_some_and(|position| {
-                                structural_parameters.iter().any(|parameter| {
-                                    parameter.position as usize == position
-                                        && parameter
-                                            .qualifications
-                                            .contains(&membership.semantic_domain)
-                                })
+                                structural_parameters
+                                    .iter()
+                                    .position(|parameter| parameter.position as usize == position)
+                                    .is_some_and(|argument_index| {
+                                        domain_requirements.iter().any(|requirement| {
+                                            requirement.argument_index as usize == argument_index
+                                                && requirement.domain == membership.semantic_domain
+                                        })
+                                    })
                             });
                     if structural {
                         continue;

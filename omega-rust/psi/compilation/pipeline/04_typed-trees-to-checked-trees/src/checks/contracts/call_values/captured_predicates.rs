@@ -34,9 +34,15 @@ pub(super) fn retain_bindings<'facts>(
             epoch,
         });
     }
-    if !crate::flow::operand_binds_stable_copy(program, captured.observation_type)
-        || !crate::flow::operand_binds_stable_copy(program, captured.type_reference)
-    {
+    if ![
+        (captured.observation_type, &captured.observation_projection),
+        (captured.type_reference, &captured.projection),
+    ]
+    .into_iter()
+    .all(|(reference, projection)| {
+        validation::project_type_reference_from_segments(program, reference, &projection.remaining)
+            .is_some_and(|selected| crate::flow::operand_binds_stable_copy(program, selected))
+    }) {
         return;
     }
     let Some(observed) = crate::flow::captured_observation_places(program, &facts.flow, captured)
@@ -49,6 +55,20 @@ pub(super) fn retain_bindings<'facts>(
     let ([observed], [produced]) = (observed.as_slice(), produced.as_slice()) else {
         return;
     };
+    // If the store walk could not recover a detached producer, this is still
+    // a live view, not a copied value. Its earlier observation cannot donate
+    // predicates after a later operand changes the referent.
+    if crate::flow::operand_binds_live_view(program, captured.type_reference)
+        && !crate::flow::operand_observations_agree(
+            program,
+            &facts.flow,
+            captured.operand,
+            epoch,
+            &produced.projected,
+        )
+    {
+        return;
+    }
     // Geometry alone does not identify the observed value. The source's
     // reference prefixes were evaluated before its selectors: a selector may
     // write payload without redirecting them, but replacing a descriptor makes

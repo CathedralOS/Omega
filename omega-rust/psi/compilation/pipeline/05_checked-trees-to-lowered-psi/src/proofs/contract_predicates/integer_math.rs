@@ -41,6 +41,25 @@ pub(super) fn lower(
                     .map_err(LoweringError::InvalidCrashPredicate)?;
                 Ok(term)
             }
+            CheckedIntegerMathTerm::BuiltinTypeMember(member) => {
+                let primitive = match member {
+                    symbols::BuiltinTypeMember::AddressBound => {
+                        checked_trees::types::PrimitiveType::Addr
+                    }
+                };
+                let carrier = crate::emission::scalar_types::integer_scalar_type(primitive)?
+                    .as_integer()
+                    .ok_or(LoweringError::InvalidPsiIntegerType)?;
+                // Derive geometry from the retained address carrier, not a
+                // source-level count/width assumption. Unbounded addition also
+                // represents the exclusive endpoint of a 128-bit carrier.
+                Ok(IntegerMathTerm::Add(
+                    Box::new(IntegerMathTerm::literal(carrier.maximum_value())),
+                    Box::new(IntegerMathTerm::literal(
+                        semantic_vocabulary::IntegerValue::Unsigned(1),
+                    )),
+                ))
+            }
             CheckedIntegerMathTerm::Add { left, right }
             | CheckedIntegerMathTerm::Subtract { left, right }
             | CheckedIntegerMathTerm::Multiply { left, right } => {
@@ -94,7 +113,7 @@ pub(crate) fn validate_namespace(
         }
         match expression.terms.get(handle) {
             CheckedIntegerMathTerm::Embed { operand, .. } => scalar(operand)?,
-            CheckedIntegerMathTerm::Literal(_) => {}
+            CheckedIntegerMathTerm::Literal(_) | CheckedIntegerMathTerm::BuiltinTypeMember(_) => {}
             CheckedIntegerMathTerm::Add { left, right }
             | CheckedIntegerMathTerm::Subtract { left, right }
             | CheckedIntegerMathTerm::Multiply { left, right } => {

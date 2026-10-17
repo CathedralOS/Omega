@@ -197,6 +197,14 @@ impl Builder<'_, '_> {
                 .then_some(())?;
                 (expression, actual)
             }
+            TypeReferenceNode::Reference { .. }
+                if validation::reference_formation_source(self.program, expression).is_some() =>
+            {
+                // An explicit loan is a completed value even when its backing
+                // already exists. Its fresh borrowed arrival carries facts at
+                // this occurrence without relabeling the backing's old value.
+                (expression, expected)
+            }
             TypeReferenceNode::Reference {
                 access: language_semantics::ReferenceAccess::Shared,
                 ..
@@ -239,7 +247,24 @@ impl Builder<'_, '_> {
             self.structural_value(expression, expected)?
         };
         if !argument_needs_establishment(&self.structural_values.nodes.get(root).kind) {
-            return None;
+            // A whole-place operand normally uses direct storage transport.
+            // Its declaration, however, need not spell the memberships that
+            // checking proved at this occurrence (for example an issued call
+            // result stored in an unqualified local). A different receiving
+            // contract needs this value root so the ordinary completed-value
+            // path can retain its actual qualifications. This registers no
+            // new storage, membership, claim or permission to copy.
+            let actual = validation::expression_result_type_reference(
+                self.program,
+                self.program.machine_by_symbol(self.machine)?,
+                self.program.state_by_symbol(self.state)?,
+                expression,
+            )?;
+            if self.program.normalized_type_identity(actual)
+                == self.program.normalized_type_identity(expected)
+            {
+                return None;
+            }
         }
         // Retain the complete producer as well as the selected value. A loan
         // of a field or element must establish its owner's home, never move

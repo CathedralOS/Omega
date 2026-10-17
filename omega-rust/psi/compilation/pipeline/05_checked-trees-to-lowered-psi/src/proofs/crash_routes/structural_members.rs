@@ -359,7 +359,23 @@ pub(crate) fn lower_structural_indexed_term(
                     checked_trees::types::PrimitiveType::U8,
                 )?);
         }
-        terminal_path.push(ScalarReadProjection::Index(Box::new(selector)));
+        let fixed = match &selector {
+            ScalarTerm::Integer {
+                value: semantic_vocabulary::IntegerValue::Unsigned(value),
+                ..
+            } => u64::try_from(*value).ok(),
+            ScalarTerm::Integer {
+                value: semantic_vocabulary::IntegerValue::Signed(value),
+                ..
+            } => u64::try_from(*value).ok(),
+            _ => None,
+        };
+        terminal_path.push(match fixed {
+            Some(index) => {
+                ScalarReadProjection::Static(CanonicalStructuralPathSegment::FixedIndex(index))
+            }
+            None => ScalarReadProjection::Index(Box::new(selector)),
+        });
         cursor += 1;
     }
     let actual = terminal_semantics::structural_read_scalar_type(
@@ -371,10 +387,28 @@ pub(crate) fn lower_structural_indexed_term(
     if actual != Some(expected) {
         return unsupported("indexed contract path does not select its retained scalar type");
     }
-    let term = ScalarTerm::StructuralRead {
-        root: parameter.place,
-        path: terminal_path,
-        scalar_type: expected,
+    // A closed selection is the same declared observation as a member path,
+    // not a dynamic-read-shaped term that makes its pure domain opaque.
+    let fixed = terminal_path
+        .iter()
+        .map(|step| match step {
+            ScalarReadProjection::Static(step) => Some(step.clone()),
+            _ => None,
+        })
+        .collect::<Option<Vec<_>>>();
+    let term = match (fixed, expected) {
+        (Some(path), ScalarType::Integer(integer)) => {
+            ScalarTerm::integer_field_path(parameter.place, path, integer)
+        }
+        (Some(path), ScalarType::Boolean) => ScalarTerm::boolean_field_path(parameter.place, path),
+        (Some(path), ScalarType::IeeeFloat(format)) => {
+            ScalarTerm::ieee_float_field_path(parameter.place, path, format)
+        }
+        (None, _) => ScalarTerm::StructuralRead {
+            root: parameter.place,
+            path: terminal_path,
+            scalar_type: expected,
+        },
     };
     term.validate()
         .map_err(LoweringError::InvalidCrashPredicate)?;

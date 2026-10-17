@@ -13,42 +13,122 @@ impl Retirement<'_> {
         &self,
         parent: &CheckedUnitStructuralResultBindingPlan,
     ) -> bool {
-        self.operations
-            .iter()
-            .filter_map(|operation| operation.call())
-            .all(|call| {
-                let Some(result) = call.structural_result() else {
-                    return true;
-                };
+        self.operations.iter().all(|operation| {
+            if let CheckedUnitEffectOperationPlan::EstablishLocal(
+                checked_trees::CheckedUnitLocalBindingPlan::StructuralValue {
+                    result,
+                    value,
+                    calls,
+                    ..
+                },
+            ) = operation
+            {
                 if result.binding_ordinal == parent.binding_ordinal
-                    || !self.order.precedes(
-                        result.statement_index as usize,
-                        self.statement_index as usize,
-                    )
+                    || self.carrier_retired(result, &mut Vec::new())
                 {
                     return true;
                 }
-                let Some(custody) = call.structural_custody() else {
-                    return true;
+                let values = &self.facts.values.structural_values;
+                let reference = values.nodes.get(*value).type_reference;
+                let Some(leaves) = validation::reference_result_custody::record_carrier_sources(
+                    self.program,
+                    reference,
+                    CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                        binding_ordinal: result.binding_ordinal,
+                    },
+                ) else {
+                    return false;
                 };
-                let retains = custody.retained_reference_inputs.iter().any(|index| {
-                    call.structural_arguments
-                        .get(*index as usize)
-                        .is_some_and(|source| {
-                            if let Some(binding) = source.source_structural_result_binding_ordinal()
-                            {
-                                binding == parent.binding_ordinal
-                            } else {
-                                source.structural_storage_root().is_some_and(|root| {
-                                    self.results.iter().any(|(binding, candidate)| {
-                                        binding == parent && *candidate == root
-                                    })
-                                })
-                            }
-                        })
+                return leaves.iter().all(|leaf| {
+                    let Some(sources) =
+                        validation::reference_result_custody::stored_carrier_sources(
+                            self.program,
+                            self.facts,
+                            *value,
+                            &leaf.path,
+                        )
+                    else {
+                        return false;
+                    };
+                    sources.iter().all(|source| match source {
+                        validation::reference_result_custody::StoredCarrierSource::Borrow {
+                            source,
+                            ..
+                        } => !self.source_retains_carrier(source, parent),
+                        validation::reference_result_custody::StoredCarrierSource::Call {
+                            value,
+                            ..
+                        } => calls
+                            .iter()
+                            .find(|call| call.value == *value)
+                            .and_then(|call| call.operation().call())
+                            .is_some_and(|call| !self.call_retains_carrier(call, parent)),
+                        // Copying a resident descriptor retains its original
+                        // backing, not the bytes of the supplying carrier home.
+                        validation::reference_result_custody::StoredCarrierSource::Place(_)
+                        | validation::reference_result_custody::StoredCarrierSource::Image {
+                            ..
+                        } => true,
+                    })
                 });
-                !retains || self.carrier_retired(result, &mut Vec::new())
+            }
+            // Forming a descriptor retains its exact backing occurrence,
+            // even when no authored local gives the descriptor a loan row.
+            // Calls and direct formations therefore share the same result
+            // dependency order; source-loan absence is not early death.
+            if let CheckedUnitEffectOperationPlan::EstablishReference { result, source, .. } =
+                operation
+            {
+                return !self.source_retains_carrier(source, parent)
+                    || self.carrier_retired(result, &mut Vec::new());
+            }
+            let Some(call) = operation.call() else {
+                return true;
+            };
+            let Some(result) = call.structural_result() else {
+                return true;
+            };
+            if result.binding_ordinal == parent.binding_ordinal
+                || !self.order.precedes(
+                    result.statement_index as usize,
+                    self.statement_index as usize,
+                )
+            {
+                return true;
+            }
+            let retains = self.call_retains_carrier(call, parent);
+            !retains || self.carrier_retired(result, &mut Vec::new())
+        })
+    }
+
+    fn call_retains_carrier(
+        &self,
+        call: &checked_trees::CheckedUnitCallPlan,
+        parent: &CheckedUnitStructuralResultBindingPlan,
+    ) -> bool {
+        call.structural_custody().is_some_and(|custody| {
+            custody.retained_reference_inputs.iter().any(|index| {
+                call.structural_arguments
+                    .get(*index as usize)
+                    .is_some_and(|source| self.source_retains_carrier(source, parent))
             })
+        })
+    }
+
+    fn source_retains_carrier(
+        &self,
+        source: &CheckedUnitStructuralArgumentPlan,
+        parent: &CheckedUnitStructuralResultBindingPlan,
+    ) -> bool {
+        if let Some(binding) = source.source_structural_result_binding_ordinal() {
+            binding == parent.binding_ordinal
+        } else {
+            source.structural_storage_root().is_some_and(|root| {
+                self.results
+                    .iter()
+                    .any(|(binding, candidate)| binding == parent && *candidate == root)
+            })
+        }
     }
 
     fn carrier_retired(

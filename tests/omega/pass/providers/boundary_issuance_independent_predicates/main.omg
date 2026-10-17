@@ -1,0 +1,19 @@
+data Token { value: u64; }
+domain Token::Issued(value) requires value.value == 7 established by Issuer::issue;
+boundary trait Issuer {
+    machine issue(input: u64) -> Token ensures result in Token::Issued;
+}
+Unknown satisfies Issuer {
+    machine issue(input: u64) -> Token { Token { value: input } }
+}
+Known satisfies Issuer {
+    machine issue(input: u64) -> Token { Token { value: 7 } }
+}
+Replaced satisfies Issuer {
+    machine issue(input: u64) -> Token {
+        let mut token: Token = Token { value: 8 };
+        token.value = 7;
+        token
+    }
+}
+machine main() {}

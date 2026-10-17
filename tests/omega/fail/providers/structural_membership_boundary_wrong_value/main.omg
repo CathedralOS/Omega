@@ -1,0 +1,11 @@
+data Guid [copy] { tag: u32; bytes: [u8; 2]; }
+domain Guid::Selected(value)
+requires value.tag == 7 && value.bytes[0] == 1 && value.bytes[1] == 2;
+boundary trait Reader {
+    machine read(prefix: u64, protocol: &Guid, suffix: u32) -> u64
+    requires protocol in Guid::Selected;
+}
+machine main() reaches Reader {
+    let wrong: Guid = Guid { tag: 7, bytes: [1, 3] };
+    let result: u64 = Reader::read(1, &wrong, 2);
+}

@@ -120,6 +120,7 @@ pub(super) fn check_flow_call_contracts(
     // Recursive descent establishes termination, not a call's preconditions.
     let proof_only = validation::proof_only_classification(program);
     let mut cyclic_headers = CyclicHeaderInvariants::new();
+    let boundary_refutations = exits::BoundaryRefutations::new(program);
     // Call targets carry the callee's ENTRY-STATE symbol (sub-state targets
     // carry that state's); resolve through states as well as the machine
     // symbol itself.
@@ -160,6 +161,7 @@ pub(super) fn check_flow_call_contracts(
                 expression_intervals,
                 call_frames,
                 &mut constant_obligations,
+                &mut value_qualifications,
                 &mut diagnostics,
             );
             // Every fact is proved here or retained as a constant obligation
@@ -175,6 +177,7 @@ pub(super) fn check_flow_call_contracts(
             }
         }
         for exit_flow in facts.flow.control.exits.span_or_empty(state_flow.exits) {
+            boundary_refutations.check(program, facts, exit_flow, call_frames, &mut diagnostics);
             exits::check_scalar_result_domains(program, facts, exit_flow, &mut diagnostics);
             check_exit_ensures(
                 program,

@@ -1301,9 +1301,9 @@ pub(super) fn local_reference_loans(
     results: &Results,
 ) -> Option<arena::HandleSpan<BorrowLoanFact>> {
     let loans = carrier_loans(facts, machine, state, result, results)?;
-    if loans.is_empty() {
-        return None;
-    }
+    // A proven empty holder roster still owns an affine descriptor. Its
+    // formation/result identity schedules release; absence of authored loan
+    // holders is not absence of the compiler's completed permission carrier.
     facts
         .borrow
         .loan_group(loans)?

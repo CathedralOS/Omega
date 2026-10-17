@@ -543,6 +543,12 @@ impl ContractPredicates<'_, '_> {
                 primitive_type,
                 operand,
             }
+        } else if let Some(member) = program
+            .expression_table
+            .name_path_node(expression)
+            .and_then(|path| program.symbols.builtin_type_member(path.symbol))
+        {
+            CheckedIntegerMathTerm::BuiltinTypeMember(member)
         } else if let Some(binary) = program.expression_table.binary_node(expression)
             && validation::proof_integer_expression(program, expression)
             && operator_is_builtin(self.operators, expression)

@@ -2441,7 +2441,7 @@ pub fn whole_local_release_boundary(
     let statements = program.statement_table.statements(state.statement_nodes);
     let local = statements.get(statement_index as usize)?.as_local_data()?;
     let loans = local_record_loans(program, facts, machine, state, statement_index)?;
-    if loans.is_empty() || !local.symbol.is_valid() {
+    if !local.symbol.is_valid() {
         return None;
     }
     let order = program

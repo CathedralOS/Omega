@@ -2,7 +2,6 @@
 //! the requirement subject a fact constrains.
 
 use checked_trees::CheckFacts;
-use facts::PlaceRoot;
 use symbols::SymbolHandle;
 
 /// The proof-fact expressions of a PREDICATE-ONLY domain, or `None` when the
@@ -116,30 +115,4 @@ pub(super) fn predicate_only_domain_interval(
         minimum.unwrap_or_else(|| numerics::bignum::BigInt::from_i64(i64::MIN)),
         maximum.unwrap_or_else(|| numerics::bignum::BigInt::from_i64(i64::MAX)),
     ))
-}
-
-/// The caller expression a membership requirement is about.
-///
-/// A call-entry membership fact is already substituted at the caller, so its
-/// place is rooted at the ACTUAL: `walk(remaining - 1)` states its obligation
-/// about the subtraction itself. A projected place (`self.field`) is a
-/// different subject and is not read here.
-pub(super) fn requirement_subject_expression(
-    facts: &CheckFacts,
-    fact: &facts::Fact,
-) -> Option<typed_trees::expression::ExpressionHandle> {
-    let place_handle = fact.place.as_place()?;
-    let place = facts.semantic.places.get(place_handle);
-    if !facts
-        .semantic
-        .place_segments
-        .span_or_empty(place.segments)
-        .is_empty()
-    {
-        return None;
-    }
-    match place.root {
-        PlaceRoot::Expression(expression) => Some(expression),
-        _ => None,
-    }
 }

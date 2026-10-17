@@ -116,6 +116,13 @@ pub(in crate::execution::terminal_unit) fn evaluated_argument_root<'a>(
             .then_some(())?;
             (argument, actual)
         }
+        typed_trees::types::TypeReferenceNode::Reference { .. }
+            if validation::reference_formation_source(program, argument).is_some() =>
+        {
+            // Consume the formation retained by scalar/value planning. It
+            // establishes a loan, not a copy of its existing backing.
+            (argument, parameter.type_reference)
+        }
         typed_trees::types::TypeReferenceNode::Reference {
             access: language_semantics::ReferenceAccess::Shared,
             ..

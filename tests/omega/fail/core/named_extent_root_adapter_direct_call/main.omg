@@ -1,0 +1,9 @@
+use omega::language::core::extent;
+RootProvider satisfies ExtentRootProvider {
+    machine grant(geometry: Extent) -> Extent { geometry }
+}
+machine consume(root: Extent in Granted) -> Extent { root as Extent }
+machine direct(geometry: Extent) -> Extent {
+    let unqualified: Extent = RootProvider::grant(geometry);
+    consume(unqualified)
+}

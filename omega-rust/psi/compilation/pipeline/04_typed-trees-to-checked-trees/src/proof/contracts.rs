@@ -341,12 +341,12 @@ pub(crate) fn append_state_signature_contract_facts(
                     })
                 });
                 let qualification_authorization =
-                    crate::facts::qualification_evidence::boundary_qualification_authorization(
+                    ::validation::boundary_qualification_authorization(
                         program,
                         owner_symbol,
                         signature,
                         contract.kind.clone(),
-                        fact,
+                        program.proof_facts.get(fact),
                     );
                 contract_facts.append(ContractProofFact {
                     kind,

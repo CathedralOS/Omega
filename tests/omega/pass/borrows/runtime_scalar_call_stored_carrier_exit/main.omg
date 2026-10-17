@@ -6,6 +6,10 @@ machine install(output: &mut Held, input: Held) -> i32 {
     output = input;
     23
 }
+machine install_reference(output: &mut Held, input: &Cell) -> i32 {
+    output.target = input;
+    17
+}
 machine main() crashes Trap {
     let mut left: Cell = Cell { value: 11 };
     let mut right: Cell = Cell { value: 85 };
@@ -13,8 +17,13 @@ machine main() crashes Trap {
     let installed: i32 = install(&mut held, forward(Held { target: &right }));
     left.value = 29;
     let observed: i32 = held.target.value;
+    // A scalar call can retain its fresh reference operand in caller storage.
+    // Retiring the temporary descriptor must leave that stored occurrence live.
+    let direct: i32 = install_reference(&mut held, &left);
+    let retained: i32 = held.target.value;
     right.value = 41;
-    transition installed == 23 && observed == 85 && left.value == 29 && right.value == 41 {
+    left.value = 31;
+    transition installed == 23 && observed == 85 && left.value == 31 && right.value == 41 && direct == 17 && retained == 29 {
         true -> done()
         false -> bad()
     }

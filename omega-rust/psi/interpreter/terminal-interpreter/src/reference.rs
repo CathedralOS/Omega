@@ -653,7 +653,7 @@ impl TerminalExecution<'_> {
             None
         };
         let mut placed_ram = None;
-        let referent = match &primitive_loan {
+        let mut referent = match &primitive_loan {
             Some(loan) => loan.referent.clone(),
             None if collection_loan.is_some() => {
                 collection_loan.as_ref().ok_or_else(malformed)?.0.clone()
@@ -674,6 +674,54 @@ impl TerminalExecution<'_> {
                 return Err(malformed());
             }
             ram.access = access;
+        }
+        // Foundation admission reconstructs formation-time predicates from the
+        // exact current backing. Retain those authenticated observations on the
+        // fresh shared view, not on its source home. Routed authority and Content
+        // still require existing runtime custody, and mutable preservation debts
+        // never grow merely because the bytes happen to satisfy a predicate.
+        if access == StructuralAccess::SharedBorrow {
+            let (whole, projected) = terminal_psi::StructuralPathQualification::select(
+                &[],
+                &result.projected_qualifications,
+                &[StructuralPathSegment::Referent],
+            );
+            let observable = |identity| {
+                self.program
+                    .catalogs
+                    .structural_domains
+                    .iter()
+                    .find(|domain| domain.id == identity)
+                    .is_some_and(|domain| {
+                        domain.content_projection.is_none()
+                            && domain.establishment_routes.is_empty()
+                            && domain.predicate.as_ref().is_some_and(|predicate| {
+                                terminal_semantics::domain_predicate_is_closed(
+                                    self.program.structural_types().values(),
+                                    domain.carrier,
+                                    predicate,
+                                )
+                            })
+                    })
+            };
+            for domain in whole {
+                if !referent.qualifications.contains(&domain) && observable(domain) {
+                    referent.qualifications.push(domain);
+                }
+            }
+            for row in projected {
+                if !referent.projected_qualifications.contains(&row) && observable(row.domain) {
+                    referent.projected_qualifications.push(row);
+                }
+            }
+            referent.qualifications.sort();
+            referent.projected_qualifications.sort();
+            if let Some(ram) = &mut placed_ram {
+                // Dereferencing placed storage selects its presentation, not
+                // its original RAM declaration. Preserve the observations on
+                // that view without relabeling the backing or its live home.
+                ram.presentation = referent.clone();
+            }
         }
         // Preserve actual backing membership beneath Referent. Shared views
         // may attenuate their declared roster; exclusive crossings retain the

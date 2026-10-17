@@ -1,0 +1,6 @@
+boundary qualification is refuted at exit of Direct::issue
+boundary qualification is refuted at exit of Local::issue
+boundary qualification is refuted at exit of Field::issue
+boundary qualification is refuted at exit of Called::issue
+boundary qualification is refuted at exit of Later::issue in state `finish`
+boundary qualification is refuted at exit of Attached::issue

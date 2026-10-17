@@ -1,0 +1,37 @@
+data Item { value: u32; }
+domain Item::Selected(item) requires item.value == 7;
+boundary trait Reader {
+    machine read(item: &Item) requires item in Item::Selected;
+    machine read_after(item: &Item, observed: u32) requires item in Item::Selected;
+}
+data Pair { left: Item; right: Item; }
+machine overwrite(item: &mut Item, value: u32) -> u32 { item.value = value; value }
+machine later_operand(item: &mut Item, value: u32) reaches Reader
+requires item.value == 7 {
+    Reader::read_after(item, overwrite(item, value));
+}
+machine after_mutation(item: &mut Item) reaches Reader {
+    item.value = 7;
+    item.value = 8;
+    Reader::read(item);
+}
+machine sibling(pair: &mut Pair) reaches Reader {
+    pair.left.value = 7;
+    pair.right.value = 8;
+    Reader::read(&pair.right);
+}
+machine partial_branch(item: &mut Item, selected: bool) reaches Reader {
+    transition selected {
+        true -> valid(item)
+        _ -> invalid(item)
+    }
+    state valid(item: &mut Item) {
+        item.value = 7;
+        transition { _ -> join(item) }
+    }
+    state invalid(item: &mut Item) {
+        item.value = 8;
+        transition { _ -> join(item) }
+    }
+    state join(item: &mut Item) { Reader::read(item); }
+}

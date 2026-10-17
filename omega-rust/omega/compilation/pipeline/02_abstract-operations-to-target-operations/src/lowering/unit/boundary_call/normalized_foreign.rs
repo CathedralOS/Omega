@@ -1,4 +1,8 @@
 //! Normalized foreign scalar and structural argument and result projection.
+//!
+//! Qualifications remain in the checked semantic call and its custody records;
+//! they add no ABI words. Placement therefore checks carrier geometry, access
+//! and multiplicity without requiring an empty membership roster.
 
 use super::super::super::control_flow::scalar_sources::{
     ScalarSources, resolved_source, runtime_indices,
@@ -179,8 +183,6 @@ pub(super) fn lower_normalized_foreign_structural_arguments(
                 );
                 if argument.access != parameter.access
                     || parameter.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
-                    || !parameter.qualifications.is_empty()
-                    || !parameter.projected_qualifications.is_empty()
                     || destination.shape.byte_size != carrier.byte_size
                     || destination.shape.alignment != carrier.alignment
                     || if bounded {
@@ -224,7 +226,6 @@ pub(super) fn lower_normalized_foreign_structural_arguments(
                         root.access,
                         StructuralAccess::Owned | terminal_psi::borrowed_access_pair_pattern!()
                     )
-                    && root.projected_qualifications.is_empty()
                     && let Some(capacity) = terminal_semantics::shared_boundary_buffer_capacity(
                         structural_types.values().copied(),
                         root.structural_type,

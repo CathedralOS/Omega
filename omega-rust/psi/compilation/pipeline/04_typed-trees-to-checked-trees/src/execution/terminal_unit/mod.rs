@@ -189,6 +189,7 @@ pub(crate) fn build_checked_unit_effect_plans(
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> (CheckedUnitEffectPlans, CheckedPartialAffineUnitCleanupPlans) {
     let mut shapes = ShapeCollector::new(program);
+    let mut boundary_gaps = Vec::new();
     let mut boundary_machines = program
         .machines()
         .iter()
@@ -202,6 +203,7 @@ pub(crate) fn build_checked_unit_effect_plans(
         program,
         facts,
         boundary_signature_reaches,
+        &mut boundary_gaps,
         &mut shapes,
     ));
     let dynamic_slots = control::build_dynamic_slot_plans(program, &mut shapes);
@@ -280,6 +282,7 @@ pub(crate) fn build_checked_unit_effect_plans(
         .filter(|(key, _)| !planned.contains(key))
         .map(|(_, gap)| gap)
         .collect::<Vec<_>>();
+    gaps.extend(boundary_gaps);
     // Storage planning precedes executable hook selection. Complete the
     // contextual actions against the same immutable callable entry roster,
     // before mutating either body catalog. Entry metadata borrows the real

@@ -604,10 +604,12 @@ impl StateGraphEmission<'_, '_> {
                     if let Some(result) = lender {
                         if !result.claims().is_empty()
                             || !result.path().is_empty()
-                            || !captured_backing
-                                .as_ref()
-                                .map_or(&argument_path, |(_, path)| path)
-                                .is_empty()
+                            || (chain_arrival
+                                == Some(super::loan_chains::ChainArrival::Transferred)
+                                && !captured_backing
+                                    .as_ref()
+                                    .map_or(&argument_path, |(_, path)| path)
+                                    .is_empty())
                         {
                             return unsupported(
                                 "Unit graph state loan chain home is not plain whole storage",

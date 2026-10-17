@@ -5,6 +5,9 @@
 //! implementation guarantees entail requirement guarantees. Law conclusions
 //! retain their independent law judgment, and exact edges inherit guarantees
 //! which their bodies must prove. Neither exempts implementation premises.
+//! Owner-authorized boundary memberships instead belong to the admitted crossing,
+//! not its adapter. Recognizing that obligation does not grant adapter authority
+//! or excuse any ordinary postcondition.
 //!
 //! Applied signatures own trait substitution. Canonical declaration projection
 //! owns exact fact identity, with formal symbols bound by position. The existing
@@ -135,6 +138,14 @@ pub(crate) fn check_contract_refinement(
         });
     for conclusion in &required.ensures {
         if owes_through_edge
+            || crate::boundary_qualification_authorization(
+                program,
+                trait_definition.symbol,
+                requirement,
+                SignatureContractKind::Ensures,
+                &conclusion.fact,
+            )
+            .is_some()
             || conclusion.law_checked
             || entailed(program, &member.ensures, &member, conclusion, &required)
         {

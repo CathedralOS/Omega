@@ -1,0 +1,4 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "independent_issuance_predicates");
+    Build::select_provider<Issuer, Known>(builder);
+}

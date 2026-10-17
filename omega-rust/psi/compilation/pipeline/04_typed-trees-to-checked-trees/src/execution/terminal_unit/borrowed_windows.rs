@@ -1006,22 +1006,22 @@ impl OpenWindows {
                 // statement occurrence; later replacements still require the
                 // exact old-carrier retirement or ordinary storage facts.
                 let establishes_ingress_descriptor = !occupied
-                    && path.is_empty()
-                    && matches!(
-                        source,
-                        CheckedUnitStructuralArgumentSourcePlan::Parameter { .. }
+                && path.is_empty()
+                && matches!(
+                    source,
+                    CheckedUnitStructuralArgumentSourcePlan::Parameter { .. }
+                )
+                && destination_place.root.as_symbol().is_some_and(|owner| {
+                    validation::reference_result_custody::initial_parameter_reference_establishment(
+                        program,
+                        facts,
+                        machine.symbol,
+                        state,
+                        owner,
+                        statement_index,
                     )
-                    && destination_place.root.as_symbol().is_some_and(|owner| {
-                        validation::reference_result_custody::initial_parameter_reference_establishment(
-                            program,
-                            facts,
-                            machine.symbol,
-                            state,
-                            owner,
-                            statement_index,
-                        )
-                        .is_some()
-                    });
+                    .is_some()
+                });
                 if !occupied
                     && opening.is_none()
                     && produced.multiplicity != Multiplicity::Unrestricted

@@ -59,10 +59,12 @@ pub(crate) fn build_boundary_machine(
         };
     let domain_requirements = boundary_domain_requirements(
         program,
-        facts,
         shapes,
-        machine,
-        state,
+        program.state_parameters(state),
+        program
+            .machine_contracts(machine)
+            .iter()
+            .chain(program.state_contracts(state)),
         &structural_parameters,
         &binders,
     )?;
@@ -73,6 +75,7 @@ pub(crate) fn build_boundary_machine(
         machine.symbol,
         program.state_parameters(state),
         &structural_parameters,
+        &domain_requirements,
         state.return_type,
         program.machine_contracts(machine),
         program.state_contracts(state),
@@ -213,6 +216,7 @@ pub(crate) fn build_static_boundary_requirements(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     boundary_signature_reaches: &[(SymbolHandle, language_semantics::ServiceReachRowId)],
+    gaps: &mut Vec<checked_trees::CheckedUnitPlanGap>,
     shapes: &mut ShapeCollector<'_>,
 ) -> Vec<CheckedBoundaryMachinePlan> {
     let mut plans = Vec::new();
@@ -231,6 +235,14 @@ pub(crate) fn build_static_boundary_requirements(
                     .closed_requirement_application(signature.symbol)
                     .is_some_and(|application| application.declaring_trait == definition.symbol)
             {
+                gaps.push(crate::execution::terminal_unit::plan_gaps::plan_gap(
+                    program,
+                    signature.symbol,
+                    crate::execution::terminal_unit::plan_gaps::GapSite::Machine,
+                    checked_trees::CheckedUnitPlanGapReason::Unsupported(
+                        "boundary requirement: open trait application",
+                    ),
+                ));
                 continue;
             }
             let type_parameters = program.state_signature_type_parameters(signature);
@@ -299,6 +311,14 @@ pub(crate) fn build_static_boundary_requirements(
                 let Some(substitutions) =
                     specialized_signature_substitutions(program, facts, signature, type_parameters)
                 else {
+                    gaps.push(crate::execution::terminal_unit::plan_gaps::plan_gap(
+                        program,
+                        signature.symbol,
+                        crate::execution::terminal_unit::plan_gaps::GapSite::Machine,
+                        checked_trees::CheckedUnitPlanGapReason::Unsupported(
+                            "boundary requirement: unresolved invocation telescope",
+                        ),
+                    ));
                     continue;
                 };
                 substitutions
@@ -317,6 +337,14 @@ pub(crate) fn build_static_boundary_requirements(
                         )
                     })
             else {
+                gaps.push(crate::execution::terminal_unit::plan_gaps::plan_gap(
+                    program,
+                    signature.symbol,
+                    crate::execution::terminal_unit::plan_gaps::GapSite::Machine,
+                    checked_trees::CheckedUnitPlanGapReason::Unsupported(
+                        "boundary requirement: result shape or domain authorization",
+                    ),
+                ));
                 continue;
             };
             let Some((structural_parameters, scalar_parameters)) = parameter_signatures(
@@ -327,12 +355,28 @@ pub(crate) fn build_static_boundary_requirements(
                 &substitutions,
                 &LocalConstructionTrace::default(),
             ) else {
+                gaps.push(crate::execution::terminal_unit::plan_gaps::plan_gap(
+                    program,
+                    signature.symbol,
+                    crate::execution::terminal_unit::plan_gaps::GapSite::Machine,
+                    checked_trees::CheckedUnitPlanGapReason::Unsupported(
+                        "boundary requirement: parameter signature",
+                    ),
+                ));
                 continue;
             };
             let Some(capsule) = facts
                 .contract_plans
                 .crash_capsule(definition.symbol, signature.symbol)
             else {
+                gaps.push(crate::execution::terminal_unit::plan_gaps::plan_gap(
+                    program,
+                    signature.symbol,
+                    crate::execution::terminal_unit::plan_gaps::GapSite::Machine,
+                    checked_trees::CheckedUnitPlanGapReason::Unsupported(
+                        "boundary requirement: checked contract commitment",
+                    ),
+                ));
                 continue;
             };
             // A contract cannot depend on callers or selected provider reach.
@@ -342,25 +386,38 @@ pub(crate) fn build_static_boundary_requirements(
                 .iter()
                 .find(|(requirement, _)| *requirement == signature.symbol)
             else {
+                gaps.push(crate::execution::terminal_unit::plan_gaps::plan_gap(
+                    program,
+                    signature.symbol,
+                    crate::execution::terminal_unit::plan_gaps::GapSite::Machine,
+                    checked_trees::CheckedUnitPlanGapReason::Unsupported(
+                        "boundary requirement: published service reach",
+                    ),
+                ));
                 continue;
             };
             let service_reach = language_semantics::ServiceReachSummary {
                 direct: *published_reach,
                 transitive: *published_reach,
             };
-            let domain_requirements = structural_parameters
-                .iter()
-                .enumerate()
-                .flat_map(|(argument_index, parameter)| {
-                    parameter.qualifications.iter().map(move |domain| {
-                        CheckedUnitStructuralDomainRequirementPlan {
-                            argument_index: u32::try_from(argument_index)
-                                .expect("structural parameter count already fits source positions"),
-                            domain: *domain,
-                        }
-                    })
-                })
-                .collect();
+            let Some(domain_requirements) = boundary_domain_requirements(
+                program,
+                shapes,
+                program.state_signature_parameters(signature),
+                program.state_signature_contracts(signature).iter(),
+                &structural_parameters,
+                &[],
+            ) else {
+                gaps.push(crate::execution::terminal_unit::plan_gaps::plan_gap(
+                    program,
+                    signature.symbol,
+                    crate::execution::terminal_unit::plan_gaps::GapSite::Machine,
+                    checked_trees::CheckedUnitPlanGapReason::Unsupported(
+                        "boundary requirement: structural precondition representation",
+                    ),
+                ));
+                continue;
+            };
             let closed = crate::facts::build_callable_scalar_value_contract_plan(
                 program,
                 signature.symbol,
@@ -375,11 +432,20 @@ pub(crate) fn build_static_boundary_requirements(
                 signature.symbol,
                 program.state_signature_parameters(signature),
                 &structural_parameters,
+                &domain_requirements,
                 signature.return_type,
                 program.state_signature_contracts(signature),
                 &[],
                 &closed,
             ) else {
+                gaps.push(crate::execution::terminal_unit::plan_gaps::plan_gap(
+                    program,
+                    signature.symbol,
+                    crate::execution::terminal_unit::plan_gaps::GapSite::Machine,
+                    checked_trees::CheckedUnitPlanGapReason::Unsupported(
+                        "boundary requirement: scalar precondition representation",
+                    ),
+                ));
                 continue;
             };
             let scalar_ensures = closed

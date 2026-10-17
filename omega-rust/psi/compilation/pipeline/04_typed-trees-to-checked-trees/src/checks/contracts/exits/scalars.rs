@@ -16,7 +16,9 @@ use super::super::{
 };
 use crate::flow::canonical_place_from_symbol;
 
+mod admitted_domains;
 mod boolean_results;
+pub(in crate::checks::contracts) use admitted_domains::BoundaryRefutations;
 pub(crate) mod calls;
 mod result_bounds;
 mod result_fields;

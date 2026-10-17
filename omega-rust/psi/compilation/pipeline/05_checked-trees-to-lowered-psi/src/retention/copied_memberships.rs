@@ -36,9 +36,9 @@ pub(crate) fn retain(module: &mut TerminalModule) -> Result<(), LoweringError> {
                     ) {
                         copies.push((machine_index, block_index, ordinal, contract));
                     }
-                    if let Some(contract) =
-                        construction_memberships::retained(module, machine, operation)
-                    {
+                    if let Some(contract) = construction_memberships::retained(
+                        module, machine, operation, position, &graph,
+                    ) {
                         copies.push((machine_index, block_index, ordinal, contract));
                     }
                     let OperationKind::StructuralLeafCopy { source, path } = &operation.kind else {

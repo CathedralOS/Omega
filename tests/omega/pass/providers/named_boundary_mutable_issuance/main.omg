@@ -1,0 +1,9 @@
+data Token { value: u64; }
+domain Token::Issued established by Issuer::issue;
+boundary trait Issuer {
+    machine issue(output: &mut Token) ensures output in Token::Issued;
+}
+Provider satisfies Issuer {
+    machine issue(renamed: &mut Token) { renamed.value = 7; }
+}
+machine main() {}

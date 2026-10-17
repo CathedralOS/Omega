@@ -1,0 +1,36 @@
+// Expected exit: 0. The later state's local reference descriptor owns the
+// loan home through its borrowed successor; the caller retains the referent.
+data Cell { value: u64; }
+data Table<'storage> { cell: &'storage Cell; }
+data Main { cell: Cell; }
+machine accepts<Kind>(value: &Kind) -> bool { true }
+machine scalar_parameter(value: u64) -> bool { accepts<u64>(&value) }
+machine use_table<'storage>(table: &Table<'storage>) crashes Trap {
+    transition { _ -> prepare(table) }
+    state prepare(table: &Table<'storage>) {
+        let cell: &Cell = table.cell;
+        let expected: u64 = 40 + 2;
+        transition cell.value == expected { true -> observe(cell) _ -> wrong() }
+    }
+    state observe(cell: &Cell) {
+        transition cell.value == 42 { true -> done() _ -> wrong() }
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}
+machine Main::main(context: &mut Main) crashes Trap {
+    context.cell.value = 42;
+    let unrelated: &Cell = &context.cell;
+    let table: Table = Table { cell: &context.cell };
+    use_table(&table);
+    let saved: &Cell = table.cell;
+    let copied: Table = Table { cell: saved };
+    use_table(&copied);
+    let scalar: u64 = 42;
+    let local_argument: bool = accepts<u64>(&scalar);
+    let parameter_argument: bool = scalar_parameter(scalar);
+    let projected_argument: bool = accepts<Cell>(copied.cell);
+    transition unrelated.value == 42 && local_argument && parameter_argument && projected_argument { true -> done() _ -> wrong() }
+    state done() {}
+    state wrong() { crash Trap; }
+}

@@ -683,7 +683,7 @@ pub(crate) fn validate_structural_root_operations(
                                 contract.structural_type,
                                 &source.path,
                             );
-                            let Ok(captured) = contract.reference_memberships(
+                            let Ok(mut captured) = contract.reference_memberships(
                                 structural_types.values().copied(),
                                 structural_domains.values().copied(),
                                 &unit.identities,
@@ -692,6 +692,21 @@ pub(crate) fn validate_structural_root_operations(
                             ) else {
                                 return false;
                             };
+                            if source.access == terminal_psi::StructuralAccess::SharedBorrow
+                                && result.projected_qualifications.iter().any(|row| !captured.contains(row))
+                            {
+                                let Some(graph) = crate::descriptor_results::optimized_graph(unit) else { return false; };
+                                let Ok(current) = terminal_semantics::descriptor_results::current_selected_payload_contract(
+                                    &unit.structural_types, &unit.structural_domains, &graph,
+                                    function.machine, (block.id, node_index), source.place, path,
+                                    &|place| crate::unit_validation::operation_contracts::structural_source_contract(function, place)
+                                        .map(|contract| contract.payload_contract()),
+                                ) else { return false; };
+                                terminal_psi::StructuralPathQualification::append_under(
+                                    &current.qualifications, &current.projected_qualifications,
+                                    &[terminal_psi::StructuralPathSegment::Referent], &mut captured,
+                                );
+                            }
                             result
                                 .projected_qualifications
                                 .iter()

@@ -52,8 +52,10 @@ pub(super) fn adapt(
         scalar_payload_writes: BTreeMap::new(),
         scalar_payload_reads: BTreeMap::new(),
         payload_scalar_definitions: BTreeMap::new(),
+        payload_scalar_postconditions: BTreeMap::new(),
         payload_scalar_parameters: BTreeMap::new(),
         payload_edge_predicates: BTreeMap::new(),
+        payload_scalar_bindings: BTreeMap::new(),
         payload_arrivals: BTreeMap::new(),
         unresolved_contents_writes: BTreeSet::new(),
         storage_derivations: BTreeSet::new(),
@@ -88,6 +90,13 @@ pub(super) fn adapt(
         );
         for (index, operation) in block.operations.iter().enumerate() {
             let position = (block.id, u32::try_from(index).ok()?);
+            if let Some(guarantees) =
+                super::scalar_contracts::terminal_guarantees(module, machine, operation)
+            {
+                graph
+                    .payload_scalar_postconditions
+                    .insert(position, guarantees);
+            }
             if let Some(result) = operation.result.scalar_ref() {
                 graph
                     .payload_scalar_definitions
@@ -100,14 +109,14 @@ pub(super) fn adapt(
                 value,
                 ..
             } = &operation.kind
-                && let Some(literal) =
-                    super::payload_predicates::terminal_scalar_literal(machine, *value)
+                && let Some(value) =
+                    super::payload_predicates::terminal_scalar_expression(machine, *value)
             {
                 graph
                     .scalar_payload_writes
                     .entry(position)
                     .or_default()
-                    .push((location(*destination, path, Some(*field))?, literal));
+                    .push((location(*destination, path, Some(*field))?, value));
             }
             if let OperationKind::ScalarStructuralField {
                 source,
@@ -640,6 +649,25 @@ pub(super) fn adapt(
                     }
                     step.inputs = vec![DescriptorLocation::whole(*source)];
                 }
+                OperationKind::EstablishScalarArray { elements } => {
+                    let result = result?;
+                    for (ordinal, value) in elements.iter().enumerate() {
+                        let path = crate::scalar_array_leaf_path(
+                            module.structural_types.iter(),
+                            result.structural_type,
+                            u64::try_from(ordinal).ok()?,
+                        )?;
+                        if let Some(value) =
+                            super::payload_predicates::terminal_scalar_expression(machine, *value)
+                        {
+                            graph
+                                .scalar_payload_writes
+                                .entry(position)
+                                .or_default()
+                                .push((location(result.place, &path, None)?, value));
+                        }
+                    }
+                }
                 OperationKind::EstablishStructuralArray { elements } => {
                     for (index, source) in elements.iter().enumerate() {
                         let destination = location(
@@ -705,14 +733,16 @@ pub(super) fn adapt(
                             _ => location(result?.place, &[], Some(field.field))?,
                         };
                         if let terminal_psi::RecordFieldValue::Scalar { value, .. } = &field.value
-                            && let Some(literal) =
-                                super::payload_predicates::terminal_scalar_literal(machine, *value)
+                            && let Some(value) =
+                                super::payload_predicates::terminal_scalar_expression(
+                                    machine, *value,
+                                )
                         {
                             graph
                                 .scalar_payload_writes
                                 .entry(position)
                                 .or_default()
-                                .push((destination.clone(), literal));
+                                .push((destination.clone(), value));
                         }
                         if let Some(source) = field.value.as_structural() {
                             if let Some(source) = location(source.place, &source.path, None) {
@@ -926,12 +956,33 @@ pub(super) fn adapt(
         }
         let position = (block.id, u32::try_from(block.operations.len()).ok()?);
         let mut step = DescriptorFlowStep::default();
-        let mut edge = |target, arguments: &[StructuralArgument]| -> Option<()> {
+        let mut edge = |target,
+                        scalar_arguments: &[semantic_vocabulary::ValueId],
+                        arguments: &[StructuralArgument]|
+         -> Option<()> {
             let mut matching = machine.blocks.iter().filter(|block| block.id == target);
             let block = matching.next()?;
-            if matching.next().is_some() || arguments.len() != block.structural_parameters.len() {
+            if matching.next().is_some()
+                || arguments.len() != block.structural_parameters.len()
+                || scalar_arguments.len() != block.parameters.len()
+            {
                 return None;
             }
+            let scalar_bindings = block
+                .parameters
+                .iter()
+                .zip(scalar_arguments)
+                .map(|(parameter, actual)| {
+                    let value =
+                        super::payload_predicates::terminal_scalar_expression(machine, *actual)?;
+                    (value.scalar_type() == parameter.scalar_type).then_some((parameter.id, value))
+                })
+                .collect::<Option<Vec<_>>>()?;
+            graph
+                .payload_scalar_bindings
+                .entry(position)
+                .or_default()
+                .push(scalar_bindings);
             let parameters = block
                 .structural_parameters
                 .iter()
@@ -974,21 +1025,26 @@ pub(super) fn adapt(
         match &block.terminator {
             Terminator::Jump {
                 target,
+                arguments,
                 structural_arguments,
                 ..
-            } => edge(*target, structural_arguments)?,
+            } => edge(*target, arguments, structural_arguments)?,
             Terminator::Conditional {
                 when_true,
                 when_false,
                 ..
             } => {
                 for successor in [when_true, when_false] {
-                    edge(successor.target, &successor.structural_arguments)?;
+                    edge(
+                        successor.target,
+                        &successor.arguments,
+                        &successor.structural_arguments,
+                    )?;
                 }
             }
             Terminator::StructuralCase { cases, .. } => {
                 for case in cases {
-                    edge(case.target, &[])?;
+                    edge(case.target, &[], &[])?;
                 }
             }
             Terminator::ReturnStructural { source, .. } => {

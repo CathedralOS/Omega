@@ -157,12 +157,12 @@ fn append_trait_contract_facts_for_machine(
                     })
                 });
                 let qualification_authorization =
-                    crate::facts::qualification_evidence::boundary_qualification_authorization(
+                    ::validation::boundary_qualification_authorization(
                         program,
                         trait_definition.symbol,
                         signature,
                         contract.kind.clone(),
-                        fact,
+                        program.proof_facts.get(fact),
                     );
                 // The retained `fact` handle keeps the requirement's authored
                 // row; the scope records the exact edge arguments so semantic

@@ -350,10 +350,9 @@ pub(in crate::legalization) fn structural_argument_at(
             // Claims are custody the call's completion receipts end, not bytes
             // the foreign leaf transports.
             let home = super::aggregate_results::result_home(optimized, semantic.place, plan)?;
-            if home.access() != terminal_psi::StructuralAccess::Owned
-                || !home.qualifications().is_empty()
-                || !home.projected_qualifications().is_empty()
-            {
+            // Qualifications travel with the checked storage contract; they
+            // do not add ABI words or change this home's address and custody.
+            if home.access() != terminal_psi::StructuralAccess::Owned {
                 return Err(LegalizationError::custody());
             }
             let site = |operation| {
@@ -590,8 +589,6 @@ pub(in crate::legalization) fn structural_argument_at(
         || projected_type != declaration_parameter.structural_type
         || semantic.access != declaration_parameter.access
         || declaration_parameter.multiplicity != multiplicity
-        || !declaration_parameter.qualifications.is_empty()
-        || !declaration_parameter.projected_qualifications.is_empty()
         || (presentation.is_none()
             && !projects_view_backing
             && !semantic.path.contains(&StructuralPathSegment::Referent)
