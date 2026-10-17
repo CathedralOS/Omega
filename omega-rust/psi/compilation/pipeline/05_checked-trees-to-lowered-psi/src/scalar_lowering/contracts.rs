@@ -24,6 +24,31 @@ pub(crate) use namespace::validate_indexed_operands;
 mod result_range;
 pub(crate) use result_range::with_result_range;
 
+/// Source checking knows a structural result even when a product's contract
+/// namespace cannot publish its place. Only that explicit absence permits
+/// omitting a consequence; undeclared structural roots remain failures. Scalar
+/// coordinates and complete field geometry retain their ordinary term owners.
+#[derive(Clone, Copy)]
+pub(crate) enum ContractStructuralResult<'a> {
+    Absent,
+    Unavailable {
+        position: u32,
+    },
+    Declared {
+        position: u32,
+        declaration: &'a StructuralResultDeclaration,
+    },
+}
+
+impl ContractStructuralResult<'_> {
+    fn declaration(&self) -> Option<&StructuralResultDeclaration> {
+        match self {
+            Self::Declared { declaration, .. } => Some(declaration),
+            Self::Absent | Self::Unavailable { .. } => None,
+        }
+    }
+}
+
 /// The structural namespace a closed scalar contract may observe: the
 /// machine's `(source position, declaration)` parameter roster plus the
 /// element-view carriers resolved from it. Scalar-only contexts pass
@@ -33,7 +58,9 @@ pub(crate) struct ContractViewNamespace<'a> {
     pub parameters: &'a [(u32, StructuralParameterDeclaration)],
     /// Normal guarantees observe the declared result place, never a synthetic
     /// entry parameter or a returned body-local place.
-    pub result: Option<&'a StructuralResultDeclaration>,
+    /// The coordinate follows the complete authored parameter roster, not just
+    /// the structural lane's dense declarations.
+    pub result: ContractStructuralResult<'a>,
     /// Structural type declarations the parameters' member paths resolve
     /// against; member leaves in contract operands fail closed when absent.
     pub structural_types: &'a [StructuralTypeDeclaration],
@@ -47,7 +74,7 @@ impl ContractViewNamespace<'static> {
     /// Scalar-only contexts pass `ContractViewNamespace::EMPTY`.
     pub(crate) const EMPTY: ContractViewNamespace<'static> = ContractViewNamespace {
         parameters: &[],
-        result: None,
+        result: ContractStructuralResult::Absent,
         structural_types: &[],
         element_views: &EMPTY_ELEMENT_VIEWS,
     };
@@ -337,7 +364,7 @@ pub(crate) fn proposition(
     erased: &[ValueDeclaration],
     views: &ContractViewNamespace<'_>,
 ) -> Result<Proposition, LoweringError> {
-    self::namespace::validate(predicate)?;
+    self::namespace::validate(predicate, views)?;
     crate::proofs::contract_predicates::proposition(
         identities,
         predicate,
@@ -371,7 +398,7 @@ impl PredicateTerms for ScalarContractTerms<'_> {
             subject,
             case,
             &parameters,
-            self.views.result,
+            self.views.result.declaration(),
             self.views.structural_types,
         )
     }
@@ -448,6 +475,20 @@ impl ScalarContractTerms<'_> {
         path: &[checked_trees::CheckedStructuralPredicatePathSegment],
         scalar_type: ScalarType,
     ) -> Result<ScalarTerm, LoweringError> {
+        if let ContractStructuralResult::Declared {
+            position,
+            declaration,
+        } = self.views.result
+            && parameter_position == position
+        {
+            return crate::proofs::crash_routes::lower_structural_result_member_term(
+                identities,
+                declaration,
+                path,
+                scalar_type,
+                self.views.structural_types,
+            );
+        }
         let parameters = self.authored_structural_parameters();
         crate::proofs::crash_routes::lower_structural_member_term(
             identities,

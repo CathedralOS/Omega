@@ -54,32 +54,13 @@ pub fn reserved_result_place(
     for member in members.into_iter().rev() {
         let receiver =
             crate::value_custody::places::unwrapped_type_reference(program, type_reference)?;
-        // A lifetime application such as `Held<'row>` keeps the base data's
-        // fields. An open type argument is not that application: its field
-        // types are not a concrete telescope, so this query still stops.
-        let symbol = match program.type_reference_table.type_reference(receiver) {
-            typed_trees::types::TypeReferenceNode::Named { symbol, .. } => *symbol,
-            typed_trees::types::TypeReferenceNode::Generic {
-                base_symbol,
-                arguments,
-                ..
-            } if arguments.is_empty()
-                && base_symbol.is_valid()
-                && program.symbols.get(*base_symbol).kind == symbols::SymbolKind::Data =>
-            {
-                *base_symbol
-            }
-            _ => return None,
-        };
-        if !symbol.is_valid() || program.symbols.get(symbol).kind != symbols::SymbolKind::Data {
-            return None;
-        }
-        let mut declarations = program
-            .data_definitions()
-            .iter()
-            .filter(|data| data.symbol == symbol);
-        let data = declarations.next()?;
-        if declarations.next().is_some() {
+        // Resolve the complete closed application, not just a named node or
+        // a generic base. The type owner retains concrete specializations and
+        // lifetime-only applications without manufacturing a field telescope.
+        let data = program.closed_data_definition(receiver)?;
+        if !data.symbol.is_valid()
+            || program.symbols.get(data.symbol).kind != symbols::SymbolKind::Data
+        {
             return None;
         }
         let field = crate::value_custody::places::exact_data_member_field(

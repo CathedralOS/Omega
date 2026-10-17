@@ -33,6 +33,47 @@ impl BoundPredicate {
             .iter()
             .find(|binding| binding.operand == *operand)
     }
+
+    /// A positive conjunction can establish an exact scalar equation. A
+    /// disjunction supplies no chosen branch. Resolve the opposite leaf only
+    /// from ordinary snapshots in this predicate's surviving context: using
+    /// this equation (or another guarantee) recursively would invent evidence.
+    /// Every binding is a storage dependency of the whole retained predicate.
+    pub(crate) fn constant_at_place(
+        &self,
+        place: &CanonicalPlace,
+        mut ordinary: impl FnMut(&CanonicalPlace) -> Option<ScalarValue>,
+    ) -> Option<ScalarValue> {
+        fn equation(
+            predicate: &BoundPredicate,
+            expression: &Boolean,
+            place: &CanonicalPlace,
+            ordinary: &mut impl FnMut(&CanonicalPlace) -> Option<ScalarValue>,
+        ) -> Option<ScalarValue> {
+            match expression {
+                Boolean::And { left, right } => equation(predicate, left, place, ordinary)
+                    .or_else(|| equation(predicate, right, place, ordinary)),
+                Boolean::IntegerComparison {
+                    kind: checked_trees::CheckedIntegerComparisonKind::Equal,
+                    left,
+                    right,
+                } => [(left, right), (right, left)]
+                    .into_iter()
+                    .find_map(|(subject, value)| {
+                        (predicate.binding(subject)?.place == *place).then_some(())?;
+                        crate::values::evaluate_checked_scalar(
+                            value,
+                            &mut Values {
+                                predicate,
+                                resolve: &mut *ordinary,
+                            },
+                        )
+                    }),
+                _ => None,
+            }
+        }
+        equation(self, &self.expression, place, &mut ordinary)
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -123,17 +164,21 @@ pub(crate) fn bind_entry(
         machine,
         state.symbol,
         program.state_parameters(state),
+        None,
         expression,
     )
 }
 
 /// Bind checked scalar coordinates against the exact supplied telescope. The
 /// caller retains declaration ownership separately from actual call positions.
+/// Results occupy the trailing scalar/structural position in their respective
+/// namespaces and bind to an exact invocation value, never a synthetic formal.
 pub(crate) fn bind_parameters(
     program: &dyn ::validation::CheckingInput,
     machine: SymbolHandle,
     state: SymbolHandle,
     parameters: &[typed_trees::signature::StateParameter],
+    result: Option<(&CanonicalPlace, TypeReferenceHandle)>,
     expression: Boolean,
 ) -> Option<BoundPredicate> {
     let mut bindings = Vec::new();
@@ -147,14 +192,27 @@ pub(crate) fn bind_parameters(
         }
         let (place, type_reference) = match operand {
             Scalar::Parameter { position, .. } => {
-                let parameter = parameters
-                    .iter()
-                    .filter(|parameter| crate::values::occupies_scalar_position(program, parameter))
-                    .nth(*position)?;
-                (
-                    crate::flow::canonical_place_from_symbol(parameter.symbol)?,
-                    parameter.type_reference,
-                )
+                let mut scalars = parameters.iter().filter(|parameter| {
+                    crate::values::occupies_scalar_position(program, parameter)
+                });
+                if let Some(parameter) = scalars.nth(*position) {
+                    (
+                        crate::flow::canonical_place_from_symbol(parameter.symbol)?,
+                        parameter.type_reference,
+                    )
+                } else if *position
+                    == parameters
+                        .iter()
+                        .filter(|parameter| {
+                            crate::values::occupies_scalar_position(program, parameter)
+                        })
+                        .count()
+                {
+                    let (place, reference) = result?;
+                    (place.clone(), reference)
+                } else {
+                    return None;
+                }
             }
             Scalar::StorageRead { symbol, .. } => {
                 let parameter = parameters
@@ -196,26 +254,43 @@ pub(crate) fn bind_parameters(
                     }
                     _ => return None,
                 };
-                let (root, segments, reference, _) =
-                    crate::values::resolve_structural_parameter_path(
-                        program,
-                        parameters,
-                        parameter_position,
-                        &path,
-                    )?;
-                // An empty projection can observe a whole primitive loan.
-                // Bind its readable referent carrier, as scalar contract
-                // lowering does, rather than comparing the reference type
-                // itself with the scalar observation. Write-only stays absent.
-                let reference =
-                    validation::field_domains::readable_type_reference(program, reference)?;
-                (
-                    CanonicalPlace {
-                        root: facts::PlaceRoot::Symbol(root),
-                        segments,
-                    },
-                    reference,
-                )
+                if usize::try_from(parameter_position).ok()? == parameters.len() {
+                    let (place, reference) = result?;
+                    let (segments, reference, _) =
+                        crate::values::scalar::structural_fields::resolve_structural_path(
+                            program,
+                            reference,
+                            false,
+                            &path,
+                            &mut |_, _| Some(()),
+                        )?;
+                    let reference =
+                        validation::field_domains::readable_type_reference(program, reference)?;
+                    let mut place = place.clone();
+                    place.segments.extend(segments);
+                    (place, reference)
+                } else {
+                    let (root, segments, reference, _) =
+                        crate::values::resolve_structural_parameter_path(
+                            program,
+                            parameters,
+                            parameter_position,
+                            &path,
+                        )?;
+                    // An empty projection can observe a whole primitive loan.
+                    // Bind its readable referent carrier, as scalar contract
+                    // lowering does, rather than comparing the reference type
+                    // itself with the scalar observation. Write-only stays absent.
+                    let reference =
+                        validation::field_domains::readable_type_reference(program, reference)?;
+                    (
+                        CanonicalPlace {
+                            root: facts::PlaceRoot::Symbol(root),
+                            segments,
+                        },
+                        reference,
+                    )
+                }
             }
             _ => return None,
         };
@@ -530,6 +605,7 @@ pub(crate) fn domain_predicates_for_subject(
                     domain.symbol,
                     domain.symbol,
                     &parameters,
+                    None,
                     expression,
                 )?;
                 for binding in &mut predicate.bindings {

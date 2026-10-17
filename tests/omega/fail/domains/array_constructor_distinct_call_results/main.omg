@@ -1,0 +1,12 @@
+// Calls with equal signatures retain distinct completed-result identities.
+data Resource [copy] { identity: u64; }
+domain Resource::Open(resource) requires resource.identity != 0;
+machine acquire(identity: u64) -> Resource
+ensures result.identity == identity {
+    Resource { identity: identity }
+}
+machine main() {
+    let open: Resource = acquire(19);
+    let closed: Resource = acquire(0);
+    let resources: [Resource in Open; 2] = [open, closed];
+}

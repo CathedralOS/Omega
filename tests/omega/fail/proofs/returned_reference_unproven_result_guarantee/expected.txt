@@ -1,0 +1,6 @@
+cannot prove ensures contract for exit from borrow at
+cannot prove ensures contract for exit from wrap_scalar at
+cannot prove ensures contract for exit from borrow_scalar at
+cannot prove ensures contract for exit from wrap_disjunctive at
+cannot prove ensures contract for exit from wrap_rebound_scalar at
+cannot prove ensures contract for exit from wrap_mutated_scalar at

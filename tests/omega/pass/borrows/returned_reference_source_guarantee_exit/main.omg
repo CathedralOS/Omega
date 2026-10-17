@@ -1,0 +1,79 @@
+// Expected exit: 0. Source guarantees may observe returned referents even when
+// the closed scalar publication path vocabulary has no reference crossing.
+data Resource [copy] { identity: u64; }
+data Envelope { child: &Resource; }
+data ScalarEnvelope<'storage> { value: &'storage u64; }
+
+machine borrow(resource: &Resource) -> &Resource
+requires resource.identity == 19
+ensures result.identity == 19 {
+    resource
+}
+
+machine wrap(resource: &Resource) -> Envelope
+requires resource.identity == 19
+ensures result.child.identity == 19 {
+    Envelope { child: resource }
+}
+
+machine wrap_scalar<'storage>(resource: &'storage Resource) -> ScalarEnvelope<'storage>
+requires resource.identity == 19
+ensures result.value == 19 {
+    ScalarEnvelope { value: &resource.identity }
+}
+
+machine wrap_stored_scalar<'storage>(resource: &'storage Resource) -> ScalarEnvelope<'storage>
+requires resource.identity == 19
+ensures result.value == 19 {
+    let view: &u64 = &resource.identity;
+    ScalarEnvelope { value: view }
+}
+
+machine borrow_scalar(value: &u64) -> &u64
+requires value == 19
+ensures result == 19 {
+    value
+}
+
+machine wrap_rebound_scalar<'storage>(first: &'storage Resource, second: &'storage Resource)
+    -> ScalarEnvelope<'storage>
+requires first.identity == 0 && second.identity == 19
+ensures result.value == 19 {
+    let mut view: &u64 = &first.identity;
+    view = &second.identity;
+    ScalarEnvelope { value: view }
+}
+
+machine restore(resource: &mut Resource)
+ensures resource.identity == 19 {
+    resource.identity = 19;
+}
+
+machine wrap_repaired_scalar<'storage>(resource: &'storage mut Resource) -> ScalarEnvelope<'storage>
+requires resource.identity == 19
+ensures result.value == 19 {
+    resource.identity = 0;
+    restore(&mut resource);
+    ScalarEnvelope { value: &resource.identity }
+}
+
+machine main() crashes Trap {
+    let resource: Resource = Resource { identity: 19 };
+    let zero: Resource = Resource { identity: 0 };
+    let mut repairable: Resource = Resource { identity: 19 };
+    let view: &Resource = borrow(&resource);
+    let envelope: Envelope = wrap(&resource);
+    let scalar: ScalarEnvelope = wrap_scalar(&resource);
+    let stored: ScalarEnvelope = wrap_stored_scalar(&resource);
+    let primitive: &u64 = borrow_scalar(&resource.identity);
+    let rebound: ScalarEnvelope = wrap_rebound_scalar(&zero, &resource);
+    let repaired: ScalarEnvelope = wrap_repaired_scalar(&mut repairable);
+    transition view.identity == 19 && envelope.child.identity == 19
+        && scalar.value == 19 && stored.value == 19 && primitive == 19
+        && rebound.value == 19 && repaired.value == 19 {
+        true -> done()
+        false -> wrong()
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}

@@ -1,0 +1,8 @@
+// A declared element domain does not survive mutation before capture.
+data Resource [copy] { identity: u64; }
+domain Resource::Open(resource) requires resource.identity != 0;
+machine main() {
+    let mut resource: Resource in Open = Resource { identity: 73 };
+    resource.identity = 0;
+    let resources: [Resource in Open; 1] = [resource];
+}

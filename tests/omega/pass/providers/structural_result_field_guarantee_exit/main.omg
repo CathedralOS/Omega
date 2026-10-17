@@ -1,0 +1,20 @@
+// Expected exit: 0. A provider's structural-result guarantee remains source-checked
+// without inventing a result place in the boundary scalar contract namespace.
+pub data Resource [copy] { identity: u64; }
+pub boundary trait Factory {
+    machine acquire() -> Resource ensures result.identity == 19;
+}
+RealFactory satisfies Factory {
+    machine acquire() -> Resource ensures result.identity == 19 {
+        Resource { identity: 19 }
+    }
+}
+machine main() reaches Factory crashes Trap {
+    let resource: Resource = Factory::acquire();
+    transition resource.identity == 19 {
+        true -> done()
+        false -> wrong()
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}

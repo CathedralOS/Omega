@@ -29,10 +29,13 @@ use typed_trees::statement::StatementNode;
 
 use crate::labels::{machine_name, symbol_name};
 
+mod constructor_memberships;
+pub(super) use constructor_memberships::ConstructorMemberships;
+use constructor_memberships::check_constructor_membership;
 mod domain_implications;
 mod member_domains;
+use domain_implications::value_proves_qualification;
 pub(super) use domain_implications::value_proves_qualification_in_contexts;
-use domain_implications::{value_proves_domain, value_proves_qualification};
 use member_domains::initializer_satisfies_predicate_domain;
 pub(super) use member_domains::value_satisfies_domain_predicates_in_contexts;
 
@@ -59,6 +62,7 @@ impl ConstructionQualification {
 pub(super) fn check_domain_field_writes(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
+    constructor_memberships: &ConstructorMemberships<'_>,
     state_flow: &FlowStateFact,
     frames: Option<&validation::CallFrameResolver<'_>>,
     decisions: &mut arena::Arena<checked_trees::CheckedValueQualification>,
@@ -237,13 +241,14 @@ pub(super) fn check_domain_field_writes(
                 let exact_interval =
                     validation::exact_declared_domain_interval(program, domain).is_some();
                 if !exact_interval
-                    && !value_proves_domain(
+                    && !value_proves_qualification(
                         program,
                         facts,
                         state_flow,
                         statement_index,
                         assignment.value,
                         domain_symbol,
+                        domain.semantic_id,
                     )
                     && !(!requires_provenance
                         && (initializer_satisfies_predicate_domain(
@@ -349,6 +354,7 @@ pub(super) fn check_domain_field_writes(
                 scan_construction_field_domains(
                     program,
                     facts,
+                    constructor_memberships,
                     state_flow,
                     &construction_qualifications,
                     statement_index,
@@ -387,6 +393,7 @@ pub(super) fn check_domain_field_writes(
                     scan_construction_field_domains(
                         program,
                         facts,
+                        constructor_memberships,
                         state_flow,
                         &construction_qualifications,
                         statement_index,
@@ -404,6 +411,7 @@ pub(super) fn check_domain_field_writes(
             scan_construction_field_domains(
                 program,
                 facts,
+                constructor_memberships,
                 state_flow,
                 &construction_qualifications,
                 statement_index,
@@ -442,13 +450,12 @@ fn statement_root_expressions(
     }
 }
 
-/// The maximum byte length the runtime value of `expression` can take when that
-/// field whose declared type carries a domain, require the field value provably
-/// in that domain (reusing the assignment discharge `value_proves_domain`).
-/// Walk `expression` for `StructLiteral` constructions; for each constructed
+/// Walk constructed children in evaluation order and prove each declared field
+/// or contextual element membership at that child's completion frontier.
 fn scan_construction_field_domains(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
+    constructor_memberships: &ConstructorMemberships<'_>,
     state_flow: &FlowStateFact,
     construction_qualifications: &[ConstructionQualification],
     statement_index: usize,
@@ -465,6 +472,7 @@ fn scan_construction_field_domains(
         ExpressionNode::Atomic(atomic) => scan_construction_field_domains(
             program,
             facts,
+            constructor_memberships,
             state_flow,
             construction_qualifications,
             statement_index,
@@ -478,6 +486,7 @@ fn scan_construction_field_domains(
             scan_construction_field_domains(
                 program,
                 facts,
+                constructor_memberships,
                 state_flow,
                 construction_qualifications,
                 statement_index,
@@ -494,6 +503,7 @@ fn scan_construction_field_domains(
                     scan_construction_field_domains(
                         program,
                         facts,
+                        constructor_memberships,
                         state_flow,
                         construction_qualifications,
                         statement_index,
@@ -507,6 +517,7 @@ fn scan_construction_field_domains(
                 scan_construction_field_domains(
                     program,
                     facts,
+                    constructor_memberships,
                     state_flow,
                     construction_qualifications,
                     statement_index,
@@ -531,6 +542,7 @@ fn scan_construction_field_domains(
                 scan_construction_field_domains(
                     program,
                     facts,
+                    constructor_memberships,
                     state_flow,
                     construction_qualifications,
                     statement_index,
@@ -546,44 +558,42 @@ fn scan_construction_field_domains(
                     case_name.as_ref().map(|name| name.as_str()),
                     field.name.as_str(),
                 ) {
-                    // (a) The constructed value must be established in the domain.
-                    if !value_proves_qualification_in_contexts(
+                    check_constructor_membership(
                         program,
                         facts,
+                        constructor_memberships,
                         state_flow,
                         statement_index,
                         field.value,
                         domain_symbol,
                         semantic_domain,
                         contexts,
-                    ) {
-                        diagnostics.push(Diagnostic::error(format!(
-                            "construction of `{}` field `{}` is not proven in domain `{}`; \
-                             a field declared `in {}` requires every construction value to be \
-                             established in that domain (construct with a literal its byte-predicate \
-                             fact accepts, or a value already proven in the domain)",
+                        decisions,
+                        diagnostics,
+                        frames,
+                        &format!(
+                            "construction of `{}` field `{}`",
                             type_name.as_str(),
-                            field.name.as_str(),
-                            symbol_name(program, domain_symbol),
-                            symbol_name(program, domain_symbol),
-                        )));
-                    } else {
-                        record_qualification(
-                            decisions,
-                            state_flow,
-                            statement_index,
-                            field.value,
-                            semantic_domain,
-                        );
-                    }
+                            field.name.as_str()
+                        ),
+                    );
                 }
             }
         }
         ExpressionNode::ArrayLiteral(elements) => {
+            // The retained operand supplies contextual obligations, not proof.
+            // The source-inferred array type can omit those receiving domains.
+            let element_domains = constructor_memberships.array_element_domains(
+                program,
+                state_flow.state_symbol,
+                statement_index,
+                expression,
+            );
             for element in program.expression_table.expression_handles(*elements) {
                 scan_construction_field_domains(
                     program,
                     facts,
+                    constructor_memberships,
                     state_flow,
                     construction_qualifications,
                     statement_index,
@@ -593,12 +603,30 @@ fn scan_construction_field_domains(
                     diagnostics,
                     frames,
                 );
+                for &(domain_symbol, semantic_domain) in &element_domains {
+                    check_constructor_membership(
+                        program,
+                        facts,
+                        constructor_memberships,
+                        state_flow,
+                        statement_index,
+                        *element,
+                        domain_symbol,
+                        semantic_domain,
+                        contexts,
+                        decisions,
+                        diagnostics,
+                        frames,
+                        "array literal element",
+                    );
+                }
             }
         }
         ExpressionNode::Binary(binary) => {
             scan_construction_field_domains(
                 program,
                 facts,
+                constructor_memberships,
                 state_flow,
                 construction_qualifications,
                 statement_index,
@@ -611,6 +639,7 @@ fn scan_construction_field_domains(
             scan_construction_field_domains(
                 program,
                 facts,
+                constructor_memberships,
                 state_flow,
                 construction_qualifications,
                 statement_index,
@@ -625,6 +654,7 @@ fn scan_construction_field_domains(
             scan_construction_field_domains(
                 program,
                 facts,
+                constructor_memberships,
                 state_flow,
                 construction_qualifications,
                 statement_index,
@@ -651,6 +681,7 @@ fn scan_construction_field_domains(
             scan_construction_field_domains(
                 program,
                 facts,
+                constructor_memberships,
                 state_flow,
                 construction_qualifications,
                 statement_index,
@@ -664,6 +695,7 @@ fn scan_construction_field_domains(
                 scan_construction_field_domains(
                     program,
                     facts,
+                    constructor_memberships,
                     state_flow,
                     construction_qualifications,
                     statement_index,
@@ -674,17 +706,17 @@ fn scan_construction_field_domains(
                     frames,
                 );
             }
-            if let Some(call) = facts
+            let mut calls = facts
                 .flow
                 .control
                 .calls
                 .span_or_empty(state_flow.calls)
                 .iter()
-                .find(|call| {
+                .filter(|call| {
                     call.statement_index == statement_index
                         && call.authored_expression == expression
-                })
-            {
+                });
+            if let Some(call) = calls.next() {
                 *contexts = facts
                     .flow
                     .contexts
@@ -693,6 +725,20 @@ fn scan_construction_field_domains(
                     .iter()
                     .map(|reference| reference.context)
                     .collect();
+                // One source occurrence can retain several evaluation rows.
+                // Only contexts surviving every row may feed later children.
+                for call in calls {
+                    let incoming = facts
+                        .flow
+                        .contexts
+                        .semantic_context_refs
+                        .span_or_empty(call.exit_semantic_contexts);
+                    contexts.retain(|context| {
+                        incoming
+                            .iter()
+                            .any(|reference| reference.context == *context)
+                    });
+                }
             } else {
                 contexts.clear();
             }
@@ -701,6 +747,7 @@ fn scan_construction_field_domains(
             scan_construction_field_domains(
                 program,
                 facts,
+                constructor_memberships,
                 state_flow,
                 construction_qualifications,
                 statement_index,
@@ -713,6 +760,7 @@ fn scan_construction_field_domains(
             scan_construction_field_domains(
                 program,
                 facts,
+                constructor_memberships,
                 state_flow,
                 construction_qualifications,
                 statement_index,
@@ -726,6 +774,7 @@ fn scan_construction_field_domains(
         ExpressionNode::Member(member) => scan_construction_field_domains(
             program,
             facts,
+            constructor_memberships,
             state_flow,
             construction_qualifications,
             statement_index,
@@ -738,6 +787,7 @@ fn scan_construction_field_domains(
         ExpressionNode::Borrow(inner) => scan_construction_field_domains(
             program,
             facts,
+            constructor_memberships,
             state_flow,
             construction_qualifications,
             statement_index,
@@ -751,6 +801,7 @@ fn scan_construction_field_domains(
             scan_construction_field_domains(
                 program,
                 facts,
+                constructor_memberships,
                 state_flow,
                 construction_qualifications,
                 statement_index,
@@ -763,6 +814,7 @@ fn scan_construction_field_domains(
             scan_construction_field_domains(
                 program,
                 facts,
+                constructor_memberships,
                 state_flow,
                 construction_qualifications,
                 statement_index,
@@ -776,6 +828,7 @@ fn scan_construction_field_domains(
         ExpressionNode::Unary(unary) => scan_construction_field_domains(
             program,
             facts,
+            constructor_memberships,
             state_flow,
             construction_qualifications,
             statement_index,
@@ -797,58 +850,21 @@ fn scan_construction_field_domains(
     let first = construction_qualifications.partition_point(|row| row.site() < site);
     let rows = &construction_qualifications[first..];
     for row in rows.iter().take_while(|row| row.site() == site) {
-        let mut captures = facts
-            .flow
-            .control
-            .operands
-            .iter()
-            .map(|(_, operand)| operand)
-            .filter(|operand| {
-                operand.expression == expression
-                    && operand.state_symbol == state_flow.state_symbol
-                    && operand.statement_index == statement_index
-            });
-        let capture = captures.next().filter(|_| captures.next().is_none());
-        if value_proves_qualification_in_contexts(
+        check_constructor_membership(
             program,
             facts,
+            constructor_memberships,
             state_flow,
             statement_index,
             expression,
             row.domain,
             row.semantic_domain,
             contexts,
-        ) || (capture.is_some()
-            && !validation::field_domains::domain_requires_provenance(program, row.domain)
-            && value_satisfies_domain_predicates_in_contexts(
-                program,
-                facts,
-                state_flow,
-                statement_index,
-                expression,
-                row.domain,
-                contexts,
-                &mut Vec::new(),
-                capture,
-                frames,
-            ))
-        {
-            // A completed constructor can establish a predicate from its actual
-            // fields. This uses its operand epoch and never introduces routed
-            // provenance or assumes the promised annotation as evidence.
-            record_qualification(
-                decisions,
-                state_flow,
-                statement_index,
-                expression,
-                row.semantic_domain,
-            );
-        } else {
-            diagnostics.push(Diagnostic::error(format!(
-                "construction value is not proven in domain `{}`",
-                symbol_name(program, row.domain),
-            )));
-        }
+            decisions,
+            diagnostics,
+            frames,
+            "construction value",
+        );
     }
 }
 

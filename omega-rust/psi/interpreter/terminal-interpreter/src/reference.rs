@@ -1684,6 +1684,11 @@ impl TerminalExecution<'_> {
                         }
                         ram.access = access;
                     }
+                    // Argument binding already admitted this exact source and
+                    // its memberships. Capture its complete retained value:
+                    // domain theory does not select a different backing ABI.
+                    // Result validation still joins the actual returned loan
+                    // against this origin, endpoint, window and access.
                     let logical = projected.value;
                     let endpoint = terminal_semantics::reference_origin_type(
                         self.program.structural_types().values(),
@@ -1693,14 +1698,6 @@ impl TerminalExecution<'_> {
                     if endpoint.is_none()
                         || (binding.extent == semantic_vocabulary::ReferenceOriginExtent::Projected
                             && endpoint != Some(referent_type))
-                        || (!logical.qualifications.is_empty()
-                            && !terminal_semantics::pure_byte_qualifications(
-                                self.program.structural_types().values(),
-                                self.program.catalogs.structural_domains.iter(),
-                                logical.structural_type,
-                                &logical.qualifications,
-                                &logical.projected_qualifications,
-                            ))
                     {
                         return Err(malformed());
                     }

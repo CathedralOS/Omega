@@ -1,0 +1,8 @@
+// An array's element annotation is an obligation, not proof of its predicate.
+data Resource [copy] { identity: u64; }
+domain Resource::Open(resource) requires resource.identity != 0;
+machine main() {
+    let resources: [Resource in Open; 2] = [
+        Resource { identity: 73 }, Resource { identity: 0 }
+    ];
+}

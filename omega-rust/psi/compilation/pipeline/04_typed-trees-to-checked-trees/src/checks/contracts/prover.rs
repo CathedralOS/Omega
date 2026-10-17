@@ -31,8 +31,10 @@ pub(super) use assigned_values::{
     byte_predicate_proven_at_place, prove_domain_at_place, scalar_value_at_place,
     segments_cover_subject,
 };
+mod captured_values;
 mod scalars;
 pub(super) use crate::values::evaluate_checked_scalar;
+pub(super) use captured_values::scalar_at_path as captured_scalar_at_path;
 pub(super) use scalars::{
     ScalarValue, closed_boolean_value, evaluate as evaluate_scalar, evaluate_for_atoms,
     has_builtin_operators,

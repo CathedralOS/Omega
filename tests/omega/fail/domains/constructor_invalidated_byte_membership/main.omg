@@ -1,0 +1,10 @@
+domain [u8; 4]::Ascii(bytes) requires ascii_only(bytes);
+data Holder { bytes: [u8; 4] in Ascii; }
+
+machine overwrite(bytes: &mut [u8; 4]) { bytes = "é!!"; }
+
+machine invalid() {
+    let mut bytes: [u8; 4] in Ascii = "okay";
+    overwrite(&mut bytes);
+    let holder: Holder = Holder { bytes: bytes };
+}

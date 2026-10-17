@@ -1,6 +1,6 @@
 //! Activation-entry locals whose storage backs a state loan.
 //!
-//! Their original owned places stay live through every state edge. A plain
+//! Their original owned places stay live through every state edge. A checked
 //! no-code home dies once, after the normal return has materialized its fresh
 //! result; the mutable parameter never becomes its disposal owner.
 //! A retained reference also keeps every owned immediate carrier it crossed
@@ -8,7 +8,7 @@
 //! and die after their descendants, rather than on the lending state's edge.
 
 use crate::LoweringError;
-use semantic_vocabulary::{PlaceId, StructuralPlaceKind};
+use semantic_vocabulary::PlaceId;
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{
     OperationKind, StructuralAccess, StructuralPathSegment, StructuralTypeDeclaration,
@@ -24,17 +24,7 @@ pub(super) fn finish(
         return Ok(());
     }
     let (retained, parents) = retained_reference_parents(machine, homes, types)?;
-    let producers = machine
-        .structural_places
-        .iter()
-        .filter_map(|place| {
-            if let StructuralPlaceKind::OperationResult { producer, .. } = place.kind {
-                Some((place.id, producer))
-            } else {
-                None
-            }
-        })
-        .collect::<BTreeMap<_, _>>();
+    authenticate_home_dispositions(machine, &retained)?;
     for block in &mut machine.blocks {
         match &mut block.terminator {
             // A source-state exit may have scheduled ordinary local disposal
@@ -72,12 +62,44 @@ pub(super) fn finish(
                         "state loan backing cannot escape as an owned return",
                     ));
                 }
-                merge_home_actions(cleanup_actions, &retained, &parents, &producers)?;
+                merge_home_actions(cleanup_actions, &retained, &parents)?;
             }
             terminal_psi::terminator_return_pair_pattern!(cleanup_actions, ..) => {
-                merge_home_actions(cleanup_actions, &retained, &parents, &producers)?;
+                merge_home_actions(cleanup_actions, &retained, &parents)?;
             }
             _ => {}
+        }
+    }
+    Ok(())
+}
+
+/// Storage retention does not establish a new disposal capability. The checked
+/// whole-root no-code action is occurrence-level authority, including for
+/// reference descriptors whose type does not permit general no-code cleanup.
+/// Nominal and residual actions retain contextual premises; this pass cannot
+/// move them to another edge, nor replace them with a no-code disposition.
+fn authenticate_home_dispositions(
+    machine: &TerminalMachine,
+    homes: &[PlaceId],
+) -> Result<(), LoweringError> {
+    for home in homes {
+        let mut has_whole_disposition = false;
+        for block in &machine.blocks {
+            for (_, actions) in block.terminator.cleanup_rosters() {
+                for action in actions.iter().filter(|action| action.place() == *home) {
+                    if *action != TerminalAffineCleanupAction::DiscardRoot(*home) {
+                        return Err(LoweringError::Unsupported(
+                            "state loan home requires contextual cleanup that cannot be relocated",
+                        ));
+                    }
+                    has_whole_disposition = true;
+                }
+            }
+        }
+        if !has_whole_disposition {
+            return Err(LoweringError::Unsupported(
+                "state loan home has no checked whole-home no-code disposition",
+            ));
         }
     }
     Ok(())
@@ -335,27 +357,47 @@ fn merge_home_actions(
     actions: &mut Vec<TerminalAffineCleanupAction>,
     homes: &[PlaceId],
     parents: &[(PlaceId, PlaceId)],
-    producers: &BTreeMap<PlaceId, semantic_vocabulary::OperationId>,
 ) -> Result<(), LoweringError> {
-    for home in homes {
-        if !actions.iter().any(|action| action.place() == *home) {
-            actions.push(TerminalAffineCleanupAction::DiscardRoot(*home));
-        }
-    }
-    actions.sort_by(|first, second| {
-        match (
-            producers.get(&first.place()),
-            producers.get(&second.place()),
-        ) {
-            (Some(first), Some(second)) => second.cmp(first),
-            (Some(_), None) => std::cmp::Ordering::Less,
-            (None, Some(_)) => std::cmp::Ordering::Greater,
-            (None, None) => std::cmp::Ordering::Equal,
+    // The selected roster already orders descriptor and nominal disposal.
+    // Moving all operation results before block parameters would kill a local
+    // backing before the transported descriptor that still borrows it. Defer
+    // only retained homes, whose selected dispositions were authenticated as
+    // no-code before any edge changed. Observable nominal actions never move.
+    let mut deferred_home_actions = Vec::new();
+    actions.retain(|action| {
+        if homes.contains(&action.place()) {
+            deferred_home_actions.push(action.clone());
+            false
+        } else {
+            true
         }
     });
-    // Producer order is declaration order in this emitter, not restoration
-    // authority. Check it against the actual formation dependencies: every
-    // retained child must die before its immediate owned carrier parent.
+    for home in homes {
+        if !deferred_home_actions
+            .iter()
+            .any(|action| action.place() == *home)
+        {
+            deferred_home_actions.push(TerminalAffineCleanupAction::DiscardRoot(*home));
+        }
+    }
+    // Stable topological order uses actual formation ancestry, never producer
+    // numbering or storage kind. Unrelated selected home actions retain order.
+    while !deferred_home_actions.is_empty() {
+        let ready_home_position = deferred_home_actions
+            .iter()
+            .position(|action| {
+                !parents.iter().any(|(child, parent)| {
+                    *parent == action.place()
+                        && deferred_home_actions
+                            .iter()
+                            .any(|pending_action| pending_action.place() == *child)
+                })
+            })
+            .ok_or(LoweringError::Unsupported(
+                "retained reference cleanup has cyclic formation dependencies",
+            ))?;
+        actions.push(deferred_home_actions.remove(ready_home_position));
+    }
     for (child, parent) in parents {
         let child_position = actions.iter().rposition(|action| action.place() == *child);
         let parent_position = actions.iter().position(|action| action.place() == *parent);

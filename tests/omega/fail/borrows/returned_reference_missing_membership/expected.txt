@@ -1,0 +1,1 @@
+machine `borrow_missing` state `entry` terminal expression expects `&mut Resource[in Open]`

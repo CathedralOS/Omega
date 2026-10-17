@@ -408,7 +408,11 @@ fn successor(
                         &builder.transport.views,
                     )
                 }
-                .ok_or(SelectedInstructionError::custody())?;
+                .ok_or_else(|| {
+                    SelectedInstructionError::custody_because(
+                        "structural edge argument has no transport from its retained source storage",
+                    )
+                })?;
                 let (transport, source_indices) =
                     project_block_storage(builder, next.edge, semantic.argument.place, projection)?;
                 Ok(selected_instructions::SelectedStructuralBinding {

@@ -107,6 +107,7 @@ pub(super) fn check_flow_call_contracts(
     let mut decided = Vec::new();
     let mut constant_obligations = Vec::new();
     let mut value_qualifications = arena::Arena::default();
+    let constructor_memberships = writes::ConstructorMemberships::new(facts);
     let content_plans = validation::content_conservation_plans(program);
     let nominal_requirements = nominal_inputs::DeclaredFieldRequirements::new(&facts.semantic);
     let mut owned_call_frames = None;
@@ -226,6 +227,7 @@ pub(super) fn check_flow_call_contracts(
         check_domain_field_writes(
             program,
             facts,
+            &constructor_memberships,
             state_flow,
             call_frames,
             &mut value_qualifications,

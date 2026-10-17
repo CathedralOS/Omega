@@ -1,0 +1,40 @@
+// Erasing an unrepresentable scalar consequence does not prove its source clause.
+data Resource [copy] { identity: u64; }
+data ScalarEnvelope<'storage> { value: &'storage u64; }
+machine borrow(resource: &Resource) -> &Resource
+ensures result.identity == 19 {
+    resource
+}
+
+machine wrap_scalar<'storage>(resource: &'storage Resource) -> ScalarEnvelope<'storage>
+ensures result.value == 19 {
+    let view: &u64 = &resource.identity;
+    ScalarEnvelope { value: view }
+}
+
+machine borrow_scalar(value: &u64) -> &u64
+ensures result == 19 {
+    value
+}
+
+machine wrap_disjunctive(resource: &Resource) -> &Resource
+requires resource.identity == 0 || resource.identity == 19
+ensures result.identity == 19 {
+    resource
+}
+
+machine wrap_rebound_scalar<'storage>(first: &'storage Resource, second: &'storage Resource)
+    -> ScalarEnvelope<'storage>
+requires first.identity == 19 && second.identity == 0
+ensures result.value == 19 {
+    let mut view: &u64 = &first.identity;
+    view = &second.identity;
+    ScalarEnvelope { value: view }
+}
+
+machine wrap_mutated_scalar<'storage>(resource: &'storage mut Resource) -> ScalarEnvelope<'storage>
+requires resource.identity == 19
+ensures result.value == 19 {
+    resource.identity = 0;
+    ScalarEnvelope { value: &resource.identity }
+}

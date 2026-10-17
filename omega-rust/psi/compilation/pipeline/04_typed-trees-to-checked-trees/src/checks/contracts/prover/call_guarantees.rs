@@ -198,15 +198,33 @@ pub(crate) fn current_predicates(
             true,
             &mut 4096,
         )?;
+        let result = guarantee
+            .call_expression()
+            .map(|expression| CanonicalPlace {
+                root: PlaceRoot::Expression(expression),
+                segments: Vec::new(),
+            });
         let mut predicate = crate::facts::boolean_predicates::bind_parameters(
             program,
             invocation.callable.owner_symbol(),
             invocation.callable.target_symbol(),
             parameters,
+            result
+                .as_ref()
+                .map(|place| (place, invocation.callable.result_type())),
             expression,
         )?;
         let arguments = validation::call_site_argument_expressions(program, &invocation.site);
         for binding in &mut predicate.bindings {
+            // The normal result is already in the caller's completed-value
+            // namespace. Only this exact invocation root bypasses substitution;
+            // a parameter or another call must still establish its own capture.
+            if result
+                .as_ref()
+                .is_some_and(|result| binding.place.root == result.root)
+            {
+                continue;
+            }
             let position = parameters
                 .iter()
                 .position(|parameter| binding.place.root == PlaceRoot::Symbol(parameter.symbol))?;
@@ -232,6 +250,33 @@ pub(crate) fn current_predicates(
     .collect()
 }
 
+/// Read an exact scalar conclusion after authenticating its declaration,
+/// argument substitution and surviving capture. This does not turn a raw
+/// `ensures` expression into a caller fact or choose a side of a disjunction.
+pub(in crate::checks) fn scalar_at_place(
+    program: &dyn ::validation::CheckingInput,
+    facts: &checked_trees::CheckFacts,
+    caller: &FlowStateFact,
+    statement: usize,
+    contexts: &[facts::FactContextHandle],
+    frames: &validation::CallFrameResolver<'_>,
+    place: &CanonicalPlace,
+) -> Option<facts::ScalarValue> {
+    current_predicates(program, facts, caller, statement, contexts, frames)
+        .iter()
+        .find_map(|predicate| {
+            predicate.constant_at_place(place, |operand| {
+                crate::values::scalar_value_at_place(
+                    program,
+                    &facts.semantic,
+                    contexts
+                        .iter()
+                        .map(|context| facts.semantic.contexts.get(*context)),
+                    operand,
+                )
+            })
+        })
+}
 pub(super) fn proves(
     program: &dyn ::validation::CheckingInput,
     facts: &checked_trees::CheckFacts,

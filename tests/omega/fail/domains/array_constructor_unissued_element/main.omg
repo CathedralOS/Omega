@@ -1,0 +1,7 @@
+// Equal contents do not supply an array element's private issuer provenance.
+data Resource [copy] { identity: u64; }
+domain Resource::Issued established by issue;
+machine issue() -> Resource in Issued { Resource { identity: 73 } }
+machine main() {
+    let resources: [Resource in Issued; 1] = [Resource { identity: 73 }];
+}

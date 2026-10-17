@@ -1,0 +1,16 @@
+// Repairing the former source cannot qualify the earlier copied child.
+data Resource [copy] { identity: u64; }
+domain Resource::Open(resource) requires resource.identity != 0;
+data Envelope [copy] { resource: Resource; repaired: bool; }
+domain Envelope::Ready(envelope) requires envelope.resource in Resource::Open;
+machine repair(resource: &mut Resource) -> bool
+ensures resource.identity == 73 {
+    resource.identity = 73;
+    true
+}
+machine main() {
+    let mut resource: Resource = Resource { identity: 0 };
+    let envelopes: [Envelope in Ready; 1] = [Envelope {
+        resource: resource, repaired: repair(&mut resource)
+    }];
+}

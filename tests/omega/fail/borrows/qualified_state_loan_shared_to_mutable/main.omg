@@ -1,0 +1,7 @@
+// A qualification cannot widen a shared loan's access at a state edge.
+data Resource { identity: u64; }
+domain Resource::Open(resource) requires resource.identity != 0;
+machine inspect(resource: &Resource in Open) {
+    transition { _ -> write(resource) }
+    state write(resource: &mut Resource in Open) {}
+}

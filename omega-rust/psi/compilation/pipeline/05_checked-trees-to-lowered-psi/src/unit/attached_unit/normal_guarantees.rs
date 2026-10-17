@@ -7,7 +7,7 @@
 //! Crashes and incomplete calls establish neither a result nor these facts.
 
 use crate::lowering_error::LoweringError;
-use crate::scalar_lowering::contracts::{self, ContractViewNamespace};
+use crate::scalar_lowering::contracts::{self, ContractStructuralResult, ContractViewNamespace};
 use crate::unit::ContractClause;
 use checked_trees::CheckedTrees;
 use symbols::SymbolHandle;
@@ -77,8 +77,22 @@ pub(crate) fn lower(
     // owned payload does not turn it into an entry formal or a scalar value.
     let views = ContractViewNamespace {
         result: match result {
-            TerminalMachineResult::Structural(declaration) => Some(declaration),
-            _ => None,
+            TerminalMachineResult::Structural(declaration) => {
+                let entry = checked.typed.machine_states(source).first().ok_or(
+                    LoweringError::Unsupported("normal guarantee owner has no entry state"),
+                )?;
+                let position =
+                    u32::try_from(checked.typed.state_parameters(entry).len()).map_err(|_| {
+                        LoweringError::Unsupported(
+                            "normal result coordinate exceeds the contract namespace",
+                        )
+                    })?;
+                ContractStructuralResult::Declared {
+                    position,
+                    declaration,
+                }
+            }
+            _ => ContractStructuralResult::Absent,
         },
         ..*views
     };

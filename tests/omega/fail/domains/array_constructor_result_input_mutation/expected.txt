@@ -1,0 +1,2 @@
+array literal element is not proven in domain `Resource::Open` in after_call state
+array literal element is not proven in domain `Resource::Open` in later_argument state

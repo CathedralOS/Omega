@@ -1010,6 +1010,10 @@ fail/borrows/projected_fixed_array_shared_source_mutable_local rejected 178ms ex
 	machine `violate` state `entry` local `requested` requires mutable source access; shared or immutable storage cannot supply it
 fail/borrows/qualified_byte_element_mutable_call_rejected rejected 1636ms expected @a9ae30e1c334+wt
 	cannot prove default-domain field requirement for return from Packet::main at statement 1: packet.bytes requires [u8; N]::Ascii
+fail/borrows/qualified_state_loan_invalid_membership rejected 897ms expected @2ef2ab353498+wt
+	cannot prove requires contract for call inspect from main: resource in Resource::Open (invalidated by prior mutation of resource.identity; resource.identity is part of Resource::Open) in state `entry`
+fail/borrows/qualified_state_loan_shared_to_mutable rejected 228ms expected @2ef2ab353498+wt
+	argument `resource` for state `write` is declared `&mut` (`&mut Resource[in Open]`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
 fail/borrows/read_positions_during_live_exclusive_loan rejected 1558ms expected @a9ae30e1c334+wt
 	state `truth` receives `view[3]` while local borrow `middle` is still active (borrowed at statement 2; its last use is at statement 4)
 	statement 3 reads `value` while local borrow `borrowed` is still active (borrowed at statement 2; its last use is at statement 4)
@@ -1072,6 +1076,10 @@ fail/borrows/returned_case_reference_live_source_write rejected 2145ms expected 
 	statement 1 mutates `second.value` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 2)
 fail/borrows/returned_operand_parent_cannot_bypass_child rejected 1040ms expected @b7c17b88b59d
 	statement 3 mutates `whole.second.value` while local borrow `child` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
+fail/borrows/returned_reference_invalidated_membership rejected 842ms expected @2ef2ab353498+wt
+	cannot prove default-domain field requirement for return from borrow_invalidated at statement 1: resource requires Resource::Open
+fail/borrows/returned_reference_missing_membership rejected 230ms expected @2ef2ab353498+wt
+	machine `borrow_missing` state `entry` terminal expression expects `&mut Resource[in Open]`, got `named value`
 fail/borrows/returned_review_cannot_escape_local_backing rejected 567ms expected @22286cb27fcc
 	machine `escape` returns a view borrowing the local `header`, which does not outlive the call; return a view of storage that outlives the invocation instead
 fail/borrows/returned_review_cannot_substitute_other_input rejected 492ms expected @22286cb27fcc
@@ -2458,6 +2466,26 @@ fail/dependent/transitive_call_frame_invalidates_written_fact_rejected rejected 
 	exact arithmetic in machine `Main::main` state `main` assignment may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
 fail/dependent/zero_gated_record_field_store_unproven rejected 1169ms expected @896172b5d9d8+wt
 	machine `wound` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
+fail/domains/array_constructor_distinct_call_results rejected 834ms expected @2ef2ab353498+wt
+	array literal element is not proven in domain `Resource::Open` in main state `entry` at statement 2; a construction value must establish the domain's predicates and any required provenance
+fail/domains/array_constructor_invalid_element_membership rejected 870ms expected @2ef2ab353498+wt
+	construction value is not proven in domain `Resource::Open` in main state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
+	array literal element is not proven in domain `Resource::Open` in main state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
+fail/domains/array_constructor_later_repair_cannot_qualify_snapshot rejected 858ms expected @2ef2ab353498+wt
+	construction value is not proven in domain `Envelope::Ready` in main state `entry` at statement 1; a construction value must establish the domain's predicates and any required provenance
+	array literal element is not proven in domain `Envelope::Ready` in main state `entry` at statement 1; a construction value must establish the domain's predicates and any required provenance
+fail/domains/array_constructor_mutated_source_membership rejected 1715ms expected @2ef2ab353498+wt
+	array literal element is not proven in domain `Resource::Open` in main state `entry` at statement 2; a construction value must establish the domain's predicates and any required provenance
+fail/domains/array_constructor_result_input_mutation rejected 1688ms expected @2ef2ab353498+wt
+	array literal element is not proven in domain `Resource::Open` in after_call state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
+	array literal element is not proven in domain `Resource::Open` in later_argument state `entry` at statement 2; a construction value must establish the domain's predicates and any required provenance
+fail/domains/array_constructor_result_invalidated rejected 915ms expected @2ef2ab353498+wt
+	array literal element is not proven in domain `Resource::Open` in main state `entry` at statement 2; a construction value must establish the domain's predicates and any required provenance
+fail/domains/array_constructor_result_not_disjunction_branch rejected 842ms expected @2ef2ab353498+wt
+	array literal element is not proven in domain `Resource::Open` in main state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
+fail/domains/array_constructor_unissued_element rejected 896ms expected @2ef2ab353498+wt
+	construction value is not proven in domain `Resource::Issued` in main state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
+	array literal element is not proven in domain `Resource::Issued` in main state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
 fail/domains/authored_record_result_unauthorized_issuer rejected 9267ms expected @be2b40493220
 	cannot prove ensures contract for exit from rogue at statement 0: result in Cell::Admitted
 fail/domains/bitwise_membership_authored_operand rejected 4044ms expected @d1fa4738e67a+wt
@@ -2491,24 +2519,28 @@ fail/domains/call_requires_unproven rejected 1542ms expected @a9ae30e1c334+wt
 	cannot prove requires contract for call heal from Main::main: main.player in Player::Valid
 fail/domains/capacity_specializations_disagree_in_one_owner rejected 896ms expected @a9ae30e1c334+wt
 	domain `[u8; N]::Utf8` is declared more than once with different normalized semantics; repeated capacity specializations may share a name only when their semantic identities are equal
-fail/domains/case_child_membership_requires_issuance rejected 1563ms expected @a9ae30e1c334+wt
+fail/domains/case_child_membership_requires_issuance rejected 876ms expected @2ef2ab353498+wt
 	cannot prove default-domain field requirement for call observe from forged_common::entry: parameter event.common requires Ticket::Issued
-	construction of `Event` field `common` is not proven in domain `Ticket::Issued`; a field declared `in Ticket::Issued` requires every construction value to be established in that domain (construct with a literal its byte-predicate fact accepts, or a value already proven in the domain)
+	construction value is not proven in domain `Ticket::Issued` in forged_common state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
+	construction of `Event` field `common` is not proven in domain `Ticket::Issued` in forged_common state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
 	cannot prove default-domain field requirement for call observe from forged_payload::entry: parameter event::Packed.payload requires Ticket::Issued
-	construction of `Event` field `payload` is not proven in domain `Ticket::Issued`; a field declared `in Ticket::Issued` requires every construction value to be established in that domain (construct with a literal its byte-predicate fact accepts, or a value already proven in the domain)
+	construction value is not proven in domain `Ticket::Issued` in forged_payload state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
+	construction of `Event` field `payload` is not proven in domain `Ticket::Issued` in forged_payload state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
 	cannot prove default-domain field requirement for call observe from stale_common::entry: parameter event.common requires Ticket::Issued
-	construction of `Event` field `common` is not proven in domain `Ticket::Issued`; a field declared `in Ticket::Issued` requires every construction value to be established in that domain (construct with a literal its byte-predicate fact accepts, or a value already proven in the domain)
+	construction of `Event` field `common` is not proven in domain `Ticket::Issued` in stale_common state `entry` at statement 1; a construction value must establish the domain's predicates and any required provenance
 	cannot prove default-domain field requirement for call observe from wrong_payload_issuer::entry: parameter event::Packed.payload requires Ticket::Issued
-	construction of `Event` field `payload` is not proven in domain `Ticket::Issued`; a field declared `in Ticket::Issued` requires every construction value to be established in that domain (construct with a literal its byte-predicate fact accepts, or a value already proven in the domain)
+	construction of `Event` field `payload` is not proven in domain `Ticket::Issued` in wrong_payload_issuer state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
 	cannot prove default-domain field requirement for call observe from inactive_payload_forged_common::entry: parameter event.common requires Ticket::Issued
-	construction of `Event` field `common` is not proven in domain `Ticket::Issued`; a field declared `in Ticket::Issued` requires every construction value to be established in that domain (construct with a literal its byte-predicate fact accepts, or a value already proven in the domain)
-fail/domains/case_payload_predicate_invalid_literal rejected 1275ms expected @7c847bad15b6+wt
+	construction value is not proven in domain `Ticket::Issued` in inactive_payload_forged_common state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
+	construction of `Event` field `common` is not proven in domain `Ticket::Issued` in inactive_payload_forged_common state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
+fail/domains/case_payload_predicate_invalid_literal rejected 768ms expected @2ef2ab353498+wt
 	cannot prove default-domain field requirement for return from Main::main at statement 1: main.divisor::By.amount requires i32::NonZero
-	construction of `Divisor` field `amount` is not proven in domain `i32::NonZero`; a field declared `in i32::NonZero` requires every construction value to be established in that domain (construct with a literal its byte-predicate fact accepts, or a value already proven in the domain)
+	construction of `Divisor` field `amount` is not proven in domain `i32::NonZero` in Main::main state `main` at statement 0; a construction value must establish the domain's predicates and any required provenance
 fail/domains/checked_provider_result_without_selection rejected 6477ms expected @308fbdc54ba0
 	no provider is selected for boundary requirement `Source::open`, which the program entry reaches on target `macos_arm64`
-fail/domains/checked_provider_unissued_result rejected 1596ms expected @e5140c7a7be2+wt
+fail/domains/checked_provider_unissued_result rejected 2149ms expected @2ef2ab353498+wt
 	cannot prove default-domain field requirement for return from FabricatedSource::open at statement 0: Resource requires Resource::Open
+	construction value is not proven in domain `Resource::Open` in FabricatedSource::open state `open` at statement 0; a construction value must establish the domain's predicates and any required provenance
 fail/domains/computed_qualification_requires_operand_facts rejected 5363ms expected @a9ae30e1c334+wt
 	`as ... in Three` cannot mint: a `Three` domain fact is FALSE at this value -- the predicate obligation is owed (decision 19's "predicate obligation not discharged" class)
 	`as ... in Three` cannot mint: a `Three` domain fact is FALSE at this value -- the predicate obligation is owed (decision 19's "predicate obligation not discharged" class)
@@ -2520,6 +2552,8 @@ fail/domains/computed_qualification_requires_operand_facts rejected 5363ms expec
 	`as ... in Never` cannot mint: a `Never` domain fact is FALSE at this value -- the predicate obligation is owed (decision 19's "predicate obligation not discharged" class)
 fail/domains/computed_scalar_alias_requires_all_predicates rejected 827ms expected @a9ae30e1c334+wt
 	`as ... in Small` cannot mint: a `Small` domain fact is FALSE at this value -- the predicate obligation is owed (decision 19's "predicate obligation not discharged" class)
+fail/domains/constructor_invalidated_byte_membership rejected 772ms expected @2ef2ab353498+wt
+	construction of `Holder` field `bytes` is not proven in domain `[u8; N]::Ascii` in invalid state `entry` at statement 2; a construction value must establish the domain's predicates and any required provenance
 fail/domains/domain_alias_cycle rejected 822ms expected @a9ae30e1c334+wt
 	public interface selects private data `Socket`
 	public interface selects private data `Socket`
@@ -2538,8 +2572,9 @@ fail/domains/fixed_byte_array_dynamic_candidate_membership rejected 839ms expect
 	cannot prove requires contract for call observe from main: rows[index] in [u8; N]::Utf8 in state `entry`
 fail/domains/fixed_byte_array_predicate_copy_route rejected 830ms expected @ef7962801508
 	cannot prove default-domain field requirement for return from narrow at statement 0: bytes requires [u8; N]::Issued
-fail/domains/guard_call_requires_established_membership rejected 649ms expected @dd191203ff08+wt
+fail/domains/guard_call_requires_established_membership rejected 867ms expected @2ef2ab353498+wt
 	cannot prove requires contract for call amount from main: Ticket in Ticket::Issued in state `entry`
+	construction value is not proven in domain `Ticket::Issued` in main state `entry` at statement 1; a construction value must establish the domain's predicates and any required provenance
 fail/domains/implicit_semantic_domain_local_weakening rejected 828ms expected @a9ae30e1c334+wt
 	implicit domain weakening in machine `Main::main` state `main` local `raw` drops `Degrees`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
 fail/domains/imported_provider_unissued_result rejected 5578ms expected @e5140c7a7be2+wt
@@ -2674,8 +2709,9 @@ fail/domains/qualified_record_false_predicate rejected 881ms expected @868a854ec
 	cannot prove default-domain field requirement for return from issue_handle at statement 0: Handle requires Handle::Open
 fail/domains/qualified_record_late_child_issuance rejected 835ms expected @868a854ecd4d+wt
 	cannot prove default-domain field requirement for return from issue_envelope at statement 1: Envelope requires Envelope::Authorized
-fail/domains/qualified_record_nonissuer rejected 833ms expected @868a854ecd4d+wt
+fail/domains/qualified_record_nonissuer rejected 819ms expected @2ef2ab353498+wt
 	cannot prove default-domain field requirement for return from forge_handle at statement 0: Handle requires Handle::Open
+	construction value is not proven in domain `Handle::Open` in forge_handle state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
 fail/domains/qualified_record_payload_case_identity rejected 827ms expected @868a854ecd4d+wt
 	cannot prove default-domain field requirement for return from issue_payload at statement 0: Handle requires Handle::Zero
 	cannot prove default-domain field requirement for return from issue_common at statement 0: CommonHandle requires CommonHandle::Zero
@@ -2699,22 +2735,27 @@ fail/domains/qualified_selected_byte_write_split_utf8 rejected 6517ms expected @
 	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "main", reason: "primitive write lost its exact logical byte preservation judgment", gap: None })
 fail/domains/qualified_view_live_owner_consumed rejected 592ms expected @5797c45a64c3+wt
 	state `close` receives an owned value while local borrow `view` is still active (borrowed at statement 1; its last use is at statement 3)
-fail/domains/qualified_view_unissued rejected 592ms expected @5797c45a64c3+wt
+fail/domains/qualified_view_unissued rejected 773ms expected @2ef2ab353498+wt
 	cannot prove requires contract for call observe from check: HandleView in HandleView::OpenView in state `entry`
+	construction value is not proven in domain `HandleView::OpenView` in check state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
 fail/domains/qualified_view_wrong_issuer_argument rejected 588ms expected @5797c45a64c3+wt
 	cannot prove requires contract for call forward from check: wrong as View in View::OpenView in state `entry`
-fail/domains/record_child_membership_requires_issuance rejected 1651ms expected @a9ae30e1c334+wt
+fail/domains/recast_invalidated_scalar_membership rejected 726ms expected @2ef2ab353498+wt
+	cannot prove initializer of `view` in invalid is in domain `u32::Small`; an annotation cannot establish routed qualification
+fail/domains/record_child_membership_requires_issuance rejected 731ms expected @2ef2ab353498+wt
 	cannot prove default-domain field requirement for call observe from literal::entry: parameter value.ticket requires Ticket::Issued
-	construction of `Envelope` field `ticket` is not proven in domain `Ticket::Issued`; a field declared `in Ticket::Issued` requires every construction value to be established in that domain (construct with a literal its byte-predicate fact accepts, or a value already proven in the domain)
+	construction value is not proven in domain `Ticket::Issued` in literal state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
+	construction of `Envelope` field `ticket` is not proven in domain `Ticket::Issued` in literal state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
 	cannot prove default-domain field requirement for call observe from stale::entry: parameter value.ticket requires Ticket::Issued
-	construction of `Envelope` field `ticket` is not proven in domain `Ticket::Issued`; a field declared `in Ticket::Issued` requires every construction value to be established in that domain (construct with a literal its byte-predicate fact accepts, or a value already proven in the domain)
+	construction of `Envelope` field `ticket` is not proven in domain `Ticket::Issued` in stale state `entry` at statement 2; a construction value must establish the domain's predicates and any required provenance
 	cannot prove default-domain field requirement for call observe from sibling::entry: parameter value.ticket requires Ticket::Issued
-	construction of `Envelope` field `ticket` is not proven in domain `Ticket::Issued`; a field declared `in Ticket::Issued` requires every construction value to be established in that domain (construct with a literal its byte-predicate fact accepts, or a value already proven in the domain)
+	construction of `Envelope` field `ticket` is not proven in domain `Ticket::Issued` in sibling state `entry` at statement 1; a construction value must establish the domain's predicates and any required provenance
 fail/domains/record_interval_member_out_of_range rejected 847ms expected @a9ae30e1c334+wt
 	construction of `Gauge` field `level`: value 11 is outside its declared range `0..=10`
 fail/domains/reference_return_literal_outside_domain rejected 500ms expected @62ed1f4c074f+wt
-fail/domains/refinement_chain_routed_provenance_forge rejected 1548ms expected @a9ae30e1c334+wt
+fail/domains/refinement_chain_routed_provenance_forge rejected 701ms expected @2ef2ab353498+wt
 	cannot prove default-domain field requirement for return from Token::forge at statement 0: Token requires Token::Issued::Fresh
+	construction value is not proven in domain `Token::Issued::Fresh` in Token::forge state `forge` at statement 0; a construction value must establish the domain's predicates and any required provenance
 fail/domains/result_domain_overload_duplicate_predicate rejected 784ms expected @a9ae30e1c334+wt
 	duplicate named machine overload `convert` with parameter signature `parameter(mutable(no),const(no),named(name(i32)))` and result dispatch set `<empty>`; predicate-only result refinements do not distinguish overloads
 	machine `convert` state `entry` return value returns a value not provably within its declared range: callers rely on the declared `[a..=b]` for exact arithmetic on the result, so the returned value must be proven to honor it (decision 17). Constrain the returned value, or widen/remove the return range constraint.
@@ -2742,9 +2783,9 @@ fail/domains/routed_qualification_predicate_cannot_authorize rejected 1300ms exp
 	`as ... in Ticket::Issued` cannot establish a non-vacuous domain; every predicate must be proved and routed provenance must come from an exact requirement authorized by the domain
 fail/domains/routed_qualification_reference_recast rejected 12ms expected @e74967d11875
 	tests/omega/fail/domains/routed_qualification_reference_recast/main.omg:5:20: a recast re-views a place's bytes and takes no arithmetic domain; domains retag VALUE casts (`x as u8 in Wrapping`)
-fail/domains/routed_record_capture_after_sibling_mutation rejected 1254ms expected @e74967d11875
+fail/domains/routed_record_capture_after_sibling_mutation rejected 698ms expected @2ef2ab353498+wt
 	cannot prove default-domain field requirement for return from capture at statement 1: Pair.ticket requires Ticket::Issued
-	construction of `Pair` field `ticket` is not proven in domain `Ticket::Issued`; a field declared `in Ticket::Issued` requires every construction value to be established in that domain (construct with a literal its byte-predicate fact accepts, or a value already proven in the domain)
+	construction of `Pair` field `ticket` is not proven in domain `Ticket::Issued` in capture state `entry` at statement 1; a construction value must establish the domain's predicates and any required provenance
 fail/domains/scalar_alias_zero_requires_all_predicates rejected 5313ms expected @a9ae30e1c334+wt
 	entry machine `Main::main` requests a provisioned `Main` context, but its all-zero image is not a valid value; use a free entry and construct the state explicitly
 	entry machine `Main::main` requests a provisioned `Main` context, but its all-zero image is not a valid value; use a free entry and construct the state explicitly
@@ -2758,9 +2799,9 @@ fail/domains/semantic_predicate_domain_call_false rejected 1154ms expected @8961
 	cannot prove requires contract for call measure from main: 0 in u64::Distance in state `entry`
 fail/domains/semantic_record_domain_call_false rejected 1254ms expected @896172b5d9d8+wt
 	cannot prove requires contract for call combine from main: Quantity in Quantity::Additive in state `entry`
-fail/domains/structural_constructor_predicate_unsatisfied rejected 1182ms expected @308fbdc54ba0
+fail/domains/structural_constructor_predicate_unsatisfied rejected 690ms expected @2ef2ab353498+wt
 	cannot prove default-domain field requirement for return from produce at statement 0: Payload requires Payload::Ready
-	construction value is not proven in domain `Payload::Ready`
+	construction value is not proven in domain `Payload::Ready` in produce state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
 fail/domains/structural_predicate_cast_after_field_write rejected 1142ms expected @41a9c695da4e
 	`as ... in Quantity::Additive` cannot prove every domain predicate from the checked operand value; constrain that value with a guarantee or guard
 fail/domains/structural_predicate_cast_false rejected 1417ms expected @2012446ad74a+wt
@@ -2785,8 +2826,9 @@ fail/domains/terminal_result_domain_unestablished rejected 775ms expected @8d3a0
 	cannot prove initializer of `__hoist_14` in missing is in domain `i32::Issued`; an annotation cannot establish routed qualification
 fail/domains/terminal_result_predicate_unproved rejected 635ms expected @8d3a0acb500a+wt
 	cannot prove initializer of `__hoist_14` in missing is in domain `i32::Positive`; an annotation cannot establish routed qualification
-fail/domains/translated_predicate_does_not_issue_provenance rejected 3210ms expected @c48489ea6ad6
+fail/domains/translated_predicate_does_not_issue_provenance rejected 691ms expected @2ef2ab353498+wt
 	cannot prove default-domain field requirement for return from translate at statement 0: Handle requires Handle::Open
+	construction value is not proven in domain `Handle::Open` in translate state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
 fail/domains/unit_membership_postcondition_unestablished rejected 1497ms expected @a9ae30e1c334+wt
 	cannot prove ensures contract for exit from Main::spoil at statement 1: main.raw in [u8; N]::Utf8
 fail/domains/vacuous_tag_argument_other_domain rejected 189ms expected @2012446ad74a+wt
@@ -4740,6 +4782,8 @@ fail/proofs/ordinary_denotational_requirement_requires_termination rejected 1252
 	specification call `value` is not denotational: the selected machine is not unconditionally terminating
 	specification call `value` is not denotational: the selected machine is not unconditionally terminating
 	specification call `value` is not denotational: the selected machine is not unconditionally terminating
+fail/proofs/owned_record_false_result_guarantee rejected 766ms expected @2ef2ab353498+wt
+	cannot prove ensures contract for exit from acquire at statement 0: result.identity == 19
 fail/proofs/piecewise_call_result_not_singleton rejected 194ms expected @1f63ee648905+wt
 	exact arithmetic in machine `varied` state `entry` terminal expression may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`). Here the operand `reflected(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> i32 in Wrapping`).
 fail/proofs/polynomial_false_expand rejected 2698ms expected @a9ae30e1c334+wt
@@ -4823,12 +4867,12 @@ fail/proofs/quotient_theorem_result_bearing_rejected rejected 1414ms expected @a
 	`Quotient::define` retains its exact representative operation and selected theorem machine application, but its direct-terminal relation plan is unresolved (the selected theorem must return Unit; a result-bearing machine is not proof-static authority); executable quotient operations are not admitted
 fail/proofs/quotient_transport_roles_reversed_rejected rejected 1373ms expected @a9ae30e1c334+wt
 	`Quotient::lift` has compiler-derived direct-terminal relations RA=[0:equivalent] and RR=equivalent plus exact representative telescope `representative`(Representative)->Representative plus checked unconditional termination of `representative` plus checked pure representative effect summary plus exact theorem `representative_transports`(Representative, Representative)[static-bindings:0] plus expected exact theorem-schema=[parameters:2, relations:1, legality:2, applications:2, conclusion:1] (verification failed: the selected theorem's requires fact count does not exactly match all relation and representative-legality premises) plus checked theorem termination summary plus checked pure theorem effect summary plus checked crash-free theorem routes plus exact forward transport `representative_respects`(Representative, Representative)[static-bindings:0] plus transport-schema verification failed: the selected transport theorem's requires fact count does not exactly match the complete ordered public-Q roster for both representative sides plus checked forward-transport termination summary plus checked pure forward-transport effect summary plus checked crash-free forward-transport routes plus exact direct-lift-runtime=[0] plus exact Q=[dependent:1, fixed:0] plus exact P=[dependent:1, fixed:0] (canonical Terminal correspondence unavailable: the complete correspondence certificate is absent) and complete transition-free single-state normal-result coverage through the exact result root, but executable quotient operations are not admitted until complete operation/static correspondence, exact selected theorem schema verification, exact selected forward-transport schema verification, general precondition implication and adapted lift arguments, fixed representative call obligations, canonical Terminal correspondence are independently checked
-fail/proofs/range_result_stale_observation rejected 721ms expected @84713d7e8be4+wt
+fail/proofs/range_result_stale_observation rejected 689ms expected @2ef2ab353498+wt
 	cannot prove default-domain field requirement for return from check at statement 3: Checked::Ready.value requires Range::Bounded
-	construction of `Checked` field `value` is not proven in domain `Range::Bounded`; a field declared `in Range::Bounded` requires every construction value to be established in that domain (construct with a literal its byte-predicate fact accepts, or a value already proven in the domain)
-fail/proofs/range_result_unrelated_bound rejected 713ms expected @84713d7e8be4+wt
+	construction of `Checked` field `value` is not proven in domain `Range::Bounded` in check state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
+fail/proofs/range_result_unrelated_bound rejected 691ms expected @2ef2ab353498+wt
 	cannot prove default-domain field requirement for return from check at statement 0: Checked::Ready.value requires Range::Bounded
-	construction of `Checked` field `value` is not proven in domain `Range::Bounded`; a field declared `in Range::Bounded` requires every construction value to be established in that domain (construct with a literal its byte-predicate fact accepts, or a value already proven in the domain)
+	construction of `Checked` field `value` is not proven in domain `Range::Bounded` in check state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
 fail/proofs/ranked_accumulator_guarantee_wrong_step_twin rejected 2835ms expected @a9ae30e1c334+wt
 	machine `descend` cannot prove ensures contract proof fact `result <= previous` on the transition arm guarded by `n > 0 == true`
 fail/proofs/recursive_terminal_missing_erased_evidence rejected 1037ms expected @5acf32321f42+wt
@@ -4839,6 +4883,13 @@ fail/proofs/replaced_descriptor_retires_bound rejected 585ms expected @b3d0b7396
 	cannot prove ensures contract for exit from replace at statement 1: partition.count <= partition.records.len
 fail/proofs/replaced_scalar_cannot_reuse_prior_bound rejected 586ms expected @b3d0b7396229+wt
 	cannot prove ensures contract for exit from wrong at statement 2: bounds.count <= bounds.limit
+fail/proofs/returned_reference_unproven_result_guarantee rejected 761ms expected @2ef2ab353498+wt
+	cannot prove ensures contract for exit from borrow at statement 0: result.identity == 19
+	cannot prove ensures contract for exit from wrap_scalar at statement 1: result.value == 19
+	cannot prove ensures contract for exit from borrow_scalar at statement 0: result == 19
+	cannot prove ensures contract for exit from wrap_disjunctive at statement 0: result.identity == 19
+	cannot prove ensures contract for exit from wrap_rebound_scalar at statement 2: result.value == 19
+	cannot prove ensures contract for exit from wrap_mutated_scalar at statement 1: result.value == 19
 fail/proofs/rhs_mutation_retires_bound_dependency rejected 586ms expected @b3d0b7396229+wt
 	cannot prove ensures contract for exit from wrong at statement 1: bounds.count <= bounds.limit; no exact incoming reference origin for bounds
 fail/proofs/ring_law_unproven_rejected rejected 4397ms expected @a9ae30e1c334+wt
@@ -5898,24 +5949,25 @@ fail/text/local_record_byte_field_replacement_breaks_domain rejected 3143ms expe
 	construction value is not proven in domain `[u8; N]::Ascii`
 fail/text/owned_byte_parameter_write_breaks_domain rejected 1190ms expected @308fbdc54ba0
 	cannot prove requires contract for call observe from corrupt: bytes in [u8; N]::Ascii (invalidated by prior mutation of bytes[0]; bytes is part of [u8; N]::Ascii) in state `rewrite`
-fail/text/qualified_byte_alias_replacement_invalid_encoding rejected 1198ms expected @308fbdc54ba0
+fail/text/qualified_byte_alias_replacement_invalid_encoding rejected 694ms expected @2ef2ab353498+wt
 	cannot prove the value assigned to `line` in Main::main is in domain `[u8; N]::Utf8`; a place declared `in [u8; N]::Utf8` requires every write to be established in that domain (pass a value already proven in the domain, or a literal its byte-predicate fact accepts)
-	construction value is not proven in domain `[u8; N]::Utf8`
-fail/text/qualified_byte_array_element_domain rejected 1231ms expected @308fbdc54ba0
+	construction value is not proven in domain `[u8; N]::Utf8` in Main::main state `main` at statement 1; a construction value must establish the domain's predicates and any required provenance
+fail/text/qualified_byte_array_element_domain rejected 692ms expected @2ef2ab353498+wt
 	cannot prove default-domain field requirement for return from bad at statement 0: [[97, 0], [195, 169]][1] requires [u8; N]::Ascii
-	construction value is not proven in domain `[u8; N]::Ascii`
-fail/text/qualified_byte_array_element_replacement rejected 1101ms expected @308fbdc54ba0
+	construction value is not proven in domain `[u8; N]::Ascii` in bad state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
+	array literal element is not proven in domain `[u8; N]::Ascii` in bad state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
+fail/text/qualified_byte_array_element_replacement rejected 711ms expected @2ef2ab353498+wt
 	cannot prove the value assigned to `entries[1]` in corrupt is in domain `[u8; N]::Ascii`; a place declared `in [u8; N]::Ascii` requires every write to be established in that domain (pass a value already proven in the domain, or a literal its byte-predicate fact accepts)
-	construction value is not proven in domain `[u8; N]::Ascii`
+	construction value is not proven in domain `[u8; N]::Ascii` in corrupt state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
 fail/text/qualified_byte_array_mutable_domain_loss rejected 896ms expected @ef7962801508
 	cannot prove default-domain field requirement for return from bad at statement 1: entries[1] requires [u8; N]::Ascii
 fail/text/qualified_byte_owner_state_loan_breaks_domain rejected 3491ms expected @8df1d091a810
 	cannot prove requires contract for call step from Main::main: output in [u8; N]::Utf8 (invalidated by prior mutation of output[__hoist_32]; output is part of [u8; N]::Utf8) in state `shift`
 fail/text/qualified_byte_state_domain_widening rejected 2866ms expected @308fbdc54ba0
 	cannot prove requires contract for call narrowed from relay: value in [u8; N]::Ascii in state `entry`
-fail/text/qualified_local_byte_alias_replacement_invalid_encoding rejected 1168ms expected @308fbdc54ba0
+fail/text/qualified_local_byte_alias_replacement_invalid_encoding rejected 764ms expected @2ef2ab353498+wt
 	cannot prove the value assigned to `alias` in main is in domain `[u8; N]::Utf8`; a place declared `in [u8; N]::Utf8` requires every write to be established in that domain (pass a value already proven in the domain, or a literal its byte-predicate fact accepts)
-	construction value is not proven in domain `[u8; N]::Utf8`
+	construction value is not proven in domain `[u8; N]::Utf8` in main state `entry` at statement 2; a construction value must establish the domain's predicates and any required provenance
 fail/text/qualified_owner_reference_corruption rejected 1257ms expected @308fbdc54ba0
 	cannot prove default-domain field requirement for return from corrupt at statement 1: held.bytes requires [u8; N]::Utf8
 fail/text/stored_field_reference_domain_loss rejected 1162ms expected @308fbdc54ba0
@@ -6504,6 +6556,7 @@ pass/borrows/projected_reference_record_residual_exit checked 11195ms check-targ
 pass/borrows/projected_scalar_member_loan checked 10878ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/qualified_byte_owner_exclusive_call_exit checked 10895ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/qualified_byte_owner_shared_call_exit checked 6413ms check-target:macos_arm64 @9dd545defbc0
+pass/borrows/qualified_owner_state_loan_exit checked 5010ms check-target:macos_arm64 @2ef2ab353498+wt
 pass/borrows/qualified_record_view_call_exit checked 11199ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/reference_aggregate_disjoint_mutable_leaves_exit checked 10923ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/reference_parameter_field_store_exit checked 15020ms check-target:macos_arm64 @8df1d091a810
@@ -6517,6 +6570,7 @@ pass/borrows/returned_record_field_read_exit checked 11204ms check-target:macos_
 pass/borrows/returned_record_method_receiver_exit checked 11062ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/returned_record_projected_call_exit checked 11044ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/returned_record_scalar_call_exit checked 3664ms check-target:macos_arm64 @27f6b04f2658
+pass/borrows/returned_reference_source_guarantee_exit checked 4912ms check-target:macos_arm64 @2ef2ab353498+wt
 pass/borrows/returned_slice_record_reference_custody_exit checked 17190ms check-target:macos_arm64 @761f5fae99a7+wt
 pass/borrows/runtime_affine_local_case_return_exit checked 11337ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_affine_local_scalar_exit checked 11079ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -8938,6 +8992,7 @@ pass/providers/specialized_mixed_structural_result_operator_hosted_native checke
 pass/providers/specialized_structural_fixed_operator_hosted_native checked 10708ms @a9ae30e1c334+wt
 pass/providers/specialized_structural_fixed_operator_terminal_custody checked 11484ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/providers/structural_membership_boundary_exit checked 12526ms check-target:macos_arm64 @d75fe4ba5012+wt
+pass/providers/structural_result_field_guarantee_exit checked 4990ms check-target:macos_arm64 @2ef2ab353498+wt
 pass/providers/target_contract_adjacency_exit checked 5079ms check-target:macos_arm64 @eca66ed24a79+wt
 pass/providers/target_family_entry checked 9609ms @5041ef1af684+wt
 pass/providers/token_machine_family_override_exit checked 11111ms check-target:macos_arm64 @a9ae30e1c334+wt

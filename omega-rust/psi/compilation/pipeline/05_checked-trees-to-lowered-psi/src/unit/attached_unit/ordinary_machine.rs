@@ -1105,7 +1105,7 @@ pub(super) fn emit(
         &signature.erased_scalar_parameters,
         &crate::scalar_lowering::contracts::ContractViewNamespace {
             parameters: &evaluation.structural_parameters,
-            result: None,
+            result: crate::scalar_lowering::contracts::ContractStructuralResult::Absent,
             structural_types,
             element_views: &evaluation.element_views,
         },

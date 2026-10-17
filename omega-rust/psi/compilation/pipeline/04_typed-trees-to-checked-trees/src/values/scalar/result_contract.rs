@@ -162,6 +162,64 @@ impl ContractPredicates<'_, '_> {
         if depth >= 64 {
             return None;
         }
+        // Reserved result projections use the position after the authored
+        // structural telescope, just as a scalar result follows scalar formals.
+        // Authenticate the occurrence before assigning that coordinate: an
+        // equal carrier or another declaration's result grants no observation.
+        if self.allow_result
+            && let Some(result) = validation::reserved_result_place(self.program, expression)
+        {
+            if result.machine_symbol != self.owner
+                || validation::reserved_result_owner(self.program, result.root)
+                    != Some((self.owner, self.result_type))
+            {
+                return None;
+            }
+            // This closed scalar path language has fields/indexes/cases, not
+            // reference dereferences. A normal result is an actual value (a
+            // reference result is its descriptor), unlike a borrowed formal's
+            // referent declaration. Keep the full source-checked guarantee
+            // when any receiver or final leaf needs an unrepresentable crossing.
+            let mut receiver = self.result_type;
+            for segment in &result.segments {
+                if validation::reference_shell(self.program, receiver).is_some() {
+                    return None;
+                }
+                receiver = validation::project_type_reference_from_segments(
+                    self.program,
+                    receiver,
+                    std::slice::from_ref(segment),
+                )?;
+            }
+            if validation::reference_shell(self.program, receiver).is_some() {
+                return None;
+            }
+            let reference = validation::field_domains::readable_type_reference(
+                self.program,
+                result.type_reference,
+            )?;
+            let primitive_type = self.program.primitive_type_reference(reference)?;
+            let path = super::structural_fields::structural_projection_path(
+                self.program,
+                &result.segments,
+            )?;
+            let parameter_position = u32::try_from(self.parameters.len()).ok()?;
+            let term = if primitive_type == PrimitiveType::Bool {
+                CheckedScalarExpression::Boolean(Box::new(
+                    CheckedBooleanExpression::StructuralParameterField {
+                        parameter_position,
+                        path,
+                    },
+                ))
+            } else {
+                CheckedScalarExpression::StructuralParameterField {
+                    parameter_position,
+                    path,
+                    primitive_type,
+                }
+            };
+            return Some((term, reference));
+        }
         let (term, _) = super::scalar_lowering::scalar_storage_read_with_selectors(
             self.program,
             self.operators,

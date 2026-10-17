@@ -1,0 +1,18 @@
+// Current refusal: state loan home requires contextual cleanup that cannot be relocated
+// This is valid source with an unimplemented cleanup transport, not a language
+// rejection rule. The state-loan storage-retention pass only relocates checked no-code
+// dispositions. Until contextual nominal cleanup can be transported through
+// this edge, refuse compilation instead of accepting with the hook omitted.
+data Token { ready: bool; }
+
+machine Token::drop(token: &mut Token)
+requires token.ready
+{
+    token.ready = false;
+}
+
+machine main() {
+    let token: Token = Token { ready: true };
+    transition { _ -> inspect(&token) }
+    state inspect(token: &Token) {}
+}

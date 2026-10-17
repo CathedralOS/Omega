@@ -62,6 +62,9 @@ pub enum LoweringError {
         expected: semantic_vocabulary::ScalarType,
         actual: Option<semantic_vocabulary::ScalarType>,
     },
+    /// An authenticated source guarantee observes a normal structural result
+    /// whose place this product's contract namespace does not publish.
+    UnavailableContractResult,
     InvalidSealedAccessorDeclaration(Diagnostic),
     /// A second transfer or disposal overlaps storage already removed from
     /// this occurrence. Keep both paths so the failing ownership join is visible.

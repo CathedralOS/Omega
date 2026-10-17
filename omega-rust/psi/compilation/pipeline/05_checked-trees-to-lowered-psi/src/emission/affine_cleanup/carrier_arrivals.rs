@@ -34,7 +34,8 @@ pub(super) fn inherit(
     for block in blocks {
         for (position, parameter) in block.structural_parameters.iter().enumerate() {
             if managed.contains(&parameter.place)
-                || !parameter.is_unqualified_owned_affine()
+                || parameter.access != StructuralAccess::Owned
+                || parameter.multiplicity != StructuralMultiplicity::Affine
                 || partial_transfers.contains(&parameter.place)
                 || scheduled.contains(&parameter.place)
                 || !descriptor_type(types, parameter.structural_type)

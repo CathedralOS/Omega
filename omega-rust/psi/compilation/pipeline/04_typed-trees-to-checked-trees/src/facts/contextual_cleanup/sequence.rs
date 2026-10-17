@@ -244,8 +244,14 @@ pub(super) fn bound_clause(
             &mut 4096,
         ),
     }?;
-    let mut predicate =
-        boolean_predicates::bind_parameters(program, hook, state.symbol, parameters, expression)?;
+    let mut predicate = boolean_predicates::bind_parameters(
+        program,
+        hook,
+        state.symbol,
+        parameters,
+        None,
+        expression,
+    )?;
     for binding in &mut predicate.bindings {
         binding.place = rebase_place(receiver.symbol, place, binding.place.clone())?;
     }

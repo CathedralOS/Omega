@@ -355,6 +355,7 @@ fn seed_current_requirement(
         machine_symbol,
         state_symbol,
         program.state_parameters(state),
+        None,
         expression,
     ) else {
         return;

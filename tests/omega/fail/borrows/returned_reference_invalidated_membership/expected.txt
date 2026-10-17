@@ -1,0 +1,2 @@
+cannot prove default-domain field requirement for return from borrow_invalidated
+resource requires Resource::Open

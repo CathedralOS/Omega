@@ -47,21 +47,48 @@ pub(crate) fn lower_structural_member_path(
         .ok_or(LoweringError::Unsupported(
             "structural scalar contract names a non-structural parameter",
         ))?;
+    lower_structural_place_path(
+        identities,
+        parameter.place,
+        parameter.structural_type,
+        parameter.access,
+        path,
+        structural_types,
+    )
+}
+
+/// Resolve a declaration-owned observation independently of whether its root
+/// is an invocation formal or a normal result. Result storage is not a formal:
+/// it keeps its own type and place without borrowed-parameter interpretation.
+fn lower_structural_place_path(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+    root: PlaceId,
+    root_type: StructuralTypeId,
+    access: terminal_psi::StructuralAccess,
+    path: &[checked_trees::CheckedStructuralPredicatePathSegment],
+    structural_types: &[StructuralTypeDeclaration],
+) -> Result<
+    (
+        PlaceId,
+        Vec<CanonicalStructuralPathSegment>,
+        StructuralFieldType,
+    ),
+    LoweringError,
+> {
+    if access == terminal_psi::StructuralAccess::WriteOnlyBorrow {
+        return unsupported("structural scalar contract requires readable access");
+    }
     if path.is_empty() {
-        if parameter.access == terminal_psi::StructuralAccess::WriteOnlyBorrow {
-            return unsupported("structural scalar contract requires readable access");
-        }
-        let declaration =
-            terminal_psi::find_structural_type(structural_types, parameter.structural_type).ok_or(
-                LoweringError::Unsupported("structural scalar contract root type is absent"),
-            )?;
+        let declaration = terminal_psi::find_structural_type(structural_types, root_type).ok_or(
+            LoweringError::Unsupported("structural scalar contract root type is absent"),
+        )?;
         let leaf = match declaration.shape {
             StructuralTypeShape::PrimitiveScalar(scalar) => StructuralFieldType::Scalar(scalar),
-            _ => StructuralFieldType::Structural(parameter.structural_type),
+            _ => StructuralFieldType::Structural(root_type),
         };
-        return Ok((parameter.place, Vec::new(), leaf));
+        return Ok((root, Vec::new(), leaf));
     }
-    let mut structural_type = parameter.structural_type;
+    let mut structural_type = root_type;
     let mut terminal_path = Vec::with_capacity(path.len());
     let mut selected_case_fields = None;
     for (index, segment) in path.iter().enumerate() {
@@ -119,7 +146,7 @@ pub(crate) fn lower_structural_member_path(
                 // Path resolution can stop at an aggregate before a later
                 // runtime selector. Scalar consumers separately require a
                 // scalar endpoint; geometry itself does not impose that use.
-                return Ok((parameter.place, terminal_path, field));
+                return Ok((root, terminal_path, field));
             }
             continue;
         }
@@ -150,7 +177,7 @@ pub(crate) fn lower_structural_member_path(
         let is_last = index + 1 == path.len();
         match (&field.field_type, is_last) {
             (StructuralFieldType::Structural(next), false) => structural_type = *next,
-            (_, true) => return Ok((parameter.place, terminal_path, field.field_type.clone())),
+            (_, true) => return Ok((root, terminal_path, field.field_type.clone())),
             _ => {
                 return unsupported(
                     "structural scalar contract path does not end at a retained leaf",
@@ -158,7 +185,7 @@ pub(crate) fn lower_structural_member_path(
             }
         }
     }
-    unreachable!("nonempty structural path returns at its final field")
+    unsupported("structural scalar contract path has no final field")
 }
 
 /// A descriptor extent retains the full structural path. Carrier checking
@@ -430,6 +457,35 @@ pub(crate) fn lower_structural_member_term(
         parameters,
         structural_types,
     )?;
+    structural_member_term(root, terminal_path, actual, expected)
+}
+
+/// Observe a scalar beneath the actual normal result declaration. It shares
+/// path/type checking with formals but cannot acquire a formal's loan access.
+pub(crate) fn lower_structural_result_member_term(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+    result: &terminal_psi::StructuralResultDeclaration,
+    path: &[checked_trees::CheckedStructuralPredicatePathSegment],
+    expected: ScalarType,
+    structural_types: &[StructuralTypeDeclaration],
+) -> Result<ScalarTerm, LoweringError> {
+    let (root, terminal_path, actual) = lower_structural_place_path(
+        identities,
+        result.place,
+        result.structural_type,
+        terminal_psi::StructuralAccess::Owned,
+        path,
+        structural_types,
+    )?;
+    structural_member_term(root, terminal_path, actual, expected)
+}
+
+fn structural_member_term(
+    root: PlaceId,
+    terminal_path: Vec<CanonicalStructuralPathSegment>,
+    actual: StructuralFieldType,
+    expected: ScalarType,
+) -> Result<ScalarTerm, LoweringError> {
     if actual.scalar_type() != Some(expected) {
         return unsupported(
             "structural scalar contract path does not end at the retained scalar type",

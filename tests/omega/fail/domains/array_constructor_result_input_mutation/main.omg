@@ -1,0 +1,36 @@
+// A call's input snapshot cannot be replaced by its later storage contents.
+data Resource [copy] { identity: u64; }
+domain Resource::Open(resource) requires resource.identity != 0;
+
+machine acquire(identity: u64) -> Resource
+ensures result.identity == identity {
+    Resource { identity: identity }
+}
+
+machine after_call() {
+    let mut identity: u64 = 0;
+    let resource: Resource = acquire(identity);
+    identity = 19;
+    let resources: [Resource in Open; 1] = [resource];
+}
+
+machine overwrite(identity: &mut u64) -> u64 {
+    identity = 19;
+    0
+}
+
+machine acquire_pair(identity: u64, ignored: u64) -> Resource
+ensures result.identity == identity {
+    Resource { identity: identity }
+}
+
+machine later_argument() {
+    let mut identity: u64 = 0;
+    let resource: Resource = acquire_pair(identity, overwrite(&mut identity));
+    let resources: [Resource in Open; 1] = [resource];
+}
+
+machine main() {
+    after_call();
+    later_argument();
+}

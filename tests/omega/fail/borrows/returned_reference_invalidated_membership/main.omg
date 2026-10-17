@@ -1,0 +1,11 @@
+// The original referent remains the same storage, but its membership is stale.
+data Resource { identity: u64; }
+domain Resource::Open(resource) requires resource.identity != 0;
+
+machine borrow_invalidated<'storage>(resource: &'storage mut Resource in Open)
+    -> &'storage mut Resource in Open {
+    resource.identity = 0;
+    resource
+}
+
+machine main() {}

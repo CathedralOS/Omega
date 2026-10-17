@@ -4,41 +4,122 @@
 use super::super::{
     CheckedBooleanExpression, CheckedScalarExpression, LoweringError, PrimitiveType,
 };
+use super::{ContractStructuralResult, ContractViewNamespace};
 
-pub(super) fn validate(predicate: &CheckedBooleanExpression) -> Result<(), LoweringError> {
+pub(super) fn validate(
+    predicate: &CheckedBooleanExpression,
+    views: &ContractViewNamespace<'_>,
+) -> Result<(), LoweringError> {
+    let namespace = ObservationNamespace {
+        views,
+        unavailable_result: std::cell::Cell::new(false),
+    };
+    inspect(predicate, &namespace)?;
+    // Keep visiting after an unavailable result so it cannot hide undeclared
+    // structural roots or unsupported grammar elsewhere in this predicate.
+    // Scalar positions and complete field geometry stay with their term owners.
+    if namespace.unavailable_result.get() {
+        return Err(LoweringError::UnavailableContractResult);
+    }
+    Ok(())
+}
+
+struct ObservationNamespace<'scope, 'declarations> {
+    views: &'scope ContractViewNamespace<'declarations>,
+    // This one-pass reduction is invocation-local. The scalar/math visitors
+    // borrow the same immutable namespace; no compiler-owned data is mutated.
+    unavailable_result: std::cell::Cell<bool>,
+}
+
+impl ObservationNamespace<'_, '_> {
+    fn structural(&self, position: u32) -> Result<(), LoweringError> {
+        if self
+            .views
+            .parameters
+            .iter()
+            .any(|(candidate, _)| *candidate == position)
+        {
+            return Ok(());
+        }
+        match self.views.result {
+            ContractStructuralResult::Declared {
+                position: candidate,
+                ..
+            } if position == candidate => Ok(()),
+            ContractStructuralResult::Unavailable {
+                position: candidate,
+            } if position == candidate => {
+                self.unavailable_result.set(true);
+                Ok(())
+            }
+            _ => Err(LoweringError::Unsupported(
+                "closed contract names an undeclared structural observation",
+            )),
+        }
+    }
+
+    fn result(&self) -> Result<(), LoweringError> {
+        match self.views.result {
+            ContractStructuralResult::Declared { .. } => Ok(()),
+            ContractStructuralResult::Unavailable { .. } => {
+                self.unavailable_result.set(true);
+                Ok(())
+            }
+            ContractStructuralResult::Absent => Err(LoweringError::Unsupported(
+                "closed contract names an absent structural result",
+            )),
+        }
+    }
+}
+
+fn inspect(
+    predicate: &CheckedBooleanExpression,
+    namespace: &ObservationNamespace<'_, '_>,
+) -> Result<(), LoweringError> {
     match predicate {
         CheckedBooleanExpression::Local { .. } | CheckedBooleanExpression::StorageRead { .. } => {
             Err(LoweringError::Unsupported(
                 "scalar contract predicate contains body-local or mutable storage",
             ))
         }
-        CheckedBooleanExpression::Not(operand) => validate(operand),
+        CheckedBooleanExpression::Not(operand) => inspect(operand, namespace),
         facts::checked_boolean_triple_pattern!(left, right, ..) => {
-            validate(left)?;
-            validate(right)
+            inspect(left, namespace)?;
+            inspect(right, namespace)
         }
         CheckedBooleanExpression::IntegerMathComparison { left, right, .. } => {
-            crate::proofs::contract_predicates::validate_math_namespace(left, &scalar)?;
-            crate::proofs::contract_predicates::validate_math_namespace(right, &scalar)
+            crate::proofs::contract_predicates::validate_math_namespace(left, &|operand| {
+                scalar(operand, namespace)
+            })?;
+            crate::proofs::contract_predicates::validate_math_namespace(right, &|operand| {
+                scalar(operand, namespace)
+            })
         }
         CheckedBooleanExpression::IntegerComparison { left, right, .. }
         | CheckedBooleanExpression::ScalarIeeeFloatComparison { left, right, .. } => {
-            scalar(left)?;
-            scalar(right)
+            scalar(left, namespace)?;
+            scalar(right, namespace)
         }
         CheckedBooleanExpression::Parameter { .. }
         | CheckedBooleanExpression::ErasedParameter { .. }
-        | CheckedBooleanExpression::StructuralCaseMembership { .. }
         | CheckedBooleanExpression::Constant(_) => Ok(()),
-        CheckedBooleanExpression::ByteSequencePredicate { root, .. } => root
-            .parameter()
-            .map(|_| ())
-            .ok_or(LoweringError::Unsupported(
+        CheckedBooleanExpression::StructuralCaseMembership { subject, .. } => match subject.root {
+            checked_trees::CheckedStructuralCaseRoot::Parameter { position } => {
+                namespace.structural(position)
+            }
+            checked_trees::CheckedStructuralCaseRoot::Result => namespace.result(),
+        },
+        CheckedBooleanExpression::ByteSequencePredicate { root, .. } => {
+            let position = root.parameter().ok_or(LoweringError::Unsupported(
                 "closed byte predicate requires a structural formal",
-            )),
+            ))?;
+            namespace.structural(position)
+        }
         // The term owner resolves both a whole primitive referent and a
         // projected leaf against the declared formal's exact type and access.
-        CheckedBooleanExpression::StructuralParameterField { .. } => Ok(()),
+        CheckedBooleanExpression::StructuralParameterField {
+            parameter_position, ..
+        } => namespace.structural(*parameter_position),
         CheckedBooleanExpression::IeeeFloatComparison { .. }
         | CheckedBooleanExpression::StructuralIdentity { .. }
         | CheckedBooleanExpression::ByteSequenceEqual { .. } => Err(LoweringError::Unsupported(
@@ -47,13 +128,20 @@ pub(super) fn validate(predicate: &CheckedBooleanExpression) -> Result<(), Lower
     }
 }
 
-fn scalar(expression: &CheckedScalarExpression) -> Result<(), LoweringError> {
+fn scalar(
+    expression: &CheckedScalarExpression,
+    namespace: &ObservationNamespace<'_, '_>,
+) -> Result<(), LoweringError> {
     match expression {
         CheckedScalarExpression::RepresentationView { .. } => Err(LoweringError::Unsupported(
             "a representation re-view is not scalar contract arithmetic",
         )),
-        CheckedScalarExpression::StructuralParameterIndexedRead { .. } => {
-            validate_indexed_operands(expression, &scalar)
+        CheckedScalarExpression::StructuralParameterIndexedRead { root, .. } => {
+            let position = root.parameter().ok_or(LoweringError::Unsupported(
+                "indexed contract observation requires a structural formal",
+            ))?;
+            namespace.structural(position)?;
+            validate_indexed_operands(expression, &|operand| scalar(operand, namespace))
         }
         CheckedScalarExpression::Local { .. } | CheckedScalarExpression::StorageRead { .. } => {
             Err(LoweringError::Unsupported(
@@ -62,11 +150,11 @@ fn scalar(expression: &CheckedScalarExpression) -> Result<(), LoweringError> {
         }
         CheckedScalarExpression::ErasedParameter { .. } => Ok(()),
         CheckedScalarExpression::IntegerBinary { left, right, .. } => {
-            scalar(left)?;
-            scalar(right)
+            scalar(left, namespace)?;
+            scalar(right, namespace)
         }
-        checked_trees::integer_widen_triple_pattern!(operand, ..) => scalar(operand),
-        CheckedScalarExpression::Boolean(predicate) => validate(predicate),
+        checked_trees::integer_widen_triple_pattern!(operand, ..) => scalar(operand, namespace),
+        CheckedScalarExpression::Boolean(predicate) => inspect(predicate, namespace),
         CheckedScalarExpression::Parameter { .. }
         | CheckedScalarExpression::IntegerLiteral { .. }
         | CheckedScalarExpression::IeeeFloatLiteral { .. }
@@ -75,12 +163,13 @@ fn scalar(expression: &CheckedScalarExpression) -> Result<(), LoweringError> {
         // supplied structural signature. A local storage root cannot borrow
         // an equally numbered contract parameter.
         CheckedScalarExpression::StructuralSequenceLength { root, path } => {
-            root.parameter().ok_or(LoweringError::Unsupported(
+            let position = root.parameter().ok_or(LoweringError::Unsupported(
                 "closed sequence extent requires a structural formal",
             ))?;
+            namespace.structural(position)?;
             for step in path {
                 if let checked_trees::CheckedScalarReadProjection::RuntimeIndex(selector) = step {
-                    scalar(&selector.expression)?;
+                    scalar(&selector.expression, namespace)?;
                 }
             }
             Ok(())
@@ -91,13 +180,18 @@ fn scalar(expression: &CheckedScalarExpression) -> Result<(), LoweringError> {
         // owner requires that exact scalar endpoint and readable access.
         // An address member has no fixed-integer carrier.
         // An IEEE leaf keeps its exact format for an IEEE comparison.
-        CheckedScalarExpression::StructuralParameterField { primitive_type, .. } => {
+        CheckedScalarExpression::StructuralParameterField {
+            parameter_position,
+            primitive_type,
+            ..
+        } => {
             if *primitive_type == PrimitiveType::Addr {
                 return Err(LoweringError::Unsupported(
                     "closed scalar contract operand requires a scalar namespace",
                 ));
             }
-            crate::emission::scalar_types::terminal_scalar_type(*primitive_type).map(|_| ())
+            crate::emission::scalar_types::terminal_scalar_type(*primitive_type)?;
+            namespace.structural(*parameter_position)
         }
     }
 }

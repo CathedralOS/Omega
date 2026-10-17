@@ -402,6 +402,7 @@ fn bound_contract_predicate(
         owner,
         declared,
         &parameters,
+        None,
         predicate,
     )
 }

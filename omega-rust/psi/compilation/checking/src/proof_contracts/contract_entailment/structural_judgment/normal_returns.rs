@@ -265,23 +265,20 @@ impl<'program> StructuralJudge<'program> {
         environment: &[(String, StructuralTerm)],
         scope: ValueScope<'_>,
     ) -> Option<Vec<NormalReturnPath<'program>>> {
-        let operands = self.statement_observation_operands(
+        // A child completes before its enclosing aggregate does. Observe the
+        // exact requested value through the ordinary operand scheduler: later
+        // siblings still execute, but an unrelated enclosing result need not
+        // have a mathematical denotation to retain that child's snapshot.
+        let contexts = self.completed_observation_paths(
             statement_index,
             expression,
-            scope,
-            NormalValueDemand::Value,
-        )?;
-        let contexts = self.clone().evaluate_normal_operands(
-            &operands,
             environment,
             scope,
-            0,
-            ExpressionHandle::invalid(),
-            &mut Vec::new(),
+            &[expression],
         )?;
         let paths = contexts
             .into_iter()
-            .filter_map(|(judge, _)| {
+            .filter_map(|judge| {
                 let value = judge
                     .normal_results
                     .iter()

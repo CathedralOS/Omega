@@ -84,12 +84,32 @@ pub(crate) fn lower_declarations(
             crate::expression_preparation::bindings::element_views(&view_roster, structural_types);
         let views = crate::scalar_lowering::contracts::ContractViewNamespace {
             parameters: &view_roster,
-            result: None,
+            result: crate::scalar_lowering::contracts::ContractStructuralResult::Absent,
             structural_types,
             element_views: &element_views,
         };
         let scalar_requires = lower_scalar_requires(identities, plan, &scalar_parameters, &views)?;
-        let scalar_ensures = lower_scalar_ensures(identities, plan, &scalar_parameters, &views)?;
+        // The boundary format publishes scalar results, not a structural
+        // result place. Retain that exact authored coordinate as unavailable;
+        // it is not an extra formal or permission to erase malformed clauses.
+        let result = if plan.result.structural_identity().is_some() {
+            let signature =
+                crate::declarations::target_signature(checked, plan.machine, plan.machine)?;
+            let position = u32::try_from(signature.parameters.len()).map_err(|_| {
+                LoweringError::Unsupported(
+                    "boundary result coordinate exceeds the contract namespace",
+                )
+            })?;
+            crate::scalar_lowering::contracts::ContractStructuralResult::Unavailable { position }
+        } else {
+            crate::scalar_lowering::contracts::ContractStructuralResult::Absent
+        };
+        let scalar_ensures = lower_scalar_ensures(
+            identities,
+            plan,
+            &scalar_parameters,
+            &crate::scalar_lowering::contracts::ContractViewNamespace { result, ..views },
+        )?;
         let crash_routes = lower_boundary_crash_routes(
             identities,
             checked,
@@ -267,23 +287,44 @@ fn lower_scalar_ensures(
     let mut predicate = |value| {
         crate::scalar_lowering::contracts::proposition(identities, value, &formals, &[], views)
     };
-    let rows = plan
-        .scalar_ensures
-        .iter()
-        .map(|guarantee| {
-            use checked_trees::CheckedBoundaryScalarGuarantee;
-            Ok(match guarantee {
-                CheckedBoundaryScalarGuarantee::Predicate(value) => predicate(value)?,
-                CheckedBoundaryScalarGuarantee::Implication {
-                    premise,
-                    conclusion,
-                } => Proposition::Implication {
-                    premise: Box::new(predicate(premise)?),
-                    conclusion: Box::new(predicate(conclusion)?),
-                },
-            })
-        })
-        .collect::<Result<Vec<_>, LoweringError>>()?;
+    let mut rows = Vec::new();
+    for guarantee in &plan.scalar_ensures {
+        use checked_trees::CheckedBoundaryScalarGuarantee;
+        let row = (|| match guarantee {
+            CheckedBoundaryScalarGuarantee::Predicate(value) => predicate(value),
+            CheckedBoundaryScalarGuarantee::Implication {
+                premise,
+                conclusion,
+            } => {
+                let premise = predicate(premise);
+                let conclusion = predicate(conclusion);
+                // An unavailable antecedent cannot hide a lowering failure in
+                // its conclusion. Both sides are inspected before deciding
+                // whether this whole source-checked consequence can publish.
+                match (premise, conclusion) {
+                    (Err(error), _) if error != LoweringError::UnavailableContractResult => {
+                        Err(error)
+                    }
+                    (_, Err(error)) if error != LoweringError::UnavailableContractResult => {
+                        Err(error)
+                    }
+                    (Ok(premise), Ok(conclusion)) => Ok(Proposition::Implication {
+                        premise: Box::new(premise),
+                        conclusion: Box::new(conclusion),
+                    }),
+                    _ => Err(LoweringError::UnavailableContractResult),
+                }
+            }
+        })();
+        match row {
+            Ok(row) => rows.push(row),
+            // A complete source-checked guarantee without a boundary reading
+            // stays in the checked contract. Never strip just its antecedent,
+            // select a disjunct or suppress another lowering failure.
+            Err(LoweringError::UnavailableContractResult) => {}
+            Err(error) => return Err(error),
+        }
+    }
     canonical_scalar_contract_rows(rows)
 }
 

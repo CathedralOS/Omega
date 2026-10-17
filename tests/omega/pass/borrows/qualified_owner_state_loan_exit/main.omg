@@ -1,0 +1,170 @@
+// Expected exit: 0. Nested qualifications survive lending owned storage into
+// another state, whether the selected owner is a whole record or array child.
+data Resource [copy] { identity: u64; }
+domain Resource::Open(resource) requires resource.identity != 0;
+data Envelope { resource: Resource in Open; marker: u64; }
+data IssuedValue<T> { value: T; }
+
+machine record_owner() -> bool {
+    let mut envelope: Envelope = Envelope {
+        resource: Resource { identity: 41 }, marker: 19
+    };
+    transition { _ -> inspect(&mut envelope) }
+    state inspect(envelope: &mut Envelope) -> bool {
+        envelope.resource.identity == 41 && envelope.marker == 19
+    }
+}
+
+machine array_owner() -> bool {
+    let mut resources: [Resource in Open; 2] = [
+        Resource { identity: 53 }, Resource { identity: 73 }
+    ];
+    transition { _ -> inspect(&mut resources) }
+    state inspect(resources: &mut [Resource in Open; 2]) -> bool {
+        resources[0].identity == 53 && resources[1].identity == 73
+    }
+}
+
+machine selected_owner() -> bool {
+    let mut resources: [Resource in Open; 2] = [
+        Resource { identity: 53 }, Resource { identity: 73 }
+    ];
+    transition { _ -> inspect(&mut resources[1]) }
+    state inspect(resource: &mut Resource in Open) -> bool {
+        resource.identity == 73
+    }
+}
+
+machine descriptor_forwarding() -> bool {
+    let mut resource: Resource in Open = Resource { identity: 83 };
+    let view: &mut Resource in Open = &mut resource;
+    transition { _ -> inspect(view) }
+    state inspect(view: &mut Resource in Open) -> bool {
+        transition { _ -> finish(view) }
+    }
+    state finish(view: &mut Resource in Open) -> bool {
+        view.identity == 83
+    }
+}
+
+machine shared_descriptor_forwarding() -> bool {
+    let resource: Resource in Open = Resource { identity: 89 };
+    let view: &Resource in Open = &resource;
+    transition { _ -> inspect(view) }
+    state inspect(view: &Resource in Open) -> bool {
+        transition { _ -> finish(view) }
+    }
+    state finish(view: &Resource in Open) -> bool {
+        view.identity == 89
+    }
+}
+
+machine borrow_qualified<'storage>(resource: &'storage mut Resource in Open)
+    -> &'storage mut Resource in Open {
+    resource
+}
+
+machine completed_descriptor() -> bool {
+    let mut resource: Resource in Open = Resource { identity: 97 };
+    transition { _ -> inspect(borrow_qualified(&mut resource)) }
+    state inspect(view: &mut Resource in Open) -> bool {
+        view.identity == 97
+    }
+}
+
+machine nested_owner() -> bool {
+    let mut resources: [[Resource in Open; 1]; 2] = [
+        [Resource { identity: 41 }], [Resource { identity: 73 }]
+    ];
+    transition { _ -> inspect(&mut resources) }
+    state inspect(resources: &mut [[Resource in Open; 1]; 2]) -> bool {
+        resources[0][0].identity == 41 && resources[1][0].identity == 73
+    }
+}
+
+machine observe_argument(resources: [Resource in Open; 2]) -> bool {
+    resources[0].identity == 41 && resources[1].identity == 73
+}
+
+machine array_argument() -> bool {
+    observe_argument([Resource { identity: 41 }, Resource { identity: 73 }])
+}
+
+machine replace(resource: &mut Resource) -> Resource
+ensures result.identity == 19 {
+    resource.identity = 0;
+    Resource { identity: 19 }
+}
+
+machine snapshot_before_mutation() -> bool {
+    let mut resource: Resource in Open = Resource { identity: 41 };
+    let resources: [Resource in Open; 2] = [resource, replace(&mut resource)];
+    resources[0].identity == 41 && resources[1].identity == 19
+        && resource.identity == 0
+}
+
+machine result_through_local() -> bool {
+    let mut original: Resource = Resource { identity: 41 };
+    let mut returned: Resource = replace(&mut original);
+    let copied: Resource = returned;
+    returned.identity = 0;
+    let resources: [Resource in Open; 1] = [copied];
+    resources[0].identity == 19 && returned.identity == 0
+}
+
+machine acquire(identity: u64) -> Resource
+ensures result.identity == identity {
+    Resource { identity: identity }
+}
+
+machine argument_bound_result() -> bool {
+    let identity: u64 = 19;
+    let source: Resource = Resource { identity: 53 };
+    let local: Resource = acquire(identity);
+    let field: Resource = acquire(source.identity);
+    let resources: [Resource in Open; 3] = [acquire(73), local, field];
+    resources[0].identity == 73 && resources[1].identity == 19
+        && resources[2].identity == 53
+}
+
+machine result_before_input_mutation() -> bool {
+    let mut identity: u64 = 19;
+    let resource: Resource = acquire(identity);
+    identity = 0;
+    let resources: [Resource in Open; 1] = [resource];
+    resources[0].identity == 19 && identity == 0
+}
+
+machine acquire_generic(identity: u64) -> IssuedValue<u64>
+ensures result.value == identity {
+    IssuedValue { value: identity }
+}
+
+machine generic_result_projection() -> bool {
+    let issued: IssuedValue<u64> = acquire_generic(19);
+    let resources: [Resource in Open; 1] = [Resource { identity: issued.value }];
+    resources[0].identity == 19
+}
+
+machine main() crashes Trap {
+    let record: bool = record_owner();
+    let array: bool = array_owner();
+    let selected: bool = selected_owner();
+    let descriptor: bool = descriptor_forwarding();
+    let shared_descriptor: bool = shared_descriptor_forwarding();
+    let completed: bool = completed_descriptor();
+    let nested: bool = nested_owner();
+    let argument: bool = array_argument();
+    let snapshot: bool = snapshot_before_mutation();
+    let returned: bool = result_through_local();
+    let bound: bool = argument_bound_result();
+    let before_input: bool = result_before_input_mutation();
+    let generic: bool = generic_result_projection();
+    transition record && array && selected && descriptor && shared_descriptor && completed
+        && nested && argument && snapshot && returned && bound && before_input && generic {
+        true -> done()
+        false -> wrong()
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}

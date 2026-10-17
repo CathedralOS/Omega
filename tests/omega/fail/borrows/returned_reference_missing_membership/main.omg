@@ -1,0 +1,10 @@
+// A reference result cannot invent the referent's domain membership.
+data Resource { identity: u64; }
+domain Resource::Open(resource) requires resource.identity != 0;
+
+machine borrow_missing<'storage>(resource: &'storage mut Resource)
+    -> &'storage mut Resource in Open {
+    resource
+}
+
+machine main() {}

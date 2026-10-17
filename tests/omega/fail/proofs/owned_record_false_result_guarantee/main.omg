@@ -1,0 +1,4 @@
+data Resource [copy] { identity: u64; }
+machine acquire() -> Resource ensures result.identity == 19 {
+    Resource { identity: 0 }
+}

@@ -172,9 +172,13 @@ impl ExitScalars<'_, '_> {
         }
         let entry = self.program.machine_states(self.machine).first()?;
         if place.segments.is_empty() {
+            let reference = validation::field_domains::readable_type_reference(
+                self.program,
+                entry.return_type,
+            )?;
             return self
                 .program
-                .primitive_type_reference(entry.return_type)
+                .primitive_type_reference(reference)
                 .is_some()
                 .then_some((returned, Vec::new()));
         }
@@ -231,6 +235,11 @@ impl ExitScalars<'_, '_> {
         if remaining.is_empty() {
             let reference =
                 validation::reserved_result_place(self.program, expression)?.type_reference;
+            // The selected constructor child may be a readable reference.
+            // Observe its referent, not the descriptor's pointer bits; the
+            // capture lookup below retains its actual source.
+            let reference =
+                validation::field_domains::readable_type_reference(self.program, reference)?;
             let primitive = self.program.primitive_type_reference(reference)?;
             if !validation::has_builtin_bound_expression_meaning(
                 self.program,
@@ -261,14 +270,46 @@ impl ExitScalars<'_, '_> {
                 }
             }
         }
-        let mut place = validation::canonical_place_from_expression_in_state(
+        // The completed result owns its evaluated children. A stored reference
+        // child names its captured backing, not the descriptor slot's contents;
+        // a detached child keeps its own completion epoch instead. Observe
+        // that retained operand rather than replaying a local initializer.
+        if !self
+            .facts
+            .flow
+            .control
+            .operands
+            .is_valid(self.exit.returned_value)
+        {
+            return None;
+        }
+        let capture = self
+            .facts
+            .flow
+            .control
+            .operands
+            .get(self.exit.returned_value);
+        if capture.expression != exit_return_expression(self.program, self.exit)
+            || capture.state_symbol != self.exit.state_symbol
+            || capture.statement_index != self.exit.statement_index
+        {
+            return None;
+        }
+        let (_, state) = self.facts.flow.control.states.iter().find(|(_, state)| {
+            state.machine_symbol == self.machine.symbol
+                && state.state_symbol == self.exit.state_symbol
+        })?;
+        let place = validation::reserved_result_place(self.program, expression)?;
+        super::super::super::prover::captured_scalar_at_path(
             self.program,
-            self.exit.state_symbol,
-            self.exit.statement_index,
-            value,
-        )?;
-        place.extend_segments(&remaining);
-        self.value_at_place(&place)
+            self.facts,
+            state,
+            capture,
+            &place.segments,
+            self.exit.statement_index.checked_add(1)?,
+            self.exit.entry_constraints,
+            self.call_frames?,
+        )
     }
 
     pub(super) fn proves_result_field_equality(&self, expression: ExpressionHandle) -> bool {
@@ -626,7 +667,9 @@ impl ExitScalars<'_, '_> {
         let state =
             validation::find_state_on_machine(self.program, self.machine, self.exit.state_symbol)?;
         let reference = validation::reserved_result_place(self.program, projected)?.type_reference;
-        let primitive = self.program.primitive_type_reference(reference)?;
+        let observed_reference =
+            validation::field_domains::readable_type_reference(self.program, reference)?;
+        let primitive = self.program.primitive_type_reference(observed_reference)?;
         let expected_reference = validation::expression_result_type_reference(
             self.program,
             self.machine,

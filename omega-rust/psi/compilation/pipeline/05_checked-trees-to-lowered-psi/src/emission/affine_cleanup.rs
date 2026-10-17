@@ -60,7 +60,7 @@ pub(crate) fn no_code_type_ids(
 /// Complete source-checked no-code custody in the emitted operation graph.
 /// `parameters` delegates entry cleanup; the complete entry roster supplies
 /// authentic homes for move tracking and residual geometry. Only the checked
-/// capability roster authorizes additional plain owned local/result and
+/// capability roster authorizes additional owned local/result and
 /// receiving-block homes. Actual affine access,
 /// qualifications and claims remain properties of each occurrence, independently
 /// of its type. Nominal cleanup retains its selected ordered action stream.
@@ -148,7 +148,11 @@ fn complete_carriers(
                     .then_some((place, operation.id))
                 });
             };
-            if !result.is_affine_plain() || !result.qualification_establishments.is_empty() {
+            // Membership metadata neither settles this carrier's disposal
+            // debt nor authorizes disposal. Keep it on the result; the exact
+            // checked type or anchored loan-carrier authority below decides
+            // whether this pass may settle its claim-free affine custody.
+            if result.multiplicity != StructuralMultiplicity::Affine || !result.claims.is_empty() {
                 return None;
             }
             let mut declarations = types
@@ -179,7 +183,8 @@ fn complete_carriers(
             .iter()
             .flat_map(|block| &block.structural_parameters)
             .filter(|parameter| {
-                parameter.is_unqualified_owned_affine()
+                parameter.access == StructuralAccess::Owned
+                    && parameter.multiplicity == StructuralMultiplicity::Affine
                     && !affine.contains(&parameter.place)
                     && no_code_types.contains(&parameter.structural_type)
                     && !partial_transfers.contains(&parameter.place)
@@ -524,16 +529,26 @@ fn replace_managed_discards(
     // ends that home's current epoch. Neither belongs to root-discard rewriting.
     // In particular replacement can dispose a field before a later selected
     // whole transfer of the same home; preserve both ownership operations.
-    let additions = additions
+    let mut additions = additions
         .into_iter()
         .filter(|place| {
             !existing.iter().any(|action| {
                 matches!(action, TerminalAffineCleanupAction::RetireHome(retired) if retired == place)
             })
         })
-        .collect();
+        .collect::<Vec<_>>();
+    // Recompute which managed roots still require disposal without rebuilding
+    // the selected cleanup order. A descriptor can have moved into a block
+    // parameter while its operation-produced backing remains live; replacing
+    // both deaths in producer order would discard the backing first.
     existing.retain(|action| {
-        !matches!(action, TerminalAffineCleanupAction::DiscardRoot(place) if managed.contains(place))
+        !matches!(action, TerminalAffineCleanupAction::DiscardRoot(place)
+            if managed.contains(place) && !additions.contains(place))
+    });
+    additions.retain(|place| {
+        !existing.iter().any(|action| {
+            matches!(action, TerminalAffineCleanupAction::DiscardRoot(scheduled_place) if scheduled_place == place)
+        })
     });
     merge_discards(existing, additions, producers, parameter_order);
 }

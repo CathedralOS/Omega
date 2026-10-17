@@ -1,0 +1,10 @@
+// Mutating the predicate subject cannot preserve a prior qualification at
+// a borrowed state arrival, even though its physical storage is unchanged.
+data Resource { identity: u64; }
+domain Resource::Open(resource) requires resource.identity != 0;
+machine main() {
+    let mut resource: Resource in Open = Resource { identity: 73 };
+    resource.identity = 0;
+    transition { _ -> inspect(&mut resource) }
+    state inspect(resource: &mut Resource in Open) {}
+}

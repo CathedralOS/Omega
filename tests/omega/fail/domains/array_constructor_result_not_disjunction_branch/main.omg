@@ -1,0 +1,10 @@
+// A disjunction about a returned record does not establish either branch.
+data Resource [copy] { identity: u64; }
+domain Resource::Open(resource) requires resource.identity != 0;
+machine choose() -> Resource
+ensures result.identity == 0 || result.identity == 19 {
+    Resource { identity: 0 }
+}
+machine main() {
+    let resources: [Resource in Open; 1] = [choose()];
+}

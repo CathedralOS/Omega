@@ -465,7 +465,7 @@ pub(crate) fn readable_entry_parameter_path(
 /// Resolve each projection against the declaration reached by its predecessor,
 /// independent of the storage root's custody. Keeping this join common prevents
 /// local observations from losing fixed indexes or accepting a foreign field.
-fn resolve_structural_path(
+pub(crate) fn resolve_structural_path(
     program: &dyn ::validation::CheckingInput,
     declared_type: TypeReferenceHandle,
     is_mutable: bool,
@@ -571,6 +571,83 @@ pub(crate) fn exclusive_reference(
             _ => return false,
         }
     }
+}
+
+/// A declared predicate can describe a read only while the selected storage
+/// cannot change. Follow canonical type coordinates, including dynamic array
+/// selections, rather than requiring one particular scalar-expression shape.
+/// Mutable bindings, exclusive crossings and interior authority use live facts.
+pub(crate) fn storage_observation_is_frozen(
+    program: &dyn ::validation::CheckingInput,
+    state: symbols::SymbolHandle,
+    statement: usize,
+    expression: ExpressionHandle,
+) -> bool {
+    fn shared_reference_chain(
+        program: &dyn ::validation::CheckingInput,
+        mut reference: TypeReferenceHandle,
+    ) -> bool {
+        loop {
+            match program.type_reference_table.type_reference(reference) {
+                TypeReferenceNode::Constrained { base_type, .. } => reference = *base_type,
+                TypeReferenceNode::Reference {
+                    referee, access, ..
+                } => {
+                    if *access != language_core::ReferenceAccess::Shared {
+                        return false;
+                    }
+                    reference = *referee;
+                }
+                _ => return true,
+            }
+        }
+    }
+    let Some(place) =
+        validation::canonical_place_from_expression_in_state(program, state, statement, expression)
+    else {
+        return false;
+    };
+    let Some(root) = place.root.as_symbol() else {
+        return false;
+    };
+    let Some(state) = program.state_by_symbol(state) else {
+        return false;
+    };
+    let declaration = program
+        .state_parameter_by_symbol(state, root)
+        .map(|parameter| (parameter.type_reference, parameter.is_mutable))
+        .or_else(|| {
+            program
+                .state_local_declaration(state, root)
+                .filter(|(ordinal, _)| *ordinal < statement)
+                .map(|(_, local)| (local.type_reference, local.is_mutable))
+        });
+    let Some((mut reference, is_mutable)) = declaration else {
+        return false;
+    };
+    if is_mutable {
+        return false;
+    }
+    for segment in &place.segments {
+        if !shared_reference_chain(program, reference) {
+            return false;
+        }
+        let Some(projected) = validation::project_type_reference_from_segments(
+            program,
+            reference,
+            std::slice::from_ref(segment),
+        ) else {
+            return false;
+        };
+        reference = projected;
+    }
+    shared_reference_chain(program, reference)
+        && validation::has_contents(
+            program,
+            reference,
+            &[],
+            validation::ContentsRequirement::StableObservation,
+        )
 }
 
 /// Peel reference and constraint shells down to the indexed carrier's node.
@@ -862,11 +939,13 @@ pub(crate) fn applied_projection_segments(
     resolve_structural_path(program, reference, false, &path, &mut |_, _| Some(()))
         .map(|(segments, _, _)| segments)
 }
-fn structural_projection_path(
+/// Translate retained declaration coordinates without assigning a storage root.
+/// The receiving root must independently resolve this path against its type.
+pub(crate) fn structural_projection_path(
     program: &dyn validation::CheckingInput,
     segments: &[facts::PlaceSegment],
 ) -> Option<Vec<CheckedStructuralPredicatePathSegment>> {
-    let mut path = Vec::new();
+    let mut path = Vec::with_capacity(segments.len());
     for segment in segments {
         path.push(match segment {
             facts::PlaceSegment::Field { symbol } => {
