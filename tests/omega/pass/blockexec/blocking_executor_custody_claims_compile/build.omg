@@ -4,7 +4,7 @@
 
 machine build(builder: &mut Build) {
     Build::application(builder, "blocking_executor_custody_claims_compile");
-    Build::select_provider<WorkerProvider, CanaryWorkerProvider>(builder);
+    Build::select_provider<WorkerProvider, CanaryWorkerImplementation>(builder);
     Build::bind(builder, windows_x86_64::ProgramEntry, Main::main);
     Build::bind(builder, linux_x86_64::ProgramEntry, Main::main);
     Build::bind(builder, linux_arm64::ProgramEntry, Main::main);

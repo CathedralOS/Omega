@@ -43,3 +43,7 @@ machine Main::main(main: &mut Main) reaches Scheduler crashes Trap {
     state done() {}
     state bad() { crash Trap; }
 }
+
+InlineSchedulerImplementation satisfies Scheduler {
+    Scheduler::read = InlineScheduler::read;
+}

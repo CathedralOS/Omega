@@ -260,3 +260,7 @@ machine Main::main() reaches WorkerProvider suspends; blocks; crashes Trap {
     state done() {}
     state bad() { crash Trap; }
 }
+
+CanaryWorkerImplementation satisfies WorkerProvider {
+    WorkerProvider::execute = CanaryWorkerProvider::execute;
+}

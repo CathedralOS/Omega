@@ -1,6 +1,6 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "runtime_suspension_repeated_actual_exit");
-    Build::select_provider<Scheduler, InlineScheduler>(builder);
+    Build::select_provider<Scheduler, InlineSchedulerImplementation>(builder);
     Build::bind(builder, macos_arm64::ProgramEntry, Main::main);
     Build::bind(builder, linux_arm64::ProgramEntry, Main::main);
     Build::bind(builder, linux_x86_64::ProgramEntry, Main::main);
