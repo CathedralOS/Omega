@@ -1,0 +1,31 @@
+// A bare parameter does not invent Alive for inspect.
+
+data Player [copy] {
+    health: i32;
+}
+
+domain Player::Alive(player)
+requires
+    player.health > 0;
+
+data Main {
+    player: Player;
+}
+
+machine Main::inspect(player: Player)
+requires
+    player in Player::Alive
+{
+}
+
+machine Main::carry(player: Player) {
+    Main::inspect(player);
+}
+
+machine Main::main(main: &mut Main)
+requires
+    main.player in Player::Alive
+{
+    let mut copy: Player = main.player;
+    Main::carry(copy);
+}

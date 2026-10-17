@@ -1,0 +1,28 @@
+// A const name of an Alive player transfers through a bare alias
+// into inspect's requires.
+// Compile-checked only: no ProcessExit provider.
+
+data Player [copy] {
+    health: i32;
+}
+
+domain Player::Alive(player)
+requires
+    player.health > 0;
+
+const HERO: Player in Player::Alive = Player { health: 3 };
+
+data Main {
+    player: Player;
+}
+
+machine Main::inspect(player: Player)
+requires
+    player in Player::Alive
+{
+}
+
+machine Main::main(main: &mut Main) {
+    let mut copy: Player = HERO;
+    Main::inspect(copy);
+}

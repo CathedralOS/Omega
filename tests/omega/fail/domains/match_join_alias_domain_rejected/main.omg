@@ -1,0 +1,37 @@
+// A match join drops Alive when one arm yields a player that is not Alive.
+data Player [copy] {
+    health: i32;
+}
+
+domain Player::Alive(player)
+requires
+    player.health > 0;
+
+data Main {
+    player: Player;
+    other: Player;
+}
+
+machine inspect(player: Player)
+requires
+    player in Player::Alive
+{
+}
+
+machine Main::choose(main: &Main, flag: bool)
+requires
+    main.player in Player::Alive
+{
+    let mut copy: Player = match flag {
+        true -> main.player,
+        false -> main.other,
+    };
+    inspect(copy);
+}
+
+machine Main::main(main: &mut Main)
+requires
+    main.player in Player::Alive
+{
+    Main::choose(main, true);
+}

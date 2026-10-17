@@ -1,0 +1,38 @@
+// A call that returns an Alive player transfers that fact onto a bare
+// local, and the local alias carries it into inspect's requires.
+// Compile-checked only: no ProcessExit provider.
+
+data Player [copy] {
+    health: i32;
+}
+
+domain Player::Alive(player)
+requires
+    player.health > 0;
+
+data Main {
+    player: Player;
+}
+
+machine Main::inspect(player: Player)
+requires
+    player in Player::Alive
+{
+}
+
+machine Main::duplicate(player: Player) -> Player
+requires
+    player in Player::Alive
+ensures
+    result in Player::Alive
+{
+    player
+}
+
+machine Main::main(main: &mut Main)
+requires
+    main.player in Player::Alive
+{
+    let mut copy: Player = Main::duplicate(main.player);
+    Main::inspect(copy);
+}

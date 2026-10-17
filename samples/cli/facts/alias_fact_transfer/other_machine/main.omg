@@ -1,0 +1,43 @@
+// One machine returns the Alive alias and another machine requires it.
+// Compile-checked only: no ProcessExit provider.
+
+data Player [copy] {
+    health: i32;
+}
+
+domain Player::Alive(player)
+requires
+    player.health > 0;
+
+data Main {
+    player: Player;
+}
+
+machine Main::inspect(player: Player)
+requires
+    player in Player::Alive
+{
+}
+
+machine produce(player: Player) -> Player
+requires
+    player in Player::Alive
+ensures
+    result in Player::Alive
+{
+    player
+}
+
+machine consume(player: Player)
+requires
+    player in Player::Alive
+{
+    Main::inspect(player);
+}
+
+machine Main::main(main: &mut Main)
+requires
+    main.player in Player::Alive
+{
+    consume(produce(main.player));
+}

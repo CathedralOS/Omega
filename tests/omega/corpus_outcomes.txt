@@ -2493,6 +2493,8 @@ fail/domains/issued_state_arrival_mutated rejected 599ms expected @0e81fb3e4cce+
 	cannot prove requires contract for call received from main: resource in Resource::Open (invalidated by prior mutation of resource.identity; resource.identity is part of Resource::Open) in state `entry`
 fail/domains/issued_state_arrival_unissued rejected 609ms expected @0e81fb3e4cce+wt
 	cannot prove requires contract for call received from main: resource in Resource::Open in state `entry`
+fail/domains/match_join_alias_domain_rejected rejected 1111ms expected @fd94a7b8095c+wt
+	cannot prove requires contract for call inspect from Main::choose: copy in Player::Alive in state `choose`
 fail/domains/module_domain_broad_import_hides_leaf rejected 853ms expected @a9ae30e1c334+wt
 	data `Main` field `span` uses `in Distance`, but no `domain` named `Distance` is declared for `u64` (domains are bound to their storage type)
 fail/domains/module_qualified_cast_domain_false rejected 285ms expected @2012446ad74a+wt
@@ -7408,6 +7410,7 @@ pass/domains/issued_indexed_subject_predicate checked 16965ms @c48489ea6ad6
 pass/domains/local_alias_domain_transfer checked 1774ms @a9ae30e1c334+wt
 pass/domains/match_domain_patterns checked 1622ms @a9ae30e1c334+wt
 pass/domains/match_domain_results checked 9876ms @5041ef1af684+wt
+pass/domains/match_join_alias_domain_transfer checked 1214ms @fd94a7b8095c+wt
 pass/domains/module_domain_narrow_import_spelling checked 1609ms @a9ae30e1c334+wt
 pass/domains/named_const_subject_binding checked 11573ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/domains/named_subject_capacity_identity_exit checked 11829ms check-target:macos_arm64 @a9ae30e1c334+wt
