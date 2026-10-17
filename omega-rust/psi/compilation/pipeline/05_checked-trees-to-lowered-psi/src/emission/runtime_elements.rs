@@ -190,6 +190,9 @@ pub(crate) fn evaluate_selectors(
                 (index.id, index.scalar_type)
             }
             ProjectionStep::RuntimeIndexLiteral { index } => {
+                // Dynamic views retain a runtime bound even for a literal.
+                // Keep its exact coordinate for disjoint-window queries too.
+                coordinate = Some(*index);
                 let scalar_type = crate::emission::scalar_types::terminal_scalar_type(
                     checked_trees::types::PrimitiveType::U64,
                 )?;
