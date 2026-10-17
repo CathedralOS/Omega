@@ -1,0 +1,53 @@
+// Expected exit: 0. Shared wide references export their actual eight-byte backing.
+use omega::language::core::external_binding;
+pub boundary trait Compare {
+    machine compare(left: &u64, right: &u64, count: u64) -> i32;
+}
+linux_x86_64 machine compare_binding() -> ForeignBinding<9, 6, 11> {
+    ForeignBinding::DllImport {
+        import: DllImport::ElfVersioned {
+            object: "libc.so.6", symbol: "memcmp", version: "GLIBC_2.2.5",
+        },
+    }
+}
+linux_x86_64 machine compare(left: &u64, right: &u64, count: u64) -> i32
+satisfies Compare::compare via compare_binding();
+data Value { padding: u64; value: u64; }
+data Holder [copy] { reference: &u64; }
+data Main { left: Value; right: Value; }
+machine compare_fields(left: &Value, right: &Value) -> i32 reaches Compare {
+    Compare::compare(&left.value, &right.value, 8)
+}
+machine retained(value: &u64) -> &u64 { value }
+machine Main::main(main: &mut Main) reaches Compare crashes Trap {
+    main.left.value = 72623859790382856u64;
+    main.right.value = 72623859790382856u64;
+    let local: u64 = 72623859790382856u64;
+    let direct: i32 = Compare::compare(&local, &main.left.value, 8);
+    let fields: i32 = compare_fields(&main.left, &main.right);
+    let holder: Holder = Holder { reference: &main.left.value };
+    let copied: Holder = holder;
+    let stored: i32 = Compare::compare(copied.reference, &main.right.value, 8);
+    let holders: [Holder; 2] = [holder, copied];
+    let index: u64[0..2] = 1;
+    let indexed: i32 = Compare::compare(holders[index].reference, &main.right.value, 8);
+    let returned: &u64 = retained(&main.left.value);
+    let result: i32 = Compare::compare(returned, &main.right.value, 8);
+    transition direct == 0 && fields == 0 && stored == 0 && indexed == 0 && result == 0 {
+        true -> next(main)
+        _ -> bad()
+    }
+    state next(main: &mut Main) {
+        let result: i32 = Compare::compare(&main.left.value, &main.right.value, 8);
+        transition result == 0 {
+            true -> next_reference(&main.left.value, &main.right.value)
+            _ -> bad()
+        }
+    }
+    state next_reference(left: &u64, right: &u64) {
+        let result: i32 = Compare::compare(left, right, 8);
+        transition result == 0 { true -> done() _ -> bad() }
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

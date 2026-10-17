@@ -113,6 +113,27 @@ pub(in crate::selection) fn borrowed_scalar_source(
     )
 }
 
+/// Thin foreign transport omits the descriptor codec. Require its footprint
+/// from the loan contract or from every retained physical backing alternative.
+pub(in crate::selection) fn validate_scalar_foreign_export(
+    function: &LegalizedScalarFunction,
+    argument: &terminal_psi::StructuralArgument,
+    scalar: semantic_vocabulary::ScalarType,
+    width: u32,
+) -> Result<(), crate::SelectedInstructionError> {
+    if terminal_semantics::reference_storage_export_byte_width(scalar, argument.access)
+        .map(u32::from)
+        == Some(width)
+        || super::storage_origin_input::scalar_backing_width_matches(function, argument, width)?
+    {
+        Ok(())
+    } else {
+        Err(crate::SelectedInstructionError::custody_because(
+            "thin scalar foreign pointer requires the same byte footprint in every backing",
+        ))
+    }
+}
+
 pub(super) fn establishment(
     function: &LegalizedScalarFunction,
     row: &LegalizedScalarInstruction,

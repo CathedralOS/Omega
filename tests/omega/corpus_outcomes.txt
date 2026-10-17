@@ -3662,6 +3662,10 @@ fail/host/console_byte_payload_negative rejected 674ms expected @afccbf17d92b+wt
 	data `ByteRead` case `Byte` literal violates the case constraint: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/host/descriptor_read_guarded_prefix_without_admitted_abi rejected 3747ms expected @2375f5327b1a+wt
 	native artifact identity physical pipeline failed: common physical staging failed: Selection(Selection(SourceCustodyMismatch { machine: Some(MachineId(1)), operation: Some(OperationId(9)), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it, reason: Some("descriptor input guard requires its exact admitted native ABI") }))
+fail/host/scalar_reference_mixed_backing_foreign_export rejected 9107ms expected @7becf2fe91a5+wt
+	native artifact identity physical pipeline failed: common physical staging failed: Selection(Selection(SourceCustodyMismatch { machine: Some(MachineId(1)), operation: Some(OperationId(12)), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it, reason: Some("thin scalar foreign pointer requires the same byte footprint in every backing") }))
+fail/host/scalar_reference_narrow_backing_foreign_export rejected 9160ms expected @7becf2fe91a5+wt
+	native artifact identity physical pipeline failed: common physical staging failed: Selection(Selection(SourceCustodyMismatch { machine: Some(MachineId(1)), operation: Some(OperationId(6)), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it, reason: Some("thin scalar foreign pointer requires the same byte footprint in every backing") }))
 fail/inline_asm/asm_cli_requires_machine_authority rejected 69ms expected @9f1c8cc89b93+wt
 	machine `Main::main` uses asm instruction `cli`, which requires a FREESTANDING boundary root (the contract requires machine-owner authority, and this build's privileged-service admission does not supply it). Set `b.freestanding = true` in build.omg, or remove the asm block
 fail/inline_asm/asm_deriver_only_exit rejected 0ms expected @9f1c8cc89b93+wt
@@ -3747,7 +3751,7 @@ fail/layouts/encoded_foreign_view_requires_same_geometry rejected 906ms expected
 	machine `Main::main` state `main`: mutable aggregate aliases require identical layout geometry and leaf fact implication in BOTH directions; the source and target `ForeignWide` are not representation-compatible
 fail/layouts/encoded_integer_requires_total_decode rejected 116ms expected @a9ae30e1c334+wt
 	plan-laid value type `UnsignedWord<PortableByte>`: error: field `value` cannot totally decode a 64-bit unsigned integer into `i64`
-fail/layouts/encoded_scalar_boundary_loan_requires_fit rejected 1608ms expected @a9ae30e1c334+wt
+fail/layouts/encoded_scalar_boundary_loan_requires_fit rejected 1603ms expected @7becf2fe91a5+wt
 	IntegerAt call in Main::main requires every performed value to fit its physical storage: effectful invocation has no complete performed-write body
 fail/layouts/encoded_view_opaque_write_requires_fit rejected 1620ms expected @a9ae30e1c334+wt
 	IntegerAt call in write_first requires every performed value to fit its physical storage: effectful invocation has no complete performed-write body
@@ -6520,7 +6524,7 @@ pass/calls/callback_owned_indirect_record checked 13164ms check-target:macos_arm
 pass/calls/callback_owned_overaligned_record checked 8565ms check-target:macos_arm64 @c9eefa9130a0+wt
 pass/calls/callback_private_deep_forwarded_record checked 21442ms check-target:windows_x86_64 @e74967d11875
 pass/calls/callback_private_materialization checked 11896ms check-target:windows_x86_64 @6c75d91f0312
-pass/calls/callback_scalar_loan_permutation checked 6143ms check-target:macos_arm64 @f523463c7783+wt
+pass/calls/callback_scalar_loan_permutation checked 15658ms check-target:macos_arm64 @7becf2fe91a5+wt
 pass/calls/caller_result_binding_mutable_loan_exit checked 12520ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/caller_structural_result_indexed_borrow_exit checked 12817ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/case_arm_payload_receiver_arg checked 12840ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -7972,7 +7976,8 @@ pass/host/runtime_foreign_scalar_loan_writeback_exit checked 7606ms check-target
 pass/host/runtime_foreign_zero_argument_import_exit checked 9606ms check-target:windows_x86_64 @c6b298470bf5
 pass/host/runtime_gui_foreground_window_exit checked 9158ms check-target:windows_x86_64 @c9eefa9130a0+wt
 pass/host/runtime_gui_window_lifecycle_exit checked 6952ms check-target:windows_x86_64 @c9eefa9130a0+wt
-pass/host/runtime_stored_scalar_reference_foreign_export_exit checked 3861ms check-target:macos_arm64 @61ba1df9375e+wt
+pass/host/runtime_scalar_reference_backing_export_exit checked 9880ms check-target:linux_x86_64 @7becf2fe91a5+wt
+pass/host/runtime_stored_scalar_reference_foreign_export_exit checked 8969ms check-target:macos_arm64 @7becf2fe91a5+wt
 pass/host/runtime_windows_bitmap_client_cleanup_exit checked 7932ms check-target:windows_x86_64 @0e7ef4cb2ac8+wt
 pass/host/runtime_windows_gui_argument_failures_exit checked 5913ms check-target:windows_x86_64 @6050c1c112ee+wt
 pass/host/std_clock_sleep_exit checked 12935ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -8039,7 +8044,7 @@ pass/layouts/runtime_callee_owned_local_origins_exit checked 10758ms check-targe
 pass/layouts/runtime_captured_encoded_reference_replacement_exit checked 10928ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/layouts/runtime_constant_layout_contract_exit checked 5329ms check-target:macos_arm64 @e63c4b1e202d+wt
 pass/layouts/runtime_encoded_physical_view_exit checked 5100ms check-target:macos_arm64 @9dd545defbc0
-pass/layouts/runtime_foreign_encoded_reference_exit checked 5210ms check-target:macos_arm64 @9dd545defbc0
+pass/layouts/runtime_foreign_encoded_reference_exit checked 8714ms check-target:macos_arm64 @7becf2fe91a5+wt
 pass/layouts/runtime_indexed_restricted_field_read checked 11850ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/layouts/runtime_layout_arithmetic_value_flow_exit checked 28474ms check-target:macos_arm64 @c48489ea6ad6
 pass/layouts/runtime_multi_origin_encoded_reference_exit checked 11104ms check-target:macos_arm64 @a9ae30e1c334+wt

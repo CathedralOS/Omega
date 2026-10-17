@@ -1,0 +1,75 @@
+// Every incoming backing must match: one narrow alternative forbids thin export.
+data FieldKind { case Scalar; case Text; case Nested; case Repeated; }
+data SchemaField
+where
+    size <= 4096,
+    1 <= align,
+    align <= 16,
+{
+    key: u64;
+    size: u64;
+    align: u64;
+    number: i64;
+    kind: FieldKind;
+}
+data Schema
+where
+    field_count <= 32,
+{ fields: [SchemaField; 32]; field_count: u64; }
+data IntegerInterpretation { case Signed; case Unsigned; }
+data FieldPlan {
+    case IntegerAt(offset: u64, stored_width: u64, interpretation: IntegerInterpretation);
+}
+data FieldEntry { key: u64; placement: FieldPlan; }
+data Plan {
+    entries: [FieldEntry; 64];
+    entry_count: u64;
+    size_fixed: u64;
+    size_is_dynamic: bool;
+    align: u64;
+}
+
+data SignedByte { }
+machine SignedByte::plan(schema: Schema) -> Plan {
+    let mut entries: [FieldEntry; 64];
+    entries[0] = FieldEntry {
+        key: schema.fields[0].key,
+        placement: FieldPlan::IntegerAt {
+            offset: 0,
+            stored_width: 8,
+            interpretation: IntegerInterpretation::Signed,
+        },
+    };
+    Plan {
+        entries: entries,
+        entry_count: 1,
+        size_fixed: 1,
+        size_is_dynamic: false,
+        align: 1,
+    }
+}
+
+data PortableByte [copy] { value: i64; }
+data RawView { value: SignedByte<PortableByte>; }
+use omega::language::core::external_binding;
+pub boundary trait Compare { machine compare(left: &i64, right: &i64, count: u64) -> i32; }
+linux_x86_64 machine compare_binding() -> ForeignBinding<9, 6, 11> {
+    ForeignBinding::DllImport { import: DllImport::ElfVersioned {
+        object: "libc.so.6", symbol: "memcmp", version: "GLIBC_2.2.5",
+    } }
+}
+linux_x86_64 machine compare(left: &i64, right: &i64, count: u64) -> i32
+satisfies Compare::compare via compare_binding();
+data Main { bytes: [u8; 2]; choose: bool; }
+machine Main::main(main: &mut Main) reaches Compare {
+    let view: &RawView = &main.bytes[0] as &RawView;
+    let narrow: &i64 = &view.value.value;
+    let wide: i64 = 7;
+    transition main.choose {
+        true -> compare(narrow, &wide)
+        _ -> compare(&wide, &wide)
+    }
+    state compare(left: &i64, right: &i64) {
+        let result: i32 = Compare::compare(left, right, 8);
+    }
+}

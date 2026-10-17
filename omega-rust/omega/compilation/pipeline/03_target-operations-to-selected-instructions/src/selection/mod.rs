@@ -27,7 +27,7 @@ mod parameter_use;
 pub(crate) mod primitive_local_input;
 mod record_input;
 mod reference_input;
-mod returned_view_input;
+mod storage_origin_input;
 mod scalar_array_input;
 pub(crate) use scalar_call_abi::scalar_shape;
 mod scalar_call_abi;

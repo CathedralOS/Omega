@@ -5,7 +5,10 @@
 //! source-rooted argument from the boundary declaration and the
 //! evaluated entry plan. Neither helper trusts the legalized row's
 //! claims; both fail closed on missing, duplicated, or mismatched custody.
-use super::{AbstractOperationPlan, MachineId, PsiOptimizationFunction, TargetOperationPlan};
+use super::{
+    AbstractOperationPlan, MachineId, PsiOptimizationFunction, PsiOptimizationUnit,
+    TargetOperationPlan,
+};
 use crate::LegalizationError;
 use calling_conventions::{BoundaryEntryPlan, ValueLocation, ValuePlacement, ValueShape};
 use semantic_vocabulary::OperationId;
@@ -273,6 +276,7 @@ pub(in crate::legalization) fn structural_argument_at(
     plan: &AbstractOperationPlan,
     call_operation: OperationId,
     target_plan: &TargetOperationPlan,
+    unit: &PsiOptimizationUnit,
 ) -> Result<TargetStructuralArgument, LegalizationError> {
     use terminal_psi::{StructuralAccess, StructuralPathSegment};
     let declarations = plan.structural_types.as_slice();
@@ -459,7 +463,18 @@ pub(in crate::legalization) fn structural_argument_at(
                     semantic.access,
                     declarations,
                 );
-            if exported_width != Some(shape.byte_size) {
+            if exported_width != Some(shape.byte_size)
+                && !scalar_backing_width_matches(
+                    semantic,
+                    shape.byte_size,
+                    optimized,
+                    plan,
+                    call_operation,
+                    target_plan,
+                    unit,
+                )
+                .unwrap_or(false)
+            {
                 return Err(LegalizationError::custody());
             }
         }
@@ -619,4 +634,81 @@ pub(in crate::legalization) fn structural_argument_at(
         source,
         destination: destination.clone(),
     })
+}
+
+/// Reconstruct physical backing alternatives from the current optimized graph,
+/// independently of the target argument's claimed pointer footprint.
+fn scalar_backing_width_matches(
+    argument: &terminal_psi::StructuralArgument,
+    width: u32,
+    function: &PsiOptimizationFunction,
+    plan: &AbstractOperationPlan,
+    operation: OperationId,
+    native: &TargetOperationPlan,
+    unit: &PsiOptimizationUnit,
+) -> Option<bool> {
+    use std::borrow::Cow;
+    use terminal_semantics::descriptor_lifetimes::{
+        descriptor_location, descriptor_path, fixed_runtime_index_alternatives,
+    };
+    use terminal_semantics::descriptor_results::{DescriptorAnalysis, descriptor_machine};
+    let types = &plan.structural_types;
+    let graph = optimization_unit_semantics::descriptor_results::optimized_reference_catalog_graph(
+        &unit.functions,
+        &unit.boundary_machines,
+        types,
+        &unit.dynamic_dispatch,
+        |caller, node| {
+            super::call_origin::selected_boundary_operation(node, caller, native, plan)
+                .ok()
+                .map(|selected| match selected {
+                    Some((operation, _)) => Cow::Owned(operation),
+                    None => Cow::Borrowed(&node.operation),
+                })
+        },
+    )?;
+    let current = descriptor_machine(&graph, function.machine)?;
+    let position = function.blocks.iter().find_map(|block| {
+        block
+            .nodes
+            .iter()
+            .position(|node| node.operation.psi_operation() == Some(operation))
+            .and_then(|index| Some((block.id, u32::try_from(index).ok()?)))
+    })?;
+    let root = *current.place_types.get(&argument.place)?;
+    let locations = match descriptor_location(types, argument.place, root, &argument.path, None) {
+        Some(location) => vec![location],
+        None => fixed_runtime_index_alternatives(types, argument.place, root, &argument.path)?,
+    };
+    let mut analysis = DescriptorAnalysis::with_reference_slots(types, &graph);
+    let mut origins = Vec::new();
+    for location in locations {
+        origins.extend(analysis.storage_origins(function.machine, position, &location)?);
+    }
+    if origins.is_empty() {
+        return Some(false);
+    }
+    for origin in origins {
+        let root = *current.place_types.get(&origin.root)?;
+        let path = descriptor_path(types, root, &origin.path)?;
+        if path.contains(&terminal_psi::StructuralPathSegment::Referent)
+            || function
+                .structural_parameter(origin.root)
+                .is_some_and(|parameter| {
+                    parameter.access != terminal_psi::StructuralAccess::Owned
+                    && crate::structural_inputs::structural_reference_input::scalar_storage_type(
+                        root, types,
+                    ).is_some()
+                })
+        {
+            return Some(false);
+        }
+        let codec = crate::structural_inputs::structural_reference_input::projected_scalar_codec(
+            root, &path, types,
+        )?;
+        if u32::from(codec.byte_size()) != width {
+            return Some(false);
+        }
+    }
+    Some(true)
 }

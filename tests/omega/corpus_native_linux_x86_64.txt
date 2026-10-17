@@ -524,7 +524,7 @@ pass/calls/callback_owned_indirect_float_record built 13702ms exit:0 @f523463c77
 pass/calls/callback_owned_indirect_record built 13057ms exit:0 @c9eefa9130a0+wt
 pass/calls/callback_owned_overaligned_record built 8565ms exit:0 @c9eefa9130a0+wt
 pass/calls/callback_private_materialization built 9098ms @8665e38f912c
-pass/calls/callback_scalar_loan_permutation built 6380ms exit:0 @f523463c7783+wt
+pass/calls/callback_scalar_loan_permutation built 13911ms exit:0 @7becf2fe91a5+wt
 pass/calls/caller_result_binding_mutable_loan_exit built 14883ms exit:70 @6c49683ce714
 pass/calls/caller_structural_result_indexed_borrow_exit built 14899ms exit:171 @6c49683ce714
 pass/calls/case_arm_payload_receiver_arg built 15035ms exit:70 @6c49683ce714
@@ -1934,7 +1934,8 @@ pass/host/runtime_fixed_arithmetic_across_console_exit built 14938ms exit:0 stdo
 pass/host/runtime_foreign_scalar_loan_writeback_exit built 15249ms @6c49683ce714
 pass/host/runtime_gui_foreground_window_exit built 9082ms @c9eefa9130a0+wt
 pass/host/runtime_gui_window_lifecycle_exit built 7163ms @c9eefa9130a0+wt
-pass/host/runtime_stored_scalar_reference_foreign_export_exit built 17682ms exit:0 stdout:match @6c49683ce714
+pass/host/runtime_scalar_reference_backing_export_exit built 8951ms exit:0 @7becf2fe91a5+wt
+pass/host/runtime_stored_scalar_reference_foreign_export_exit built 7858ms exit:0 stdout:match @7becf2fe91a5+wt
 pass/host/runtime_windows_gui_argument_failures_exit built 5898ms @6050c1c112ee+wt
 pass/host/std_clock_sleep_exit built 15533ms exit:70 @6c49683ce714
 pass/inline_asm/asm_aarch64_system_registers_compile built 10327ms @9f1c8cc89b93+wt
@@ -2001,7 +2002,7 @@ pass/layouts/runtime_callee_owned_local_origins_exit built 17984ms exit:0 @6c496
 pass/layouts/runtime_captured_encoded_reference_replacement_exit built 17718ms exit:0 @6c49683ce714
 pass/layouts/runtime_constant_layout_contract_exit built 17362ms exit:0 @6c49683ce714
 pass/layouts/runtime_encoded_physical_view_exit built 17668ms exit:0 @6c49683ce714
-pass/layouts/runtime_foreign_encoded_reference_exit built 9683ms exit:0 @326ed531359e+wt
+pass/layouts/runtime_foreign_encoded_reference_exit built 7585ms exit:0 @7becf2fe91a5+wt
 pass/layouts/runtime_indexed_restricted_field_read built 17757ms exit:0 @6c49683ce714
 pass/layouts/runtime_layout_arithmetic_value_flow_exit built 19588ms exit:0 @6c49683ce714
 pass/layouts/runtime_multi_origin_encoded_reference_exit built 18068ms exit:0 @6c49683ce714

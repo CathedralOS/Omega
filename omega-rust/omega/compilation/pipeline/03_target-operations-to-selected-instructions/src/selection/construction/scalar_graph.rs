@@ -574,7 +574,7 @@ fn select_function(
         }
     }
     blocks.append(&mut builder.case_blocks);
-    crate::selection::returned_view_input::replay_memory_origins(
+    crate::selection::storage_origin_input::replay_memory_origins(
         source,
         &mut builder.transport.memory,
     )?;

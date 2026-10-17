@@ -272,15 +272,13 @@ fn referent_pointer(
     } else {
         None
     };
-    if let Some(scalar) = thin_scalar
-        && terminal_semantics::reference_storage_export_byte_width(scalar, semantic.access)
-            .map(u32::from)
-            != Some(target.shape.byte_size)
-    {
-        // A thin ABI carries no codec. Retain the refusal when the original
-        // backing of this loan can be narrower than the foreign formal;
-        // logical width is not permission to expose adjacent bytes.
-        return Err(SelectedInstructionError::custody());
+    if let Some(scalar) = thin_scalar {
+        crate::selection::reference_input::validate_scalar_foreign_export(
+            source,
+            semantic,
+            scalar,
+            target.shape.byte_size,
+        )?;
     }
     let pointer_place = semantic.place;
     // Whole and field owners use the same read-only presentation. The exact

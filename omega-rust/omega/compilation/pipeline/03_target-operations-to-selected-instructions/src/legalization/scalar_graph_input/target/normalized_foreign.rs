@@ -137,6 +137,7 @@ pub(super) fn validate(
                     plan,
                     *expected_operation,
                     native,
+                    unit,
                 )
             },
         )

@@ -372,14 +372,12 @@ pub(crate) fn validate(
             // codec. The checked loan must admit only this byte footprint,
             // independently of the descriptor's source arrangement.
             if address.scalar_descriptor {
-                let exported_width = crate::structural_inputs::structural_reference_input::scalar_reference_export_width(
-                    argument.structural_type,
-                    argument.access,
-                    &signature.structural_types,
-                );
-                if exported_width != Some(argument.shape.byte_size) {
-                    return Err(invalid!());
-                }
+                let scalar = crate::structural_inputs::structural_reference_input::scalar_storage_type(
+                    argument.structural_type, &signature.structural_types,
+                ).ok_or_else(|| invalid!())?;
+                crate::selection::reference_input::validate_scalar_foreign_export(
+                    source, &semantic, scalar, argument.shape.byte_size,
+                )?;
             }
             let projection =
                 crate::structural_inputs::structural_reference_input::reference_projection(

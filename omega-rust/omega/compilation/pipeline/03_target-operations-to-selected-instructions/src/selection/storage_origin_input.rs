@@ -1,3 +1,4 @@
+//! Physical backing alternatives for descriptor payloads and thin scalar exports.
 //! Descriptor payload homes do not allocate their backing. Reconstruct the
 //! completed calls reached by a payload access, then retain an opaque read of
 //! those calls' authenticated origin rosters. Constructor fields, copies and
@@ -41,6 +42,10 @@ struct OriginInventory {
     dependencies: Vec<(usize, usize)>,
     active: Vec<usize>,
     origins: Vec<usize>,
+    /// Terminal backing coordinates, excluding opaque completed-call homes.
+    storage_origins: Vec<usize>,
+    /// An inexact call origin cannot establish a scalar storage footprint.
+    unknown_storage: bool,
 }
 
 impl OriginInventory {
@@ -63,7 +68,15 @@ impl OriginInventory {
     fn origin(&mut self) {
         if let Some(index) = self.active.last() {
             self.origins.push(*index);
+            self.storage_origins.push(*index);
         }
+    }
+
+    fn returned_origin(&mut self, complete: bool) {
+        if let Some(index) = self.active.last() {
+            self.origins.push(*index);
+        }
+        self.unknown_storage |= !complete;
     }
 
     fn leave(&mut self) {
@@ -93,6 +106,59 @@ impl OriginInventory {
             Err(SelectedInstructionError::custody())
         }
     }
+}
+
+/// A thin foreign scalar pointer drops the descriptor codec. Follow the same
+/// conservative storage-origin inventory used for memory reach, requiring every
+/// terminal backing to have the requested width. Unknown descriptor ingress
+/// remains unknown; its logical referent is not its physical storage contract.
+pub(super) fn scalar_backing_width_matches(
+    function: &LegalizedScalarFunction,
+    coordinate: &terminal_psi::StructuralArgument,
+    width: u32,
+) -> Result<bool, SelectedInstructionError> {
+    let mut geometry = SourceGeometry {
+        function,
+        selected_types: BTreeMap::new(),
+    };
+    let mut inventory = OriginInventory::default();
+    collect_calls(
+        &mut geometry,
+        coordinate,
+        &mut inventory,
+        &mut BTreeSet::new(),
+    )?;
+    inventory.validate()?;
+    let signature = function
+        .structural
+        .as_ref()
+        .ok_or(SelectedInstructionError::custody())?;
+    if inventory.unknown_storage {
+        return Ok(false);
+    }
+    for index in &inventory.storage_origins {
+        let origin = &inventory.coordinates[*index];
+        // A crossing in a terminal origin reaches external descriptor backing.
+        // Its actual codec was not recovered by this inventory.
+        if origin
+            .path
+            .contains(&terminal_psi::StructuralPathSegment::Referent)
+            || super::reference_input::borrowed_scalar_source(function, origin.place).is_some()
+        {
+            return Ok(false);
+        }
+        let root = super::reference_input::root_type(function, origin.place)
+            .ok_or(SelectedInstructionError::custody())?;
+        let codec = crate::structural_inputs::structural_reference_input::projected_scalar_codec(
+            root,
+            &origin.path,
+            &signature.structural_types,
+        );
+        if codec.map(|codec| u32::from(codec.byte_size())) != Some(width) {
+            return Ok(false);
+        }
+    }
+    Ok(!inventory.storage_origins.is_empty())
 }
 
 pub(super) fn replay_memory_origins(
@@ -356,7 +422,19 @@ fn collect_calls(
                             }
                         }
                     }
-                    visited.origin();
+                    visited.returned_origin(
+                        !coordinate.path.is_empty()
+                            && !call.descriptor_origins.is_empty()
+                            && call.descriptor_origins.iter().all(|origin| {
+                                matches!(
+                                    origin,
+                                    legalized_operations::LegalizedDescriptorOrigin::Argument {
+                                        exact: true,
+                                        ..
+                                    }
+                                )
+                            }),
+                    );
                 }
                 I::ByteSequenceSubslice {
                     source: parent,
