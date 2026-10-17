@@ -1993,6 +1993,16 @@ fail/contracts/indexed_element_requirement_weakened_guard rejected 3500ms expect
 	cannot prove requires contract for call letter from invalid: index < text.len && text[index] >= 97 (needs fact `index < text.len && text[index] >= 97` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/contracts/indexed_element_requirement_wrong_collection rejected 449ms expected @6d847e2a233e
 fail/contracts/indexed_element_requirement_wrong_selector rejected 451ms expected @6d847e2a233e
+fail/contracts/indexed_store_counter_postcondition_keeps_new_value rejected 590ms expected @d6d72021ea07
+	cannot prove ensures contract for exit from increment at statement 1: counter == 0
+fail/contracts/indexed_store_destination_cannot_use_rhs_guarantee rejected 590ms expected @d6d72021ea07
+	cannot prove requires contract for call select from main: flag == 1 (needs fact `flag == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/contracts/indexed_store_retires_old_element_observation rejected 596ms expected @d6d72021ea07
+	cannot prove requires contract for call equal from main: before == bytes[0] (needs fact `before == after` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/contracts/indexed_store_selector_write_retires_rhs_fact rejected 592ms expected @d6d72021ea07
+	cannot prove requires contract for call replacement from main: flag == 1 (needs fact `flag == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/contracts/indexed_store_unknown_call_retires_entry_postcondition rejected 566ms expected @d6d72021ea07
+	cannot prove ensures contract for exit from preserve at statement 1: counter == 0
 fail/contracts/later_arm_call_requires_unproven rejected 1669ms expected @a9ae30e1c334+wt
 	cannot prove requires contract for call walk from walk: index + 1 <= 4 (needs fact `index <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/contracts/literal_view_extent_not_invented rejected 876ms expected @ef7962801508
@@ -9107,6 +9117,8 @@ pass/slices/runtime_inclusive_call_endpoint_order_exit checked 12040ms check-tar
 pass/slices/runtime_inclusive_call_endpoint_view_exit checked 12833ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/slices/runtime_indexed_descriptor_replacement_call_exit checked 5667ms check-target:macos_arm64 @f329f97f57f7+wt
 pass/slices/runtime_indexed_record_field_range_exit checked 11701ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/slices/runtime_indexed_store_captures_selector_before_rhs_exit checked 3458ms check-target:macos_arm64 @d6d72021ea07
+pass/slices/runtime_indexed_store_operand_effect_order_exit checked 3458ms check-target:macos_arm64 @d6d72021ea07
 pass/slices/runtime_inline_mutable_byte_window_call_write_exit checked 11737ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/slices/runtime_inline_mutable_view_call_write_exit checked 12289ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/slices/runtime_join_meet_bound_exit checked 12040ms check-target:macos_arm64 @a9ae30e1c334+wt

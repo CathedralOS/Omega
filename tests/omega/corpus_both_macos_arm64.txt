@@ -765,6 +765,8 @@ pass/slices/runtime_element_view_requires_index_exit built 1896ms exit:70 interp
 pass/slices/runtime_inclusive_call_endpoint_order_exit built 1970ms exit:70 interpreter-exit:70 interpreter:agrees @dd31f301c60c+wt
 pass/slices/runtime_inclusive_call_endpoint_view_exit built 2053ms exit:70 interpreter-exit:70 interpreter:agrees @dd31f301c60c+wt
 pass/slices/runtime_indexed_record_field_range_exit built 7278ms exit:0 interpreter-exit:0 interpreter:agrees @d10c66094158
+pass/slices/runtime_indexed_store_captures_selector_before_rhs_exit built 3766ms exit:0 interpreter-exit:0 interpreter:agrees @d6d72021ea07
+pass/slices/runtime_indexed_store_operand_effect_order_exit built 3673ms exit:0 interpreter-exit:0 interpreter:agrees @d6d72021ea07
 pass/slices/runtime_inline_mutable_byte_window_call_write_exit built 1704ms exit:0 interpreter-exit:0 interpreter:agrees @1bad63ca3002+wt
 pass/slices/runtime_inline_mutable_view_call_write_exit built 4313ms exit:0 interpreter-exit:0 interpreter:agrees @edb462c792f9
 pass/slices/runtime_literal_view_return_exit built 6859ms exit:105 interpreter-exit:105 interpreter:agrees @3fa817733300+wt
