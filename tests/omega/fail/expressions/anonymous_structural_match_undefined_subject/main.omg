@@ -1,0 +1,3 @@
+data Payload { value: u64; }
+machine supply() -> Payload { match 1 / 0 { _ -> Payload { value: 7 } } }
+machine main() { let result: Payload = supply(); }

@@ -1,0 +1,90 @@
+// Exact anonymous selection retains structural values and original references.
+// Expected exit: 0.
+data SelectedCase { case Empty; case Found(value: u64); }
+data Payload { value: u64; }
+
+machine captured_value(marker: &mut bool) -> u64 {
+    marker = !marker;
+    7
+}
+
+machine supply_array(marker: &mut bool) -> [u64; 2] {
+    match 1 / 2 { 0.5 -> [captured_value(marker), 9] _ -> [1, 3] }
+}
+
+machine supply_case() -> SelectedCase {
+    match 18446744073709551616 / 18446744073709551616 {
+        0 -> SelectedCase::Empty
+        1 -> SelectedCase::Found { value: 7 }
+        _ -> SelectedCase::Empty
+    }
+}
+
+machine choose_reference<'storage>(first: &'storage mut u64, second: &'storage mut u64)
+    -> &'storage mut u64 {
+    match 0 { 0 -> first _ -> second }
+}
+
+machine write_selected(first: &mut u64, second: &mut u64) {
+    let selected: &mut u64 = choose_reference(first, second);
+    selected = 19;
+}
+
+machine pattern(marker: &mut bool) -> u64 {
+    marker = !marker;
+    1
+}
+
+// A landed subject still evaluates its failed pattern before the next test.
+machine choose_dynamic(marker: &mut bool) -> Payload {
+    match 0 as u64 {
+        pattern(marker) -> Payload { value: 3 }
+        0 -> Payload { value: 7 }
+        _ -> Payload { value: 5 }
+    }
+}
+
+machine check_array() crashes Trap {
+    let mut marker: bool = false;
+    let values: [u64; 2] = supply_array(&mut marker);
+    transition marker && values[0] == 7 && values[1] == 9 { true -> done() _ -> wrong() }
+    state done() {}
+    state wrong() { crash Trap; }
+}
+
+machine check_case() crashes Trap {
+    let result: SelectedCase = supply_case();
+    transition result {
+        SelectedCase::Found { value } -> inspect(value)
+        _ -> wrong()
+    }
+    state inspect(value: u64) {
+        transition value == 7 { true -> done() _ -> wrong() }
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}
+
+machine check_reference() crashes Trap {
+    let mut first: u64 = 7;
+    let mut second: u64 = 9;
+    write_selected(&mut first, &mut second);
+    transition first == 19 && second == 9 { true -> done() _ -> wrong() }
+    state done() {}
+    state wrong() { crash Trap; }
+}
+
+machine check_pattern() crashes Trap {
+    let mut marker: bool = false;
+    let result: Payload = choose_dynamic(&mut marker);
+    transition marker && result.value == 7 { true -> done() _ -> wrong() }
+    state done() {}
+    state wrong() { crash Trap; }
+}
+
+machine main() crashes Trap {
+    check_array();
+    check_case();
+    check_reference();
+    check_pattern();
+}

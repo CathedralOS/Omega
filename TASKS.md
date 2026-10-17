@@ -494,7 +494,7 @@ defines the complete product bar.
     later operands mutate their source. Selected payload returns use ordinary
     expression continuations with captured backing across conditional arms and
     cyclic argument permutations; element origins retain logical window indices.
-    Value dispatch still needs its full construction schedule. Preserve
+    Runtime-dispatched values still need their full construction schedule. Preserve
     occurrence-bound routed memberships through completed
     children, copies and nested projections:
     `pass/calls/runtime_constructor_child_declared_membership_exit` and
