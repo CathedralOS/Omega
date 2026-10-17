@@ -1,0 +1,23 @@
+// The substituted length is the argument, not the backing array. A demand
+// for three elements stays unproved when the call passed two.
+data Audit { ranges: [u64 in Wrapping; 16]; }
+data Held<'row> { values: &'row mut [u64 in Wrapping]; }
+
+machine recorded<'row>(audit: &'row mut Audit, count: u64) -> Held<'row>
+requires count >= 1
+requires count <= 16
+ensures result.values.len == count
+{
+    Held { values: &mut audit.ranges[0..count] }
+}
+
+machine need(window: &mut [u64 in Wrapping])
+requires window.len == 3 {
+    window[0] = 1;
+}
+
+machine main() crashes Trap {
+    let mut audit: Audit = Audit { ranges: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] };
+    let held: Held = recorded(&mut audit, 2);
+    need(held.values);
+}

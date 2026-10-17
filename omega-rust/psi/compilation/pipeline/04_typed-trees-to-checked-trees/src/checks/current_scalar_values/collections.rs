@@ -8,6 +8,7 @@
 use super::{
     CurrentScalarValues, Length, LengthSubject, admitted, fixed_length, integer_carrier, scoped,
 };
+use numerics::arithmetic::ArithmeticDomain;
 use symbols::SymbolHandle;
 use typed_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, MatchPattern, TableMatchExpression,
@@ -658,7 +659,88 @@ impl CurrentScalarValues<'_> {
         })
     }
 
+    /// The callee proved this bound. A literal is that integer. A parameter, or
+    /// exact arithmetic of parameters and literals, is the call argument's
+    /// captured value. Wrapping arithmetic stays in the callee; it is not a
+    /// mathematical length.
+    fn substituted_length_bound(
+        &self,
+        bound: ExpressionHandle,
+        call: &typed_trees::expression::TableCallExpression,
+    ) -> Option<ScopedArithmeticValue> {
+        self.substituted_length_bound_at(bound, call, 0)
+    }
+
+    fn substituted_length_bound_at(
+        &self,
+        bound: ExpressionHandle,
+        call: &typed_trees::expression::TableCallExpression,
+        depth: usize,
+    ) -> Option<ScopedArithmeticValue> {
+        if depth >= 64 || !self.program.expression_table.expression_is_valid(bound) {
+            return None;
+        }
+        if let ExpressionNode::Integer(literal) = self.program.expression_table.expression(bound)
+            && let Some(value) = literal.value_i64()
+        {
+            return Some(ScopedArithmeticValue::Integer(
+                numerics::bignum::BigInt::from_i64(value),
+            ));
+        }
+        let parameters = validation::call_target_parameters(self.program, call.target_symbol)?;
+        let arguments = self
+            .program
+            .expression_table
+            .expression_handles(call.arguments);
+        if parameters.len() != arguments.len() {
+            return None;
+        }
+        if let ExpressionNode::Name(name) = self.program.expression_table.expression(bound) {
+            let position = parameters.iter().position(|parameter| {
+                parameter.symbol == name.symbol || parameter.symbol == name.head_symbol
+            })?;
+            if integer_carrier(self.program, parameters[position].type_reference).is_none() {
+                return None;
+            }
+            return self.capture(self.program, self.machine, self.state, arguments[position]);
+        }
+        let binary = self.program.expression_table.binary_node(bound)?;
+        if !matches!(
+            binary.operator,
+            BinaryOperator::Add | BinaryOperator::Subtract | BinaryOperator::Multiply
+        ) {
+            return None;
+        }
+        let (machine, _) = validation::find_state(self.program, call.target_symbol)
+            .or_else(|| validation::find_machine_head(self.program, call.target_symbol))?;
+        // The bound is a contract expression. Its type lives on the callable's
+        // parameter telescope, not on the caller's state.
+        let reference = validation::parameter_expression_result_type_reference(
+            self.program,
+            machine.symbol,
+            parameters,
+            bound,
+        )?;
+        if integer_carrier(self.program, reference).is_none()
+            || !matches!(
+                self.program.arithmetic_domain_for_type_reference(reference),
+                ArithmeticDomain::Exact | ArithmeticDomain::Trapping
+            )
+        {
+            return None;
+        }
+        let left = self.substituted_length_bound_at(binary.left, call, depth + 1)?;
+        let right = self.substituted_length_bound_at(binary.right, call, depth + 1)?;
+        Some(fold_exact_length(binary.operator, left, right))
+    }
+
     /// Read result guarantees once at the exact completed call occurrence.
+    ///
+    /// A literal bound stays that integer. A bound that names a parameter, or
+    /// exact arithmetic of such operands, is the corresponding argument value
+    /// at this call. The callee already proved the guarantee; this substitution
+    /// is how the caller receives it. A lower bound is published only when
+    /// that value is one integer, so `len >= count` does not become `len == count`.
     fn call_field_lengths(
         &self,
         occurrence: ExpressionHandle,
@@ -718,19 +800,20 @@ impl CurrentScalarValues<'_> {
                     {
                         continue;
                     }
-                    let Some(value) = self
-                        .program
-                        .expression_table
-                        .integer_node(bound)
-                        .and_then(|literal| literal.value_i64())
-                    else {
+                    let Some(value) = self.substituted_length_bound(bound, call) else {
                         continue;
                     };
-                    if value < 0 {
-                        continue;
-                    }
-                    let value = numerics::bignum::BigInt::from_i64(value);
+                    let value = self
+                        .exact_length(&value)
+                        .map(ScopedArithmeticValue::Integer)
+                        .unwrap_or(value);
                     let value = if lower_bound {
+                        let ScopedArithmeticValue::Integer(minimum) = value else {
+                            continue;
+                        };
+                        if minimum < numerics::bignum::BigInt::zero() {
+                            continue;
+                        }
                         ScopedArithmeticValue::BoundedInteger {
                             value: Box::new(ScopedArithmeticValue::Atom {
                                 identity: format!(
@@ -739,11 +822,11 @@ impl CurrentScalarValues<'_> {
                                 ),
                                 unsigned: true,
                             }),
-                            minimum: Some(value),
+                            minimum: Some(minimum),
                             maximum: None,
                         }
                     } else {
-                        ScopedArithmeticValue::Integer(value)
+                        value
                     };
                     let name = path
                         .iter()
@@ -882,6 +965,59 @@ fn same_symbol_term(value: &ScopedArithmeticValue, subject: &ScopedArithmeticVal
     let value_symbols = symbol_binders(value);
     let subject_symbols = symbol_binders(subject);
     !subject_symbols.is_empty() && value_symbols == subject_symbols
+}
+
+/// Exact arithmetic of known integers is that integer. A remaining operand
+/// stays an operation so a later relation can still see it.
+fn fold_exact_length(
+    operator: BinaryOperator,
+    left: ScopedArithmeticValue,
+    right: ScopedArithmeticValue,
+) -> ScopedArithmeticValue {
+    let zero = numerics::bignum::BigInt::zero();
+    let one = numerics::bignum::BigInt::from_i64(1);
+    if let ScopedArithmeticValue::Integer(value) = &right {
+        if value.is_zero() && matches!(operator, BinaryOperator::Add | BinaryOperator::Subtract) {
+            return left;
+        }
+        if value.is_zero() && operator == BinaryOperator::Multiply {
+            return ScopedArithmeticValue::Integer(zero);
+        }
+        if *value == one && operator == BinaryOperator::Multiply {
+            return left;
+        }
+    }
+    if let ScopedArithmeticValue::Integer(value) = &left {
+        if value.is_zero() && operator == BinaryOperator::Add {
+            return right;
+        }
+        if value.is_zero() && operator == BinaryOperator::Multiply {
+            return ScopedArithmeticValue::Integer(zero.clone());
+        }
+        if *value == one && operator == BinaryOperator::Multiply {
+            return right;
+        }
+    }
+    if let (
+        ScopedArithmeticValue::Integer(left_value),
+        ScopedArithmeticValue::Integer(right_value),
+    ) = (&left, &right)
+    {
+        let folded = match operator {
+            BinaryOperator::Add => Some(left_value.add(right_value)),
+            BinaryOperator::Subtract => Some(left_value.sub(right_value)),
+            BinaryOperator::Multiply => Some(left_value.mul(right_value)),
+            _ => None,
+        };
+        if let Some(value) = folded {
+            return ScopedArithmeticValue::Integer(value);
+        }
+    }
+    ScopedArithmeticValue::IntegerOperation {
+        operator,
+        left: Box::new(left),
+        right: Box::new(right),
+    }
 }
 
 fn expression_contains_call(

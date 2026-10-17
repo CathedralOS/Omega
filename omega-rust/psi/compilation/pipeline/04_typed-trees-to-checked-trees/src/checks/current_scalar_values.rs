@@ -19,7 +19,9 @@
 //! value captures each slice field's length when that value is transferred;
 //! a later overlapping write retires the affected field observations. A returned
 //! record publishes the same field lengths on `result.field`, including when every match arm
-//! builds that field from an equal window.
+//! builds that field from an equal window. An `ensures` bound that names a
+//! parameter is that call argument's value, so `result.values.len == count`
+//! arrives as the length the caller passed.
 use crate::checks::unsigned;
 use crate::values::scalar::structural_fields;
 use numerics::arithmetic::ArithmeticDomain;

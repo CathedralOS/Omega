@@ -4917,6 +4917,8 @@ fail/slices/returned_range_extent_contract_keeps_actual_descriptor rejected 1776
 	cannot prove ensures contract for exit from Views::middle at statement 0: result.len == end - start
 fail/slices/returned_range_extent_contract_retires_replaced_descriptor rejected 2154ms expected @a9ae30e1c334+wt
 	cannot prove ensures contract for exit from middle at statement 4: result.len == end - start
+fail/slices/returned_record_parameter_length_mismatch rejected 957ms expected @d9b14477f4cf+wt
+	cannot prove requires contract for call need from main: held.values.len == 3 (needs fact `window.len == 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/slices/returned_record_window_lengths_disagree rejected 940ms expected @2d4ff85790f0+wt
 	cannot prove ensures contract for exit from span at statement 0: result.values.len == 2
 fail/slices/returned_shared_slice_mutable_call rejected 841ms expected @a9ae30e1c334+wt
@@ -9097,6 +9099,7 @@ run/slices/disjoint_local_state_windows checked 9595ms check-target:macos_arm64 
 run/slices/matched_computed_window_end checked 5636ms check-target:macos_arm64 @a4e565996e72+wt
 run/slices/mutable_window_call_argument checked 5974ms check-target:macos_arm64 @218cc4d211aa
 run/slices/returned_record_fixed_array_window checked 5462ms check-target:macos_arm64 @5292c662f1eb
+run/slices/returned_record_parameter_length checked 5629ms check-target:macos_arm64 @d9b14477f4cf+wt
 run/stores/runtime_float_indexed_call_result_exit checked 16446ms check-target:macos_arm64 @77cde1c51efd+wt
 run/stores/runtime_float_store_selector_snapshot_exit checked 16333ms check-target:macos_arm64 @77cde1c51efd+wt
 run/traits/named_map_record_result_contract checked 71719ms check-target:macos_arm64 @46f9e865d179+wt

@@ -3409,6 +3409,7 @@ run/slices/computed_record_window built 12594ms exit:0 @b88c1c4b1ca5+wt
 run/slices/disjoint_local_state_windows built 9466ms exit:12 @1810e541fd15+wt
 run/slices/mutable_window_call_argument built 5683ms exit:0 @218cc4d211aa
 run/slices/returned_record_fixed_array_window built 5459ms exit:0 @5292c662f1eb
+run/slices/returned_record_parameter_length built 5654ms exit:0 @d9b14477f4cf+wt
 run/stores/runtime_float_indexed_call_result_exit built 14627ms exit:0 stdout:match stderr:match @326ed531359e+wt
 run/stores/runtime_float_store_selector_snapshot_exit built 14443ms exit:0 stdout:match stderr:match @326ed531359e+wt
 run/traits/static_implementation_method_arguments built 17376ms exit:0 @6c49683ce714

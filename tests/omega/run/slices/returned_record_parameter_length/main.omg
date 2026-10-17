@@ -1,0 +1,60 @@
+// A returned record's slice length follows the call argument named in
+// ensures, including exact arithmetic of that argument. The caller uses the
+// window through a local, a field, a parameter, and a call result.
+// Expected exit: 0
+data Audit { ranges: [u64 in Wrapping; 16]; }
+data Held<'row> { values: &'row mut [u64 in Wrapping]; }
+data Pocket<'row> { held: Held<'row>; }
+
+machine recorded<'row>(audit: &'row mut Audit, count: u64) -> Held<'row>
+requires count >= 1
+requires count <= 16
+ensures result.values.len == count
+{
+    transition { _ -> window(audit, count) }
+    state window(audit: &'row mut Audit, count: u64) -> Held<'row>
+    requires count >= 1
+    requires count <= 16
+    {
+        Held { values: &mut audit.ranges[0..count] }
+    }
+}
+
+machine shifted<'row>(audit: &'row mut Audit, count: u64) -> Held<'row>
+requires count >= 1
+requires count <= 16
+ensures result.values.len == count + 0
+{
+    Held { values: &mut audit.ranges[0..count] }
+}
+
+machine write_first(window: &mut [u64 in Wrapping])
+requires window.len == 2 {
+    window[0] = 7;
+}
+
+machine use_length(length: u64)
+requires length == 2 {}
+
+machine use_pocket<'row>(pocket: &Pocket<'row>)
+requires pocket.held.values.len == 2 {}
+
+machine main() crashes Trap {
+    let mut audit: Audit = Audit { ranges: [1, 2, 3, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] };
+    let count: u64 = 2;
+    let shifted: Held = shifted(&mut audit, count);
+    write_first(shifted.values);
+    let held: Held = recorded(&mut audit, count);
+    let local_length: u64 = held.values.len;
+    use_length(local_length);
+    let pocket: Pocket = Pocket { held: held };
+    use_pocket(&pocket);
+    write_first(pocket.held.values);
+    write_first(recorded(&mut audit, 2).values);
+    transition audit.ranges[0] == 7 && audit.ranges[1] == 2 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
