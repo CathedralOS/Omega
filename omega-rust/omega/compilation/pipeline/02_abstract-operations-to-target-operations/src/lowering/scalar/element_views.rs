@@ -127,7 +127,14 @@ impl<'a> ElementViewBackings<'a> {
             )
             || (source.access == StructuralAccess::MutableBorrow
                 && parameter.access != StructuralAccess::MutableBorrow)
-            || parameter.multiplicity != StructuralMultiplicity::Unrestricted
+            || !(parameter.multiplicity == StructuralMultiplicity::Unrestricted
+                || matches!(
+                    (parameter.access, parameter.multiplicity),
+                    (
+                        StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow,
+                        StructuralMultiplicity::Affine,
+                    )
+                ))
             || !parameter.projected_qualifications.is_empty()
             || !descriptor_carrier
         {

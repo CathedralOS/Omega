@@ -1031,6 +1031,11 @@ pub(crate) fn collection_view_region_geometry(
                 && matches!(
                     argument.access,
                     terminal_psi::reading_borrow_pair_pattern!()
+                ))
+            || (source.multiplicity == StructuralMultiplicity::Affine
+                && matches!(
+                    source.access,
+                    StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
                 )))
     {
         return None;

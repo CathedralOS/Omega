@@ -59,19 +59,25 @@ impl Checker<'_> {
                 place,
                 structural_type,
             } => {
-                *place == source
-                    && self.optimized.blocks.iter().any(|owner| {
-                        owner.id == *block
-                            && owner.id != self.optimized.entry
-                            && owner.structural_parameters.iter().any(|parameter| {
-                                parameter.place == *place
-                                    && parameter.structural_type == *structural_type
-                                    && parameter.multiplicity
-                                        == terminal_psi::StructuralMultiplicity::Unrestricted
-                                    && self.optimized.arrival_parameter(source) == Some(parameter)
-                                    && parameter.projected_qualifications.is_empty()
-                            })
-                    })
+                *place == source && self.optimized.blocks.iter().any(|owner| {
+                    owner.id == *block
+                        && owner.id != self.optimized.entry
+                        && owner.structural_parameters.iter().any(|parameter| {
+                            parameter.place == *place
+                                && parameter.structural_type == *structural_type
+                                && (parameter.multiplicity
+                                    == terminal_psi::StructuralMultiplicity::Unrestricted
+                                    || parameter.multiplicity
+                                        == terminal_psi::StructuralMultiplicity::Affine
+                                        && matches!(
+                                            parameter.access,
+                                            terminal_psi::StructuralAccess::MutableBorrow
+                                                | terminal_psi::StructuralAccess::WriteOnlyBorrow
+                                        ))
+                                && self.optimized.arrival_parameter(source) == Some(parameter)
+                                && parameter.projected_qualifications.is_empty()
+                        })
+                })
             }
             TargetByteView::Parameter { place, placement } => {
                 *place == source

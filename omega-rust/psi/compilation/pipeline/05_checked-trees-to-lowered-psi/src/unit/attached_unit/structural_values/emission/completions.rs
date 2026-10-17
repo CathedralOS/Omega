@@ -23,7 +23,7 @@ impl Emission<'_, '_, '_> {
                 StructuralArgument {
                     place,
                     path: Vec::new(),
-                    access: StructuralAccess::Owned,
+                    access: self.result_access,
                 },
                 None,
                 continuation,

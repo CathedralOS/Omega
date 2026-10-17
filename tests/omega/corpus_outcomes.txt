@@ -8288,6 +8288,7 @@ pass/slices/guarded_slice_parameter_min_length_tail_compile checked 1558ms @a9ae
 pass/slices/guarded_slice_parameter_successor_index_compile checked 2461ms @a9ae30e1c334+wt
 pass/slices/inclusive_subslice_bounds checked 9549ms @5041ef1af684+wt
 pass/slices/inclusive_subslice_literal_bounds_compile checked 1579ms @a9ae30e1c334+wt
+pass/slices/let_matched_mutable_window checked 5872ms check-target:macos_arm64 @a4e565996e72+wt
 pass/slices/live_view_edge_write checked 9740ms @5041ef1af684+wt
 pass/slices/local_array_element_view_exit checked 11239ms check-target:macos_arm64 @1f63ee648905+wt
 pass/slices/local_record_array_state_view_exit checked 12143ms check-target:macos_arm64 @a9ae30e1c334+wt

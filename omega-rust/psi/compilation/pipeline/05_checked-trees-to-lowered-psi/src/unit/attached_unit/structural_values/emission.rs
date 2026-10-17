@@ -180,14 +180,11 @@ pub(crate) fn emit(
         }
         _ => None,
     };
-    // A borrowed view's join uses the loan the carrier declares. The binding
-    // may still record the descriptor as owned storage, while each match arm
-    // forwards the view itself under that loan. An owned join parameter would
-    // disagree with those arms. Shared loans stay unrestricted. Exclusive
-    // byte and element views are affine, matching the descriptor contract:
-    // a mutable window match would otherwise arrive owned while every arm
-    // presents MutableBorrow. Reference loans still join only when the
-    // binding is unrestricted. A missing view access follows that pairing.
+    // A borrowed view's join uses the loan the carrier declares. The local may
+    // already be that loan, or it may still record the descriptor as owned
+    // storage. Each match arm forwards the view under the loan either way.
+    // The array that owns the bytes can remain a selection source; it is not
+    // the result slot. An owned result slot would disagree with those arms.
     let view_loan = structural_types
         .iter()
         .find_map(|declaration| {
@@ -204,13 +201,7 @@ pub(crate) fn emit(
         // Equal source/destination carriers transport the existing loan. They
         // do not acquire owned custody merely because mutable access is affine.
         access
-    } else if sources.is_empty()
-        && let Some(access) = view_loan
-        && result.local.access == checked_trees::CheckedStructuralAccess::Owned
-    {
-        // No owned residual rides this edge, so the join can keep the view
-        // loan. A selection that still owns source storage keeps the owned
-        // descriptor route below.
+    } else if let Some(access) = view_loan {
         access
     } else if result.local.access == checked_trees::CheckedStructuralAccess::SharedBorrow
         && result.multiplicity == Multiplicity::Unrestricted
@@ -219,7 +210,10 @@ pub(crate) fn emit(
     } else {
         StructuralAccess::Owned
     };
-    if result_access == StructuralAccess::SharedBorrow && !sources.is_empty() {
+    if result_access == StructuralAccess::SharedBorrow
+        && !sources.is_empty()
+        && view_loan != Some(StructuralAccess::SharedBorrow)
+    {
         return unsupported("borrowed selection cannot carry owned residual custody");
     }
     let owners = if sources.is_empty() {

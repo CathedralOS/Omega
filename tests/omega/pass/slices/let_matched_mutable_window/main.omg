@@ -1,0 +1,101 @@
+// A let binds the match itself. The window then passes through that local,
+// a record field, a parameter, and a call result. One call selects each arm.
+// Expected native exit: 0
+data Held<'row> { values: &'row mut [u8]; }
+data Row { bytes: [u8; 4]; }
+
+machine half<'row>(items: &'row mut [u8; 4], which: i64) -> &'row mut [u8]
+ensures result.len == 2
+{
+    match which {
+        0 -> &mut items[0..2]
+        _ -> &mut items[2..4]
+    }
+}
+
+machine write_pair(window: &mut [u8])
+requires window.len >= 2 {
+    window[0] = 9;
+    window[1] = 8;
+}
+
+machine low(which: i64) crashes Trap {
+    let mut bytes: [u8; 4] = [1, 2, 3, 4];
+    let view: &mut [u8] = match which {
+        0 -> &mut bytes[0..2]
+        _ -> &mut bytes[2..4]
+    };
+    view[0] = 7;
+    view[1] = 6;
+    let mut row: Row = Row { bytes: [1, 2, 3, 4] };
+    let field_view: &mut [u8] = match which {
+        0 -> &mut row.bytes[0..2]
+        _ -> &mut row.bytes[2..4]
+    };
+    let held: Held = Held { values: field_view };
+    write_pair(held.values);
+    let mut passed: [u8; 4] = [1, 2, 3, 4];
+    let parameter_view: &mut [u8] = match which {
+        0 -> &mut passed[0..2]
+        _ -> &mut passed[2..4]
+    };
+    write_pair(parameter_view);
+    let mut called: [u8; 4] = [1, 2, 3, 4];
+    let call_view: &mut [u8] = match which {
+        0 -> half(&mut called, 0)
+        _ -> half(&mut called, 1)
+    };
+    write_pair(call_view);
+    transition bytes[0] == 7 && bytes[1] == 6 && bytes[2] == 3 && bytes[3] == 4
+        && row.bytes[0] == 9 && row.bytes[1] == 8 && row.bytes[2] == 3 && row.bytes[3] == 4
+        && passed[0] == 9 && passed[1] == 8 && passed[2] == 3 && passed[3] == 4
+        && called[0] == 9 && called[1] == 8 && called[2] == 3 && called[3] == 4 {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
+
+machine high(which: i64) crashes Trap {
+    let mut bytes: [u8; 4] = [1, 2, 3, 4];
+    let view: &mut [u8] = match which {
+        0 -> &mut bytes[0..2]
+        _ -> &mut bytes[2..4]
+    };
+    view[0] = 7;
+    view[1] = 6;
+    let mut row: Row = Row { bytes: [1, 2, 3, 4] };
+    let field_view: &mut [u8] = match which {
+        0 -> &mut row.bytes[0..2]
+        _ -> &mut row.bytes[2..4]
+    };
+    let held: Held = Held { values: field_view };
+    write_pair(held.values);
+    let mut passed: [u8; 4] = [1, 2, 3, 4];
+    let parameter_view: &mut [u8] = match which {
+        0 -> &mut passed[0..2]
+        _ -> &mut passed[2..4]
+    };
+    write_pair(parameter_view);
+    let mut called: [u8; 4] = [1, 2, 3, 4];
+    let call_view: &mut [u8] = match which {
+        0 -> half(&mut called, 0)
+        _ -> half(&mut called, 1)
+    };
+    write_pair(call_view);
+    transition bytes[0] == 1 && bytes[1] == 2 && bytes[2] == 7 && bytes[3] == 6
+            && row.bytes[0] == 1 && row.bytes[1] == 2 && row.bytes[2] == 9 && row.bytes[3] == 8
+        && passed[0] == 1 && passed[1] == 2 && passed[2] == 9 && passed[3] == 8
+        && called[0] == 1 && called[1] == 2 && called[2] == 9 && called[3] == 8 {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
+
+machine main() crashes Trap {
+    low(0);
+    high(1);
+}

@@ -479,8 +479,19 @@ pub(in crate::lowering) fn resolve_byte_view(
         let StructuralTypeShape::ByteSequence(carrier) = declaration.shape else {
             return Err(invalid());
         };
+        // A matched window joins as an affine mutable block parameter. Shared
+        // observations stay unrestricted. An owned arrival is only a bounded
+        // owner, never a borrowed descriptor.
+        let affine_loan = matches!(
+            (semantic.access, semantic.multiplicity, &carrier),
+            (
+                StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow,
+                StructuralMultiplicity::Affine,
+                terminal_psi::ByteSequenceCarrier::BorrowedView { .. },
+            )
+        );
         let owned = semantic.access == StructuralAccess::Owned;
-        if semantic.multiplicity != StructuralMultiplicity::Unrestricted
+        if !(semantic.multiplicity == StructuralMultiplicity::Unrestricted || affine_loan)
             || !semantic.projected_qualifications.is_empty()
             || owned
                 && !matches!(

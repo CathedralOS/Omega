@@ -126,7 +126,15 @@ pub(super) fn establish(
             matches!(
                 parameter.access,
                 terminal_psi::reading_borrow_pair_pattern!()
-            ) && parameter.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
+            ) && (parameter.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
+                || matches!(
+                    (parameter.access, parameter.multiplicity),
+                    (
+                        terminal_psi::StructuralAccess::MutableBorrow
+                            | terminal_psi::StructuralAccess::WriteOnlyBorrow,
+                        terminal_psi::StructuralMultiplicity::Affine,
+                    )
+                ))
                 && parameter.projected_qualifications.is_empty()
                 && signature
                     .structural_type(parameter.structural_type)
