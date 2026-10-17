@@ -3256,6 +3256,7 @@ pass/traits/transparent_refinement_declaration built 8991ms @6c49683ce714
 pass/types/runtime_addr_algebra_exit built 15346ms exit:70 @6c49683ce714
 pass/types/runtime_addr_conversion_trap_exit built 14955ms exit:signal signal:4 @6c49683ce714
 pass/types/runtime_addr_field_exit built 15114ms exit:88 @6c49683ce714
+pass/types/runtime_address_literal_landing_exit built 7253ms exit:0 @b2e9773df4d8+wt
 pass/types/runtime_exact_address_subtraction_exit built 7874ms exit:70 @6c49683ce714
 pass/types/runtime_i16_signed_arith_exit built 15194ms exit:70 @6c49683ce714
 pass/versioning/migration_generic_trait built 12421ms @6c49683ce714

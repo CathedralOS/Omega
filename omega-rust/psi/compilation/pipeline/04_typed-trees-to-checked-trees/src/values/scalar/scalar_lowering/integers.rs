@@ -131,11 +131,12 @@ pub(crate) fn construct_integer_cast(
         return None;
     }
     let source_type = scalar_expression_type(&operand);
-    if source_type.is_none()
-        && target_type != PrimitiveType::Addr
-        && let Some(literal) = retag_exact_integer_literal(&operand, target_type)
-    {
-        return Some((literal, cast.domain));
+    if source_type.is_none() {
+        // Anonymous literals land once at the cast destination, including the
+        // distinct address carrier. Contextual landing checks the value; a
+        // typed conversion below still requires its own exact-cast evidence.
+        return land_contextual_integer_literal(operand, target_type)
+            .map(|literal| (literal, cast.domain));
     }
     let source_type = source_type?;
     if source_type == target_type {

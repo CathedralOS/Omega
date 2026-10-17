@@ -9169,6 +9169,7 @@ pass/types/exact_address_conversion checked 3826ms check-target:macos_arm64 @3b4
 pass/types/runtime_addr_algebra_exit checked 11700ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/types/runtime_addr_conversion_trap_exit checked 11872ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/types/runtime_addr_field_exit checked 11505ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/types/runtime_address_literal_landing_exit checked 7129ms check-target:macos_arm64 @b2e9773df4d8+wt
 pass/types/runtime_exact_address_subtraction_exit checked 11542ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/types/runtime_i16_signed_arith_exit checked 11789ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/versioning/migration_generic_trait checked 7651ms check-target:macos_arm64 @a9ae30e1c334+wt

@@ -1,0 +1,27 @@
+// Expected exit: 0. Anonymous address casts retain the address carrier.
+data Holder [copy] { value: addr; }
+machine argument(value: addr) -> addr { value }
+machine returned() -> addr { 0 as addr }
+machine joined(flag: bool) -> addr {
+    match flag { true -> (0 as addr), false -> (0 as addr) }
+}
+machine another_state() -> addr {
+    transition { _ -> next() }
+    state next() -> addr { 0 as addr }
+}
+data Other {}
+machine Other::value() -> addr { 0 as addr }
+linux_x86_64 machine selected() -> addr { 0 as addr }
+macos_arm64 machine selected() -> addr { 0 as addr }
+machine main() crashes Trap {
+    let local: addr = 0 as addr;
+    let holder: Holder = Holder { value: 0 as addr };
+    transition (0 as addr) == 0 && local == 0 && holder.value == 0 &&
+        argument(0 as addr) == 0 && returned() == 0 && joined(true) == 0 &&
+        another_state() == 0 && Other::value() == 0 && selected() == 0 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
