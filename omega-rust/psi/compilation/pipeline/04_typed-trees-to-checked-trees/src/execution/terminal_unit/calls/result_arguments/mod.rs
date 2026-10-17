@@ -12,6 +12,7 @@ use crate::execution::terminal_unit::CheckedUnitStructuralArgumentSourcePlan;
 use crate::execution::terminal_unit::CheckedUnitStructuralResultBindingPlan;
 use crate::execution::terminal_unit::ExpressionNode;
 use crate::execution::terminal_unit::Multiplicity;
+use crate::execution::terminal_unit::control::LocalConstructionTrace;
 use crate::execution::terminal_unit::types::{
     base_type_identity, structural_access_for_type_reference,
 };
@@ -48,7 +49,7 @@ pub(super) fn argument(
     parameter: &StateParameter,
     target_identity: typed_trees::type_identity::TypeIdentityId,
     operations: &[checked_trees::CheckedUnitEffectOperationPlan],
-    trace: &super::super::control::LocalConstructionTrace,
+    trace: &LocalConstructionTrace,
 ) -> Option<CheckedUnitStructuralArgumentPlan> {
     let mut argument = argument_contract(
         program,
@@ -71,7 +72,8 @@ pub(super) fn argument(
         CheckedUnitStructuralArgumentSourcePlan::StructuralResult { .. }
     ) && let Some(symbol) = place.root.as_symbol()
     {
-        trace.phase("call operation: result argument: current storage home");
+        trace.phase("result argument: local storage source state");
+        trace.statement(u32::try_from(call.statement_index).ok());
         let source_state = program.state_by_symbol(state)?;
         trace.phase("call result argument: current local storage");
         trace.statement(u32::try_from(call.statement_index).ok());
@@ -94,7 +96,7 @@ fn argument_contract(
     parameter: &StateParameter,
     target_identity: typed_trees::type_identity::TypeIdentityId,
     operations: &[checked_trees::CheckedUnitEffectOperationPlan],
-    trace: &super::super::control::LocalConstructionTrace,
+    trace: &LocalConstructionTrace,
 ) -> Option<CheckedUnitStructuralArgumentPlan> {
     let phase = |name| {
         trace.phase(name);
@@ -157,6 +159,7 @@ fn argument_contract(
         // other roots continue to the general argument checks below.
         && place.root == facts::PlaceRoot::Symbol(local.symbol)
     {
+        phase("result argument: named stored descriptor");
         return reference::argument(
             program,
             machine,
@@ -180,6 +183,7 @@ fn argument_contract(
     // `choice: &mut Choice`) publishes the owned referent, which continues to
     // the owned-result lane below like any other completed value.
     if let Some(owner) = place.root.as_expression() {
+        phase("result argument: anonymous source type");
         let reference = facts
             .values
             .structural_values
@@ -196,13 +200,17 @@ fn argument_contract(
         if reference::is_carrier(program, reference)
             && result.type_identity == program.normalized_type_identity(reference)
         {
-            if result.statement_index as usize != call.statement_index
-                || operations
-                    .iter()
-                    .filter_map(|operation| operation.structural_result_binding())
-                    .filter(|binding| *binding == result)
-                    .count()
-                    != 1
+            phase("result argument: anonymous producer epoch");
+            if result.statement_index as usize != call.statement_index {
+                return None;
+            }
+            phase("result argument: anonymous unique completed producer");
+            if operations
+                .iter()
+                .filter_map(|operation| operation.structural_result_binding())
+                .filter(|binding| *binding == result)
+                .count()
+                != 1
             {
                 return None;
             }
@@ -221,6 +229,7 @@ fn argument_contract(
             );
         }
     }
+    phase("result argument: bounded owner loan");
     // A bounded byte owner local lends its whole carrier to a formal of the
     // same carrier; the loan leaves the owner in place.
     if let Some(argument) = bounded_owner::loan(

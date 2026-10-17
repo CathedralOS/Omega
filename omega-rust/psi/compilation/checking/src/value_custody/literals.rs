@@ -38,19 +38,18 @@ use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::statement::StatementNode;
 use typed_trees::types::PrimitiveType;
 
-/// The named transition target's spelled arguments paired with the target
-/// state's parameters, or `None` when the target is not a singleton-named
-/// state. The `&mut self` receiver rides the param list but never pairs
-/// with a spelled argument -- the zip pairs only the value params.
 /// The landed integer type a primitive lands as, or `None` for a primitive
 /// without an integer landing.
 pub(crate) fn primitive_landing_type(primitive: PrimitiveType) -> Option<LandedIntegerType> {
     primitive.landed_landing()
 }
 
+/// Pair a resolved named transition's explicit operands with its declaration's
+/// formals. Internal states, machine heads and qualified entries retain their
+/// exact target symbol; spelling is not destination identity. This supplies
+/// literal formats only, leaving call admission to the ordinary validators.
 fn named_transition_arguments<'program>(
     program: &'program dyn crate::CheckingInput,
-    machine: &'program typed_trees::machine::Machine,
     target_node: &typed_trees::statement::TransitionTargetNode,
 ) -> Option<
     Vec<(
@@ -64,19 +63,9 @@ fn named_transition_arguments<'program>(
     else {
         return None;
     };
-    // The Named target's path members live in the STATEMENT table's
-    // identifier arena (the target node's home), not the expression table's.
-    let target_members = program.statement_table.name_path_members(path.members);
-    let [target_name] = target_members else {
-        return None;
-    };
-    let target_state = program
-        .machine_states(machine)
-        .iter()
-        .find(|candidate| candidate.name.as_str() == target_name.as_str())?;
+    let parameters = crate::call_target_parameters(program, path.symbol)?;
     Some(
-        program
-            .state_parameters(target_state)
+        parameters
             .iter()
             .zip(
                 program

@@ -1,10 +1,13 @@
 //! Retarget a bound source requirement to its exact executable application.
-//! The original receiver occurrence supplies its outer scope; neither selected
+//! The original qualified requirement occurrence supplies its outer scope; neither selected
 //! maps nor equal ABI carriers can supply a missing or different application.
 
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
-use typed_trees::{TypedTrees, expression::StaticMachineArgument, types::TypeReferenceHandle};
+use typed_trees::{
+    TypedTrees, expression::StaticMachineArgument, trait_definition::AppliedTraitScope,
+    types::TypeReferenceHandle,
+};
 
 #[derive(Clone, PartialEq, Eq)]
 pub(super) struct InvocationTuple {
@@ -47,7 +50,7 @@ fn instance(
     program: &TypedTrees,
     lexical_owner: SymbolHandle,
     target: SymbolHandle,
-    receiver: Option<TypeReferenceHandle>,
+    receiver: Option<AppliedTraitScope<'_>>,
     application: TypeReferenceHandle,
     invocation: &InvocationTuple,
 ) -> Result<SymbolHandle, Vec<Diagnostic>> {
@@ -63,7 +66,7 @@ fn source_scope<'p>(
     program: &'p TypedTrees,
     lexical_owner: SymbolHandle,
     target: SymbolHandle,
-    receiver: Option<TypeReferenceHandle>,
+    receiver: Option<AppliedTraitScope<'p>>,
     application: TypeReferenceHandle,
 ) -> Result<
     Option<(
@@ -111,23 +114,12 @@ fn source_scope<'p>(
     let Some((owner, _)) = program.trait_machine_signature(template) else {
         return Ok(None);
     };
-    let carrier = match receiver {
-        Some(reference) => typed_trees::service::classify_exact_service_parameter_carrier(
-            program,
-            typed_trees::service::ServiceCarrierOccurrence {
-                type_reference: reference,
-                lexical_owner,
-                enclosing_data_applications: &[],
-            },
-        )
-        .map_err(|message| vec![Diagnostic::error(message)])?,
-        None => None,
-    };
-    let scope = match carrier {
-        Some(carrier) => carrier
-            .carrier
-            .application(program, lexical_owner, &[])
-            .and_then(|scope| scope.declaring_scope(program, owner.symbol)),
+    // Static provider slots inherit their exact application from the authored
+    // requirement qualifier. A source routing carrier no longer supplies that
+    // scope; selected maps and equal ABI signatures still cannot invent it.
+    let qualifier_scope = receiver.and_then(|scope| scope.declaring_scope(program, owner.symbol));
+    let scope = match qualifier_scope {
+        Some(scope) => Some(scope),
         None if program.trait_type_parameters(owner).is_empty()
             && owner.lifetime_parameters.is_empty() =>
         {
@@ -262,8 +254,13 @@ pub(super) fn invocation_tuples(
                     add(
                         machine.symbol,
                         call.target_symbol,
-                        validation::projected_statement_receiver_type_reference(
-                            program, state, position, call,
+                        validation::qualified_trait_scope(
+                            program,
+                            machine.symbol,
+                            call.receiver_symbol,
+                            validation::projected_statement_receiver_type_reference(
+                                program, state, position, call,
+                            ),
                         ),
                         TypeReferenceHandle::invalid(),
                         call.static_requirement_dispatch.as_ref(),
@@ -286,11 +283,19 @@ pub(super) fn invocation_tuples(
                         add(
                             machine.symbol,
                             call.target_symbol,
-                            validation::expression_type_reference_in_state(
+                            validation::qualified_trait_scope(
                                 program,
-                                state.symbol,
-                                position,
-                                call.receiver,
+                                machine.symbol,
+                                program
+                                    .expression_table
+                                    .name_path_node(call.receiver)
+                                    .map_or_else(SymbolHandle::invalid, |path| path.symbol),
+                                validation::expression_type_reference_in_state(
+                                    program,
+                                    state.symbol,
+                                    position,
+                                    call.receiver,
+                                ),
                             ),
                             call.requirement_application,
                             call.static_requirement_dispatch.as_ref(),
@@ -367,8 +372,13 @@ pub(super) fn retarget(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> 
                                 .push((state.statement_nodes.handle_at(position as u32), selected));
                         }
                     }
-                    let receiver = validation::projected_statement_receiver_type_reference(
-                        program, state, position, call,
+                    let receiver = validation::qualified_trait_scope(
+                        program,
+                        machine.symbol,
+                        call.receiver_symbol,
+                        validation::projected_statement_receiver_type_reference(
+                            program, state, position, call,
+                        ),
                     );
                     let selected = instance(
                         program,
@@ -423,11 +433,19 @@ pub(super) fn retarget(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> 
                             }
                         }
                     }
-                    let receiver = validation::expression_type_reference_in_state(
+                    let receiver = validation::qualified_trait_scope(
                         program,
-                        state.symbol,
-                        position,
-                        call.receiver,
+                        machine.symbol,
+                        program
+                            .expression_table
+                            .name_path_node(call.receiver)
+                            .map_or_else(SymbolHandle::invalid, |path| path.symbol),
+                        validation::expression_type_reference_in_state(
+                            program,
+                            state.symbol,
+                            position,
+                            call.receiver,
+                        ),
                     );
                     let selected = instance(
                         program,

@@ -18,7 +18,6 @@ use crate::symbols::type_references::{
 pub(super) fn assign_machine_symbols(
     program: &mut SymbolResolvedTrees,
     symbols: &SymbolTable,
-    root_children: &mut impl Iterator<Item = SymbolHandle>,
 ) -> Vec<Diagnostic> {
     let root_machine_symbols = symbols
         .child_handles(symbols.root())
@@ -56,14 +55,6 @@ pub(super) fn assign_machine_symbols(
     // after its caller or outside its carrier's module. Bodies borrow this exact
     // declaration cohort instead of rebuilding attachment identity from a name.
     program.machines.for_each_mut(|machine| {
-        let declaration = next_child_of_kind(root_children, symbols, SymbolKind::Machine);
-        if !machine.symbol.is_valid() {
-            machine.symbol = declaration;
-        } else if declaration.is_valid() && machine.symbol != declaration {
-            diagnostics.push(Diagnostic::error(
-                "retained machine declaration differs from its indexed root child",
-            ));
-        }
         machine.attached_data_symbol = machine
             .attached_data
             .as_ref()

@@ -1,4 +1,0 @@
-use omega::language::core::binding;
-pub boundary trait First { machine read() -> i32; }
-pub boundary trait Second { machine read() -> i32; }
-machine invalid(binding: &Binding<Second>) -> i32 { First::read(binding) }

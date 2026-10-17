@@ -49,6 +49,7 @@ pub(crate) fn emit(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     store: &CheckedStorePlan,
     view: PrimitiveType,
+    captured: Option<super::primitive_store::PhysicalDestination>,
     checked: &CheckedTrees,
     machine: SymbolHandle,
     state: SymbolHandle,
@@ -78,70 +79,69 @@ pub(crate) fn emit(
     let Some((role, value)) = store.value.scalar() else {
         return unsupported("representation view store stores no scalar value");
     };
-    let (_, parameter) = evaluation
+    let parameter = evaluation
         .structural_parameters
         .iter()
         .find(|(authored, _)| authored == &position)
+        .map(|(_, parameter)| parameter)
         .ok_or(LoweringError::Unsupported(
             "representation view store parameter is absent",
         ))?;
+    let (destination, root_type) = (parameter.place, parameter.structural_type);
+    let qualifications = parameter.qualifications.clone();
+    let projected_qualifications = parameter.projected_qualifications.clone();
     let view_scalar = terminal_scalar_type(view)?;
     let Some((leaf, prefix)) = store.destination.path.split_last() else {
         return unsupported("representation view store lost its leaf segment");
     };
-    let destination = parameter.place;
     let mut kinds = Vec::new();
     match leaf {
         // A whole-field leaf of the view's width: one primitive store whose
         // value is the authored value retagged to the leaf's declared
         // carrier.
         CheckedUnitStructuralPathSegment::Field(identity) => {
-            let (steps, walked) = walk_carrier_prefix(
-                identities,
-                parameter.structural_type,
-                prefix,
-                structural_types,
-            )?;
-            let Walked::Type(owner) = walked else {
-                return unsupported("representation view store leaf owner is not structural");
+            let physical = if let Some(captured) = captured {
+                captured
+            } else {
+                let (steps, _) =
+                    walk_carrier_prefix(identities, root_type, prefix, structural_types)?;
+                let indexes = runtime_elements::evaluate_selectors(
+                    identities,
+                    &steps,
+                    checked,
+                    machine,
+                    state,
+                    store.statement_index,
+                    evaluation,
+                    source_value_count,
+                    values,
+                    next_value,
+                    next_block,
+                    next_edge,
+                    operations,
+                    calls,
+                )?;
+                let mut path = runtime_elements::complete_path(steps, indexes, calls, operations)?;
+                path.push(StructuralPathSegment::Field(
+                    identities.intern(&identity.spelling()),
+                ));
+                super::primitive_store::PhysicalDestination {
+                    place: destination,
+                    root_type,
+                    qualifications: qualifications.clone(),
+                    projected_qualifications: projected_qualifications.clone(),
+                    path,
+                    logical_receiving: None,
+                }
             };
-            let declaration = unique_declaration(
-                structural_types,
-                owner,
-                "representation view store carrier type is absent",
-                "representation view store carrier type is ambiguous",
-            )?;
-            let (terminal_psi::record_or_mixed_shape_pattern!(fields)) = &declaration.shape else {
-                return unsupported("representation view store leaf owner is not a record");
-            };
-            let mut matching = fields.iter().filter(|field| {
-                field.identity == identities.intern(&identity.spelling())
-                    && !field.relevance.is_erased()
-            });
-            let field = matching.next().ok_or(LoweringError::Unsupported(
-                "representation view store leaf is absent",
+            let leaf_scalar = terminal_semantics::primitive_read_projection_type(
+                structural_types.iter(),
+                physical.root_type,
+                &physical.path,
+            )
+            .ok_or(LoweringError::Unsupported(
+                "representation view store lost its physical scalar carrier",
             ))?;
-            if matching.next().is_some() {
-                return unsupported("representation view store leaf is ambiguous");
-            }
-            let leaf_scalar = leaf_scalar_type(&field.field_type)?;
-            let indexes = runtime_elements::evaluate_selectors(
-                identities,
-                &steps,
-                checked,
-                machine,
-                state,
-                store.statement_index,
-                evaluation,
-                source_value_count,
-                values,
-                next_value,
-                next_block,
-                next_edge,
-                operations,
-                calls,
-            )?;
-            let path = runtime_elements::complete_path(steps, indexes, calls, operations)?;
             let operand = crate::emission::structural_scalar_store_source::direct_value(
                 identities,
                 checked,
@@ -155,45 +155,81 @@ pub(crate) fn emit(
             )?;
             let casted = view_leaf_image(operand, view_scalar, leaf_scalar)?;
             let value = emit_direct_expression(&casted, values, next_value, operations);
-            let range_obligation =
-                if terminal_semantics::scalar_field_requires_evidence(&field.field_type) {
-                    Some(obligation_id(allocate_dense(
-                        &mut calls.next_obligation_identity,
-                    )?))
-                } else {
-                    None
-                };
-            kinds.push(OperationKind::StructuralScalarFieldStore {
-                destination,
-                path,
-                field: field.id,
-                value,
-                range_obligation,
-            });
-        }
-        CheckedUnitStructuralPathSegment::FixedIndex(_)
-        | CheckedUnitStructuralPathSegment::RuntimeIndex(_) => {
-            let destination = prepare_byte_destination(
-                identities,
-                destination,
-                parameter.structural_type,
-                &store.destination.path,
-                None,
-                false,
-                checked,
+            kinds.push(super::primitive_store::emit_completed_assignment(
                 machine,
                 state,
                 store.statement_index,
-                evaluation,
-                source_value_count,
-                values,
+                physical,
+                leaf_scalar,
+                ValueDeclaration {
+                    id: value,
+                    scalar_type: leaf_scalar,
+                    qualifications: Default::default(),
+                },
+                None,
+                structural_types,
                 next_value,
-                next_block,
-                next_edge,
                 operations,
                 calls,
-                structural_types,
-            )?;
+            )?);
+        }
+        CheckedUnitStructuralPathSegment::FixedIndex(_)
+        | CheckedUnitStructuralPathSegment::RuntimeIndex(_) => {
+            let mut logical_receiving = None;
+            let (destination, mut physical) = if let Some(mut captured) = captured {
+                let physical = super::primitive_store::ReceivingPlace {
+                    root_type: captured.root_type,
+                    qualifications: captured.qualifications.clone(),
+                    projected_qualifications: captured.projected_qualifications.clone(),
+                    path: Vec::new(),
+                };
+                logical_receiving = captured.logical_receiving.take();
+                (
+                    captured_byte_destination(captured, structural_types)?,
+                    physical,
+                )
+            } else {
+                let physical = super::primitive_store::ReceivingPlace {
+                    root_type,
+                    qualifications: qualifications.clone(),
+                    projected_qualifications: projected_qualifications.clone(),
+                    path: Vec::new(),
+                };
+                let destination = prepare_byte_destination(
+                    identities,
+                    destination,
+                    root_type,
+                    &store.destination.path,
+                    None,
+                    false,
+                    checked,
+                    machine,
+                    state,
+                    store.statement_index,
+                    evaluation,
+                    source_value_count,
+                    values,
+                    next_value,
+                    next_block,
+                    next_edge,
+                    operations,
+                    calls,
+                    structural_types,
+                )?;
+                (destination, physical)
+            };
+            let ScalarType::Integer(integer) = view_scalar else {
+                return unsupported("byte representation store requires an integer carrier");
+            };
+            if !integer.bits().is_multiple_of(8) {
+                return unsupported("byte representation store requires a whole-byte encoding");
+            }
+            let byte_count = u64::from(integer.bits()) / 8;
+            physical.path = destination.prefix_path.clone();
+            require_unrestricted_byte_region(&physical, &destination.index, byte_count, calls)?;
+            if let Some(logical) = logical_receiving {
+                require_unrestricted_logical_footprint(logical, byte_count, calls)?;
+            }
             let operand = crate::emission::structural_scalar_store_source::direct_value(
                 identities,
                 checked,
@@ -456,6 +492,97 @@ impl ByteStoreDestination {
     }
 }
 
+/// Bit decomposition has no per-byte predicate proof. Admit its entire
+/// footprint only when every receiving goal is absent; never treat a source
+/// index-bound decision as authority for a byte-value membership.
+fn require_unrestricted_byte_region(
+    region: &super::primitive_store::ReceivingPlace,
+    index: &ByteStoreIndex,
+    byte_count: u64,
+    calls: &CallEmissionContext<'_>,
+) -> Result<(), LoweringError> {
+    let mut selected = super::primitive_store::ReceivingPlace {
+        root_type: region.root_type,
+        qualifications: region.qualifications.clone(),
+        projected_qualifications: region.projected_qualifications.clone(),
+        path: region.path.clone(),
+    };
+    match index {
+        ByteStoreIndex::Fixed(base) => {
+            for offset in 0..byte_count {
+                let coordinate = base.checked_add(offset).ok_or(LoweringError::Unsupported(
+                    "byte receiving footprint overflows",
+                ))?;
+                selected.path.truncate(region.path.len());
+                selected
+                    .path
+                    .push(StructuralPathSegment::FixedIndex(coordinate));
+                require_unrestricted_receiving(&selected, calls)?;
+            }
+        }
+        ByteStoreIndex::Runtime(_) => {
+            // The unknown base may select any part of this homogeneous byte
+            // region. Disjointness from the entire region covers every offset;
+            // its one declared element type supplies every scalar predicate.
+            if !terminal_semantics::structural_memberships_disjoint_from_write(
+                &region.qualifications,
+                &region.projected_qualifications,
+                &region.path,
+            ) {
+                return unsupported(
+                    "byte representation footprint overlaps a receiving qualification",
+                );
+            }
+            selected.path.push(StructuralPathSegment::FixedIndex(0));
+            require_unrestricted_receiving(&selected, calls)?;
+        }
+    }
+    Ok(())
+}
+
+fn require_unrestricted_logical_footprint(
+    mut logical: super::primitive_store::ReceivingPlace,
+    byte_count: u64,
+    calls: &CallEmissionContext<'_>,
+) -> Result<(), LoweringError> {
+    let scalar = super::primitive_store::receiving_scalar(&logical, calls.structural_types).ok_or(
+        LoweringError::Unsupported("logical byte footprint lost its scalar declaration"),
+    )?;
+    // Logical selectors count their declared elements. An indexed u64 is one
+    // scalar replacement even when its physical representation writes eight
+    // bytes; only a u8 endpoint advances one logical element for each byte.
+    if scalar != terminal_scalar_type(PrimitiveType::U8)? {
+        return require_unrestricted_receiving(&logical, calls);
+    }
+    let index = match logical.path.last() {
+        Some(StructuralPathSegment::FixedIndex(index)) => Some(ByteStoreIndex::Fixed(*index)),
+        Some(StructuralPathSegment::RuntimeIndex { index, .. }) => {
+            Some(ByteStoreIndex::Runtime(*index))
+        }
+        _ => None,
+    };
+    if let Some(index) = index {
+        logical.path.pop();
+        require_unrestricted_byte_region(&logical, &index, byte_count, calls)
+    } else {
+        // A scalar recast replaces that complete logical scalar. Its original
+        // declaration, rather than one selected byte, owns the receiving goal.
+        require_unrestricted_receiving(&logical, calls)
+    }
+}
+
+fn require_unrestricted_receiving(
+    place: &super::primitive_store::ReceivingPlace,
+    calls: &CallEmissionContext<'_>,
+) -> Result<(), LoweringError> {
+    if super::primitive_store::receiving_restriction(place, calls)?.is_some() {
+        return unsupported(
+            "byte representation footprint requires an unproved receiving predicate",
+        );
+    }
+    Ok(())
+}
+
 /// Resolve a captured byte path using the same carrier walk as a primitive
 /// representation view. The caller owns root authority and evaluates the RHS
 /// only after this returns, preserving ordinary assignment sequencing.
@@ -542,6 +669,52 @@ pub(crate) fn prepare_byte_destination(
         },
         capacity,
         decided,
+    })
+}
+
+/// Captured selectors and descriptor words belong to the pre-RHS occurrence.
+/// Reuse their complete byte region and coordinate; never reconstruct the
+/// address from a descriptor that the replacement may have changed.
+fn captured_byte_destination(
+    captured: super::primitive_store::PhysicalDestination,
+    types: &[StructuralTypeDeclaration],
+) -> Result<ByteStoreDestination, LoweringError> {
+    let Some((leaf, prefix)) = captured.path.split_last() else {
+        return unsupported("captured byte representation store lost its coordinate");
+    };
+    let carrier =
+        terminal_semantics::runtime_structural_field(types.iter(), captured.root_type, prefix)
+            .and_then(|field| field.field_type.byte_sequence_carrier());
+    let declaration =
+        terminal_semantics::runtime_structural_path_tip(types.iter(), captured.root_type, prefix);
+    let walked = if let Some(carrier) = carrier.as_ref() {
+        Walked::Carrier(carrier)
+    } else if let Some(declaration) = declaration {
+        match &declaration.shape {
+            StructuralTypeShape::ByteSequence(carrier) => Walked::Carrier(carrier),
+            _ => Walked::Type(declaration.id),
+        }
+    } else {
+        return unsupported("captured byte representation store lost its backing declaration");
+    };
+    let capacity = byte_capacity(walked, types)?;
+    let index = match leaf {
+        StructuralPathSegment::FixedIndex(index) if *index < capacity => {
+            ByteStoreIndex::Fixed(*index)
+        }
+        StructuralPathSegment::RuntimeIndex { index, .. } => ByteStoreIndex::Runtime(*index),
+        _ => {
+            return unsupported(
+                "captured byte representation store has no bounded byte coordinate",
+            );
+        }
+    };
+    Ok(ByteStoreDestination {
+        destination: captured.place,
+        prefix_path: prefix.to_vec(),
+        index,
+        capacity,
+        decided: false,
     })
 }
 
@@ -759,17 +932,5 @@ fn view_leaf_image(
             ),
         },
         _ => unsupported("representation view store pairs incompatible carriers"),
-    }
-}
-
-/// The scalar type of a primitive leaf field's declared carrier.
-fn leaf_scalar_type(field_type: &StructuralFieldType) -> Result<ScalarType, LoweringError> {
-    match field_type {
-        StructuralFieldType::Scalar(scalar) => Ok(*scalar),
-        StructuralFieldType::BoundedInteger(bounded) => {
-            Ok(ScalarType::Integer(bounded.integer_type()))
-        }
-        StructuralFieldType::RefinedScalar(refinement) => Ok(refinement.carrier()),
-        _ => unsupported("representation view store leaf is not an integer scalar"),
     }
 }

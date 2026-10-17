@@ -13,7 +13,9 @@ pub(crate) mod authority;
 pub(crate) mod component_eras;
 pub(crate) use optimization_core::digest_encoder;
 pub(crate) mod executable_scopes;
+mod external_requirements;
 pub(crate) mod providers;
+pub use external_requirements::SelectedExternalRequirementApplication;
 
 use crate::provider_evidence::digest_encoder::DomainDigestEncoder;
 use crate::provider_plan::ProviderPlan;
@@ -86,6 +88,7 @@ pub struct SelectedProviderPlanFacts {
     /// Template-keyed selected rows rebound to their exact closed requirement
     /// instances once specialization evidence exists.
     specialized_requirement_rows: Vec<SelectedRequirementSpecialization>,
+    external_requirement_applications: Vec<SelectedExternalRequirementApplication>,
     /// Exact family aliases of selected rows, closed against one Terminal artifact.
     family_realization_rows: Vec<SelectedTargetFamilyRealization>,
     /// Compact identities of the members settled by the toolchain itself
@@ -107,6 +110,7 @@ impl Default for SelectedProviderPlanFacts {
             opaque_executable_admissions: Vec::new(),
             installation_reach_resolutions: Vec::new(),
             specialized_requirement_rows: Vec::new(),
+            external_requirement_applications: Vec::new(),
             family_realization_rows: Vec::new(),
             toolchain_settled_identities: BTreeSet::new(),
             identities: terminal_psi::TerminalIdentityTable::default(),
@@ -180,6 +184,7 @@ impl SelectedProviderPlanFacts {
             opaque_executable_admissions: Vec::new(),
             installation_reach_resolutions: Vec::new(),
             specialized_requirement_rows: Vec::new(),
+            external_requirement_applications: Vec::new(),
             family_realization_rows: Vec::new(),
             toolchain_settled_identities: BTreeSet::new(),
             identities: requirement_identities.build(),
@@ -204,6 +209,7 @@ impl SelectedProviderPlanFacts {
     pub fn with_toolchain_settled_plan(mut self, plan: ProviderPlan) -> Result<Self, String> {
         if !self.installation_reach_resolutions.is_empty()
             || !self.specialized_requirement_rows.is_empty()
+            || !self.external_requirement_applications.is_empty()
             || !self.family_realization_rows.is_empty()
         {
             return Err(
@@ -305,6 +311,7 @@ impl SelectedProviderPlanFacts {
             &self.installation_reach_resolutions,
             &self.specialized_requirement_rows,
             &self.family_realization_rows,
+            &self.external_requirement_applications,
             &self.identities,
         );
         Ok(self)
@@ -398,6 +405,21 @@ impl SelectedProviderPlanFacts {
             encoder.string(
                 self.identities
                     .text(row.machine_identity)
+                    .unwrap_or_default(),
+            );
+        }
+        encoder.len(self.external_requirement_applications.len());
+        for row in &self.external_requirement_applications {
+            encoder.u64(row.provider_plan_report_identity);
+            encoder.bytes(row.provider_plan_digest.as_bytes());
+            encoder.string(
+                self.identities
+                    .text(row.selected_requirement_identity)
+                    .unwrap_or_default(),
+            );
+            encoder.string(
+                self.identities
+                    .text(row.requirement_identity)
                     .unwrap_or_default(),
             );
         }
@@ -534,6 +556,7 @@ impl SelectedProviderPlanFacts {
             &self.installation_reach_resolutions,
             &self.specialized_requirement_rows,
             &self.family_realization_rows,
+            &self.external_requirement_applications,
             &self.identities,
         );
         Ok(self)
@@ -606,6 +629,16 @@ impl SelectedProviderPlanFacts {
             }
         }
         for row in &rows {
+            if self
+                .external_requirement_application(
+                    self.identities
+                        .text(row.requirement_identity)
+                        .unwrap_or_default(),
+                )
+                .is_some()
+            {
+                return Err("checked specialization shadows a closed external requirement".into());
+            }
             if row.selected_requirement_identity.is_absent()
                 || row.selected_machine_identity.is_absent()
                 || row.requirement_identity.is_absent()
@@ -662,6 +695,7 @@ impl SelectedProviderPlanFacts {
             &self.installation_reach_resolutions,
             &self.specialized_requirement_rows,
             &self.family_realization_rows,
+            &self.external_requirement_applications,
             &self.identities,
         );
         Ok(self)
@@ -720,6 +754,16 @@ impl SelectedProviderPlanFacts {
                     .unwrap_or_default()
             })
             .collect::<Vec<_>>();
+        identities.extend(
+            self.external_requirement_applications
+                .iter()
+                .filter(|row| {
+                    row.provider_plan_report_identity == provider_plan_report_identity
+                        && self.identities.text(row.selected_requirement_identity)
+                            == Some(row_requirement_identity)
+                })
+                .filter_map(|row| self.identities.text(row.requirement_identity)),
+        );
         if identities.is_empty() {
             identities.push(row_requirement_identity);
         }
@@ -750,6 +794,12 @@ impl SelectedProviderPlanFacts {
                 .text(row.selected_requirement_identity)
                 .unwrap_or_default();
         }
+        if let Some(row) = self.external_requirement_application(requirement) {
+            return self
+                .identities
+                .text(row.selected_requirement_identity)
+                .unwrap_or_default();
+        }
         self.specialized_requirement_row(requirement)
             .map_or(requirement, |row| {
                 self.identities
@@ -772,6 +822,11 @@ impl SelectedProviderPlanFacts {
                     == Some(selected_requirement);
         }
         if let Some(row) = self.specialized_requirement_row(requirement) {
+            return row.provider_plan_report_identity == provider_plan_report_identity
+                && self.identities.text(row.selected_requirement_identity)
+                    == Some(selected_requirement);
+        }
+        if let Some(row) = self.external_requirement_application(requirement) {
             return row.provider_plan_report_identity == provider_plan_report_identity
                 && self.identities.text(row.selected_requirement_identity)
                     == Some(selected_requirement);
@@ -838,6 +893,7 @@ impl SelectedProviderPlanFacts {
             &self.installation_reach_resolutions,
             &self.specialized_requirement_rows,
             &self.family_realization_rows,
+            &self.external_requirement_applications,
             &self.identities,
         );
         Ok(self)
@@ -934,15 +990,25 @@ impl SelectedProviderPlanFacts {
                                 ) != self.identities.text(row.selected_requirement_identity))
                     })
                 }) || self
-                    .specialized_requirement_rows
+                    .external_requirement_applications
                     .iter()
-                    .any(|specialization| {
-                        specialization.requirement_identity == *alias
-                            && (specialization.provider_plan_report_identity
+                    .any(|application| {
+                        application.requirement_identity == *alias
+                            && (application.provider_plan_report_identity
                                 != row.provider_plan_report_identity
-                                || specialization.selected_requirement_identity
+                                || application.selected_requirement_identity
                                     != row.selected_requirement_identity)
                     })
+                    || self
+                        .specialized_requirement_rows
+                        .iter()
+                        .any(|specialization| {
+                            specialization.requirement_identity == *alias
+                                && (specialization.provider_plan_report_identity
+                                    != row.provider_plan_report_identity
+                                    || specialization.selected_requirement_identity
+                                        != row.selected_requirement_identity)
+                        })
                 {
                     return Err(
                         "selected family alias shadows a different selected requirement".into(),
@@ -972,6 +1038,15 @@ impl SelectedProviderPlanFacts {
                     .text(row.requirement_identity)
                     .unwrap_or_default()
             })
+            .chain(
+                self.external_requirement_applications
+                    .iter()
+                    .filter(|row| {
+                        self.identities.text(row.selected_requirement_identity)
+                            == Some(requirement_identity)
+                    })
+                    .filter_map(|row| self.identities.text(row.requirement_identity)),
+            )
             .collect()
     }
 
@@ -1152,6 +1227,7 @@ fn selected_closure_report_fingerprint(
     resolutions: &[InstallationReachResolution],
     specialization_rows: &[SelectedRequirementSpecialization],
     family_rows: &[SelectedTargetFamilyRealization],
+    external_applications: &[SelectedExternalRequirementApplication],
     identities: &terminal_psi::TerminalIdentityTable,
 ) -> u64 {
     let mut hash = crate::fnv1a::Fnv1a::resume(selected_plans_report_fingerprint(plans));
@@ -1203,6 +1279,24 @@ fn selected_closure_report_fingerprint(
             0,
         );
     }
+    for row in external_applications {
+        hash.u64(row.provider_plan_report_identity);
+        hash.bytes(row.provider_plan_digest.as_bytes());
+        hash.bytes_terminated(
+            identities
+                .text(row.selected_requirement_identity)
+                .unwrap_or_default()
+                .as_bytes(),
+            0,
+        );
+        hash.bytes_terminated(
+            identities
+                .text(row.requirement_identity)
+                .unwrap_or_default()
+                .as_bytes(),
+            0,
+        );
+    }
     for row in family_rows {
         hash.u64(u64::from(row.terminal.vocabulary_marker.get()));
         hash.bytes(row.terminal.program_fingerprint.as_bytes());
@@ -1248,8 +1342,9 @@ impl crate::provider_evidence::providers::provider_plan::DigestFeed
 
 impl SelectedProviderClosureDigestEncoder {
     fn new() -> Self {
+        // v3 adds the separate closed Import application roster to this grammar.
         Self(DomainDigestEncoder::new(
-            b"omega.selected-provider-closure.sha256.v2\0",
+            b"omega.selected-provider-closure.sha256.v3\0",
         ))
     }
 

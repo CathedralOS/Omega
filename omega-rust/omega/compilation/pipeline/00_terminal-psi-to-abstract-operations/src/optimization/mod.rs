@@ -162,10 +162,11 @@ pub struct VerifiedPsiOptimizationInput {
         Option<terminal_installation::AdmittedTargetMachineSelections>,
     pub(crate) target_layout_selections: Option<terminal_installation::AdmittedTargetLayouts>,
     pub(crate) target_family_realizations: Vec<effects::SelectedTargetFamilyRealization>,
-    /// The selected facts table the family-realization row identities
-    /// resolve against. Rows are stored without their owning facts, so the
-    /// table is retained beside them.
-    pub(crate) target_family_realization_identities: terminal_psi::TerminalIdentityTable,
+    pub(crate) external_requirement_applications:
+        Vec<effects::SelectedExternalRequirementApplication>,
+    /// Both coordinate rosters index the same selected facts table. This
+    /// transports provider-row addresses without replacing Terminal identities.
+    pub(crate) selected_provider_requirement_identities: terminal_psi::TerminalIdentityTable,
 }
 
 impl VerifiedPsiOptimizationInput {
@@ -204,9 +205,33 @@ impl VerifiedPsiOptimizationInput {
         &self.target_family_realizations
     }
 
-    /// Identity table the family-realization row indices resolve against.
-    pub fn target_family_realization_identities(&self) -> &terminal_psi::TerminalIdentityTable {
-        &self.target_family_realization_identities
+    /// Identity table shared by the retained selected requirement coordinates.
+    pub fn selected_provider_requirement_identities(&self) -> &terminal_psi::TerminalIdentityTable {
+        &self.selected_provider_requirement_identities
+    }
+
+    /// Rejoin an already admitted closed Import coordinate to its exact raw
+    /// selected row. This projection supplies no execution or stack authority.
+    pub fn selected_external_requirement_application(
+        &self,
+        boundary: semantic_vocabulary::BoundaryMachineId,
+        requirement: &str,
+        selected_requirement: &str,
+        provider_plan_report_identity: u64,
+    ) -> Option<&effects::SelectedExternalRequirementApplication> {
+        let declaration = terminal_psi::find_boundary_machine(
+            &self.context.module().boundary_machines,
+            boundary,
+        )?;
+        if self.context.module().identities.text(declaration.identity) != Some(requirement) {
+            return None;
+        }
+        let identities = &self.selected_provider_requirement_identities;
+        self.external_requirement_applications.iter().find(|row| {
+            identities.text(row.requirement_identity) == Some(requirement)
+                && identities.text(row.selected_requirement_identity) == Some(selected_requirement)
+                && row.provider_plan_report_identity == provider_plan_report_identity
+        })
     }
 
     /// Exact geometry closure retained separately from immutable canonical Psi.

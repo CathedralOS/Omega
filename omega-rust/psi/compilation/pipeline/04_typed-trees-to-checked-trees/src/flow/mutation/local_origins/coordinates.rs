@@ -54,13 +54,23 @@ fn structural_origin(
     let mut place = canonical_place_from_symbol(source.root)?;
     canonical_place_type_reference(program, state.symbol, statement_index, &place)?;
     let mut exact = true;
-    for segment in &source.segments {
-        if place_segment_has_unresolved_identity(*segment) {
+    for &segment in &source.segments {
+        if place_segment_has_unresolved_identity(segment) {
             return None;
         }
+        // Classify a live range before erasing its invocation-local selector.
+        // It keeps a collection dimension, but supplies no extent or address.
+        let segment = match segment {
+            facts::PlaceSegment::Index { expression }
+                if program.expression_table.expression_is_valid(expression)
+                    && program.expression_table.range_node(expression).is_some() =>
+            {
+                facts::PlaceSegment::OpaqueRange
+            }
+            _ => segment,
+        };
         if let facts::PlaceSegment::Index { expression } = segment
-            && (!program.expression_table.expression_is_valid(*expression)
-                || program.expression_table.range_node(*expression).is_some())
+            && !program.expression_table.expression_is_valid(expression)
         {
             // A window retains the collection dimension; an erased selector
             // does not establish whether it was a window or one element.
@@ -72,8 +82,11 @@ fn structural_origin(
         // its later value. Keep the known descendant fields: an unknown row
         // does not make a write to its second field touch its first field.
         // Exact consumers must still refuse this captured selector identity.
-        exact &= !matches!(segment, facts::PlaceSegment::Index { .. });
-        place.segments.push(*segment);
+        exact &= !matches!(
+            segment,
+            facts::PlaceSegment::Index { .. } | facts::PlaceSegment::OpaqueRange
+        );
+        place.segments.push(segment);
         crate::flow::compose_captured_view_segments(&mut place.segments)?;
         origin_type_reference(program, state, statement_index, &place)?;
     }
@@ -104,6 +117,60 @@ pub(super) fn exact_origin_place(
     (precision == OriginPrecision::Exact).then_some(place)
 }
 
+/// Translate a backing write into a captured alias's coordinates. A window
+/// shares its final dimension with the backing selector; it does not consume
+/// that selector from the alias path. Unknown offsets preserve an unknown
+/// element/window and the known descendant suffix, never a later selector value.
+pub(super) fn alias_projection(
+    captured: &[facts::PlaceSegment],
+    storage: &[facts::PlaceSegment],
+) -> Option<Vec<facts::PlaceSegment>> {
+    use facts::PlaceSegment;
+    let mut suffix = storage.get(captured.len()..)?.to_vec();
+    let Some(window @ (PlaceSegment::FixedRange { .. } | PlaceSegment::OpaqueRange)) =
+        captured.last().copied()
+    else {
+        return Some(suffix);
+    };
+    let selected = *storage.get(captured.len().checked_sub(1)?)?;
+    let unknown_element = PlaceSegment::Index {
+        expression: typed_trees::expression::ExpressionHandle::invalid(),
+    };
+    let relative = match (window, selected) {
+        (PlaceSegment::FixedRange { start, end }, PlaceSegment::FixedIndex { index })
+            if index >= start && index < end =>
+        {
+            PlaceSegment::FixedIndex {
+                index: index.checked_sub(start)?,
+            }
+        }
+        (
+            PlaceSegment::FixedRange { start, end },
+            PlaceSegment::FixedRange {
+                start: selected_start,
+                end: selected_end,
+            },
+        ) => {
+            let overlap_start = start.max(selected_start);
+            let overlap_end = end.min(selected_end);
+            if overlap_start >= overlap_end {
+                return None;
+            }
+            PlaceSegment::FixedRange {
+                start: overlap_start.checked_sub(start)?,
+                end: overlap_end.checked_sub(start)?,
+            }
+        }
+        (PlaceSegment::OpaqueRange, PlaceSegment::FixedIndex { .. })
+        | (_, PlaceSegment::Index { .. }) => unknown_element,
+        (_, PlaceSegment::OpaqueRange)
+        | (PlaceSegment::OpaqueRange, PlaceSegment::FixedRange { .. }) => PlaceSegment::OpaqueRange,
+        _ => return None,
+    };
+    suffix.insert(0, relative);
+    Some(suffix)
+}
+
 /// A frozen window is an exact descriptor origin, not an unknown element.
 /// It retains its collection dimension; the type query below checks the
 /// underlying carrier without pretending the window selected one child.
@@ -114,8 +181,13 @@ fn origin_type_reference(
     place: &CanonicalPlace,
 ) -> Option<typed_trees::types::TypeReferenceHandle> {
     let mut carrier = place.clone();
-    if let Some(facts::PlaceSegment::FixedRange { start, end }) = carrier.segments.last().copied() {
-        if start > end {
+    if let Some(
+        segment @ (facts::PlaceSegment::FixedRange { .. } | facts::PlaceSegment::OpaqueRange),
+    ) = carrier.segments.last().copied()
+    {
+        if let facts::PlaceSegment::FixedRange { start, end } = segment
+            && start > end
+        {
             return None;
         }
         carrier.segments.pop();
@@ -150,4 +222,47 @@ pub(crate) fn sole_local_referent_origin(
         });
     let origin = referents.next()?;
     (referents.next().is_none()).then_some(origin)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::alias_projection;
+    use facts::PlaceSegment::{self, FixedIndex, FixedRange, OpaqueRange};
+
+    #[test]
+    fn unknown_window_keeps_alias_row_and_descendant_column() {
+        let projected = alias_projection(
+            &[OpaqueRange],
+            &[FixedIndex { index: 0 }, FixedIndex { index: 1 }],
+        )
+        .unwrap();
+        assert!(
+            matches!(projected[0], PlaceSegment::Index { expression } if !expression.is_valid())
+        );
+        assert_eq!(projected[1..], [FixedIndex { index: 1 }]);
+    }
+
+    #[test]
+    fn known_window_translates_only_its_boundary_dimension() {
+        assert_eq!(
+            alias_projection(
+                &[FixedRange { start: 2, end: 6 }],
+                &[FixedIndex { index: 3 }, FixedRange { start: 1, end: 4 }],
+            ),
+            Some(vec![
+                FixedIndex { index: 1 },
+                FixedRange { start: 1, end: 4 }
+            ]),
+        );
+        assert_eq!(
+            alias_projection(
+                &[FixedRange { start: 2, end: 6 }],
+                &[FixedRange { start: 1, end: 4 }, FixedIndex { index: 1 }],
+            ),
+            Some(vec![
+                FixedRange { start: 0, end: 2 },
+                FixedIndex { index: 1 }
+            ]),
+        );
+    }
 }

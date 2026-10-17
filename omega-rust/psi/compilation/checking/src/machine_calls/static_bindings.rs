@@ -34,6 +34,17 @@ struct StaticDeclaration<'program> {
 
 impl<'program> StaticDeclaration<'program> {
     fn find(program: &'program dyn crate::CheckingInput, symbol: SymbolHandle) -> Option<Self> {
+        if let Some(application) = program.closed_requirement_application(symbol) {
+            let (_, source) = program.trait_machine_signature(application.template)?;
+            return Some(Self {
+                symbol: application.signature.symbol,
+                name: &source.name,
+                parameters: program
+                    .requirement_invocation_contract_parameters(application.signature),
+                lifetime_parameters: &source.lifetime_parameters,
+                conformance_bounds: &[],
+            });
+        }
         if let Some(machine) = program.machine_by_symbol(symbol) {
             return Some(Self {
                 symbol: machine.symbol,
@@ -61,6 +72,85 @@ impl<'program> StaticDeclaration<'program> {
     }
 }
 
+/// An open source schema is distinct from a missing concrete instance. The
+/// representation queries differ only in permitting this caller's declared
+/// Type/Const binders; both retain transitive nominal, region and operand
+/// custody checks. This classification admits no bound or provider evidence.
+fn is_declared_open_tuple(
+    program: &dyn crate::CheckingInput,
+    application: &StaticMachineApplication,
+    bindings: &[StaticMachineBinding],
+) -> bool {
+    let Some((declaring_trait, _)) =
+        program.trait_machine_signature(application.binding_declaration)
+    else {
+        return false;
+    };
+    // The raw declaration is the receiving scope only when no outer
+    // substitution is required. Applied outer telescopes retain the existing
+    // exact closed-scope route; this source-schema judgment cannot replace it.
+    if !program.trait_type_parameters(declaring_trait).is_empty()
+        || !declaring_trait.lifetime_parameters.is_empty()
+    {
+        return false;
+    }
+    let operands = bindings
+        .iter()
+        .filter_map(|binding| match binding.value {
+            StaticMachineBindingValue::Type(actual) | StaticMachineBindingValue::Const(actual) => {
+                Some(actual)
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let owner = application.lexical_owner;
+    if program
+        .require_declared_application_operands(&operands, owner)
+        .is_err()
+    {
+        return false;
+    }
+    let mut open = program
+        .require_owned_application_operands(&operands, owner)
+        .is_err();
+    let Some(declaration) = StaticDeclaration::find(program, owner) else {
+        return false;
+    };
+    for binding in bindings {
+        match &binding.value {
+            StaticMachineBindingValue::Machine(argument)
+                if argument.symbol.is_valid()
+                    && program.symbols.get(argument.symbol).kind
+                        == symbols::SymbolKind::MachineParameter =>
+            {
+                if !declaration.parameters.iter().any(|parameter| {
+                    parameter.symbol == argument.symbol
+                        && matches!(parameter.kind, TypeParameterKind::Machine { .. })
+                }) {
+                    return false;
+                }
+                open = true;
+            }
+            StaticMachineBindingValue::Conformance(argument)
+                if argument.symbol.is_valid()
+                    && program.symbols.get(argument.symbol).kind
+                        == symbols::SymbolKind::ConformanceParameter =>
+            {
+                if !declaration
+                    .conformance_bounds
+                    .iter()
+                    .any(|bound| bound.binder == argument.symbol)
+                {
+                    return false;
+                }
+                open = true;
+            }
+            _ => {}
+        }
+    }
+    open
+}
+
 pub fn validate_static_machine_bindings(
     program: &dyn crate::CheckingInput,
 ) -> Result<(), Vec<Diagnostic>> {
@@ -69,12 +159,16 @@ pub fn validate_static_machine_bindings(
     // A private execution graph shares arenas with excluded declarations.
     // Only live roots own judgments; arena capacity is not an obligation roster.
     let references = typed_trees::references::collect_program_references(program.typed_program());
+    let mut call_targets = Vec::new();
     let mut applications = references
         .expressions
         .iter()
         .filter_map(
             |expression| match program.expression_table.expression(*expression) {
-                ExpressionNode::Call(call) => Some(call.authored_machine_application),
+                ExpressionNode::Call(call) => {
+                    call_targets.push((call.authored_machine_application, call.target_symbol));
+                    Some(call.authored_machine_application)
+                }
                 _ => None,
             },
         )
@@ -87,7 +181,11 @@ pub fn validate_static_machine_bindings(
                     .statements(state.statement_nodes)
                     .iter()
                     .filter_map(|statement| match statement {
-                        StatementNode::Call(call) => Some(call.authored_machine_application),
+                        StatementNode::Call(call) => {
+                            call_targets
+                                .push((call.authored_machine_application, call.target_symbol));
+                            Some(call.authored_machine_application)
+                        }
                         _ => None,
                     }),
             );
@@ -131,8 +229,55 @@ pub fn validate_static_machine_bindings(
         let lifetimes = program
             .expression_table
             .static_machine_application_lifetimes(handle);
+        if bindings.is_empty() && lifetimes.is_empty() {
+            continue;
+        }
+        let declaration_symbol = if program
+            .machine_by_symbol(application.binding_declaration)
+            .is_none()
+            && program
+                .trait_machine_signature(application.binding_declaration)
+                .is_some()
+        {
+            // An authored tuple belongs to this call occurrence's exact closed
+            // trait application, not another equal tuple in an outer scope.
+            let mut selected = None;
+            let mut valid = true;
+            for (_, target) in call_targets.iter().filter(|(source, _)| *source == handle) {
+                let Some(closed) = program.closed_requirement_application(*target) else {
+                    // A live universal call keeps its exact authored declaration
+                    // until its own operands close. It still owes every ordinary
+                    // lifetime, bound, const and forwarded-evidence check below.
+                    if *target == application.binding_declaration
+                        && !selected.is_some_and(|previous| previous != *target)
+                        && is_declared_open_tuple(program, application, bindings)
+                    {
+                        selected = Some(*target);
+                        continue;
+                    }
+                    valid = false;
+                    break;
+                };
+                if closed.template != application.binding_declaration
+                    || selected.is_some_and(|previous| previous != *target)
+                {
+                    valid = false;
+                    break;
+                }
+                selected = Some(*target);
+            }
+            let Some(selected) = selected.filter(|_| valid) else {
+                diagnostics.push(Diagnostic::error(
+                    "retained requirement tuple lost its exact source call application",
+                ));
+                continue;
+            };
+            selected
+        } else {
+            application.binding_declaration
+        };
         if !lifetimes.is_empty() {
-            let declared = StaticDeclaration::find(program, application.binding_declaration);
+            let declared = StaticDeclaration::find(program, declaration_symbol);
             let owner = StaticDeclaration::find(program, application.lexical_owner);
             if declared.zip(owner).is_none_or(|(declared, owner)| {
                 // Ordinary calls may infer only the used part of a lifetime
@@ -161,8 +306,7 @@ pub fn validate_static_machine_bindings(
         if bindings.is_empty() {
             continue;
         }
-        let Some(machine) = StaticDeclaration::find(program, application.binding_declaration)
-        else {
+        let Some(machine) = StaticDeclaration::find(program, declaration_symbol) else {
             diagnostics.push(Diagnostic::error(format!(
                 "static tuple for `{}` lost its original binding declaration",
                 application.target,

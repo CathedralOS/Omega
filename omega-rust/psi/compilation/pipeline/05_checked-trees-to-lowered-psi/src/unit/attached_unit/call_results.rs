@@ -22,7 +22,7 @@ pub(crate) struct Prepared {
     issuer: symbols::SymbolHandle,
 }
 
-/// Every semantic domain a module-route call's receiving result carries:
+/// Whole-carrier semantic domains a module-route call's receiving result carries:
 /// the checked custody roster beside the callee's authored `ensures result
 /// in Domain` clauses. The structural domain catalog selects from this same
 /// roster, so a receiving result can never name a domain the closure did
@@ -37,12 +37,10 @@ pub(crate) fn module_result_qualification_domains(
         .map(|custody| custody.result_qualifications.clone())
         .unwrap_or_default();
     if let checked_trees::CheckedUnitCallRoute::Module { .. } = call.route() {
-        domains.append(
-            &mut super::parameters::authored_result_qualification_domains(
-                checked,
-                call.target.machine,
-            ),
-        );
+        domains.append(&mut super::parameters::authored_result_whole_domains(
+            checked,
+            call.target.machine,
+        ));
     }
     domains.sort_by_key(|domain| domain.0);
     domains.dedup();
@@ -106,11 +104,11 @@ pub(crate) fn prepare(
         let (_, state) = crate::declarations::state_declaration(checked, call.target.state)?;
         (
             module_result_qualification_domains(checked, call),
-            validation::structural_result_projected_qualifications(
-                &checked.typed,
+            super::parameters::result_projected_qualifications(
+                checked,
+                call.target.machine,
                 state.return_type,
-            )
-            .map_err(LoweringError::Unsupported)?,
+            )?,
             symbols::SymbolHandle::default(),
         )
     };

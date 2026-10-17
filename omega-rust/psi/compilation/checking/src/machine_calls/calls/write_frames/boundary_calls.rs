@@ -381,7 +381,7 @@ fn boundary_trait_signature_and_receiver_inner<'program>(
         _ => None,
     };
     let receiver_scope = if has_runtime_receiver {
-        crate::declarations::traits::receiver_trait_scope(
+        typed_trees::trait_definition::AppliedTraitScope::from_type_reference(
             program,
             receiver_reference,
             current_machine.symbol,
@@ -395,7 +395,11 @@ fn boundary_trait_signature_and_receiver_inner<'program>(
         .closed_requirement_application(target_symbol)
         .map_or(target_symbol, |application| application.template);
     let (trait_definition, _) = program.trait_machine_signature(template)?;
-    receiver_scope.declaring_scope(program, trait_definition.symbol)?;
+    if has_runtime_receiver {
+        receiver_scope.declaring_scope(program, trait_definition.symbol)?;
+    } else if receiver_scope.declaration.symbol != trait_definition.symbol {
+        return None;
+    }
     if program
         .closed_requirement_application(target_symbol)
         .is_some()
@@ -422,27 +426,10 @@ fn boundary_trait_signature_and_receiver_inner<'program>(
         && !program
             .closed_requirement_application(signature.symbol)
             .is_some_and(|application| {
-                if applied.is_some() {
-                    return program.requirement_application_matches_scope(
-                        application.signature.symbol,
-                        &receiver_scope,
-                    );
-                }
-                typed_trees::service::inspect_service_parameter_contract(
-                    program,
-                    receiver_reference,
+                program.requirement_application_matches_scope(
+                    application.signature.symbol,
+                    &receiver_scope,
                 )
-                .ok()
-                .flatten()
-                .and_then(|carrier| {
-                    carrier
-                        .carrier
-                        .application(program, current_machine.symbol, &[])
-                })
-                .is_some_and(|scope| {
-                    program
-                        .requirement_application_matches_scope(application.signature.symbol, &scope)
-                })
             })
         && binders != SignatureBinders::ArgumentPinnedTypes
     {

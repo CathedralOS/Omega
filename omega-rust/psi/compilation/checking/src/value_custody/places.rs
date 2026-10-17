@@ -39,6 +39,35 @@ use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
+/// An incoming exclusive reference parameter lends its referent; it is not an
+/// owned descriptor slot. A mutable shared-reference binding may instead
+/// replace its descriptor without writing the shared referent. Receiving types,
+/// origin stability and write permission must retain that same distinction,
+/// including when an exclusive referent is itself a reference-valued slot.
+pub(crate) fn assignment_targets_parameter_referent(
+    program: &dyn crate::CheckingInput,
+    state: &typed_trees::state::State,
+    target: ExpressionHandle,
+) -> bool {
+    crate::canonical_place_from_expression_in_state(
+        program,
+        state.symbol,
+        state.statement_nodes.count() as usize,
+        target,
+    )
+    .is_some_and(|place| {
+        place.segments.is_empty()
+            && place
+                .root
+                .as_symbol()
+                .and_then(|symbol| program.state_parameter_by_symbol(state, symbol))
+                .is_some_and(|parameter| {
+                    crate::reference_shell(program, parameter.type_reference)
+                        .is_some_and(|shell| shell.access.is_exclusive())
+                })
+    })
+}
+
 /// Check that an assignment's target names a place this state may reach with
 /// the polarity `receiver` demands: `Exclusive` for an ordinary write, or
 /// `Shared` when the assignment is the parser's carrier for a sealed atomic

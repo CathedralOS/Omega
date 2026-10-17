@@ -1,0 +1,3 @@
+pub boundary trait Input { machine read() -> i32; }
+data NotAnImplementation {}
+machine observe() -> i32 { Input::read<NotAnImplementation>() }

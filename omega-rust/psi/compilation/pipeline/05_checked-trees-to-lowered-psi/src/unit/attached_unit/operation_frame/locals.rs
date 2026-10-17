@@ -1068,14 +1068,144 @@ impl OperationFrame<'_, '_> {
                     .ok_or(LoweringError::Unsupported(
                         "owned rebind formal home is absent",
                     ))?;
-                if parameter.access != StructuralAccess::Owned
+                let previous = parameter.clone();
+                if parameter.access == StructuralAccess::SharedBorrow
+                    && validation::reference_shell(&self.checked.typed, formal.type_reference)
+                        .is_some_and(|shell| {
+                            shell.access == language_semantics::ReferenceAccess::Shared
+                        })
+                    && validation::stored_structural_type_identity(
+                        &self.checked.typed,
+                        formal.type_reference,
+                        &[],
+                        &[],
+                    ) == type_identity
+                {
+                    // The signature keeps its borrowed ingress. Only the
+                    // body's current binding adopts the completed descriptor
+                    // home, just as an owned local does. Historical captures
+                    // still resolve the original parameter above.
+                    if parameter.structural_type != replacement.structural_type {
+                        let carrier = self
+                            .structural_types
+                            .declarations()
+                            .iter()
+                            .find(|carrier| carrier.id == replacement.structural_type)
+                            .ok_or(LoweringError::Unsupported(
+                                "shared rebind descriptor declaration is absent",
+                            ))?;
+                        let ingress_identity = validation::structural_type_identity(
+                            &self.checked.typed,
+                            formal.type_reference,
+                            &[],
+                            &[],
+                        );
+                        if parameter.structural_type
+                            != lookup_type_id(self.type_ids, &ingress_identity)?
+                        {
+                            return unsupported("shared rebind lost its declared ingress type");
+                        }
+                        let adds_referent = if let terminal_psi::StructuralTypeShape::Reference {
+                            referent,
+                            access,
+                        } = &carrier.shape
+                        {
+                            if *referent != parameter.structural_type
+                                || *access != StructuralAccess::SharedBorrow
+                            {
+                                return unsupported("shared rebind changes its referent or access");
+                            }
+                            true
+                        } else {
+                            // Stored slice descriptors retain their own type identity
+                            // and access ceiling; ingress keeps access on the formal.
+                            // Join the exact declarations by undoing only that catalog
+                            // transformation. Equal geometry alone grants no authority.
+                            if validation::stored_view_shell(
+                                &self.checked.typed,
+                                formal.type_reference,
+                                &[],
+                            )
+                            .is_none()
+                            {
+                                return unsupported(
+                                    "shared rebind is not a declared view descriptor",
+                                );
+                            }
+                            let ingress = self
+                                .structural_types
+                                .declarations()
+                                .iter()
+                                .find(|declaration| declaration.id == parameter.structural_type)
+                                .ok_or(LoweringError::Unsupported(
+                                    "shared view ingress declaration is absent",
+                                ))?;
+                            let mut canonical = carrier.clone();
+                            let access = match &mut canonical.shape {
+                                terminal_psi::StructuralTypeShape::ElementView {
+                                    access, ..
+                                }
+                                | terminal_psi::StructuralTypeShape::ByteSequence(
+                                    terminal_psi::ByteSequenceCarrier::BorrowedView { access },
+                                ) => access,
+                                _ => {
+                                    return unsupported(
+                                        "shared rebind changes its descriptor family",
+                                    );
+                                }
+                            };
+                            if *access != Some(StructuralAccess::SharedBorrow) {
+                                return unsupported(
+                                    "shared view rebind changes its access ceiling",
+                                );
+                            }
+                            *access = None;
+                            canonical.id = ingress.id;
+                            canonical.identity = ingress.identity;
+                            if canonical != *ingress {
+                                return unsupported(
+                                    "shared view rebind changes its declared carrier",
+                                );
+                            }
+                            false
+                        };
+                        if adds_referent {
+                            // Referent memberships stay on the referent. Moving
+                            // them onto the descriptor root would invent a new
+                            // qualified carrier and lose projected identities.
+                            for row in &mut parameter.projected_qualifications {
+                                row.path
+                                    .insert(0, terminal_psi::StructuralPathSegment::Referent);
+                            }
+                            parameter.projected_qualifications.extend(
+                                parameter.qualifications.drain(..).map(|domain| {
+                                    terminal_psi::StructuralPathQualification {
+                                        path: vec![terminal_psi::StructuralPathSegment::Referent],
+                                        domain,
+                                    }
+                                }),
+                            );
+                            parameter.projected_qualifications.sort();
+                            parameter.projected_qualifications.dedup();
+                        }
+                    }
+                    parameter.access = StructuralAccess::Owned;
+                    parameter.structural_type = replacement.structural_type;
+                    // Shared source use is unrestricted, but a materialized
+                    // pointer descriptor owns an affine lifetime obligation.
+                    // Views retain their separate descriptor multiplicity.
+                    parameter.multiplicity = crate::terminal_identities::structural_multiplicity(
+                        validation::reference_result_custody::result_multiplicity(
+                            &self.checked.typed,
+                            formal.type_reference,
+                        ),
+                    );
+                } else if parameter.access != StructuralAccess::Owned
                     || parameter.structural_type != replacement.structural_type
                 {
                     return unsupported("owned rebind changes formal custody or type");
                 }
-                self.evaluation
-                    .previous_parameter_homes
-                    .push(parameter.clone());
+                self.evaluation.previous_parameter_homes.push(previous);
                 parameter.place = replacement.place;
                 self.evaluation
                     .bind_structural_parameters(parameters, self.structural_types.declarations());
@@ -1141,7 +1271,12 @@ impl OperationFrame<'_, '_> {
         }
         // The declaration survives a consuming move; its old value binding
         // does not. Assignment publishes one new current occurrence whether
-        // the preceding slot was occupied or vacated.
+        // the preceding slot was occupied or vacated. A primitive reference's
+        // ingress lookup must retire with that old namespace entry; concrete
+        // places and earlier captured operands retain their own identities.
+        self.evaluation
+            .primitive_storage
+            .retain(|entry| entry.0 != symbol);
         self.evaluation
             .structural_locals
             .retain(|local| local.root != facts::PlaceRoot::Symbol(symbol));

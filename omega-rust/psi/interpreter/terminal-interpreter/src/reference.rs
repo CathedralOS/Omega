@@ -675,19 +675,24 @@ impl TerminalExecution<'_> {
             }
             ram.access = access;
         }
-        let mut captured_memberships = Vec::new();
+        // Preserve actual backing membership beneath Referent. Shared views
+        // may attenuate their declared roster; exclusive crossings retain the
+        // incoming exact-roster check and cannot manufacture membership.
+        let mut projected = Vec::new();
         terminal_psi::StructuralPathQualification::append_under(
             &referent.qualifications,
             &referent.projected_qualifications,
             &[StructuralPathSegment::Referent],
-            &mut captured_memberships,
+            &mut projected,
         );
+        projected.sort();
+        projected.dedup();
         if !access_covers(source.access, access)
             || result.multiplicity != StructuralMultiplicity::Affine
             || !result.qualifications.is_empty()
-            || result.projected_qualifications.iter().any(|row| !captured_memberships.contains(row))
+            || result.projected_qualifications.iter().any(|row| !projected.contains(row))
             || (access != StructuralAccess::SharedBorrow
-                && captured_memberships.iter().any(|row| !result.projected_qualifications.contains(row)))
+                && projected.iter().any(|row| !result.projected_qualifications.contains(row)))
             || !result.claims.is_empty()
             // The storage judgment above admitted an aggregate re-view.
             || (aggregate_view.is_none() && !field_compatible
@@ -708,7 +713,7 @@ impl TerminalExecution<'_> {
             result.structural_type,
             Vec::new(),
         );
-        carrier.projected_qualifications = result.projected_qualifications.clone();
+        carrier.projected_qualifications = projected;
         self.reference_referents.insert(
             StructuralRuntimePlace::from(&carrier),
             ReferenceReferent {
@@ -1703,6 +1708,7 @@ impl TerminalExecution<'_> {
                             };
                             if !view.matches_descriptor_home(&expected)
                                 || !access_covers(view.access(), source.access)
+                                || !access_covers(view.access(), access)
                             {
                                 return Err(malformed().in_argument_preparation(
                                     "capture exact element-view return backing",

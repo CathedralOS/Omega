@@ -1,0 +1,6 @@
+use omega::language::core::float_operations;
+data Cell [copy] { mantissa:f64; power:i32; }
+domain Cell::Admitted established by Cell::accept;
+machine Cell::accept()->Cell ensures result in Cell::Admitted { Cell { mantissa:0.75, power:-2 } }
+machine view<'a>(cell:&'a Cell)->&'a Cell requires cell in Cell::Admitted ensures result in Cell::Admitted { cell }
+machine main() crashes Trap { let cell:Cell=Cell { mantissa:0.75, power:-2 }; let borrowed:&Cell=view(&cell); transition borrowed.mantissa == 0.75 { true -> good() false -> bad() } state good() {} state bad() { crash Trap; } }

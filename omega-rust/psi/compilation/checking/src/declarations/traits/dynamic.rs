@@ -17,14 +17,11 @@
 //! instantiates the requirement under the selector's trait application the
 //! same way an evidence binder's bound does.
 //!
-//! A `Binding<R>` authority binds its exact requirement target here. Static
-//! `R::operation(&binding, ...)` calls normalize the first operand into the
-//! same explicit authority lane as receiver calls, preserving its evaluation
-//! and the authored call occurrence separately from ordinary arguments.
-//! Its value path retains the lexical root and every declared field. This is
-//! one service-selection operation, not data-method lookup: qualification never
-//! searches an attached machine or supplies an implicit argument. Preparation
-//! binds authored calls once; a specialized producer binds only its new body.
+//! Boundary calls retain their exact qualified requirement application as a
+//! static provider-slot demand. They have only ordinary authored arguments;
+//! provider selection, package admission and runtime permissions stay separate.
+//! This pass resolves qualified/dynamic applications without manufacturing,
+//! capturing or removing a source routing operand.
 
 use diagnostics::Diagnostic;
 use typed_trees::TypedTrees;
@@ -64,9 +61,7 @@ pub fn collect_dynamic_implementation_selections(
         for state in program.machine_states(machine) {
             let mut visited = Vec::new();
             for statement in program.statement_table.statements(state.statement_nodes) {
-                for root in crate::machine_calls::calls::statement_value_expression_roots(
-                    program, statement,
-                ) {
+                for (_, root) in program.tables.expression_roots(statement) {
                     collect_selections_in(
                         program,
                         machine,
@@ -282,9 +277,7 @@ pub fn collect_dynamic_slot_demands(
                 {
                     push(demand);
                 }
-                for root in crate::machine_calls::calls::statement_value_expression_roots(
-                    program, statement,
-                ) {
+                for (_, root) in program.tables.expression_roots(statement) {
                     collect_call_demands_in(program, machine, state, root, &mut visited, &mut push);
                 }
             }
@@ -451,17 +444,35 @@ pub(crate) fn dynamic_receiver_call_error(
     ))
 }
 
+/// A static qualifier names a declaration scope, never a runtime place or
+/// stored trait value. Ordinary selectors instead supply their exact declared
+/// type. Both routes retain the same applied inheritance environment; neither
+/// selected providers nor a same-spelled data carrier can supply one.
+pub fn qualified_trait_scope<'program>(
+    program: &'program dyn crate::CheckingInput,
+    lexical_owner: symbols::SymbolHandle,
+    namespace: symbols::SymbolHandle,
+    value_type: Option<TypeReferenceHandle>,
+) -> Option<typed_trees::trait_definition::AppliedTraitScope<'program>> {
+    program
+        .trait_definition_by_symbol(namespace)
+        .map(typed_trees::trait_definition::AppliedTraitScope::abstract_scope)
+        .or_else(|| {
+            value_type.and_then(|reference| {
+                typed_trees::trait_definition::AppliedTraitScope::from_type_reference(
+                    program,
+                    reference,
+                    lexical_owner,
+                )
+            })
+        })
+}
+
 pub fn resolve_dynamic_call_targets(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
     resolve_selected_dynamic_call_targets(
         program,
         &typed_trees::references::DeclarationSelection::all(),
     )
-}
-
-struct StatementBindingAuthorities {
-    machine_index: usize,
-    state_index: usize,
-    operands: Vec<(usize, ExpressionHandle, TypeReferenceHandle)>,
 }
 
 /// Bind only calls owned by the selected declarations, publishing their exact
@@ -472,40 +483,18 @@ pub fn resolve_selected_dynamic_call_targets(
 ) -> Result<(), Vec<Diagnostic>> {
     let mut expression_updates = Vec::new();
     let mut statement_updates = Vec::new();
-    let mut authority_statements = Vec::new();
     let mut diagnostics = Vec::new();
 
-    for (machine_index, machine) in program.machines().iter().enumerate() {
+    for machine in program.machines() {
         if !domain.contains(machine.symbol) {
             continue;
         }
-        for (state_index, state) in program.machine_states(machine).iter().enumerate() {
-            let mut authorities = StatementBindingAuthorities {
-                machine_index,
-                state_index,
-                operands: Vec::new(),
-            };
+        for state in program.machine_states(machine) {
             for (statement_index, statement) in program
                 .statement_table
                 .indexed_statements(state.statement_nodes)
             {
                 if let Some(call) = statement.as_call() {
-                    let arguments = program.statement_table.expression_handles(call.arguments);
-                    if let Some((authority, reference)) = explicit_binding_authority(
-                        program,
-                        machine,
-                        state,
-                        call.receiver_symbol,
-                        call.target_symbol,
-                        &call.machine_arguments,
-                        arguments,
-                        call.source_span,
-                        &mut diagnostics,
-                    ) {
-                        authorities
-                            .operands
-                            .push((statement_index, authority, reference));
-                    }
                     let members = program.statement_table.name_path_members(call.receiver);
                     // The lexical declaration, not a repeated leaf spelling,
                     // owns the path. Namespace qualification has no value root.
@@ -521,11 +510,19 @@ pub fn resolve_selected_dynamic_call_targets(
                             crate::receiver_projections::field(program, receiver, member)
                         })
                     });
-                    let dynamic_target = receiver.as_ref().and_then(|receiver| {
+                    let dynamic_target = qualified_trait_scope(
+                        program,
+                        machine.symbol,
+                        call.receiver_symbol,
+                        receiver.as_ref().map(|receiver| receiver.type_reference),
+                    )
+                    .and_then(|scope| {
                         resolved_dynamic_requirement_symbol(
                             program,
-                            machine.symbol,
-                            receiver.type_reference,
+                            scope,
+                            program
+                                .trait_definition_by_symbol(call.receiver_symbol)
+                                .is_some(),
                             call.target.as_str(),
                             call.target_symbol,
                             call.source_span,
@@ -564,9 +561,7 @@ pub fn resolve_selected_dynamic_call_targets(
                     }
                 }
 
-                for root in crate::machine_calls::calls::statement_value_expression_roots(
-                    program, statement,
-                ) {
+                for (_, root) in program.tables.expression_roots(statement) {
                     collect_dynamic_expression_call_updates(
                         program,
                         machine,
@@ -578,9 +573,6 @@ pub fn resolve_selected_dynamic_call_targets(
                     );
                 }
             }
-            if !authorities.operands.is_empty() {
-                authority_statements.push(authorities);
-            }
         }
     }
 
@@ -588,25 +580,11 @@ pub fn resolve_selected_dynamic_call_targets(
         return Err(diagnostics);
     }
 
-    for (expression, requirement, authority) in expression_updates {
-        let arguments = authority.map(|_| {
-            let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
-                unreachable!("collected call changed shape")
-            };
-            let remaining =
-                program.expression_table.expression_handles(call.arguments)[1..].to_vec();
-            program
-                .expression_table
-                .insert_expression_handles(remaining)
-        });
+    for (expression, requirement) in expression_updates {
         let ExpressionNode::Call(call) = program.expression_table.expression_mut(expression) else {
-            unreachable!("collected dynamic expression call changed shape")
+            unreachable!("collected qualified expression call changed shape")
         };
         call.target_symbol = requirement;
-        if let Some(authority) = authority {
-            call.receiver = authority;
-            call.arguments = arguments.unwrap_or_default();
-        }
     }
     for (statements, statement_index, endpoint, requirement) in statement_updates {
         let StatementNode::Call(call) =
@@ -620,95 +598,6 @@ pub fn resolve_selected_dynamic_call_targets(
         call.target_symbol = requirement;
     }
 
-    // Capture the explicit first operand once before the call. Statements keep
-    // their discard intent and authored selection; computed authorities use the
-    // same ordinary local/receiver path as a forwarded shared reference.
-    for authorities in authority_statements {
-        let machine = program.machines()[authorities.machine_index].clone();
-        let state = program.machine_states(&machine)[authorities.state_index].clone();
-        let mut operands = authorities.operands.into_iter().peekable();
-        let statements = program
-            .statement_table
-            .statements(state.statement_nodes)
-            .to_vec();
-        let mut body = arena::HandleSpan::empty();
-        let mut positions = Vec::with_capacity(statements.len() + 1);
-        let mut call_positions = Vec::with_capacity(statements.len());
-        for (statement_index, mut statement) in statements.into_iter().enumerate() {
-            positions.push(body.count() as usize);
-            if let Some((_, authority, type_reference)) =
-                operands.next_if(|(position, _, _)| *position == statement_index)
-            {
-                let name = format!(
-                    "__binding_authority#{}#{statement_index}",
-                    state.symbol.arena_index()
-                );
-                let symbol = program
-                    .symbols
-                    .append_generated_children_from(
-                        state.symbol,
-                        [(state.symbol, symbols::SymbolKind::Local, name.as_str())],
-                    )
-                    .start();
-                let name = typed_trees::name::Identifier::generated(name);
-                let type_reference = if let ExpressionNode::Borrow(borrow) =
-                    program.expression_table.expression(authority)
-                {
-                    let access = borrow.access;
-                    program
-                        .type_reference_table
-                        .insert(TypeReferenceNode::Reference {
-                            referee: type_reference,
-                            access,
-                            lifetime: None,
-                        })
-                } else {
-                    type_reference
-                };
-                program.statement_table.push_statement(
-                    &mut body,
-                    StatementNode::LocalData(typed_trees::statement::TableLocalData {
-                        symbol,
-                        name: name.clone(),
-                        type_reference,
-                        initial_value: authority,
-                        type_is_inferred: true,
-                        ..Default::default()
-                    }),
-                );
-                if let StatementNode::Call(call) = &mut statement {
-                    let arguments =
-                        program.statement_table.expression_handles(call.arguments)[1..].to_vec();
-                    call.arguments = program.statement_table.insert_expression_handles(arguments);
-                    let mut receiver = arena::HandleSpan::empty();
-                    program
-                        .statement_table
-                        .push_name_path_member(&mut receiver, name);
-                    call.receiver = receiver;
-                    call.receiver_root_symbol = symbol;
-                    call.receiver_symbol = symbol;
-                }
-            }
-            call_positions.push(body.count() as usize);
-            program.statement_table.push_statement(&mut body, statement);
-        }
-        positions.push(body.count() as usize);
-        for forwarding in &mut program.evidence_forwardings {
-            if forwarding.state_symbol == state.symbol {
-                forwarding.statement_index = positions[forwarding.statement_index];
-            }
-        }
-        for output in &mut program.proof_output_calls {
-            if output.state_symbol == state.symbol {
-                output.statement_index = positions[output.statement_index];
-                output.runtime_call_statement_index = output
-                    .runtime_call_statement_index
-                    .map(|position| call_positions[position]);
-            }
-        }
-        program.machine_states_mut(&machine)[authorities.state_index].statement_nodes = body;
-    }
-
     Ok(())
 }
 
@@ -718,11 +607,7 @@ fn collect_dynamic_expression_call_updates(
     state: &State,
     before: usize,
     expression: ExpressionHandle,
-    updates: &mut Vec<(
-        ExpressionHandle,
-        symbols::SymbolHandle,
-        Option<ExpressionHandle>,
-    )>,
+    updates: &mut Vec<(ExpressionHandle, symbols::SymbolHandle)>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     if !expression.is_valid() {
@@ -767,24 +652,7 @@ fn collect_dynamic_expression_call_updates(
         }
         ExpressionNode::Cast(cast) => visit!(cast.value),
         ExpressionNode::Call(call) => {
-            let qualifier =
-                crate::machine_calls::calls::dynamic_requirement::expression_trait_receiver(
-                    program,
-                    call.receiver,
-                );
-            let authority = explicit_binding_authority(
-                program,
-                machine,
-                state,
-                qualifier,
-                call.target_symbol,
-                &call.machine_arguments,
-                program.expression_table.expression_handles(call.arguments),
-                program.expression_table.source_span(expression),
-                diagnostics,
-            )
-            .map(|(authority, _)| authority);
-            let receiver_expression = authority.unwrap_or(call.receiver);
+            let receiver_expression = call.receiver;
             let receiver_type = match crate::receiver_projections::expression(
                 program,
                 state,
@@ -806,11 +674,23 @@ fn collect_dynamic_expression_call_updates(
                     None
                 }
             };
-            if let Some(receiver_type) = receiver_type
+            let namespace = program
+                .expression_table
+                .name_path_node(receiver_expression)
+                .map_or_else(symbols::SymbolHandle::invalid, |path| path.symbol);
+            // Preparation can already have closed this target. Its authored
+            // qualifier supplies the exact trait application; the abstract
+            // namespace cannot stand in for its phantom or inherited arguments.
+            let scope = if call.requirement_application.is_valid() {
+                program.applied_requirement_scope(machine.symbol, call.requirement_application)
+            } else {
+                qualified_trait_scope(program, machine.symbol, namespace, receiver_type)
+            };
+            if let Some(scope) = scope
                 && let Some(requirement) = resolved_dynamic_requirement_symbol(
                     program,
-                    machine.symbol,
-                    receiver_type,
+                    scope,
+                    program.trait_definition_by_symbol(namespace).is_some(),
                     call.target.as_str(),
                     call.target_symbol,
                     program.expression_table.source_span(expression),
@@ -818,9 +698,9 @@ fn collect_dynamic_expression_call_updates(
                 )
                 && !updates
                     .iter()
-                    .any(|(candidate, _, _)| *candidate == expression)
+                    .any(|(candidate, _)| *candidate == expression)
             {
-                updates.push((expression, requirement, authority));
+                updates.push((expression, requirement));
             }
             visit!(call.receiver);
             for argument in program.expression_table.expression_handles(call.arguments) {
@@ -847,135 +727,25 @@ fn collect_dynamic_expression_call_updates(
     }
 }
 
-/// A qualified boundary call supplies authority separately from its ordinary
-/// arguments. Normalize that explicit operand into the existing receiver lane;
-/// neither a matching method name nor an ordinary first borrow grants authority.
-fn explicit_binding_authority(
-    program: &dyn crate::CheckingInput,
-    machine: &Machine,
-    state: &State,
-    qualifier: symbols::SymbolHandle,
-    target: symbols::SymbolHandle,
-    machine_arguments: &[typed_trees::expression::StaticMachineArgument],
-    arguments: &[ExpressionHandle],
-    span: source::SourceSpan,
-    diagnostics: &mut Vec<Diagnostic>,
-) -> Option<(ExpressionHandle, TypeReferenceHandle)> {
-    // Typing binds service authority before static specialization closes
-    // conformance applications. An authored implementation operand chooses
-    // that static route, not a runtime Binding. Leave its exact map request
-    // intact for conformance preparation; neither a Build provider nor an
-    // arbitrary type argument can enter this lane. A malformed or unrelated
-    // map still fails that ordinary selection check before execution.
-    if machine_arguments
-        .iter()
-        .any(|argument| argument.names_implementation(&program.symbols))
-    {
-        return None;
-    }
-    // A named implementation or static conformance binder selects its own
-    // realization. Only qualification by the boundary trait consumes Binding
-    // authority. A normalized runtime receiver cannot satisfy this guard.
-    if program
-        .trait_definition_by_symbol(qualifier)
-        .is_none_or(|definition| !definition.is_boundary)
-    {
-        return None;
-    }
-    let declaration = program
-        .closed_requirement_application(target)
-        .map_or(target, |application| application.template);
-    if !declaration.is_valid()
-        || program
-            .trait_definition_by_symbol(program.symbols.get(declaration).parent)
-            .is_none_or(|definition| !definition.is_boundary)
-    {
-        return None;
-    }
-    // Every other explicit static argument fills one of the requirement's
-    // own static binders (a finite roster's type or const operand, or a
-    // native callback's `machine` selection). A data type or any surplus
-    // argument selects neither an implementation nor a binder.
-    let static_binders = program
-        .trait_definition_by_symbol(program.symbols.get(declaration).parent)
-        .and_then(|definition| {
-            program
-                .trait_machine_signatures(definition)
-                .iter()
-                .find(|requirement| requirement.symbol == declaration)
-        })
-        .map_or(0, |requirement| {
-            program.state_signature_type_parameters(requirement).len()
-        });
-    if let Some(surplus) = machine_arguments.get(static_binders) {
-        diagnostics.push(
-            Diagnostic::error(format!(
-                "static argument `{}` of boundary requirement call `{}` names no implementation and selects no static binder",
-                surplus.path.iter().map(|segment| segment.as_str()).collect::<Vec<_>>().join("::"),
-                program.symbols.name(declaration),
-            ))
-            .with_source_span(span),
-        );
-        return None;
-    }
-    // `Requirement::operation(arguments)` demands the requirement's static
-    // provider slot (wiki/spec/build/component_publication.md): its arguments
-    // are the requirement's own. Only a leading `Binding<R>` operand, the
-    // legacy explicit-authority spelling retired by the same contract,
-    // enters the receiver lane below.
-    let argument = arguments.first().copied()?;
-    let reference = crate::declared_place_type_raw(program, machine, Some(state), argument)?;
-    let carrier = match typed_trees::service::inspect_service_parameter_contract(program, reference)
-    {
-        Ok(Some(carrier)) => carrier,
-        Ok(None) => return None,
-        Err(reason) => {
-            // Preserve the carrier's own refusal (for example a private slot
-            // contract) instead of treating it as an ordinary argument.
-            diagnostics.push(Diagnostic::error(reason).with_source_span(span));
-            return None;
-        }
-    };
-    let borrowed = match program.expression_table.expression(argument) {
-        ExpressionNode::Borrow(borrow) => {
-            borrow.access == language_semantics::ReferenceAccess::Shared
-        }
-        _ => carrier.access == Some(language_semantics::ReferenceAccess::Shared),
-    };
-    if !borrowed {
-        diagnostics.push(
-            Diagnostic::error("a boundary call requires a shared `&Binding<R>` authority argument")
-                .with_source_span(span),
-        );
-        return None;
-    }
-    resolved_dynamic_requirement_symbol(
-        program,
-        machine.symbol,
-        reference,
-        program.symbols.name(declaration),
-        target,
-        span,
-        diagnostics,
-    )?;
-    Some((argument, reference))
-}
-
 fn resolved_dynamic_requirement_symbol(
     program: &dyn crate::CheckingInput,
-    lexical_owner: symbols::SymbolHandle,
-    receiver_type: TypeReferenceHandle,
+    receiver_scope: typed_trees::trait_definition::AppliedTraitScope<'_>,
+    static_namespace: bool,
     target: &str,
     retained_target: symbols::SymbolHandle,
     span: source::SourceSpan,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Option<symbols::SymbolHandle> {
-    let receiver_scope = receiver_trait_scope(program, receiver_type, lexical_owner)?;
     let trait_definition = receiver_scope.declaration;
     let mut matches = Vec::new();
     collect_dynamic_requirements_named(program, &receiver_scope, target, &mut matches);
+    // Static source names a requirement through its declaring trait. Runtime
+    // selectors retain the applied ancestor lookup used by dynamic dispatch.
+    if static_namespace {
+        matches.retain(|(scope, _)| scope.declaration.symbol == trait_definition.symbol);
+    }
     // A retained requirement may select an overload in this exact family,
-    // but cannot be silently overwritten by an unrelated Binding's member.
+    // but cannot be silently overwritten by an unrelated requirement member.
     let retained_application = program.closed_requirement_application(retained_target);
     let template = retained_application.map_or(retained_target, |application| application.template);
     let retained_matches = matches.iter().any(|(scope, requirement)| {
@@ -986,7 +756,7 @@ fn resolved_dynamic_requirement_symbol(
     });
     if retained_target.is_valid() && !retained_matches {
         diagnostics.push(
-            Diagnostic::error("projected binding call target belongs to a different requirement")
+            Diagnostic::error("qualified call target belongs to a different requirement")
                 .with_source_span(span),
         );
         return None;
@@ -1027,71 +797,6 @@ fn resolved_dynamic_requirement_symbol(
             )));
             None
         }
-    }
-}
-
-pub(crate) fn receiver_trait_scope<'program>(
-    program: &'program dyn crate::CheckingInput,
-    type_reference: TypeReferenceHandle,
-    lexical_owner: symbols::SymbolHandle,
-) -> Option<typed_trees::trait_definition::AppliedTraitScope<'program>> {
-    if let Some(carrier) =
-        typed_trees::service::inspect_service_parameter_contract(program, type_reference)
-            .ok()
-            .flatten()
-    {
-        return carrier.carrier.application(program, lexical_owner, &[]);
-    }
-    match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Reference { referee, .. } => {
-            receiver_trait_scope(program, *referee, lexical_owner)
-        }
-        TypeReferenceNode::Constrained { base_type, .. } => {
-            receiver_trait_scope(program, *base_type, lexical_owner)
-        }
-        TypeReferenceNode::Named { symbol, .. }
-            if program.trait_definition_by_symbol(*symbol).is_some() =>
-        {
-            Some(
-                typed_trees::trait_definition::AppliedTraitScope::abstract_scope(
-                    program.trait_definition_by_symbol(*symbol)?,
-                ),
-            )
-        }
-        TypeReferenceNode::Generic {
-            base_symbol,
-            arguments,
-            lifetime_arguments,
-            ..
-        } => typed_trees::trait_definition::AppliedTraitScope::new(
-            program,
-            program.trait_definition_by_symbol(*base_symbol)?,
-            typed_trees::trait_definition::TraitApplicationArguments {
-                lexical_owner,
-                enclosing_data_applications: &[],
-                arguments: program
-                    .type_reference_table
-                    .type_reference_handles(*arguments),
-                lifetimes: lifetime_arguments,
-            },
-        ),
-        TypeReferenceNode::DynamicTrait {
-            symbol: base_symbol,
-            arguments,
-            ..
-        } => typed_trees::trait_definition::AppliedTraitScope::new(
-            program,
-            program.trait_definition_by_symbol(*base_symbol)?,
-            typed_trees::trait_definition::TraitApplicationArguments {
-                lexical_owner,
-                enclosing_data_applications: &[],
-                arguments: program
-                    .type_reference_table
-                    .type_reference_handles(*arguments),
-                lifetimes: &[],
-            },
-        ),
-        _ => None,
     }
 }
 

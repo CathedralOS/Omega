@@ -1,0 +1,159 @@
+module model::courant;
+// Exact decimal stability classification. Two18-digit coefficients produce
+// at most36 product digits. Compare normalized decimal digit streams, with
+// powers affecting length, so neither integer overflow nor f64 rounding can
+// admit an unstable request or reject an exact CFL-one boundary.
+use io::input;
+use omega::language::core::numeric_conversion;
+use omega::language::core::float_operations;
+pub data Digits { values:[u64 in Wrapping;36]; length:u32 in Saturating; }
+machine digits(coefficient:u64 in Wrapping,result:&mut Digits) {
+ result.length=0;
+ transition { _ -> read(coefficient,result) }
+ state read(coefficient:u64 in Wrapping,result:&mut Digits) {
+  transition coefficient > 0 && result.length < 36 { true -> append(coefficient,result) false -> done() }
+ }
+ state append(coefficient:u64 in Wrapping,result:&mut Digits) {
+  result.values[result.length%36]=coefficient%10;
+  result.length=result.length+1;
+  transition { _ -> read(coefficient/10,result) }
+ }
+ state done() { }
+}
+machine multiply(left:&Digits,right:&Digits,result:&mut Digits) {
+ transition { _ -> outer(left,right,result,0) }
+ state outer(left:&Digits,right:&Digits,result:&mut Digits,index:u32 in Saturating) {
+  transition index < left.length { true -> inner(left,right,result,index,0,0) false -> length(result,36) }
+ }
+ state inner(left:&Digits,right:&Digits,result:&mut Digits,index:u32 in Saturating,offset:u32 in Saturating,carry:u64 in Wrapping) {
+  transition offset < right.length { true -> cell(left,right,result,index,offset,carry) false -> carry(left,right,result,index,offset,carry) }
+ }
+ state cell(left:&Digits,right:&Digits,result:&mut Digits,index:u32 in Saturating,offset:u32 in Saturating,carry:u64 in Wrapping) {
+  let total:u64 in Wrapping=result.values[(index+offset)%36]+left.values[index%36]*right.values[offset%36]+carry;
+  result.values[(index+offset)%36]=total%10;
+  transition { _ -> inner(left,right,result,index,offset+1,total/10) }
+ }
+ state carry(left:&Digits,right:&Digits,result:&mut Digits,index:u32 in Saturating,offset:u32 in Saturating,carry:u64 in Wrapping) {
+  result.values[(index+offset)%36]=carry;
+  transition { _ -> outer(left,right,result,index+1) }
+ }
+ state length(result:&mut Digits,length:u32 in Saturating) {
+  transition length > 0 { true -> last(result,length) false -> zero(result) }
+ }
+ state last(result:&mut Digits,length:u32 in Saturating) {
+  transition result.values[(length-1)%36] == 0 { true -> length(result,length-1) false -> finish(result,length) }
+ }
+ state finish(result:&mut Digits,length:u32 in Saturating) { result.length=length; }
+ state zero(result:&mut Digits) { result.length=0; }
+}
+machine significant(number:&Digits,offset:u32 in Saturating) -> u64 in Wrapping {
+ transition offset < number.length { true -> digit(number,offset) false -> zero() }
+ state digit(number:&Digits,offset:u32 in Saturating) -> u64 in Wrapping { number.values[(number.length-1-offset)%36] }
+ state zero() -> u64 in Wrapping { 0 }
+}
+// -1 means stable below one,0 exactly one,+1 unstable above one.
+pub machine classify(input:&io::input::Input) -> i32 in Wrapping {
+ let mut speed:Digits; let mut duration:Digits; let mut spacing:Digits; let mut product:Digits;
+ digits(input.coefficients[2],&mut speed);
+ digits(input.coefficients[4],&mut duration);
+ digits(input.coefficients[3],&mut spacing);
+ multiply(&speed,&duration,&mut product);
+ compare_digits(&product,input.powers[2]+input.powers[4],&spacing,input.powers[3])
+}
+// Compute the other convex weight before rounding can cancel it. When the
+// product is far below spacing,1-abs(CFL) is well conditioned. In the equal
+// or adjacent decimal-length cohorts, align the exact integers and subtract
+// their digits first. A36-digit product can need a37th spacing digit here.
+// Only the positive difference and denominator are converted to f64.
+pub machine complement(input:&io::input::Input,rounded_fraction:f64) -> f64 {
+ let mut speed:Digits; let mut duration:Digits; let mut spacing:Digits; let mut product:Digits;
+ digits(input.coefficients[2],&mut speed);
+ digits(input.coefficients[4],&mut duration);
+ digits(input.coefficients[3],&mut spacing);
+ multiply(&speed,&duration,&mut product);
+ complementary_digits(&product,input.powers[2]+input.powers[4],&spacing,input.powers[3],rounded_fraction)
+}
+machine complementary_digits(product:&Digits,product_power:i32 in Wrapping,spacing:&Digits,spacing_power:i32 in Wrapping,rounded_fraction:f64) -> f64 {
+ transition product.length == 0 { true -> zero() false -> lengths(product,product_power,spacing,spacing_power,rounded_fraction) }
+ state zero() -> f64 { 1.0 }
+ state lengths(product:&Digits,product_power:i32 in Wrapping,spacing:&Digits,spacing_power:i32 in Wrapping,rounded_fraction:f64) -> f64 {
+  let left:i32 in Wrapping=(narrow_u32_to_i32_saturating(product.length as u32) as i32 in Wrapping)+product_power;
+  let right:i32 in Wrapping=(narrow_u32_to_i32_saturating(spacing.length as u32) as i32 in Wrapping)+spacing_power;
+  transition left < right-1 { true -> separated(rounded_fraction) false -> align(product,product_power,spacing,spacing_power) }
+ }
+ state separated(rounded_fraction:f64) -> f64 {
+  let magnitude:f64=match rounded_fraction >= 0.0 { true -> rounded_fraction false -> -rounded_fraction };
+  1.0-magnitude
+ }
+ state align(product:&Digits,product_power:i32 in Wrapping,spacing:&Digits,spacing_power:i32 in Wrapping) -> f64 {
+  let common:i32 in Wrapping=match product_power < spacing_power { true -> product_power false -> spacing_power };
+  let product_shift:i32 in Wrapping=product_power-common;
+  let spacing_shift:i32 in Wrapping=spacing_power-common;
+  transition product_shift >= 0 && product_shift <= 36 && spacing_shift >= 0 && spacing_shift <= 36 {
+   true -> subtract(product,product_shift,spacing,spacing_shift,0,0,1.0,0.0,0.0) false -> invalid()
+  }
+ }
+ // The initializer rejects this invariant-failure sentinel. Stable, nonzero
+ // input in these two decimal-length cohorts always fits the37-digit window.
+ state invalid() -> f64 { -1.0 }
+}
+machine aligned_digit(number:&Digits,shift:i32 in Wrapping,index:u32 in Saturating) -> u64 in Wrapping {
+ let offset:i32 in Wrapping=(narrow_u32_to_i32_saturating(index as u32) as i32 in Wrapping)-shift;
+ transition offset >= 0 && offset < (narrow_u32_to_i32_saturating(number.length as u32) as i32 in Wrapping) { true -> present(number,offset) false -> absent() }
+ state present(number:&Digits,offset:i32 in Wrapping) -> u64 in Wrapping {
+  number.values[(narrow_i32_to_u32_saturating(offset as i32) as u32 in Saturating)%36]
+ }
+ state absent() -> u64 in Wrapping { 0 }
+}
+machine subtract(product:&Digits,product_shift:i32 in Wrapping,spacing:&Digits,spacing_shift:i32 in Wrapping,index:u32 in Saturating,borrow:u64 in Wrapping,power:f64,difference:f64,denominator:f64) -> f64 {
+ transition index < 37 { true -> digit(product,product_shift,spacing,spacing_shift,index,borrow,power,difference,denominator) false -> finish(borrow,difference,denominator) }
+ state digit(product:&Digits,product_shift:i32 in Wrapping,spacing:&Digits,spacing_shift:i32 in Wrapping,index:u32 in Saturating,borrow:u64 in Wrapping,power:f64,difference:f64,denominator:f64) -> f64 {
+  let lower:u64 in Wrapping=aligned_digit(spacing,spacing_shift,index);
+  let higher:u64 in Wrapping=aligned_digit(product,product_shift,index)+borrow;
+  let value:u64 in Wrapping=match lower >= higher { true -> lower-higher false -> lower+10-higher };
+  let next_borrow:u64 in Wrapping=match lower >= higher { true -> 0 false -> 1 };
+  let next_difference:f64=difference+F64::from_u64(value as u64)*power;
+  let next_denominator:f64=denominator+F64::from_u64(lower as u64)*power;
+  transition { _ -> subtract(product,product_shift,spacing,spacing_shift,index+1,next_borrow,power*10.0,next_difference,next_denominator) }
+ }
+ state finish(borrow:u64 in Wrapping,difference:f64,denominator:f64) -> f64 {
+  transition borrow == 0 && denominator > 0.0 && difference >= 0.0 && difference <= denominator { true -> quotient(difference,denominator) false -> invalid() }
+ }
+ state quotient(difference:f64,denominator:f64) -> f64 { difference/denominator }
+ state invalid() -> f64 { -1.0 }
+}
+// Compare exact nonnegative decimals, including distinct spellings and zero.
+pub machine compare_decimal(left:u64 in Wrapping,left_power:i32 in Wrapping,right:u64 in Wrapping,right_power:i32 in Wrapping) -> i32 in Wrapping {
+ let mut first:Digits; let mut second:Digits;
+ digits(left,&mut first); digits(right,&mut second);
+ compare_digits(&first,left_power,&second,right_power)
+}
+machine compare_digits(product:&Digits,left_power:i32 in Wrapping,spacing:&Digits,right_power:i32 in Wrapping) -> i32 in Wrapping {
+ transition product.length == 0 { true -> zero(spacing) false -> nonzero(product,left_power,spacing,right_power) }
+ state zero(spacing:&Digits) -> i32 in Wrapping { match spacing.length == 0 { true -> 0 false -> -1 } }
+ state nonzero(product:&Digits,left_power:i32 in Wrapping,spacing:&Digits,right_power:i32 in Wrapping) -> i32 in Wrapping {
+  transition spacing.length == 0 { true -> above() false -> lengths(product,left_power,spacing,right_power) }
+ }
+ state lengths(product:&Digits,left_power:i32 in Wrapping,spacing:&Digits,right_power:i32 in Wrapping) -> i32 in Wrapping {
+  let left:i32 in Wrapping=(narrow_u32_to_i32_saturating(product.length as u32) as i32 in Wrapping)+left_power;
+  let right:i32 in Wrapping=(narrow_u32_to_i32_saturating(spacing.length as u32) as i32 in Wrapping)+right_power;
+  transition left < right { true -> below() false -> upper(product,spacing,left,right) }
+ }
+ state upper(product:&Digits,spacing:&Digits,left:i32 in Wrapping,right:i32 in Wrapping) -> i32 in Wrapping {
+  transition left > right { true -> above() false -> compare(product,spacing,0) }
+ }
+ state compare(product:&Digits,spacing:&Digits,offset:u32 in Saturating) -> i32 in Wrapping {
+  transition offset < 36 { true -> digit(product,spacing,offset) false -> equal() }
+ }
+ state digit(product:&Digits,spacing:&Digits,offset:u32 in Saturating) -> i32 in Wrapping {
+  let left:u64 in Wrapping=significant(product,offset);
+  let right:u64 in Wrapping=significant(spacing,offset);
+  transition left < right { true -> below() false -> higher(product,spacing,offset,left,right) }
+ }
+ state higher(product:&Digits,spacing:&Digits,offset:u32 in Saturating,left:u64 in Wrapping,right:u64 in Wrapping) -> i32 in Wrapping {
+  transition left > right { true -> above() false -> compare(product,spacing,offset+1) }
+ }
+ state equal() -> i32 in Wrapping { 0 }
+ state below() -> i32 in Wrapping { -1 }
+ state above() -> i32 in Wrapping { 1 }
+}

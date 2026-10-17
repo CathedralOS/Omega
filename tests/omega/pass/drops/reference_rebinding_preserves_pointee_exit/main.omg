@@ -14,6 +14,38 @@ machine copy_scalar(destination: &mut u64, source: &u64) {
     destination = source;
 }
 
+// Replacing an owned shared descriptor does not mutate either pointee.
+machine shared_identity<'storage>(value: &'storage Token) -> &'storage Token {
+    value
+}
+
+machine observe_rebound(mut selected: &Token, replacement: &Token) -> bool {
+    let before: u64 = selected.value;
+    selected = replacement;
+    let middle: u64 = selected.value;
+    selected = shared_identity(replacement);
+    before == 7 && middle == 11 && selected.value == 11
+}
+
+machine observe_scalar(mut selected: &u64, replacement: &u64) -> u64 {
+    selected = replacement;
+    selected
+}
+
+machine observe_view(mut selected: &[u64], replacement: &[u64]) -> u64
+requires selected.len > 0 && replacement.len > 0 {
+    selected = replacement;
+    selected[0]
+}
+
+// Byte descriptors use the same binding join and retain their shared ceiling.
+machine observe_byte_view(mut selected: &[u8], replacement: &[u8]) -> u8
+requires selected.len > 0 && replacement.len > 0 {
+    selected = replacement;
+    selected = replacement;
+    selected[0]
+}
+
 machine replace_local<'storage>(first: &'storage mut Token, second: &'storage mut Token) -> u64 {
     let mut current: &'storage mut Token = first;
     current = second;
@@ -27,6 +59,14 @@ machine Main::main(main: &mut Main) crashes Trap {
     let copied: u64 = destination;
     let mut first: Token = Token { value: 7 };
     let mut second: Token = Token { value: 11 };
+    let shared_after: bool = observe_rebound(&first, &second);
+    let scalar_after: u64 = observe_scalar(&first.value, &source);
+    let first_values: [u64; 1] = [17];
+    let second_values: [u64; 1] = [23];
+    let view_after: u64 = observe_view(&first_values[..], &second_values[..]);
+    let first_bytes: [u8; 1] = [5];
+    let second_bytes: [u8; 1] = [29];
+    let byte_after: u8 = observe_byte_view(&first_bytes[..], &second_bytes[..]);
     let local_after: u64 = replace_local(&mut first, &mut second);
     let mut slot: Slot = Slot { token: &mut first };
     replace(&mut slot, &mut second);
@@ -37,7 +77,8 @@ machine Main::main(main: &mut Main) crashes Trap {
     first.value = 0;
     second.value = 0;
     transition before == 7 && after == 11 && local_after == 11
-        && copied == 9 {
+        && copied == 9 && shared_after && scalar_after == 9 && view_after == 23
+        && byte_after == 29 {
         true -> done()
         false -> wrong()
     }

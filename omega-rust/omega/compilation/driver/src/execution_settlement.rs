@@ -195,6 +195,7 @@ fn select_checked_providers(
             boundary_calling_plan_realizations: &providers.boundary_calling_plan_realizations,
             provider_plans: &providers.provider_plans,
             selected_provider_plan_facts,
+            selected_provider_provenance: &selected_provider_provenance,
             root_grants: &root_grants,
             authored_root_grants: &build_config.grants,
         },

@@ -38,14 +38,16 @@ pub(super) fn disposes_candidate(
     {
         return false;
     }
-    let Some((_, local)) = retirement
-        .program
-        .state_local_declaration(retirement.state, loan.owner_symbol)
-    else {
+    let Some(reference) = validation::reference_result_custody::storage_owner_type_reference(
+        retirement.program,
+        retirement.state,
+        loan.owner_symbol,
+        receipt.statement_ordinal,
+    ) else {
         return false;
     };
     let path = retirement.facts.borrow.loan_owner_path(loan);
-    if super::transport::carrier_path(retirement.program, local.type_reference, path)
+    if super::transport::carrier_path(retirement.program, reference, path)
         .is_none_or(|selected| selected != complement.path)
     {
         return false;

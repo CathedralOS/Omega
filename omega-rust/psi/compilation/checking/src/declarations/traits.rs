@@ -55,10 +55,10 @@ pub(crate) use conformance::{
 pub use dynamic::{
     DynamicImplementationSelection, DynamicSlotDemand, collect_dynamic_implementation_selections,
     collect_dynamic_slot_demands, dynamic_call_demand, dynamic_expression_call_demand,
-    resolve_dynamic_call_targets, resolve_selected_dynamic_call_targets,
+    qualified_trait_scope, resolve_dynamic_call_targets, resolve_selected_dynamic_call_targets,
 };
 pub(crate) use dynamic::{
-    dynamic_requirement_ineligibility, dynamic_selector_application, receiver_trait_scope,
+    dynamic_requirement_ineligibility, dynamic_selector_application,
     report_dynamic_receiver_call_error,
 };
 pub(crate) use named_implementations::validate_conformances;

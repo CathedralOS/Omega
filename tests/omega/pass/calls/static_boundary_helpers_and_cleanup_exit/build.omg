@@ -1,0 +1,8 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "static_boundary_helpers_and_cleanup_exit");
+    Build::select_provider<Character, CharacterImplementation>(builder);
+    Build::bind(builder, windows_x86_64::ProgramEntry, Main::main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, Main::main);
+    Build::bind(builder, linux_arm64::ProgramEntry, Main::main);
+    Build::bind(builder, macos_arm64::ProgramEntry, Main::main);
+}

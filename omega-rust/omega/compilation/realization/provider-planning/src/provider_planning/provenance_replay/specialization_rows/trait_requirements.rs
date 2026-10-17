@@ -18,11 +18,12 @@ pub(super) fn append(
     let context = crate::ProviderPlanningContext::new(typed, source::DependencyScope::Product);
     let selecting_map = crate::provider_identity::named_provider(context, plan);
     for row in &plan.rows {
+        // Imports retain their complete declaration, outer application and
+        // strong plan digest through external_requirements::derive instead.
+        // Keep one authority coordinate for each closed Import application.
         if matches!(
             row.binding,
-            ProviderBinding::Import { .. }
-                | ProviderBinding::CompilerIntrinsic { .. }
-                | ProviderBinding::Syscall { .. }
+            ProviderBinding::CompilerIntrinsic { .. } | ProviderBinding::Syscall { .. }
         ) {
             append_leaf_rows(typed, plan, row, rows, identities, diagnostics);
             continue;
@@ -138,7 +139,7 @@ pub(super) fn append(
     }
 }
 
-/// A leaf binding (a foreign import, compiler intrinsic or system call) has
+/// A compiler intrinsic or system call has
 /// no provider instance per static tuple: the one physical leaf realizes every
 /// closed application of its template, and method-level selections such as a
 /// native callback's machine are materialized at each call. Each closed

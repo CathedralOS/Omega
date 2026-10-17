@@ -9,7 +9,7 @@ use omega_language_std::console;
 data Token { raw: u64; }
 data Pair { left: Token; right: Token; }
 
-data Main { }
+data Main { value: i32; }
 
 machine take(token: Token) { }
 

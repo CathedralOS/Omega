@@ -431,8 +431,43 @@ pub struct CheckingMemos {
     pub(crate) entry_machines: OnceLock<Arc<EntryMachines>>,
     pub(crate) caller_sites: OnceLock<Arc<CallerSiteCaches>>,
     pub(crate) content_conservation: OnceLock<Arc<Vec<ContentConservationSourcePlan>>>,
+    /// Exact ordered roots to a complete target roster. Rows are retained
+    /// as positions in this immutable program's target-layout storage, not
+    /// borrowed strings or a selected deployment target.
+    pub(crate) layout_target_rosters: Mutex<
+        symbols::SymbolKeyMap<
+            Vec<typed_trees::types::TypeReferenceHandle>,
+            Result<Vec<Option<usize>>, ()>,
+        >,
+    >,
+    /// Concrete body inference consumes exact captured integer intervals, not
+    /// caller places. Recipe-bearing arguments use ordinary inference. Retain
+    /// the complete result recipe and negative results; immutable actuals and
+    /// the exact stored machine/state own this invocation-specific judgment.
+    pub(crate) normal_return_intervals: Mutex<
+        symbols::SymbolKeyMap<
+            (
+                symbols::SymbolHandle,
+                symbols::SymbolHandle,
+                u8,
+                Vec<(symbols::SymbolHandle, Option<i64>, Option<i64>)>,
+            ),
+            Option<(
+                crate::proof_contracts::arithmetic_domains::Interval,
+                Option<checked_trees::IntegerRangeRecipe>,
+            )>,
+        >,
+    >,
     pub(crate) binary_meanings:
         Mutex<symbols::SymbolKeyMap<(u32, u32, typed_trees::expression::ExpressionHandle), bool>>,
+    /// Whole bound-expression meaning, including the remaining traversal
+    /// budget. Guard DAGs reuse children; caching only each binary's local
+    /// meaning still re-expands those children for every enclosing guard.
+    /// Depth is part of the key so a shallow success cannot waive the
+    /// existing recursion limit when reused inside a deeper expression.
+    pub(crate) bound_subtree_meanings: Mutex<
+        symbols::SymbolKeyMap<(u32, u32, typed_trees::expression::ExpressionHandle, u8), bool>,
+    >,
     /// Exact case-reference paths depend only on this immutable input's
     /// expression, symbol and data tables. Retain the declaration position,
     /// including a negative verdict, without merging equal source spellings.

@@ -1,0 +1,53 @@
+// Expected exit: 0 with input.txt. Empty stdin exits 64.
+// Expected output contains: ADVECTED
+// W2-03: bounded stdin-driven periodic conservative first-order upwind.
+use omega_language_std::console;
+use io::input;
+use io::report;
+use io::decimal;
+use omega::language::core::numeric_conversion;
+use model::transport;
+data Main {}
+
+// The explicit entry context is ordinary ZII-valid data; checked Console calls demand its static provider slot.
+machine Main::main(context:&mut Main) reaches Console {
+ let mut input:input::Input;
+ let mut field:transport::Field;
+ let parsed:bool=block io::input::parse(&mut input);
+ transition parsed && input.count > 0 { true -> validate(&input,&mut field) false -> bad_input() }
+ state validate(input:&io::input::Input,field:&mut model::transport::Field) {
+  transition model::transport::initialize(input,field) { true -> execute(field) false -> bad_data() }
+ }
+ state execute(field:&mut model::transport::Field) {
+  model::transport::evolve(field);
+  transition model::transport::finite(field.mass) && model::transport::finite(field.minimum) && model::transport::finite(field.maximum) { true -> output(field) false -> bad_data() }
+ }
+ state output(field:&model::transport::Field) {
+  Console::write("MASS "); io::report::scaled(field.mass,field.mass_exponent as i64 in Wrapping); Console::write_line("");
+  Console::write("MIN "); value(field,field.minimum_index); Console::write_line("");
+  Console::write("MAX "); value(field,field.maximum_index); Console::write_line("");
+  Console::write("CFL "); io::report::number(field.cfl); Console::write_line("");
+  transition { _ -> cells(field,0) }
+ }
+ state cells(field:&model::transport::Field,index:u32 in Saturating) {
+  transition index < field.count { true -> cell(field,index) false -> done() }
+ }
+ state cell(field:&model::transport::Field,index:u32 in Saturating) {
+  Console::write("CELL "); value(field,index); Console::write_line("");
+  transition { _ -> cells(field,index+1) }
+ }
+ state done() { Console::write_line("ADVECTED"); Console::exit_process(0); }
+ state bad_input() { Console::write_line("REJECT bounded decimal input"); Console::exit_process(64); }
+ state bad_data() { Console::write_line("REJECT dimensions, finite data, positive spacing/timestep, nonnegative field or stable CFL"); Console::exit_process(65); }
+}
+
+machine value(field:&model::transport::Field,index:u32 in Saturating) reaches Console {
+ transition field.exact { true -> exact(field,index) false -> computed(field,index) }
+ state exact(field:&model::transport::Field,index:u32 in Saturating) {
+  io::decimal::number(narrow_u64_to_i64_saturating(field.coefficients[index%64] as u64) as i64 in Wrapping);
+  io::decimal::number(field.original_powers[index%64] as i64 in Wrapping);
+ }
+ state computed(field:&model::transport::Field,index:u32 in Saturating) {
+  io::report::field(field.current[index%64],field.powers[index%64],field.lower_coefficient,field.lower_power,field.upper_coefficient,field.upper_power,field.lower_value,field.lower_value_power,field.upper_value,field.upper_value_power);
+ }
+}

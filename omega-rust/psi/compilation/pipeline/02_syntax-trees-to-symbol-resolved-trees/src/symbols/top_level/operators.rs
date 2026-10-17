@@ -8,7 +8,6 @@ use crate::symbols::type_references::assign_type_reference_symbol_with_locals_an
 pub(super) fn assign_root_operator_symbols(
     program: &mut SymbolResolvedTrees,
     symbols: &SymbolTable,
-    root_children: &mut impl Iterator<Item = SymbolHandle>,
 ) {
     let type_constraints = &program.tables.types.constraints;
     let declarations = &mut program.tables.declarations;
@@ -16,9 +15,8 @@ pub(super) fn assign_root_operator_symbols(
     let state_parameters = &mut declarations.state_parameters;
     let child_type_references = &mut declarations.child_type_references;
     program.roots.operators.for_each_mut(|operator| {
-        assign_operator_symbols(
+        assign_operator_children(
             symbols,
-            root_children,
             data_type_parameters,
             state_parameters,
             child_type_references,
@@ -41,6 +39,20 @@ pub(super) fn assign_operator_symbols(
     if !operator.symbol.is_valid() {
         operator.symbol = declaration;
     }
+    assign_operator_children(
+        symbols, data_type_parameters, state_parameters, child_type_references,
+        type_constraints, operator,
+    );
+}
+
+fn assign_operator_children(
+    symbols: &SymbolTable,
+    data_type_parameters: &mut Arena<symbol_resolved_trees::data::TypeParameter>,
+    state_parameters: &mut Arena<symbol_resolved_trees::signature::StateParameter>,
+    child_type_references: &mut Arena<symbol_resolved_trees::types::TypeReference>,
+    type_constraints: &Arena<symbol_resolved_trees::types::TypeConstraint>,
+    operator: &mut symbol_resolved_trees::operator::OperatorDefinition,
+) {
     let mut operator_children = symbols.child_handles(operator.symbol).into_iter().flatten();
 
     for type_parameter in data_type_parameters.span_mut_or_empty(operator.type_parameters) {

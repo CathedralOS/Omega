@@ -1,8 +1,0 @@
-// A record's borrowed binding authorizes only its own requirement.
-use omega::language::core::binding;
-pub boundary trait Character { machine echo(value: i32) -> i32; }
-pub boundary trait Other { machine echo(value: i32) -> i32; }
-data Holder<'loan> { other: &'loan Binding<Other>; }
-machine wrong(holder: &Holder) -> i32 reaches Character {
-    Character::echo(holder.other, 1)
-}

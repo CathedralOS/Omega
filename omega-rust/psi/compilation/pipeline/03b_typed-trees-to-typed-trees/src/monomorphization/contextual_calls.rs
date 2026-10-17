@@ -8,6 +8,8 @@
 //! declaration. No contract is inferred from a provider's body.
 
 mod applications;
+mod closed_requirements;
+pub(super) use closed_requirements::retain as retain_closed_requirement_demands;
 mod conformance_demands;
 pub(super) use conformance_demands::prepare as prepare_conformance_machine_demands;
 mod demands;

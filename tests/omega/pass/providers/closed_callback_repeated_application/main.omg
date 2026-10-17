@@ -1,0 +1,256 @@
+// Source-positive only: repeated closed callback tuples retain distinct source occurrences.
+// Never execute qsort: this fixture checks publication and target calling-plan custody.
+// A preceding supplied Type must not shift the machine-only callback ordinal.
+// The callback does not dereference either foreign input; no RAM fact is assumed.
+use omega::language::core::layout;
+
+pub data Registers {
+    status: u32;
+    transmit: u8;
+}
+
+pub data RegPlacement {}
+
+machine RegPlacement::plan(schema: Schema) -> PlacementPlan {
+    let mut entries: [FieldEntry; 64];
+    entries[0] = FieldEntry {
+        key: schema.fields[0].key,
+        placement: FieldPlan::At { offset: 0 },
+    };
+    entries[1] = FieldEntry {
+        key: schema.fields[1].key,
+        placement: FieldPlan::At { offset: 4 },
+    };
+    let access: AccessPlan = AccessPlan::inaccessible(&schema);
+    transition { _ -> place_status(schema, access, entries) }
+
+    state place_status(
+        schema: Schema,
+        access: AccessPlan,
+        entries: [FieldEntry; 64]
+    ) -> PlacementPlan {
+        transition { _ -> place_transmit(
+            schema,
+            AccessPlan::with(
+                access,
+                schema.fields[0].key,
+                FieldAccess::External {
+                    read: ExternalRead::Read,
+                    write: false,
+                    exposure: Exposure::Exported,
+                },
+            ),
+            entries
+        ) }
+    }
+
+    state place_transmit(
+        schema: Schema,
+        access: AccessPlan,
+        entries: [FieldEntry; 64]
+    ) -> PlacementPlan {
+        transition { _ -> finish(
+            AccessPlan::with(
+                access,
+                schema.fields[1].key,
+                FieldAccess::External {
+                    read: ExternalRead::None,
+                    write: true,
+                    exposure: Exposure::Exported,
+                },
+            ),
+            entries
+        ) }
+    }
+
+    state finish(
+        access: AccessPlan,
+        entries: [FieldEntry; 64]
+    ) -> PlacementPlan {
+        let mut services: [u64; 32];
+        services[0] = 7;
+        PlacementPlan {
+            layout: Plan {
+                entries: entries,
+                entry_count: 2,
+                size_fixed: 8,
+                size_is_dynamic: false,
+                align: 4,
+            },
+            access: access,
+            reach: BoundaryReach {
+                services: services,
+                service_count: 0,
+            },
+        }
+    }
+}
+
+// The host establishes the backing and binds these exact generated accessors.
+// Delegation retains the original backing; neither wrapper stages contents.
+
+use omega_language_std::calling;
+use omega::language::core::external_binding;
+pub data SortPolicies { }
+pub ComparatorCalling satisfies CallingPolicy {
+    CallingPolicy::plan = SortPolicies::comparator;
+}
+pub SortCalling satisfies CallingPolicy {
+    CallingPolicy::plan = SortPolicies::sort;
+}
+
+machine SortPolicies::comparator(signature: BoundarySignature) -> BoundaryPlanResult
+satisfies CallingPolicy::plan
+{
+    transition signature.parameter_count == 2 && signature.has_result {
+        true -> accept()
+        _ -> reject()
+    }
+    state accept() -> BoundaryPlanResult {
+        let mut plan: BoundaryEntryPlan;
+        plan.call.parameter_count = 2;
+        plan.call.parameters[0] = SortPolicies::word(8, 0);
+        plan.call.parameters[1] = SortPolicies::word(8, 1);
+        plan.call.has_result = true;
+        plan.call.result = SortPolicies::word(4, 0);
+        plan.call.result.locations[0] = ValueLocation::Register { register: MachineRegister::X86Rax, value_byte_offset: 0, byte_size: 4 };
+        SortPolicies::finish(plan)
+    }
+    state reject() -> BoundaryPlanResult {
+        BoundaryPlanResult::Rejected {
+            reason: CallingPolicyRejection { reason: "comparator requires two references and an integer result" },
+        }
+    }
+}
+
+machine SortPolicies::sort(signature: BoundarySignature) -> BoundaryPlanResult
+satisfies CallingPolicy::plan
+{
+    transition signature.parameter_count == 3 && !signature.has_result
+        && (signature.native_parameter_count == 3 || signature.native_parameter_count == 4)
+        && signature.callback_demand_count <= 1 {
+        true -> accept(signature)
+        _ -> reject()
+    }
+    state accept(signature: BoundarySignature) -> BoundaryPlanResult {
+        let mut plan: BoundaryEntryPlan;
+        plan.call.parameter_count = signature.native_parameter_count;
+        plan.call.parameters[0] = SortPolicies::word(8, 0);
+        plan.call.parameters[1] = SortPolicies::word(8, 1);
+        plan.call.parameters[2] = SortPolicies::word(8, 2);
+        plan.call.parameters[3] = SortPolicies::word(8, 3);
+        plan.call.callback_materialization_count = signature.callback_demand_count;
+        plan.call.callback_materializations[0].binder = signature.callback_binders[0].binder;
+        plan.call.callback_materializations[0].destination = signature.callback_demands[0].destination;
+        SortPolicies::finish(plan)
+    }
+    state reject() -> BoundaryPlanResult {
+        BoundaryPlanResult::Rejected {
+            reason: CallingPolicyRejection { reason: "invalid qsort telescope" },
+        }
+    }
+}
+
+machine SortPolicies::word(bytes: u64, register: u64) -> ValuePlacement {
+    let mut value: ValuePlacement;
+    value.shape.class = AbiValueClass::Integer;
+    value.shape.byte_size = bytes;
+    value.shape.alignment = bytes;
+    value.location_count = 1;
+    value.locations[0] = ValueLocation::Register {
+        register: SortPolicies::argument_register(register),
+        value_byte_offset: 0,
+        byte_size: bytes,
+    };
+    value
+}
+
+machine SortPolicies::finish(output: BoundaryEntryPlan) -> BoundaryPlanResult {
+    let mut plan: BoundaryEntryPlan = output;
+    plan.call.convention = CallingConvention::SystemVAMD64;
+    plan.call.stack_alignment = 16;
+    plan.call.entry_control = EntryControl::CallReturn;
+    plan.call.ordinary_clobbers.register_count = 25;
+    plan.call.ordinary_clobbers.registers[0] = MachineRegister::X86Rax;
+    plan.call.ordinary_clobbers.registers[1] = MachineRegister::X86Rcx;
+    plan.call.ordinary_clobbers.registers[2] = MachineRegister::X86Rdx;
+    plan.call.ordinary_clobbers.registers[3] = MachineRegister::X86Rsi;
+    plan.call.ordinary_clobbers.registers[4] = MachineRegister::X86Rdi;
+    plan.call.ordinary_clobbers.registers[5] = MachineRegister::X86R8;
+    plan.call.ordinary_clobbers.registers[6] = MachineRegister::X86R9;
+    plan.call.ordinary_clobbers.registers[7] = MachineRegister::X86R10;
+    plan.call.ordinary_clobbers.registers[8] = MachineRegister::X86R11;
+    plan.call.ordinary_clobbers.registers[9] = MachineRegister::X86Xmm { index: 0 };
+    plan.call.ordinary_clobbers.registers[10] = MachineRegister::X86Xmm { index: 1 };
+    plan.call.ordinary_clobbers.registers[11] = MachineRegister::X86Xmm { index: 2 };
+    plan.call.ordinary_clobbers.registers[12] = MachineRegister::X86Xmm { index: 3 };
+    plan.call.ordinary_clobbers.registers[13] = MachineRegister::X86Xmm { index: 4 };
+    plan.call.ordinary_clobbers.registers[14] = MachineRegister::X86Xmm { index: 5 };
+    plan.call.ordinary_clobbers.registers[15] = MachineRegister::X86Xmm { index: 6 };
+    plan.call.ordinary_clobbers.registers[16] = MachineRegister::X86Xmm { index: 7 };
+    plan.call.ordinary_clobbers.registers[17] = MachineRegister::X86Xmm { index: 8 };
+    plan.call.ordinary_clobbers.registers[18] = MachineRegister::X86Xmm { index: 9 };
+    plan.call.ordinary_clobbers.registers[19] = MachineRegister::X86Xmm { index: 10 };
+    plan.call.ordinary_clobbers.registers[20] = MachineRegister::X86Xmm { index: 11 };
+    plan.call.ordinary_clobbers.registers[21] = MachineRegister::X86Xmm { index: 12 };
+    plan.call.ordinary_clobbers.registers[22] = MachineRegister::X86Xmm { index: 13 };
+    plan.call.ordinary_clobbers.registers[23] = MachineRegister::X86Xmm { index: 14 };
+    plan.call.ordinary_clobbers.registers[24] = MachineRegister::X86Xmm { index: 15 };
+    plan.call.stack_alignment = 16;
+    plan.call.entry_control = EntryControl::CallReturn;
+    plan.state.initial_regime = MachineRegime::X86Long64;
+    plan.state.permitted_transitive_use.general_registers = true;
+    plan.state.permitted_transitive_use.vector_registers = true;
+    plan.state.permitted_transitive_use.flags = true;
+    plan.state.stack = EntryStack::ProviderSelected;
+    plan.state.preemption = Preemption::NotApplicable;
+    BoundaryPlanResult::Accepted { plan: plan }
+}
+
+machine SortPolicies::argument_register(register: u64) -> MachineRegister {
+    transition register == 0 { true -> MachineRegister::X86Rdi _ -> second(register) }
+    state second(register: u64) -> MachineRegister {
+        transition register == 1 { true -> MachineRegister::X86Rsi _ -> third(register) }
+    }
+    state third(register: u64) -> MachineRegister {
+        transition register == 2 { true -> MachineRegister::X86Rdx _ -> MachineRegister::X86Rcx }
+    }
+}
+
+pub data Elements { first: Registers; second: Registers; }
+pub boundary trait Comparator: Calling<ComparatorCalling> {
+    machine compare(first: &Registers, second: &Registers) -> i32;
+}
+pub boundary trait SortRegistrar: Calling<SortCalling> {
+    machine sort<Unused, machine Handler>(elements: &mut Elements, count: u64, width: u64, native callback compare from Handler)
+    where machine Handler satisfies Comparator::compare;
+    invokes Comparator;
+    requires count == 2 && width == 8;
+}
+pub data Ordering {}
+pub machine Ordering::compare(first: &Registers, second: &Registers) -> i32
+satisfies Comparator::compare
+{
+    0
+}
+
+linux_x86_64 machine sort_binding() -> ForeignBinding<9, 5, 11> {
+    ForeignBinding::DllImport { import: DllImport::ElfVersioned { object: "libc.so.6", symbol: "qsort", version: "GLIBC_2.2.5" } }
+}
+linux_x86_64 machine sort_leaf<Unused, machine Handler>(elements: &mut Elements, count: u64, width: u64)
+where machine Handler satisfies Comparator::compare;
+satisfies SortRegistrar::sort
+via sort_binding()
+requires count == 2 && width == 8;
+use omega_language_std::console;
+data Main { }
+machine Main::main(main: &mut Main) reaches SortRegistrar + Comparator + Console
+invokes SortRegistrar;
+invokes Console;
+{
+    let mut elements: Elements = Elements { first: Registers { status: 41, transmit: 3 }, second: Registers { status: 73, transmit: 5 } };
+    SortRegistrar::sort<u64, Ordering::compare>(&mut elements, 2, 8);
+    SortRegistrar::sort<u64, Ordering::compare>(&mut elements, 2, 8);
+    SortRegistrar::sort<i32, Ordering::compare>(&mut elements, 2, 8);
+    Console::exit_process(0);
+}

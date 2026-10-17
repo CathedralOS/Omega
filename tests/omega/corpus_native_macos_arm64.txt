@@ -371,7 +371,6 @@ pass/build/uefi_os_handoff_invocation rejected 12507ms @6c75d91f0312
 	selected compiler intrinsic `<selected target>::UefiOsHandoffNativeProvider::satisfies::UefiOsHandoffTermination` for Terminal boundary `named-callable(path(UefiOsHandoffTermination::firmware_return),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(u64\\)\\)\\)),result-dispatch())` has no closed native catalog identity
 	selected compiler intrinsic `<selected target>::UefiOsHandoffNativeProvider::satisfies::UefiOsHandoffTermination` for Terminal boundary `named-callable(path(UefiOsHandoffTermination::transfer),parameters(),result-dispatch())` has no closed native catalog identity
 pass/calls/ambient_receiver_scalar_return_exit built 3704ms exit:70 @48d34a64a938+wt
-pass/calls/borrowed_binding_field_authority_exit built 17213ms exit:0 @8df1d091a810
 pass/calls/borrowed_case_dispatch_member_leaf_reads built 1399ms exit:70 @48008365d839
 pass/calls/borrowed_float_argument_scalar_result_exit built 885ms exit:70 @48008365d839
 pass/calls/borrowed_float_result_exit built 3689ms exit:70 @48008365d839

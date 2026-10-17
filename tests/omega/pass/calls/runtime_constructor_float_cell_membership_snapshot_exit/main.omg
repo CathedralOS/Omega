@@ -1,0 +1,18 @@
+// Expected exit: 0. An accepted cell is copied before the input cursor advances.
+use omega::language::core::float_operations;
+data Cell [copy] { mantissa:f64; power:i32; }
+domain Cell::Admitted established by Cell::accept;
+machine Cell::accept()->Cell ensures result in Cell::Admitted { Cell { mantissa:0.75, power:-2 } }
+data Captured [copy] { cell:Cell; advanced:bool; }
+data Input { current:Cell; }
+machine Input::advance(input:&mut Input)->bool { input.current=Cell { mantissa:0.0, power:0 }; true }
+machine observe(captured:Captured) requires captured.cell in Cell::Admitted crashes Trap {
+ transition captured.advanced && captured.cell.mantissa == 0.75 && captured.cell.power == -2 { true -> done() false -> bad() }
+ state done() {} state bad() { crash Trap; }
+}
+machine Input::main(input:&mut Input) crashes Trap {
+ input.current=Cell::accept();
+ observe(Captured { cell:input.current, advanced:Input::advance(input) });
+ transition input.current.mantissa == 0.0 { true -> done() false -> bad() }
+ state done() {} state bad() { crash Trap; }
+}

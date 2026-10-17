@@ -3,7 +3,8 @@
 //! supplied tuple, with the invocation and provider lexical scopes kept separate.
 //! Bounds and effects still owe ordinary admission; no executable cache is made.
 //! One selected tuple can face several member-local demands. The demanding
-//! binder owns its view; invocation and ordinal alone cannot identify a contract.
+//! binder, exact source contract cohort and selected entry own its view;
+//! invocation and ordinal alone cannot identify a contract.
 
 mod queries;
 
@@ -164,6 +165,24 @@ impl TypedTrees {
         let caller_lifetimes = self
             .callable_lifetime_substitutions
             .insert_many(caller_lifetime_bindings.iter().cloned());
+        let previous = self
+            .applied_callable_signatures
+            .iter()
+            .find_map(|(handle, previous)| {
+                matches!(&previous.owner, AppliedCallableOwner::MachineSelection {
+                invocation: source,
+                ordinal: position,
+                demand: previous_demand,
+                selected: previous_entry,
+                source_required: previous_required,
+                ..
+            } if *source == invocation
+                && *position == ordinal
+                && *previous_demand == demand
+                && *previous_entry == selected_entry
+                && previous_required == &source_required)
+                .then_some(handle)
+            });
         let prepared = AppliedCallableSignature {
             owner: AppliedCallableOwner::MachineSelection {
                 invocation,
@@ -178,9 +197,6 @@ impl TypedTrees {
             },
             signature,
         };
-        let previous = self.applied_callable_signatures.iter().find_map(|(handle, previous)| {
-            matches!(&previous.owner, AppliedCallableOwner::MachineSelection { invocation: source, ordinal: position, demand: previous_demand, .. } if *source == invocation && *position == ordinal && *previous_demand == demand).then_some(handle)
-        });
         if let Some(previous) = previous {
             *self.applied_callable_signatures.get_mut(previous) = prepared;
         } else {

@@ -87,6 +87,10 @@ pub(crate) fn settle_callback_registrar_imports(
         let requirement = declarations.get(boundary).copied().ok_or_else(|| {
             "callback registrar import closure names an absent Terminal boundary".to_owned()
         })?;
+        // The call retains its exact closed requirement. Calling applications
+        // and evaluated import locators belong to the selected authored row.
+        // Only the retained plan-scoped correspondence supplies that address;
+        // callback materialization still supplies the complete exact plan.
         let selected_requirement = selected.selected_requirement_identity(requirement);
 
         let matching_realizations = calling_applications

@@ -11,7 +11,7 @@ data Half { raw: u16; }
 data Trio { a: Byte; b: Byte; c: Byte; }
 data Mixed { tag: Byte; pad: Byte; half: Half; tail: Byte; }
 
-data Main { }
+data Main { value: i32; }
 
 machine byte_is(byte: Byte, expected: u64) -> bool { (byte.raw as u64) == expected }
 machine half_is(half: Half, expected: u64) -> bool { (half.raw as u64) == expected }

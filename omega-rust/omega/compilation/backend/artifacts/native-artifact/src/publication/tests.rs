@@ -60,8 +60,9 @@ fn receipt(output_path: PathBuf) -> ExecutablePublicationReceipt {
 #[test]
 fn v1_publication_digests_keep_their_byte_contract_and_detect_substitution() {
     let receipt = receipt(PathBuf::from("program"));
-    // Independently evaluated SHA-256 vectors for the v1 byte layout,
-    // including its non-parameter-order fingerprint sequence.
+    // Independently evaluated SHA-256 vectors for the post-PCC v1 byte layout,
+    // including its non-parameter-order fingerprint sequence. The retired
+    // proof-length and proof-byte frame is absent from the certificate.
     let vectors = [
         (
             *receipt.container_digest().as_bytes(),

@@ -7,7 +7,6 @@ use filesystem_host;
 use omega::language::core::filesystem_authority;
 use omega::language::core::numeric_conversion;
 
-use omega::language::core::binding;
 
 pub data File [copy] {
     handle: u64;
@@ -220,7 +219,7 @@ pub data MetadataResult {
 
 use posix_filesystem_adapter;
 
-pub data Filesystem { host: Binding<FilesystemService>; }
+pub data Filesystem {}
 
 pub boundary trait FilesystemService {
     machine create(path: &[u8] in Path) -> OpenResult
@@ -367,320 +366,320 @@ pub machine Filesystem::create(filesystem: &mut Filesystem, path: &[u8] in Path)
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
 invokes FilesystemService;
 {
-    filesystem.host.create(path)
+    FilesystemService::create(path)
 }
 
 pub machine Filesystem::create_new(filesystem: &mut Filesystem, path: &[u8] in Path) -> OpenResult
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
 invokes FilesystemService;
 {
-    filesystem.host.create_new(path)
+    FilesystemService::create_new(path)
 }
 
 pub machine Filesystem::open(filesystem: &mut Filesystem, path: &[u8] in Path) -> OpenResult
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
 invokes FilesystemService;
 {
-    filesystem.host.open(path)
+    FilesystemService::open(path)
 }
 
 pub machine Filesystem::append(filesystem: &mut Filesystem, path: &[u8] in Path) -> OpenResult
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
 invokes FilesystemService;
 {
-    filesystem.host.append(path)
+    FilesystemService::append(path)
 }
 
 pub machine Filesystem::read(filesystem: &mut Filesystem, file: File, buffer: &mut [u8], count: u64) -> IoResult
 reaches FilesystemContentRead
 invokes FilesystemService;
 {
-    filesystem.host.read(file, buffer, count)
+    FilesystemService::read(file, buffer, count)
 }
 
 pub machine Filesystem::write(filesystem: &mut Filesystem, file: File, bytes: &[u8]) -> IoResult
 reaches FilesystemContentWrite
 invokes FilesystemService;
 {
-    filesystem.host.write(file, bytes)
+    FilesystemService::write(file, bytes)
 }
 
 pub machine Filesystem::close(filesystem: &mut Filesystem, file: File) -> UnitResult
 
 invokes FilesystemService;
 {
-    filesystem.host.close(file)
+    FilesystemService::close(file)
 }
 
 pub machine Filesystem::write_all(filesystem: &mut Filesystem, path: &[u8] in Path, bytes: &[u8]) -> UnitResult
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
 invokes FilesystemService;
 {
-    filesystem.host.write_all(path, bytes)
+    FilesystemService::write_all(path, bytes)
 }
 
 pub machine Filesystem::read_all(filesystem: &mut Filesystem, path: &[u8] in Path, buffer: &mut [u8], count: u64) -> IoResult
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
 invokes FilesystemService;
 {
-    filesystem.host.read_all(path, buffer, count)
+    FilesystemService::read_all(path, buffer, count)
 }
 
 pub machine Filesystem::copy(filesystem: &mut Filesystem, from: &[u8] in Path, to: &[u8] in Path, buffer: &mut [u8], cap: u64) -> IoResult
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + FilesystemMetadataQuery
 invokes FilesystemService;
 {
-    filesystem.host.copy(from, to, buffer, cap)
+    FilesystemService::copy(from, to, buffer, cap)
 }
 
 pub machine Filesystem::exists(filesystem: &mut Filesystem, path: &[u8] in Path) -> bool
 reaches FilesystemMetadataQuery
 invokes FilesystemService;
 {
-    filesystem.host.exists(path)
+    FilesystemService::exists(path)
 }
 
 pub machine Filesystem::try_exists(filesystem: &mut Filesystem, path: &[u8] in Path) -> ExistsResult
 reaches FilesystemMetadataQuery
 invokes FilesystemService;
 {
-    filesystem.host.try_exists(path)
+    FilesystemService::try_exists(path)
 }
 
 pub machine Filesystem::metadata_path(filesystem: &mut Filesystem, path: &[u8] in Path) -> MetadataResult
 reaches FilesystemMetadataQuery
 invokes FilesystemService;
 {
-    filesystem.host.metadata_path(path)
+    FilesystemService::metadata_path(path)
 }
 
 pub machine Filesystem::symlink_metadata(filesystem: &mut Filesystem, path: &[u8] in Path) -> MetadataResult
 reaches FilesystemMetadataQuery
 invokes FilesystemService;
 {
-    filesystem.host.symlink_metadata(path)
+    FilesystemService::symlink_metadata(path)
 }
 
 pub machine Filesystem::remove(filesystem: &mut Filesystem, path: &[u8] in Path) -> UnitResult
 reaches FilesystemNamespaceMutation
 invokes FilesystemService;
 {
-    filesystem.host.remove(path)
+    FilesystemService::remove(path)
 }
 
 pub machine Filesystem::create_dir(filesystem: &mut Filesystem, path: &[u8] in Path) -> UnitResult
 reaches FilesystemMetadataMutation + FilesystemNamespaceMutation
 invokes FilesystemService;
 {
-    filesystem.host.create_dir(path)
+    FilesystemService::create_dir(path)
 }
 
 pub machine Filesystem::remove_dir(filesystem: &mut Filesystem, path: &[u8] in Path) -> UnitResult
 reaches FilesystemNamespaceMutation
 invokes FilesystemService;
 {
-    filesystem.host.remove_dir(path)
+    FilesystemService::remove_dir(path)
 }
 
 pub machine Filesystem::create_dir_all(filesystem: &mut Filesystem, path: &[u8] in Path) -> UnitResult
 reaches FilesystemMetadataMutation + FilesystemNamespaceMutation
 invokes FilesystemService;
 {
-    filesystem.host.create_dir_all(path)
+    FilesystemService::create_dir_all(path)
 }
 
 pub machine Filesystem::read_dir_is_empty(filesystem: &mut Filesystem, path: &[u8] in Path) -> EmptyResult
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration
 invokes FilesystemService;
 {
-    filesystem.host.read_dir_is_empty(path)
+    FilesystemService::read_dir_is_empty(path)
 }
 
 pub machine Filesystem::set_permissions(filesystem: &mut Filesystem, path: &[u8] in Path, perms: Permissions) -> UnitResult
 reaches FilesystemMetadataMutation
 invokes FilesystemService;
 {
-    filesystem.host.set_permissions(path, perms)
+    FilesystemService::set_permissions(path, perms)
 }
 
 pub machine Filesystem::symlink(filesystem: &mut Filesystem, target: &[u8] in Path, link: &[u8] in Path) -> UnitResult
 reaches FilesystemNamespaceMutation
 invokes FilesystemService;
 {
-    filesystem.host.symlink(target, link)
+    FilesystemService::symlink(target, link)
 }
 
 pub machine Filesystem::read_link(filesystem: &mut Filesystem, path: &[u8] in Path, buffer: &mut [u8], count: u64) -> IoResult
 reaches FilesystemMetadataQuery
 invokes FilesystemService;
 {
-    filesystem.host.read_link(path, buffer, count)
+    FilesystemService::read_link(path, buffer, count)
 }
 
 pub machine Filesystem::set_file_permissions(filesystem: &mut Filesystem, file: File, perms: Permissions) -> UnitResult
 reaches FilesystemMetadataMutation
 invokes FilesystemService;
 {
-    filesystem.host.set_file_permissions(file, perms)
+    FilesystemService::set_file_permissions(file, perms)
 }
 
 pub machine Filesystem::rename(filesystem: &mut Filesystem, from: &[u8] in Path, to: &[u8] in Path) -> UnitResult
 reaches FilesystemNamespaceMutation
 invokes FilesystemService;
 {
-    filesystem.host.rename(from, to)
+    FilesystemService::rename(from, to)
 }
 
 pub machine Filesystem::set_len(filesystem: &mut Filesystem, file: File, length: i64) -> UnitResult
 reaches FilesystemContentWrite + FilesystemMetadataMutation
 invokes FilesystemService;
 {
-    filesystem.host.set_len(file, length)
+    FilesystemService::set_len(file, length)
 }
 
 pub machine Filesystem::sync(filesystem: &mut Filesystem, file: File) -> UnitResult
 
 invokes FilesystemService;
 {
-    filesystem.host.sync(file)
+    FilesystemService::sync(file)
 }
 
 pub machine Filesystem::sync_data(filesystem: &mut Filesystem, file: File) -> UnitResult
 
 invokes FilesystemService;
 {
-    filesystem.host.sync_data(file)
+    FilesystemService::sync_data(file)
 }
 
 pub machine Filesystem::try_clone(filesystem: &mut Filesystem, file: File) -> OpenResult
 
 invokes FilesystemService;
 {
-    filesystem.host.try_clone(file)
+    FilesystemService::try_clone(file)
 }
 
 pub machine Filesystem::set_owner(filesystem: &mut Filesystem, path: &[u8] in Path, uid: i32, gid: i32) -> UnitResult
 reaches FilesystemMetadataMutation
 invokes FilesystemService;
 {
-    filesystem.host.set_owner(path, uid, gid)
+    FilesystemService::set_owner(path, uid, gid)
 }
 
 pub machine Filesystem::set_owner_no_follow(filesystem: &mut Filesystem, path: &[u8] in Path, uid: i32, gid: i32) -> UnitResult
 reaches FilesystemMetadataMutation
 invokes FilesystemService;
 {
-    filesystem.host.set_owner_no_follow(path, uid, gid)
+    FilesystemService::set_owner_no_follow(path, uid, gid)
 }
 
 pub machine Filesystem::set_file_owner(filesystem: &mut Filesystem, file: File, uid: i32, gid: i32) -> UnitResult
 reaches FilesystemMetadataMutation
 invokes FilesystemService;
 {
-    filesystem.host.set_file_owner(file, uid, gid)
+    FilesystemService::set_file_owner(file, uid, gid)
 }
 
 pub machine Filesystem::metadata(filesystem: &mut Filesystem, file: File) -> MetadataResult
 reaches FilesystemMetadataQuery
 invokes FilesystemService;
 {
-    filesystem.host.metadata(file)
+    FilesystemService::metadata(file)
 }
 
 pub machine Filesystem::open_with(filesystem: &mut Filesystem, path: &[u8] in Path, options: OpenOptions) -> OpenResult
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
 invokes FilesystemService;
 {
-    filesystem.host.open_with(path, options)
+    FilesystemService::open_with(path, options)
 }
 
 pub machine Filesystem::read_dir_count(filesystem: &mut Filesystem, path: &[u8] in Path) -> IoResult
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration
 invokes FilesystemService;
 {
-    filesystem.host.read_dir_count(path)
+    FilesystemService::read_dir_count(path)
 }
 
 pub machine Filesystem::read_dir_nth(filesystem: &mut Filesystem, path: &[u8] in Path, n: u64) -> DirEntryResult
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration
 invokes FilesystemService;
 {
-    filesystem.host.read_dir_nth(path, n)
+    FilesystemService::read_dir_nth(path, n)
 }
 
 pub machine Filesystem::remove_dir_all(filesystem: &mut Filesystem, path: &[u8] in Path) -> UnitResult
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration
 invokes FilesystemService;
 {
-    filesystem.host.remove_dir_all(path)
+    FilesystemService::remove_dir_all(path)
 }
 
 pub machine Filesystem::read_at(filesystem: &mut Filesystem, file: File, buffer: &mut [u8], count: u64, offset: i64) -> IoResult
 reaches FilesystemContentRead
 invokes FilesystemService;
 {
-    filesystem.host.read_at(file, buffer, count, offset)
+    FilesystemService::read_at(file, buffer, count, offset)
 }
 
 pub machine Filesystem::write_at(filesystem: &mut Filesystem, file: File, bytes: &[u8], offset: i64) -> IoResult
 reaches FilesystemContentWrite
 invokes FilesystemService;
 {
-    filesystem.host.write_at(file, bytes, offset)
+    FilesystemService::write_at(file, bytes, offset)
 }
 
 pub machine Filesystem::hard_link(filesystem: &mut Filesystem, original: &[u8] in Path, link: &[u8] in Path) -> UnitResult
 reaches FilesystemNamespaceMutation
 invokes FilesystemService;
 {
-    filesystem.host.hard_link(original, link)
+    FilesystemService::hard_link(original, link)
 }
 
 pub machine Filesystem::set_times(filesystem: &mut Filesystem, file: File, accessed: i64, modified: i64) -> UnitResult
 reaches FilesystemMetadataMutation
 invokes FilesystemService;
 {
-    filesystem.host.set_times(file, accessed, modified)
+    FilesystemService::set_times(file, accessed, modified)
 }
 
 pub machine Filesystem::canonicalize(filesystem: &mut Filesystem, path: &[u8] in Path, buffer: &mut [u8]) -> UnitResult
 reaches FilesystemMetadataQuery
 invokes FilesystemService;
 {
-    filesystem.host.canonicalize(path, buffer)
+    FilesystemService::canonicalize(path, buffer)
 }
 
 pub machine Filesystem::lock(filesystem: &mut Filesystem, file: File) -> UnitResult
 
 invokes FilesystemService;
 {
-    filesystem.host.lock(file)
+    FilesystemService::lock(file)
 }
 
 pub machine Filesystem::lock_shared(filesystem: &mut Filesystem, file: File) -> UnitResult
 
 invokes FilesystemService;
 {
-    filesystem.host.lock_shared(file)
+    FilesystemService::lock_shared(file)
 }
 
 pub machine Filesystem::try_lock(filesystem: &mut Filesystem, file: File) -> TryLockResult
 
 invokes FilesystemService;
 {
-    filesystem.host.try_lock(file)
+    FilesystemService::try_lock(file)
 }
 
 pub machine Filesystem::try_lock_shared(filesystem: &mut Filesystem, file: File) -> TryLockResult
 
 invokes FilesystemService;
 {
-    filesystem.host.try_lock_shared(file)
+    FilesystemService::try_lock_shared(file)
 }
 
 pub machine Filesystem::unlock(filesystem: &mut Filesystem, file: File) -> UnitResult
 
 invokes FilesystemService;
 {
-    filesystem.host.unlock(file)
+    FilesystemService::unlock(file)
 }

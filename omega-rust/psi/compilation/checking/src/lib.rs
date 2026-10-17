@@ -55,13 +55,13 @@ pub use machine_calls::structural_call_custody::{
     DeclarationPredicateRow, StateScalarContractRow, StructuralResultContract,
     borrowed_slice_view_result, declaration_facts_carried, finite_arrival_parameter,
     machine_declaration_predicates, reconstruct_structural_parameter_return_claims,
-    restates_structural_parameter_qualification, state_declaration_predicates,
-    state_finite_predicate, structural_call_custody, structural_call_result_claims,
-    structural_claim_path, structural_owned_path, structural_qualification_contract,
-    structural_result_contract, structural_result_projected_qualifications,
-    structural_result_qualification_contract, structural_result_qualifications,
-    structural_state_contract_scalar_predicates, view_result_carrier_qualifications,
-    zeroed_byte_projected_qualifications,
+    restates_structural_parameter_qualification, result_membership_carrier,
+    state_declaration_predicates, state_finite_predicate, structural_call_custody,
+    structural_call_result_claims, structural_claim_path, structural_owned_path,
+    structural_qualification_contract, structural_result_contract,
+    structural_result_projected_qualifications, structural_result_qualification_contract,
+    structural_result_qualifications, structural_state_contract_scalar_predicates,
+    view_result_carrier_qualifications, zeroed_byte_projected_qualifications,
 };
 pub use proof_contracts::arithmetic_domains::domain_intervals::{
     closed_interval_from_comparison, declared_domain_predicate_bounds,
@@ -241,7 +241,7 @@ pub use declarations::operators::{
 pub use declarations::traits::{
     DynamicImplementationSelection, DynamicSlotDemand, collect_dynamic_implementation_selections,
     collect_dynamic_slot_demands, compose_forwarded_trait_arguments, dynamic_call_demand,
-    dynamic_expression_call_demand, generic_bound_operator_requirement,
+    dynamic_expression_call_demand, generic_bound_operator_requirement, qualified_trait_scope,
     resolve_closed_requirement_application, resolve_dynamic_call_targets,
     resolve_selected_dynamic_call_targets, revalidate_top_level_requirement_realization,
 };

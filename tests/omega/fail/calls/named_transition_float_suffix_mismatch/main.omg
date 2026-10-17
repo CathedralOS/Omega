@@ -1,0 +1,2 @@
+machine identity(value: f32) -> f32 { value }
+machine main() -> f32 { transition { _ -> identity(1.5f64) } }

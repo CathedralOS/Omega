@@ -159,19 +159,15 @@ pub(crate) fn emit_assignment(
     };
     let path =
         super::runtime_elements::complete_path(destination.path, indexes, calls, operations)?;
+    let logical_receiving = destination.logical_receiving;
     let physical = ReceivingPlace {
         root_type: destination.root_type,
         qualifications: destination.qualifications,
         projected_qualifications: destination.projected_qualifications,
         path: path.clone(),
     };
-    let logical = destination.logical_receiving.as_ref().unwrap_or(&physical);
-    let logical_scalar = terminal_semantics::primitive_projection_restriction(
-        calls.structural_types.iter(),
-        logical.root_type,
-        &logical.path,
-    )
-    .cloned();
+    let logical = logical_receiving.as_ref().unwrap_or(&physical);
+    let logical_scalar = declared_restriction(logical, structural_types);
     let logical_restriction = receiving_restriction(logical, calls)?;
     if logical_restriction != logical_scalar && !preserves_byte_memberships {
         return unsupported("primitive write lost its exact logical byte preservation judgment");
@@ -185,17 +181,8 @@ pub(crate) fn emit_assignment(
     // integer decision was authenticated by OperationFrame before emission;
     // byte preservation is the exact checked target's independent judgment.
     // Physical goals use only the physical declaration and full root roster.
-    let restriction = receiving_restriction(&physical, calls)?;
-    if terminal_semantics::primitive_projection_type(
-        calls.structural_types.iter(),
-        logical.root_type,
-        &logical.path,
-    ) != Some(destination.scalar_type)
-        || terminal_semantics::primitive_projection_type(
-            calls.structural_types.iter(),
-            physical.root_type,
-            &physical.path,
-        ) != Some(destination.scalar_type)
+    if receiving_scalar(logical, structural_types) != Some(destination.scalar_type)
+        || receiving_scalar(&physical, structural_types) != Some(destination.scalar_type)
     {
         return unsupported("captured primitive destination changed its scalar endpoint");
     }
@@ -206,44 +193,170 @@ pub(crate) fn emit_assignment(
                 .then(|| logical_restriction.clone())
                 .flatten()
         });
-    let range_obligation = if let Some(restriction) = &restriction {
+    emit_completed_assignment(
+        machine,
+        state,
+        statement_index,
+        PhysicalDestination {
+            place: destination.place,
+            root_type: physical.root_type,
+            qualifications: physical.qualifications,
+            projected_qualifications: physical.projected_qualifications,
+            path,
+            logical_receiving,
+        },
+        destination.scalar_type,
+        value,
+        logical_proven.as_ref(),
+        structural_types,
+        next_value,
+        operations,
+        calls,
+    )
+}
+
+/// An evaluated physical address and the original logical receiving declaration.
+/// Representation conversion changes the completed scalar, never these claims.
+pub(crate) struct PhysicalDestination {
+    pub(crate) place: PlaceId,
+    pub(crate) root_type: StructuralTypeId,
+    pub(crate) qualifications: Vec<semantic_vocabulary::StructuralDomainId>,
+    pub(crate) projected_qualifications: Vec<terminal_psi::StructuralPathQualification>,
+    pub(crate) path: Vec<terminal_psi::StructuralPathSegment>,
+    pub(crate) logical_receiving: Option<ReceivingPlace>,
+}
+
+/// Emit the completed scalar through its exact physical declaration. A caller
+/// may retain an authenticated numeric receiving judgment; absent one, the
+/// complete physical receiving goal stays unmarked for the source-check cut.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn emit_completed_assignment(
+    machine: symbols::SymbolHandle,
+    state: symbols::SymbolHandle,
+    statement_index: u32,
+    destination: PhysicalDestination,
+    scalar_type: ScalarType,
+    value: ValueDeclaration,
+    proven_restriction: Option<&StructuralFieldType>,
+    structural_types: &[StructuralTypeDeclaration],
+    next_value: &mut u64,
+    operations: &mut OperationBuffer,
+    calls: &mut CallEmissionContext<'_>,
+) -> Result<OperationKind, LoweringError> {
+    if value.scalar_type != scalar_type {
+        return unsupported("physical scalar store value changed its checked carrier");
+    }
+    let physical = ReceivingPlace {
+        root_type: destination.root_type,
+        qualifications: destination.qualifications,
+        projected_qualifications: destination.projected_qualifications,
+        path: destination.path.clone(),
+    };
+    let actual = receiving_scalar(&physical, structural_types);
+    if actual != Some(scalar_type) {
+        return Err(LoweringError::CapturedScalarStoreEndpoint {
+            machine,
+            state,
+            statement_index,
+            destination: destination.place,
+            root_type: destination.root_type,
+            path: destination.path,
+            expected: scalar_type,
+            actual,
+        });
+    }
+    let restriction = receiving_restriction(&physical, calls)?;
+    if let Some(logical) = &destination.logical_receiving {
+        let logical_restriction = receiving_restriction(logical, calls)?;
+        if let Some(required) = logical_restriction.as_ref()
+            && restriction.as_ref() != Some(required)
+            && !proven_restriction.is_some_and(|proven| receiving_entails(proven, required))
+        {
+            return unsupported("completed scalar store lost its logical receiving judgment");
+        }
+    }
+    let range_obligation = if let Some(required) = restriction.as_ref() {
         let obligation =
             super::obligation_id(super::allocate_dense(&mut calls.next_obligation_identity)?);
-        // A logical proof can discharge a physical interval only by actual
-        // numeric containment. A different physical goal remains owed to the
-        // normal complete source-check cut; a boolean cannot invent its proof.
-        if logical_proven
-            .as_ref()
-            .is_some_and(|proven| receiving_entails(proven, restriction))
-        {
+        if proven_restriction.is_some_and(|proven| receiving_entails(proven, required)) {
             operations.source_checked_obligations.push(obligation);
         }
         Some(obligation)
     } else {
         None
     };
-
     super::runtime_elements::observe_element_extent(
         destination.place,
         destination.root_type,
-        &path,
+        &destination.path,
         structural_types,
         next_value,
         operations,
     )?;
+    if let Some(field) = terminal_semantics::runtime_structural_field(
+        structural_types.iter(),
+        destination.root_type,
+        &destination.path,
+    )
+    .filter(|field| {
+        matches!(
+            field.field_type,
+            StructuralFieldType::Scalar(ScalarType::Boolean | ScalarType::Integer(_))
+                | StructuralFieldType::BoundedInteger(_)
+                | StructuralFieldType::RefinedScalar(_)
+        )
+    }) {
+        return Ok(OperationKind::StructuralScalarFieldStore {
+            destination: destination.place,
+            path: destination.path[..destination.path.len() - 1].to_vec(),
+            field: field.id,
+            value: value.id,
+            range_obligation,
+        });
+    }
     Ok(OperationKind::WriteOnlyPrimitiveStore {
         range_obligation,
         destination: destination.place,
-        path,
+        path: destination.path,
         value: value.id,
     })
 }
 
-fn receiving_restriction(
+pub(crate) fn receiving_scalar(
+    place: &ReceivingPlace,
+    types: &[StructuralTypeDeclaration],
+) -> Option<ScalarType> {
+    terminal_semantics::runtime_structural_field(types.iter(), place.root_type, &place.path)
+        .and_then(|field| field.field_type.scalar_type())
+        .or_else(|| {
+            terminal_semantics::primitive_projection_type(
+                types.iter(),
+                place.root_type,
+                &place.path,
+            )
+        })
+}
+
+fn declared_restriction(
+    place: &ReceivingPlace,
+    types: &[StructuralTypeDeclaration],
+) -> Option<StructuralFieldType> {
+    terminal_semantics::primitive_projection_restriction(types.iter(), place.root_type, &place.path)
+        .cloned()
+        .or_else(|| {
+            terminal_semantics::runtime_structural_field(types.iter(), place.root_type, &place.path)
+                .filter(|field| {
+                    terminal_semantics::scalar_field_requires_evidence(&field.field_type)
+                })
+                .map(|field| field.field_type.clone())
+        })
+}
+
+pub(crate) fn receiving_restriction(
     place: &ReceivingPlace,
     calls: &CallEmissionContext<'_>,
 ) -> Result<Option<StructuralFieldType>, LoweringError> {
-    terminal_semantics::primitive_store_restriction_with_predicates(
+    let restriction = terminal_semantics::primitive_store_restriction_with_predicates(
         calls.structural_types.iter(),
         place.root_type,
         &place.qualifications,
@@ -261,7 +374,14 @@ fn receiving_restriction(
     )
     .ok_or(LoweringError::Unsupported(
         "primitive write does not preserve enclosing qualifications",
-    ))
+    ))?;
+    let declared = declared_restriction(place, calls.structural_types);
+    match (restriction, declared) {
+        (None, declared) => Ok(declared),
+        (Some(restriction), None) => Ok(Some(restriction)),
+        (Some(restriction), Some(declared)) if restriction == declared => Ok(Some(restriction)),
+        _ => unsupported("primitive write has incompatible receiving predicates"),
+    }
 }
 
 fn receiving_entails(proven: &StructuralFieldType, required: &StructuralFieldType) -> bool {

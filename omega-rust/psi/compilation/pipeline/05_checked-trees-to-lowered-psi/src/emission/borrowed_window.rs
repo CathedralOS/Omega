@@ -132,6 +132,9 @@ struct CapturedAssignmentDestination {
     statement_index: u32,
     destination_expression: typed_trees::expression::ExpressionHandle,
     destination: CheckedUnitStructuralArgumentPlan,
+    /// Store projections include implicit root reference crossings; cleanup
+    /// and structural windows retain the original checked source coordinate.
+    normalized_path: Vec<CheckedUnitStructuralPathSegment>,
     source: PlaceId,
     root_type: StructuralTypeId,
     path: Vec<StructuralPathSegment>,
@@ -384,10 +387,15 @@ impl BorrowedWindowLedger {
         } else {
             (place.source, place.root_type, path)
         };
+        // Emitted store projections include the reference crossings already
+        // consumed while capturing this endpoint. Associate suffixes with that
+        // same normalized coordinate, or an implicit root crossing is appended
+        // a second time below the captured referent.
         self.assignment = Some(CapturedAssignmentDestination {
             statement_index: evaluation.statement_index,
             destination_expression,
             destination: destination.clone(),
+            normalized_path: place.checked_path,
             source,
             root_type,
             path,
@@ -457,6 +465,41 @@ impl BorrowedWindowLedger {
         }))
     }
 
+    /// Emitted stores use the normalized checked coordinate. Structural
+    /// windows and cleanup use `captured_assignment_place` with their original
+    /// coordinate; neither API guesses or tries a second spelling.
+    pub(crate) fn captured_store_place(
+        &self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        statement_index: u32,
+        source: &CheckedUnitStructuralArgumentSourcePlan,
+        path: &[CheckedUnitStructuralPathSegment],
+    ) -> Result<Option<CapturedAssignmentPlace>, LoweringError> {
+        let Some(capture) = self.assignment.as_ref().filter(|capture| {
+            capture.statement_index == statement_index
+                && &capture.destination.source == source
+                && path.starts_with(&capture.normalized_path)
+        }) else {
+            return Ok(None);
+        };
+        let suffix =
+            crate::expression_preparation::bindings::structural_paths::lower_structural_path(
+                identities,
+                &path[capture.normalized_path.len()..],
+            )?;
+        let mut retained = capture.path.clone();
+        retained.extend_from_slice(&suffix);
+        let mut original_path = capture.original_path.clone();
+        original_path.extend(suffix);
+        Ok(Some(CapturedAssignmentPlace {
+            source: capture.source,
+            root_type: capture.root_type,
+            path: retained,
+            original_source: capture.original_source,
+            original_path,
+        }))
+    }
+
     pub(crate) fn captured_indexed_destination(
         &self,
         statement_index: u32,
@@ -469,7 +512,7 @@ impl BorrowedWindowLedger {
         if capture.statement_index != statement_index || &capture.destination.source != source {
             return Ok(None);
         }
-        let Some(suffix) = capture.destination.path.strip_prefix(descriptor_path) else {
+        let Some(suffix) = capture.normalized_path.strip_prefix(descriptor_path) else {
             return Ok(None);
         };
         if !matches!(
@@ -1272,7 +1315,12 @@ fn resolve_storage_address(
         WindowLeaf::Subtree { structural_type } => (None, Some(structural_type)),
     };
     let mut checked_path = plan.path.clone();
-    if leading_referent {
+    if leading_referent
+        && !matches!(
+            plan.path.first(),
+            Some(CheckedUnitStructuralPathSegment::Referent)
+        )
+    {
         checked_path.insert(0, CheckedUnitStructuralPathSegment::Referent);
     }
     Ok(ResolvedStorageAddress {

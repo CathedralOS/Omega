@@ -32,12 +32,20 @@ pub(super) fn replay_provider_executions(
         else {
             continue;
         };
+        let requirement = module
+            .identities
+            .text(boundary.identity)
+            .unwrap_or_default();
+        let selected_plan = selected_provider_plans
+            .iter()
+            .find(|plan| plan.report_identity() == execution.provider_plan_report_identity)
+            .ok_or(ProviderExecutionReplayError::Shared(
+                "native execution names an unselected provider plan",
+            ))?;
         required_executions.insert((
-            module
-                .identities
-                .text(boundary.identity)
-                .unwrap_or_default()
-                .to_string(),
+            selected_plan
+                .selected_requirement_identity(requirement)
+                .to_owned(),
             execution.provider_plan_report_identity,
             execution.provider_execution_report_identity,
             execution.provider_execution_report_fingerprint,
@@ -121,12 +129,20 @@ pub(super) fn replay_provider_executions(
             &module.identities,
         )
         .map_err(ProviderExecutionReplayError::Shared)?;
+        let requirement = module
+            .identities
+            .text(boundary.identity)
+            .unwrap_or_default();
+        let selected_plan = selected_provider_plans
+            .iter()
+            .find(|plan| plan.report_identity() == execution.provider_plan_report_identity)
+            .ok_or(ProviderExecutionReplayError::Shared(
+                "native execution names an unselected provider plan",
+            ))?;
         required_executions.insert((
-            module
-                .identities
-                .text(boundary.identity)
-                .unwrap_or_default()
-                .to_string(),
+            selected_plan
+                .selected_requirement_identity(requirement)
+                .to_owned(),
             execution.provider_plan_report_identity,
             execution.provider_execution_report_identity,
             execution.provider_execution_report_fingerprint,
@@ -148,18 +164,19 @@ pub(super) fn validate_foreign_provider_binding(
     requirement: &str,
     foreign: &ObjectForeignCall,
     selected_provider_plans: &[NativeSelectedProviderPlan],
-    identities: &terminal_psi::TerminalIdentityTable,
+    _identities: &terminal_psi::TerminalIdentityTable,
 ) -> Result<(), &'static str> {
     // The admitted contribution indexes the selection facts table carried
     // beside the plan's family realizations, never the module's table.
-    let binding_identities = selected_provider_plans
+    let selected_plan = selected_provider_plans
         .iter()
         .find(|plan| {
             plan.report_identity == foreign.provider_execution.provider_plan_report_identity
         })
-        .map(|plan| plan.family_realization_identities())
-        .unwrap_or(identities);
-    if foreign.binding.requirement_identity(binding_identities) != Some(requirement)
+        .ok_or("native external call names an unselected provider plan")?;
+    let binding_identities = selected_plan.family_realization_identities();
+    let selected_requirement = selected_plan.selected_requirement_identity(requirement);
+    if foreign.binding.requirement_identity(binding_identities) != Some(selected_requirement)
         || !foreign.binding.has_valid_entry_mechanism()
     {
         return Err("native external call binding differs from its requirement");
@@ -261,6 +278,7 @@ pub(super) fn validate_provider_execution_reports(
 ) -> Result<(), &'static str> {
     let mut prior_plan = None;
     for plan in selected_provider_plans {
+        plan.validate_external_requirement_applications()?;
         if plan.report_identity == 0
             || prior_plan.is_some_and(|prior| prior >= plan.report_identity)
         {
@@ -301,11 +319,9 @@ pub(super) fn validate_provider_execution_reports(
         else {
             return Err("native artifact provider execution names an unselected plan");
         };
-        if plan
-            .requirement_identities
-            .binary_search_by(|identity| identity.as_str().cmp(execution.requirement_identity()))
-            .is_err()
-        {
+        if !plan.requirement_identities.iter().any(|identity| {
+            plan.selected_requirement_identity(identity) == execution.requirement_identity()
+        }) {
             return Err("native artifact provider execution is absent from its selected plan");
         }
         reported_executions.insert((
@@ -331,9 +347,7 @@ pub(super) fn validate_foreign_stack_contribution(
     contribution_provider_plan_commitment: [u8; 32],
     selected_provider_plans: &[NativeSelectedProviderPlan],
 ) -> Result<(), &'static str> {
-    if contribution_requirement_identity != requirement_identity
-        || contribution_provider_plan_report_identity != execution.provider_plan_report_identity
-    {
+    if contribution_provider_plan_report_identity != execution.provider_plan_report_identity {
         return Err(
             "native artifact foreign stack contribution disagrees with its semantic requirement or provider execution",
         );
@@ -344,6 +358,13 @@ pub(super) fn validate_foreign_stack_contribution(
     else {
         return Err("native artifact foreign stack contribution names an unselected provider plan");
     };
+    if contribution_requirement_identity
+        != selected_plan.selected_requirement_identity(requirement_identity)
+    {
+        return Err(
+            "native artifact foreign stack contribution changed its exact selected requirement",
+        );
+    }
     if contribution_provider_plan_commitment != *selected_plan.plan_digest().as_bytes() {
         return Err(
             "native artifact foreign stack contribution disagrees with the exact selected provider plan",

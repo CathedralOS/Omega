@@ -1,0 +1,2 @@
+initialized captured RAM on every entry-relative origin
+a formal or host pointer is not backing authority

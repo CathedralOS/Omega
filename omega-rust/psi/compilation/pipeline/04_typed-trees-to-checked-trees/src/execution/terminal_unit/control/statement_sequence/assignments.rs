@@ -95,9 +95,12 @@ pub(super) fn plan(
         machine,
         state,
         structural_parameters,
+        scalar_parameters,
+        parameter_storage,
         binders,
         statement_index,
         assignment,
+        trace,
     ) {
         operations.push(capture);
     }

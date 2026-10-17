@@ -5,7 +5,7 @@ use omega::language::core::filesystem_authority;
 // operating-system family its own raw trait so a provider covers the complete
 // schema without stub rows; `WindowsFilesystemHost` is the other family.
 // Programs that work with descriptors directly hold
-// `Binding<PosixFilesystemHost>`. The portable `Filesystem` service is a
+// the exact `PosixFilesystemHost` static provider slot. The portable `Filesystem` service is a
 // separate layer above the families.
 //
 // Conventions shared by every operation:

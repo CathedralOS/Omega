@@ -222,7 +222,7 @@ impl TerminalNativeRealizationProposal {
             .with_family_realization_rows(family_rows, &identities.build())
             .map_err(|reason| vec![Diagnostic::error(reason)])?;
         let input = input
-            .bind_selected_family_realizations(artifact, &selection)
+            .bind_selected_provider_coordinates(artifact, &selection)
             .map_err(|reason| vec![Diagnostic::error(reason)])?;
         let demands = demands
             .into_iter()

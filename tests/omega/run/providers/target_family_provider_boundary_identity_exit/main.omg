@@ -1,0 +1,12 @@
+// Expected exit: 0. Expected stdout: AB (without a newline).
+// A selected checked adapter and a public byte requirement retain the same exact
+// portable family head, even when its target member is a physical foreign leaf.
+use omega_language_std::console;
+data Main { value: i32; }
+machine emit(value: i32) reaches Console { Console::write_byte(value); }
+machine Main::main(main: &mut Main) reaches Console {
+    main.value = 66;
+    Console::write("A");
+    emit(main.value);
+    Console::exit_process(0);
+}

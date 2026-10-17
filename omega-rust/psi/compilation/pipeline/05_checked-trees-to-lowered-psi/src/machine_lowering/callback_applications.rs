@@ -39,14 +39,17 @@ pub(super) fn retain(
         else {
             continue;
         };
-        // Checking records the registrar as the requirement template, while a
-        // direct `Requirement::operation<Handler>(...)` call lowers through
-        // the closed application of that template. Both name one registrar.
-        let registrar = checked
-            .typed
+        // Emission retains the checked call's complete closed target, while
+        // nominal registration belongs to its authored declaration. Project
+        // only this lookup address through the canonical instance owner; the
+        // exact generational source site still identifies the application.
+        // In particular, equal tuples can share a closed instance whose saved
+        // application handle came from a different call. Neither that handle
+        // nor an equal ABI can replace this source-site join.
+        let registration = checked
             .closed_requirement_application(occurrence.source_target)
             .map_or(occurrence.source_target, |application| application.template);
-        let key = source_key(site, registrar);
+        let key = source_key(site, registration);
         let first = requested.partition_point(|(candidate, _, _)| *candidate < key);
         for (_, _, registrar) in requested[first..]
             .iter_mut()

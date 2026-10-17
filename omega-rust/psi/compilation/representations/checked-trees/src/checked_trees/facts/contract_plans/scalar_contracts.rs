@@ -66,10 +66,11 @@ pub enum ClosedScalarContractValue {
     /// It is never a runtime requirement, tautology, or portable proof receipt.
     SourceCheckedGuarantee {
         facts: arena::HandleSpan<typed_trees::domain::ProofFact>,
-        /// Semantic domains the guarantee asserts over the reserved `result`
-        /// itself, sorted and deduplicated. A structural result's lowering
-        /// publishes them as the carrier's qualification domains.
-        result_memberships: Box<[language_semantics::SemanticDomainId]>,
+        /// Checked memberships over this callable's exact reserved result,
+        /// sorted by physical carrier path and domain. Borrowed results keep
+        /// the referent path; a same-spelled formal grants no result evidence.
+        /// Lowering consumes these rows without rereading authored facts.
+        result_qualifications: Box<[crate::CheckedStructuralPathQualification]>,
     },
 }
 

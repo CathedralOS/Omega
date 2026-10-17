@@ -1,0 +1,13 @@
+// Binding mutability cannot supply mutable access to a shared referent.
+// A bare mutable shared-reference binding may replace its own descriptor;
+// these projections actually cross the shared loan and attempt a store.
+data Scalar { value: u64; }
+data Nested<'storage> { value: &'storage mut u64; }
+data Main {}
+machine invalid_scalar(mut destination: &Scalar, source: &Scalar) {
+    destination.value = source.value;
+}
+machine invalid_nested<'storage>(mut destination: &Nested<'storage>, replacement: &'storage mut u64) {
+    destination.value = replacement;
+}
+machine Main::main(main: &mut Main) {}

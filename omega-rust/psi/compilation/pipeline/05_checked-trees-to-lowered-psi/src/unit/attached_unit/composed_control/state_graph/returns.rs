@@ -78,7 +78,7 @@ pub(super) fn result(
                 // the constrained result type's roster identically to the
                 // ordinary machine path.
                 qualifications.extend(
-                    crate::unit::attached_unit::parameters::authored_result_qualification_domains(
+                    crate::unit::attached_unit::parameters::authored_result_whole_domains(
                         checked, machine,
                     )
                     .iter()
@@ -94,7 +94,16 @@ pub(super) fn result(
             projected_qualifications:
                 crate::unit::attached_unit::parameters::lower_projected_qualifications(
                     identities,
-                    &result.projected_qualifications,
+                    &crate::unit::attached_unit::parameters::result_projected_qualifications(
+                        checked,
+                        machine,
+                        checked
+                            .typed
+                            .machine(machine)
+                            .and_then(|machine| checked.typed.machine_states(machine).first())
+                            .ok_or(LoweringError::Unsupported("result has no entry state"))?
+                            .return_type,
+                    )?,
                     &catalogs.domain_ids,
                     structural_type,
                     &catalogs.structural_types,

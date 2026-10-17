@@ -1,0 +1,2 @@
+pub boundary trait Service { machine read() -> i32; }
+data Legacy { slot: Binding<Service>; }

@@ -1,0 +1,2 @@
+`Input::read` expects 0 static invocation argument(s), got 1
+explicit selection requires a named implementation as the final static argument

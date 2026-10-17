@@ -1,0 +1,12 @@
+// Source-negative: a declared result bound needs an established input bound.
+const Ceiling: u32 = 100;
+trait Bounded<const Limit: u32> {
+    machine identity(value: u32) -> u32
+    requires value <= Limit
+    ensures result <= Limit;
+}
+Identity<const Maximum: u32> satisfies Bounded<Maximum> {
+    machine identity(input: u32) -> u32
+    ensures result <= Maximum
+    { input }
+}

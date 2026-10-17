@@ -55,8 +55,8 @@ pub use provider_evidence::providers::foreign_locator::{
 };
 pub use provider_evidence::providers::provider_plan;
 pub use provider_evidence::{
-    InstallationReachResolution, SelectedProviderPlanFacts, SelectedRequirementSpecialization,
-    SelectedTargetFamilyRealization,
+    InstallationReachResolution, SelectedExternalRequirementApplication, SelectedProviderPlanFacts,
+    SelectedRequirementSpecialization, SelectedTargetFamilyRealization,
 };
 
 #[cfg(test)]

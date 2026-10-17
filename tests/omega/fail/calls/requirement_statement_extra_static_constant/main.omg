@@ -1,0 +1,5 @@
+pub data Observation { value: i32; }
+pub boundary trait Output { machine fill(destination: &mut Observation); }
+machine observe(destination: &mut Observation) {
+    Output::fill<7>(destination);
+}

@@ -1,0 +1,60 @@
+// Expected exit: 0. Every ordinary argument runs once, left to right,
+// inside only the selected terminal arm, for both scalar and Unit calls.
+pub boundary trait Character {
+    machine echo(value: i32, observed: i32) -> i32;
+    machine store(output: &mut i32, value: i32, observed: i32);
+}
+CharacterImplementation satisfies Character {
+    Character::echo = echo;
+    Character::store = store;
+}
+machine echo(value: i32, observed: i32) -> i32 {
+    transition observed == 1 { true -> value false -> 0 }
+}
+machine store(output: &mut i32, value: i32, observed: i32) {
+    output = echo(value, observed);
+}
+data Main { value: i32; phase: u32 in Wrapping; }
+machine first(phase: &mut u32 in Wrapping) -> i32 {
+    phase = phase + 1;
+    65
+}
+machine second(phase: &mut u32 in Wrapping) -> i32 {
+    let previous: u32 in Wrapping = phase;
+    phase = phase + 10;
+    transition previous == 1 { true -> 1 false -> 0 }
+}
+machine unselected(phase: &mut u32 in Wrapping) -> i32 {
+    phase = 100;
+    0
+}
+machine guarded(phase: &mut u32 in Wrapping, choose: bool) -> i32 reaches Character {
+    transition choose {
+        true -> Character::echo(first(phase), second(phase))
+        false -> Character::echo(unselected(phase), 0)
+    }
+}
+machine unit_completion(output: &mut i32, phase: &mut u32 in Wrapping, choose: bool) reaches Character {
+    transition choose {
+        true -> Character::store(output, first(phase), second(phase))
+        false -> Character::store(output, unselected(phase), 0)
+    }
+}
+machine unconditional(value: i32) -> i32 reaches Character {
+    transition { _ -> Character::echo(value, 1) }
+}
+machine Main::main(context: &mut Main) reaches Character crashes Trap {
+    context.phase = 0;
+    let selected: i32 = guarded(&mut context.phase, true);
+    let selected_phase: u32 in Wrapping = context.phase;
+    context.phase = 0;
+    unit_completion(&mut context.value, &mut context.phase, true);
+    let forwarded: i32 = unconditional(selected);
+    transition selected == 65 && selected_phase == 11
+        && context.value == 65 && context.phase == 11 && forwarded == 65 {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

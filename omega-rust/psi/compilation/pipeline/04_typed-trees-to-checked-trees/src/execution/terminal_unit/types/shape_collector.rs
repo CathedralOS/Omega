@@ -111,7 +111,7 @@ impl<'program> ShapeCollector<'program> {
             }
             Some(definition)
         };
-        self.add_domain_definition(domain, carrier, binders, definition)
+        self.add_domain_definition(domain, carrier, binders, definition, false)
     }
 
     /// A contract may establish a domain independently of the qualifications
@@ -125,12 +125,13 @@ impl<'program> ShapeCollector<'program> {
         selected_symbol: SymbolHandle,
         carrier: TypeReferenceHandle,
         binders: &[(SymbolHandle, String)],
+        stored_carrier: bool,
     ) -> Option<typed_trees::type_identity::TypeIdentityId> {
         let definition = typed_trees::domain::domain_by_symbol(self.program, selected_symbol)?;
         if definition.semantic_id != domain {
             return None;
         }
-        self.add_domain_definition(domain, carrier, binders, Some(definition))
+        self.add_domain_definition(domain, carrier, binders, Some(definition), stored_carrier)
     }
 
     fn add_domain_definition(
@@ -139,8 +140,14 @@ impl<'program> ShapeCollector<'program> {
         carrier: TypeReferenceHandle,
         binders: &[(SymbolHandle, String)],
         definition: Option<&typed_trees::domain::DomainDefinition>,
+        stored_carrier: bool,
     ) -> Option<typed_trees::type_identity::TypeIdentityId> {
-        let carrier_type_identity = self.add_type(carrier, binders, &[])?;
+        let carrier_type_identity =
+            if stored_carrier && validation::stores_reference_shape(self.program, carrier, &[]) {
+                self.add_reference_type(carrier, binders)?
+            } else {
+                self.add_type(carrier, binders, &[])?
+            };
         let identity = self.program.semantic_domains.name(domain)?.to_owned();
         let establishment_routes = definition
             .map(|definition| definition.establishment_routes.clone())

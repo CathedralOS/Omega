@@ -303,6 +303,7 @@ pub(in crate::execution::terminal_unit) fn qualification_carriers(
                         domain.symbol,
                         carrier,
                         binders,
+                        false,
                     )?;
                     output.push((domain.semantic_id, carrier_identity));
                 }
@@ -392,7 +393,7 @@ pub(in crate::execution::terminal_unit) fn fold_authorized_result_domains(
         return None;
     };
     for (domain, selected_symbol) in authorized {
-        shapes.add_selected_domain(domain, selected_symbol, result_type, binders)?;
+        shapes.add_selected_domain(domain, selected_symbol, result_type, binders, false)?;
         if !qualifications.contains(&domain) {
             qualifications.push(domain);
         }
@@ -414,7 +415,8 @@ pub(in crate::execution::terminal_unit) fn fold_authorized_result_domains(
 /// registers through `fold_authorized_result_domains`, which also replays
 /// its authorization; a checked body proved its own clause. A membership
 /// over another value names a different carrier and is skipped, and a scalar,
-/// unit or reference result carries no structural qualification.
+/// unit result carries no structural qualification. Borrowed record guarantees
+/// qualify their exact referent path; a domain on the shell retains that shell.
 pub(in crate::execution::terminal_unit) fn register_authored_result_domains(
     program: &dyn ::validation::CheckingInput,
     shapes: &mut ShapeCollector<'_>,
@@ -423,10 +425,7 @@ pub(in crate::execution::terminal_unit) fn register_authored_result_domains(
     binders: &[(SymbolHandle, String)],
 ) -> Option<()> {
     let return_type = state.return_type;
-    if is_unit(program, return_type)
-        || program.primitive_type_reference(return_type).is_some()
-        || crate::execution::terminal_unit::is_reference(program, return_type)
-    {
+    if is_unit(program, return_type) || program.primitive_type_reference(return_type).is_some() {
         return Some(());
     }
     for contract in program
@@ -441,20 +440,25 @@ pub(in crate::execution::terminal_unit) fn register_authored_result_domains(
             let Some(membership) = fact.as_membership() else {
                 continue;
             };
-            if !program
-                .expression_table
-                .names_reserved_result(membership.value)
-            {
+            let Some((owner, carrier)) =
+                validation::reserved_result_owner(program, membership.value)
+            else {
+                continue;
+            };
+            if owner != machine.symbol && owner != state.symbol {
                 continue;
             }
+            let (_, carrier) =
+                validation::result_membership_carrier(program, carrier, membership.domain_symbol)?;
             let Some(definition) = program.domain_definition(membership.domain_symbol) else {
                 continue;
             };
             shapes.add_selected_domain(
                 definition.semantic_id,
                 definition.symbol,
-                return_type,
+                carrier,
                 binders,
+                true,
             )?;
         }
     }

@@ -97,6 +97,60 @@ pub fn layout_checking_targets(
     if let Some(target) = program.layout_target() {
         return Ok(vec![Some(target)]);
     }
+    let roots: Vec<_> = roots.into_iter().collect();
+    let memos = crate::frozen_program::frozen_program_memos(program);
+    if let Some(memos) = memos
+        && let Ok(rosters) = memos.layout_target_rosters.lock()
+        && let Some(roster) = rosters.get(&roots)
+    {
+        return roster
+            .as_ref()
+            .map(|rows| {
+                rows.iter()
+                    .map(|row| {
+                        row.map(|index| {
+                            program.plan_laid_target_layouts.storage_slice()[index]
+                                .target
+                                .as_str()
+                        })
+                    })
+                    .collect()
+            })
+            .map_err(|_| ());
+    }
+    let result = discover_layout_checking_targets(program, roots.iter().copied());
+    if let Some(memos) = memos {
+        // Discovery returns only target names borrowed from these exact rows.
+        // Retain their storage positions so lookup can reborrow from `program`.
+        let roster = result
+            .as_ref()
+            .map(|targets| {
+                targets
+                    .iter()
+                    .map(|target| {
+                        target.map(|target| {
+                            program
+                                .plan_laid_target_layouts
+                                .storage_slice()
+                                .iter()
+                                .position(|row| std::ptr::eq(row.target.as_str(), target))
+                                .expect("layout target discovery returns an exact stored row")
+                        })
+                    })
+                    .collect()
+            })
+            .map_err(|_| ());
+        if let Ok(mut rosters) = memos.layout_target_rosters.lock() {
+            rosters.insert(roots, roster);
+        }
+    }
+    result
+}
+
+fn discover_layout_checking_targets(
+    program: &dyn CheckingInput,
+    roots: impl IntoIterator<Item = TypeReferenceHandle>,
+) -> Result<Vec<Option<&str>>, ()> {
     let mut pending: Vec<_> = roots.into_iter().collect();
     let mut visited = Vec::new();
     let mut targets = Vec::new();

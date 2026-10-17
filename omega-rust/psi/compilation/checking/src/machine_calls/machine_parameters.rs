@@ -140,7 +140,9 @@ pub(crate) struct FormedStaticMachineSelections {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct StaticMachineEffectObligation {
-    parameter: SymbolHandle,
+    /// Exact substituted binder row, not its source symbol shared by other
+    /// closed requirement applications with different outer contracts.
+    parameter: arena::Handle<TypeParameter>,
     selected: SymbolHandle,
     label: String,
 }
@@ -286,9 +288,7 @@ pub(crate) fn admit_static_machine_effects(
     let (suspensions, blockings) = project_operational_rows(operational);
     let index = machine_state_index(program);
     for obligation in formed.pending_effects {
-        let parameter = program
-            .data_type_parameter_by_symbol(obligation.parameter)
-            .expect("formed selection retains its original binder");
+        let parameter = program.data_type_parameters.get(obligation.parameter);
         let TypeParameterKind::Machine { contract } = &parameter.kind else {
             unreachable!("formed machine selection has a machine binder")
         };
@@ -423,6 +423,23 @@ fn form_call_selection(
         arguments,
         application,
     } = call;
+    // Registration remains the authored declaration. The same occurrence's
+    // executable target supplies a closed requirement's substituted contract;
+    // equal local tuples from another trait application cannot supply it.
+    let source_target = match site {
+        ValidatedNominalMachineUseSite::Expression(handle) => program
+            .expression_table
+            .call_node(handle)
+            .map(|call| call.target_symbol),
+        ValidatedNominalMachineUseSite::Statement(handle) => program
+            .statement_table
+            .statement(handle)
+            .as_call()
+            .map(|call| call.target_symbol),
+    };
+    let closed_requirement = source_target
+        .and_then(|target| program.closed_requirement_application(target))
+        .filter(|closed| closed.template == target_symbol);
     /// Split a type-parameter signature into its `Machine`-kind contract
     /// requirements and its `Type`-kind generic slots, in declaration order.
     fn contract_and_type_parameters<'p>(
@@ -491,10 +508,20 @@ fn form_call_selection(
                 contract_and_type_parameters(program.machine_type_parameters(declaring_machine)).1,
             );
             (requirements, generic_types, invocation_type_count)
-        } else if let Some((_, signature)) =
-            crate::selected_requirement_signature(program, target_symbol)
+        } else if let Some(signature) =
+            closed_requirement
+                .map(|closed| closed.signature)
+                .or_else(|| {
+                    crate::selected_requirement_signature(program, target_symbol)
+                        .map(|(_, signature)| signature)
+                })
         {
-            let (requirements, generic_types) =
+            // Closed source bindings retain nominal machine obligations without
+            // reopening the executable Type/Const invocation telescope.
+            let (requirements, _) = contract_and_type_parameters(
+                program.requirement_invocation_contract_parameters(signature),
+            );
+            let (_, generic_types) =
                 contract_and_type_parameters(program.state_signature_type_parameters(signature));
             let invocation_type_count = generic_types.len();
             (requirements, generic_types, invocation_type_count)
@@ -678,7 +705,13 @@ fn form_call_selection(
             selections
                 .pending_effects
                 .push(StaticMachineEffectObligation {
-                    parameter: parameter.symbol,
+                    parameter: program
+                        .data_type_parameters
+                        .iter()
+                        .find_map(|(handle, candidate)| {
+                            std::ptr::eq(candidate, parameter).then_some(handle)
+                        })
+                        .expect("formed contract binder belongs to the typed parameter arena"),
                     selected: selection_symbol,
                     label: format!("machine argument `{}` for `{target_name}`", machine.name),
                 });

@@ -1,0 +1,5 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "inherited_provider_borrowed_result_exit");
+    Build::bind(builder, macos_arm64::ProgramEntry, Main::main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, Main::main);
+}

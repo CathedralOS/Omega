@@ -49,6 +49,19 @@ pub enum LoweringError {
         statement_index: u32,
         reason: &'static str,
     },
+    /// A scalar store must retain the carrier of its captured physical endpoint.
+    /// Keep the full projection so a missing crossing is distinguishable from
+    /// an actual carrier mismatch without relaxing either admission check.
+    CapturedScalarStoreEndpoint {
+        machine: symbols::SymbolHandle,
+        state: symbols::SymbolHandle,
+        statement_index: u32,
+        destination: PlaceId,
+        root_type: semantic_vocabulary::StructuralTypeId,
+        path: Vec<terminal_psi::StructuralPathSegment>,
+        expected: semantic_vocabulary::ScalarType,
+        actual: Option<semantic_vocabulary::ScalarType>,
+    },
     InvalidSealedAccessorDeclaration(Diagnostic),
     /// A second transfer or disposal overlaps storage already removed from
     /// this occurrence. Keep both paths so the failing ownership join is visible.

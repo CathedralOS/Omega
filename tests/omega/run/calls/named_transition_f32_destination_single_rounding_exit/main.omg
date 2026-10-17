@@ -1,0 +1,16 @@
+// Expected exit: 0. Exact decimal input lies below the binary32 midpoint.
+use omega::language::core::float_operations;
+machine identity(value: f32) -> f32 { value }
+machine route(positive: bool) -> f32 {
+ transition positive {
+  true -> identity(8388609.499999999999999)
+  false -> identity(-8388609.499999999999999)
+ }
+}
+machine main() crashes Trap {
+ let first: f32 = route(true); let second: f32 = route(false);
+ transition first == 8388609.0f32 && second == -8388609.0f32 {
+  true -> done() false -> bad()
+ }
+ state done() { } state bad() { crash Trap; }
+}

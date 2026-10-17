@@ -1,5 +1,5 @@
 use symbol_resolved_trees::SymbolResolvedTrees;
-use symbols::{SymbolHandle, SymbolKind, SymbolTable};
+use symbols::{SymbolKind, SymbolTable};
 
 use super::super::top_level::next_child_of_kind;
 
@@ -9,17 +9,12 @@ use super::super::top_level::next_child_of_kind;
 pub(super) fn assign_mathematical_symbols(
     program: &mut SymbolResolvedTrees,
     symbols: &SymbolTable,
-    root_children: &mut impl Iterator<Item = SymbolHandle>,
 ) {
     let binders = &mut program.tables.declarations.data_type_parameters;
     let parameters = &mut program.tables.declarations.mathematical_parameters;
     let definitions = &mut program.roots.mathematical_definitions;
 
     definitions.for_each_mut(|definition| {
-        let declaration = next_child_of_kind(root_children, symbols, SymbolKind::MathematicalDefinition);
-        if !definition.symbol.is_valid() {
-            definition.symbol = declaration;
-        }
         let mut children = symbols
             .child_handles(definition.symbol)
             .into_iter()

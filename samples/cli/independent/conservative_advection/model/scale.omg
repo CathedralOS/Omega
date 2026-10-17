@@ -1,0 +1,57 @@
+module model::scale;
+// Decimal scale separates finite operands before product/quotient evaluation.
+// This avoids rejecting CFL=1 when equal subnormal spacing/timestep would
+// overflow velocity/spacing, or underflowing a ratio before multiplication.
+use omega::language::core::float_operations;
+pub data Scale { mantissa:f64; exponent:i32 in Wrapping; }
+pub machine normalize(value:f64,result:&mut Scale) {
+ result.mantissa=value; result.exponent=0;
+ transition { _ -> large(result) }
+ state large(result:&mut Scale) {
+  transition result.mantissa >= 10.0 { true -> divide(result) false -> small(result) }
+ }
+ state divide(result:&mut Scale) {
+  result.mantissa=result.mantissa/10.0; result.exponent=result.exponent+1;
+  transition { _ -> large(result) }
+ }
+ state small(result:&mut Scale) {
+  transition result.mantissa > 0.0 && result.mantissa < 1.0 { true -> multiply(result) false -> done() }
+ }
+ state multiply(result:&mut Scale) {
+  result.mantissa=result.mantissa*10.0; result.exponent=result.exponent-1;
+  transition { _ -> small(result) }
+ }
+ state done() { }
+}
+// Retain the parser's decimal parts until products/quotients are combined.
+// Equal extreme decimal scales cancel before any representational underflow.
+pub machine courant(velocity:f64,velocity_power:i32 in Wrapping,spacing:f64,spacing_power:i32 in Wrapping,timestep:f64,timestep_power:i32 in Wrapping) -> f64 {
+ let mut speed:Scale; let mut distance:Scale; let mut duration:Scale;
+ normalize(match velocity < 0.0 { true -> -velocity false -> velocity },&mut speed);
+ normalize(spacing,&mut distance); normalize(timestep,&mut duration);
+ let value:f64=(speed.mantissa*duration.mantissa)/distance.mantissa;
+ let signed:f64=match velocity < 0.0 { true -> -value false -> value };
+ apply(signed,velocity_power+speed.exponent+timestep_power+duration.exponent-spacing_power-distance.exponent)
+}
+pub machine apply(value:f64,exponent:i32 in Wrapping) -> f64 {
+ transition exponent > 0 { true -> apply(value*10.0,exponent-1) false -> down(value,exponent) }
+ state down(value:f64,exponent:i32 in Wrapping) -> f64 {
+  transition exponent < 0 { true -> down(value/10.0,exponent+1) false -> done(value) }
+ }
+ state done(value:f64) -> f64 { value }
+}
+// Callers retain normalized nonnegative cell mantissas. Compare exponents before
+// magnitudes rather than rescaling a tiny cell into a much larger cell's range.
+pub machine less(left:f64,left_power:i32 in Wrapping,right:f64,right_power:i32 in Wrapping) -> bool {
+ transition left == 0.0 { true -> zero(right) false -> nonzero(left,left_power,right,right_power) }
+ state zero(right:f64) -> bool { right > 0.0 }
+ state nonzero(left:f64,left_power:i32 in Wrapping,right:f64,right_power:i32 in Wrapping) -> bool {
+  transition right == 0.0 { true -> no() false -> powers(left,left_power,right,right_power) }
+ }
+ state powers(left:f64,left_power:i32 in Wrapping,right:f64,right_power:i32 in Wrapping) -> bool {
+  transition left_power == right_power { true -> mantissas(left,right) false -> exponents(left_power,right_power) }
+ }
+ state mantissas(left:f64,right:f64) -> bool { left < right }
+ state exponents(left:i32 in Wrapping,right:i32 in Wrapping) -> bool { left < right }
+ state no() -> bool { false }
+}

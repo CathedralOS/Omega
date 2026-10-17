@@ -244,6 +244,91 @@ fn selected_plan_projection_retains_closed_and_unspecialized_requirements() {
     }
 }
 
+#[test]
+fn closed_import_reports_rejoin_original_execution_and_reject_plan_substitution() {
+    // Synthetic report data tests replay addresses, never mints provider authority.
+    let selected = "Registrar::register";
+    let closed = "Registrar::register<u64, Comparator::compare>";
+    let other = "Registrar::register<i32, Comparator::compare>";
+    let identities = terminal_psi::TerminalIdentityTable::from(vec![
+        String::new(),
+        selected.into(),
+        closed.into(),
+        other.into(),
+    ]);
+    let digest = effects::provider_plan::ProviderPlanDigest::from_digest([2; 32]);
+    let mut plan = NativeSelectedProviderPlan::new(
+        7,
+        NativeSelectedProviderPlanDigest::from_digest(*digest.as_bytes()),
+        vec![closed.into()],
+    );
+    plan.family_realization_identities = identities.clone();
+    plan.external_requirement_applications
+        .push(effects::SelectedExternalRequirementApplication {
+            provider_plan_report_identity: 7,
+            provider_plan_digest: digest,
+            selected_requirement_identity: identities.index_of(selected).unwrap(),
+            requirement_identity: identities.index_of(closed).unwrap(),
+        });
+    let execution = NativeProviderExecution {
+        requirement_identity: selected.into(),
+        provider_plan_report_identity: 7,
+        provider_execution_report_identity: 11,
+        provider_execution_report_fingerprint: 12,
+        normalized_root_report_identity: 13,
+        boundary_contract_report_fingerprint: 14,
+    };
+    let required = BTreeSet::from([(selected.into(), 7, 11, 12, 13, 14)]);
+    assert_eq!(plan.selected_requirement_identity(closed), selected);
+    assert_eq!(plan.selected_requirement_identity(other), other);
+    validate_provider_execution_reports(
+        std::slice::from_ref(&plan),
+        std::slice::from_ref(&execution),
+        &required,
+    )
+    .unwrap();
+    validate_foreign_stack_contribution(
+        closed,
+        machine_code::ProviderExecutionRecord {
+            provider_plan_report_identity: 7,
+            provider_execution_report_identity: 11,
+            provider_execution_report_fingerprint: 12,
+            normalized_root_report_identity: 13,
+            boundary_contract_report_fingerprint: 14,
+        },
+        selected,
+        7,
+        [2; 32],
+        std::slice::from_ref(&plan),
+    )
+    .unwrap();
+    let mut changed = plan.clone();
+    changed.external_requirement_applications[0].provider_plan_digest =
+        effects::provider_plan::ProviderPlanDigest::from_digest([3; 32]);
+    assert!(
+        validate_provider_execution_reports(
+            &[changed],
+            std::slice::from_ref(&execution),
+            &required
+        )
+        .is_err()
+    );
+    let mut changed = plan.clone();
+    changed.external_requirement_applications[0].requirement_identity =
+        identities.index_of(other).unwrap();
+    assert!(
+        validate_provider_execution_reports(
+            &[changed],
+            std::slice::from_ref(&execution),
+            &required
+        )
+        .is_err()
+    );
+    let mut changed_execution = execution;
+    changed_execution.requirement_identity = other.into();
+    assert!(validate_provider_execution_reports(&[plan], &[changed_execution], &required).is_err());
+}
+
 struct IdentityFixture<'a> {
     terminal_marker: u8,
     target: target::NativeTarget,

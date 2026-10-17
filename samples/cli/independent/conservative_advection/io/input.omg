@@ -1,0 +1,121 @@
+module io::input;
+// Retain exact bounded decimal coefficients. Floating conversion happens once,
+// after the coefficient and decimal exponent are complete; boundary decisions
+// never depend on repeated floating-point digit addition or exponent scaling.
+use omega_language_std::console;
+use omega::language::core::float_operations;
+use model::scale;
+pub data Input {
+ values:[f64;69]; mantissas:[f64;69]; powers:[i32 in Wrapping;69];
+ coefficients:[u64 in Wrapping;69]; negative:[bool;69]; count:u32 in Saturating;
+ coefficient:u64 in Wrapping; fraction:i32 in Wrapping; exponent:i32 in Wrapping;
+ digits:u32 in Saturating; exponent_digits:u32 in Saturating;
+ active:bool; decimal:bool; exponent_mode:bool; negative_token:bool;
+ exponent_negative:bool; exponent_sign:bool;
+}
+machine reset(input:&mut Input) {
+ input.coefficient=0; input.fraction=0; input.exponent=0;
+ input.digits=0; input.exponent_digits=0;
+ input.active=false; input.decimal=false; input.exponent_mode=false;
+ input.negative_token=false; input.exponent_negative=false; input.exponent_sign=false;
+}
+pub machine parse(input:&mut Input) -> bool reaches Console invokes Console; blocks; crashes Trap {
+ input.count=0; reset(input);
+ transition { _ -> read(input,0) }
+ state read(input:&mut Input,bytes:u32 in Saturating) -> bool {
+  transition bytes <= 4096 { true -> receive(input,bytes) false -> bad() }
+ }
+ state receive(input:&mut Input,bytes:u32 in Saturating) -> bool {
+  let observed:ByteRead=block Console::read_byte();
+  transition observed { ByteRead::Byte { value } -> classify(input,bytes,value) ByteRead::Eof -> finish(input) }
+ }
+ state classify(input:&mut Input,bytes:u32 in Saturating,character:i32) -> bool {
+  transition bytes < 4096 { true -> byte(input,bytes,character) false -> bad() }
+ }
+ state byte(input:&mut Input,bytes:u32 in Saturating,character:i32) -> bool {
+  transition character >= 48 && character <= 57 { true -> digit(input,bytes,character) false -> symbol(input,bytes,character) }
+ }
+ state digit(input:&mut Input,bytes:u32 in Saturating,character:i32) -> bool {
+  let value:u64 in Wrapping=(character as u64 in Wrapping)-48;
+  input.active=true;
+  transition input.exponent_mode { true -> exponent(input,bytes,value) false -> mantissa(input,bytes,value) }
+ }
+ state mantissa(input:&mut Input,bytes:u32 in Saturating,value:u64 in Wrapping) -> bool {
+  transition input.digits < 18 { true -> append(input,bytes,value) false -> bad() }
+ }
+ state append(input:&mut Input,bytes:u32 in Saturating,value:u64 in Wrapping) -> bool {
+  // At most18 decimal digits: coefficient <1e18, safely inside u64.
+  input.coefficient=input.coefficient*10+value;
+  input.digits=input.digits+1;
+  input.fraction=match input.decimal { true -> input.fraction+1 false -> input.fraction };
+  transition { _ -> read(input,bytes+1) }
+ }
+ state exponent(input:&mut Input,bytes:u32 in Saturating,value:u64 in Wrapping) -> bool {
+  let next:i32 in Wrapping=input.exponent*10+(value as i32 in Wrapping);
+  transition input.exponent_digits < 3 && next <= 400 { true -> append_exponent(input,bytes,next) false -> bad() }
+ }
+ state append_exponent(input:&mut Input,bytes:u32 in Saturating,next:i32 in Wrapping) -> bool {
+  input.exponent=next; input.exponent_digits=input.exponent_digits+1;
+  transition { _ -> read(input,bytes+1) }
+ }
+ state symbol(input:&mut Input,bytes:u32 in Saturating,character:i32) -> bool {
+  transition character {
+   32 -> separate(input,bytes) 10 -> separate(input,bytes) 13 -> separate(input,bytes) 9 -> separate(input,bytes)
+   45 -> sign(input,bytes,true) 43 -> sign(input,bytes,false)
+   46 -> point(input,bytes) 101 -> power(input,bytes) 69 -> power(input,bytes)
+   _ -> bad()
+  }
+ }
+ state sign(input:&mut Input,bytes:u32 in Saturating,negative:bool) -> bool {
+  transition !input.active { true -> leading_sign(input,bytes,negative) false -> exponent_sign(input,bytes,negative) }
+ }
+ state leading_sign(input:&mut Input,bytes:u32 in Saturating,negative:bool) -> bool {
+  input.active=true; input.negative_token=negative;
+  transition { _ -> read(input,bytes+1) }
+ }
+ state exponent_sign(input:&mut Input,bytes:u32 in Saturating,negative:bool) -> bool {
+  transition input.exponent_mode && input.exponent_digits == 0 && !input.exponent_sign { true -> signed_exponent(input,bytes,negative) false -> bad() }
+ }
+ state signed_exponent(input:&mut Input,bytes:u32 in Saturating,negative:bool) -> bool {
+  input.exponent_sign=true; input.exponent_negative=negative;
+  transition { _ -> read(input,bytes+1) }
+ }
+ state point(input:&mut Input,bytes:u32 in Saturating) -> bool {
+  transition !input.decimal && !input.exponent_mode { true -> decimal(input,bytes) false -> bad() }
+ }
+ state decimal(input:&mut Input,bytes:u32 in Saturating) -> bool {
+  input.active=true; input.decimal=true;
+  transition { _ -> read(input,bytes+1) }
+ }
+ state power(input:&mut Input,bytes:u32 in Saturating) -> bool {
+  transition input.digits > 0 && !input.exponent_mode { true -> scientific(input,bytes) false -> bad() }
+ }
+ state scientific(input:&mut Input,bytes:u32 in Saturating) -> bool {
+  input.exponent_mode=true;
+  transition { _ -> read(input,bytes+1) }
+ }
+ state separate(input:&mut Input,bytes:u32 in Saturating) -> bool {
+  transition input.active { true -> store(input,bytes,false) false -> read(input,bytes+1) }
+ }
+ state finish(input:&mut Input) -> bool {
+  transition input.active { true -> store(input,0,true) false -> good() }
+ }
+ state store(input:&mut Input,bytes:u32 in Saturating,ending:bool) -> bool {
+  transition input.count < 69 && input.digits > 0 && (!input.exponent_mode || input.exponent_digits > 0) { true -> save(input,bytes,ending) false -> bad() }
+ }
+ state save(input:&mut Input,bytes:u32 in Saturating,ending:bool) -> bool requires input.count < 69 {
+  let power:i32 in Wrapping=(match input.exponent_negative { true -> -input.exponent false -> input.exponent })-input.fraction;
+  let magnitude:f64=F64::from_u64(input.coefficient as u64);
+  let signed:f64=match input.negative_token { true -> -magnitude false -> magnitude };
+  input.coefficients[input.count]=input.coefficient;
+  input.negative[input.count]=input.negative_token;
+  input.mantissas[input.count]=signed;
+  input.powers[input.count]=power;
+  input.values[input.count]=model::scale::apply(signed,power);
+  input.count=input.count+1;
+  reset(input);
+  transition ending { true -> good() false -> read(input,bytes+1) }
+ }
+ state good() -> bool { true }
+ state bad() -> bool { false }
+}

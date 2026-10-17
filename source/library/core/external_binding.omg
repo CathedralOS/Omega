@@ -1,6 +1,6 @@
 // Compiler-owned vocabulary for irreducible foreign import coordinates.
 //
-// A target-scoped ordinary machine returns one closed `Binding` value. The
+// A target-scoped ordinary machine returns one closed `ForeignBinding` locator. The
 // compiler evaluates that machine at build time, validates the exact nominal
 // result and const widths, then normalizes the atomic locator into provider
 // identity. Raw object-format bytes remain data; they are never Omega symbol

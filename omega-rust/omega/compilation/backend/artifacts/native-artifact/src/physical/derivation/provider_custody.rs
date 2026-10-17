@@ -25,6 +25,7 @@ pub(crate) fn validate_family_provider_custody(
     identity: &str,
     plan: &NativeSelectedProviderPlan,
 ) -> Result<(), &'static str> {
+    plan.validate_external_requirement_applications()?;
     let Some(row) = plan.family_realization_rows().iter().find(|row| {
         plan.family_realization_identities().text(row.head_identity) == Some(identity)
             || plan

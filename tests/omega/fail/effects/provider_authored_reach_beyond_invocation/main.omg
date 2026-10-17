@@ -4,7 +4,10 @@
 // only call needs no service declaration.
 pub boundary trait Length { machine count(byte: u8) -> u64; }
 pub boundary trait Measure { machine measure(byte: u8) -> u64 invokes Length; }
+// A named checked dependency keeps the count operation's empty reach.
+data LengthProvider {}
+machine LengthProvider::count(byte: u8) -> u64 satisfies Length::count { 0 }
 data Provider {}
 machine Provider::measure(byte: u8) -> u64 satisfies Measure::measure
 reaches Length
-{ Length::count(byte) }
+{ LengthProvider::count(byte) }

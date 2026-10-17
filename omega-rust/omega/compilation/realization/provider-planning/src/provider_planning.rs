@@ -18,6 +18,7 @@
 
 pub(crate) mod direct_foreign_leaves;
 mod external_binding_rows;
+mod external_requirements;
 mod independent_components;
 mod installation_reach;
 mod operator_provider_evidence;
@@ -68,6 +69,7 @@ pub fn bind_selected_provider_plan_facts(
     check_facts: &checked_trees::CheckFacts,
     candidates: &[ProviderPlan],
     facts: effects::SelectedProviderPlanFacts,
+    provenance: &[SelectedProviderReviewProvenance],
     root_grants: &[String],
     authored_root_grants: &[AuthoredRootGrant],
 ) -> Result<SelectedProviderPlanBinding, Vec<diagnostics::Diagnostic>> {
@@ -97,8 +99,15 @@ pub fn bind_selected_provider_plan_facts(
         derive_selected_installation_reach_resolutions(typed, check_facts, &facts)?;
     let (specialized_requirement_rows, specialized_identities) =
         provenance_replay::derive_selected_requirement_specializations(typed, check_facts, &facts)?;
+    let (external_applications, external_identities) =
+        external_requirements::derive(typed, &facts, provenance)
+            .map_err(|reason| vec![diagnostics::Diagnostic::error(reason)])?;
     let selected = facts
         .with_specialized_requirement_rows(specialized_requirement_rows, &specialized_identities)
+        .and_then(|facts| {
+            facts
+                .with_external_requirement_applications(external_applications, &external_identities)
+        })
         .and_then(|facts| {
             facts.with_installation_reach_resolutions(
                 installation_reach_resolutions,

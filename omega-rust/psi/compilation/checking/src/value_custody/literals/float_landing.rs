@@ -198,12 +198,10 @@ pub fn land_float_literal_destinations(program: &mut TypedTrees) {
                         }
                     }
                     StatementNode::Transition(transition) => {
-                        // A transition ARG adopts the TARGET state's declared
-                        // param type (the arg IS a delivery into that
-                        // destination -- same law as a `let`): `check(2.0e0 +
-                        // tiny)` into `got: f32` folds/evaluates per-op at
-                        // f32. Same-machine targets only (value-machine call
-                        // args ride the Call statement, a later face).
+                        // Every resolved named target supplies its declared
+                        // destination, whether it is an internal state or a
+                        // machine invocation. Stamp the operand once in that
+                        // format; this supplies no call or runtime authority.
                         for target in transition.targets() {
                             let target_node = program.statement_table.transition_target(target);
                             if let typed_trees::statement::TransitionTargetNode::Value(value) =
@@ -214,7 +212,7 @@ pub fn land_float_literal_destinations(program: &mut TypedTrees) {
                                 continue;
                             }
                             let Some(named_arguments) =
-                                super::named_transition_arguments(program, machine, target_node)
+                                super::named_transition_arguments(program, target_node)
                             else {
                                 continue;
                             };

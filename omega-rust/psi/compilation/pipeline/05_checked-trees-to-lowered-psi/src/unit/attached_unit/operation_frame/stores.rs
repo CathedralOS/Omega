@@ -297,10 +297,10 @@ impl OperationFrame<'_, '_> {
                 }
             }
         };
-        let (_, source) = self.assignment_source(store.destination.root)?;
+        let source = self.assignment_capture_source(store.destination.root)?;
         if let Some(captured) =
             self.windows
-                .captured_assignment_place(identities, statement_index, &source, path)?
+                .captured_store_place(identities, statement_index, &source, path)?
         {
             let logical = self.receiving_place(captured.original_source, captured.original_path)?;
             let physical = self.receiving_place(captured.source, captured.path)?;
@@ -674,10 +674,39 @@ impl OperationFrame<'_, '_> {
         store: &CheckedStorePlan,
         view: checked_trees::types::PrimitiveType,
     ) -> Result<(), LoweringError> {
+        let source = self.assignment_capture_source(store.destination.root)?;
+        let captured = self
+            .windows
+            .captured_store_place(
+                identities,
+                store.statement_index,
+                &source,
+                &store.destination.path,
+            )?
+            .map(|captured| {
+                let logical =
+                    self.receiving_place(captured.original_source, captured.original_path)?;
+                let physical = self.receiving_place(captured.source, captured.path)?;
+                if physical.root_type != captured.root_type {
+                    return unsupported(
+                        "captured representation store changed its root declaration",
+                    );
+                }
+                Ok(crate::emission::primitive_store::PhysicalDestination {
+                    place: captured.source,
+                    root_type: physical.root_type,
+                    qualifications: physical.qualifications,
+                    projected_qualifications: physical.projected_qualifications,
+                    path: physical.path,
+                    logical_receiving: Some(logical),
+                })
+            })
+            .transpose()?;
         for kind in crate::emission::representation_view_store::emit(
             identities,
             store,
             view,
+            captured,
             self.checked,
             self.machine,
             self.state,
@@ -1059,8 +1088,8 @@ impl OperationFrame<'_, '_> {
             }
         };
         lowered.bind_range_decision(self.checked, primitive_type, range_decision)?;
-        let (_, source) = self.assignment_source(store.destination.root)?;
-        if let Some(captured) = self.windows.captured_assignment_place(
+        let source = self.assignment_capture_source(store.destination.root)?;
+        if let Some(captured) = self.windows.captured_store_place(
             identities,
             store.statement_index,
             &source,
@@ -1236,6 +1265,24 @@ impl OperationFrame<'_, '_> {
             projected_qualifications: projected.clone(),
             path,
         })
+    }
+
+    /// Capture lookup uses the original checked source coordinate. It must not
+    /// resolve a loan local as another owned home after its backing was already
+    /// joined by the store's normal destination/custody route.
+    fn assignment_capture_source(
+        &self,
+        root: checked_trees::CheckedStoreRoot,
+    ) -> Result<checked_trees::CheckedUnitStructuralArgumentSourcePlan, LoweringError> {
+        use checked_trees::CheckedUnitStructuralArgumentSourcePlan as Source;
+        match root {
+            checked_trees::CheckedStoreRoot::Local { symbol } => {
+                Ok(Source::StructuralLocal { symbol })
+            }
+            checked_trees::CheckedStoreRoot::Parameter { .. } => {
+                self.assignment_source(root).map(|(_, source)| source)
+            }
+        }
     }
 
     /// A descriptor's live extent owns runtime bounds through either a scalar

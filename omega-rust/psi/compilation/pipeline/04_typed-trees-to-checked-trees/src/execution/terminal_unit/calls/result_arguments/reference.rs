@@ -46,6 +46,7 @@ pub(crate) fn argument(
     phase("stored reference argument: carrier");
     let (referent, carrier_access) =
         reference_result_custody::stored_loan_parts(program, reference)?;
+    phase("result reference argument: formal access");
     let access = structural_access_for_type_reference(program, parameter.type_reference)?;
     phase("stored reference argument: access");
     if access == CheckedStructuralAccess::Owned
@@ -66,6 +67,7 @@ pub(crate) fn argument(
     let selected = if place.segments.is_empty() {
         referent
     } else {
+        phase("result reference argument: projected referent path");
         let (selected, suffix) =
             projected_borrowed_path(program, machine, state.symbol, statement_index, place)?;
         path.extend(suffix);

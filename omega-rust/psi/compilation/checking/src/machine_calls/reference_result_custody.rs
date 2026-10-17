@@ -1191,7 +1191,7 @@ pub fn local_record_loans(
         .statements(state.statement_nodes)
         .get(statement_index as usize)?
         .as_local_data()?;
-    let result = local_place_loans(
+    let result = named_place_loans(
         program,
         facts,
         machine,
@@ -1203,10 +1203,36 @@ pub fn local_record_loans(
     result
 }
 
-/// Join a local storage occurrence formed by a constructor, call or store.
+/// Declared geometry of a named local or formal storage occurrence. A formal
+/// can acquire a stored descriptor without owning its incoming referent.
+/// Looking up that geometry grants neither access nor a new loan activation.
+/// A constructor needs its receiving declaration at the formation itself;
+/// ordinary operand lookup deliberately exposes only earlier declarations.
+/// Keep that visibility rule unchanged and obtain storage geometry directly.
+pub fn storage_owner_type_reference(
+    program: &dyn crate::CheckingInput,
+    state: &typed_trees::state::State,
+    owner: SymbolHandle,
+    statement_index: u32,
+) -> Option<TypeReferenceHandle> {
+    if let Some((ordinal, local)) = program.state_local_declaration(state, owner) {
+        return (ordinal <= statement_index as usize).then_some(local.type_reference);
+    }
+    crate::canonical_place_type_reference(
+        program,
+        state.symbol,
+        statement_index as usize,
+        &crate::CanonicalPlace {
+            root: facts::PlaceRoot::Symbol(owner),
+            segments: Vec::new(),
+        },
+    )
+}
+
+/// Join a named storage occurrence formed by a constructor, call or store.
 /// The declared leaf roster and exact activation are independent of the
 /// producer. A subtree replacement captures only leaves beneath its destination.
-pub fn local_place_loans(
+pub fn named_place_loans(
     program: &dyn crate::CheckingInput,
     facts: &CheckFacts,
     machine: SymbolHandle,
@@ -1215,14 +1241,14 @@ pub fn local_place_loans(
     statement_index: u32,
     selection: &[checked_trees::CheckedUnitStructuralPathSegment],
 ) -> Option<Vec<RecordLeafLoans>> {
-    let (_, local) = program.state_local_declaration(state, owner)?;
+    let reference = storage_owner_type_reference(program, state, owner, statement_index)?;
     storage_place_loans(
         program,
         facts,
         machine,
         state,
         facts::PlaceRoot::Symbol(owner),
-        local.type_reference,
+        reference,
         statement_index,
         selection,
     )
@@ -1281,6 +1307,57 @@ pub fn storage_place_loans(
         captured.push(handle);
     }
     record_leaf_loan_groups(program, facts, reference, owner, &captured, selection)
+}
+
+/// A borrowed formal has an ingress permission, not an installed owned
+/// descriptor. Its first whole-binding replacement can establish a descriptor
+/// without disposing an old carrier. Require the new occurrence's complete
+/// statement activation and prove that no earlier stored occurrence existed;
+/// incoming permissions never become synthetic statement-zero loans.
+pub fn initial_parameter_reference_establishment(
+    program: &dyn crate::CheckingInput,
+    facts: &CheckFacts,
+    machine: SymbolHandle,
+    state: &typed_trees::state::State,
+    owner: SymbolHandle,
+    statement_index: u32,
+) -> Option<Vec<RecordLeafLoans>> {
+    let parameter = program
+        .state_parameters(state)
+        .iter()
+        .find(|parameter| parameter.symbol == owner)?;
+    if !parameter.is_mutable
+        || crate::reference_shell(program, parameter.type_reference)?.access
+            != language_semantics::ReferenceAccess::Shared
+        || !crate::stores_reference_shape(program, parameter.type_reference, &[])
+    {
+        return None;
+    }
+    let mut states = facts.borrow.states.iter().filter_map(|(_, borrowing)| {
+        (borrowing.machine_symbol == machine && borrowing.state_symbol == state.symbol)
+            .then_some(borrowing)
+    });
+    let borrowing = states.next()?;
+    if states.next().is_some() {
+        return None;
+    }
+    let owner_path = loan_owner_path(program, parameter.type_reference, &[])?;
+    let order = program
+        .statement_table
+        .admitted_execution_order(state.statement_nodes);
+    if facts.borrow.loan_group(borrowing.loans)?.any(|(_, loan)| {
+        loan.storage_owner == facts::PlaceRoot::Symbol(owner)
+            && facts.borrow.loan_owner_path(loan) == owner_path.as_slice()
+            && order.precedes(loan.statement_index, statement_index as usize)
+    }) {
+        return None;
+    }
+    let established =
+        named_place_loans(program, facts, machine, state, owner, statement_index, &[])?;
+    let [(_, loans)] = established.as_slice() else {
+        return None;
+    };
+    (!loans.is_empty()).then_some(established)
 }
 
 /// A stored reference's old occurrence retired by this exact replacement.

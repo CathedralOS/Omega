@@ -1,0 +1,21 @@
+// Expected exit: 0
+// Shared results retain the exact exclusive formal origin through a generic call.
+data Main { matrix: [[u64 in Wrapping; 2]; 2]; }
+machine attenuate(matrix: &mut [[u64 in Wrapping; 2]; 2]) -> &[u64 in Wrapping; 2] {
+    &matrix[1]
+}
+machine forward<T>(value: &T) -> &T { value }
+machine relay(matrix: &mut [[u64 in Wrapping; 2]; 2]) -> &[u64 in Wrapping; 2] {
+    forward(attenuate(matrix))
+}
+machine Main::main(main: &mut Main) crashes Trap {
+    main.matrix[1][1] = 7;
+    transition { _ -> observe(main) }
+    state observe(main: &mut Main) {
+        let row: &[u64 in Wrapping; 2] = relay(&mut main.matrix);
+        let observed: u64 in Wrapping = row[1];
+        transition observed == 7 { true -> pass(main) false -> fail(main) }
+    }
+    state pass(main: &mut Main) {}
+    state fail(main: &mut Main) { crash Trap; }
+}

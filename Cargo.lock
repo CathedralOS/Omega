@@ -72,6 +72,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "advection-terminal-validation"
+version = "0.1.0"
+dependencies = [
+ "compiler",
+ "package-manager",
+ "target",
+ "terminal-interpreter",
+]
+
+[[package]]
 name = "ambient-authority"
 version = "0.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -394,6 +404,7 @@ dependencies = [
  "diagnostics",
  "effects",
  "image-emission",
+ "language-semantics",
  "native-artifact",
  "optimization-core",
  "package-compilation",

@@ -1,0 +1,63 @@
+module io::decimal;
+use omega_language_std::console;
+
+// Decimal output keeps its own bounded divisor loop; no formatter package.
+pub machine number(value: i64 in Wrapping)
+reaches Console
+invokes Console;
+{
+    transition value < 0 {
+        true -> negative(value)
+        false -> digits(value, 1000000000000000000, false)
+    }
+    state negative(value: i64 in Wrapping) {
+        Console::write("-");
+        transition { _ -> digits(-value, 1000000000000000000, false) }
+    }
+    state digits(value: i64 in Wrapping, divisor: i64 in Wrapping, started: bool)
+    requires divisor >= 1
+    {
+        let digit: i64 in Wrapping = value / divisor;
+        transition digit != 0 || started || divisor == 1 {
+            true -> emit(value, divisor, digit)
+            false -> advance(value, divisor, false)
+        }
+    }
+    state emit(value: i64 in Wrapping, divisor: i64 in Wrapping, digit: i64 in Wrapping)
+    requires divisor >= 1
+    {
+        decimal_digit(digit);
+        transition { _ -> advance(value % divisor, divisor, true) }
+    }
+    state advance(value: i64 in Wrapping, divisor: i64 in Wrapping, started: bool) {
+        transition divisor >= 10 {
+            true -> digits(value, divisor / 10, started)
+            false -> done()
+        }
+    }
+    state done() { Console::write(" "); }
+}
+machine decimal_digit(digit: i64 in Wrapping) reaches Console {
+    transition digit {
+        0 -> zero()
+        1 -> one()
+        2 -> two()
+        3 -> three()
+        4 -> four()
+        5 -> five()
+        6 -> six()
+        7 -> seven()
+        8 -> eight()
+        _ -> nine()
+    }
+    state zero() { Console::write("0"); }
+    state one() { Console::write("1"); }
+    state two() { Console::write("2"); }
+    state three() { Console::write("3"); }
+    state four() { Console::write("4"); }
+    state five() { Console::write("5"); }
+    state six() { Console::write("6"); }
+    state seven() { Console::write("7"); }
+    state eight() { Console::write("8"); }
+    state nine() { Console::write("9"); }
+}

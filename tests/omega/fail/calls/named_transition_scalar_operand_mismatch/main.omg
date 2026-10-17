@@ -1,0 +1,3 @@
+// A named transition does not convert a Boolean to an f64 call operand.
+machine target(value: f64) -> f64 { value }
+machine main() -> f64 { transition { _ -> target(true) } }

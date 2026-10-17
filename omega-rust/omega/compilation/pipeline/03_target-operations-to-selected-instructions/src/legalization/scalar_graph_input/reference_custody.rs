@@ -2395,17 +2395,28 @@ fn transfer_return_custody(
                     place: origin.root, path, access,
                     extent: origin.extent,
                 };
+                // Supplying permission is attenuated to the requested view;
+                // the complete declared roster still covers its geometry.
+                let supplying = mapping.sources.iter()
+                    .filter(|allowed| access_covers(allowed.access, actual.access))
+                    .map(|allowed| terminal_psi::ReferenceOriginSource {
+                        access: actual.access,
+                        ..allowed.clone()
+                    })
+                    .collect::<Vec<_>>();
                 terminal_semantics::reference_origin_is_covered(
-                    types.iter(), parameter.structural_type, &actual, &mapping.sources,
+                    types.iter(), parameter.structural_type, &actual, &supplying,
                 )
             })
         };
         let admitted = declared(&leaf.root);
-        if !(admitted || descriptor_backing::matches_return(&leaf.backing, &declared))
-            || custody
-                .leaves
-                .values()
-                .any(|child| custody.descends_from(child, &leaf.identity))
+        if !admitted && !descriptor_backing::matches_return(&leaf.backing, &declared) {
+            return Err(invalid());
+        }
+        if custody
+            .leaves
+            .values()
+            .any(|child| custody.descends_from(child, &leaf.identity))
         {
             return Err(invalid());
         }

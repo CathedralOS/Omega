@@ -23,6 +23,7 @@ pub struct ProviderBindingRequest<'a> {
     pub provider_plans: &'a [effects::provider_plan::ProviderPlan],
     pub selected_provider_plan_facts: effects::SelectedProviderPlanFacts,
     pub root_grants: &'a [String],
+    pub selected_provider_provenance: &'a [provider_planning::SelectedProviderReviewProvenance],
     pub authored_root_grants: &'a [trust_model::AuthoredRootGrant],
 }
 
@@ -46,6 +47,7 @@ pub fn bind_checked_providers(
         &program.facts,
         settlement.provider_plans,
         settlement.selected_provider_plan_facts,
+        settlement.selected_provider_provenance,
         settlement.root_grants,
         settlement.authored_root_grants,
     )?;

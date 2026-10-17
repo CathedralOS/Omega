@@ -275,9 +275,10 @@ impl Execution<'_, '_, '_> {
             };
             match (start_coordinate, end_coordinate) {
                 (Some(start), Some(end)) if start <= end => PlaceSegment::FixedRange { start, end },
-                _ => PlaceSegment::Index {
-                    expression: indexed.index,
-                },
+                // The captured descriptor still denotes a window when its
+                // bounds are unknown. A point would consume this dimension
+                // and move every later selector onto the wrong nested array.
+                _ => PlaceSegment::OpaqueRange,
             }
         } else {
             match self.captured_coordinate(start) {
@@ -288,10 +289,12 @@ impl Execution<'_, '_, '_> {
             }
         };
         for place in &mut places {
-            place.segments.push(geometry);
-            if super::super::compose_captured_view_segments(&mut place.segments).is_none() {
+            let Some(segments) =
+                facts::project_captured_view_segments(&place.segments, &[geometry])
+            else {
                 return HandleSpan::empty();
-            }
+            };
+            place.segments = segments;
         }
         self.append_referent_places(&places)
     }

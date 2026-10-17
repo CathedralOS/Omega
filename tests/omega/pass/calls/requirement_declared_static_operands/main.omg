@@ -1,0 +1,12 @@
+// Ordinary method operands keep their declaration-defined slots in both call forms.
+pub data Observation { value: i32; }
+pub boundary trait Source {
+    machine keep<Value>(value: Value) -> Value;
+    machine fill<const Value: i32>(destination: &mut Observation);
+}
+machine preserve(value: i32) -> i32 reaches Source {
+    Source::keep<i32>(value)
+}
+machine populate(destination: &mut Observation) reaches Source {
+    Source::fill<41>(destination);
+}

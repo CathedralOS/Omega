@@ -622,26 +622,49 @@ pub(crate) fn build_callable_scalar_value_contract_plan(
                 // scalar vocabulary has no useful consequence, retain its source
                 // clause for checker consumers and erase it during publication.
                 (contract.kind == SignatureContractKind::Ensures).then(|| {
-                    let mut result_memberships = program
-                        .proof_facts
-                        .span_or_empty(contract.facts)
-                        .iter()
-                        .filter_map(|fact| match fact {
-                            typed_trees::domain::ProofFact::Membership(membership)
-                                if program
-                                    .expression_table
-                                    .names_reserved_result(membership.value) =>
-                            {
-                                Some(membership.semantic_domain)
-                            }
-                            _ => None,
-                        })
-                        .collect::<Vec<_>>();
-                    result_memberships.sort_by_key(|domain| domain.0);
-                    result_memberships.dedup();
+                    // Resolve the source owner and physical result carrier here,
+                    // while checked source facts are available. Lowering must not
+                    // rediscover these semantics from names or source clauses.
+                    let mut result_qualifications = Vec::new();
+                    for fact in program.proof_facts.span_or_empty(contract.facts) {
+                        let typed_trees::domain::ProofFact::Membership(membership) = fact else {
+                            continue;
+                        };
+                        let Some((result_owner, carrier)) =
+                            ::validation::reserved_result_owner(program, membership.value)
+                        else {
+                            continue;
+                        };
+                        if result_owner != owner
+                            && !program
+                                .machine(owner)
+                                .and_then(|machine| program.machine_states(machine).first())
+                                .is_some_and(|entry| result_owner == entry.symbol)
+                        {
+                            continue;
+                        }
+                        if let Some((path, _)) = ::validation::result_membership_carrier(
+                            program,
+                            carrier,
+                            membership.domain_symbol,
+                        ) {
+                            result_qualifications.push(
+                                checked_trees::CheckedStructuralPathQualification {
+                                    path,
+                                    domain: membership.semantic_domain,
+                                },
+                            );
+                        }
+                    }
+                    result_qualifications.sort_by(|left, right| {
+                        left.path
+                            .cmp(&right.path)
+                            .then(left.domain.0.cmp(&right.domain.0))
+                    });
+                    result_qualifications.dedup();
                     checked_trees::ClosedScalarContractValue::SourceCheckedGuarantee {
                         facts: contract.facts,
-                        result_memberships: result_memberships.into_boxed_slice(),
+                        result_qualifications: result_qualifications.into_boxed_slice(),
                     }
                 })
             })

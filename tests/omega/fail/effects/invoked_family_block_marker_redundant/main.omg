@@ -1,8 +1,9 @@
-// Invoking a binding does not import the union of its family's operational
+// Invoking one static provider slot does not import the union of its family's operational
 // envelopes. `Device::wait` blocks, but `Sink::emit` publishes no `blocks`
 // ceiling and its provider calls only the non-blocking `Device::write`, so the
 // call's envelope is neither suspension nor blocking and a `block` marker is
 // redundant.
+
 pub boundary trait Device {
     machine write(byte: i32) reaches Device;
     machine wait() reaches Device blocks;
@@ -10,8 +11,12 @@ pub boundary trait Device {
 pub boundary trait Sink {
     machine emit(byte: i32) reaches Device invokes Device;
 }
+// Provider dependencies select named checked implementations; no extra binding
+// is routed through the boundary requirement's ordinary parameters.
+data DeviceProvider {}
+machine DeviceProvider::write(byte: i32) satisfies Device::write reaches Device {}
 data Provider {}
-machine Provider::emit(byte: i32) satisfies Sink::emit reaches Device { Device::write(byte); }
+machine Provider::emit(byte: i32) satisfies Sink::emit reaches Device { DeviceProvider::write(byte); }
 machine run() reaches Sink, Device invokes Sink; blocks; {
     block Sink::emit(7);
 }

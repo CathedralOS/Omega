@@ -1234,7 +1234,7 @@ fn lower_structural_result_declaration(
             .map(|domain| lookup_domain_id_for_carrier(domain_ids, *domain, structural_type))
             .collect::<Result<Vec<_>, _>>()?;
     qualifications.extend(
-        parameters::authored_result_qualification_domains(checked, plan.machine)
+        parameters::authored_result_whole_domains(checked, plan.machine)
             .iter()
             .map(|domain| lookup_domain_id_for_carrier(domain_ids, *domain, structural_type))
             .collect::<Result<Vec<_>, _>>()?,
@@ -1248,8 +1248,7 @@ fn lower_structural_result_declaration(
         qualifications,
         projected_qualifications: parameters::lower_projected_qualifications(
             identities,
-            &validation::structural_result_projected_qualifications(&checked.typed, return_type)
-                .map_err(LoweringError::Unsupported)?,
+            &parameters::result_projected_qualifications(checked, plan.machine, return_type)?,
             domain_ids,
             structural_type,
             structural_types,

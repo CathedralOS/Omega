@@ -1,0 +1,2 @@
+pub boundary trait Service { machine read() -> i32; }
+machine invalid() -> i32 { Service::read(7) }

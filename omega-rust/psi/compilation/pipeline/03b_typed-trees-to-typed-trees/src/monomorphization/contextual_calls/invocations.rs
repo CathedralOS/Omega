@@ -123,7 +123,7 @@ fn proposal(
     caller: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     site: CallSite,
-    target: SymbolHandle,
+    selected_target: SymbolHandle,
     selected: &[StaticMachineArgument],
     arguments: &[typed_trees::expression::ExpressionHandle],
 ) -> Option<Invocation> {
@@ -162,7 +162,7 @@ fn proposal(
                 .to_vec(),
         )
     } else {
-        (target, selected.to_vec(), Vec::new())
+        (selected_target, selected.to_vec(), Vec::new())
     };
     if !selected
         .iter()
@@ -190,18 +190,29 @@ fn proposal(
                 .collect(),
         )
     } else {
-        let signature = program
-            .machine_parameter_signature(target)
-            .map(|(_, signature)| signature)
-            .or_else(|| {
+        // Registration retains the authored template. Admission retains the
+        // exact closed contract selected by this occurrence; its copied binders
+        // can have the same source symbols and different outer substitutions.
+        let signature =
+            if let Some(application) = program.closed_requirement_application(selected_target) {
+                if application.template != target {
+                    return None;
+                }
+                application.signature
+            } else {
                 program
-                    .traits()
-                    .iter()
-                    .flat_map(|definition| program.trait_machine_signatures(definition))
-                    .find(|signature| signature.symbol == target)
-            })?;
+                    .machine_parameter_signature(target)
+                    .map(|(_, signature)| signature)
+                    .or_else(|| {
+                        program
+                            .traits()
+                            .iter()
+                            .flat_map(|definition| program.trait_machine_signatures(definition))
+                            .find(|signature| signature.symbol == target)
+                    })?
+            };
         (
-            program.state_signature_type_parameters(signature),
+            program.requirement_invocation_contract_parameters(signature),
             program
                 .state_signature_parameters(signature)
                 .iter()

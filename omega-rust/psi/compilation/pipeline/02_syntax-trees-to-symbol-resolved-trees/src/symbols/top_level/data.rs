@@ -1,13 +1,9 @@
 use symbol_resolved_trees::SymbolResolvedTrees;
-use symbols::{SymbolHandle, SymbolKind, SymbolTable};
+use symbols::{SymbolKind, SymbolTable};
 
 use crate::symbols::top_level::{SignatureSymbolTables, next_child_of_kind};
 
-pub(super) fn assign_data_symbols(
-    program: &mut SymbolResolvedTrees,
-    symbols: &SymbolTable,
-    root_children: &mut impl Iterator<Item = SymbolHandle>,
-) {
+pub(super) fn assign_data_symbols(program: &mut SymbolResolvedTrees, symbols: &SymbolTable) {
     let type_constraints = &program.tables.types.constraints;
     let data_type_parameters = &mut program.tables.declarations.data_type_parameters;
     let data_members = &mut program.tables.declarations.data_members;
@@ -18,10 +14,6 @@ pub(super) fn assign_data_symbols(
         .roots
         .data_definitions
         .for_each_mut(|data_definition| {
-            let declaration = next_child_of_kind(root_children, symbols, SymbolKind::Data);
-            if !data_definition.symbol.is_valid() {
-                data_definition.symbol = declaration;
-            }
             let data_symbol = data_definition.symbol;
             let mut data_children = symbols.child_handles(data_symbol).into_iter().flatten();
 

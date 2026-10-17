@@ -1,3 +1,0 @@
-use omega::language::core::binding;
-pub boundary trait Service { machine read() -> i32; }
-machine invalid(binding: &Binding<Service>) -> i32 { Service::read(binding, binding) }

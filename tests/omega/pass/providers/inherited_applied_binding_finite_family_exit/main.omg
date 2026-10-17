@@ -1,4 +1,3 @@
-use omega::language::core::binding;
 
 pub boundary trait Parent<Value> {
     machine echo<const Count: u64>(value: Value) -> Value
@@ -23,11 +22,11 @@ macos_arm64 machine TargetProviders::provider_defaults(defaults: &mut TargetProv
 linux_x86_64 machine TargetProviders::provider_defaults(defaults: &mut TargetProviders) {
     TargetProviders::select_provider<Child, ChildMap>(defaults);
 }
-data Main { parent: Binding<Parent<i32>>; child: Binding<Child>; }
+data Main {}
 machine Main::main(main: &mut Main) reaches Child + Parent crashes Trap {
-    let chosen: i32 = Child::choose(&main.child);
-    let first: i32 = main.parent.echo<4>((17 as i32));
-    let second: i32 = main.parent.echo<8>((25 as i32));
+    let chosen: i32 = Child::choose();
+    let first: i32 = Parent<i32>::echo<4>((17 as i32));
+    let second: i32 = Parent<i32>::echo<8>((25 as i32));
     transition chosen == 19 && first == 17 && second == 25 {
         true -> done() _ -> bad()
     }

@@ -1,0 +1,17 @@
+// Expected exit: 0. Machine-named recursion retains its ordinary invocation
+// operands and contracts even when execution re-enters the retained graph.
+machine tally(current: i32 in Wrapping, remaining: u32 in Saturating) -> i32 in Wrapping {
+    transition remaining > 0 {
+        true -> tally(current+1, remaining-1)
+        false -> current
+    }
+}
+machine main() crashes Trap {
+    let repeated: i32 in Wrapping = tally(12, 3);
+    let immediate: i32 in Wrapping = tally(17, 0);
+    transition repeated == 15 && immediate == 17 {
+        true -> done() false -> bad()
+    }
+    state done() { }
+    state bad() { crash Trap; }
+}

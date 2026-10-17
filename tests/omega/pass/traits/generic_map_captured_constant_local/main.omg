@@ -1,0 +1,13 @@
+// Source-positive: a local preserves the input bound on the captured const.
+const Ceiling: u32 = 100;
+trait Bounded<const Limit: u32> {
+    machine identity(value: u32) -> u32
+    requires value <= Limit
+    ensures result <= Limit;
+}
+Identity<const Maximum: u32> satisfies Bounded<Maximum> {
+    machine identity(input: u32) -> u32
+    requires input <= Maximum
+    ensures result <= Maximum
+    { let local: u32 = input; local }
+}

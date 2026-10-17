@@ -69,7 +69,13 @@ pub(crate) fn route_explicit_requirement_calls(
             program
                 .trait_machine_signatures(definition)
                 .iter()
-                .map(move |signature| (signature.symbol, definition.symbol))
+                .map(move |signature| {
+                    (
+                        signature.symbol,
+                        definition.symbol,
+                        signature.type_parameters.len(),
+                    )
+                })
         })
         .collect::<Vec<_>>();
     if requirements.is_empty() {
@@ -82,10 +88,13 @@ pub(crate) fn route_explicit_requirement_calls(
     // one checked rewrite into each syntax carrier. Leaving statements out
     // would silently redispatch them through Build's unrelated raw provider.
     let mut calls = Vec::new();
-    let mut collect = |occurrence, target, qualifier, arguments: &[StaticMachineArgument]| {
-        let Some((requirement, declaring_trait)) = requirements
+    let mut collect = |occurrence: RequirementCallOccurrence,
+                       target,
+                       qualifier,
+                       arguments: &[StaticMachineArgument]| {
+        let Some((requirement, declaring_trait, invocation_arity)) = requirements
             .iter()
-            .find(|(requirement, _)| *requirement == target)
+            .find(|(requirement, _, _)| *requirement == target)
         else {
             return;
         };
@@ -97,6 +106,33 @@ pub(crate) fn route_explicit_requirement_calls(
         {
             ImplementationSelection::StaticOperand
         } else {
+            // With no selected map, these are the requirement's ordinary
+            // method operands. Reject surplus data/const operands here too:
+            // recognizing only implementation-shaped arguments silently let
+            // malformed selections bypass the invocation telescope. Omitted
+            // operands still belong to ordinary inference/completeness checks.
+            if arguments.len() > *invocation_arity {
+                let source_span = match occurrence.site {
+                    RequirementCallSite::Expression(handle) => {
+                        program.expression_table.source_span(handle)
+                    }
+                    RequirementCallSite::Statement(handle) => program
+                        .statement_table
+                        .statement(handle)
+                        .as_call()
+                        .map(|call| call.source_span)
+                        .unwrap_or_default(),
+                };
+                diagnostics.push(
+                    Diagnostic::error(format!(
+                        "`{}` expects {} static invocation argument(s), got {}; explicit selection requires a named implementation as the final static argument",
+                        program.symbols.display_path(*requirement, "::"),
+                        invocation_arity,
+                        arguments.len(),
+                    ))
+                    .with_source_span(source_span),
+                );
+            }
             return;
         };
         calls.push((

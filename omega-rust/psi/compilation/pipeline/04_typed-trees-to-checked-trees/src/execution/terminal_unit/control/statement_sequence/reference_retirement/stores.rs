@@ -7,15 +7,54 @@ use super::{
     CheckedUnitStructuralPathSegment, Retirement, SymbolHandle, transfers,
 };
 
-pub(super) fn receiver(
-    operation: &CheckedUnitEffectOperationPlan,
-) -> Option<(SymbolHandle, u32, &[CheckedUnitStructuralPathSegment])> {
+/// Resolve a current named binding, keeping authored formal positions separate
+/// from the dense structural argument lane. This names storage, not proof that
+/// a descriptor was installed there; `named_place_loans` requires its activation.
+pub(super) fn source_owner(
+    program: &dyn validation::CheckingInput,
+    state: &typed_trees::state::State,
+    source: &CheckedUnitStructuralArgumentSourcePlan,
+) -> Option<SymbolHandle> {
+    match source {
+        CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol }
+        | CheckedUnitStructuralArgumentSourcePlan::StructuralLocalBorrow { symbol, .. } => {
+            Some(*symbol)
+        }
+        CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => program
+            .state_parameters(state)
+            .iter()
+            .filter(|parameter| {
+                crate::execution::terminal_unit::types::structural_parameter_candidate(
+                    program, parameter,
+                )
+            })
+            .nth(*parameter_index as usize)
+            .map(|parameter| parameter.symbol),
+        _ => None,
+    }
+}
+
+pub(super) fn receiver<'operation>(
+    program: &dyn validation::CheckingInput,
+    state: &typed_trees::state::State,
+    operation: &'operation CheckedUnitEffectOperationPlan,
+) -> Option<(
+    SymbolHandle,
+    u32,
+    &'operation [CheckedUnitStructuralPathSegment],
+)> {
     let CheckedUnitEffectOperationPlan::Store(store) = operation else {
         return None;
     };
     store.installed_value()?;
-    let checked_trees::CheckedStoreRoot::Local { symbol } = store.destination.root else {
-        return None;
+    let symbol = match store.destination.root {
+        checked_trees::CheckedStoreRoot::Local { symbol } => symbol,
+        checked_trees::CheckedStoreRoot::Parameter { position } => {
+            program
+                .state_parameters(state)
+                .get(position as usize)?
+                .symbol
+        }
     };
     Some((symbol, store.statement_index, &store.destination.path))
 }
@@ -24,8 +63,8 @@ pub(super) fn loans(
     retirement: &Retirement<'_>,
     operation: &CheckedUnitEffectOperationPlan,
 ) -> Option<Vec<validation::reference_result_custody::RecordLeafLoans>> {
-    let (owner, formation, path) = receiver(operation)?;
-    validation::reference_result_custody::local_place_loans(
+    let (owner, formation, path) = receiver(retirement.program, retirement.state, operation)?;
+    validation::reference_result_custody::named_place_loans(
         retirement.program,
         retirement.facts,
         retirement.machine,
@@ -47,7 +86,8 @@ pub(super) fn construction<'a>(
     &'a CheckedUnitEffectOperationPlan,
     Vec<CheckedUnitStructuralPathSegment>,
 )> {
-    let (owner, formation, destination) = receiver(operation)?;
+    let (owner, formation, destination) =
+        receiver(retirement.program, retirement.state, operation)?;
     let loan = retirement.facts.borrow.loans.get(child);
     if loan.owner_symbol != owner
         || loan.statement_index != formation as usize
@@ -57,12 +97,15 @@ pub(super) fn construction<'a>(
     {
         return None;
     }
-    let (_, local) = retirement
-        .program
-        .state_local_declaration(retirement.state, owner)?;
+    let reference = validation::reference_result_custody::storage_owner_type_reference(
+        retirement.program,
+        retirement.state,
+        owner,
+        formation,
+    )?;
     let path = super::transport::carrier_path(
         retirement.program,
-        local.type_reference,
+        reference,
         retirement.facts.borrow.loan_owner_path(loan),
     )?;
     let installed = operation.installed_value()?;
@@ -88,7 +131,8 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn releases
     retirement: &Retirement<'_>,
     operation: &CheckedUnitEffectOperationPlan,
 ) -> Option<Vec<CheckedUnitEffectOperationPlan>> {
-    let Some((owner, formation, _)) = receiver(operation) else {
+    let Some((owner, formation, _)) = receiver(retirement.program, retirement.state, operation)
+    else {
         return Some(Vec::new());
     };
     if !retirement
@@ -97,15 +141,18 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn releases
     {
         return Some(Vec::new());
     }
-    let (_, local) = retirement
-        .program
-        .state_local_declaration(retirement.state, owner)?;
+    let reference = validation::reference_result_custody::storage_owner_type_reference(
+        retirement.program,
+        retirement.state,
+        owner,
+        formation,
+    )?;
     // Installed fields keep the receiving owner's disposition contract. A
     // replacement does not turn a nominal/linear owner into cleanup-free
     // descriptor storage; its selected cleanup still borrows those fields.
     if !validation::has_contents(
         retirement.program,
-        local.type_reference,
+        reference,
         &[],
         validation::ContentsRequirement::DescriptorCleanup,
     ) {

@@ -171,8 +171,10 @@ impl VerifiedNativeArtifactInput {
         Ok(input)
     }
 
-    /// Admit selected row aliases only with the exact artifact member receipt.
-    pub(crate) fn bind_selected_family_realizations(
+    /// Retain selected requirement coordinates. Family aliases additionally
+    /// require the exact artifact member receipt; closed Imports retain the
+    /// source-authenticated roster the proposal already derived.
+    pub(crate) fn bind_selected_provider_coordinates(
         mut self,
         artifact: &terminal_codec::CanonicalTerminalArtifact,
         selected: &effects::SelectedProviderPlanFacts,
@@ -210,8 +212,10 @@ impl VerifiedNativeArtifactInput {
         }
         self.optimization_input.target_family_realizations =
             selected.family_realization_rows().to_vec();
-        self.optimization_input.target_family_realization_identities =
-            selected.identities().clone();
+        self.optimization_input.external_requirement_applications =
+            selected.external_requirement_applications().to_vec();
+        self.optimization_input
+            .selected_provider_requirement_identities = selected.identities().clone();
         Ok(self)
     }
 
@@ -376,7 +380,8 @@ pub(super) fn lower_decoded_native_module(
             target_machine_selections: selections,
             target_layout_selections: None,
             target_family_realizations: Vec::new(),
-            target_family_realization_identities: terminal_psi::TerminalIdentityTable::from(
+            external_requirement_applications: Vec::new(),
+            selected_provider_requirement_identities: terminal_psi::TerminalIdentityTable::from(
                 Vec::new(),
             ),
         },

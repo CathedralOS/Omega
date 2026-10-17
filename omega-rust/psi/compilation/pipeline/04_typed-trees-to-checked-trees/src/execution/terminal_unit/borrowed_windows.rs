@@ -169,9 +169,28 @@ pub(super) fn owned_assignment_source(
     }
     let position =
         typed_trees::signature::state_parameter_position(program.state_parameters(state), symbol)?;
+    let formal = program.state_parameters(state).get(position)?;
     let (parameter_index, _) = parameters.iter().enumerate().find(|(_, parameter)| {
         parameter.position as usize == position
-            && parameter.access == CheckedStructuralAccess::Owned
+            && (parameter.access == CheckedStructuralAccess::Owned
+                // Borrowed ingress presents the pointee to the body. A whole
+                // mutable shared binding instead replaces its own descriptor,
+                // whose exact stored type was checked above. It never owns
+                // storage reached through the incoming shared loan.
+                || (parameter.access == CheckedStructuralAccess::SharedBorrow
+                    && formal.is_mutable
+                    && place.segments.is_empty()
+                    && validation::reference_shell(program, formal.type_reference)
+                        .is_some_and(|shell| {
+                            shell.access == language_semantics::ReferenceAccess::Shared
+                        })
+                    && replacement_type
+                        == Some(validation::stored_structural_type_identity(
+                            program,
+                            formal.type_reference,
+                            &[],
+                            &[],
+                        ))))
     })?;
     Some(CheckedUnitStructuralArgumentSourcePlan::Parameter {
         parameter_index: u32::try_from(parameter_index).ok()?,
@@ -188,9 +207,12 @@ pub(super) fn capture_assignment_destination(
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     parameters: &[CheckedUnitStructuralParameterPlan],
+    scalar_parameters: &[super::CheckedStructuralScalarParameterPlan],
+    parameter_storage: &[checked_trees::CheckedUnitParameterStoragePlan],
     binders: &[(SymbolHandle, String)],
     statement_index: u32,
     assignment: &typed_trees::statement::TableAssignment,
+    trace: &super::control::LocalConstructionTrace,
 ) -> Option<CheckedUnitEffectOperationPlan> {
     let ordinal = usize::try_from(statement_index).ok()?;
     // A region captures its collection prefix. Selected element coordinates
@@ -221,15 +243,45 @@ pub(super) fn capture_assignment_destination(
                 validation::stored_structural_type_identity(program, value.type_reference, &[], &[])
             }),
     );
-    if matches!(
-        owned_source,
-        Some(CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { .. })
-    ) && access.segments.is_empty()
+    if collection.is_none()
+        && matches!(
+            owned_source,
+            Some(
+                CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { .. }
+                    | CheckedUnitStructuralArgumentSourcePlan::Parameter { .. }
+            )
+        )
+        && access.segments.is_empty()
     {
-        // Rebinding a variable evaluates no address or selector. Its prior
-        // occurrence may already be moved out; only projected or borrowed
-        // storage needs a pre-RHS physical destination capture.
+        // Rebinding an owned binding evaluates no address or selector, whether
+        // its home is a local or a formal. The exact stored-type classification
+        // above distinguishes descriptor replacement from a write through its
+        // loan. Only projected or borrowed storage needs a pre-RHS capture.
         return None;
+    }
+    if collection.is_none()
+        && let Some(destination) = super::structural_scalar_store::scalar_capture_destination(
+            program,
+            facts,
+            shapes,
+            machine,
+            state,
+            parameters,
+            scalar_parameters,
+            parameter_storage,
+            binders,
+            statement_index,
+            assignment,
+            trace,
+        )
+    {
+        return Some(
+            CheckedUnitEffectOperationPlan::CaptureAssignmentDestination {
+                statement_index,
+                destination_expression: target,
+                destination,
+            },
+        );
     }
     let root = access.root.as_symbol()?;
     let (root, segments) = resolve_storage_place(
@@ -949,9 +1001,31 @@ impl OpenWindows {
                 // establish an absent slot, but the custody producer must name
                 // that exact occurrence. In particular a runtime projection
                 // with unavailable cleanup facts cannot silently skip hooks.
+                // Borrowed ingress owns no installed descriptor to retire.
+                // The first whole-formal replacement establishes its checked
+                // statement occurrence; later replacements still require the
+                // exact old-carrier retirement or ordinary storage facts.
+                let establishes_ingress_descriptor = !occupied
+                    && path.is_empty()
+                    && matches!(
+                        source,
+                        CheckedUnitStructuralArgumentSourcePlan::Parameter { .. }
+                    )
+                    && destination_place.root.as_symbol().is_some_and(|owner| {
+                        validation::reference_result_custody::initial_parameter_reference_establishment(
+                            program,
+                            facts,
+                            machine.symbol,
+                            state,
+                            owner,
+                            statement_index,
+                        )
+                        .is_some()
+                    });
                 if !occupied
                     && opening.is_none()
                     && produced.multiplicity != Multiplicity::Unrestricted
+                    && !establishes_ingress_descriptor
                     && !facts.contextual_cleanup.storage_establishments.iter().any(
                         |(_, establishment)| {
                             establishment.machine == machine.symbol

@@ -3,6 +3,7 @@ members = [
     "samples/cli/independent/thin_film_reflectometry/validation",
     "samples/cli/independent/wavelet_transient_denoising/validation",
     "samples/cli/independent/hidden_markov_inference/validation/terminal-driver",
+    "samples/cli/independent/conservative_advection/validation",
     "samples/cli/independent/spectral_power/validation",
     "samples/cli/independent/spatial_diffusion/validation",
     "samples/cli/independent/travel_time_tomography/validation/terminal",

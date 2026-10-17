@@ -37,7 +37,7 @@ pub(crate) fn is_reference(
     validation::reference_shell(program, type_reference).is_some()
 }
 
-pub(in crate::execution::terminal_unit) fn structural_access_for_type_reference(
+pub(in crate::execution) fn structural_access_for_type_reference(
     program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<CheckedStructuralAccess> {

@@ -1,0 +1,1 @@
+An admitted decimal-scale cell is copied before a later constructor child advances the input. Its float payload and domain membership must survive independently of the replaced source. This natural conservative-advection variant exercises canonical authored-field evaluation order and permitted-copy qualification transport. Expected native and Terminal exit: 0.

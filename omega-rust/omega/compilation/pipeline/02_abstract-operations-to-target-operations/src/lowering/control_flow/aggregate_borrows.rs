@@ -18,8 +18,6 @@ pub(super) fn is_reference(
             | StructuralAccess::MutableBorrow
             | StructuralAccess::WriteOnlyBorrow
     ) && parameter.multiplicity == StructuralMultiplicity::Unrestricted
-        && parameter.qualifications.is_empty()
-        && parameter.projected_qualifications.is_empty()
         && matches!(
             types
                 .get(&parameter.structural_type)
@@ -59,7 +57,10 @@ pub(super) fn argument(
     let (root_type, source) = if let Some(home) = live.structural_homes.get(&argument.place) {
         // A loan addresses the existing home without transferring its claims.
         // The borrow's unrestricted multiplicity is independent of the owned
-        // aggregate's affine or linear obligations.
+        // aggregate's affine or linear obligations. Nominal qualifications
+        // have no native ABI storage: Psi already checked the exact call
+        // obligations. Keep the original qualified home and address without
+        // transferring, erasing or manufacturing its membership evidence.
         if home.access() != StructuralAccess::Owned {
             return Err(invalid());
         }

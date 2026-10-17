@@ -6,13 +6,14 @@
 // pins the store the exclusive endpoint refuses.
 use omega::language::core::float_operations;
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Ratio [copy] { value: f32[0.0..0.5]; wide: f64[-1.0..=1.0]; }
 
 machine half(ratio: Ratio) -> f32 { ratio.value }
 
-machine main() reaches Console {
+data Main { }
+
+machine Main::main(main: &mut Main) reaches Console {
     let zero: Ratio;
     let mut built: Ratio = Ratio { value: 0.25, wide: -1.0 };
     built.value = 0.375;

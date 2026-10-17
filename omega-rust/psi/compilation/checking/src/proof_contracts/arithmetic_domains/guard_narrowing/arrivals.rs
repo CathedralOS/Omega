@@ -718,7 +718,55 @@ pub(crate) fn inferred_normal_return_interval(
 ) -> Option<(Interval, Option<checked_trees::IntegerRangeRecipe>)> {
     // This judgment publishes integer intervals. Other result carriers have
     // their own evidence owners and cannot benefit from this body traversal.
-    target_primitive.and_then(super::super::primitive_range)?;
+    let primitive = target_primitive?;
+    super::super::primitive_range(primitive)?;
+    let memos = crate::frozen_program::frozen_program_memos(program).filter(|_| {
+        // Deferred recipes carry more than concrete interval endpoints. Until
+        // they have an exact memo identity, preserve their ordinary inference.
+        actuals.iter().all(|(_, _, recipe)| recipe.is_none())
+            && program
+                .machine(machine.symbol)
+                .is_some_and(|stored| std::ptr::eq(stored, machine))
+            && program
+                .state_in_machine(machine, entry.symbol)
+                .is_some_and(|stored| std::ptr::eq(stored, entry))
+    });
+    let key = (
+        machine.symbol,
+        entry.symbol,
+        primitive as u8,
+        actuals
+            .iter()
+            .map(|(symbol, interval, _)| (*symbol, interval.low, interval.high))
+            .collect::<Vec<_>>(),
+    );
+    if let Some(memos) = memos
+        && let Ok(intervals) = memos.normal_return_intervals.lock()
+        && let Some(interval) = intervals.get(&key)
+    {
+        return interval.clone();
+    }
+    let interval =
+        discover_normal_return_interval(program, machine, entry, target_primitive, actuals);
+    if let Some(memos) = memos
+        && let Ok(mut intervals) = memos.normal_return_intervals.lock()
+    {
+        intervals.insert(key, interval.clone());
+    }
+    interval
+}
+
+fn discover_normal_return_interval(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    entry: &State,
+    target_primitive: Option<typed_trees::types::PrimitiveType>,
+    actuals: &[(
+        SymbolHandle,
+        Interval,
+        Option<checked_trees::IntegerRangeRecipe>,
+    )],
+) -> Option<(Interval, Option<checked_trees::IntegerRangeRecipe>)> {
     if machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
         || !crate::proof_contracts::contract_entailment::entailment_covers_all_exits(
             program, machine,

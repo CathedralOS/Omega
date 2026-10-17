@@ -69,8 +69,8 @@ pub fn admit_native_realization<'execution>(
             &[],
         )
         .map_err(|error| realization_error("execution scope", error))?
-        .bind_selected_family_realizations(artifact, request.providers.selected_provider_plans)
-        .map_err(|error| realization_error("selected family realization", error))?;
+        .bind_selected_provider_coordinates(artifact, request.providers.selected_provider_plans)
+        .map_err(|error| realization_error("selected provider coordinates", error))?;
     admit_prepared_native_realization(input, artifact, request)
 }
 

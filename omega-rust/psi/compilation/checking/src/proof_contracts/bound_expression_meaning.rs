@@ -182,7 +182,21 @@ fn bound_subtree_meaning(
     if !expression.is_valid() || depth >= 128 {
         return false;
     }
-    match program.expression_table.expression(expression) {
+    // Selected meanings belong to the frozen program, machine and state.
+    // Reuse the whole subtree verdict, not merely each binary's local
+    // verdict: generated guards can share a subtree through many parents.
+    // Bare/mutable inputs and copied owners retain the one-shot walk.
+    let memo = crate::frozen_program::frozen_program_memos(program).and_then(|memos| {
+        meaning_key(program, machine, state, expression)
+            .map(|(machine, state, expression)| (memos, (machine, state, expression, depth as u8)))
+    });
+    if let Some((memos, key)) = memo
+        && let Ok(meanings) = memos.bound_subtree_meanings.lock()
+        && let Some(&meaning) = meanings.get(&key)
+    {
+        return meaning;
+    }
+    let meaning = match program.expression_table.expression(expression) {
         ExpressionNode::Binary(binary) => {
             let meaning =
                 has_builtin_binary_expression_meaning(program, machine, state, expression);
@@ -204,7 +218,13 @@ fn bound_subtree_meaning(
         }
         // Places and calls are symbolic leaves, not interpreted arithmetic.
         _ => true,
+    };
+    if let Some((memos, key)) = memo
+        && let Ok(mut meanings) = memos.bound_subtree_meanings.lock()
+    {
+        meanings.insert(key, meaning);
     }
+    meaning
 }
 
 pub(super) fn builtin_ordering(

@@ -1,0 +1,6 @@
+use omega::language::core::float_operations;
+data Cell [copy] { mantissa:f64; power:i32; }
+domain Cell::Admitted established by Cell::accept;
+machine Cell::accept()->Cell ensures result in Cell::Admitted { Cell { mantissa:0.75, power:-2 } }
+machine erase(result:Cell)->Cell requires result in Cell::Admitted ensures result in Cell::Admitted { Cell { mantissa:0.0, power:0 } }
+machine main() crashes Trap { let cell:Cell=erase(Cell::accept()); transition cell.mantissa == 0.0 && cell.power == 0 { true -> good() false -> bad() } state good() {} state bad() { crash Trap; } }

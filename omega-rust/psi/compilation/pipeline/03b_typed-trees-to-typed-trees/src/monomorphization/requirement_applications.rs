@@ -200,6 +200,7 @@ pub(crate) fn instantiate_requirement_applications(
         }
     }
     calls::retarget(program)?;
+    super::contextual_calls::retain_closed_requirement_demands(program)?;
     Ok(())
 }
 

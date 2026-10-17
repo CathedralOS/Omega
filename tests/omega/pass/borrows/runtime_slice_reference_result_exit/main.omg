@@ -30,6 +30,14 @@ machine read_record(found: Optional<&Record>) -> i32 {
     }
 }
 
+// A nonzero slice of arrays keeps the selected row's original storage home.
+machine read_pair(found: Optional<&[i32; 2]>) -> i32 {
+    transition found {
+        Optional::Some { value } -> (value[1])
+        Optional::None -> -1
+    }
+}
+
 machine capture<'input>(values: &'input [i32]) -> Optional<&'input i32>
 requires values.len >= 2
 {
@@ -63,8 +71,11 @@ machine main() crashes Trap {
     let right: i32 = read(choose(&input.values, &other, false));
     let records: [Record; 2] = [Record { value: 31 }, Record { value: 37 }];
     let record: i32 = read_record(relay(&records, 1));
+    let pairs: [[i32; 2]; 3] = [[2, 3], [5, 7], [11, 13]];
+    let pair_suffix: &[[i32; 2]] = pairs[1..];
+    let pair: i32 = read_pair(relay(pair_suffix, 1));
     transition first == 7 && second == 11 && third == 19
-        && captured == 3 && left == 3 && right == 23 && record == 37 {
+        && captured == 3 && left == 3 && right == 23 && record == 37 && pair == 13 {
         true -> done()
         false -> wrong()
     }

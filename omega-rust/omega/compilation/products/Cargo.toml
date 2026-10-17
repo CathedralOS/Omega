@@ -26,6 +26,7 @@ artifacts = { path = "../../foundation/artifacts" }
 backend-plan = { path = "../backend/plans/backend-plan" }
 diagnostics = { path = "../../../psi/foundation/diagnostics" }
 image-emission = { path = "../backend/images/image-emission" }
+language-semantics = { path = "../../../psi/foundation/language-semantics" }
 native-artifact = { path = "../backend/artifacts/native-artifact" }
 optimization-core = { path = "../../foundation/optimization-core" }
 package-compilation = { path = "../../packages/compilation-inputs" }

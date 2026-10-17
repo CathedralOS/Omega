@@ -1,0 +1,12 @@
+// Expected exit: 0. An authored result guarantee needs its exact domain theory.
+use omega::language::core::float_operations;
+data Cell [copy] { mantissa:f64; power:i32; }
+domain Cell::Admitted established by Cell::accept;
+machine Cell::accept()->Cell ensures result in Cell::Admitted {
+ Cell { mantissa:0.75, power:-2 }
+}
+machine main() crashes Trap {
+ let cell:Cell=Cell::accept();
+ transition cell.mantissa == 0.75 && cell.power == -2 { true -> done() false -> bad() }
+ state done() {} state bad() { crash Trap; }
+}

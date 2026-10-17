@@ -3407,6 +3407,7 @@ run/ownership/temporary_projected_copy_argument built 13299ms exit:0 @6c49683ce7
 run/ownership/temporary_projected_value_residual built 11600ms exit:0 @6c49683ce714
 run/proofs/quotient_copy_paths built 12553ms exit:70 @6c49683ce714
 run/providers/module_named_float_conversion_family_exit built 14758ms exit:0 stdout:match stderr:match @326ed531359e+wt
+run/providers/target_family_provider_boundary_identity_exit built 72877ms exit:0 stdout:match stderr:match @ecd74c669727
 run/slices/call_result_mutable_window_exit built 14090ms exit:0 @73e11f08dcbb+wt
 run/slices/computed_record_window built 12594ms exit:0 @b88c1c4b1ca5+wt
 run/slices/disjoint_local_state_windows built 9466ms exit:12 @1810e541fd15+wt

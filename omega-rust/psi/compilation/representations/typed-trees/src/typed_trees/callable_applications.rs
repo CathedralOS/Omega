@@ -89,6 +89,7 @@ enum AppliedCallableOwner {
         trait_scope: crate::trait_definition::RetainedTraitScope,
         trait_arguments: arena::HandleSpan<types::TypeReferenceHandle>,
         local_arguments: arena::HandleSpan<types::TypeReferenceHandle>,
+        invocation_contract_parameters: arena::HandleSpan<data::TypeParameter>,
         application: crate::static_applications::StaticMachineApplicationHandle,
     },
     MachineSelection {

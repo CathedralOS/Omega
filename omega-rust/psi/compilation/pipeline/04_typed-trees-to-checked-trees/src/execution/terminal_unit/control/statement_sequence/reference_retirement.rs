@@ -479,15 +479,19 @@ impl Retirement<'_> {
                     return false;
                 }
                 let loan = self.facts.borrow.loans.get(child);
-                let Some((_, local)) = self
-                    .program
-                    .state_local_declaration(self.state, loan.owner_symbol)
+                let Some(reference) =
+                    validation::reference_result_custody::storage_owner_type_reference(
+                        self.program,
+                        self.state,
+                        loan.owner_symbol,
+                        result.statement_index,
+                    )
                 else {
                     return false;
                 };
                 let Some(path) = transport::carrier_path(
                     self.program,
-                    local.type_reference,
+                    reference,
                     self.facts.borrow.loan_owner_path(loan),
                 ) else {
                     return false;
@@ -616,7 +620,18 @@ impl Retirement<'_> {
                 })
             }),
         };
-        if source_holder.is_none() {
+        let stored_holder = stores::source_owner(self.program, self.state, &source.source)
+            .is_some_and(|owner| {
+                owner == parent.owner_symbol
+                    && self.operations.iter().any(|operation| {
+                        stores::receiver(self.program, self.state, operation).is_some_and(
+                            |(stored, formation, _)| {
+                                stored == owner && formation as usize == parent.statement_index
+                            },
+                        ) && stores::loans(self, operation).is_some_and(|groups| !groups.is_empty())
+                    })
+            });
+        if source_holder.is_none() && !stored_holder {
             return false;
         }
         let owner_path = self.facts.borrow.loan_owner_path(parent);
@@ -629,15 +644,17 @@ impl Retirement<'_> {
             .position(|segment| *segment == CheckedUnitStructuralPathSegment::Referent)
             .unwrap_or(source.path.len());
         let compared = owner_path.len().min(prefix);
-        let Some((_, local)) = self
-            .program
-            .state_local_declaration(self.state, parent.owner_symbol)
-        else {
+        let Some(reference) = validation::reference_result_custody::storage_owner_type_reference(
+            self.program,
+            self.state,
+            parent.owner_symbol,
+            self.statement_index,
+        ) else {
             return true; // A registered holder with unresolved geometry stays live.
         };
         let Some(segments) = validation::reference_result_custody::loan_place_segments(
             self.program,
-            local.type_reference,
+            reference,
             &source.path[..compared],
         ) else {
             return true;
@@ -736,9 +753,11 @@ impl Retirement<'_> {
         });
         let holder = holders.next();
         let stored = self.operations.iter().any(|operation| {
-            stores::receiver(operation).is_some_and(|(owner, formation, _)| {
-                owner == loan.owner_symbol && formation as usize == loan.statement_index
-            }) && stores::loans(self, operation).is_some_and(|groups| {
+            stores::receiver(self.program, self.state, operation).is_some_and(
+                |(owner, formation, _)| {
+                    owner == loan.owner_symbol && formation as usize == loan.statement_index
+                },
+            ) && stores::loans(self, operation).is_some_and(|groups| {
                 groups
                     .iter()
                     .any(|(_, group)| self.facts.borrow.loans_contain(*group, handle))
@@ -795,15 +814,17 @@ impl Retirement<'_> {
         let Ok(formation) = u32::try_from(loan.statement_index) else {
             return false;
         };
-        let Some((_, local)) = self
-            .program
-            .state_local_declaration(self.state, loan.owner_symbol)
-        else {
+        let Some(reference) = validation::reference_result_custody::storage_owner_type_reference(
+            self.program,
+            self.state,
+            loan.owner_symbol,
+            formation,
+        ) else {
             return false;
         };
         let Some(selection) = transport::carrier_path(
             self.program,
-            local.type_reference,
+            reference,
             self.facts.borrow.loan_owner_path(loan),
         ) else {
             return false;
@@ -821,25 +842,21 @@ impl Retirement<'_> {
         };
         let owner_path = self.facts.borrow.loan_owner_path(loan);
         let selected_path = |path: &[CheckedUnitStructuralPathSegment]| {
-            validation::reference_result_custody::loan_place_segments(
-                self.program,
-                local.type_reference,
-                path,
-            )
-            .and_then(|segments| {
-                segments
-                    .into_iter()
-                    .map(|segment| match segment {
-                        facts::PlaceSegment::Field { symbol } => {
-                            Some(checked_trees::BorrowLoanOwnerSegment::Field(symbol))
-                        }
-                        facts::PlaceSegment::FixedIndex { index } => {
-                            Some(checked_trees::BorrowLoanOwnerSegment::FixedIndex(index))
-                        }
-                        _ => None,
-                    })
-                    .collect::<Option<Vec<_>>>()
-            })
+            validation::reference_result_custody::loan_place_segments(self.program, reference, path)
+                .and_then(|segments| {
+                    segments
+                        .into_iter()
+                        .map(|segment| match segment {
+                            facts::PlaceSegment::Field { symbol } => {
+                                Some(checked_trees::BorrowLoanOwnerSegment::Field(symbol))
+                            }
+                            facts::PlaceSegment::FixedIndex { index } => {
+                                Some(checked_trees::BorrowLoanOwnerSegment::FixedIndex(index))
+                            }
+                            _ => None,
+                        })
+                        .collect::<Option<Vec<_>>>()
+                })
         };
         if !transfers
             .definite
@@ -891,14 +908,20 @@ impl Retirement<'_> {
                     {
                         return false;
                     }
-                    let Some((_, local)) = self.program.state_local_declaration(self.state, symbol)
+                    let Some(reference) =
+                        validation::reference_result_custody::storage_owner_type_reference(
+                            self.program,
+                            self.state,
+                            symbol,
+                            statement_index,
+                        )
                     else {
                         return false;
                     };
                     let Some(mut receiving_path) =
                         validation::reference_result_custody::loan_owner_path(
                             self.program,
-                            local.type_reference,
+                            reference,
                             &path,
                         )
                     else {
@@ -1196,9 +1219,13 @@ impl Retirement<'_> {
                     {
                         return false;
                     }
-                    let Some((_, local)) = self
-                        .program
-                        .state_local_declaration(self.state, loan.owner_symbol)
+                    let Some(reference) =
+                        validation::reference_result_custody::storage_owner_type_reference(
+                            self.program,
+                            self.state,
+                            loan.owner_symbol,
+                            statement,
+                        )
                     else {
                         return false;
                     };
@@ -1212,13 +1239,11 @@ impl Retirement<'_> {
                                 .order
                                 .precedes(store.statement_index as usize, statement as usize)
                             && store.installed_value().is_some()
-                            && store.destination.root
-                                == (checked_trees::CheckedStoreRoot::Local {
-                                    symbol: loan.owner_symbol,
-                                })
+                            && stores::receiver(self.program, self.state, operation)
+                                .is_some_and(|(owner, _, _)| owner == loan.owner_symbol)
                             && validation::reference_result_custody::loan_owner_path(
                                 self.program,
-                                local.type_reference,
+                                reference,
                                 &store.destination.path,
                             )
                             .is_some_and(|path| {
@@ -1230,28 +1255,30 @@ impl Retirement<'_> {
                         return false;
                     }
                     cleanup_actions.iter().any(|discard| {
-                        let path =
-                            match *discard.source() {
-                                CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
-                                    symbol,
-                                } if symbol == loan.owner_symbol => discard.path().to_vec(),
-                                CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-                                    binding_ordinal,
-                                } => {
-                                    let Some(path) = self.disposed_result_path(
-                                        binding_ordinal,
-                                        discard.path(),
-                                        loan,
-                                    ) else {
-                                        return false;
-                                    };
-                                    path
-                                }
-                                _ => return false,
-                            };
+                        let path = match discard.source() {
+                            CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                                binding_ordinal,
+                            } => {
+                                let Some(path) = self.disposed_result_path(
+                                    *binding_ordinal,
+                                    discard.path(),
+                                    loan,
+                                ) else {
+                                    return false;
+                                };
+                                path
+                            }
+                            source
+                                if stores::source_owner(self.program, self.state, source)
+                                    == Some(loan.owner_symbol) =>
+                            {
+                                discard.path().to_vec()
+                            }
+                            _ => return false,
+                        };
                         validation::reference_result_custody::loan_owner_path(
                             self.program,
-                            local.type_reference,
+                            reference,
                             &path,
                         )
                         .is_some_and(|path| {

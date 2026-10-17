@@ -1,0 +1,36 @@
+// Ordinary shared/exclusive helper contexts and a cleanup hook retain the
+// exact static provider demand without carrying a service value.
+use omega::language::core::drop;
+
+pub boundary trait Character {
+    machine echo(value: i32) -> i32 terminates;
+}
+CharacterImplementation satisfies Character {
+    Character::echo = echo;
+}
+machine echo(value: i32) -> i32 { value }
+
+data Holder { offset: i32; }
+machine shared_field(holder: &Holder) -> i32 reaches Character {
+    Character::echo(holder.offset)
+}
+machine exclusive_field(holder: &mut Holder) -> i32 reaches Character {
+    holder.offset = 41;
+    Character::echo(holder.offset)
+}
+
+data Token { value: i32; }
+machine Token::drop(token: &mut Token) reaches Character {
+    token.value = Character::echo(token.value);
+}
+
+data Main {  }
+machine Main::main(main: &mut Main) reaches Character crashes Trap {
+    let mut holder: Holder = Holder { offset: 40 };
+    let shared: i32 = shared_field(&holder);
+    let exclusive: i32 = exclusive_field(&mut holder);
+    let token: Token = Token { value: 7 };
+    transition shared == 40 && exclusive == 41 { true -> done() _ -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}

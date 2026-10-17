@@ -24,7 +24,7 @@ pub(crate) fn boundary_trait_receiver_source(
     if !call.has_receiver {
         return None;
     }
-    if call.receiver_symbol == requirement {
+    if namespace_receiver_matches(program, state, call, call_site, requirement) {
         return Some(BoundaryTraitReceiver::Namespace);
     }
     let sources = parameter_binding_receiver_sources(
@@ -40,6 +40,44 @@ pub(crate) fn boundary_trait_receiver_source(
             .map(|(source, _)| source.symbol)
             .collect(),
     ))
+}
+
+/// A static namespace is the exact declaring trait. Runtime selectors resolve
+/// their applied ancestor environment through ordinary receiver custody.
+fn namespace_receiver_matches(
+    program: &dyn ::validation::CheckingInput,
+    state: &typed_trees::state::State,
+    call: &checked_trees::FlowCallFact,
+    call_site: &validation::CallSite<'_>,
+    requirement: SymbolHandle,
+) -> bool {
+    let Some(definition) = program.trait_definition_by_symbol(call.receiver_symbol) else {
+        return false;
+    };
+    let scope = match call_site {
+        validation::CallSite::Expression { call, .. }
+            if call.requirement_application.is_valid() =>
+        {
+            let Some(machine) = program.machine_holding_state(state.symbol) else {
+                return false;
+            };
+            let Some(scope) =
+                program.applied_requirement_scope(machine.symbol, call.requirement_application)
+            else {
+                return false;
+            };
+            scope
+        }
+        _ => typed_trees::trait_definition::AppliedTraitScope::abstract_scope(definition),
+    };
+    definition.is_boundary
+        && definition.symbol == requirement
+        && scope.declaration.symbol == requirement
+        && program
+            .closed_requirement_application(call.target_symbol)
+            .is_none_or(|application| {
+                program.requirement_application_matches_scope(application.signature.symbol, &scope)
+            })
 }
 
 /// Resolve the ordinary source parameter whose Binding or projection has an exact
@@ -208,9 +246,6 @@ pub(crate) fn boundary_authority_refusal(
                 .trait_machine_instances(owner)
                 .any(|signature| signature.symbol == call.target_symbol)
     })?;
-    if call.receiver_symbol == owner.symbol {
-        return None;
-    }
     let site = validation::find_call_site(
         program,
         machine,
@@ -218,6 +253,9 @@ pub(crate) fn boundary_authority_refusal(
         call.statement_index,
         call.call_ordinal,
     )?;
+    if namespace_receiver_matches(program, state, call, &site, owner.symbol) {
+        return None;
+    }
     resolve_parameter_binding_receiver_sources(
         program,
         state,

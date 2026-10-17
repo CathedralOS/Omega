@@ -1,0 +1,4 @@
+machine build(builder:&mut Build) {
+ Build::application(builder,"runtime_literal_return_guarded_contract_exit");
+ Build::bind(builder,linux_x86_64::ProgramEntry,main);
+}

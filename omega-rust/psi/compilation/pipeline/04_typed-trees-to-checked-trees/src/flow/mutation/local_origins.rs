@@ -94,9 +94,10 @@ pub(crate) fn close_storage_places_over_origins(
             if place.segments.len() >= source.segments.len()
                 && precision != OriginPrecision::Enclosing
             {
-                alias
-                    .segments
-                    .extend_from_slice(&place.segments[source.segments.len()..]);
+                alias.segments.extend(coordinates::alias_projection(
+                    &source.segments,
+                    &place.segments,
+                )?);
             }
             if seen.insert(alias.clone()) {
                 places.push(alias);
@@ -323,9 +324,10 @@ pub(super) fn rebase_local_write_places(
         if place.segments.len() >= origin.local_segments.len() {
             retains_private_storage = false;
             if precision != OriginPrecision::Enclosing {
-                canonical
-                    .segments
-                    .extend_from_slice(&place.segments[origin.local_segments.len()..]);
+                canonical.segments = facts::project_captured_view_segments(
+                    &canonical.segments,
+                    &place.segments[origin.local_segments.len()..],
+                )?;
             }
         }
         if !projected.contains(&canonical) {

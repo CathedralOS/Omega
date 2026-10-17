@@ -7,7 +7,8 @@ use super::{
 use crate::physical::{canonical_usize, hash_bytes};
 use effects::{TerminalAuthorityPermissionPolicyIdentity, TerminalAuthorityPolicyIdentity};
 
-const NATIVE_ARTIFACT_IDENTITY_DOMAIN: &[u8] = b"omega.native-artifact.sha256.v9\0";
+// v10 commits closed Import coordinates independently of unchanged Terminal bytes.
+const NATIVE_ARTIFACT_IDENTITY_DOMAIN: &[u8] = b"omega.native-artifact.sha256.v10\0";
 
 pub(super) struct NativeArtifactIdentityFields<'a> {
     pub(super) terminal_artifact_identity: [u8; 32],
@@ -144,6 +145,27 @@ pub(super) fn derive_native_artifact_identity(
         digest.raw(&canonical_usize(plan.requirement_identities.len()));
         for requirement in &plan.requirement_identities {
             hash_bytes(&mut digest, requirement.as_bytes());
+        }
+        digest.raw(&canonical_usize(
+            plan.external_requirement_applications.len(),
+        ));
+        for row in &plan.external_requirement_applications {
+            digest.raw(&row.provider_plan_report_identity.to_le_bytes());
+            digest.raw(row.provider_plan_digest.as_bytes());
+            hash_bytes(
+                &mut digest,
+                plan.family_realization_identities
+                    .text(row.selected_requirement_identity)
+                    .unwrap_or_default()
+                    .as_bytes(),
+            );
+            hash_bytes(
+                &mut digest,
+                plan.family_realization_identities
+                    .text(row.requirement_identity)
+                    .unwrap_or_default()
+                    .as_bytes(),
+            );
         }
         digest.raw(&canonical_usize(plan.family_realization_rows.len()));
         for row in &plan.family_realization_rows {

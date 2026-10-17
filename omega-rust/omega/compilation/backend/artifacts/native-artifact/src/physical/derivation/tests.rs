@@ -667,6 +667,37 @@ fn normalized_foreign_structural_signature_requires_the_exact_admitted_lane() {
 
     use crate::physical::derivation::foreign_calls::normalized_foreign_structural_parameter_shapes;
 
+    // Exercise only the non-dispatch operand view. The empty evaluated plan
+    // supplies its enclosing state; the placements below intentionally include
+    // malformed test rows and are not an admitted foreign-call plan.
+    fn operand_binding(
+        placements: &[ValuePlacement],
+    ) -> target_operations::NormalizedForeignCallBinding {
+        let mut boundary_entry_plan = calling_conventions::evaluate_ordinary_boundary_entry_plan(
+            calling_conventions::CallingPolicy::LinuxSyscallX86_64,
+            &calling_conventions::CallSignature {
+                parameters: Vec::new(),
+                result: None,
+            },
+        )
+        .expect("empty test boundary plan")
+        .plan()
+        .clone();
+        boundary_entry_plan.call.parameters = placements.to_vec();
+        target_operations::NormalizedForeignCallBinding {
+            boundary_entry_plan,
+            mechanism: target_operations::NormalizedForeignCallMechanism::SystemCall(
+                target_operations::NormalizedSystemCallBinding {
+                    target: target::TargetProfile::LinuxX64,
+                    number: 0,
+                    requirement_identity: "test-only::operand-view".to_owned(),
+                    provider_plan_report_identity: 7,
+                    provider_plan_commitment: [7; 32],
+                },
+            ),
+        }
+    }
+
     let pointer = ValueShape::integer(8, 8);
     let parameter =
         |place: u64, position: u32, access: StructuralAccess| StructuralParameterDeclaration {
@@ -716,13 +747,14 @@ fn normalized_foreign_structural_signature_requires_the_exact_admitted_lane() {
     let signature = |arguments: &[StructuralArgument],
                      parameters: &[StructuralParameterDeclaration],
                      placements: &[ValuePlacement]| {
+        let binding = operand_binding(placements);
         normalized_foreign_structural_parameter_shapes(
             arguments,
             parameters,
             &caller_parameters,
             &vec![BoundaryParameterKind::Structural; parameters.len()],
             false,
-            placements,
+            &binding.operand_placements(),
             pointer,
         )
     };
@@ -837,7 +869,7 @@ fn normalized_foreign_structural_signature_requires_the_exact_admitted_lane() {
             &caller_parameters,
             &interleaved_order,
             false,
-            &interleaved_placements,
+            &operand_binding(&interleaved_placements).operand_placements(),
             pointer,
         ),
         Ok(Some(vec![pointer, pointer]))
@@ -850,7 +882,7 @@ fn normalized_foreign_structural_signature_requires_the_exact_admitted_lane() {
             &caller_parameters,
             &interleaved_order,
             false,
-            &interleaved_placements,
+            &operand_binding(&interleaved_placements).operand_placements(),
             pointer,
         )
         .is_err()
@@ -868,7 +900,7 @@ fn normalized_foreign_structural_signature_requires_the_exact_admitted_lane() {
             &caller_parameters,
             &[BoundaryParameterKind::Structural; 2],
             true,
-            &placements,
+            &operand_binding(&placements).operand_placements(),
             pointer,
         ),
         Ok(None)

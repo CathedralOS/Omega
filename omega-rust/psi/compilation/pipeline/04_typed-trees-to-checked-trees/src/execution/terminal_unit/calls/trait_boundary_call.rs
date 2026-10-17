@@ -187,6 +187,31 @@ pub(super) fn build(
     // parameter declared at the same telescope ordinal, or a target-owned
     // private slot whose placement Omega must supply. Neither requires an
     // evaluated native ABI in the source callback's checked facts.
+    // Callback contracts survive closure separately from executable generic
+    // arity. Machine-only ordinals are the same ordinals MP2b records; type
+    // or const binders cannot shift a callback's selection to another row.
+    let callback_contract_parameters = match requirement {
+        BoundaryRequirement::Trait { signature, .. } => {
+            program.requirement_invocation_contract_parameters(signature)
+        }
+        BoundaryRequirement::Operator(operator) => program.operator_type_parameters(operator),
+    };
+    let callback_machine_parameters = callback_contract_parameters
+        .iter()
+        .filter(|parameter| {
+            matches!(
+                parameter.kind,
+                typed_trees::data::TypeParameterKind::Machine { .. }
+            )
+        })
+        .collect::<Vec<_>>();
+    // MP2b records the authored registration operation at this exact source
+    // occurrence. Closure retains its template separately from executable
+    // target identity; the source site and substituted contract still bind
+    // every nominal satisfaction row below.
+    let registration_operation = program
+        .closed_requirement_application(target)
+        .map_or(target, |application| application.template);
     let nominal_use_at_binder = |ordinal: usize, parameter: &typed_trees::data::TypeParameter| {
         let typed_trees::data::TypeParameterKind::Machine {
             contract:
@@ -201,24 +226,39 @@ pub(super) fn build(
         };
         facts.nominal_machine_uses.uses.iter().find(|nominal_use| {
             Some(nominal_use.site) == source_site
-                && nominal_use.registration_operation == target
+                && nominal_use.registration_operation == registration_operation
                 && usize::try_from(nominal_use.static_machine_ordinal).ok() == Some(ordinal)
                 && nominal_use.satisfaction_trait == trait_definition
                 && nominal_use.satisfaction_requirement == requirement
         })
     };
     let admitted_callback_telescope = source_site.is_some()
-        && callback_parameters.len() <= signature_type_parameters.len()
-        && signature_type_parameters
+        && callback_parameters.len() <= callback_machine_parameters.len()
+        && callback_parameters.iter().all(|callback| {
+            callback_machine_parameters
+                .iter()
+                .filter(|parameter| parameter.name == callback.binder)
+                .count()
+                == 1
+        })
+        && callback_machine_parameters
             .iter()
             .enumerate()
             .all(|(ordinal, parameter)| {
                 let Some(nominal_use) = nominal_use_at_binder(ordinal, parameter) else {
                     return false;
                 };
-                match callback_parameters.get(ordinal) {
-                    Some(callback) => parameter.name == callback.binder,
-                    None => nominal_use.callback_entry.is_some(),
+                // Native destination order is independent of the machine-only
+                // telescope ordinal. Resolve its authored binder within this
+                // exact substituted declaration cohort, then consume the
+                // nominal-use row already tied to its generational symbol.
+                let mut destinations = callback_parameters
+                    .iter()
+                    .filter(|callback| callback.binder == parameter.name);
+                match (destinations.next(), destinations.next()) {
+                    (Some(_), None) => true,
+                    (None, None) => nominal_use.callback_entry.is_some(),
+                    _ => false,
                 }
             });
     let mut scalar_parameters = Vec::new();
@@ -418,7 +458,7 @@ pub(super) fn build(
             )?,
         });
     }
-    phase("call operation: boundary telescope");
+    phase("call operation: unclosed boundary declaring trait");
     if let BoundaryRequirement::Trait { definition, .. } = requirement
         && !program.trait_type_parameters(definition).is_empty()
         && !program
@@ -427,10 +467,15 @@ pub(super) fn build(
     {
         return None;
     }
+    phase("call operation: unadmitted boundary executable telescope");
     if !signature_type_parameters.is_empty()
         && !admitted_callback_telescope
         && !specialized_telescope
     {
+        return None;
+    }
+    phase("call operation: unadmitted boundary native callback telescope");
+    if !callback_parameters.is_empty() && !admitted_callback_telescope {
         return None;
     }
     phase("call operation: boundary parameter custody");

@@ -1,0 +1,10 @@
+[package]
+name = "advection-terminal-validation"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+compiler = { path = "../../../../../omega-rust/omega/compilation/driver" }
+package-manager = { path = "../../../../../omega-rust/omega/packages/package-manager" }
+target = { path = "../../../../../omega-rust/omega/compilation/backend/target" }
+terminal-interpreter = { path = "../../../../../omega-rust/psi/interpreter/terminal-interpreter" }

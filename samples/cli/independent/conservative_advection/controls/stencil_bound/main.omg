@@ -1,0 +1,3 @@
+// Intended invalid: unchecked index can equal the static stencil bound.
+data Field { concentration:[f64;64]; }
+machine stencil(field:&Field,index:u32) -> f64 requires index <= 64 { field.concentration[index] }

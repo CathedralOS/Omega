@@ -1,0 +1,19 @@
+// Expected exit: 0
+// Two captured dimensions retain one typed backing family through a result.
+data Main { cube: [[[u64 in Wrapping; 2]; 2]; 2]; }
+machine select(cube: &mut [[[u64 in Wrapping; 2]; 2]; 2], outer: u64 in Wrapping, inner: u64 in Wrapping) -> &mut [u64 in Wrapping; 2]
+requires outer < 2 && inner < 2 { &mut cube[outer][inner] }
+machine Main::main(main: &mut Main) crashes Trap {
+    main.cube[1][1][1] = 9;
+    transition { _ -> observe(main, 1, 1) }
+    state observe(main: &mut Main, outer: u64 in Wrapping, inner: u64 in Wrapping)
+    requires outer < 2 && inner < 2 {
+        let row: &mut [u64 in Wrapping; 2] = select(&mut main.cube, outer, inner);
+        row[0] = 7;
+        transition main.cube[1][1][0] == 7 && main.cube[1][1][1] == 9 && main.cube[0][1][0] == 0 {
+            true -> pass(main) false -> fail(main)
+        }
+    }
+    state pass(main: &mut Main) {}
+    state fail(main: &mut Main) { crash Trap; }
+}

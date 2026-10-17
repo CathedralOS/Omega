@@ -771,17 +771,77 @@ pub(crate) fn authored_result_qualification_domains(
     };
     for clause in contract.closed_scalar_values.ensures() {
         let Some(checked_trees::ClosedScalarContractValue::SourceCheckedGuarantee {
-            result_memberships,
+            result_qualifications,
             ..
         }) = clause
         else {
             continue;
         };
-        qualifications.extend(result_memberships.iter().copied());
+        qualifications.extend(result_qualifications.iter().map(|row| row.domain));
     }
     qualifications.sort_by_key(|domain| domain.0);
     qualifications.dedup();
     qualifications
+}
+
+fn authored_result_paths(
+    checked: &CheckedTrees,
+    machine: symbols::SymbolHandle,
+) -> Vec<checked_trees::CheckedStructuralPathQualification> {
+    let mut rows = Vec::new();
+    let Some(contract) = checked.facts.contract_plans.for_machine(machine) else {
+        return rows;
+    };
+    for clause in contract.closed_scalar_values.ensures() {
+        let Some(checked_trees::ClosedScalarContractValue::SourceCheckedGuarantee {
+            result_qualifications,
+            ..
+        }) = clause
+        else {
+            continue;
+        };
+        rows.extend(result_qualifications.iter().cloned());
+    }
+    rows.sort_by(|left, right| {
+        left.path
+            .cmp(&right.path)
+            .then(left.domain.0.cmp(&right.domain.0))
+    });
+    rows.dedup();
+    rows
+}
+
+pub(crate) fn authored_result_whole_domains(
+    checked: &CheckedTrees,
+    machine: symbols::SymbolHandle,
+) -> Vec<language_semantics::SemanticDomainId> {
+    authored_result_paths(checked, machine)
+        .into_iter()
+        .filter(|row| row.path.is_empty())
+        .map(|row| row.domain)
+        .collect()
+}
+
+pub(crate) fn result_projected_qualifications(
+    checked: &CheckedTrees,
+    machine: symbols::SymbolHandle,
+    return_type: checked_trees::types::TypeReferenceHandle,
+) -> Result<Vec<checked_trees::CheckedStructuralPathQualification>, LoweringError> {
+    let mut rows =
+        validation::structural_result_projected_qualifications(&checked.typed, return_type)
+            .map_err(LoweringError::Unsupported)?;
+    rows.extend(
+        authored_result_paths(checked, machine)
+            .into_iter()
+            .filter(|row| !row.path.is_empty()),
+    );
+    rows.sort_by(|left, right| {
+        left.path
+            .cmp(&right.path)
+            .then(left.domain.0.cmp(&right.domain.0))
+    });
+    rows.dedup();
+    Ok(rows)
 }
 
 pub(crate) fn lower_projected_qualifications(

@@ -1,0 +1,59 @@
+// Expected exit: 0. Borrow access does not make an incoming descriptor mutable.
+data Values { first: u64; second: u64; }
+data SharedSlot<'storage> { value: &'storage u64; }
+data SignedValue { value: i32; }
+data NestedValue { inner: SignedValue; }
+data Flag { value: bool; }
+data Main { flag: bool; }
+
+machine copy(destination: &mut u64, source: &u64) {
+    destination = source;
+}
+machine borrowed<'storage>(source: &'storage u64) -> &'storage u64 { source }
+machine returned_signed<'storage>(source: &'storage mut i32) -> &'storage mut i32 { source }
+machine returned_flag<'storage>(source: &'storage mut bool) -> &'storage mut bool { source }
+
+machine replace_field<'storage>(slot: &mut SharedSlot<'storage>, replacement: &'storage u64) {
+    slot.value = replacement;
+}
+
+machine Main::main(main: &mut Main) crashes Trap {
+    let source: Values = Values { first: 37, second: 53 };
+    let mut destination: Values = Values { first: 0, second: 0 };
+    let retained: &u64 = &source.second;
+    copy(&mut destination.first, borrowed(&source.first));
+    copy(&mut destination.second, retained);
+    let first: u64 = 7;
+    let second: u64 = 11;
+    let mut selected: &u64 = &first;
+    selected = &second;
+    let through_local: u64 = selected;
+    selected = &first;
+    let restored_local: u64 = selected;
+    let mut slot: SharedSlot = SharedSlot { value: &first };
+    replace_field(&mut slot, &second);
+    let through_field: u64 = slot.value;
+    let mut nested: NestedValue = NestedValue { inner: SignedValue { value: 17 } };
+    let returned_integer: &mut i32 = returned_signed(&mut nested.inner.value);
+    returned_integer = -29;
+    let through_integer: i32 = returned_integer;
+    let mut flag: Flag = Flag { value: false };
+    let returned_boolean: &mut bool = returned_flag(&mut flag.value);
+    returned_boolean = true;
+    let through_boolean: bool = returned_boolean;
+    main.flag = false;
+    let returned_parameter_field: &mut bool = returned_flag(&mut main.flag);
+    returned_parameter_field = true;
+    let through_parameter_field: bool = returned_parameter_field;
+    // Returned primitive aliases retain their original aggregate endpoints.
+    transition destination.first == 37 && destination.second == 53
+        && source.first == 37 && source.second == 53
+        && through_local == 11 && restored_local == 7 && through_field == 11
+        && first == 7 && second == 11
+        && through_integer == -29 && nested.inner.value == -29
+        && through_boolean && flag.value && through_parameter_field && main.flag {
+        true -> done() _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

@@ -1,0 +1,4 @@
+// A mutable outer loan permits replacing its shared inner descriptor.
+machine replace_shared<'storage>(destination: &mut &'storage u64, replacement: &'storage u64) {
+    destination = replacement;
+}

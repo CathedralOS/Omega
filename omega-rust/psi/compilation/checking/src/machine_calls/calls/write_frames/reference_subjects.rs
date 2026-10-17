@@ -177,15 +177,7 @@ pub(super) fn expression_is_fixed_incoming_reference(
     state: &State,
     expression: ExpressionHandle,
 ) -> bool {
-    crate::canonical_place_from_expression_in_state(
-        program,
-        state.symbol,
-        state.statement_nodes.count() as usize,
-        expression,
-    )
-    .and_then(|place| parameter_at_place(program, state, &place))
-    .and_then(|parameter| crate::reference_shell(program, parameter.type_reference))
-    .is_some_and(|shell| shell.access.is_exclusive())
+    crate::value_custody::places::assignment_targets_parameter_referent(program, state, expression)
 }
 
 fn parameter_at_place<'program>(

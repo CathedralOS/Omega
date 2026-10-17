@@ -3,12 +3,12 @@
 //! `assign_top_level_symbols` is the first assignment pass that
 //! `assign_symbols` and `assign_symbols_against_resolved_base` (in
 //! `symbols/mod.rs`) run after the symbol table is built. Declaration symbols
-//! are matched by position, not looked up by name: it walks the root's
-//! children in the order `symbol_table::build_symbol_table` inserted them,
-//! skips the builtin type and function symbols and the fixed `core::*`
-//! mathematical declarations, and hands each kind its own ordered children.
-//! Seeded extension appends new cohorts without regrouping retained roots.
-//! Assignment visits these declaration kinds in this order:
+//! are matched by position within each declaration kind, not by name. After
+//! the builtin type/function and fixed `core::*` prefix, seeded symbol tables
+//! can append a new cohort of declarations. Each kind therefore consumes its
+//! own root-child stream, including declarations whose symbols are retained.
+//! The retained generational identity must equal that declaration's slot.
+//! Only after all root identities agree do child-assignment steps run:
 //!
 //! 1. domains (`domains`), then data (`data`);
 //! 2. named conformances, done here: each takes its symbol, then
@@ -19,9 +19,8 @@
 //!    measures and traits, each in its own child module;
 //! 4. wire schemas, done here.
 //!
-//! A declaration that already holds a valid symbol keeps it and still consumes
-//! its declaration slot. Every step except wire schemas also assigns the
-//! declaration's own children (parameters,
+//! A declaration that already holds a valid symbol keeps it. Every step except
+//! wire schemas also assigns the declaration's own children (parameters,
 //! fields, states) by the same positional walk over that declaration's
 //! children, and several resolve the type references in those children's
 //! signatures. Machine and trait assignment return diagnostics, which this
@@ -151,10 +150,11 @@ pub(super) fn assign_top_level_symbols(
     program: &mut SymbolResolvedTrees,
     symbols: &SymbolTable,
 ) -> Vec<diagnostics::Diagnostic> {
-    // Seeded extension appends declaration cohorts after the retained roots.
-    // Each kind keeps its own declaration order across those cohorts; the
-    // combined root roster is no longer globally grouped by declaration kind.
-    let authored_children = symbols
+    // Extensions append complete strata after the retained roots. Match each
+    // declaration kind in its stable append order; a single global cursor
+    // cannot replay that layout. Fixed core declarations share authored kinds
+    // and must be excluded before filtering the cohorts.
+    let roots = symbols
         .child_handles(symbols.root())
         .into_iter()
         .flatten()
@@ -164,56 +164,102 @@ pub(super) fn assign_top_level_symbols(
                 + FixedCoreDeclaration::COUNT,
         )
         .collect::<Vec<_>>();
-    let children = |kind| {
-        authored_children
-            .iter()
-            .copied()
-            .filter(move |symbol| symbols.get(*symbol).kind == kind)
-    };
-    assign_domain_symbols(program, symbols, &mut children(SymbolKind::Domain));
-    assign_data_symbols(program, symbols, &mut children(SymbolKind::Data));
-    let mut conformance_children = children(SymbolKind::Conformance);
-    let conformance_symbols = program
-        .conformances
-        .iter()
-        .filter(|conformance| conformance.alias.is_some())
-        .map(|_| next_child_of_kind(&mut conformance_children, symbols, SymbolKind::Conformance))
-        .collect::<Vec<_>>();
-    let mut conformance_symbols = conformance_symbols.into_iter();
-    program.conformances.for_each_mut(|conformance| {
-        if conformance.alias.is_some() {
-            let declaration = conformance_symbols
-                .next()
-                .unwrap_or_else(SymbolHandle::invalid);
-            if !conformance.symbol.is_valid() {
-                conformance.symbol = declaration;
+    let mut diagnostics = Vec::new();
+    macro_rules! bind_cohort {
+        ($declarations:expr, $kind:expr, $declaration:ident, $admitted:expr) => {{
+            let kind = $kind;
+            let mut slots = roots
+                .iter()
+                .copied()
+                .filter(|symbol| symbols.get(*symbol).kind == kind);
+            $declarations.for_each_mut(|$declaration| {
+                if $admitted {
+                    let slot = slots.next().unwrap_or_else(SymbolHandle::invalid);
+                    let retained = &mut $declaration.symbol;
+                    if !slot.is_valid() || (retained.is_valid() && *retained != slot) {
+                        diagnostics.push(diagnostics::Diagnostic::error(format!(
+                            "retained {kind:?} declaration differs from its indexed root child",
+                        )));
+                    } else if !retained.is_valid() {
+                        *retained = slot;
+                    }
+                }
+            });
+            if slots.next().is_some() {
+                diagnostics.push(diagnostics::Diagnostic::error(format!(
+                    "indexed {kind:?} root child has no retained declaration",
+                )));
             }
-        }
-    });
-    assign_conformance_parameter_symbols(program, symbols);
-    let mut diagnostics =
-        assign_machine_symbols(program, symbols, &mut children(SymbolKind::Machine));
-    assign_proposition_symbols(program, symbols, &mut children(SymbolKind::Proposition));
-    assign_mathematical_symbols(
-        program,
-        symbols,
-        &mut children(SymbolKind::MathematicalDefinition),
+        }};
+    }
+    bind_cohort!(
+        program.roots.domain_definitions,
+        SymbolKind::Domain,
+        declaration,
+        true
     );
-    assign_root_operator_symbols(program, symbols, &mut children(SymbolKind::Operator));
-    measures::assign_measure_symbols(program, symbols, &mut children(SymbolKind::Measure));
-    diagnostics.extend(assign_trait_symbols(
-        program,
-        symbols,
-        &mut children(SymbolKind::Trait),
-    ));
+    bind_cohort!(
+        program.roots.data_definitions,
+        SymbolKind::Data,
+        declaration,
+        true
+    );
+    bind_cohort!(
+        program.roots.conformances,
+        SymbolKind::Conformance,
+        declaration,
+        declaration.alias.is_some()
+    );
+    bind_cohort!(
+        program.roots.machines,
+        SymbolKind::Machine,
+        declaration,
+        true
+    );
+    bind_cohort!(
+        program.roots.propositions,
+        SymbolKind::Proposition,
+        declaration,
+        true
+    );
+    bind_cohort!(
+        program.roots.mathematical_definitions,
+        SymbolKind::MathematicalDefinition,
+        declaration,
+        true
+    );
+    bind_cohort!(
+        program.roots.operators,
+        SymbolKind::Operator,
+        declaration,
+        true
+    );
+    bind_cohort!(
+        program.roots.measures,
+        SymbolKind::Measure,
+        declaration,
+        true
+    );
+    bind_cohort!(program.roots.traits, SymbolKind::Trait, declaration, true);
+    bind_cohort!(
+        program.roots.wire_schemas,
+        SymbolKind::WireSchema,
+        declaration,
+        true
+    );
+    if !diagnostics.is_empty() {
+        return diagnostics;
+    }
 
-    let mut wire_children = children(SymbolKind::WireSchema);
-    program.wire_schemas.for_each_mut(|wire_schema| {
-        let declaration = next_child_of_kind(&mut wire_children, symbols, SymbolKind::WireSchema);
-        if !wire_schema.symbol.is_valid() {
-            wire_schema.symbol = declaration;
-        }
-    });
+    assign_domain_symbols(program, symbols);
+    assign_data_symbols(program, symbols);
+    assign_conformance_parameter_symbols(program, symbols);
+    diagnostics.extend(assign_machine_symbols(program, symbols));
+    assign_proposition_symbols(program, symbols);
+    assign_mathematical_symbols(program, symbols);
+    assign_root_operator_symbols(program, symbols);
+    measures::assign_measure_symbols(program, symbols);
+    diagnostics.extend(assign_trait_symbols(program, symbols));
 
     diagnostics
 }

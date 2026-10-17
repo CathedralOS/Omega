@@ -387,45 +387,110 @@ impl Builder<'_, '_> {
         // unsized owned referent. Use the same carrier
         // classification as ordinary calls and arrivals.
         let descriptor = validation::slice_view_shell(self.program, parameter.type_reference, &[]);
-        let (access, referent) = match self
-            .program
-            .type_reference_table
-            .type_reference(parameter.type_reference)
-        {
-            TypeReferenceNode::Reference { access, .. } if descriptor.is_some() => {
-                ((*access).into(), parameter.type_reference)
-            }
-            TypeReferenceNode::Reference {
-                access: language_semantics::ReferenceAccess::Shared,
-                ..
-            } => (
-                checked_trees::CheckedStructuralAccess::SharedBorrow,
-                crate::semantic::calls::shared_argument_referent(
-                    self.program,
-                    argument,
-                    parameter.type_reference,
-                )?
-                .1,
-            ),
-            TypeReferenceNode::Reference { .. } => return None,
-            _ => (
-                checked_trees::CheckedStructuralAccess::Owned,
+        // Share the source-selected transport query with value registration
+        // and receiving plans. Loan formation keeps its separate backing-owner
+        // schedule; the formal annotation cannot invent a descriptor value.
+        let stored = validation::reference_result_custody::stored_loan_parts(
+            self.program,
+            parameter.type_reference,
+        )
+        .and_then(|_| {
+            crate::values::reference_sources::transported_value_type(
+                self.program,
+                self.program.machine_by_symbol(self.machine)?,
+                self.program.state_by_symbol(self.state)?,
+                self.statement_index,
+                argument,
+            )
+        });
+        let (access, referent) = if let Some(actual) = stored {
+            validation::checked_argument_matches_type_reference(
+                self.program,
+                argument,
                 parameter.type_reference,
-            ),
+            )
+            .then_some(())?;
+            let (_, supplied) =
+                validation::reference_result_custody::stored_loan_parts(self.program, actual)?;
+            let required =
+                crate::execution::terminal_unit::types::structural_access_for_type_reference(
+                    self.program,
+                    parameter.type_reference,
+                )?;
+            if supplied != checked_trees::CheckedStructuralAccess::MutableBorrow
+                && supplied != required
+            {
+                return None;
+            }
+            (required, actual)
+        } else {
+            match self
+                .program
+                .type_reference_table
+                .type_reference(parameter.type_reference)
+            {
+                TypeReferenceNode::Reference { access, .. } if descriptor.is_some() => {
+                    ((*access).into(), parameter.type_reference)
+                }
+                TypeReferenceNode::Reference {
+                    access: language_semantics::ReferenceAccess::Shared,
+                    ..
+                } => (
+                    checked_trees::CheckedStructuralAccess::SharedBorrow,
+                    crate::semantic::calls::shared_argument_referent(
+                        self.program,
+                        argument,
+                        parameter.type_reference,
+                    )?
+                    .1,
+                ),
+                TypeReferenceNode::Reference { .. } => return None,
+                _ => (
+                    checked_trees::CheckedStructuralAccess::Owned,
+                    parameter.type_reference,
+                ),
+            }
         };
-        let (expression, owner_type, path) = self.retained_argument_owner(value, referent)?;
+        let (expression, owner_type, mut path) = self.retained_argument_owner(value, referent)?;
         // The owned-value contract cannot manufacture a
         // reference. A descriptor instead retains the
         // formation/call's already admitted loan custody.
-        if descriptor.is_none() {
+        if descriptor.is_none() && stored.is_none() {
             validation::structural_result_contract(self.program, referent).ok()?;
+        }
+        let selected = if let Some(actual) = stored {
+            let (selected, _) =
+                validation::reference_result_custody::stored_loan_parts(self.program, actual)?;
+            path.push(checked_trees::CheckedUnitStructuralPathSegment::Referent);
+            let (selected, selected_path) =
+                crate::execution::terminal_unit::calls::borrowed_argument_endpoint(
+                    self.program,
+                    selected,
+                    path,
+                    parameter.type_reference,
+                )?;
+            path = selected_path;
+            selected
+        } else {
+            referent
+        };
+        if stored.is_some()
+            && validation::structural_type_identity(self.program, selected, &[], &[])
+                != validation::structural_type_identity(
+                    self.program,
+                    parameter.type_reference,
+                    &[],
+                    &[],
+                )
+        {
+            return None;
         }
         let argument_plan = checked_trees::CheckedUnitStructuralArgumentPlan {
             source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
                 expression,
             },
             path,
-            type_identity: validation::structural_type_identity(self.program, referent, &[], &[]),
+            type_identity: validation::structural_type_identity(self.program, selected, &[], &[]),
             access,
         };
         let mut discards = None;
@@ -438,7 +503,7 @@ impl Builder<'_, '_> {
             // backing loan at this invocation. Only an
             // anonymous referent home needs a separate
             // temporary-owner loan settlement.
-            if descriptor.is_none() {
+            if descriptor.is_none() && stored.is_none() {
                 crate::execution::terminal_unit::calls::validate_shared_temporary(
                     self.program,
                     self.flow,
@@ -449,7 +514,15 @@ impl Builder<'_, '_> {
                     owner_type,
                 )?;
             }
-            match self.program.type_multiplicity(owner_type) {
+            let multiplicity = if stored.is_some() {
+                // A computed descriptor owns its lifetime even when a shared
+                // source alias is logically unrestricted. Dispose only that
+                // descriptor after the consumer, never its lent referent.
+                validation::reference_result_custody::result_multiplicity(self.program, owner_type)
+            } else {
+                self.program.type_multiplicity(owner_type)
+            };
+            match multiplicity {
                 language_semantics::Multiplicity::Affine
                 | language_semantics::Multiplicity::Linear => {
                     discards = Some(vec![checked_trees::CheckedNormalCleanupAction::Discard(

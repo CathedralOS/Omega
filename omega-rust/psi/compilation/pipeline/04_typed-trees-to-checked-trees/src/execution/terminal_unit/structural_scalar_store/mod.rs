@@ -44,6 +44,7 @@ use super::{
 use crate::execution::terminal_unit::control::LocalConstructionTrace;
 use crate::execution::terminal_unit::types::{byte_sequence_carrier, terminal_field_identity};
 use destination::{Destination, Root, StoreRoots, plain_record};
+use symbols::SymbolHandle;
 pub(in crate::execution::terminal_unit) use value::AssignmentSource;
 
 pub(in crate::execution::terminal_unit) use primitive::{
@@ -60,6 +61,73 @@ mod primitive;
 mod selectors;
 mod value;
 mod view_stores;
+
+/// Capture scalar storage through the same destination resolution as its
+/// store. A recast's physical carrier and the authored value's view carrier
+/// are distinct: only the latter belongs to the subsequent conversion.
+#[allow(clippy::too_many_arguments)]
+pub(in crate::execution::terminal_unit) fn scalar_capture_destination(
+    program: &dyn ::validation::CheckingInput,
+    facts: &CheckFacts,
+    shapes: &mut super::types::ShapeCollector<'_>,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    structural: &[CheckedUnitStructuralParameterPlan],
+    scalar: &[CheckedStructuralScalarParameterPlan],
+    storage: &[checked_trees::CheckedUnitParameterStoragePlan],
+    binders: &[(SymbolHandle, String)],
+    statement_index: u32,
+    assignment: &typed_trees::statement::TableAssignment,
+    trace: &LocalConstructionTrace,
+) -> Option<checked_trees::CheckedUnitStructuralArgumentPlan> {
+    let destination = destination::resolve(
+        program,
+        facts,
+        machine,
+        state,
+        StoreRoots {
+            structural,
+            scalar,
+            storage,
+        },
+        statement_index,
+        assignment,
+        trace,
+    )?;
+    let projection = destination.storage_projection(program)?;
+    program.primitive_type_reference(projection.type_reference)?;
+    destination.exclusive_authority(
+        program,
+        state,
+        StoreRoots {
+            structural,
+            scalar,
+            storage,
+        },
+        trace,
+    )?;
+    let source = match destination.root {
+        Root::Parameter { plan, .. } => {
+            checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                parameter_index: u32::try_from(
+                    structural
+                        .iter()
+                        .position(|row| row.position == plan.position)?,
+                )
+                .ok()?,
+            }
+        }
+        Root::Local { symbol } => {
+            checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol }
+        }
+    };
+    Some(checked_trees::CheckedUnitStructuralArgumentPlan {
+        source,
+        path: projection.path,
+        type_identity: shapes.add_stored_type(projection.type_reference, binders, &[])?,
+        access: CheckedStructuralAccess::Owned,
+    })
+}
 
 /// The ordered stores after the sequence's verified construction prefix.
 /// Each assignment composes its independently checked destination and value.

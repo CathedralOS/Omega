@@ -25,11 +25,27 @@ pub struct ClosedRequirementApplication<'program> {
     pub trait_scope: crate::trait_definition::RetainedTraitScope,
     pub trait_arguments: &'program [types::TypeReferenceHandle],
     pub local_arguments: &'program [types::TypeReferenceHandle],
+    /// Substituted admission binders, distinct from the closed executable arity.
+    /// Their exact source symbols join the retained application bindings.
+    pub invocation_contract_parameters: &'program [data::TypeParameter],
     pub application: static_applications::StaticMachineApplicationHandle,
     pub signature: &'program signature::StateSignature,
 }
 
 impl TypedTrees {
+    /// The source invocation's admission telescope. This is never executable
+    /// generic arity: closed requirements keep that empty. Nominal selection
+    /// and callback consumers need the substituted contracts plus exact source
+    /// binder symbols retained by the same closed application.
+    pub fn requirement_invocation_contract_parameters<'program>(
+        &'program self,
+        signature: &'program signature::StateSignature,
+    ) -> &'program [data::TypeParameter] {
+        self.closed_requirement_application(signature.symbol)
+            .map(|application| application.invocation_contract_parameters)
+            .unwrap_or_else(|| self.state_signature_type_parameters(signature))
+    }
+
     pub fn closed_requirement_applications(
         &self,
     ) -> impl Iterator<Item = ClosedRequirementApplication<'_>> {
@@ -58,6 +74,7 @@ impl TypedTrees {
             trait_scope,
             trait_arguments,
             local_arguments,
+            invocation_contract_parameters,
             application,
         } = prepared.owner
         else {
@@ -78,6 +95,9 @@ impl TypedTrees {
             local_arguments: self
                 .type_reference_table
                 .type_reference_handles(local_arguments),
+            invocation_contract_parameters: self
+                .data_type_parameters
+                .span_or_empty(invocation_contract_parameters),
             application,
             signature: &prepared.signature,
         })
@@ -406,6 +426,11 @@ impl TypedTrees {
         );
         substitutions.symbols.push((template, instance));
         let mut closed = substitutions.signature(self, &declared)?;
+        // Closing removes executable generic arity, not the source contract
+        // that admits static selections and callback destinations. Retain the
+        // already substituted telescope; reconstructing it from a template
+        // would lose captured type/const bindings and exact binder identity.
+        let invocation_contract_parameters = closed.type_parameters;
         closed.type_parameters = HandleSpan::empty();
         let trait_arguments = self
             .type_reference_table
@@ -428,6 +453,7 @@ impl TypedTrees {
                     trait_scope,
                     trait_arguments,
                     local_arguments,
+                    invocation_contract_parameters,
                     application,
                 },
                 signature: closed,

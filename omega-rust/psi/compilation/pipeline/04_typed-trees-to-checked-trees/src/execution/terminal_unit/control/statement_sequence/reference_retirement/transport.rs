@@ -46,12 +46,16 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn collect(
                     return None;
                 }
                 (*owner, result.statement_index)
-            } else if let Some((owner, formation, _)) = super::stores::receiver(operation) {
+            } else if let Some((owner, formation, _)) =
+                super::stores::receiver(program, state, operation)
+            {
                 (owner, formation)
             } else {
                 continue;
             };
-        let (_, local) = program.state_local_declaration(state, owner)?;
+        let reference = validation::reference_result_custody::storage_owner_type_reference(
+            program, state, owner, formation,
+        )?;
         for (receiver, loan) in facts.borrow.loans.iter().filter(|(handle, loan)| {
             facts.borrow.state_owns_loan(borrowing, *handle)
                 && loan.storage_owner == facts::PlaceRoot::Symbol(owner)
@@ -85,11 +89,7 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn collect(
             else {
                 continue;
             };
-            let path = carrier_path(
-                program,
-                local.type_reference,
-                facts.borrow.loan_owner_path(loan),
-            )?;
+            let path = carrier_path(program, reference, facts.borrow.loan_owner_path(loan))?;
             let sources = validation::reference_result_custody::stored_carrier_sources(
                 program, facts, *value, &path,
             )?;
@@ -117,15 +117,18 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn collect(
                         }
                         (*owner, Some(binding.statement_index as usize))
                     }
-                    _ => match source.structural_storage_root() {
-                        Some(facts::PlaceRoot::Symbol(owner)) => (owner, None),
-                        // An ingress carrier has no retiring local parent in
-                        // this activation. Its lifetime stays with its caller.
+                    _ => match super::stores::source_owner(program, state, &source.source) {
+                        Some(owner) => (owner, None),
                         _ => continue,
                     },
                 };
-                let Some((_, supplying_local)) =
-                    program.state_local_declaration(state, source_owner)
+                let Some(supplying_type) =
+                    validation::reference_result_custody::storage_owner_type_reference(
+                        program,
+                        state,
+                        source_owner,
+                        formation,
+                    )
                 else {
                     continue;
                 };
@@ -141,7 +144,7 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn collect(
                 {
                     if carrier_path(
                         program,
-                        supplying_local.type_reference,
+                        supplying_type,
                         facts.borrow.loan_owner_path(candidate),
                     )? == source.path
                     {
@@ -156,7 +159,7 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn collect(
                     .max_by_key(|statement| order.position(*statement))
                 else {
                     // Source borrow admission already owns this carrier. With
-                    // no supplying local loan there is no local parent to
+                    // no supplying installed loan there is no local parent to
                     // inherit; absence must not select another slot's loan.
                     continue;
                 };

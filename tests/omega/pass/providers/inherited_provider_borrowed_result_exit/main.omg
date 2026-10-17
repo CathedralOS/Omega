@@ -1,0 +1,50 @@
+// Expected exit: 0. Invocation lifetimes come from the explicit source loan,
+// independently of the selected child provider map.
+
+pub boundary trait Parent {
+    machine borrow<'source>(value: &'source i32) -> &'source i32;
+    machine borrow_mut<'source>(value: &'source mut i32) -> &'source mut i32;
+}
+pub boundary trait Child: Parent { machine choose() -> i32; }
+ChildMap satisfies Child {
+    Parent::borrow = borrow;
+    Parent::borrow_mut = borrow_mut;
+    Child::choose = choose;
+}
+machine borrow<'source>(value: &'source i32) -> &'source i32 { value }
+machine borrow_mut<'source>(value: &'source mut i32) -> &'source mut i32 { value }
+machine choose() -> i32 { 19 }
+data TargetProviders {}
+macos_arm64 machine TargetProviders::provider_defaults(defaults: &mut TargetProviders) {
+    TargetProviders::select_provider<Child, ChildMap>(defaults);
+}
+
+linux_x86_64 machine TargetProviders::provider_defaults(defaults: &mut TargetProviders) {
+    TargetProviders::select_provider<Child, ChildMap>(defaults);
+}
+
+machine observed<'source>(value: &'source i32)
+    -> &'source i32 reaches Parent {
+    Parent::borrow(value)
+}
+machine observed_mut<'source>(value: &'source mut i32)
+    -> &'source mut i32 reaches Parent {
+    Parent::borrow_mut(value)
+}
+
+data Main { value: i32; }
+machine Main::main(main: &mut Main) reaches Parent + Child crashes Trap {
+    main.value = 37;
+    let chosen: i32 = Child::choose();
+    let borrowed: &i32 = observed(&main.value);
+    let result: i32 = borrowed as i32;
+    let mutable: &mut i32 = observed_mut(&mut main.value);
+    mutable = 43;
+    let changed: i32 = mutable as i32;
+    let stored: i32 = main.value;
+    transition chosen == 19 && result == 37 && changed == 43 && stored == 43 {
+        true -> done() _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

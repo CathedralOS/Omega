@@ -85,6 +85,10 @@ pub(crate) fn prepare(
             operands.push((Some(argument_ordinal), root));
         }
         for (argument_ordinal, root) in operands {
+            // Reserve the produced value's physical carrier. A stored loan
+            // owns a descriptor; peeling its shell would reserve the referent
+            // home and invalidate the checked Referent path. Authority and
+            // ordinary operands retain their distinct occurrence identities.
             let identity = validation::stored_structural_type_identity(
                 &checked.typed,
                 root.type_reference,

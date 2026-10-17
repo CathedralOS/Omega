@@ -485,6 +485,38 @@ pub fn view_result_carrier_qualifications(
     Ok(qualifications)
 }
 
+/// Map a logical membership to the result's physical carrier. Ordinary
+/// borrowed records retain a reference shell; byte views already use their
+/// referent storage identity. This describes a path and grants no membership.
+pub fn result_membership_carrier(
+    program: &dyn crate::CheckingInput,
+    mut reference: TypeReferenceHandle,
+    domain: SymbolHandle,
+) -> Option<(Vec<CheckedUnitStructuralPathSegment>, TypeReferenceHandle)> {
+    if !crate::stores_reference_shape(program, reference, &[]) {
+        return Some((Vec::new(), reference));
+    }
+    let target = program.domain_definition(domain)?.target_type;
+    let identity = crate::stored_structural_type_identity(program, target, &[], &[]);
+    let mut path = Vec::new();
+    for _ in 0..=program.type_reference_table.type_reference_count() {
+        if crate::stored_structural_type_identity(program, reference, &[], &[]) == identity {
+            return Some((path, reference));
+        }
+        match program.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::Constrained { base_type, .. } => reference = *base_type,
+            TypeReferenceNode::Reference { referee, .. } => {
+                if crate::stores_reference_shape(program, reference, &[]) {
+                    path.push(CheckedUnitStructuralPathSegment::Referent);
+                }
+                reference = *referee;
+            }
+            _ => return None,
+        }
+    }
+    None
+}
+
 /// Reconstruct exact nested domain rows from a source structural type. Root
 /// constraints remain owned by `structural_result_qualifications`; this route
 /// emits finite record, guarded case payload, and fixed-index paths and rejects malformed spans.

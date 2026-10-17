@@ -1,22 +1,14 @@
 use symbol_resolved_trees::SymbolResolvedTrees;
-use symbols::{SymbolHandle, SymbolKind, SymbolTable};
+use symbols::{SymbolKind, SymbolTable};
 
 use super::super::top_level::next_child_of_kind;
 
-pub(super) fn assign_proposition_symbols(
-    program: &mut SymbolResolvedTrees,
-    symbols: &SymbolTable,
-    root_children: &mut impl Iterator<Item = SymbolHandle>,
-) {
+pub(super) fn assign_proposition_symbols(program: &mut SymbolResolvedTrees, symbols: &SymbolTable) {
     let binders = &mut program.tables.declarations.proposition_binders;
     let parameters = &mut program.tables.declarations.state_parameters;
     let propositions = &mut program.roots.propositions;
 
     propositions.for_each_mut(|proposition| {
-        let declaration = next_child_of_kind(root_children, symbols, SymbolKind::Proposition);
-        if !proposition.symbol.is_valid() {
-            proposition.symbol = declaration;
-        }
         let mut children = symbols
             .child_handles(proposition.symbol)
             .into_iter()

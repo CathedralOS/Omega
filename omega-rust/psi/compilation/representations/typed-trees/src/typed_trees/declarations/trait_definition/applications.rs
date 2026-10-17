@@ -241,6 +241,61 @@ pub struct AppliedTraitScope<'program> {
 }
 
 impl<'program> AppliedTraitScope<'program> {
+    /// Resolve the trait application retained by a qualified source occurrence
+    /// or an ordinary dynamic selector. The declaration identity and complete
+    /// authored arguments determine its scope; data carriers and selected
+    /// provider maps cannot supply a missing application. Reference/constraint
+    /// shells preserve the same declaration rather than creating a routing lane.
+    pub fn from_type_reference(
+        program: &'program TypedTrees,
+        reference: TypeReferenceHandle,
+        lexical_owner: SymbolHandle,
+    ) -> Option<Self> {
+        match program.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::Reference { referee, .. } => {
+                Self::from_type_reference(program, *referee, lexical_owner)
+            }
+            TypeReferenceNode::Constrained { base_type, .. } => {
+                Self::from_type_reference(program, *base_type, lexical_owner)
+            }
+            TypeReferenceNode::Named { symbol, .. } => Some(Self::abstract_scope(
+                program.trait_definition_by_symbol(*symbol)?,
+            )),
+            TypeReferenceNode::Generic {
+                base_symbol,
+                arguments,
+                lifetime_arguments,
+                ..
+            } => Self::new(
+                program,
+                program.trait_definition_by_symbol(*base_symbol)?,
+                TraitApplicationArguments {
+                    lexical_owner,
+                    enclosing_data_applications: &[],
+                    arguments: program
+                        .type_reference_table
+                        .type_reference_handles(*arguments),
+                    lifetimes: lifetime_arguments,
+                },
+            ),
+            TypeReferenceNode::DynamicTrait {
+                symbol, arguments, ..
+            } => Self::new(
+                program,
+                program.trait_definition_by_symbol(*symbol)?,
+                TraitApplicationArguments {
+                    lexical_owner,
+                    enclosing_data_applications: &[],
+                    arguments: program
+                        .type_reference_table
+                        .type_reference_handles(*arguments),
+                    lifetimes: &[],
+                },
+            ),
+            _ => None,
+        }
+    }
+
     /// Compose a selected named map's own telescope before its declared trait
     /// application. The simultaneous frames prevent map operands from being
     /// captured by equally spelled trait binders, including inherited edges.

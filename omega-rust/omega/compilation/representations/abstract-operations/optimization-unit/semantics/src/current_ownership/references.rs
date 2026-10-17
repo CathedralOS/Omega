@@ -2395,8 +2395,19 @@ pub(super) fn transfer_return(
             let Some(parameter) = function.structural_parameter(source.place) else {
                 return true;
             };
+            // Compare admitted supplying permissions at the returned view's
+            // access while preserving the whole declared origin geometry.
+            let supplying = mapping.sources.iter()
+                .filter(|allowed| crate::unit_validation::references::access_covers(
+                    allowed.access, source.access,
+                ))
+                .map(|allowed| terminal_psi::ReferenceOriginSource {
+                    access: source.access,
+                    ..allowed.clone()
+                })
+                .collect::<Vec<_>>();
             !terminal_semantics::reference_origin_is_covered(
-                structural_types.values().copied(), parameter.structural_type, source, &mapping.sources,
+                structural_types.values().copied(), parameter.structural_type, source, &supplying,
             )
         })
             || matches!(&reference.parent, ReferenceParent::Root(root) if *root != reference.root)
