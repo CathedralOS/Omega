@@ -1034,7 +1034,7 @@ pass/contracts/runtime_float_nested_crash_guard_exit built 34417ms exit:0 @6c496
 pass/contracts/runtime_float_unordered_crash_guard_exit built 35213ms exit:signal signal:4 @6c49683ce714
 pass/contracts/runtime_indexed_element_requirements_exit built 18761ms exit:0 @6c49683ce714
 pass/contracts/runtime_later_arm_call_requires_exit built 6467ms exit:70 @f137abafccda+wt
-pass/contracts/runtime_literal_view_extent_calls_exit built 17939ms exit:0 @6c49683ce714
+pass/contracts/runtime_literal_view_extent_calls_exit built 7836ms exit:0 @e02ff5008d25+wt
 pass/contracts/runtime_postcall_storage_identity_exit built 6774ms exit:0 @308fbdc54ba0
 pass/contracts/runtime_projected_element_requirements_exit built 17660ms exit:0 @6c49683ce714
 pass/contracts/saved_call_case_guarantee_requires_exit built 17813ms exit:0 @6c49683ce714
@@ -1642,7 +1642,7 @@ pass/filesystem/runtime_posix_read_runtime_range_view_exit built 13858ms exit:0 
 pass/filesystem/windows_canonicalize_exit built 24237ms exit:70 @c9eefa9130a0+wt
 pass/filesystem/windows_native_create_write_close_exit built 10712ms @aebe0714a499+wt
 pass/filesystem/windows_raw_argument_failures_exit built 9441ms @aebe0714a499+wt
-pass/filesystem/windows_raw_breadth_exit built 9855ms @aebe0714a499+wt
+pass/filesystem/windows_raw_breadth_exit built 16686ms @e02ff5008d25+wt
 pass/filesystem/windows_set_file_time_exit built 9641ms @aebe0714a499+wt
 pass/filesystem/windows_wrapper_results_exit built 19883ms exit:70 @aebe0714a499+wt
 pass/filesystem/wrapper_lock_metadata_exit built 20326ms exit:70 @aebe0714a499+wt
@@ -2762,7 +2762,7 @@ pass/slices/runtime_indexed_record_field_range_exit built 20838ms exit:0 @6c4968
 pass/slices/runtime_inline_mutable_byte_window_call_write_exit built 17671ms exit:0 @6c49683ce714
 pass/slices/runtime_inline_mutable_view_call_write_exit built 17438ms exit:0 @6c49683ce714
 pass/slices/runtime_join_meet_bound_exit built 14953ms exit:70 @6c49683ce714
-pass/slices/runtime_literal_view_return_exit built 15125ms exit:105 @6c49683ce714
+pass/slices/runtime_literal_view_return_exit built 8061ms exit:105 @e02ff5008d25+wt
 pass/slices/runtime_machine_entry_view_requires_index_exit built 14849ms exit:70 @6c49683ce714
 pass/slices/runtime_matched_window_length built 6311ms exit:0 @2cbb09f59147+wt
 pass/slices/runtime_mutable_byte_view_loop_write_exit built 15028ms exit:70 @6c49683ce714
@@ -3121,8 +3121,8 @@ pass/text/plain_and_qualified_byte_arrays_exit built 15087ms exit:70 @6c49683ce7
 pass/text/plain_byte_field_and_qualified_state_loan_exit built 15225ms exit:70 @6c49683ce714
 pass/text/qualified_byte_owner_state_loan_cycle_exit built 7891ms exit:70 stdout:match @326ed531359e+wt
 pass/text/qualified_byte_state_snapshot_exit built 14851ms exit:70 @6c49683ce714
-pass/text/qualified_byte_value_forwarding_exit built 9717ms exit:70 @4738db50c6db+wt
-pass/text/runtime_alias_string_write built 5470ms exit:0 @4738db50c6db+wt
+pass/text/qualified_byte_value_forwarding_exit built 6476ms exit:70 @e02ff5008d25+wt
+pass/text/runtime_alias_string_write built 7792ms exit:0 @e02ff5008d25+wt
 pass/text/runtime_borrowed_byte_snapshot_exit built 5539ms exit:0 @bb086b40ea65+wt
 pass/text/runtime_bounded_carrier_alias_concat_exit built 14904ms exit:70 @6c49683ce714
 pass/text/runtime_bounded_carrier_concat_exit built 15366ms exit:70 @6c49683ce714
@@ -3146,7 +3146,7 @@ pass/text/runtime_owned_string_byte_view_exit built 14849ms exit:70 @6c49683ce71
 pass/text/runtime_param_domain_forward_exit built 14895ms exit:70 @6c49683ce714
 pass/text/runtime_param_domain_literal_read_exit built 14847ms exit:70 @6c49683ce714
 pass/text/runtime_qualified_byte_array_storage_exit built 9374ms exit:0 @6c49683ce714
-pass/text/runtime_qualified_owner_view_open_exit built 5347ms exit:0 @4738db50c6db+wt
+pass/text/runtime_qualified_owner_view_open_exit built 7859ms exit:0 @e02ff5008d25+wt
 pass/text/runtime_slice_indexed_string_guard_exit built 14929ms exit:70 @6c49683ce714
 pass/text/runtime_stdin_command_branch_exit built 7367ms exit:0 stdout:match @326ed531359e+wt
 pass/text/runtime_stdin_line_buffering_exit built 7222ms exit:0 stdout:match @326ed531359e+wt

@@ -17,6 +17,17 @@ use terminal_psi::{
     StructuralResultClaimBinding, StructuralTypeDeclaration, TerminalAffineCleanupAction,
 };
 
+/// Storage metadata established by one operation. Literal carriers publish a
+/// shared image residence even though their establishment has no owned result.
+/// This declaration grants neither liveness nor authority over borrowed contents.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StructuralStorageDeclaration {
+    pub place: PlaceId,
+    pub structural_type: semantic_vocabulary::StructuralTypeId,
+    pub access: terminal_psi::StructuralAccess,
+    pub multiplicity: terminal_psi::StructuralMultiplicity,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AbstractOperation {
     /// Establish one exact recursive fixed array from row-major scalar leaves.
@@ -840,6 +851,31 @@ impl AbstractOperation {
             return None;
         }
         self.structural_result()
+    }
+
+    /// The storage this operation publishes, independently of whether it also
+    /// produces an owned value. Consumers retain its origin and declared access.
+    pub fn structural_storage(&self) -> Option<StructuralStorageDeclaration> {
+        if let Self::EstablishByteSequenceLiteral {
+            place,
+            structural_type,
+            ..
+        } = self
+        {
+            return Some(StructuralStorageDeclaration {
+                place: place.id,
+                structural_type: structural_type.id,
+                access: terminal_psi::StructuralAccess::SharedBorrow,
+                multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+            });
+        }
+        let (_, result) = self.structural_result()?;
+        Some(StructuralStorageDeclaration {
+            place: result.place,
+            structural_type: result.structural_type,
+            access: terminal_psi::StructuralAccess::Owned,
+            multiplicity: result.multiplicity,
+        })
     }
 
     /// The declared structural value produced by this operation, independent

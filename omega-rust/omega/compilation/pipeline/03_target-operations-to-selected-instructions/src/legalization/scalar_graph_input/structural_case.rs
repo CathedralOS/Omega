@@ -355,16 +355,15 @@ pub(in crate::legalization) fn leaf_copy_layout(
             .map(|parameter| parameter.access)
             .or_else(|| {
                 function.block_nodes().find_map(|node| {
-                    let (_, result) = node.operation.structural_result()?;
-                    (result.place == source)
-                        .then(|| {
-                            terminal_semantics::descriptor_results::descriptor_value_access(
-                                plan.structural_types.iter(),
-                                result.structural_type,
-                                result.multiplicity,
-                            )
-                        })
-                        .flatten()
+                    let declaration = node.operation.structural_storage()?;
+                    (declaration.place == source).then(|| {
+                        terminal_semantics::descriptor_results::descriptor_value_access(
+                            plan.structural_types.iter(),
+                            declaration.structural_type,
+                            declaration.multiplicity,
+                        )
+                        .unwrap_or(declaration.access)
+                    })
                 })
             }),
         _ => None,

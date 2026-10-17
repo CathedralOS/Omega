@@ -226,7 +226,12 @@ pub(super) fn accepts(
                 || element_view_source
                 || !signature.structural_places.contains(destination)
                 || !signature.structural_types.contains(structural_type)
-                || structural_type.id != target.structural_type
+                || structural_type.id != target.root_structural_type
+                || terminal_semantics::borrowed_referent_presentation(
+                    signature.structural_types.iter(),
+                    structural_type.id,
+                    target.structural_type,
+                ) != Some(terminal_semantics::BorrowedReferentPresentation::Unchanged)
                 || !structural_type.shape.is_borrowed_byte_view()
                 || !matches!(destination.kind, StructuralPlaceKind::ByteSequenceLiteral { structural_type: identity, .. } if identity == structural_type.id)
             {

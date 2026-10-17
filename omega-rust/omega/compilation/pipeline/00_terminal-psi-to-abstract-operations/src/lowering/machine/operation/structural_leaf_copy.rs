@@ -84,26 +84,9 @@ pub(super) fn lower(
     // Reference formation is the separate EstablishReference operation.
     let expected_type = result.structural_type;
     let occurrence_access = match &path {
-        StructuralCopyPath::Ordinary(path) if path.is_empty() => machine
-            .structural_parameters
-            .iter()
-            .chain(block_parameter(machine, source))
-            .find(|parameter| parameter.place == source)
-            .map(|parameter| parameter.access)
-            .or_else(|| {
-                machine.operations().find_map(|producer| {
-                    let result = producer.result.structural()?;
-                    (result.place == source)
-                        .then(|| {
-                            terminal_semantics::descriptor_results::descriptor_value_access(
-                                structural_types.iter(),
-                                result.structural_type,
-                                result.multiplicity,
-                            )
-                        })
-                        .flatten()
-                })
-            }),
+        StructuralCopyPath::Ordinary(path) if path.is_empty() => {
+            Some(signature.descriptor_access(structural_types))
+        }
         _ => None,
     };
     if selected_type != expected_type

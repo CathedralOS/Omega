@@ -30,8 +30,8 @@ use abstract_operations::{
 use semantic_vocabulary::{PlaceId, StructuralFieldId, StructuralPlaceKind, StructuralTypeId};
 use terminal_psi::{
     Operation, OperationKind, OperationResult, StructuralAccess, StructuralArgument,
-    StructuralParameterDeclaration, StructuralPathSegment, StructuralTypeDeclaration,
-    StructuralTypeShape, TerminalMachine,
+    StructuralMultiplicity, StructuralParameterDeclaration, StructuralPathSegment,
+    StructuralTypeDeclaration, StructuralTypeShape, TerminalMachine,
 };
 
 use crate::lowering::LoweringError;
@@ -382,8 +382,29 @@ fn declared_window_projection(
 /// declaration and a Unit-producing establishment, not a structural result row.
 pub(super) struct SourceSignature<'declaration> {
     pub(super) structural_type: StructuralTypeId,
+    access: StructuralAccess,
+    multiplicity: StructuralMultiplicity,
     qualifications: &'declaration [semantic_vocabulary::StructuralDomainId],
     projected_qualifications: &'declaration [terminal_psi::StructuralPathQualification],
+}
+
+impl SourceSignature<'_> {
+    /// Descriptor ownership retains the value's declared backing access;
+    /// a borrowed parameter or literal already publishes its own access.
+    pub(super) fn descriptor_access(
+        &self,
+        structural_types: &[terminal_psi::StructuralTypeDeclaration],
+    ) -> StructuralAccess {
+        if self.access != StructuralAccess::Owned {
+            return self.access;
+        }
+        terminal_semantics::descriptor_results::descriptor_value_access(
+            structural_types.iter(),
+            self.structural_type,
+            self.multiplicity,
+        )
+        .unwrap_or(self.access)
+    }
 }
 
 pub(super) fn source_signature(
@@ -393,6 +414,8 @@ pub(super) fn source_signature(
     if let Some(parameter) = machine.structural_parameter(place) {
         return Some(SourceSignature {
             structural_type: parameter.structural_type,
+            access: parameter.access,
+            multiplicity: parameter.multiplicity,
             qualifications: &parameter.qualifications,
             projected_qualifications: &parameter.projected_qualifications,
         });
@@ -400,6 +423,8 @@ pub(super) fn source_signature(
     if let Some(parameter) = block_parameter(machine, place) {
         return Some(SourceSignature {
             structural_type: parameter.structural_type,
+            access: parameter.access,
+            multiplicity: parameter.multiplicity,
             qualifications: &parameter.qualifications,
             projected_qualifications: &parameter.projected_qualifications,
         });
@@ -423,6 +448,8 @@ pub(super) fn source_signature(
         let qualifications = establishments.next()?;
         return establishments.next().is_none().then_some(SourceSignature {
             structural_type,
+            access: StructuralAccess::SharedBorrow,
+            multiplicity: StructuralMultiplicity::Unrestricted,
             qualifications,
             projected_qualifications: &[],
         });
@@ -434,6 +461,8 @@ pub(super) fn source_signature(
             .filter(|result| result.place == place)
             .map(|result| SourceSignature {
                 structural_type: result.structural_type,
+                access: StructuralAccess::Owned,
+                multiplicity: result.multiplicity,
                 qualifications: &result.qualifications,
                 projected_qualifications: &result.projected_qualifications,
             })

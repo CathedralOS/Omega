@@ -82,7 +82,8 @@ pub(super) fn location(
             place,
             structural_type,
             ..
-        }) if place.id == argument.place && structural_type.id == argument.structural_type => {}
+        }) if place.id == argument.place && structural_type.id == argument.root_structural_type => {
+        }
         _ => return Err(invalid()),
     };
     if producers.next().is_some() {

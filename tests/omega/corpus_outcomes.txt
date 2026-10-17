@@ -537,7 +537,7 @@ fail/borrow/signed_window_missing_upper_bound rejected 3430ms expected @5acf3232
 	cannot prove subslice range start bound `context.offset..context.count` is within slice length 8
 fail/borrow/signed_window_shared_mutation rejected 640ms expected @5acf32321f42+wt
 	argument `values` for state `entry` is declared `&mut` (`&mut [f64]`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
-fail/borrow/static_byte_state_loan_cannot_write rejected 3500ms expected @a9ae30e1c334+wt
+fail/borrow/static_byte_state_loan_cannot_write rejected 2216ms expected @e02ff5008d25+wt
 	machine `main` state `damage` assignment cannot write `bytes` because it is not mutable in this state (if `bytes` is undeclared -- a typo -- no such field or local exists)
 fail/borrow/static_callable_write_retires_subject_fact rejected 1210ms expected @fedeee648fc7+wt
 	cannot prove requires contract for call positive from unproved: cell > 0 (needs fact `cell > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
@@ -4931,7 +4931,7 @@ fail/recast/boolean_view_requires_byte_region_representation rejected 870ms expe
 	machine `read` state `entry`: a shared recast may weaken established facts but cannot strengthen them; a raw byte region cannot establish the target's representation facts
 fail/recast/boolean_view_requires_source_representation rejected 981ms expected @a9ae30e1c334+wt
 	machine `read` state `entry`: a shared recast may weaken established facts but cannot strengthen them; source facts do not establish the target representation
-fail/recast/borrowed_byte_changed_extent rejected 177ms expected @e76af65b0403
+fail/recast/borrowed_byte_changed_extent rejected 305ms expected @e02ff5008d25+wt
 	machine `main` state `entry`: cannot prove the recast's 8-byte footprint fits the live byte slice: the offset must be nonnegative and offset + 8 must not exceed its length
 fail/recast/borrowed_byte_collection_predicate rejected 591ms expected @e76af65b0403
 	cannot prove default-domain field requirement for return from main at statement 2: bytes requires [u8]::Ascii
@@ -4945,7 +4945,7 @@ fail/recast/borrowed_byte_overlapping_loan rejected 599ms expected @e76af65b0403
 	statement 1 mutates `bytes[7]` while local borrow `value` is still active (borrowed at statement 0; its last use is at statement 2 and it is released at state exit)
 fail/recast/borrowed_byte_shared_to_mutable rejected 167ms expected @e76af65b0403
 	machine `main` state `entry` local `value` requires mutable source access; shared or immutable storage cannot supply it
-fail/recast/borrowed_byte_strengthening rejected 180ms expected @e76af65b0403
+fail/recast/borrowed_byte_strengthening rejected 309ms expected @e02ff5008d25+wt
 	machine `main` state `entry`: a shared recast may weaken established facts but cannot strengthen them; a raw byte region cannot establish the target's representation facts
 fail/recast/boundary_equality_retired_by_out_argument_write rejected 827ms expected @a9ae30e1c334+wt
 	machine `Main::main` state `read`: cannot bound the recast offset `size` -- the region holds 12 bytes, but no declared range, dominating incoming guard, or boundary-ensures witness bounds the offset below the footprint. Bound it: declare a range on the offset param, guard the transition arm (`transition size <= K { true -> ... }`), or `ensures`-bound the boundary out-param that feeds it
@@ -5066,7 +5066,7 @@ fail/slices/bare_range_at_mutable_transition_return rejected 152ms expected @694
 	machine `middle` state `entry` return value receives a bare range that forms a shared view; `bare-range-reference-access` spells the mutable subrange `&mut collection[start..end]`
 fail/slices/bare_subslice_call_cannot_lend_mutable rejected 240ms expected @9c4d1c444502+wt
 	argument `items` for state `entry` is declared `&mut` (`&mut [i32]`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
-fail/slices/byte_view_element_reference_without_bound rejected 1335ms expected @c9eefa9130a0+wt
+fail/slices/byte_view_element_reference_without_bound rejected 1226ms expected @e02ff5008d25+wt
 	cannot prove index `0` is within unknown slice length of `bytes` in first::entry
 fail/slices/call_endpoint_view_backing_write rejected 1520ms expected @a9ae30e1c334+wt
 	statement 3 mutates `values[0]` while local borrow `view` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
@@ -7039,7 +7039,7 @@ pass/contracts/runtime_float_nested_crash_guard_exit checked 6671ms check-target
 pass/contracts/runtime_float_unordered_crash_guard_exit checked 6668ms check-target:macos_arm64 @c294657097ec+wt
 pass/contracts/runtime_indexed_element_requirements_exit checked 2817ms check-target:macos_arm64 @6d847e2a233e
 pass/contracts/runtime_later_arm_call_requires_exit checked 11514ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/contracts/runtime_literal_view_extent_calls_exit checked 5692ms check-target:macos_arm64 @81a0434130f9bfb47b3bec8ac9b47181a4ae96d2+wt
+pass/contracts/runtime_literal_view_extent_calls_exit checked 7388ms check-target:macos_arm64 @e02ff5008d25+wt
 pass/contracts/runtime_postcall_storage_identity_exit checked 2178ms check-target:macos_arm64 @359b1dba56f5
 pass/contracts/runtime_projected_element_requirements_exit checked 2774ms check-target:macos_arm64 @6d847e2a233e
 pass/contracts/saved_call_case_guarantee_requires_exit checked 11049ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -7663,7 +7663,7 @@ pass/filesystem/runtime_posix_read_runtime_range_view_exit checked 9450ms check-
 pass/filesystem/windows_canonicalize_exit checked 24908ms check-target:linux_x86_64 @c9eefa9130a0+wt
 pass/filesystem/windows_native_create_write_close_exit checked 10616ms check-target:windows_x86_64 @aebe0714a499+wt
 pass/filesystem/windows_raw_argument_failures_exit checked 9329ms check-target:windows_x86_64 @aebe0714a499+wt
-pass/filesystem/windows_raw_breadth_exit checked 9660ms check-target:windows_x86_64 @aebe0714a499+wt
+pass/filesystem/windows_raw_breadth_exit checked 16073ms check-target:windows_x86_64 @e02ff5008d25+wt
 pass/filesystem/windows_set_file_time_exit checked 9557ms check-target:windows_x86_64 @aebe0714a499+wt
 pass/filesystem/windows_wrapper_results_exit rejected 17322ms check-target:macos_arm64 @aebe0714a499+wt
 	selected ProgramEntry Binding field `Main::fs::host` requires a selected Fused provider for boundary `FilesystemService`
@@ -8833,7 +8833,7 @@ pass/slices/runtime_indexed_record_field_range_exit checked 11701ms check-target
 pass/slices/runtime_inline_mutable_byte_window_call_write_exit checked 11737ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/slices/runtime_inline_mutable_view_call_write_exit checked 12289ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/slices/runtime_join_meet_bound_exit checked 12040ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/slices/runtime_literal_view_return_exit checked 12250ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/slices/runtime_literal_view_return_exit checked 8105ms check-target:macos_arm64 @e02ff5008d25+wt
 pass/slices/runtime_machine_entry_view_requires_index_exit checked 13911ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/slices/runtime_matched_window_coordinate_capture_exit checked 3337ms check-target:macos_arm64 @3384eccdf464
 pass/slices/runtime_matched_window_length checked 6429ms check-target:macos_arm64 @2cbb09f59147+wt
@@ -9197,8 +9197,8 @@ pass/text/plain_and_qualified_byte_arrays_exit checked 4616ms check-target:macos
 pass/text/plain_byte_field_and_qualified_state_loan_exit checked 12041ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/text/qualified_byte_owner_state_loan_cycle_exit checked 11728ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/text/qualified_byte_state_snapshot_exit checked 12358ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/text/qualified_byte_value_forwarding_exit checked 9651ms check-target:macos_arm64 @4738db50c6db+wt
-pass/text/runtime_alias_string_write checked 5540ms check-target:macos_arm64 @4738db50c6db+wt
+pass/text/qualified_byte_value_forwarding_exit checked 6636ms check-target:macos_arm64 @e02ff5008d25+wt
+pass/text/runtime_alias_string_write checked 7967ms check-target:macos_arm64 @e02ff5008d25+wt
 pass/text/runtime_borrowed_byte_snapshot_exit checked 13901ms check-target:macos_arm64 @bb086b40ea65+wt
 pass/text/runtime_bounded_carrier_alias_concat_exit checked 13891ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/text/runtime_bounded_carrier_concat_exit checked 13198ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -9222,7 +9222,7 @@ pass/text/runtime_owned_string_byte_view_exit checked 11252ms check-target:macos
 pass/text/runtime_param_domain_forward_exit checked 11252ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/text/runtime_param_domain_literal_read_exit checked 12013ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/text/runtime_qualified_byte_array_storage_exit checked 4037ms check-target:macos_arm64 @c0d817d0e753+wt
-pass/text/runtime_qualified_owner_view_open_exit checked 5206ms check-target:macos_arm64 @4738db50c6db+wt
+pass/text/runtime_qualified_owner_view_open_exit checked 7577ms check-target:macos_arm64 @e02ff5008d25+wt
 pass/text/runtime_slice_indexed_string_guard_exit checked 11632ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/text/runtime_stdin_command_branch_exit checked 4559ms check-target:macos_arm64 @9dd545defbc0
 pass/text/runtime_stdin_line_buffering_exit checked 11781ms check-target:macos_arm64 @a9ae30e1c334+wt
