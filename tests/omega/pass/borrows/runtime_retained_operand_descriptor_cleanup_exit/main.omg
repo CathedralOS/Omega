@@ -1,0 +1,25 @@
+// Retained call inputs keep distinct descriptor homes until their result ends.
+// Expected exit: 0.
+data Envelope<Payload> { payload: Payload; }
+machine forward<'input>(value: &'input Envelope<i32>) -> &'input Envelope<i32> {
+    let inner: &Envelope<&Envelope<i32>> = &Envelope { payload: value };
+    let outer: &Envelope<&Envelope<&Envelope<i32>>> = &Envelope { payload: inner };
+    outer.payload.payload
+}
+machine main() crashes Trap {
+    let first: Envelope<i32> = Envelope { payload: 17i32 };
+    let second: Envelope<i32> = Envelope { payload: 23i32 };
+    let left: &Envelope<i32> = forward(&first);
+    let right: &Envelope<i32> = forward(&second);
+    transition left.payload == 17 && right.payload == 23 {
+        true -> again()
+        false -> bad()
+    }
+    state again() {
+        let backing: Envelope<i32> = Envelope { payload: 31i32 };
+        let value: &Envelope<i32> = forward(&backing);
+        transition value.payload == 31 { true -> done() false -> bad() }
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

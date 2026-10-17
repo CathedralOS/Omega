@@ -719,7 +719,13 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
         .statement_table
         .admitted_execution_order(authored_state.statement_nodes);
     let mut pending = Vec::new();
-    for operation in operations.iter() {
+    // Retained call operands own real descriptor occurrences. Their output
+    // transfers into the enclosing value, but borrowed input holders still
+    // retire after that receiving value and before their backing homes.
+    for operation in operations
+        .iter()
+        .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
+    {
         if let Some(captured) = captured_reference_result(
             program, facts, machine, state, results, operation, operations,
         ) {

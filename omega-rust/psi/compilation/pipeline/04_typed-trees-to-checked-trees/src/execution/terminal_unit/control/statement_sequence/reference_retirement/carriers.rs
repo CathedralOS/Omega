@@ -13,7 +13,11 @@ impl Retirement<'_> {
         &self,
         parent: &CheckedUnitStructuralResultBindingPlan,
     ) -> bool {
-        self.operations.iter().all(|operation| {
+        let mut operations = self
+            .operations
+            .iter()
+            .flat_map(CheckedUnitEffectOperationPlan::with_value_calls);
+        operations.all(|operation| {
             if let CheckedUnitEffectOperationPlan::EstablishLocal(
                 checked_trees::CheckedUnitLocalBindingPlan::StructuralValue {
                     result,

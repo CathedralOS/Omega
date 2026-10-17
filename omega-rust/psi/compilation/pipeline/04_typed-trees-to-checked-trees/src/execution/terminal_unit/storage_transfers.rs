@@ -488,6 +488,19 @@ impl Query<'_> {
                 if matching.next().is_some() {
                     return None;
                 }
+                // A call product transfers into the graph's receiving value
+                // just like a stored place. Its anonymous output holder is
+                // distinct from both the call's inputs and the final local.
+                if self.source
+                    == (CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                        binding_ordinal: call.structural_result().binding_ordinal,
+                    })
+                {
+                    return Some(self.leaf(
+                        selection.to_vec(),
+                        Destination::Holder(result.clone(), destination.to_vec()),
+                    ));
+                }
                 // The graph's dispatch intersects definite moves across its
                 // arms. Flattening operand calls here instead would assert a
                 // conditional owned argument moved on every path.

@@ -1,0 +1,31 @@
+// A call retires its anonymous reference and separately owned backing record.
+// Nested reference fields release their loans before the backing owners die.
+// Expected exit: 0.
+data Envelope<Payload> { payload: Payload; }
+
+machine read(value: &Envelope<&Envelope<i32>>) -> i32 {
+    value.payload.payload
+}
+machine read_array(value: &Envelope<&[Envelope<i32>; 2]>) -> i32 {
+    value.payload[1].payload
+}
+machine main() crashes Trap {
+    let nested: i32 = read(&Envelope { payload: &Envelope { payload: 37i32 } });
+    let array: i32 = read_array(&Envelope {
+        payload: &[Envelope { payload: 47i32 }, Envelope { payload: 53i32 }]
+    });
+    transition nested == 37 && array == 53 {
+        true -> again()
+        false -> bad()
+    }
+    state again() {
+        let inner: Envelope<i32> = Envelope { payload: 61i32 };
+        let nested: i32 = read(&Envelope { payload: &inner });
+        transition nested == 61 {
+            true -> done()
+            false -> bad()
+        }
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

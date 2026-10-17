@@ -274,7 +274,7 @@ pub(crate) fn finalize_scalar_actions(
                     expression,
                 )?;
                 let reference = retained_value.type_reference;
-                let selected =
+                let mut selected =
                     if validation::reference_result_custody::stored_loan_parts(program, reference)
                         .is_some()
                     {
@@ -307,6 +307,34 @@ pub(crate) fn finalize_scalar_actions(
                             source,
                         )?
                     };
+                // The operand descriptor and its independently owned backing
+                // have distinct deaths. Consume the exact contextual owner
+                // dispositions from the retained graph; moved constructor
+                // children and backing still needed by a result have no such
+                // disposition at this call.
+                for value in facts
+                    .values
+                    .structural_values
+                    .value_dependencies(retained_value.root)?
+                {
+                    if value == retained_value.root {
+                        continue;
+                    }
+                    let owner = facts.values.structural_values.nodes.get(value);
+                    selected.extend(selected_actions(
+                        program,
+                        facts,
+                        &targets,
+                        &mut shapes,
+                        state_flow.machine_symbol,
+                        state_flow.state_symbol,
+                        coordinate,
+                        facts::PlaceRoot::Expression(owner.expression),
+                        CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+                            expression: owner.expression,
+                        },
+                    )?);
+                }
                 replacements.push((identity, selected));
             }
         }

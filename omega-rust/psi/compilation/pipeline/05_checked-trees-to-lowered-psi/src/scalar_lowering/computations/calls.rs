@@ -929,15 +929,18 @@ impl Expansion<'_> {
                     "temporary retirement has stale residual rows",
                 ))?;
             let call = self.checked.facts.flow.control.calls.get(source_call);
-            let owner = self
-                .checked
-                .facts
-                .values
-                .structural_values
-                .nodes
-                .get(slot.root)
-                .expression;
-            let claims = crate::emission::claim_bindings::prepare_claim_dispositions(
+            let values = &self.checked.facts.values.structural_values;
+            let dependencies =
+                values
+                    .value_dependencies(slot.root)
+                    .ok_or(LoweringError::Unsupported(
+                        "temporary cleanup lost its owner graph",
+                    ))?;
+            // Even an empty action span must settle the operand root's
+            // selected claims. Additional backing owners extend this roster;
+            // missing actions never make an existing obligation disappear.
+            let root = values.nodes.get(slot.root);
+            let root_claims = crate::emission::claim_bindings::prepare_claim_dispositions(
                 identities,
                 self.checked,
                 self.machine,
@@ -947,23 +950,75 @@ impl Expansion<'_> {
                     call_ordinal: call.call_ordinal,
                     target_symbol: call.target_symbol,
                 },
-                facts::PlaceRoot::Expression(owner),
+                facts::PlaceRoot::Expression(root.expression),
                 slot.type_reference,
                 slot.structural_type,
                 self.structural_types,
             )?;
+            let mut selected_claims = root_claims
+                .iter()
+                .map(|claim| claim.identity)
+                .collect::<Vec<_>>();
+            let mut claimed_owners = vec![slot.root];
             let action_start = actions.len();
             for action in discards {
                 use crate::unit::unit_cleanup::PreparedNormalCleanupAction;
-                if action.source() != &source {
-                    return unsupported("temporary cleanup names a different owner");
+                let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+                    expression,
+                } = action.source()
+                else {
+                    return unsupported("temporary cleanup lost its owner expression");
+                };
+                let mut owners = dependencies
+                    .iter()
+                    .copied()
+                    .filter(|value| values.nodes.get(*value).expression == *expression);
+                let owner_handle = owners.next().ok_or(LoweringError::Unsupported(
+                    "temporary cleanup names an owner outside its operand",
+                ))?;
+                if owners.next().is_some() {
+                    return unsupported("temporary cleanup has ambiguous owner storage");
+                }
+                let owner = values.nodes.get(owner_handle);
+                let owner_place = slot.storage.place(owner_handle)?;
+                let owner_structural_type =
+                    crate::terminal_identities::structural_declaration_by_identity(
+                        self.structural_types,
+                        identities,
+                        self.checked,
+                        validation::stored_structural_type_identity(
+                            &self.checked.typed,
+                            owner.type_reference,
+                            &[],
+                            &[],
+                        ),
+                        "temporary cleanup owner has no structural type",
+                    )?
+                    .id;
+                let claims = crate::emission::claim_bindings::prepare_claim_dispositions(
+                    identities,
+                    self.checked,
+                    self.machine,
+                    state,
+                    language_semantics::PermissionEventSource::Call {
+                        statement_index: call.statement_index,
+                        call_ordinal: call.call_ordinal,
+                        target_symbol: call.target_symbol,
+                    },
+                    facts::PlaceRoot::Expression(owner.expression),
+                    owner.type_reference,
+                    owner_structural_type,
+                    self.structural_types,
+                )?;
+                if !claimed_owners.contains(&owner_handle) {
+                    claimed_owners.push(owner_handle);
+                    selected_claims.extend(claims.iter().map(|claim| claim.identity));
                 }
                 let path = crate::expression_preparation::bindings::structural_paths::lower_typed_argument_path(
                     identities,
-                    action.path(
-            ),
-            slot.structural_type,
-            self.structural_types,
+                    action.path(),
+                    owner_structural_type,
+                    self.structural_types,
                     None,
                     &mut std::iter::empty(),
                     None,
@@ -980,8 +1035,8 @@ impl Expansion<'_> {
                     action.case_conditions(),
                     self.structural_types,
                     |identities, condition_path| {
-                        let path = crate::expression_preparation::bindings::structural_paths::lower_typed_argument_path(identities, condition_path, slot.structural_type, self.structural_types, None, &mut std::iter::empty(), None)?;
-                        Ok((slot.place, path))
+                        let path = crate::expression_preparation::bindings::structural_paths::lower_typed_argument_path(identities, condition_path, owner_structural_type, self.structural_types, None, &mut std::iter::empty(), None)?;
+                        Ok((owner_place, path))
                     },
                 )?;
                 let structural_type =
@@ -997,14 +1052,14 @@ impl Expansion<'_> {
                     checked_trees::CheckedNormalCleanupAction::RetireHome { .. } => {
                         PreparedNormalCleanupAction::Resolved(
                             crate::unit::unit_cleanup::CleanupRegion::unconditional(
-                                terminal_psi::TerminalAffineCleanupAction::RetireHome(slot.place),
+                                terminal_psi::TerminalAffineCleanupAction::RetireHome(owner_place),
                             ),
                         )
                     }
                     checked_trees::CheckedNormalCleanupAction::Discard(_)
                         if path.is_empty() && conditions.is_empty() =>
                     {
-                        PreparedNormalCleanupAction::discard_root(slot.place)
+                        PreparedNormalCleanupAction::discard_root(owner_place)
                     }
                     checked_trees::CheckedNormalCleanupAction::Discard(_) => {
                         PreparedNormalCleanupAction::Resolved(
@@ -1013,7 +1068,7 @@ impl Expansion<'_> {
                                 conditions,
                                 action: terminal_psi::TerminalAffineCleanupAction::DiscardResidual(
                                     terminal_psi::StructuralAffineDiscard {
-                                        place: slot.place,
+                                        place: owner_place,
                                         path,
                                         structural_type,
                                     },
@@ -1030,7 +1085,7 @@ impl Expansion<'_> {
                         PreparedNormalCleanupAction::InvokeNominal {
                             conditions,
                             cleanup: cleanup.clone(),
-                            place: slot.place,
+                            place: owner_place,
                             path,
                             structural_type,
                             consumed_claims,
@@ -1038,10 +1093,7 @@ impl Expansion<'_> {
                     }
                 });
             }
-            let selected = claims
-                .iter()
-                .map(|claim| claim.identity)
-                .collect::<Vec<_>>();
+            let selected = selected_claims;
             let emitted = actions[action_start..]
                 .iter()
                 .flat_map(|action| match action {
