@@ -767,6 +767,7 @@ fn machine_from_signature(
         suspends_keyword_source_spans: signature.suspends_keyword_source_spans.clone(),
         blocks: signature.blocks,
         blocks_keyword_source_spans: signature.blocks_keyword_source_spans.clone(),
+        admitted_same_stack_bytes: 0,
         contracts: signature.contracts,
         states: HandleSpan::from_parts(state, 1),
     }

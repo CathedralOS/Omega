@@ -1,0 +1,9 @@
+// Zero is not an admitted foreign demand.
+pub boundary trait TextOutput { machine output_string(this: addr); }
+data Protocol { output_string: addr; }
+uefi_x86_64 machine Protocol::output(this: addr)
+    satisfies TextOutput::output_string
+    via ForeignBinding::VtableField(output_string)
+    stack 0 bytes;
+
+machine main() {}

@@ -139,6 +139,8 @@ pub enum ItemSnapshot {
         invokes: Vec<IdentifierSnapshot>,
         suspends: bool,
         blocks: bool,
+        #[serde(skip_serializing_if = "is_zero_u64")]
+        admitted_same_stack_bytes: u64,
         contracts: Vec<CapabilityContractSnapshot>,
         states: Vec<StateSnapshot>,
     },
@@ -195,6 +197,10 @@ pub enum ExternalBindingSnapshot {
 
 fn is_false(value: &bool) -> bool {
     !*value
+}
+
+fn is_zero_u64(value: &u64) -> bool {
+    *value == 0
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -702,6 +708,7 @@ pub(crate) fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnap
             ),
             suspends: value.suspends,
             blocks: value.blocks,
+            admitted_same_stack_bytes: value.admitted_same_stack_bytes,
             contracts: snapshot_capability_contracts(syntax_trees, value.contracts),
             states: syntax_trees
                 .items

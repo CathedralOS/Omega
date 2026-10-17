@@ -29,6 +29,8 @@ type MachineClauses = (
     HandleSpan<CapabilityContract>,
     syntax_trees::types::TypeReferenceHandle,
     HandleSpan<syntax_trees::item::ProofFact>,
+    u64,
+    Option<source::SourceSpan>,
 );
 
 type RankedSubjects = (
@@ -64,6 +66,8 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
     let mut public_selectors = Vec::<String>::new();
     let mut return_type = syntax_trees::types::TypeReferenceHandle::invalid();
     let mut where_facts = Vec::new();
+    let mut admitted_same_stack_bytes = 0u64;
+    let mut same_stack_clause_span = None;
 
     while !input.at_punctuation(PunctuationKind::LeftBrace)
         // CH10 bodyless machines end at `;` in body position -- the clause
@@ -174,6 +178,28 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
             }
             blocks = true;
             input = take_invokes_clause_terminator(input.take_contextual("blocks")?)?;
+            continue;
+        }
+
+        if input.at_contextual("stack") {
+            if admitted_same_stack_bytes != 0 {
+                return Err(input.error_here("duplicate `stack N bytes` clause"));
+            }
+            same_stack_clause_span = Some(input.current_source_span());
+            input = input.take_contextual("stack")?;
+            let number = input;
+            let (bytes, after_number) = input.take_integer()?;
+            if bytes <= 0 {
+                return Err(number.error_here(
+                    "`stack` demand must be a positive byte count; zero does not admit a foreign leaf",
+                ));
+            }
+            if !after_number.at_contextual("bytes") {
+                return Err(after_number.error_here("expected `bytes` after the same-stack demand"));
+            }
+            input = after_number.take_contextual("bytes")?;
+            input = take_invokes_clause_terminator(input)?;
+            admitted_same_stack_bytes = u64::try_from(bytes).expect("positive i64 fits in u64");
             continue;
         }
 
@@ -410,6 +436,8 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
             contracts,
             return_type,
             where_facts,
+            admitted_same_stack_bytes,
+            same_stack_clause_span,
         ),
         input,
     ))
@@ -427,6 +455,7 @@ fn machine_contract_fact_boundary(input: Input<'_, '_>) -> bool {
         || input.at_contract_continuation_keyword()
         || input.at_contextual("where")
         || input.at_contextual("satisfies")
+        || input.at_contextual("stack")
         || input.tokens.is_empty()
 }
 
@@ -479,6 +508,7 @@ fn reject_ambiguous_outcome_specific_ensures(
                     | "blocks"
                     | "where"
                     | "satisfies"
+                    | "stack"
             )
     }) {
         return Ok(());
@@ -585,6 +615,7 @@ fn continues_after_operational_clause(input: Input<'_, '_>) -> bool {
         || input.at_contextual("invokes")
         || input.at_contextual("suspends")
         || input.at_contextual("blocks")
+        || input.at_contextual("stack")
         || input.at_contextual("crashes")
         || (input.at_contextual("boundary")
             && !crate::declarations::parse_declaration::starts_following_item(input))
@@ -602,6 +633,7 @@ fn machine_reaches_clause_boundary(input: Input<'_, '_>) -> bool {
         || input.at_contract_continuation_keyword()
         || input.at_contextual("where")
         || input.at_contextual("satisfies")
+        || input.at_contextual("stack")
 }
 
 fn parse_crash_header<'tokens, 'source>(

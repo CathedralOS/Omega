@@ -284,6 +284,7 @@ pub(crate) fn lower_machine_into(
         termination_plan,
         service_reach_row: language_semantics::ServiceReachRowId::NULL,
         service_reach_is_installation_bound: machine.service_reach_is_installation_bound,
+        admitted_same_stack_bytes: machine.admitted_same_stack_bytes,
         suspends_keyword_source_spans: machine.suspends_keyword_source_spans.clone(),
         blocks_keyword_source_spans: machine.blocks_keyword_source_spans.clone(),
         compiler_selection_partition,

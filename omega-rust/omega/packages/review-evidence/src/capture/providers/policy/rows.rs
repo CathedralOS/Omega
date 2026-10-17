@@ -74,6 +74,7 @@ pub(super) fn project(
                 requirement: requirement.clone(),
                 realization,
                 requirement_lifetime_partition: row.requirement_lifetime_partition.clone(),
+                admitted_same_stack_bytes: row.admitted_same_stack_bytes,
                 binding: bindings::project(
                     compilation,
                     &plan.identities,

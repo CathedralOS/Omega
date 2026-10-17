@@ -134,10 +134,21 @@ impl PreparedSourceEvaluatedBindings<'_> {
 /// entry does before it returns or terminates: kernel32 `ExitProcess`
 /// walks loader notifications through ntdll and faulted with the 184-byte
 /// region a 64-byte contribution left it (Windows x86-64, 2026-09-23).
-/// 256 KiB is the reserve a foreign entry gets; it only enlarges the region
-/// and never admits a call the ABI plan refused.
+/// 256 KiB is the reserve an unmeasured foreign entry gets. A bodyless `via`
+/// leaf that writes `stack N bytes` contributes that exact demand instead.
+/// The reserve stays for leaves that still have no measurement: kernel32
+/// `ExitProcess` faulted when a 64-byte guess replaced it, and shrinking
+/// every import at once would invent bounds the source did not admit.
 const SAME_STACK_BYTES: u64 = 256 * 1024;
 const SAME_STACK_ALIGNMENT: u64 = 16;
+
+fn foreign_same_stack_bytes(authored: u64) -> u64 {
+    if authored == 0 {
+        SAME_STACK_BYTES
+    } else {
+        authored
+    }
+}
 
 /// Execution evidence for one source-evaluated binding: the requirement and
 /// the exact selected plan, with report coordinates derived from them so the
@@ -265,7 +276,7 @@ fn mint_source_evaluated_imports<'plan>(
                     provider_plan_commitment: plan_commitment,
                     requirement_identity: requirement_index,
                     receipt,
-                    bytes: SAME_STACK_BYTES,
+                    bytes: foreign_same_stack_bytes(row.admitted_same_stack_bytes),
                     alignment: SAME_STACK_ALIGNMENT,
                 },
                 plan_report_identity,
@@ -394,4 +405,68 @@ where
         ));
     }
     Ok(settlements)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{SAME_STACK_BYTES, foreign_same_stack_bytes, mint_source_evaluated_imports};
+    use effects::provider_plan::{
+        ProviderBinding, ProviderIdentityTable, ProviderPlan, ProviderPlanRow,
+    };
+    use std::collections::BTreeSet;
+
+    fn leaf_plan(binding: ProviderBinding, bytes: u64) -> ProviderPlan {
+        let mut identities = ProviderIdentityTable::default();
+        let requirement_identity = identities.intern("Leaves::output_string");
+        ProviderPlan {
+            name: "leaves".to_owned(),
+            identities,
+            rows: vec![ProviderPlanRow {
+                method: "output_string".to_owned(),
+                requirement_identity,
+                requirement_lifetime_partition: Vec::new(),
+                admitted_same_stack_bytes: bytes,
+                binding,
+            }],
+            ..ProviderPlan::default()
+        }
+    }
+
+    #[test]
+    fn authored_same_stack_bytes_replace_the_unmeasured_reserve() {
+        let demanded = BTreeSet::from(["Leaves::output_string".to_owned()]);
+        let identities = terminal_psi::TerminalIdentityTable::from(vec![
+            String::new(),
+            "Leaves::output_string".to_owned(),
+        ]);
+        for binding in [
+            ProviderBinding::VtableField {
+                table: "Protocol".to_owned(),
+                field: "output_string".to_owned(),
+            },
+            ProviderBinding::TableFunction {
+                table: "BootServices".to_owned(),
+                field: "output_string".to_owned(),
+            },
+        ] {
+            let authored_plan = leaf_plan(binding.clone(), 4096);
+            let unmeasured_plan = leaf_plan(binding, 0);
+            let authored = mint_source_evaluated_imports(
+                std::slice::from_ref(&authored_plan),
+                &demanded,
+                &identities,
+            )
+            .expect("authored demand admits");
+            let unmeasured = mint_source_evaluated_imports(
+                std::slice::from_ref(&unmeasured_plan),
+                &demanded,
+                &identities,
+            )
+            .expect("unmeasured leaf keeps the reserve");
+            assert_eq!(authored[0].same_stack.bytes(), 4096);
+            assert_eq!(unmeasured[0].same_stack.bytes(), SAME_STACK_BYTES);
+            assert_eq!(foreign_same_stack_bytes(0), SAME_STACK_BYTES);
+            assert_eq!(foreign_same_stack_bytes(64), 64);
+        }
+    }
 }

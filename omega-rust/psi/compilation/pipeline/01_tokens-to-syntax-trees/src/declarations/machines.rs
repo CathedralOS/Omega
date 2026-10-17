@@ -87,6 +87,8 @@ pub(crate) fn parse_machine<'tokens, 'source>(
             contracts,
             clauses_return_type,
             where_facts,
+            admitted_same_stack_bytes,
+            same_stack_clause_span,
         ),
         next,
     ) = parse_machine_clauses(syntax_trees, next)?;
@@ -123,6 +125,26 @@ pub(crate) fn parse_machine<'tokens, 'source>(
         let entry_callable = entry_name.clone().unwrap_or_else(|| name.clone());
         rewrite_terminal_tail_calls(syntax_trees, states, &entry_callable);
     }
+    if admitted_same_stack_bytes != 0 {
+        let span = same_stack_clause_span.expect("a positive stack demand records its clause span");
+        if !bodyless {
+            return Err(crate::diagnostics::parse_error::ParseError::at_source_span(
+                "`stack N bytes` admits demand only on a bodyless external realization",
+                span,
+            ));
+        }
+        let has_external_binding = syntax_trees
+            .items
+            .satisfies_clauses(satisfies)
+            .iter()
+            .any(|clause| clause.via.is_some() || clause.via_expression.is_valid());
+        if !has_external_binding {
+            return Err(crate::diagnostics::parse_error::ParseError::at_source_span(
+                "`stack N bytes` requires a `satisfies ... via ...` binding",
+                span,
+            ));
+        }
+    }
     Ok((
         Machine {
             target_family_interface: false,
@@ -155,6 +177,7 @@ pub(crate) fn parse_machine<'tokens, 'source>(
             blocks_keyword_source_spans,
             suspends,
             blocks,
+            admitted_same_stack_bytes,
             contracts,
             states,
         },

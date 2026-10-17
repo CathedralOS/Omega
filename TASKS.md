@@ -3797,9 +3797,12 @@ to the remaining arrivals and product-source implementation.
     computed status argument;
   - **WINDOWS-CONSOLE-INPUT** owns native Windows qualification. A native
     cross-build is not Windows execution acceptance;
-  - replace the fixed 256 KiB foreign-call reserve (`SAME_STACK_BYTES`) in
-    [source-evaluated bindings](omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/provider_admission/source_evaluated_bindings.rs)
-    with per-callee stack demand.
+  - replace the remaining unmeasured 256 KiB foreign-call reserve. A bodyless
+    `via` leaf now authors its contribution with `stack N bytes`, and that
+    exact demand is what same-stack admission mints. Leaves that omit the
+    clause still receive `SAME_STACK_BYTES` in
+    [source-evaluated bindings](omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/provider_admission/source_evaluated_bindings.rs);
+    deleting that reserve means measuring every import, not a UEFI special case.
 - Finish source-level containing-domain authority admission and migrate the
   transitional Console convenience reach. Console reach, imports and provider
   selection must not grant exit authority; reject missing authority/reach/progress

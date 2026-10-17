@@ -99,6 +99,9 @@ pub struct Machine {
     /// The published row is an installation-selected upper bound rather than
     /// a fixed callable ceiling.
     pub service_reach_is_installation_bound: bool,
+    /// Authored same-stack demand of a bodyless external realization, in bytes.
+    /// Zero means the source wrote no `stack N bytes` clause.
+    pub admitted_same_stack_bytes: u64,
     /// Exact authored operational-clause keyword occurrences. These explain
     /// the semantic booleans below without making source coordinates part of
     /// contract identity.
@@ -286,6 +289,7 @@ pub(crate) fn test_machine(states: HandleSpan<Handle<State>>) -> Machine {
         termination_plan: Default::default(),
         service_reach_row: Default::default(),
         service_reach_is_installation_bound: false,
+        admitted_same_stack_bytes: 0,
         suspends_keyword_source_spans: Vec::new(),
         blocks_keyword_source_spans: Vec::new(),
         compiler_selection_partition: None,

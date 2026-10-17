@@ -69,6 +69,8 @@ pub struct MachineSnapshot {
     pub service_reach: Vec<String>,
     #[serde(skip_serializing_if = "is_false")]
     pub service_reach_is_installation_bound: bool,
+    #[serde(skip_serializing_if = "is_zero_u64")]
+    pub admitted_same_stack_bytes: u64,
     pub suspends: bool,
     pub blocks: bool,
     pub contracts: Vec<SignatureContractSnapshot>,
@@ -78,6 +80,10 @@ pub struct MachineSnapshot {
 
 fn is_false(value: &bool) -> bool {
     !*value
+}
+
+fn is_zero_u64(value: &u64) -> bool {
+    *value == 0
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -248,6 +254,7 @@ pub(crate) fn machine_snapshot(
         invokes: to_strings(program.machine_invokes(machine).iter()),
         service_reach: service_reach_names(program, machine.service_reach_row),
         service_reach_is_installation_bound: machine.service_reach_is_installation_bound,
+        admitted_same_stack_bytes: machine.admitted_same_stack_bytes,
         suspends: machine.suspends,
         blocks: machine.blocks,
         contracts: program
