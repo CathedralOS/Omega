@@ -20,6 +20,7 @@ use crate::execution::terminal_unit::CheckedStructuralAccess;
 use crate::execution::terminal_unit::CheckedUnitStructuralArgumentPlan;
 use crate::execution::terminal_unit::CheckedUnitStructuralArgumentSourcePlan;
 use crate::execution::terminal_unit::CheckedUnitStructuralParameterPlan;
+use crate::execution::terminal_unit::Multiplicity;
 
 use crate::execution::terminal_unit::PrimitiveType;
 use crate::execution::terminal_unit::StatementNode;
@@ -253,14 +254,19 @@ pub(crate) fn admit_resolved(
         // edge only narrows it. An owned local fixed array is the same range:
         // the edge forms the window descriptor and lowering keeps that
         // local's storage for the successor. Refusing the local left no way
-        // to lend two windows of one occupancy row across a state edge.
+        // to lend two windows of one occupancy row across a state edge. An
+        // owned unrestricted parameter is the same frame storage: the
+        // invocation keeps it through every state, so its fixed-array window
+        // lends across the edge the same way.
         CheckedSubsliceSite::TransitionArgument { .. } => match subslice.range.root {
             CheckedStorageRoot::Parameter { index } => {
                 parameters.get(index as usize).is_some_and(|parameter| {
                     matches!(
                         parameter.access,
                         checked_trees::checked_borrowed_access_pair_pattern!()
-                    )
+                    ) || (parameter.access == CheckedStructuralAccess::Owned
+                        && parameter.multiplicity == Multiplicity::Unrestricted
+                        && subslice.range.storage == ViewStorage::FixedArray)
                 })
             }
             CheckedStorageRoot::OwnedLocal { .. } => {

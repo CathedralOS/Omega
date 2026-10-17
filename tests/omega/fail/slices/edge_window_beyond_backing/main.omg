@@ -1,0 +1,34 @@
+// A state edge narrows a fixed-array window of the caller's owned parameter
+// or local into a borrowed view formal of the successor state. The bound
+// calls' writes still evaluate on the taken edge, in start-then-end order.
+//
+// Expected exit: 0
+data Payload [copy] { bytes: [u8; 8]; }
+data Sequence [copy] { digits: u64 in Wrapping; }
+machine range_start(sequence: &mut Sequence) -> u64 ensures result == 0; {
+    sequence.digits = sequence.digits * 10 + 2;
+    0
+}
+machine range_end(sequence: &mut Sequence) -> u64 ensures result == 9; {
+    sequence.digits = sequence.digits * 10 + 3;
+    3
+}
+machine from_parameter(payload: Payload) -> u64 {
+    let mut sequence: Sequence;
+    sequence.digits = 0;
+    transition sequence.digits == 0 {
+        true -> sized(payload.bytes[range_start(&mut sequence)..range_end(&mut sequence)], sequence.digits as u64)
+        false -> (255)
+    }
+    state sized(bytes: &[u8], digits: u64) -> u64 {
+        transition digits == 23 && bytes.len == 3 { true -> (0) false -> (255) }
+    }
+}
+machine main() crashes Trap {
+    let mut payload: Payload;
+    payload.bytes[0] = 41;
+    let parameter_count: u64 = from_parameter(payload);
+    transition parameter_count == 9 { true -> done() false -> wrong() }
+    state done() {}
+    state wrong() { crash Trap; }
+}
