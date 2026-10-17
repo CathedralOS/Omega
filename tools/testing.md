@@ -352,6 +352,16 @@ that host's golden `tests/omega/corpus_native_<target>.txt`; records gain
 `stderr:match|differs|unavailable` facts. Use it with `--filter` for
 backend-visible changes.
 
+A build-only pass fixture can separately require native publication to refuse
+with `expected_native_rejection.txt`: each nonempty line is a required diagnostic
+fragment, and the observed status must be `rejected`. This oracle is independent
+of Source acceptance. It cannot coexist with native exit or stream oracles,
+the run tier or the `*_exit` convention. A matching refusal records
+`native-rejection:match`; it is an accepted publication test, never a built or
+executed program. Wrong diagnostics, another status or execution facts make
+`--record` refuse the row. Use this only for an authored publication refusal,
+not for missing implementation in a program intended to run.
+
 `expected_native_exit.txt` holds one decimal process exit code or `trap`.
 The latter requires SIGTRAP for ARM64, SIGILL for Unix x86-64, or
 STATUS_ILLEGAL_INSTRUCTION for Windows x86-64. Missing execution, timeout,

@@ -226,6 +226,50 @@ def oracle_failure(record: dict, detail: str, recordable: bool = None) -> dict:
             "recordable": recordable}
 
 
+def native_rejection_failures(records: list[dict], corpus: Path, target: str) -> list[dict]:
+    """Check build-only publication refusals without counting them as execution.
+
+    Source acceptance and native publication have separate contracts. The
+    gate derives this fact from the authored diagnostic fragments; a runner
+    cannot assert it, and it cannot replace an execution promise.
+    """
+    failures = []
+    for record in records:
+        facts = record["facts"]
+        facts.pop("native-rejection", None)
+        fixture = corpus / record["fixture"]
+        path = fixture / "expected_native_rejection.txt"
+        if not path.exists():
+            continue
+        try:
+            fragments = [line.strip() for line in path.read_text(encoding="utf-8").splitlines()
+                         if line.strip()]
+            if not fragments:
+                raise ValueError("no diagnostic fragments")
+            if (record["tier"] != "pass" or fixture.name.endswith("_exit")
+                    or native_exit_oracle(fixture, target).exists()
+                    or any((fixture / f"expected_{stream}.txt").exists()
+                           for stream in ("stdout", "stderr"))):
+                raise ValueError("native rejection requires a build-only pass fixture without execution oracles")
+        except (OSError, UnicodeError, ValueError) as error:
+            failures.append(oracle_failure(
+                record, f"{record['fixture']}: invalid native rejection expectation ({error})",
+                recordable=False))
+            continue
+        diagnostics = "\n".join(record["diagnostics"])
+        matched = (record["status"] == "rejected"
+                   and not any(key in facts for key in ("exit", "signal", "stdout", "stderr"))
+                   and all(fragment in diagnostics for fragment in fragments))
+        facts["native-rejection"] = "match" if matched else "mismatch"
+        record["expected_satisfied"] = matched
+        if not matched:
+            failures.append(oracle_failure(
+                record, f"{record['fixture']}: expected native publication rejection containing "
+                        f"{fragments!r}; observed {record['status']} {record['diagnostics']!r}",
+                recordable=False))
+    return failures
+
+
 def terminal_target_failures(records: list[dict], corpus: Path) -> list[dict]:
     """One retained artifact must meet every authored target-installation row.
 
@@ -678,7 +722,12 @@ def classify(before: dict | None, after: dict | None) -> tuple[str, list[str]]:
     regressed, improved, moved = [], [], []
     tier = after["tier"]
     old_status, new_status = before["status"], after["status"]
-    if tier == "fail":
+    if corpus_records.native_rejection_satisfied(after):
+        if not corpus_records.native_rejection_satisfied(before):
+            improved.append("authored native publication rejection now satisfied")
+    elif corpus_records.native_rejection_satisfied(before):
+        regressed.append("authored native publication rejection no longer satisfied")
+    elif tier == "fail":
         # Refusal is the goal here; a fail fixture that stopped refusing is a
         # soundness regression, never an improvement.
         if old_status in REFUSALS and new_status not in REFUSALS:
@@ -1331,6 +1380,7 @@ def main() -> int:
               f"{facts['migration-route']})")
     failures = terminal_target_failures(records, ROOT / "tests" / "omega")
     if options.native:
+        failures.extend(native_rejection_failures(records, ROOT / "tests" / "omega", target))
         failures.extend(native_exit_failures(records, ROOT / "tests" / "omega", target))
         failures.extend(execution_output_failures(
             records, ROOT / "tests" / "omega", "native"))

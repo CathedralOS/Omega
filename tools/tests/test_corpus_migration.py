@@ -224,7 +224,8 @@ class MigrationEvidence(unittest.TestCase):
         golden = self.root / "golden.txt"
         golden.write_text(corpus_records.render([record]))
 
-        def run_selected(_binary):
+        def run_selected(_binary, *, freshly_built):
+            self.assertFalse(freshly_built)
             self.assertEqual(corpus_gate.os.environ["OMEGA_CORPUS_MIGRATION_FIXTURES"], self.fixture)
             return [record]
 
@@ -255,7 +256,8 @@ class MigrationEvidence(unittest.TestCase):
         golden = self.root / "golden.txt"
         golden.write_text(corpus_records.render([record]))
 
-        def run_selected(_binary):
+        def run_selected(_binary, *, freshly_built):
+            self.assertFalse(freshly_built)
             self.assertEqual(corpus_gate.os.environ["OMEGA_CORPUS_MIGRATION_FIXTURES"], "")
             return [record]
 

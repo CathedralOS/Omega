@@ -496,7 +496,8 @@ pass/build/selected_const_array_length_exit built 34117ms exit:0 @5171c625dc6a+w
 pass/build/sibling_module_service_exclusion_exit built 17506ms exit:0 @6c49683ce714
 pass/build/sibling_module_slot_family_rows_exit built 10897ms exit:70 @b1d84da832b5+wt
 pass/build/static_assumed_binding_spelling_exit built 17619ms exit:0 @6c49683ce714
-pass/build/uefi_entry_schema_same_leaf built 8847ms @35062b135924+wt
+pass/build/uefi_entry_schema_same_leaf rejected 15238ms expected native-rejection:match @3c318cbd42e2+wt
+	native artifact physical program entry failed: semantic entry requires an explicitly selected checked physical adapter
 pass/build/uefi_os_handoff_invocation incomplete 6537ms @8665e38f912c
 	`Loader::run` has no executable body: this compiler does not lower a transition of it yet (state graph: terminator: jump successor: loan transfer); in state `Loader::run::run`, statement 0
 pass/calling/calling_count_boundaries_exit built 18565ms exit:70 @6c49683ce714

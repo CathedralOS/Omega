@@ -100,6 +100,14 @@ def parse_regression(token: str) -> dict:
     return {"status": status, "facts": facts}
 
 
+def native_rejection_satisfied(record) -> bool:
+    """An explicit native publication refusal met its diagnostic oracle."""
+    return (record is not None and record["tier"] == "pass"
+            and record["status"] == "rejected"
+            and record.get("expected_satisfied") is True
+            and record.get("facts", {}).get("native-rejection") == "match")
+
+
 def carried_regression(golden_record, observed: dict):
     """The last recorded success `observed` is losing, or None.
 
@@ -111,7 +119,8 @@ def carried_regression(golden_record, observed: dict):
     down to `checked` -- carries no token, because its own status column
     already tells that story.
     """
-    if observed["status"] in SUCCESS_STATUSES or golden_record is None:
+    if (observed["status"] in SUCCESS_STATUSES or golden_record is None
+            or native_rejection_satisfied(observed)):
         return None
     if golden_record["status"] in SUCCESS_STATUSES:
         return {"status": golden_record["status"],
@@ -132,7 +141,8 @@ def pinned_off_target(records: list) -> list:
     `rejected` is a pinned failure whether or not it ever built here."""
     return [record for record in records
             if (record["tier"] in ("pass", "run")
-                and record["status"] not in SUCCESS_STATUSES)
+                and record["status"] not in SUCCESS_STATUSES
+                and not native_rejection_satisfied(record))
             or (record["tier"] == "fail"
                 and record["status"] in SUCCESS_STATUSES)]
 
@@ -142,6 +152,8 @@ def _outcome_rank(record) -> int:
     rejecting, a pass or run row by checking and more by building."""
     if record is None:
         return -1
+    if native_rejection_satisfied(record):
+        return 2
     if record["tier"] == "fail":
         return 1 if record["status"] == "rejected" else 0
     return {"checked": 1, "built": 2}.get(record["status"], 0)

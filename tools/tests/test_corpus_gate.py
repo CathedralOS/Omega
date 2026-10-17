@@ -248,6 +248,80 @@ class NativeExitExpectations(unittest.TestCase):
         self.assertEqual(golden.read_text(), "retained golden\n")
 
 
+class NativePublicationRejection(unittest.TestCase):
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.root = Path(self.temporary.name)
+        self.fixture = self.root / "pass" / "build" / "physical_adapter"
+        self.fixture.mkdir(parents=True)
+        (self.fixture / "expected_native_rejection.txt").write_text("requires physical adapter\n")
+
+    def check(self, observed):
+        return corpus_gate.native_rejection_failures([observed], self.root, "linux_x86_64")
+
+    def test_authored_refusal_is_accepted_without_becoming_a_program_execution(self):
+        prior = record("pass/build/physical_adapter", status="built")
+        observed = record("pass/build/physical_adapter", status="rejected",
+                          diagnostics=["native entry requires physical adapter"])
+        self.assertEqual(self.check(observed), [])
+        self.assertEqual(observed["status"], "rejected")
+        self.assertNotIn("exit", observed["facts"])
+        self.assertEqual(corpus_records.pinned_off_target([observed]), [])
+        self.assertIsNone(corpus_records.carried_regression(prior, observed))
+        self.assertEqual(corpus_gate.classify(prior, observed)[0], "improved")
+        self.assertEqual(corpus_gate.classify(observed, prior)[0], "regressed")
+        self.assertEqual(corpus_records.compare_records([prior], [observed])["losses"], [])
+
+    def test_wrong_diagnostic_status_or_execution_cannot_be_recorded(self):
+        for status, diagnostics, facts in (
+                ("rejected", ["unrelated compiler error"], {}),
+                ("unimplemented", ["requires physical adapter"], {}),
+                ("built", ["requires physical adapter"], {}),
+                ("rejected", ["requires physical adapter"], {"exit": "0"})):
+            with self.subTest(status=status, facts=facts):
+                observed = record("pass/build/physical_adapter", status=status,
+                                  diagnostics=diagnostics, facts=facts)
+                self.assertFalse(self.check(observed)[0]["recordable"])
+                self.assertFalse(corpus_records.native_rejection_satisfied(observed))
+
+    def test_refusal_cannot_override_an_execution_promise(self):
+        for filename in ("expected_native_exit.txt", "expected_native_exit.linux_x86_64.txt",
+                         "expected_stdout.txt", "expected_stderr.txt"):
+            with self.subTest(filename=filename):
+                path = self.fixture / filename
+                path.write_text("0\n")
+                observed = record("pass/build/physical_adapter", status="rejected",
+                                  diagnostics=["requires physical adapter"])
+                self.assertFalse(self.check(observed)[0]["recordable"])
+                path.unlink()
+
+    def test_empty_oracle_and_runner_assertions_are_not_evidence(self):
+        (self.fixture / "expected_native_rejection.txt").write_text("\n")
+        observed = record("pass/build/physical_adapter", status="rejected", expected=True,
+                          facts={"native-rejection": "match"})
+        self.assertFalse(self.check(observed)[0]["recordable"])
+        self.assertFalse(corpus_records.native_rejection_satisfied(observed))
+        (self.fixture / "expected_native_rejection.txt").unlink()
+        observed["facts"]["native-rejection"] = "match"
+        self.assertEqual(self.check(observed), [])
+        self.assertFalse(corpus_records.native_rejection_satisfied(observed))
+
+    def test_every_fragment_is_required_and_execution_conventions_cannot_be_overridden(self):
+        (self.fixture / "expected_native_rejection.txt").write_text("requires physical adapter\nchecked entry\n")
+        observed = record("pass/build/physical_adapter", status="rejected",
+                          diagnostics=["requires physical adapter"])
+        self.assertTrue(self.check(observed))
+        observed["diagnostics"].append("checked entry")
+        self.assertEqual(self.check(observed), [])
+        for relative in ("run/build/physical_adapter", "pass/build/physical_adapter_exit"):
+            fixture = self.root / relative
+            fixture.mkdir(parents=True)
+            (fixture / "expected_native_rejection.txt").write_text("requires physical adapter")
+            observed = record(relative, status="rejected", diagnostics=["requires physical adapter"])
+            self.assertFalse(self.check(observed)[0]["recordable"])
+
+
 class Classify(unittest.TestCase):
     def verdict(self, before, after):
         return corpus_gate.classify(before, after)
@@ -533,6 +607,25 @@ class MainVerdicts(unittest.TestCase):
         regressed = [record("pass/a/x", status="rejected")]
         self.assertEqual(self.run_gate(regressed, golden_records=
                                        [record("pass/a/x", status="built")]), 3)
+
+    def test_record_native_refusal_checks_diagnostic_before_replacing_golden(self):
+        fixture = self.root / "tests" / "omega" / "pass" / "build" / "adapter"
+        fixture.mkdir(parents=True)
+        (fixture / "expected_native_rejection.txt").write_text("requires physical adapter\n")
+        prior = [record("pass/build/adapter", status="built")]
+        self.write_golden(prior)
+        original = self.golden.read_text()
+        wrong = [record("pass/build/adapter", status="rejected", diagnostics=["unrelated error"])]
+        with patch.object(corpus_gate, "host_target", return_value="linux_x86_64"):
+            self.assertEqual(self.run_gate(wrong, "--native", "--record", keep_golden=True), 3)
+            self.assertEqual(self.golden.read_text(), original)
+            correct = [record("pass/build/adapter", status="rejected",
+                              diagnostics=["entry requires physical adapter"])]
+            self.assertEqual(self.run_gate(correct, "--native", "--record", keep_golden=True), 0)
+        recorded = corpus_records.read(self.golden)[0]
+        self.assertEqual(recorded["status"], "rejected")
+        self.assertTrue(corpus_records.native_rejection_satisfied(recorded))
+        self.assertIsNone(recorded.get("regressed_from"))
 
     def test_explicit_source_golden_is_preserved_for_native_measurement(self):
         rows = [record("pass/a/x", status="built")]

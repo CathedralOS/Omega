@@ -24,6 +24,7 @@ RUNNER = """#!/usr/bin/env python3
 import os
 import sys
 from pathlib import Path
+print("corpus_runner: fixture-root-v1 " + os.fsencode(os.environ["OMEGA_CORPUS_ROOT"]).hex(), file=sys.stderr)
 data = (Path(__file__).resolve().parent / "data.txt").read_text()
 if "runner-broken" in data:
     sys.exit(2)
@@ -99,7 +100,7 @@ class BisectRun(unittest.TestCase):
             capture_output=True, text=True, encoding="utf-8",
             env=self.environment, timeout=120)
         output = result.stdout + result.stderr
-        self.assertIn("is the first bad commit", output)
+        self.assertRegex(output, r"is the first '?bad'? commit")
         self.assertIn(self.commits[2][:10], output)
         # The skip mapping itself, asserted directly rather than relying on
         # which midpoint git probed: the broken-runner commit is untestable
