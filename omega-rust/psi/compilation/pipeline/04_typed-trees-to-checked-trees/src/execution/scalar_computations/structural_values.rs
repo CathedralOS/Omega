@@ -15,6 +15,7 @@ use super::{
     Builder, CheckedScalarExpressionRole, ExpressionHandle, ExpressionNode, PrimitiveType,
     SymbolHandle, TypeReferenceNode,
 };
+use crate::values::operator_is_builtin;
 use checked_trees::{
     CheckedStructuralDispatchArm, CheckedStructuralValue, CheckedStructuralValueHandle,
     CheckedStructuralValueKind,
@@ -435,6 +436,29 @@ impl Builder<'_, '_> {
                 value,
             )?;
             CheckedStructuralValueKind::Scalar { value }
+        } else if let ExpressionNode::Match(dispatch) =
+            self.program.expression_table.expression(expression)
+            && let Some(selected) = validation::select_anonymous_numeric_match_arm(
+                self.program,
+                dispatch,
+                |expression| operator_is_builtin(self.operators, expression),
+            )
+        {
+            // Exact anonymous selection has no machine-width subject, just as
+            // on the scalar route. Its selected value retains the ordinary
+            // constructor schedule and custody; a whole-value projection keeps
+            // this Match occurrence without inventing another owner or replay.
+            let source = self.structural_value(selected, expected)?;
+            CheckedStructuralValueKind::Projection {
+                source,
+                path: Vec::new(),
+                type_identity: validation::stored_structural_type_identity(
+                    self.program,
+                    expected,
+                    &[],
+                    &[],
+                ),
+            }
         } else if let Some(value) = self.shared_carrier_reborrow(expression, expected) {
             value
         } else if let Some(value) = self.same_carrier_structural_cast(expression, expected) {

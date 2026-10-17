@@ -1,4 +1,4 @@
-// A captured window keeps its match fact before a later field writes the subject.
+// Expected exit: 0
 data Holder where which <= 1 { which: u64; route: [u64; 4]; }
 data Report<'input> { changed: u64; events: &'input [u64]; }
 machine change(value: &mut u64) -> u64 ensures value == 1 && result == 2 {
@@ -16,4 +16,22 @@ ensures result.events.len == 1 {
         _ -> Report { changed: 0, events: &holder.route[0..1] }
     }
 }
-machine main() {}
+machine valid(report: Report) -> bool {
+    transition report.events.len == 1 {
+        true -> inspect(report)
+        _ -> false
+    }
+    state inspect(report: Report) -> bool requires report.events.len == 1 {
+        report.changed == 2 && report.events[0] == 7
+    }
+}
+machine main() crashes Trap {
+    let mut holder: Holder = Holder { which: 0, route: [7, 8, 9, 10] };
+    let report: Report = selected(&mut holder);
+    transition valid(report) {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
