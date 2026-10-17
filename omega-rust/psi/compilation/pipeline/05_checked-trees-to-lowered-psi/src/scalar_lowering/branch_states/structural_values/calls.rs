@@ -353,69 +353,14 @@ impl Preparation<'_> {
                         .ok_or(LoweringError::Unsupported(
                             "selector schedule lost its path",
                         ))?;
-                    let result_type = match selector {
-                        checked_trees::CheckedUnitStructuralPathSegment::ComputedIndex(root) => {
-                            let source = self
-                                .checked
-                                .facts
-                                .values
-                                .scalar_computations
-                                .roots
-                                .iter()
-                                .map(|(_, source)| source)
-                                .find(|source| {
-                                    source.root == *root
-                                        && source.state == self.state
-                                        && source.statement_ordinal
-                                            == call.coordinate.statement_index
-                                })
-                                .ok_or(LoweringError::Unsupported(
-                                    "call selector lost its source computation",
-                                ))?;
-                            let result_type = computations::computation_value_type(
-                                identities,
-                                self.checked,
-                                self.qualifications,
-                                *root,
-                                &bindings,
-                                &self.prefix,
-                            )?;
-                            self.steps.push(Step::Scalar {
-                                role: source.role,
-                                result_type,
-                                prefix: self.prefix.clone(),
-                            });
-                            result_type
-                        }
-                        checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex(index) => {
-                            let value = match index {
-                                checked_trees::CheckedRuntimeIndex::StructuralField(field) => {
-                                    bindings.runtime_index_field(identities, field)?
-                                }
-                                checked_trees::CheckedRuntimeIndex::StorageRead { symbol } => {
-                                    bindings.runtime_index_storage(*symbol)?
-                                }
-                                _ => {
-                                    return unsupported(
-                                        "scheduled selector has no evaluated operand",
-                                    );
-                                }
-                            };
-                            let result_type = value.value_type(&self.prefix)?;
-                            self.steps.push(Step::Snapshot {
-                                value,
-                                prefix: self.prefix.clone(),
-                            });
-                            result_type
-                        }
-                        _ => return unsupported("scheduled selector has no evaluated operand"),
-                    };
-                    if !matches!(result_type.scalar_type, semantic_vocabulary::ScalarType::Integer(integer) if !integer.is_address())
-                    {
-                        return unsupported("call selector is not an integer operand");
-                    }
-                    selector_positions[operation].push((argument, segment, self.prefix.len()));
-                    self.prefix.push(result_type);
+                    let position = self.capture_selector(
+                        identities,
+                        selector,
+                        call.coordinate.statement_index,
+                        &bindings,
+                        None,
+                    )?;
+                    selector_positions[operation].push((argument, segment, position));
                 }
                 argument_schedule::Step::Argument { operation, ordinal } => {
                     let call = operations[operation]
@@ -525,6 +470,50 @@ impl Preparation<'_> {
                         return unsupported("structural operand result is established twice");
                     }
                     results.push((binding.binding_ordinal, result.into()));
+                    if operation + 1 == operations.len() {
+                        let mut actions = Vec::new();
+                        for completion in producer.completions().iter() {
+                            let CheckedUnitEffectOperationPlan::ReleaseReference {
+                                source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal },
+                                path, ..
+                            } = completion else { return unsupported("call completion is not a descriptor release"); };
+                            if !path.is_empty() {
+                                return unsupported(
+                                    "call completion does not name a whole descriptor",
+                                );
+                            }
+                            let (_, completed) = results
+                                .iter()
+                                .find(|(ordinal, _)| ordinal == binding_ordinal)
+                                .ok_or(LoweringError::Unsupported(
+                                    "call completion has no produced descriptor",
+                                ))?;
+                            let produced = completed.operation_result()?;
+                            if produced.multiplicity != StructuralMultiplicity::Affine {
+                                return unsupported(
+                                    "call completion changes its affine descriptor custody",
+                                );
+                            }
+                            actions.push(
+                                crate::unit::unit_cleanup::PreparedNormalCleanupAction::Resolved(
+                                    crate::unit::unit_cleanup::CleanupRegion {
+                                        selected_region: None,
+                                        conditions: Vec::new(),
+                                        action:
+                                            terminal_psi::TerminalAffineCleanupAction::DiscardRoot(
+                                                produced.place,
+                                            ),
+                                    },
+                                ),
+                            );
+                        }
+                        if !actions.is_empty() {
+                            self.steps.push(Step::Retire {
+                                actions,
+                                prefix: self.prefix.clone(),
+                            });
+                        }
+                    }
                 }
                 argument_schedule::Step::Produce(operation) => {
                     let CheckedUnitEffectOperationPlan::EstablishLocal(

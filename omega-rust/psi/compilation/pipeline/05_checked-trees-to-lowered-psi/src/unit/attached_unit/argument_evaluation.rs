@@ -36,16 +36,16 @@ mod straight_line;
 
 pub(crate) use scalar_control::ScalarReturnCleanup;
 
-/// A cleanup source retains its physical home and captured projection. The
-/// selected type interprets the authored suffix; it is not the home's type.
-/// Retiring this value consumes only that composed path, never its siblings.
-pub(crate) struct CleanupStorage {
+/// A completed value retains its physical home and captured projection. The
+/// selected type interprets an authored suffix; it is not the home's type.
+/// Consumers select this subtree while preserving its siblings' custody.
+pub(crate) struct StructuralValueStorage {
     pub(crate) place: PlaceId,
     pub(crate) path: Vec<terminal_psi::StructuralPathSegment>,
     pub(crate) selected_type: semantic_vocabulary::StructuralTypeId,
 }
 
-impl From<&StructuralBinding> for CleanupStorage {
+impl From<&StructuralBinding> for StructuralValueStorage {
     fn from(binding: &StructuralBinding) -> Self {
         Self {
             place: binding.place(),
@@ -252,15 +252,15 @@ impl Evaluation {
             .collect()
     }
 
-    /// Resolve one selected death in the live state value namespace. Result
-    /// registries differ between ordinary and graph bodies; owner/parameter
-    /// lookup and selection rebinding do not. The caller supplies its registry.
-    pub(crate) fn cleanup_storage(
+    /// Resolve a completed value's storage and selected subtree. Retirement
+    /// and replacement share this identity join. Result registries differ
+    /// between ordinary and graph bodies; the caller supplies its registry.
+    pub(crate) fn value_storage(
         &self,
         source: &checked_trees::CheckedUnitStructuralArgumentSourcePlan,
         parameters: &[StructuralParameterDeclaration],
-        mut result: impl FnMut(u32) -> Result<CleanupStorage, LoweringError>,
-    ) -> Result<CleanupStorage, LoweringError> {
+        mut result: impl FnMut(u32) -> Result<StructuralValueStorage, LoweringError>,
+    ) -> Result<StructuralValueStorage, LoweringError> {
         use checked_trees::CheckedUnitStructuralArgumentSourcePlan;
         let mut storage = match *source {
             CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => {
@@ -269,8 +269,10 @@ impl Evaluation {
                     .get(parameter_index as usize)
                     .map(|(_, parameter)| parameter)
                     .or_else(|| parameters.get(parameter_index as usize))
-                    .ok_or(LoweringError::Unsupported("cleanup parameter is absent"))?;
-                CleanupStorage {
+                    .ok_or(LoweringError::Unsupported(
+                        "value storage parameter is absent",
+                    ))?;
+                StructuralValueStorage {
                     place: parameter.place,
                     path: Vec::new(),
                     selected_type: parameter.structural_type,
@@ -285,16 +287,16 @@ impl Evaluation {
                     CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
                         expression,
                     } => facts::PlaceRoot::Expression(expression),
-                    _ => return unsupported("cleanup source has no storage identity"),
+                    _ => return unsupported("value storage source has no storage identity"),
                 };
                 let local = crate::expression_preparation::bindings::structural_local_by_root(
                     &self.structural_locals,
                     root,
                 )
                 .ok_or(LoweringError::Unsupported(
-                    "cleanup local is not established",
+                    "value storage local is not established",
                 ))?;
-                CleanupStorage {
+                StructuralValueStorage {
                     place: local.argument.place,
                     path: local.argument.path.clone(),
                     selected_type: local.structural_type,
@@ -303,7 +305,7 @@ impl Evaluation {
             CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal } => {
                 result(binding_ordinal)?
             }
-            _ => return unsupported("cleanup source has no owned structural storage"),
+            _ => return unsupported("value storage source has no owned structural storage"),
         };
         storage.place = self.current_structural_place(storage.place);
         Ok(storage)

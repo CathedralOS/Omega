@@ -1,0 +1,27 @@
+// Expected exit: 0.
+// Field replacement and local binding capture copyable children independently
+// of their affine parent. Later mutation and disposal preserve both snapshots.
+use omega::language::core::drop;
+data Choice [copy] { case First; case Second; }
+data Parent { borrowed: &i32; choices: [Choice; 2]; }
+data Destination { choice: Choice; }
+machine main() crashes Trap {
+    let backing: i32 = 17;
+    let mut parent: Parent = Parent { borrowed: &backing, choices: [Choice::First, Choice::Second] };
+    let mut destination: Destination = Destination { choice: Choice::First };
+    destination.choice = parent.choices[1];
+    let copied: Choice = parent.choices[1];
+    parent.choices[1] = Choice::First;
+    let observed: i32 = parent.borrowed;
+    drop(parent);
+    transition destination.choice {
+        Choice::First -> bad()
+        Choice::Second -> verify(copied, observed)
+    }
+    state verify(value: Choice, observed: i32) {
+        transition value { Choice::First -> bad() Choice::Second -> check(observed) }
+    }
+    state check(observed: i32) { transition observed == 17 { true -> done() false -> bad() } }
+    state done() {}
+    state bad() { crash Trap; }
+}

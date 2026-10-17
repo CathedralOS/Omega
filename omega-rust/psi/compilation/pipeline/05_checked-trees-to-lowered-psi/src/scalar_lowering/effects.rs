@@ -71,6 +71,7 @@ pub(crate) fn emit(
                 structural_type,
                 source,
             } => {
+                let source = source.emit(values, calls, next_value, operations)?;
                 let (storage, _) = crate::unit::attached_unit::reference_results::publish_storage(
                     *storage, next_value, operations,
                 )?;
@@ -85,7 +86,7 @@ pub(crate) fn emit(
                         domain_ids: calls.domain_ids,
                     },
                     *structural_type,
-                    source.clone(),
+                    source,
                     storage,
                     calls.structural_types,
                     std::iter::empty(),

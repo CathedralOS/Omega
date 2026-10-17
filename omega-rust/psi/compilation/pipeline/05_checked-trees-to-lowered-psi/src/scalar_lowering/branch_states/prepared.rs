@@ -302,7 +302,7 @@ pub(crate) enum LoweredScalarEffect {
         expression: checked_trees::expression::ExpressionHandle,
         place: PlaceId,
         structural_type: StructuralTypeId,
-        source: terminal_psi::StructuralArgument,
+        source: crate::emission::operation_emission::calls::PreparedStructuralArgument,
     },
     /// Snapshot a copyable value while retaining its checked carrier custody.
     CopyStructuralValue {

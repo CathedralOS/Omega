@@ -508,8 +508,8 @@ impl OperationFrame<'_, '_> {
         };
         let storage = self
             .evaluation
-            .cleanup_storage(source, &self.parameters, |binding| {
-                self.results.cleanup_value(binding, self.operations)
+            .value_storage(source, &self.parameters, |binding| {
+                self.results.value_storage(binding, self.operations)
             })?;
         let types = self.structural_types.declarations();
         // Case identities belong to the selected declaration, not the physical

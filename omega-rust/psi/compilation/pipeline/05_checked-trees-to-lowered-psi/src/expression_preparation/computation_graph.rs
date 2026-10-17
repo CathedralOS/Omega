@@ -439,8 +439,18 @@ pub(crate) fn structural_dependencies(
                     scalars.push(*start);
                 }
             }
-            Value::Reference { .. }
-            | Value::Projection { .. }
+            Value::Reference { selectors, .. } => scalars.extend(
+                checked
+                    .facts
+                    .values
+                    .scalar_computations
+                    .operands
+                    .span(*selectors)
+                    .ok_or(LoweringError::Unsupported(
+                        "reference has stale selector evaluations",
+                    ))?,
+            ),
+            Value::Projection { .. }
             | Value::QuotientAdaptation { .. }
             | Value::FixedArray { .. }
             | Value::Call { .. }

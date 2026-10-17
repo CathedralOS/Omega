@@ -575,6 +575,8 @@ pub struct CheckedStructuralValueCall {
     pub value: crate::CheckedStructuralValueHandle,
     operands: CheckedOperandSequence,
     operation: CheckedUnitEffectOperationPlan,
+    /// Normal-return retirement of anonymous descriptors this call did not retain.
+    completions: CheckedOperandSequence,
 }
 
 // Only the arena's absent slot uses this value. Published rows still enter
@@ -584,6 +586,7 @@ impl Default for CheckedStructuralValueCall {
         Self {
             value: crate::CheckedStructuralValueHandle::invalid(),
             operands: CheckedOperandSequence::default(),
+            completions: CheckedOperandSequence::default(),
             operation: CheckedUnitEffectOperationPlan::Complete {
                 statement_index: 0,
                 trivial_affine_local_discard_ordinals: Vec::new(),
@@ -598,13 +601,19 @@ impl CheckedStructuralValueCall {
         value: crate::CheckedStructuralValueHandle,
         operation: CheckedUnitEffectOperationPlan,
     ) -> Option<Self> {
-        Self::with_operands(value, CheckedOperandSequence::default(), operation)
+        Self::with_operands(
+            value,
+            CheckedOperandSequence::default(),
+            operation,
+            CheckedOperandSequence::default(),
+        )
     }
 
     pub fn with_operands(
         value: crate::CheckedStructuralValueHandle,
         operands: CheckedOperandSequence,
         operation: CheckedUnitEffectOperationPlan,
+        completions: CheckedOperandSequence,
     ) -> Option<Self> {
         // The call's admitted result owns its value, independently of where
         // executable supply comes from or which expression consumes it. The
@@ -616,6 +625,7 @@ impl CheckedStructuralValueCall {
                 value,
                 operands,
                 operation,
+                completions,
             })
     }
 
@@ -625,6 +635,10 @@ impl CheckedStructuralValueCall {
 
     pub fn operation(&self) -> &CheckedUnitEffectOperationPlan {
         &self.operation
+    }
+
+    pub fn completions(&self) -> &CheckedOperandSequence {
+        &self.completions
     }
 
     /// The value's result binding. `with_operands` admits only a call that

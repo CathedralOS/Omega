@@ -108,6 +108,9 @@ pub enum CheckedStructuralValueKind {
     /// A record field consumes this carrier, never a scalar referent snapshot.
     Reference {
         source: crate::CheckedUnitStructuralArgumentPlan,
+        /// Authored index evaluations survive fixed endpoint geometry. A call
+        /// that proves one ordinal still executes before the reference forms.
+        selectors: HandleSpan<CheckedScalarComputationHandle>,
         /// The checked source interpretation is independent of the logical
         /// referee. A view retains its admitted storage codec at formation.
         storage: crate::CheckedReferenceStorage,

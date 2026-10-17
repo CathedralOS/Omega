@@ -625,7 +625,7 @@ fail/borrow/write_only_stored_reference_constraint_loss rejected 115ms expected 
 fail/borrow/write_only_stored_shared_widening rejected 116ms expected @992d27dd3135+wt
 	machine `replace` state `entry` forms `&write` from an unsupported projection or computed expression; the current checked slice supports explicit attenuation of a whole parameter, an exact direct-reborrow local, or a content-independent path through eligible relevant record fields and proven-in-bounds fixed-array indexes with non-observing selectors whose declared `&write` referee carries exactly the same type
 	write-only argument `slot` for state `entry` is not writable in this state; the source cannot lend the requested exclusive access
-fail/borrows/affine_array_projection_copy rejected 621ms expected @2617de0d2dec
+fail/borrows/affine_array_projection_copy rejected 504ms expected @c9eefa9130a0+wt
 	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `invalid`, state `entry` (statement 0)
 fail/borrows/affine_record_copy_handoff rejected 1237ms expected @a9ae30e1c334+wt
 	cannot use `settings` in machine `inspect` state `entry` (statement 2) after `settings` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `settings` first
@@ -666,7 +666,7 @@ fail/borrows/borrow_unknown_index_pair_mut rejected 1580ms expected @a9ae30e1c33
 fail/borrows/boundary_argument_later_write_under_element_loan rejected 1640ms expected @a9ae30e1c334+wt
 	state `c_strnlen` receives `bytes` as both mutable and read-only
 	state `inspect` receives `constructed_bytes` as both mutable and read-only
-fail/borrows/boundary_constant_temporary_reference_escape rejected 618ms expected @1bce9ab2e5d5+wt
+fail/borrows/boundary_constant_temporary_reference_escape rejected 1306ms expected @c9eefa9130a0+wt
 	machine `escape` returns a view borrowing temporary storage, which does not outlive the call; return a view of storage that outlives the invocation instead
 fail/borrows/boundary_primitive_loan_mutable_from_shared rejected 3423ms expected @a9ae30e1c334+wt
 	argument `value` for state `read` is declared `&mut` (`&mut f32`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
@@ -688,7 +688,7 @@ fail/borrows/captured_window_write_invalidates_backing rejected 2507ms expected 
 	cannot prove index `0` is within unknown slice length of `window` in corrupt::entry
 fail/borrows/case_descriptor_scalar_sibling_keeps_live_loan rejected 694ms expected @4f0f34f3cbb6+wt
 	statement 2 mutates `storage[0]` while local borrow `packet` is still active (borrowed at statement 0; its last use is at statement 3)
-fail/borrows/case_payload_borrowed_affine_copy rejected 1111ms expected @a9ae30e1c334+wt
+fail/borrows/case_payload_borrowed_affine_copy rejected 496ms expected @c9eefa9130a0+wt
 	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `inspect`, state `entry` (statement 1)
 fail/borrows/case_payload_duplicate_transfer rejected 23101ms expected @a9ae30e1c334+wt
 	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "inspect", reason: "projected custody overlaps an earlier transfer or release", gap: None })
@@ -852,7 +852,7 @@ fail/borrows/local_record_duplicate_mut_argument rejected 1513ms expected @a9ae3
 	state `join` receives `score` as mutable more than once
 fail/borrows/local_record_loan_outlives_local rejected 1632ms expected @a9ae30e1c334+wt
 	machine `leak` returns a view borrowing the local `score`, which does not outlive the call; return a view of storage that outlives the invocation instead
-fail/borrows/local_record_move_under_shared_loan rejected 1911ms expected @a9ae30e1c334+wt
+fail/borrows/local_record_move_under_shared_loan rejected 1376ms expected @c9eefa9130a0+wt
 	state `take` receives an owned value while local borrow `alias` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
 fail/borrows/local_record_result_call_mut_and_shared_argument rejected 1878ms expected @a9ae30e1c334+wt
 	state `absorb` receives `tally` as both mutable and read-only
@@ -1210,7 +1210,7 @@ fail/borrows/whole_mut_receiver_read_under_live_local_loan rejected 1612ms expec
 fail/borrows/whole_mut_receiver_write_under_argument_view rejected 1638ms expected @a9ae30e1c334+wt
 	state `overwrite_then_read` receives `main` as both mutable and read-only
 	state `overwrite_then_read` receives `main` as both mutable and read-only
-fail/borrows/whole_referent_store_through_shared_loan rejected 854ms expected @a9ae30e1c334+wt
+fail/borrows/whole_referent_store_through_shared_loan rejected 324ms expected @c9eefa9130a0+wt
 	machine `settle` state `entry` assignment cannot write `verdict` because it is not mutable in this state (if `verdict` is undeclared -- a typo -- no such field or local exists)
 fail/borrows/whole_referent_store_type_mismatch rejected 970ms expected @a9ae30e1c334+wt
 	machine `settle` state `entry` assignment expects the `Verdict` data type but got `Outcome` in the `place` position; these are incompatible data types (a place is accepted structurally, but its declared type must match)
@@ -5060,7 +5060,7 @@ fail/slices/bare_range_at_mutable_transition_return rejected 152ms expected @694
 	machine `middle` state `entry` return value receives a bare range that forms a shared view; `bare-range-reference-access` spells the mutable subrange `&mut collection[start..end]`
 fail/slices/bare_subslice_call_cannot_lend_mutable rejected 240ms expected @9c4d1c444502+wt
 	argument `items` for state `entry` is declared `&mut` (`&mut [i32]`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
-fail/slices/byte_view_element_reference_without_bound rejected 1727ms expected @a9ae30e1c334+wt
+fail/slices/byte_view_element_reference_without_bound rejected 1335ms expected @c9eefa9130a0+wt
 	cannot prove index `0` is within unknown slice length of `bytes` in first::entry
 fail/slices/call_endpoint_view_backing_write rejected 1520ms expected @a9ae30e1c334+wt
 	statement 3 mutates `values[0]` while local borrow `view` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
@@ -6220,6 +6220,7 @@ pass/borrows/owned_reference_arrival_projection_exit checked 3581ms check-target
 pass/borrows/owner_byte_read_during_shared_record_loan_exit checked 11145ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/plain_read_after_exclusive_loan_last_use_exit checked 10441ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/projected_claim_owner_shared_observation_exit checked 11079ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/borrows/projected_copy_parent_custody_exit checked 8130ms check-target:macos_arm64 @c9eefa9130a0+wt
 pass/borrows/projected_indexed_member_loan checked 11042ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/projected_local_member_loan checked 11176ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/projected_mut_member_loan checked 11025ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -6338,6 +6339,7 @@ pass/borrows/runtime_reference_call_scalar_snapshot_exit checked 5051ms check-ta
 pass/borrows/runtime_reference_carrier_state_loan_exit checked 6546ms check-target:macos_arm64 @847c9f31b2f1+wt
 pass/borrows/runtime_reference_initializer_selector_before_later_write_exit checked 6499ms check-target:macos_arm64 @5b32c4eb36ff+wt
 pass/borrows/runtime_reference_local_constructor_leaf_retirement_exit checked 11055ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/borrows/runtime_reference_projection_evaluation_exit checked 8480ms check-target:macos_arm64 @c9eefa9130a0+wt
 pass/borrows/runtime_reference_record_array_field_read_exit checked 11130ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_reference_record_call_completion_exit checked 11118ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_reference_record_call_payload_restoration_exit checked 11101ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -6498,14 +6500,14 @@ pass/calls/builtin_named_machine_call_exit checked 18859ms check-target:macos_ar
 pass/calls/by_value_case_param_self_write_exit checked 10947ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/call_local_reassign checked 9332ms @5041ef1af684+wt
 pass/calls/callback_borrowed_record_entry checked 10330ms check-target:macos_arm64 @f523463c7783+wt
-pass/calls/callback_borrowed_scalar_entry checked 10329ms check-target:macos_arm64 @f523463c7783+wt
+pass/calls/callback_borrowed_scalar_entry checked 13027ms check-target:macos_arm64 @c9eefa9130a0+wt
 pass/calls/callback_future_registration_cycle checked 5330ms check-target:macos_arm64 @f523463c7783+wt
 pass/calls/callback_mixed_formal_entry checked 5389ms check-target:macos_arm64 @f523463c7783+wt
 pass/calls/callback_owned_float_record checked 12940ms check-target:macos_arm64 @f523463c7783+wt
 pass/calls/callback_owned_float_record_packing checked 13010ms check-target:macos_arm64 @f523463c7783+wt
 pass/calls/callback_owned_indirect_float_record checked 13563ms check-target:macos_arm64 @f523463c7783+wt
-pass/calls/callback_owned_indirect_record checked 6407ms check-target:macos_arm64 @f523463c7783+wt
-pass/calls/callback_owned_overaligned_record checked 7007ms check-target:macos_arm64 @f523463c7783+wt
+pass/calls/callback_owned_indirect_record checked 13164ms check-target:macos_arm64 @c9eefa9130a0+wt
+pass/calls/callback_owned_overaligned_record checked 8565ms check-target:macos_arm64 @c9eefa9130a0+wt
 pass/calls/callback_private_deep_forwarded_record checked 21442ms check-target:windows_x86_64 @e74967d11875
 pass/calls/callback_private_materialization checked 11896ms check-target:windows_x86_64 @6c75d91f0312
 pass/calls/callback_scalar_loan_permutation checked 6143ms check-target:macos_arm64 @f523463c7783+wt
@@ -6581,7 +6583,7 @@ pass/calls/owned_mixed_overaligned_call checked 6057ms check-target:macos_arm64 
 pass/calls/owned_overaligned_local_call checked 5291ms check-target:macos_arm64 @6d4927c3710+wt
 pass/calls/owned_state_parameter_call_exit checked 11166ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/prefix_effectful_call checked 9566ms @5041ef1af684+wt
-pass/calls/private_callback_call_closure checked 6188ms check-target:macos_arm64 @f523463c7783+wt
+pass/calls/private_callback_call_closure checked 7616ms check-target:macos_arm64 @c9eefa9130a0+wt
 pass/calls/projected_receiver_callee checked 9366ms @5041ef1af684+wt
 pass/calls/qualified_record_call_result_field_exit checked 11150ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/recursive_terminal_block_acknowledgement_exit checked 10144ms check-target:macos_arm64 @5acf32321f42+wt
@@ -6648,9 +6650,9 @@ pass/calls/runtime_explicit_discard_executes_exit checked 10887ms check-target:m
 pass/calls/runtime_explicit_reference_alias_argument_exit checked 10484ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_fixed_element_view_field_loan_exit checked 10962ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_float_result_across_call_exit checked 154498ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/calls/runtime_foreign_scalar_indirect_places_exit checked 12232ms check-target:linux_x86_64 @dcca78ae8d3d
+pass/calls/runtime_foreign_scalar_indirect_places_exit checked 7272ms check-target:linux_x86_64 @c9eefa9130a0+wt
 pass/calls/runtime_foreign_scalar_indirect_result_exit checked 12119ms check-target:linux_x86_64 @dcca78ae8d3d
-pass/calls/runtime_foreign_scalar_indirect_widths_exit checked 17627ms check-target:linux_x86_64 @dcca78ae8d3d+wt
+pass/calls/runtime_foreign_scalar_indirect_widths_exit checked 14746ms check-target:linux_x86_64 @c9eefa9130a0+wt
 pass/calls/runtime_guard_call_vs_call_exit checked 11155ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_guarded_boundary_tail_call_exit checked 11007ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/runtime_guarded_effectful_transition_argument_exit checked 11101ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -6963,7 +6965,7 @@ pass/comptime/selected_float_array_length_exit checked 18178ms check-target:maco
 pass/comptime/selected_float_array_length_layout_query_exit checked 18685ms check-target:macos_arm64 @77cde1c51efd+wt
 pass/concurrency/boundary_suspension_inline_completion_exit checked 11498ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/concurrency/ref_array_suspend checked 16512ms @3b422f31da30+wt
-pass/concurrency/runtime_array_loan_suspension_exit checked 10498ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/concurrency/runtime_array_loan_suspension_exit checked 7489ms check-target:macos_arm64 @c9eefa9130a0+wt
 pass/concurrency/runtime_retained_reference_boundary_exit checked 4943ms check-target:macos_arm64 @46b51224f047+wt
 pass/concurrency/runtime_returned_carrier_suspension_exit checked 10790ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/concurrency/runtime_suspension_repeated_actual_exit checked 11619ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -7635,8 +7637,7 @@ pass/facts/bound_through_target_body_exit checked 6380ms check-target:macos_arm6
 pass/filesystem/cross_linux_value_syscalls checked 16296ms @aebe0714a499+wt
 pass/filesystem/dir_walk_wrappers_exit rejected 23019ms check-target:macos_arm64 @aebe0714a499+wt
 	selected ProgramEntry Binding field `Main::fs::host` requires a selected Fused provider for boundary `FilesystemService`
-pass/filesystem/native_canonicalize rejected 18230ms check-target:macos_arm64 @aebe0714a499+wt
-	selected ProgramEntry Binding field `Main::filesystem::host` requires a selected Fused provider for boundary `FilesystemService`
+pass/filesystem/native_canonicalize checked 25257ms check-target:macos_arm64 @c9eefa9130a0+wt
 pass/filesystem/native_close checked 8128ms check-target:macos_arm64 @aebe0714a499+wt
 pass/filesystem/native_crud checked 9120ms check-target:macos_arm64 @aebe0714a499+wt
 pass/filesystem/native_errno checked 9152ms check-target:macos_arm64 @aebe0714a499+wt
@@ -7647,14 +7648,13 @@ pass/filesystem/native_metadata_ctime_dev checked 10537ms check-target:macos_arm
 pass/filesystem/native_metadata_ino checked 10812ms check-target:macos_arm64 @aebe0714a499+wt
 pass/filesystem/native_metadata_nlink checked 10256ms check-target:macos_arm64 @aebe0714a499+wt
 pass/filesystem/native_read_dir_iter checked 10620ms check-target:macos_arm64 @aebe0714a499+wt
-pass/filesystem/native_wrapper_write_all_result rejected 18416ms check-target:macos_arm64 @aebe0714a499+wt
-	selected ProgramEntry Binding field `Main::fs::host` requires a selected Fused provider for boundary `FilesystemService`
+pass/filesystem/native_wrapper_write_all_result checked 19739ms check-target:macos_arm64 @c9eefa9130a0+wt
 pass/filesystem/runtime_local_host_result_dispatch_exit checked 9920ms check-target:macos_arm64 @aebe0714a499+wt
 pass/filesystem/runtime_portable_copy_errors_exit checked 13694ms check-target:macos_arm64 @cc43b6679d2a+wt
 pass/filesystem/runtime_portable_zero_descriptor_exit checked 12120ms check-target:macos_arm64 @cc43b6679d2a+wt
 pass/filesystem/runtime_posix_borrowed_view_io_exit checked 9462ms check-target:macos_arm64 @aebe0714a499+wt
 pass/filesystem/runtime_posix_read_runtime_range_view_exit checked 9450ms check-target:macos_arm64 @aebe0714a499+wt
-pass/filesystem/windows_canonicalize_exit checked 20711ms check-target:linux_x86_64 @aebe0714a499+wt
+pass/filesystem/windows_canonicalize_exit checked 24908ms check-target:linux_x86_64 @c9eefa9130a0+wt
 pass/filesystem/windows_native_create_write_close_exit checked 10616ms check-target:windows_x86_64 @aebe0714a499+wt
 pass/filesystem/windows_raw_argument_failures_exit checked 9329ms check-target:windows_x86_64 @aebe0714a499+wt
 pass/filesystem/windows_raw_breadth_exit checked 9660ms check-target:windows_x86_64 @aebe0714a499+wt
@@ -7896,7 +7896,7 @@ pass/generics/runtime_index_carrier_parameter checked 6749ms @afe3f46cebb2+wt
 pass/generics/runtime_index_carrier_runtime checked 6072ms @afe3f46cebb2+wt
 pass/generics/runtime_index_carrier_static checked 6006ms @afe3f46cebb2+wt
 pass/generics/runtime_index_carrier_static_bool checked 5957ms @afe3f46cebb2+wt
-pass/generics/runtime_inherited_composite_requirement_exit checked 12296ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/generics/runtime_inherited_composite_requirement_exit checked 8636ms check-target:macos_arm64 @c9eefa9130a0+wt
 pass/generics/runtime_linear_constructor_instances_exit checked 11286ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/generics/runtime_machine_equation_nested_boolean_exit checked 5659ms check-target:macos_arm64 @589aedee8ebc+wt
 pass/generics/runtime_machine_equation_nested_const_exit checked 5646ms check-target:macos_arm64 @589aedee8ebc+wt
@@ -7960,8 +7960,8 @@ pass/host/runtime_encoded_record_view_observation_exit checked 3867ms check-targ
 pass/host/runtime_fixed_arithmetic_across_console_exit checked 11481ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/host/runtime_foreign_scalar_loan_writeback_exit checked 7606ms check-target:windows_x86_64 @d041496df109
 pass/host/runtime_foreign_zero_argument_import_exit checked 9606ms check-target:windows_x86_64 @c6b298470bf5
-pass/host/runtime_gui_foreground_window_exit checked 11376ms check-target:windows_x86_64 @6050c1c112ee+wt
-pass/host/runtime_gui_window_lifecycle_exit checked 11396ms check-target:windows_x86_64 @6050c1c112ee+wt
+pass/host/runtime_gui_foreground_window_exit checked 9158ms check-target:windows_x86_64 @c9eefa9130a0+wt
+pass/host/runtime_gui_window_lifecycle_exit checked 6952ms check-target:windows_x86_64 @c9eefa9130a0+wt
 pass/host/runtime_stored_scalar_reference_foreign_export_exit checked 3861ms check-target:macos_arm64 @61ba1df9375e+wt
 pass/host/runtime_windows_bitmap_client_cleanup_exit checked 7932ms check-target:windows_x86_64 @0e7ef4cb2ac8+wt
 pass/host/runtime_windows_gui_argument_failures_exit checked 5913ms check-target:windows_x86_64 @6050c1c112ee+wt

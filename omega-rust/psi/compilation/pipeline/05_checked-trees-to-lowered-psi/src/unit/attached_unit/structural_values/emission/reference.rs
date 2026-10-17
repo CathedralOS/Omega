@@ -23,6 +23,7 @@ impl Emission<'_, '_, '_> {
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         formation: super::super::super::reference_results::Formation<'_>,
         source: &CheckedUnitStructuralArgumentPlan,
+        selectors: arena::HandleSpan<checked_trees::CheckedScalarComputationHandle>,
         source_value: checked_trees::CheckedStructuralValueHandle,
         storage: checked_trees::CheckedReferenceStorage,
         continuation: Option<&ValueContinuation>,
@@ -88,6 +89,36 @@ impl Emission<'_, '_, '_> {
                 ],
             )?;
         }
+        let evaluations = self
+            .checked
+            .facts
+            .values
+            .scalar_computations
+            .operands
+            .span(selectors)
+            .ok_or(LoweringError::Unsupported(
+                "reference has stale selector evaluations",
+            ))?;
+        let source_count = self.values.len();
+        for (ordinal, root) in evaluations.iter().enumerate() {
+            let selector = self.scalar(
+                identities,
+                checked_trees::CheckedScalarExpressionRole::StructuralValueSelector {
+                    expression: formation.expression,
+                    selector_ordinal: u32::try_from(ordinal).map_err(|_| {
+                        LoweringError::Unsupported("reference selector ordinal exceeds u32")
+                    })?,
+                },
+                *root,
+                source_count,
+            )?;
+            self.values.push(selector);
+        }
+        let captured = self.values[source_count..]
+            .iter()
+            .map(|value| value.id)
+            .collect::<Vec<_>>();
+        self.values.truncate(source_count);
         let bindings = self
             .evaluation
             .scalar_bindings
@@ -147,9 +178,22 @@ impl Emission<'_, '_, '_> {
                     .map(PreparedStructuralPathSegment::Static)
                     .chain(suffix)
                     .collect::<Vec<_>>();
-                let mut selectors = self
-                    .capture_projection_selectors(identities, formation.expression, source)?
-                    .into_iter();
+                let selected = prepared
+                    .iter()
+                    .filter_map(|segment| match segment {
+                        PreparedStructuralPathSegment::ComputedIndex(root) => Some(
+                            evaluations
+                                .iter()
+                                .position(|source| source == root)
+                                .and_then(|position| captured.get(position).copied())
+                                .ok_or(LoweringError::Unsupported(
+                                    "reference path has no captured selector",
+                                )),
+                        ),
+                        _ => None,
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                let mut selectors = selected.into_iter();
                 argument.place = self.evaluation.current_structural_place(argument.place);
                 // A view lends from its current descriptor. Its live extent
                 // and captured selectors belong to this reference formation's

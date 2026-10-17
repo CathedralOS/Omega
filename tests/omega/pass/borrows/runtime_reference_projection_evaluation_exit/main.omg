@@ -1,0 +1,74 @@
+// Expected exit: 0.
+// Reference projection evaluates every child once: records before indices,
+// including conditional returned records, and indices whose result is known.
+// Scalar and Unit consumers retain parameter, local, field and view storage.
+// Eight counter updates pin evaluation order; a retained return keeps its input.
+machine read(value: &u8) -> u8 { value }
+machine direct(bytes: &[u8]) -> u8 requires bytes.len > 2 { read(&bytes[2]) }
+machine indexed(bytes: &[u8], position: u64) -> u8 requires position < bytes.len { read(&bytes[position]) }
+data Cursor { calls: u64 in Wrapping; }
+machine selected(cursor: &mut Cursor) -> u64 ensures result == 1 {
+    cursor.calls = cursor.calls + 1;
+    1
+}
+machine computed(bytes: &[u8], cursor: &mut Cursor) -> u8 requires bytes.len > 2 {
+    read(&bytes[selected(cursor)])
+}
+machine receive(value: &u8, output: &mut u8) { output = value; }
+data Cell { value: i32; }
+machine replace(cell: &mut Cell) { cell.value = 42; }
+machine local_record() -> i32 {
+    let mut cell: Cell = Cell { value: 17 };
+    replace(&mut cell);
+    cell.value
+}
+machine select_view(views: &[&[u8]; 2], cursor: &mut Cursor) -> u64 {
+    let view: &[u8] = &views[selected(cursor)];
+    view.len
+}
+data Packet { bytes: [u8; 3]; }
+machine packet() -> Packet { Packet { bytes: [17, 23, 31] } }
+machine field(packet: &Packet, cursor: &mut Cursor) -> u8 {
+    read(&packet.bytes[selected(cursor)])
+}
+data Produced { cells: [u64 in Wrapping; 2]; }
+machine made_word(cursor: &mut Cursor) -> Produced {
+    let before: u64 in Wrapping = cursor.calls;
+    cursor.calls = cursor.calls + 1;
+    Produced { cells: [42, before] }
+}
+machine receive_word(value: &u64 in Wrapping, output: &mut u64 in Wrapping) { output = value; }
+machine made_packet(cursor: &mut Cursor) -> Packet {
+    let first: bool = cursor.calls == 6;
+    cursor.calls = cursor.calls + 1;
+    transition first {
+        true -> Packet { bytes: [17, 23, 31] }
+        false -> Packet { bytes: [17, 41, 31] }
+    }
+}
+machine keep<'storage>(cell: &'storage Cell) -> &'storage Cell { cell }
+machine retained_check() -> i32 {
+    let stable: Cell = Cell { value: 17 };
+    let retained: &Cell = keep(&stable);
+    retained.value
+}
+machine main() crashes Trap {
+    let bytes: [u8; 3] = [17, 23, 31];
+    let view: &[u8] = &bytes[..];
+    let mut cursor: Cursor = Cursor { calls: 0 };
+    let result: u8 = computed(view, &mut cursor);
+    let mut output: u8 = 0;
+    receive(&view[selected(&mut cursor)], &mut output);
+    let views: [&[u8]; 2] = [view, view];
+    let length: u64 = select_view(&views, &mut cursor);
+    let mut wide_output: u64 in Wrapping = 0;
+    receive_word(&made_word(&mut cursor).cells[selected(&mut cursor)], &mut wide_output);
+    let supplied: Packet = packet();
+    let supplied_byte: u8 = field(&supplied, &mut cursor);
+    receive(&made_packet(&mut cursor).bytes[selected(&mut cursor)], &mut output);
+    transition retained_check() == 17 && wide_output == 3 && supplied_byte == 23 && length == 3 && local_record() == 42 && output == 23 && direct(view) == 31 && indexed(view, 0) == 17 && result == 23 && cursor.calls == 8 {
+        true -> done() _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

@@ -329,6 +329,12 @@ impl ScalarBindings {
         let storage_root = argument
             .structural_storage_root()
             .or_else(|| match argument.source {
+                // Mutable declarations use this checked identity for both
+                // scalar and aggregate storage. Their completed home still
+                // joins the same symbol roster as immutable declarations.
+                checked_trees::CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal {
+                    symbol,
+                } => Some(facts::PlaceRoot::Symbol(symbol)),
                 checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice {
                     root:
                         checked_trees::CheckedStorageRoot::OwnedLocal { symbol }

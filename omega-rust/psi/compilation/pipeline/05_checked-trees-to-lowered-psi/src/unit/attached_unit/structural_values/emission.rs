@@ -294,7 +294,9 @@ pub(crate) fn emit(
     // lane categorically refuses a projected owned `Linear` leaf, so
     // synthesizing a selection join here would open a linearity hole instead.
     //
-    // Two restrictions are deliberate. A statement that carries an
+    // Copyable children require their own snapshots; an alias would reread
+    // or consume their parent at a later use. Only non-copy children join here.
+    // A statement that carries an
     // owned-selection receipt keeps the selection route, because that receipt
     // schedules its sources' residual cleanup on the edge and an alias has no
     // edge to carry it. And only a `Place` source aliases: a projection of a
@@ -316,6 +318,11 @@ pub(crate) fn emit(
         storage_value = *source;
     }
     if emission.sources.is_empty()
+        && multiplicity != StructuralMultiplicity::Unrestricted
+        && !terminal_semantics::is_shared_reference_carrier(
+            structural_types.iter(),
+            structural_type,
+        )
         && let CheckedStructuralValueKind::Projection {
             source,
             path,
@@ -1347,6 +1354,52 @@ impl Emission<'_, '_, '_> {
                 completed = declaration;
             }
         }
+        for completion in call.completions().iter() {
+            let CheckedUnitEffectOperationPlan::ReleaseReference {
+                source:
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                        binding_ordinal,
+                    },
+                path,
+                ..
+            } = completion
+            else {
+                return unsupported("call completion is not a descriptor release");
+            };
+            if !path.is_empty() {
+                return unsupported("call completion does not name a whole descriptor");
+            }
+            let mut bindings = self
+                .operations
+                .structural_values
+                .iter()
+                .filter(|(ordinal, _)| ordinal == binding_ordinal);
+            let (_, binding) = bindings.next().ok_or(LoweringError::Unsupported(
+                "call completion has no produced descriptor",
+            ))?;
+            if bindings.next().is_some() || !binding.path().is_empty() {
+                return unsupported("call completion has no unique whole descriptor");
+            }
+            let place = self.evaluation.current_structural_place(binding.place());
+            let action = self
+                .evaluation
+                .descriptor_retirement(place, self.operations)?;
+            self.evaluation.continue_cleanup_regions(
+                identities,
+                self.checked,
+                vec![crate::unit::unit_cleanup::CleanupRegion {
+                    selected_region: None,
+                    conditions: Vec::new(),
+                    action,
+                }],
+                self.values,
+                self.next_value,
+                self.next_block,
+                self.next_edge,
+                self.operations,
+            )?;
+            self.evaluation.retire_structural_home(place);
+        }
         let completed = completed.ok_or(LoweringError::Unsupported(
             "structural operand call did not publish its result",
         ))?;
@@ -1641,6 +1694,7 @@ impl Emission<'_, '_, '_> {
                 ),
             CheckedStructuralValueKind::Reference {
                 source,
+                selectors,
                 source_value,
                 storage,
                 backing_type,
@@ -1656,6 +1710,7 @@ impl Emission<'_, '_, '_> {
                     domain_ids: self.domain_ids,
                 },
                 &source,
+                selectors,
                 source_value,
                 storage,
                 continuation,
@@ -1718,24 +1773,31 @@ impl Emission<'_, '_, '_> {
                     }
                     return Ok(argument);
                 }
-                // Copied provenance observes its original backing; an owned
-                // projection instead transfers one child on the selected edge
-                // and disposes of the root's residual complement there. Only
-                // the owned transfer requires a structural continuation.
-                if let CheckedStructuralValueKind::CopiedStructuralPlace {
-                    source: copied, ..
-                } = &structural_values(self.checked).nodes.get(source).kind
+                // Copy permission belongs to the selected value, independently
+                // of its parent's multiplicity. Shared descriptors copy their
+                // carrier while preserving the same backing obligations.
+                if self.multiplicity == StructuralMultiplicity::Unrestricted
+                    || terminal_semantics::is_shared_reference_carrier(
+                        self.structural_types.iter(),
+                        self.structural_type,
+                    )
                 {
-                    // A projection of a copy observes the selected subtree of
-                    // its original backing. It neither transfers the root nor
-                    // creates affine residuals. Source replay has rejoined the
-                    // copied root independently; retain its complete path when
-                    // appending the projection and publish one fresh leaf.
-                    let mut argument = self.copied_place_argument(
-                        identities,
-                        structural_values(self.checked).nodes.get(source).expression,
-                        copied,
-                    )?;
+                    let mut argument = if let CheckedStructuralValueKind::CopiedStructuralPlace {
+                        source: copied,
+                        ..
+                    } =
+                        &structural_values(self.checked).nodes.get(source).kind
+                    {
+                        // Copied provenance already names storage; copying its
+                        // enclosing carrier would observe unselected siblings.
+                        self.copied_place_argument(
+                            identities,
+                            structural_values(self.checked).nodes.get(source).expression,
+                            copied,
+                        )?
+                    } else {
+                        self.value(identities, source, None)?
+                    };
                     argument
                         .path
                         .extend(lower_structural_path(identities, &path)?);

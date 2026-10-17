@@ -339,10 +339,17 @@ pub(in crate::execution::terminal_unit) fn value_calls(
                 *discard_result_on_return = false;
                 let mut preparation = preparation.split_off(predecessor_count);
                 super::statement_sequence::consume_retained_results(&mut preparation, &operation)?;
+                let completions =
+                    crate::execution::terminal_unit::calls::temporary_descriptor_completions(
+                        operation.call()?,
+                        &preparation,
+                        shapes,
+                    )?;
                 output.push(checked_trees::CheckedStructuralValueCall::with_operands(
                     value,
                     checked_trees::CheckedOperandSequence::new(preparation),
                     operation,
+                    completions,
                 )?);
                 scoped_results.push((
                     result,

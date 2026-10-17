@@ -288,7 +288,7 @@ impl StateGraphEmission<'_, '_> {
                             formation_expression,
                             carrier_type_identity,
                         } => {
-                            let storage = edge_evaluation.cleanup_storage(
+                            let storage = edge_evaluation.value_storage(
                                 &subject.source, state_parameters, |binding| {
                                     let produced = case_emission::result(state, binding, operations)?;
                                     Ok(produced.as_ref().into())
@@ -521,7 +521,7 @@ impl StateGraphEmission<'_, '_> {
                             // an owned move instead retains the original root
                             // and path on the edge. The edge transaction first
                             // captures that subtree, then disposes its complement.
-                            let storage = edge_evaluation.cleanup_storage(
+                            let storage = edge_evaluation.value_storage(
                                 &subject.source, state_parameters, |binding| {
                                     let produced = case_emission::result(state, binding, operations)?;
                                     Ok(produced.as_ref().into())

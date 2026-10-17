@@ -6,7 +6,7 @@
 
 use super::{CleanupRegion, LoweringError};
 use crate::emission::operation_emission::buffer::OperationBuffer;
-use crate::unit::attached_unit::argument_evaluation::{CleanupStorage, Evaluation};
+use crate::unit::attached_unit::argument_evaluation::{Evaluation, StructuralValueStorage};
 use checked_trees::CheckedUnitEffectOperationPlan;
 use terminal_psi::{StructuralParameterDeclaration, TerminalAffineCleanupAction};
 
@@ -18,7 +18,7 @@ pub(crate) fn lower_reference_completion_regions(
     parameters: &[StructuralParameterDeclaration],
     evaluation: &Evaluation,
     operations: &OperationBuffer,
-    mut result_storage: impl FnMut(u32) -> Result<CleanupStorage, LoweringError>,
+    mut result_storage: impl FnMut(u32) -> Result<StructuralValueStorage, LoweringError>,
 ) -> Result<Vec<CleanupRegion>, LoweringError> {
     let mut carriers = Vec::new();
     // Stage 04 already orders releases by actual holder dependencies. Reversing
@@ -35,7 +35,7 @@ pub(crate) fn lower_reference_completion_regions(
         else {
             continue;
         };
-        let storage = evaluation.cleanup_storage(source, parameters, &mut result_storage)?;
+        let storage = evaluation.value_storage(source, parameters, &mut result_storage)?;
         let suffix =
             crate::expression_preparation::bindings::structural_paths::lower_static_argument_path(
                 identities,

@@ -27,6 +27,8 @@ mod signatures;
 mod structural_arguments;
 pub(crate) use structural_arguments::structural_call_arguments;
 mod structural_result_call;
+mod temporary_descriptors;
+pub(in crate::execution::terminal_unit) use temporary_descriptors::temporary_descriptor_completions;
 mod trait_boundary_call;
 pub(crate) mod view_subslice;
 

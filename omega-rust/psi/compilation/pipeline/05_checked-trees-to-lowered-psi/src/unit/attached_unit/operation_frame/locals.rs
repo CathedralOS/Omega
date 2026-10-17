@@ -821,13 +821,51 @@ impl OperationFrame<'_, '_> {
         value: &CheckedUnitStructuralArgumentPlan,
         multiplicity: language_semantics::Multiplicity,
     ) -> Result<(), LoweringError> {
-        let mut root = value.clone();
-        root.path.clear();
-        let mut repair = self.owned_structural_value(&root)?;
-        if !value.path.is_empty() {
-            let path = crate::expression_preparation::bindings::structural_paths::lower_static_argument_path(
-                identities, &value.path, repair.structural_type, self.structural_types.declarations(),
-            )?;
+        if value.access != checked_trees::CheckedStructuralAccess::Owned {
+            return unsupported("replacement value does not carry owned custody");
+        }
+        let storage =
+            self.evaluation
+                .value_storage(&value.source, &self.parameters, |ordinal| {
+                    self.results.value_storage(ordinal, self.operations)
+                })?;
+        let root_type = if storage.path.is_empty() {
+            storage.selected_type
+        } else {
+            self.evaluation
+                .contextual_bindings()
+                .structural_place_type(storage.place)
+                .or_else(|| {
+                    self.parameters
+                        .iter()
+                        .find(|parameter| parameter.place == storage.place)
+                        .map(|parameter| parameter.structural_type)
+                })
+                .or_else(|| {
+                    self.operations
+                        .iter()
+                        .filter_map(|operation| operation.result.structural())
+                        .find(|result| result.place == storage.place)
+                        .map(|result| result.structural_type)
+                })
+                .ok_or(LoweringError::Unsupported(
+                    "owned store alias has no published root type",
+                ))?
+        };
+        let mut path = storage.path;
+        path.extend(
+            crate::expression_preparation::bindings::structural_paths::lower_static_argument_path(
+                identities,
+                &value.path,
+                storage.selected_type,
+                self.structural_types.declarations(),
+            )?,
+        );
+        let mut repair = BorrowedWindowRepairValue {
+            place: storage.place,
+            structural_type: root_type,
+        };
+        if !path.is_empty() {
             // Owning a descriptor never owns its referent. Owned operand
             // completion selects storage children, not borrowed byte windows.
             if path.iter().any(|segment| {
@@ -885,48 +923,78 @@ impl OperationFrame<'_, '_> {
                     &source_contract.1,
                     &path,
                 );
-            let declaration = terminal_psi::StructuralParameterDeclaration {
-                place: repair.place,
-                position: 0,
-                structural_type: selected,
-                multiplicity: crate::terminal_identities::structural_multiplicity(multiplicity),
-                access: StructuralAccess::Owned,
-                qualifications,
-                projected_qualifications,
-            };
-            let mut arguments = vec![terminal_psi::StructuralArgument {
-                place: repair.place,
-                path,
-                access: StructuralAccess::Owned,
-            }];
-            // A store consumes a completed value. Use the same argument edge
-            // as a continuation: it transfers the selected custody and keeps
-            // the parent's remaining children at their original home. No
-            // borrowed extraction debt or replacement-specific copy exists.
-            self.evaluation.capture_structural_arguments(
-                identities,
-                self.checked,
-                &mut arguments,
-                &[declaration],
-                self.values,
-                self.next_place,
-                self.private_places,
-                self.next_value,
-                self.next_block,
-                self.next_edge,
-                self.operations,
-            )?;
-            let captured = self
-                .evaluation
-                .block_structural_parameters
-                .last()
-                .ok_or(LoweringError::Unsupported(
-                    "owned store operand has no completed arrival",
-                ))?
-                .clone();
-            repair.place = captured.place;
-            repair.structural_type = captured.structural_type;
-            self.parameters.to_mut().push(captured);
+            if multiplicity == language_semantics::Multiplicity::Unrestricted {
+                // Copy permission belongs to the selected child, not its
+                // enclosing owner. Passing this path as an owned argument
+                // would partially move an affine parent before its next use.
+                let place = place_id(allocate_dense(self.next_place)?);
+                let producer = self.operations.allocate();
+                self.operations.push(Operation {
+                    static_reach_binding: None,
+                    suspension_crossing: None,
+                    id: producer,
+                    result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
+                        place,
+                        structural_type: selected,
+                        multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+                        qualifications,
+                        projected_qualifications,
+                        qualification_establishments: Vec::new(),
+                        claims: Vec::new(),
+                    }),
+                    kind: OperationKind::StructuralLeafCopy {
+                        source: repair.place,
+                        path,
+                    },
+                });
+                self.private_places
+                    .push(operation_result_declaration(place, producer, selected));
+                repair.place = place;
+                repair.structural_type = selected;
+            } else {
+                let declaration = terminal_psi::StructuralParameterDeclaration {
+                    place: repair.place,
+                    position: 0,
+                    structural_type: selected,
+                    multiplicity: crate::terminal_identities::structural_multiplicity(multiplicity),
+                    access: StructuralAccess::Owned,
+                    qualifications,
+                    projected_qualifications,
+                };
+                let mut arguments = vec![terminal_psi::StructuralArgument {
+                    place: repair.place,
+                    path,
+                    access: StructuralAccess::Owned,
+                }];
+                // A store consumes a completed value. Use the same argument edge
+                // as a continuation: it transfers the selected custody and keeps
+                // the parent's remaining children at their original home. No
+                // borrowed extraction debt or replacement-specific copy exists.
+                self.evaluation.capture_structural_arguments(
+                    identities,
+                    self.checked,
+                    &mut arguments,
+                    &[declaration],
+                    self.values,
+                    self.next_place,
+                    self.private_places,
+                    self.next_value,
+                    self.next_block,
+                    self.next_edge,
+                    self.operations,
+                )?;
+                let captured = self
+                    .evaluation
+                    .block_structural_parameters
+                    .last()
+                    .ok_or(LoweringError::Unsupported(
+                        "owned store operand has no completed arrival",
+                    ))?
+                    .clone();
+                repair.place = captured.place;
+                repair.structural_type = captured.structural_type;
+                self.parameters.to_mut().push(captured);
+            }
         }
         // The result roster keeps the extraction's identity even if its
         // detached value has already transferred or been disposed. This is
@@ -1366,14 +1434,12 @@ impl OperationFrame<'_, '_> {
                 if let Some(captured) = captured {
                     return Ok((captured.source, captured.path));
                 }
-                let mut storage = self.evaluation.cleanup_storage(
-                    source,
-                    &self.parameters,
-                    |binding_ordinal| {
-                        self.results
-                            .continuation_storage(binding_ordinal, self.operations)
-                    },
-                )?;
+                let mut storage =
+                    self.evaluation
+                        .value_storage(source, &self.parameters, |binding_ordinal| {
+                            self.results
+                                .continuation_storage(binding_ordinal, self.operations)
+                        })?;
                 storage.path.extend(crate::expression_preparation::bindings::structural_paths::lower_typed_argument_path(identities, selected_path, storage.selected_type, self.structural_types.declarations(), None, &mut std::iter::empty(), None)?);
                 Ok((storage.place, storage.path))
             },

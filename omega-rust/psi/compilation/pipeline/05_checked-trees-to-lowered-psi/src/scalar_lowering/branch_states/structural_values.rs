@@ -146,6 +146,10 @@ enum Step {
         effect: LoweredScalarEffect,
         prefix: Vec<QualifiedScalarType>,
     },
+    Retire {
+        actions: Vec<crate::unit::unit_cleanup::PreparedNormalCleanupAction>,
+        prefix: Vec<QualifiedScalarType>,
+    },
     Zeroed {
         memberships: Vec<language_semantics::SemanticDomainId>,
         projected_qualifications: Vec<checked_trees::CheckedStructuralPathQualification>,
@@ -364,6 +368,77 @@ struct Preparation<'a> {
 }
 
 impl Preparation<'_> {
+    /// Snapshot a projection operand in its authored evaluation frame. Calls
+    /// and reference formation share this schedule, including effectful indices.
+    fn capture_selector(
+        &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        selector: &checked_trees::CheckedUnitStructuralPathSegment,
+        statement: u32,
+        bindings: &storage::ScalarBindings,
+        role: Option<CheckedScalarExpressionRole>,
+    ) -> Result<usize, LoweringError> {
+        let result_type = match selector {
+            checked_trees::CheckedUnitStructuralPathSegment::ComputedIndex(root) => {
+                let source = self
+                    .checked
+                    .facts
+                    .values
+                    .scalar_computations
+                    .roots
+                    .iter()
+                    .map(|(_, source)| source)
+                    .find(|source| {
+                        source.root == *root
+                            && source.state == self.state
+                            && source.statement_ordinal == statement
+                            && role.is_none_or(|role| source.role == role)
+                    })
+                    .ok_or(LoweringError::Unsupported(
+                        "projection selector lost its source computation",
+                    ))?;
+                let result_type = computations::computation_value_type(
+                    identities,
+                    self.checked,
+                    self.qualifications,
+                    *root,
+                    bindings,
+                    &self.prefix,
+                )?;
+                self.steps.push(Step::Scalar {
+                    role: source.role,
+                    result_type,
+                    prefix: self.prefix.clone(),
+                });
+                result_type
+            }
+            checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex(index) => {
+                let value = match index {
+                    checked_trees::CheckedRuntimeIndex::StructuralField(field) => {
+                        bindings.runtime_index_field(identities, field)?
+                    }
+                    checked_trees::CheckedRuntimeIndex::StorageRead { symbol } => {
+                        bindings.runtime_index_storage(*symbol)?
+                    }
+                    _ => return unsupported("scheduled selector has no evaluated operand"),
+                };
+                let result_type = value.value_type(&self.prefix)?;
+                self.steps.push(Step::Snapshot {
+                    value,
+                    prefix: self.prefix.clone(),
+                });
+                result_type
+            }
+            _ => return unsupported("scheduled selector has no evaluated operand"),
+        };
+        if !matches!(result_type.scalar_type, semantic_vocabulary::ScalarType::Integer(integer) if !integer.is_address())
+        {
+            return unsupported("projection selector is not an integer operand");
+        }
+        let position = self.prefix.len();
+        self.prefix.push(result_type);
+        Ok(position)
+    }
     /// Complete the selected operand before recording its transfer. Resolving
     /// a projection must not first consume the whole root that carries it.
     fn operand(
@@ -613,12 +688,13 @@ impl Preparation<'_> {
         }
         if let CheckedStructuralValueKind::Reference {
             source,
+            selectors,
             source_value,
             storage,
             backing_type,
         } = &node.kind
         {
-            let argument = if source_value.is_valid() {
+            let mut argument = if source_value.is_valid() {
                 let child_reference = plans.nodes.get(*source_value).type_reference;
                 let root_type =
                     carrier_declaration(identities, self.checked, self.types, child_reference)?.id;
@@ -636,23 +712,71 @@ impl Preparation<'_> {
                         structural_type: root_type,
                     },
                 );
-                argument.path.extend(crate::expression_preparation::bindings::structural_paths::lower_static_argument_path(
-                    identities, &source.path, root_type, self.types,
-                )?);
                 argument.access =
                     crate::expression_preparation::bindings::structural_paths::terminal_access(
                         source.access,
                     );
-                argument
+                let mut prepared = crate::emission::operation_emission::calls::PreparedStructuralArgument::from_static(argument, Some(root_type))?;
+                prepared.path.extend(crate::expression_preparation::bindings::structural_paths::prepare_structural_argument_path(
+                    identities, self.checked, source, root_type, self.types,
+                )?);
+                prepared
+            } else if matches!(
+                source.source,
+                checked_trees::CheckedUnitStructuralArgumentSourcePlan::ScalarParameter { .. }
+            ) {
+                crate::emission::operation_emission::calls::PreparedStructuralArgument::from_static(
+                    self.bindings.scalar_parameter_borrow(
+                        identities,
+                        self.checked,
+                        source,
+                        self.types,
+                    )?,
+                    None,
+                )?
             } else {
                 let (_, state) = crate::declarations::state_declaration(self.checked, self.state)?;
-                self.bindings.borrowed_structural_argument(
+                self.bindings.prepared_borrowed_argument(
                     identities,
                     self.checked,
                     source,
                     self.checked.state_parameters(state),
+                    self.types,
                 )?
             };
+            let evaluations = self
+                .checked
+                .facts
+                .values
+                .scalar_computations
+                .operands
+                .span(*selectors)
+                .ok_or(LoweringError::Unsupported(
+                    "reference has stale selector evaluations",
+                ))?;
+            let mut captured = Vec::new();
+            for (ordinal, root) in evaluations.iter().enumerate() {
+                let position = self.capture_selector(
+                    identities,
+                    &checked_trees::CheckedUnitStructuralPathSegment::ComputedIndex(*root),
+                    node.statement_index,
+                    self.bindings,
+                    Some(CheckedScalarExpressionRole::StructuralValueSelector {
+                        expression: node.expression,
+                        selector_ordinal: u32::try_from(ordinal).map_err(|_| {
+                            LoweringError::Unsupported("reference selector ordinal exceeds u32")
+                        })?,
+                    }),
+                )?;
+                captured.push((*root, position));
+            }
+            for segment in &argument.path {
+                if let crate::expression_preparation::bindings::structural_paths::PreparedStructuralPathSegment::ComputedIndex(root) = segment {
+                    let position = captured.iter().find(|(source, _)| source == root)
+                        .ok_or(LoweringError::Unsupported("reference path has no captured selector"))?.1;
+                    argument.selector_positions.push(position);
+                }
+            }
             let place = self.reserved.place(value)?;
             self.steps.push(Step::Establish {
                 effect: LoweredScalarEffect::EstablishReference {
@@ -1465,6 +1589,7 @@ impl PreparedValue {
                 | Step::Snapshot { prefix, .. }
                 | Step::Aggregate { prefix, .. }
                 | Step::Establish { prefix, .. }
+                | Step::Retire { prefix, .. }
                 | Step::Zeroed { prefix, .. }
                 | Step::Bind { prefix, .. } => prefix,
                 Step::Range { prefix, .. } => prefix,
@@ -1557,6 +1682,23 @@ impl PreparedValue {
                     result_type,
                     target,
                 )?,
+                Step::Retire { actions, prefix } => {
+                    let mut completed = LoweredScalarBranchState::jumping(
+                        target,
+                        Vec::new(),
+                        prefix.clone(),
+                        &prefix,
+                        Vec::new(),
+                    );
+                    let LoweredScalarBranchTerminator::Jump {
+                        cleanup_actions, ..
+                    } = &mut completed.terminator
+                    else {
+                        unreachable!("a jumping branch owns a jump terminator");
+                    };
+                    *cleanup_actions = actions;
+                    computations.push(completed)
+                }
                 Step::Establish { effect, prefix } => {
                     computations.push(LoweredScalarBranchState::jumping(
                         target,

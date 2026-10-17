@@ -124,7 +124,16 @@ impl Builder<'_, '_> {
         ) {
             return None;
         }
-        let (source, leaf) = self.borrowed_leaf_argument(expression, expected)?;
+        let (source, leaf, _) = self.borrowed_leaf_argument(expression, expected)?;
+        for (ordinal, value) in source.computation_operands().enumerate() {
+            self.push_scalar_root(
+                checked_trees::CheckedScalarExpressionRole::StructuralValueSelector {
+                    expression,
+                    selector_ordinal: u32::try_from(ordinal).ok()?,
+                },
+                value,
+            )?;
+        }
         Some(CheckedStructuralValueKind::CopiedStructuralPlace { source, leaf })
     }
 
@@ -138,6 +147,10 @@ impl Builder<'_, '_> {
     ) -> Option<(
         checked_trees::CheckedUnitStructuralArgumentPlan,
         TypeReferenceHandle,
+        Vec<(
+            ExpressionHandle,
+            checked_trees::CheckedScalarComputationHandle,
+        )>,
     )> {
         let place = validation::canonical_place_from_expression_in_state(
             self.program,
@@ -157,12 +170,7 @@ impl Builder<'_, '_> {
         // the computation's scalar namespace, including captured immutable
         // locals, rather than replaying the selector's original storage read.
         // The retained coordinate grants no bounds or copy permission.
-        let mut selectors = Vec::new();
-        for segment in &place.segments {
-            if let facts::PlaceSegment::Index { expression } = segment {
-                selectors.push((*expression, self.index_selector(*expression)?));
-            }
-        }
+        let selectors = self.projection_selector_evaluations(expression)?;
         let (_, mut path) = crate::execution::terminal_unit::calls::projected_argument_path(
             self.program,
             self.state,
@@ -219,18 +227,7 @@ impl Builder<'_, '_> {
             type_identity,
             access: checked_trees::CheckedStructuralAccess::SharedBorrow,
         };
-        // Only selectors that survive typed constant folding are executable.
-        // Their roles belong to this copied value's exact evaluation occurrence.
-        for (ordinal, value) in source.computation_operands().enumerate() {
-            self.push_scalar_root(
-                checked_trees::CheckedScalarExpressionRole::StructuralValueSelector {
-                    expression,
-                    selector_ordinal: u32::try_from(ordinal).ok()?,
-                },
-                value,
-            )?;
-        }
-        Some((source, projected))
+        Some((source, projected, selectors))
     }
 
     /// One projected owned child of an existing owner. The checked ownership

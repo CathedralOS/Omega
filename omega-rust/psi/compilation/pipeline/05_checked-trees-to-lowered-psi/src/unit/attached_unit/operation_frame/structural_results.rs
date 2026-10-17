@@ -6,7 +6,7 @@
 //! `validate_completed_arrival` proves a completed binding rejoins the
 //! exact block parameter roster that owns it.
 
-use super::super::argument_evaluation::{CleanupStorage, Evaluation};
+use super::super::argument_evaluation::{Evaluation, StructuralValueStorage};
 use crate::emission::borrowed_window::BorrowedWindowRepairValue;
 use crate::emission::operation_emission::buffer::{OperationBuffer, StructuralBinding};
 use crate::unit::{
@@ -137,11 +137,11 @@ impl StructuralResults<'_> {
 
     /// Cleanup consumes a selected carrier, so an alias retains its original
     /// home and captured path. Whole-value repair keeps its separate fence.
-    pub(in crate::unit::attached_unit) fn cleanup_value(
+    pub(in crate::unit::attached_unit) fn value_storage(
         &self,
         binding_ordinal: u32,
         operations: &OperationBuffer,
-    ) -> Result<CleanupStorage, LoweringError> {
+    ) -> Result<StructuralValueStorage, LoweringError> {
         match self {
             Self::Dense(roster) => {
                 let (declaration, _) =
@@ -153,7 +153,7 @@ impl StructuralResults<'_> {
                 if declaration.is_some() {
                     let (place, selected_type) =
                         self.completed_value(binding_ordinal, operations)?;
-                    return Ok(CleanupStorage {
+                    return Ok(StructuralValueStorage {
                         place,
                         path: Vec::new(),
                         selected_type,
@@ -189,7 +189,7 @@ impl StructuralResults<'_> {
         &self,
         binding_ordinal: u32,
         operations: &OperationBuffer,
-    ) -> Result<CleanupStorage, LoweringError> {
+    ) -> Result<StructuralValueStorage, LoweringError> {
         if let Self::Dense(roster) = self
             && roster
                 .get(binding_ordinal as usize)
@@ -197,7 +197,7 @@ impl StructuralResults<'_> {
         {
             return unsupported("call continuation cleanup has conflicting custody");
         }
-        self.cleanup_value(binding_ordinal, operations)
+        self.value_storage(binding_ordinal, operations)
     }
 
     /// The completed whole value a borrowed-window repair stores back.

@@ -225,17 +225,16 @@ pub(crate) fn for_exit_regions(
         catalog.types,
         catalog.type_ids,
         |identities, source, path| {
-            let mut storage =
-                evaluation.cleanup_storage(source, parameters, |binding_ordinal| {
-                    let (_, result) = operations
-                        .structural_values
-                        .iter()
-                        .find(|(ordinal, _)| *ordinal == binding_ordinal)
-                        .ok_or(LoweringError::Unsupported(
-                            "cleanup result is not established",
-                        ))?;
-                    Ok(result.into())
-                })?;
+            let mut storage = evaluation.value_storage(source, parameters, |binding_ordinal| {
+                let (_, result) = operations
+                    .structural_values
+                    .iter()
+                    .find(|(ordinal, _)| *ordinal == binding_ordinal)
+                    .ok_or(LoweringError::Unsupported(
+                        "cleanup result is not established",
+                    ))?;
+                Ok(result.into())
+            })?;
             storage.path.extend(crate::expression_preparation::bindings::structural_paths::lower_typed_argument_path(
                 identities, path, storage.selected_type, catalog.types, None, &mut std::iter::empty(), None,
             )?);

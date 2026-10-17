@@ -334,6 +334,9 @@ fn prepare_declared_projection<'a>(
             }
             terminal_psi::StructuralTypeShape::ElementView { access, .. }
             | terminal_psi::StructuralTypeShape::ByteSequence(
+                terminal_psi::ByteSequenceCarrier::BorrowedView { access },
+            )
+            | terminal_psi::StructuralTypeShape::ByteSequence(
                 terminal_psi::ByteSequenceCarrier::BoundedView { access, .. },
             ) => {
                 terminal_semantics::borrowed_referent_presentation(

@@ -135,10 +135,12 @@ impl Builder<'_, '_> {
             // join. Collection establishment would replace its captured extent
             // with backing geometry. Stored-leaf selection also retains every
             // crossing through a local reference before selecting this view.
-            let (mut source, _) = self.borrowed_leaf_argument(expression, declared)?;
+            let (mut source, _, selectors) = self.borrowed_leaf_argument(expression, declared)?;
             source.access = access;
+            let selectors = self.retain_reference_selectors(expression, selectors)?;
             return Some(CheckedStructuralValueKind::Reference {
                 source,
+                selectors,
                 storage: checked_trees::CheckedReferenceStorage::Declared,
                 backing_type: declared,
                 source_value: checked_trees::CheckedStructuralValueHandle::invalid(),

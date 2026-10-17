@@ -265,23 +265,26 @@ pub(in crate::execution::terminal_unit) fn outer_calls_in_prefix_traced<'a>(
                     }
                     checked_trees::CheckedStructuralValueKind::Reference {
                         source_value,
-                        ref source,
+                        selectors,
                         ..
                     } => {
                         if source_value.is_valid() {
                             pending.push(source_value);
                         }
-                        collect_structural_argument_calls(
-                            program,
-                            facts,
-                            state.symbol,
-                            statement_index,
-                            source,
-                            calls,
-                            0,
-                            &mut Vec::new(),
-                            &mut consumed,
-                        )?;
+                        let mut visits = Vec::new();
+                        for root in facts.values.scalar_computations.operands.span(selectors)? {
+                            super::collecting::collect(
+                                program,
+                                facts,
+                                state.symbol,
+                                statement_index,
+                                *root,
+                                calls,
+                                0,
+                                &mut visits,
+                                &mut consumed,
+                            )?;
+                        }
                     }
                     checked_trees::CheckedStructuralValueKind::BorrowedSliceView {
                         ref source,
@@ -506,6 +509,7 @@ pub(in crate::execution::terminal_unit) fn outer_calls_in_prefix_traced<'a>(
             structural.push(nested);
         }
         trace.phase("outer calls: ordered statement call");
+
         trace.statement(u32::try_from(call.statement_index).ok());
         let statement = program
             .statement_table

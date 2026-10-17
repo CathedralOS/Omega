@@ -34,6 +34,46 @@ pub(super) use value_predicates::{
 };
 
 impl Builder<'_, '_> {
+    /// Retain runtime children independently of the canonical endpoint's ordinal.
+    pub(in crate::execution::scalar_computations) fn projection_selector_evaluations(
+        &mut self,
+        expression: ExpressionHandle,
+    ) -> Option<
+        Vec<(
+            ExpressionHandle,
+            checked_trees::CheckedScalarComputationHandle,
+        )>,
+    > {
+        validation::assignment_target_selectors(self.program, expression)
+            .into_iter()
+            .rev()
+            .map(|expression| Some((expression, self.index_selector(expression)?)))
+            .collect()
+    }
+
+    pub(in crate::execution::scalar_computations) fn retain_reference_selectors(
+        &mut self,
+        expression: ExpressionHandle,
+        selectors: Vec<(
+            ExpressionHandle,
+            checked_trees::CheckedScalarComputationHandle,
+        )>,
+    ) -> Option<arena::HandleSpan<checked_trees::CheckedScalarComputationHandle>> {
+        for (ordinal, (_, value)) in selectors.iter().enumerate() {
+            self.push_scalar_root(
+                CheckedScalarExpressionRole::StructuralValueSelector {
+                    expression,
+                    selector_ordinal: u32::try_from(ordinal).ok()?,
+                },
+                *value,
+            )?;
+        }
+        Some(
+            self.plans
+                .operands
+                .insert_many(selectors.into_iter().map(|(_, value)| value)),
+        )
+    }
     /// A nonempty projection names a subtree of the retained value's owner.
     /// Keep that owner and selection path together. Whole-value occurrences
     /// retain their own checking judgments and evaluation identity.
@@ -515,11 +555,9 @@ impl Builder<'_, '_> {
                     )?;
                     source_value = self.structural_value(root, root_reference)?;
                 }
-                for segment in place.segments {
-                    if let facts::PlaceSegment::Index { expression } = segment {
-                        selectors.push((expression, self.index_selector(expression)?));
-                    }
-                }
+                // Geometry can already know an ordinal from a call's result
+                // contract. Its authored evaluation remains a child even then.
+                selectors = self.projection_selector_evaluations(formation.source)?;
             }
             let selector = |expression| {
                 selectors.iter().find_map(|(selector, value)| {
@@ -555,19 +593,10 @@ impl Builder<'_, '_> {
                         validation::reference_shell(self.program, expected)?.referee,
                     )
                 };
-            // The typed path can fold fixed selectors. Retain only the
-            // remaining executable operands, in their formation order.
-            for (ordinal, value) in source.computation_operands().enumerate() {
-                self.push_scalar_root(
-                    CheckedScalarExpressionRole::StructuralValueSelector {
-                        expression,
-                        selector_ordinal: u32::try_from(ordinal).ok()?,
-                    },
-                    value,
-                )?;
-            }
+            let selectors = self.retain_reference_selectors(expression, selectors)?;
             CheckedStructuralValueKind::Reference {
                 source,
+                selectors,
                 storage,
                 backing_type,
                 source_value,
