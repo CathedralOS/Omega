@@ -231,9 +231,10 @@ pub(super) struct StructuralJudge<'program> {
     // one copy only for the field they actually change.
     normal_results: Arc<Vec<(ExpressionHandle, StructuralTerm)>>,
     invalidated_storage: Arc<Vec<SymbolHandle>>,
-    // Values captured by an executed exact store, separate from retired roots.
-    stored_values: Arc<Vec<(crate::value_custody::places::CanonicalPlace, StructuralTerm)>>,
+    // Typed storage observations retain live values and detached entry snapshots.
+    stored_values: Arc<Vec<storage_effects::CapturedStorageValue>>,
     capture_sequence: usize,
+    storage_write_sequence: usize,
     pub(super) normal_guarantees: Arc<Vec<(StructuralTerm, StructuralTerm)>>,
     // Producer identity comes only from the captured public result contract.
     // Selected branch equalities remain ordinary normal-path proof facts.
@@ -281,6 +282,7 @@ impl Clone for StructuralJudge<'_> {
             invalidated_storage: Arc::clone(&self.invalidated_storage),
             stored_values: Arc::clone(&self.stored_values),
             capture_sequence: self.capture_sequence,
+            storage_write_sequence: self.storage_write_sequence,
             normal_guarantees: Arc::clone(&self.normal_guarantees),
             captured_result_equations: Arc::clone(&self.captured_result_equations),
             resolve_applications: self.resolve_applications,
@@ -420,6 +422,7 @@ impl<'program> StructuralJudge<'program> {
             invalidated_storage: Arc::new(Vec::new()),
             stored_values: Arc::new(Vec::new()),
             capture_sequence: 0,
+            storage_write_sequence: 0,
             normal_guarantees: Arc::new(Vec::new()),
             captured_result_equations: Arc::new(Vec::new()),
             resolve_applications,
@@ -1539,7 +1542,10 @@ impl<'program> StructuralJudge<'program> {
         {
             return Some(value.clone());
         }
-        if let Some(value) = self.stored_value_observation(expression) {
+        if let Some(value) = self.stored_value_observation(
+            scope.map(|(machine, state, _)| (machine, state)),
+            expression,
+        ) {
             return Some(value);
         }
         if self.storage_observation_invalidated(expression) {

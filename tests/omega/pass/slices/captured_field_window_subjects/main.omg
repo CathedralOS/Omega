@@ -1,0 +1,87 @@
+// The same captured field relation applies inside records and fixed arrays.
+data Holder { which: i64; bytes: [u8; 4]; }
+data Envelope { holder: Holder; }
+machine nested<'row>(envelope: &'row mut Envelope) -> &'row mut [u8]
+ensures result.len == 2 {
+    match envelope.holder.which {
+        0 -> &mut envelope.holder.bytes[0..envelope.holder.which + 2]
+        _ -> &mut envelope.holder.bytes[2..4]
+    }
+}
+machine indexed<'row>(holders: &'row mut [Holder; 1]) -> &'row mut [u8]
+ensures result.len == 2 {
+    match holders[0].which {
+        0 -> &mut holders[0].bytes[0..holders[0].which + 2]
+        _ -> &mut holders[0].bytes[2..4]
+    }
+}
+machine replace(holder: &mut Holder, which: i64) { holder.which = which; }
+machine after_call<'row>(holder: &'row mut Holder, which: i64) -> &'row mut [u8]
+ensures result.len == 2 {
+    replace(holder, which);
+    match holder.which {
+        0 -> &mut holder.bytes[0..holder.which + 2]
+        _ -> &mut holder.bytes[2..4]
+    }
+}
+machine indexed_after_call<'row>(holders: &'row mut [Holder; 1]) -> &'row mut [u8]
+ensures result.len == 2 {
+    replace(&mut holders[0], 0);
+    match holders[0].which {
+        0 -> &mut holders[0].bytes[0..holders[0].which + 2]
+        _ -> &mut holders[0].bytes[2..4]
+    }
+}
+machine selected_after_call<'row>(holders: &'row mut [Holder; 2], index: u64) -> &'row mut [u8]
+requires index < 2
+ensures result.len == 2 {
+    replace(&mut holders[index], 0);
+    let captured: u64 = index;
+    match holders[captured].which {
+        0 -> &mut holders[index].bytes[0..holders[index].which + 2]
+        _ -> &mut holders[index].bytes[2..4]
+    }
+}
+machine paint(view: &mut [u8]) requires view.len >= 2 {
+    view[0] = 9;
+    view[1] = 8;
+}
+machine main() crashes Trap {
+    let mut envelope: Envelope = Envelope { holder: Holder { which: 7, bytes: [1, 2, 3, 4] } };
+    let mut holders: [Holder; 1] = [Holder { which: 0, bytes: [5, 6, 7, 8] }];
+    let mut called: Holder = Holder { which: 7, bytes: [21, 22, 23, 24] };
+    let mut indexed_called: [Holder; 1] = [Holder { which: 7, bytes: [31, 32, 33, 34] }];
+    let mut selected_called: [Holder; 2] = [
+        Holder { which: 5, bytes: [41, 42, 43, 44] },
+        Holder { which: 7, bytes: [51, 52, 53, 54] }
+    ];
+    let indexed_called_view: &mut [u8] = indexed_after_call(&mut indexed_called);
+    let selected_called_view: &mut [u8] = selected_after_call(&mut selected_called, 1);
+    paint(indexed_called_view);
+    paint(selected_called_view);
+    let called_view: &mut [u8] = after_call(&mut called, 0);
+    let nested_view: &mut [u8] = nested(&mut envelope);
+    let indexed_view: &mut [u8] = indexed(&mut holders);
+    paint(called_view);
+    paint(nested_view);
+    paint(indexed_view);
+    transition envelope.holder.bytes[0] == 1 && envelope.holder.bytes[1] == 2
+        && envelope.holder.bytes[2] == 9 && envelope.holder.bytes[3] == 8
+        && holders[0].bytes[0] == 9 && holders[0].bytes[1] == 8
+        && holders[0].bytes[2] == 7 && holders[0].bytes[3] == 8
+        && called.which == 0 && called.bytes[0] == 9 && called.bytes[1] == 8
+        && called.bytes[2] == 23 && called.bytes[3] == 24
+        && indexed_called[0].which == 0
+        && indexed_called[0].bytes[0] == 9 && indexed_called[0].bytes[1] == 8
+        && indexed_called[0].bytes[2] == 33 && indexed_called[0].bytes[3] == 34
+        && selected_called[0].which == 5
+        && selected_called[0].bytes[0] == 41 && selected_called[0].bytes[1] == 42
+        && selected_called[1].which == 0
+        && selected_called[1].bytes[0] == 9 && selected_called[1].bytes[1] == 8
+        && selected_called[1].bytes[2] == 53 && selected_called[1].bytes[3] == 54 {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

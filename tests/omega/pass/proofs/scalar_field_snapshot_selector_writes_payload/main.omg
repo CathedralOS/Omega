@@ -1,0 +1,44 @@
+// Expected exit: 0. The selector changes payload after the base is captured.
+// The descriptor stays fixed, so the final read observes the written value.
+data Holder { value: u64; calls: u32 in Wrapping; }
+machine change(holders: &mut [Holder; 1]) -> u64 ensures result == 0 {
+    holders[0].calls = holders[0].calls + 1;
+    holders[0].value = 7;
+    0
+}
+machine demand_same(left: u64, right: u64) requires left == right {}
+machine inspect(holders: &mut [Holder; 1]) -> u64 {
+    let observed: u64 = holders[change(holders)].value;
+    let after: u64 = holders[0].value;
+    demand_same(observed, after);
+    observed
+}
+// The same completed read crosses a stored mutable descriptor prefix.
+data Collection<'storage> { values: &'storage mut [Holder; 1]; }
+machine change_stored<'storage>(collection: &mut Collection<'storage>) -> u64
+ensures result == 0 {
+    collection.values[0].calls = collection.values[0].calls + 1;
+    collection.values[0].value = 11;
+    0
+}
+machine inspect_stored<'storage>(collection: &mut Collection<'storage>) -> u64 {
+    let observed: u64 = collection.values[change_stored(collection)].value;
+    let after: u64 = collection.values[0].value;
+    demand_same(observed, after);
+    observed
+}
+machine main() crashes Trap {
+    let mut holders: [Holder; 1] = [Holder { value: 1, calls: 0 }];
+    let observed: u64 = inspect(&mut holders);
+    let mut stored: [Holder; 1] = [Holder { value: 2, calls: 0 }];
+    let mut collection: Collection = Collection { values: &mut stored };
+    let stored_observed: u64 = inspect_stored(&mut collection);
+    transition observed == 7 && holders[0].value == 7
+        && stored_observed == 11 && collection.values[0].value == 11
+        && holders[0].calls == 1 && collection.values[0].calls == 1 {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

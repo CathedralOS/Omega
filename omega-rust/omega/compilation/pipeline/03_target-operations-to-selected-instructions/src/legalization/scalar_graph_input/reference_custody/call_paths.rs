@@ -43,6 +43,63 @@ pub(super) fn observe_reference_custody(
     types: &[StructuralTypeDeclaration],
     argument: &StructuralArgument,
 ) -> Result<ReferenceObservation, LegalizationError> {
+    if !custody.borrowed_sources.contains_key(&argument.place) {
+        return observe_direct_reference_custody(function, custody, types, argument);
+    }
+    // A borrowed aggregate parameter transports an address, not duplicate
+    // resident permissions. Authenticate its complete root presentation first,
+    // then walk the unchanged relative path in every actual source namespace.
+    // Looking up a descriptor at the parameter itself would lose that roster;
+    // flattening the full path would demand the same missing descriptor first.
+    let roots = super::borrowed_arrivals::flatten(
+        function,
+        custody,
+        types,
+        &StructuralArgument {
+            place: argument.place,
+            path: Vec::new(),
+            access: argument.access,
+        },
+    )
+    .ok_or_else(invalid)?;
+    let mut complete: Option<ReferenceObservation> = None;
+    for mut root in roots {
+        root.path.extend_from_slice(&argument.path);
+        root.access = argument.access;
+        let observed = observe_direct_reference_custody(function, custody, types, &root)?;
+        if let Some(complete) = &mut complete {
+            if complete.referent != observed.referent {
+                return Err(invalid());
+            }
+            complete.absent_case_descriptors |= observed.absent_case_descriptors;
+            for origin in observed.origins {
+                if !complete.origins.contains(&origin) {
+                    complete.origins.push(origin);
+                }
+            }
+            for dependency in observed.dependencies {
+                if !complete.dependencies.contains(&dependency) {
+                    complete.dependencies.push(dependency);
+                }
+            }
+            for descriptor in observed.descriptors {
+                if !complete.descriptors.contains(&descriptor) {
+                    complete.descriptors.push(descriptor);
+                }
+            }
+        } else {
+            complete = Some(observed);
+        }
+    }
+    complete.ok_or_else(invalid)
+}
+
+fn observe_direct_reference_custody(
+    function: &PsiOptimizationFunction,
+    custody: &Custody,
+    types: &[StructuralTypeDeclaration],
+    argument: &StructuralArgument,
+) -> Result<ReferenceObservation, LegalizationError> {
     if argument.access == StructuralAccess::Owned {
         return Err(invalid());
     }

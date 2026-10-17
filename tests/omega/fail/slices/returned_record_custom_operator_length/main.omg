@@ -1,0 +1,12 @@
+pub domain u64::Custom;
+pub machine + u64::Custom::add(left: u64 in Custom, right: u64) -> u64
+ensures result == 3 { 3 }
+pub data Held<'row> { values: &'row mut [u8]; }
+boundary machine selected<'row>(values: &'row mut [u8; 4], count: u64 in Custom) -> Held<'row>
+ensures result.values.len == count + 0;
+machine need_two(values: &[u8]) requires values.len == 2 {}
+machine main() crashes Trap {
+    let mut values: [u8; 4] = [10, 20, 30, 40];
+    let held: Held = selected(&mut values, 2);
+    need_two(held.values);
+}

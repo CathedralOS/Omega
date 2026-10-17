@@ -196,6 +196,23 @@ pub(crate) fn operand_entry_origin_is_stable(
     )
 }
 
+/// A source descriptor prefix is the binding evaluated before later children.
+/// Payload writes below it cannot redirect that address; replacement can.
+pub(crate) fn operand_entry_binding_origin_is_stable(
+    program: &dyn ::validation::CheckingInput,
+    flow: &FlowFacts,
+    operand: &FlowOperandFact,
+    place: &validation::CanonicalPlace,
+) -> bool {
+    binding_origin_is_stable(
+        program,
+        &flow.control,
+        operand.entry_origin_writes,
+        operand.entry_origin_unknown_write,
+        place,
+    )
+}
+
 pub(crate) fn entry_origin_is_stable(
     program: &dyn ::validation::CheckingInput,
     control: &checked_trees::FlowControlFacts,

@@ -1,0 +1,29 @@
+// Collection measures retain descriptor identity through scalar copies.
+data Pattern { mask: u8; }
+machine demand_same(left: u64, right: u64) requires left == right {}
+machine byte_window(bytes: &[u8], pattern: &[Pattern], start: u64) -> u64
+requires start <= bytes.len && pattern.len <= bytes.len - start {
+    let count: u64 = pattern.len;
+    let view: &[u8] = &bytes[start..start + count];
+    demand_same(view.len, count);
+    view.len
+}
+machine element_window(items: &[u16], pattern: &[u8], start: u64) -> u64
+requires start <= items.len && pattern.len <= items.len - start {
+    let view: &[u16] = &items[start..start + pattern.len];
+    demand_same(view.len, pattern.len);
+    view.len
+}
+machine main() crashes Trap {
+    let bytes: [u8; 4] = [91, 7, 8, 92];
+    let patterns: [Pattern; 2] = [Pattern { mask: 255 }, Pattern { mask: 0 }];
+    let items: [u16; 4] = [101, 102, 103, 104];
+    let first: u64 = byte_window(&bytes[..], &patterns[..], 1);
+    let second: u64 = element_window(&items[..], &bytes[1..3], 1);
+    transition first == 2 && second == 2 && bytes[0] == 91 && bytes[3] == 92 {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

@@ -1,0 +1,27 @@
+// Expected exit: 0. Capture the original descriptor before the selector reseats it.
+data Holder { value: u64; }
+data Collection<'storage> { values: &'storage [Holder; 1]; calls: u32 in Wrapping; }
+data Observed { before: u64; after: u64; }
+machine change<'storage>(collection: &mut Collection<'storage>, replacement: &'storage [Holder; 1]) -> u64
+ensures result == 0 {
+    collection.calls = collection.calls + 1;
+    collection.values = replacement;
+    0
+}
+machine inspect<'storage>(collection: &mut Collection<'storage>, replacement: &'storage [Holder; 1]) -> Observed {
+    let before: u64 = collection.values[change(collection, replacement)].value;
+    let after: u64 = collection.values[0].value;
+    Observed { before: before, after: after }
+}
+machine main() crashes Trap {
+    let original: [Holder; 1] = [Holder { value: 3 }];
+    let replacement: [Holder; 1] = [Holder { value: 9 }];
+    let mut collection: Collection = Collection { values: &original, calls: 0 };
+    let observed: Observed = inspect(&mut collection, &replacement);
+    transition observed.before == 3 && observed.after == 9 && collection.calls == 1 {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

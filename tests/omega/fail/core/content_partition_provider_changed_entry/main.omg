@@ -1,0 +1,58 @@
+// A captured entry magnitude cannot be replaced by a later resident value.
+// The issued pieces use the post-write value, so conservation must refuse.
+use omega::language::core::content;
+use omega::language::core::drop;
+
+pub data ByteUnit {}
+
+pub data Region [linear] {
+    remaining: u64;
+}
+
+machine Region::drop(region: &mut Region) {}
+
+pub domain Region::Owned;
+
+pub machine Owned::content(region: &Region) -> CountedQuantity<ByteUnit>
+satisfies Content<Region, CountedQuantity<ByteUnit>>::project
+{
+    CountedQuantity { magnitude: embed(region.remaining) as Nat }
+}
+
+pub data SplitResult {
+    left: Region in Owned;
+    right: Region in Owned;
+}
+
+pub boundary trait RegionSplit {
+    machine split(mut whole: Region in Owned, head: u64) -> SplitResult
+    requires head <= whole.remaining
+    ensures
+        Owned::content(old(&whole))
+        == separate(
+            Owned::content(&result.left),
+            Owned::content(&result.right),
+        );
+}
+
+data RegionSplitProvider { }
+
+machine RegionSplitProvider::split(mut whole: Region in Owned, head: u64) -> SplitResult
+satisfies RegionSplit::split
+requires head <= whole.remaining
+ensures
+    Owned::content(old(&whole))
+    == separate(
+        Owned::content(&result.left),
+        Owned::content(&result.right),
+    )
+{
+    let before: u64 = whole.remaining;
+    whole.remaining = 0;
+    let left: Region in Owned = Region { remaining: head };
+    let right: Region in Owned = Region { remaining: whole.remaining };
+    drop(whole);
+    SplitResult { left: left, right: right }
+}
+
+machine main() {}

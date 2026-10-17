@@ -1890,7 +1890,34 @@ fn borrowed_leaf_type(
     access: terminal_psi::StructuralAccess,
     expected: Option<&StructuralTypeDeclaration>,
 ) -> impl Fn(&StructuralFieldType) -> Option<StructuralFieldType> + Copy + '_ {
-    move |field| field.borrowed_presentation_type(access, expected)
+    move |field| {
+        if let Some(expected) = expected
+            && let Some(
+                carrier @ (terminal_psi::ByteSequenceCarrier::BorrowedView {
+                    access: Some(granted),
+                }
+                | terminal_psi::ByteSequenceCarrier::BoundedView {
+                    access: Some(granted),
+                    ..
+                }),
+            ) = field.byte_sequence_carrier()
+        {
+            // An inline field owns this exact descriptor contract without a
+            // standalone type identity. Present it as the requested declaration
+            // only under the shared descriptor geometry and access judgment.
+            // The caller separately authenticates its root, source occurrence
+            // permission, producer, projection and argument placement.
+            return terminal_semantics::descriptor_reborrow_shapes_match(
+                &StructuralTypeShape::ByteSequence(carrier),
+                granted,
+                None,
+                &expected.shape,
+                access,
+            )
+            .then_some(StructuralFieldType::Structural(expected.id));
+        }
+        field.borrowed_presentation_type(access, expected)
+    }
 }
 
 /// Byte-carrier leaves resolve to the standalone declaration a leaf copy of

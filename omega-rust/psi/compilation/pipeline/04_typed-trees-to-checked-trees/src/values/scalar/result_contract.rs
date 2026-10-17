@@ -162,61 +162,55 @@ impl ContractPredicates<'_, '_> {
         if depth >= 64 {
             return None;
         }
-        let static_observation = super::structural_fields::structural_parameter_place(
+        let (term, _) = super::scalar_lowering::scalar_storage_read_with_selectors(
             self.program,
+            self.operators,
+            expression,
+            self.parameters,
+            |_, selector, _| {
+                self.numeric_term(selector, depth + 1)
+                    .map(|(term, _)| term)
+                    .or_else(|| {
+                        lower_contract_integer_literal(
+                            self.program,
+                            self.operators,
+                            selector,
+                            PrimitiveType::U64,
+                        )
+                    })
+            },
+        )?;
+        let position = match &term {
+            CheckedScalarExpression::StructuralParameterIndexedRead { root, .. } => {
+                root.parameter()?
+            }
+            CheckedScalarExpression::StructuralParameterField {
+                parameter_position, ..
+            } => *parameter_position,
+            CheckedScalarExpression::Boolean(value) => {
+                let CheckedBooleanExpression::StructuralParameterField {
+                    parameter_position, ..
+                } = value.as_ref()
+                else {
+                    return None;
+                };
+                *parameter_position
+            }
+            _ => return None,
+        };
+        // Keep the selected endpoint's qualifications and arithmetic policy,
+        // rather than reconstructing a bare type from its scalar carrier.
+        let reference = validation::parameter_expression_result_type_reference(
+            self.program,
+            self.owner,
             self.parameters,
             expression,
-        )
-        .and_then(|(position, _, reference)| {
-            let (term, _) = super::structural_fields::lower_structural_parameter_field(
-                self.program,
-                self.parameters,
-                expression,
-            )?;
-            let reference =
-                validation::field_domains::readable_type_reference(self.program, reference)?;
-            Some((position, term, reference))
-        });
-        let (position, term, reference) = if let Some(observation) = static_observation {
-            observation
-        } else {
-            let (term, _) = super::scalar_lowering::indexed_scalar_read_with_selectors(
-                self.program,
-                self.operators,
-                expression,
-                self.parameters,
-                |_, selector| {
-                    self.numeric_term(selector, depth + 1)
-                        .map(|(term, _)| term)
-                        .or_else(|| {
-                            lower_contract_integer_literal(
-                                self.program,
-                                self.operators,
-                                selector,
-                                PrimitiveType::U64,
-                            )
-                        })
-                },
-            )?;
-            let CheckedScalarExpression::StructuralParameterIndexedRead { root, .. } = &term else {
-                return None;
-            };
-            let position = root.parameter()?;
-            // Keep the selected endpoint's qualifications and arithmetic policy,
-            // rather than reconstructing a bare type from its scalar carrier.
-            let reference = validation::parameter_expression_result_type_reference(
-                self.program,
-                self.owner,
-                self.parameters,
-                expression,
-            )?;
-            let reference =
-                validation::field_domains::readable_type_reference(self.program, reference)?;
-            if scalar_expression_type(&term) != self.program.primitive_type_reference(reference) {
-                return None;
-            }
-            (position, term, reference)
-        };
+        )?;
+        let reference =
+            validation::field_domains::readable_type_reference(self.program, reference)?;
+        if scalar_expression_type(&term) != self.program.primitive_type_reference(reference) {
+            return None;
+        }
         let parameter = self.parameters.get(position as usize)?;
         if !contract_storage_root(self.program, parameter, self.allow_result) {
             return None;
@@ -434,7 +428,7 @@ impl ContractPredicates<'_, '_> {
                     self.operators,
                     self.parameters,
                     expression,
-                    |_, operand| {
+                    |_, operand, _| {
                         self.numeric_term(operand, depth + 1)
                             .map(|(value, _)| value)
                     },

@@ -8,14 +8,11 @@
 //! judge's sole-arm normal-return value, the same environment that binds
 //! locals to their initializer terms.
 //!
-//! Each projection term is the owner-normalized projection plan evaluated on
-//! the subject's field terms. The recognized sole-arm shape admits no write to
-//! a parameter, so a parameter's entry revision and its current revision are
-//! one term; `old(place)` therefore reads the parameter binding directly. The
-//! result subject is the path's returned value. For counted quantities
-//! `separate` is the magnitude sum, and an Exact fixed-width `+ - *` on a
-//! magnitude is read as the mathematical value its overflow obligation
-//! guarantees. Everything else is an atom named by its canonical term.
+//! Each projection evaluates the owner's normalized fields on actual captured
+//! values. Parameter places rejoin the normal-return owner's exact typed read
+//! and entry/current revision; no freshly projected name can replace a read.
+//! Result places use the completed returned value. Counted `separate` is the
+//! magnitude sum; arithmetic remains the existing selected Exact term algebra.
 //!
 //! Interval-set algebras have no body judgment here and stand down as
 //! Unknown; a provider of such a theorem still needs its own evidence.
@@ -126,8 +123,7 @@ impl Magnitudes<'_, '_> {
                 else {
                     return None;
                 };
-                let subject = self.subject_term(subject)?;
-                self.scalar(&subject, magnitude)
+                self.scalar(subject, magnitude)
             }
             ContentConservationTerm::Separate(terms) => {
                 terms.iter().try_fold(Polynomial::default(), |sum, term| {
@@ -160,15 +156,28 @@ impl Magnitudes<'_, '_> {
 
     fn scalar(
         &self,
-        subject: &StructuralTerm,
+        subject: &ContentStructuralPlace,
         expression: &ContentScalarExpression,
     ) -> Option<Polynomial> {
         match expression {
             ContentScalarExpression::SubjectField(path)
             | ContentScalarExpression::RuntimeScalarEmbedding(path) => {
-                let term = path
-                    .iter()
-                    .fold(subject.clone(), |subject, field| self.field(subject, field));
+                let term = match &subject.root {
+                    ContentPlaceRoot::Parameter { symbol, .. } => {
+                        let mut segments = subject.segments.clone();
+                        segments.extend(path.iter().cloned().map(ContentPlaceSegment::Field));
+                        self.judge.captured_parameter_projection(
+                            *symbol,
+                            &segments,
+                            subject.version,
+                        )?
+                    }
+                    ContentPlaceRoot::Result => {
+                        let value = self.subject_term(subject)?;
+                        path.iter()
+                            .fold(value, |value, field| self.field(value, field))
+                    }
+                };
                 Some(integer_polynomial(&self.judge.resolve(term)))
             }
             ContentScalarExpression::Natural(text) => {

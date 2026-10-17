@@ -183,7 +183,8 @@ impl Expansion<'_> {
             active.push(node);
             pending.push((node, true));
             match &plans.nodes.get(node).kind {
-                CheckedScalarComputationKind::Apply { operands, .. } => {
+                CheckedScalarComputationKind::Apply { operands, .. }
+                | CheckedScalarComputationKind::StorageObservation { operands, .. } => {
                     let operands =
                         plans
                             .operands

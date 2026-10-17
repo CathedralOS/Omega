@@ -31,6 +31,15 @@ pub(crate) enum LoweredScalarBranchTerminator {
         erased_proof_arguments: Vec<LoweredProofTerm>,
         structural_arguments: Vec<StructuralArgument>,
     },
+    /// Bind an evaluated collection address before its selector executes.
+    /// This transports an existing loan, not a copied value or new reference.
+    Capture {
+        target: usize,
+        arguments: Vec<LoweredDirectExpression>,
+        source: semantic_vocabulary::PlaceId,
+        path: Vec<crate::emission::operation_emission::expressions::LoweredElementPathSegment>,
+        access: terminal_psi::StructuralAccess,
+    },
     Jump {
         target: usize,
         arguments: Vec<LoweredDirectExpression>,
@@ -236,7 +245,8 @@ pub(crate) fn scalar_state_emission_order(
                 Ok(())
             };
             match &states[position].terminator {
-                LoweredScalarBranchTerminator::Jump { target, .. }
+                LoweredScalarBranchTerminator::Capture { target, .. }
+                | LoweredScalarBranchTerminator::Jump { target, .. }
                 | LoweredScalarBranchTerminator::Qualify { target, .. } => push_target(*target)?,
                 LoweredScalarBranchTerminator::Conditional {
                     when_true_target,

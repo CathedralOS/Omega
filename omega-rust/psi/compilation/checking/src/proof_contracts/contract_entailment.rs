@@ -93,6 +93,7 @@ mod quotient_congruence;
 mod ranking_range;
 mod refuted_requires;
 mod result_bounds;
+mod scalar_observations;
 mod scoped_arithmetic;
 mod self_induction;
 pub(crate) mod specification_calls;
@@ -158,6 +159,7 @@ pub use ranking_range::{
 };
 pub use refuted_requires::instantiated_value_call_requires_proven;
 pub(crate) use refuted_requires::reject_refuted_value_call_requires;
+pub use scalar_observations::{CapturedScalarObservation, captured_scalar_observations};
 pub(crate) use scoped_arithmetic::scoped_arithmetic_implication_for_declaration;
 pub use scoped_arithmetic::{
     ScopedArithmeticBinder, ScopedArithmeticBinding, ScopedArithmeticComparison,

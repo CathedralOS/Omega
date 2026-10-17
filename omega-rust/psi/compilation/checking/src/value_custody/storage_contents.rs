@@ -33,7 +33,8 @@ enum ContentType {
     },
     /// A shared-view member — `&[T]` or `&'a V` — under
     /// [`ContentsRequirement::OwnedOrSharedView`], or a reference carrier under
-    /// [`ContentsRequirement::DescriptorCleanup`]. This is a terminal leaf:
+    /// [`ContentsRequirement::DescriptorCleanup`] or in-place
+    /// [`ContentsRequirement::BorrowedStorage`]. This is a terminal leaf:
     /// the referee remains borrowed and its contents never descend into the
     /// carrier's classification. The operation retains loan access and closure.
     View,
@@ -507,8 +508,15 @@ fn resolve(
             Box::new(resolve(program, *element_type, arguments, requirement)?),
             *length,
         )),
+        // In-place storage contains the already-formed descriptor, not its
+        // referee. All access kinds have this same storage boundary; lending
+        // the record neither moves its leaf permissions nor acquires backing
+        // access. The actual loan and shape consumers retain those judgments.
         TypeReferenceNode::Reference { .. }
-            if requirement == ContentsRequirement::DescriptorCleanup =>
+            if matches!(
+                requirement,
+                ContentsRequirement::DescriptorCleanup | ContentsRequirement::BorrowedStorage
+            ) =>
         {
             Some(ContentType::View)
         }
@@ -540,9 +548,7 @@ fn resolve(
             ..
         } if matches!(
             requirement,
-            ContentsRequirement::OwnedOrSharedView
-                | ContentsRequirement::StructuralConstruction
-                | ContentsRequirement::BorrowedStorage
+            ContentsRequirement::OwnedOrSharedView | ContentsRequirement::StructuralConstruction
         ) && matches!(
             program
                 .type_reference_table
@@ -554,15 +560,6 @@ fn resolve(
         {
             Some(ContentType::View)
         }
-        TypeReferenceNode::Reference {
-            access: language_semantics::ReferenceAccess::Mutable,
-            referee,
-            ..
-        } if requirement == ContentsRequirement::BorrowedStorage => matches!(
-            resolve(program, *referee, arguments, requirement)?,
-            ContentType::Provider
-        )
-        .then_some(ContentType::Provider),
         TypeReferenceNode::DynamicTrait { symbol, .. }
             if requirement == ContentsRequirement::BorrowedStorage
                 && is_boundary_provider(program, *symbol) =>

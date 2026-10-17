@@ -1049,7 +1049,8 @@ pub(super) fn collect(
                 }
             }
         }
-        CheckedScalarComputationKind::Apply { operands, .. } => {
+        CheckedScalarComputationKind::Apply { operands, .. }
+        | CheckedScalarComputationKind::StorageObservation { operands, .. } => {
             for operand in plans.operands.span(*operands)? {
                 collect(
                     program,

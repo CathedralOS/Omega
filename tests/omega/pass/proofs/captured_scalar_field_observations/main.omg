@@ -1,0 +1,47 @@
+// A scalar snapshot remains equal to its copies across unrelated writes.
+// A real field called len has scalar storage identity, not descriptor identity.
+data Counter { value: u64; len: u64; }
+data Envelope { inner: Counter; stamp: u64; }
+machine demand_same(left: u64, right: u64) requires left == right {}
+machine inspect(counter: &mut Counter) -> u64 {
+    let before: u64 = counter.value;
+    let copied: u64 = before;
+    counter.len = 19;
+    let same: u64 = counter.value;
+    demand_same(before, copied);
+    demand_same(before, same);
+    counter.value = 7;
+    demand_same(before, copied);
+    before
+}
+machine nested(envelope: &mut Envelope) -> u64 {
+    let before: u64 = envelope.inner.len;
+    envelope.stamp = 13;
+    let same: u64 = envelope.inner.len;
+    demand_same(before, same);
+    before
+}
+machine replace(counter: &mut Counter) -> u64 ensures result == 0 {
+    counter.value = 7;
+    0
+}
+machine capture_before_call(counter: &mut Counter) -> u64 {
+    let before: u64 = counter.value + replace(counter);
+    before
+}
+machine main() crashes Trap {
+    let mut counter: Counter = Counter { value: 3, len: 5 };
+    let mut envelope: Envelope = Envelope { inner: Counter { value: 11, len: 17 }, stamp: 0 };
+    let mut called: Counter = Counter { value: 23, len: 29 };
+    let called_before: u64 = capture_before_call(&mut called);
+    let before: u64 = inspect(&mut counter);
+    let nested_before: u64 = nested(&mut envelope);
+    transition before == 3 && counter.value == 7 && counter.len == 19
+        && nested_before == 17 && envelope.stamp == 13
+        && called_before == 23 && called.value == 7 && called.len == 29 {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

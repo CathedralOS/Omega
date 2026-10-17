@@ -49,6 +49,32 @@ pub(crate) fn retain_shapes(
                 continue;
             }
             retained_values.push(value);
+            if let checked_trees::CheckedStructuralValueKind::Record { fields, .. }
+            | checked_trees::CheckedStructuralValueKind::StructuralCase { fields, .. } =
+                &structural_values.nodes.get(value).kind
+            {
+                for field in structural_values.record_fields.span(*fields)? {
+                    let (_, declaration) = program.any_field_owner(field.field)?;
+                    if declaration.relevance.is_erased()
+                        || !matches!(
+                            field.value,
+                            checked_trees::CheckedStructuralRecordFieldValue::Structural(_)
+                        )
+                    {
+                        continue;
+                    }
+                    // Constructor operands complete in their own storage before
+                    // joining the field. Inline field geometry (including byte
+                    // views) cannot replace that operand's exact descriptor.
+                    retain_declarations(
+                        shapes,
+                        super::super::terminal_unit::scalar_operand_shapes(
+                            program,
+                            field.type_reference,
+                        )?,
+                    )?;
+                }
+            }
             if let checked_trees::CheckedStructuralValueKind::Reference {
                 source,
                 source_value,
@@ -251,7 +277,8 @@ pub(crate) fn retain_shapes(
                 when_false,
                 ..
             } => pending.extend([*condition, *when_true, *when_false]),
-            CheckedScalarComputationKind::Apply { operands, .. } => {
+            CheckedScalarComputationKind::Apply { operands, .. }
+            | CheckedScalarComputationKind::StorageObservation { operands, .. } => {
                 pending.extend(plans.operands.span(*operands)?)
             }
         }

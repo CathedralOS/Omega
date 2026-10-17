@@ -85,6 +85,7 @@ pub(crate) struct Evaluation {
     pub(crate) element_views:
         std::collections::BTreeMap<semantic_vocabulary::StructuralTypeId, Option<ScalarType>>,
     pub(crate) subslices: Vec<crate::scalar_lowering::computations::subslices::Slot>,
+    pub(crate) observations: Vec<crate::scalar_lowering::computations::observations::Slot>,
     pub(crate) produced_values: Vec<crate::scalar_lowering::computations::produced_values::Slot>,
     pub(crate) literals: Vec<crate::scalar_lowering::computations::literals::Slot>,
     pub(crate) copies: Vec<crate::scalar_lowering::computations::copies::Slot>,
@@ -210,16 +211,24 @@ impl Evaluation {
         checked: &'a CheckedTrees,
         qualifications: &'a crate::expression_preparation::qualifications::PreparedScalarQualifications,
         machine: symbols::SymbolHandle,
-    ) -> crate::scalar_lowering::computations::Expansion<'a> {
-        crate::scalar_lowering::computations::Expansion::new(checked, qualifications, machine, 1)
-            .with_structural_types(&self.structural_types)
-            .with_produced_values(&self.produced_values)
-            .with_literals(&self.literals)
-            .with_copies(&self.copies)
-            .with_subslices(&self.subslices)
-            .with_cases(&self.cases)
-            .with_fields(&self.record_fields)
-            .enter_proof_scope(identities, &self.erased_proof_formals)
+        operations: &OperationBuffer,
+    ) -> Result<crate::scalar_lowering::computations::Expansion<'a>, LoweringError> {
+        Ok(crate::scalar_lowering::computations::Expansion::new(
+            checked,
+            qualifications,
+            machine,
+            1,
+        )
+        .with_structural_types(&self.structural_types)
+        .with_produced_values(&self.produced_values)
+        .with_literals(&self.literals)
+        .with_copies(&self.copies)
+        .with_subslices(&self.subslices)
+        .with_observations(&self.observations)
+        .with_source_carriers(self.completed_carrier_inventory(operations)?)
+        .with_cases(&self.cases)
+        .with_fields(&self.record_fields)
+        .enter_proof_scope(identities, &self.erased_proof_formals))
     }
 
     pub(crate) fn cleanup_parameter_places(&self) -> Vec<PlaceId> {
@@ -379,6 +388,7 @@ impl Evaluation {
             literals: self.literals.clone(),
             copies: self.copies.clone(),
             subslices: self.subslices.clone(),
+            observations: self.observations.clone(),
             cases: self.cases.clone(),
             record_fields: self.record_fields.clone(),
             place_observations: self.place_observations.clone(),
@@ -869,6 +879,7 @@ impl Evaluation {
             literals: Vec::new(),
             copies: Vec::new(),
             subslices: Vec::new(),
+            observations: Vec::new(),
             cases: Vec::new(),
             record_fields: Vec::new(),
             place_observations: std::sync::Arc::from([]),
@@ -1178,8 +1189,13 @@ impl Evaluation {
                 .map(Some);
         }
 
-        let mut expansion =
-            self.scalar_computation_expansion(identities, checked, qualifications, machine);
+        let mut expansion = self.scalar_computation_expansion(
+            identities,
+            checked,
+            qualifications,
+            machine,
+            operations,
+        )?;
         let entry_index = expansion.call_arguments(
             identities,
             state,
@@ -1320,8 +1336,13 @@ impl Evaluation {
             &bindings,
             &source_types,
         )?;
-        let mut expansion =
-            self.scalar_computation_expansion(identities, checked, qualifications, machine);
+        let mut expansion = self.scalar_computation_expansion(
+            identities,
+            checked,
+            qualifications,
+            machine,
+            operations,
+        )?;
         let entry = expansion.retained_value(
             identities,
             state,

@@ -49,6 +49,29 @@ pub(super) fn retain_bindings<'facts>(
     let ([observed], [produced]) = (observed.as_slice(), produced.as_slice()) else {
         return;
     };
+    // Geometry alone does not identify the observed value. The source's
+    // reference prefixes were evaluated before its selectors: a selector may
+    // write payload without redirecting them, but replacing a descriptor makes
+    // the completed scalar unavailable as an alias of the current source slot.
+    // Keep its original local snapshot binding even when this optional relation
+    // cannot be established.
+    let Some(prefixes) = super::super::capture_coordinates::borrowed_bindings(
+        program,
+        captured.operand,
+        &captured.projection.remaining,
+    ) else {
+        return;
+    };
+    if prefixes.iter().any(|prefix| {
+        !crate::flow::operand_entry_binding_origin_is_stable(
+            program,
+            &facts.flow,
+            captured.operand,
+            prefix,
+        )
+    }) {
+        return;
+    }
     let Some(source_type) = validation::canonical_place_type_reference(
         program,
         captured.operand.state_symbol,

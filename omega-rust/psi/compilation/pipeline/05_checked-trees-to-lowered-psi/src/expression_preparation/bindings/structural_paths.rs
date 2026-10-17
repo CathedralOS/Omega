@@ -161,7 +161,7 @@ pub(crate) fn prepare_call_argument_path(
     published_root: semantic_vocabulary::StructuralTypeId,
     types: &[terminal_psi::StructuralTypeDeclaration],
 ) -> Result<Vec<PreparedStructuralPathSegment>, LoweringError> {
-    let (mut path, mut tip) = prepare_structural_argument_projection(
+    let (path, tip) = prepare_structural_argument_projection(
         identities,
         checked,
         argument,
@@ -169,12 +169,56 @@ pub(crate) fn prepare_call_argument_path(
         published_root,
         types,
     )?;
-    let expected = identities.intern(
-        &checked
-            .type_identity_text(argument.type_identity)
-            .unwrap_or_default(),
-    );
-    let access = terminal_access(argument.access);
+    complete_lent_path(
+        identities,
+        checked,
+        path,
+        tip,
+        argument.type_identity,
+        terminal_access(argument.access),
+        types,
+    )
+}
+
+/// Resolve a prepared storage observation in its actual published namespace.
+/// The endpoint is a declaration view, not a fabricated invocation operand.
+pub(crate) fn prepare_observation_path(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+    checked: &checked_trees::CheckedTrees,
+    projection: &[CheckedUnitStructuralPathSegment],
+    root: semantic_vocabulary::StructuralTypeId,
+    logical_root: typed_trees::type_identity::TypeIdentityId,
+    endpoint: typed_trees::type_identity::TypeIdentityId,
+    access: StructuralAccess,
+    types: &[terminal_psi::StructuralTypeDeclaration],
+) -> Result<Vec<PreparedStructuralPathSegment>, LoweringError> {
+    if !logical_root.is_valid() {
+        return Err(LoweringError::Unsupported(
+            "storage observation has no logical root declaration",
+        ));
+    }
+    let (path, tip) = prepare_declared_projection(
+        identities,
+        checked,
+        projection,
+        root,
+        Some(logical_root),
+        access,
+        types,
+    )?;
+    complete_lent_path(identities, checked, path, tip, endpoint, access, types)
+}
+
+fn complete_lent_path<'a>(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+    checked: &checked_trees::CheckedTrees,
+    mut path: Vec<PreparedStructuralPathSegment>,
+    mut tip: PreparedArgumentTip<'a>,
+    endpoint: typed_trees::type_identity::TypeIdentityId,
+    access: StructuralAccess,
+    types: &'a [terminal_psi::StructuralTypeDeclaration],
+) -> Result<Vec<PreparedStructuralPathSegment>, LoweringError> {
+    let expected = identities.intern(&checked.type_identity_text(endpoint).unwrap_or_default());
     // A call lends its declared endpoint. A stored reference is a carrier for
     // that endpoint; preserve every crossing instead of passing its wrapper.
     // Owned transport keeps the descriptor itself and never performs this read.
@@ -219,7 +263,27 @@ fn prepare_structural_argument_projection<'a>(
     published_root: semantic_vocabulary::StructuralTypeId,
     types: &'a [terminal_psi::StructuralTypeDeclaration],
 ) -> Result<(Vec<PreparedStructuralPathSegment>, PreparedArgumentTip<'a>), LoweringError> {
-    let Some(identity) = argument.borrowed_root_type_identity() else {
+    prepare_declared_projection(
+        identities,
+        checked,
+        projection,
+        published_root,
+        argument.borrowed_root_type_identity(),
+        terminal_access(argument.access),
+        types,
+    )
+}
+
+fn prepare_declared_projection<'a>(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+    checked: &checked_trees::CheckedTrees,
+    projection: &[CheckedUnitStructuralPathSegment],
+    published_root: semantic_vocabulary::StructuralTypeId,
+    logical_identity: Option<typed_trees::type_identity::TypeIdentityId>,
+    requested: StructuralAccess,
+    types: &'a [terminal_psi::StructuralTypeDeclaration],
+) -> Result<(Vec<PreparedStructuralPathSegment>, PreparedArgumentTip<'a>), LoweringError> {
+    let Some(identity) = logical_identity else {
         return prepare_argument_projection(identities, projection, published_root, types);
     };
     let mut roots = types.iter().filter(|row| {
@@ -233,7 +297,6 @@ fn prepare_structural_argument_projection<'a>(
             "borrowed argument logical root is empty or ambiguous",
         ));
     }
-    let requested = terminal_access(argument.access);
     if requested == StructuralAccess::Owned {
         return Err(LoweringError::Unsupported(
             "logical borrowed argument cannot transfer its carrier",

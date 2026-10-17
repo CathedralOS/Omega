@@ -36,6 +36,7 @@ pub(crate) mod copies;
 mod dispatch;
 pub(crate) mod fields;
 pub(crate) mod literals;
+pub(crate) mod observations;
 pub(crate) mod operand_types;
 pub(crate) mod produced_values;
 mod selection;
@@ -97,6 +98,11 @@ pub(crate) struct Expansion<'a> {
     calls: Vec<SourceCallCoordinate>,
     produced_values: Vec<produced_values::Slot>,
     subslices: Vec<subslices::Slot>,
+    observations: Vec<observations::Slot>,
+    source_carriers: Vec<(
+        semantic_vocabulary::PlaceId,
+        terminal_psi::StructuralMultiplicity,
+    )>,
     literals: Vec<literals::Slot>,
     copies: Vec<copies::Slot>,
     cases: Vec<cases::Slot>,
@@ -128,6 +134,8 @@ impl<'a> Expansion<'a> {
             calls: Vec::new(),
             produced_values: Vec::new(),
             subslices: Vec::new(),
+            observations: Vec::new(),
+            source_carriers: Vec::new(),
             literals: Vec::new(),
             copies: Vec::new(),
             cases: Vec::new(),
@@ -178,6 +186,22 @@ impl<'a> Expansion<'a> {
         produced_values: &[produced_values::Slot],
     ) -> Self {
         self.produced_values = produced_values.to_vec();
+        self
+    }
+
+    pub(crate) fn with_source_carriers(
+        mut self,
+        carriers: Vec<(
+            semantic_vocabulary::PlaceId,
+            terminal_psi::StructuralMultiplicity,
+        )>,
+    ) -> Self {
+        self.source_carriers = carriers;
+        self
+    }
+
+    pub(crate) fn with_observations(mut self, observations: &[observations::Slot]) -> Self {
+        self.observations = observations.to_vec();
         self
     }
 
@@ -850,6 +874,25 @@ impl<'a> Expansion<'a> {
                 claim_transfers,
                 result_type,
                 input_types,
+                target,
+                site,
+                active,
+            )?,
+            CheckedScalarComputationKind::StorageObservation {
+                root_type,
+                expression,
+                operands,
+                collections,
+                ..
+            } => self.storage_observation(
+                identities,
+                *handle,
+                root_type,
+                &expression,
+                operands,
+                collections,
+                input_types,
+                result_type,
                 target,
                 site,
                 active,

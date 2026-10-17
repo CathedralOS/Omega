@@ -1710,6 +1710,7 @@ pass/progress/provider_receiver_progress_installation built 5451ms @4ffed225fc45
 pass/proofs/accepted_axiom_cited_exit built 528ms exit:70
 pass/proofs/accumulator_guarantee_exit built 588ms exit:70
 pass/proofs/axiom_citation checked 9691ms @5041ef1af684+wt
+pass/proofs/captured_scalar_field_observations built 13279ms exit:0 @f22c0e54a812
 pass/proofs/case_call_premises checked 190ms
 pass/proofs/cauchy_predicates_compile rejected 376ms @6c75d91f0312
 	cannot prove requires contract for specification call `cauchy_at` in machine `unit_sequence_is_reflexive` ensures contract: establish its selected precondition in an independently formed prior requires fact
@@ -1829,6 +1830,8 @@ pass/proofs/runtime_ranked_store_through_local_exit built 6610ms exit:70 @1727c7
 pass/proofs/runtime_sequential_ranked_components_exit built 894ms exit:70 @3ed38434a87f+wt
 pass/proofs/runtime_sequential_relational_accumulator_exit built 888ms exit:70 @abeaf0e29f04+wt
 pass/proofs/runtime_two_state_accumulator_exit built 5797ms exit:70 @1727c70d2f7e+wt
+pass/proofs/scalar_field_snapshot_captures_replaced_collection built 4044ms exit:0 @372006f89256
+pass/proofs/scalar_field_snapshot_selector_writes_payload built 4137ms exit:0 @372006f89256
 pass/proofs/stride_pair_telescope checked 9920ms @5041ef1af684+wt
 pass/providers/applied_entry_nested_binding_context_exit built 17266ms exit:0 @8df1d091a810
 pass/providers/bare_byte_array_boundary_argument built 1411ms exit:0 @bed5f45e9185+wt
@@ -1977,6 +1980,8 @@ pass/relevance/runtime_static_proof_namespace_exit built 3820ms exit:0 @9beb2be7
 pass/slices/bounded_byte_parameter_range_exit built 659ms exit:0 @f7f8668f6b87+wt
 pass/slices/byte_sequence_literal_tail_return_compile built 4665ms @4ffed225fc45+wt
 pass/slices/callee_non_byte_view_len_index_subslice built 1975ms exit:9 @ed38350cbc69+wt
+pass/slices/captured_collection_measure built 13593ms exit:0 @f22c0e54a812
+pass/slices/captured_field_window_subjects built 14700ms exit:0 @f22c0e54a812
 pass/slices/copy_array_under_view checked 9373ms @5041ef1af684+wt
 pass/slices/copy_view_descriptor checked 9585ms @5041ef1af684+wt
 pass/slices/declared_view_fill checked 9590ms @5041ef1af684+wt
@@ -2016,6 +2021,8 @@ pass/slices/projected_slice_length checked 10052ms @5041ef1af684+wt
 pass/slices/qualified_subslice_composition_exit built 2037ms exit:70 @a5ac65bf511d+wt
 pass/slices/recursive_subslice_element_accumulator_exit built 806ms exit:70 @de74b73e1452+wt
 pass/slices/requires_field_count_alias_index_compile checked 186ms
+pass/slices/returned_mutable_view_record_state_call built 3939ms exit:0 @3fd4c8bce0d8
+pass/slices/returned_record_mutable_parameter_post_length built 3802ms exit:0 @3fd4c8bce0d8
 pass/slices/runtime_anonymous_slice_argument_return_exit built 5853ms exit:0 @f329f97f57f7+wt
 pass/slices/runtime_boolean_alias_guard_transport_exit built 1730ms exit:0 @0facec44bc8b+wt
 pass/slices/runtime_borrowed_noncopy_array_argument_exit built 3708ms exit:0 @6d312ec7d5ba
@@ -2072,6 +2079,7 @@ pass/slices/runtime_slice_index_transition_exit built 1189ms exit:111 @8a91f26a0
 pass/slices/runtime_slice_indexed_read_exit built 689ms exit:70
 pass/slices/runtime_slice_iteration_exit built 1189ms exit:91 @8a91f26a0b28+wt
 pass/slices/runtime_slice_record_field_offset_exit built 1151ms exit:61 @8a91f26a0b28+wt
+pass/slices/runtime_state_cycle_tagged_reference_argument built 13386ms exit:0 @f22c0e54a812
 pass/slices/runtime_state_selected_nested_view_exit built 5725ms exit:0 @f329f97f57f7+wt
 pass/slices/runtime_stored_element_view_replacement_exit built 5677ms exit:0 @f329f97f57f7+wt
 pass/slices/runtime_stored_view_dynamic_selection_exit built 5674ms exit:0 @f329f97f57f7+wt

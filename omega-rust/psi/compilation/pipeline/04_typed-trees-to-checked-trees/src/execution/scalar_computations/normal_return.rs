@@ -17,7 +17,8 @@ pub(super) fn boolean_result(
     computation: CheckedScalarComputationHandle,
 ) -> Option<bool> {
     match &plans.nodes.get(computation).kind {
-        CheckedScalarComputationKind::SelectedComparison { .. }
+        CheckedScalarComputationKind::StorageObservation { .. }
+        | CheckedScalarComputationKind::SelectedComparison { .. }
         | CheckedScalarComputationKind::StructuralField { .. }
         | CheckedScalarComputationKind::ByteSequenceLiteralComparison { .. }
         | CheckedScalarComputationKind::ByteSequencePredicate { .. }

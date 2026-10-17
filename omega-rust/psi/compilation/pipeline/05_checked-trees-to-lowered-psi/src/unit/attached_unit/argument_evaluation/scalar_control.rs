@@ -332,8 +332,13 @@ impl Evaluation {
             terminal_scalar_type(control.primitive_type)?,
             qualifications,
         )?;
-        let mut expansion =
-            self.scalar_computation_expansion(identities, checked, qualifications, machine);
+        let mut expansion = self.scalar_computation_expansion(
+            identities,
+            checked,
+            qualifications,
+            machine,
+            operations,
+        )?;
         let mut completion_types = source_types.clone();
         completion_types.push(result_type);
         let completions = cleanups

@@ -99,3 +99,35 @@ pub(super) fn project_field(value: StructuralTerm, field_name: &str) -> Option<S
         | StructuralTerm::ObservedValue { .. } => None,
     }
 }
+
+/// Authenticate an actual integer data field; collection metadata is not a field.
+pub(super) fn declared_integer_field_read(
+    program: &dyn crate::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    expression: typed_trees::expression::ExpressionHandle,
+) -> Option<typed_trees::types::PrimitiveType> {
+    let typed_trees::expression::ExpressionNode::Member(member) =
+        program.expression_table.expression(expression)
+    else {
+        return None;
+    };
+    let receiver =
+        crate::expression_result_type_reference(program, machine, state, member.receiver)?;
+    let data = crate::value_custody::places::data_definition_for_type(program, receiver)?;
+    let field = crate::value_custody::places::exact_data_member_field(
+        program,
+        data,
+        member.member_symbol,
+        member.member.as_str(),
+        member.case_variant.as_ref().map(|case| case.as_str()),
+    )?;
+    if !field.symbol.is_valid()
+        || program.symbols.get(field.symbol).kind != symbols::SymbolKind::Field
+    {
+        return None;
+    }
+    let reference = crate::expression_result_type_reference(program, machine, state, expression)?;
+    let primitive = program.primitive_type_reference(reference)?;
+    primitive.is_fixed_integer().then_some(primitive)
+}

@@ -336,6 +336,11 @@ pub(super) fn emit(
         structural_types,
         &mut next_place,
     )?;
+    evaluation.observations = crate::scalar_lowering::computations::observations::prepare(
+        checked,
+        &[plan.machine],
+        &mut next_place,
+    )?;
     evaluation.subslices = crate::scalar_lowering::computations::subslices::prepare(
         identities,
         checked,

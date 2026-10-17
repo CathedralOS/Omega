@@ -1,0 +1,12 @@
+data Counter { value: u64; }
+machine demand_same(left: u64, right: u64) requires left == right {}
+machine replace(counter: &mut Counter) -> u64 ensures result == 0 {
+    counter.value = 7;
+    0
+}
+machine inspect(counter: &mut Counter) {
+    let before: u64 = counter.value + replace(counter);
+    let after: u64 = counter.value;
+    demand_same(before, after);
+}
+machine main() {}

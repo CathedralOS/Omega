@@ -81,6 +81,7 @@ fn value_type(
         }
         // A boundary or dynamic callee publishes the node's bare carrier.
         CheckedScalarComputationKind::Apply { .. }
+        | CheckedScalarComputationKind::StorageObservation { .. }
         | CheckedScalarComputationKind::Call { .. }
         | CheckedScalarComputationKind::StructuralField { .. }
         | CheckedScalarComputationKind::SelectedComparison { .. } => {

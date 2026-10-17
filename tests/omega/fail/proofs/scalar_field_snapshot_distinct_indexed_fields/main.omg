@@ -1,0 +1,9 @@
+data Holder { left: u64; right: u64; }
+machine demand_same(left: u64, right: u64) requires left == right {}
+machine inspect(holders: &mut [Holder; 2], index: u64)
+requires index < 2 {
+    let before: u64 = holders[index].left;
+    let after: u64 = holders[index].right;
+    demand_same(before, after);
+}
+machine main() {}

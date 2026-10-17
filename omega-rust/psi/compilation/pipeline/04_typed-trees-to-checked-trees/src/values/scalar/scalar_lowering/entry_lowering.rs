@@ -385,7 +385,7 @@ pub(crate) fn lower_scalar_expression(
     if let Some((source, target_type)) = recast_view_operand(program, expression) {
         let primitive_type = program.primitive_type_reference(target_type)?;
         let element = program.expression_table.indexed_node(source).and_then(|_| {
-            indexed_scalar_read(
+            scalar_storage_read(
                 program,
                 operators,
                 source,
@@ -485,7 +485,7 @@ pub(crate) fn lower_scalar_expression(
         operators,
         authored_parameters,
         expression,
-        |_, operand| {
+        |_, operand, _| {
             super::element_selection::pure_selector(
                 program,
                 operators,
@@ -503,51 +503,7 @@ pub(crate) fn lower_scalar_expression(
     if let Some(length) = exact_inline_literal_subslice_length(program, expression) {
         return Some((length, ArithmeticDomain::Exact));
     }
-    if let Some(indexed) = program.expression_table.indexed_node(expression) {
-        // Literal fixed-array leaves use the same checked projection as record
-        // fields. Runtime byte indexing below keeps its separate bound proof.
-        if let Some(field) = structural_fields::lower_structural_parameter_field(
-            program,
-            authored_parameters,
-            expression,
-        ) {
-            let (_, _, collection_type) = structural_fields::structural_parameter_place(
-                program,
-                authored_parameters,
-                indexed.collection,
-            )?;
-            return structural_fields::indexed_read_is_builtin(
-                program,
-                operators,
-                authored_parameters,
-                expression,
-                collection_type,
-                indexed.index,
-            )
-            .then_some(field);
-        }
-        return indexed_scalar_read(
-            program,
-            operators,
-            expression,
-            parameters,
-            authored_parameters,
-            parameter_types,
-            locals,
-            exact_integer_casts,
-        );
-    }
-    if matches!(
-        program.expression_table.expression(expression),
-        ExpressionNode::Name(_) | ExpressionNode::Member(_)
-    ) && let Some(field) = structural_fields::lower_structural_parameter_field(
-        program,
-        authored_parameters,
-        expression,
-    ) {
-        return Some(field);
-    }
-    if let Some(read) = indexed_scalar_read(
+    if let Some(read) = scalar_storage_read(
         program,
         operators,
         expression,

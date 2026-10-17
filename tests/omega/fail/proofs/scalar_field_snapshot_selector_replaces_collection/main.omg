@@ -1,0 +1,14 @@
+data Holder { value: u64; }
+data Collection<'storage> { values: &'storage [Holder; 1]; }
+machine change<'storage>(collection: &mut Collection<'storage>, replacement: &'storage [Holder; 1]) -> u64
+ensures result == 0 {
+    collection.values = replacement;
+    0
+}
+machine demand_same(left: u64, right: u64) requires left == right {}
+machine inspect<'storage>(collection: &mut Collection<'storage>, replacement: &'storage [Holder; 1]) {
+    let before: u64 = collection.values[change(collection, replacement)].value;
+    let after: u64 = collection.values[0].value;
+    demand_same(before, after);
+}
+machine main() {}

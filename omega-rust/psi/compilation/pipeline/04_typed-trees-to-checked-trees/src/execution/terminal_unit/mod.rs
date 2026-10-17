@@ -811,6 +811,32 @@ pub(crate) fn build_checked_unit_effect_plans(
         .flatten()
         .collect::<Vec<_>>();
     retained_type_identities.extend(operand_identities.iter().copied());
+    // Every collection capture names its actual declaration carrier before
+    // evaluating that collection's selector. Retain its vocabulary even when
+    // an inline descriptor field otherwise has no standalone catalog row.
+    for (_, node) in facts.values.scalar_computations.nodes.iter() {
+        if let checked_trees::CheckedScalarComputationKind::StorageObservation {
+            collections, ..
+        } = node.kind
+        {
+            for reference in facts
+                .values
+                .scalar_computations
+                .observation_collections
+                .span(collections)
+                .into_iter()
+                .flatten()
+            {
+                if let Some(identity) = shapes.add_type(*reference, &[], &[]) {
+                    retained_type_identities.insert(identity);
+                }
+                if let Some(identity) = shapes.add_stored_type(*reference, &[], &[]) {
+                    retained_type_identities.insert(identity);
+                }
+            }
+        }
+    }
+
     // A produced call operand occupies its own home before the call lends or
     // moves it, and lowering reserves that home by its stored identity: a
     // `[T]` view keeps its access ceiling there, beside the canonical view
@@ -1079,13 +1105,17 @@ pub(crate) fn build_checked_nominal_affine_unit_cleanup_plans(
 // Shape and signature admission shared by the plan builders above.
 
 /// A computed structural operand owns its storage vocabulary independently of
-/// source parameters. Access and evaluation remain with its operation plan.
+/// source parameters. Retain both its canonical backing and its exact stored
+/// carrier: inline aggregate fields can materialize a descriptor even when the
+/// field's geometry names no standalone type. Access and evaluation remain with
+/// the operation plan.
 pub(super) fn scalar_operand_shapes(
     program: &dyn ::validation::CheckingInput,
     reference: TypeReferenceHandle,
 ) -> Option<Vec<CheckedUnitStructuralTypePlan>> {
     let mut shapes = ShapeCollector::new(program);
     shapes.add_type(reference, &[], &[])?;
+    shapes.add_stored_type(reference, &[], &[])?;
     Some(shapes.types.into_values().collect())
 }
 

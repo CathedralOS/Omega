@@ -31,7 +31,7 @@ pub(crate) struct ScalarStorageProjection {
 /// Storage roots and declared carriers, not source nesting families, determine
 /// how the observation is emitted. Static literal geometry remains explicit.
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn indexed_scalar_read(
+pub(crate) fn scalar_storage_read(
     program: &dyn ::validation::CheckingInput,
     operators: &CheckedOperatorFacts,
     expression: ExpressionHandle,
@@ -41,12 +41,12 @@ pub(crate) fn indexed_scalar_read(
     locals: &[ScalarLocal],
     exact_integer_casts: &[validation::ExactIntegerCastFact],
 ) -> Option<(CheckedScalarExpression, ArithmeticDomain)> {
-    indexed_scalar_read_with_selectors(
+    scalar_storage_read_with_selectors(
         program,
         operators,
         expression,
         authored_parameters,
-        |_, operand| {
+        |_, operand, _| {
             pure_selector(
                 program,
                 operators,
@@ -64,12 +64,16 @@ pub(crate) fn indexed_scalar_read(
 /// Prepare the same observation with selectors supplied by the consuming
 /// scalar namespace. The reader owns indexing occurrences and declaration
 /// geometry; supplying a value never supplies an indexing proof.
-pub(crate) fn indexed_scalar_read_with_selectors(
+pub(crate) fn scalar_storage_read_with_selectors(
     program: &dyn ::validation::CheckingInput,
     operators: &CheckedOperatorFacts,
     expression: ExpressionHandle,
     authored_parameters: &[StateParameter],
-    selector: impl FnMut(ExpressionHandle, ExpressionHandle) -> Option<CheckedScalarExpression>,
+    selector: impl FnMut(
+        ExpressionHandle,
+        ExpressionHandle,
+        typed_trees::types::TypeReferenceHandle,
+    ) -> Option<CheckedScalarExpression>,
 ) -> Option<(CheckedScalarExpression, ArithmeticDomain)> {
     let projection = storage_projection(
         program,
@@ -83,7 +87,53 @@ pub(crate) fn indexed_scalar_read_with_selectors(
             segment,
             checked_trees::CheckedScalarReadProjection::RuntimeIndex(_)
         )
-    })?;
+    });
+    let Some(first_index) = first_index else {
+        let parameter_position = projection.root.parameter()?;
+        let path = projection
+            .path
+            .into_iter()
+            .map(|segment| match segment {
+                checked_trees::CheckedScalarReadProjection::Static(segment) => Some(segment),
+                _ => None,
+            })
+            .collect::<Option<Vec<_>>>()?;
+        let mut reference = projection.selected_type;
+        if path.is_empty() {
+            let shell = validation::reference_shell(program, reference)?;
+            if !matches!(
+                shell.access,
+                language_core::ReferenceAccess::Shared | language_core::ReferenceAccess::Mutable
+            ) {
+                return None;
+            }
+            reference = validation::field_domains::readable_type_reference(program, reference)?;
+        }
+        let primitive_type = program.primitive_type_reference(reference)?;
+        let expression = if primitive_type == PrimitiveType::Bool {
+            CheckedScalarExpression::Boolean(Box::new(
+                checked_trees::CheckedBooleanExpression::StructuralParameterField {
+                    parameter_position,
+                    path,
+                },
+            ))
+        } else {
+            if !is_integer(primitive_type)
+                && !matches!(primitive_type, PrimitiveType::F32 | PrimitiveType::F64)
+            {
+                return None;
+            }
+            CheckedScalarExpression::StructuralParameterField {
+                parameter_position,
+                path,
+                primitive_type,
+            }
+        };
+        return Some((
+            expression,
+            program.arithmetic_domain_for_type_reference(reference),
+        ));
+    };
     let mut segments = projection.path.into_iter();
     let path = segments
         .by_ref()
@@ -125,7 +175,11 @@ pub(crate) fn storage_projection(
     operators: &CheckedOperatorFacts,
     expression: ExpressionHandle,
     authored_parameters: &[StateParameter],
-    mut selector: impl FnMut(ExpressionHandle, ExpressionHandle) -> Option<CheckedScalarExpression>,
+    mut selector: impl FnMut(
+        ExpressionHandle,
+        ExpressionHandle,
+        typed_trees::types::TypeReferenceHandle,
+    ) -> Option<CheckedScalarExpression>,
 ) -> Option<ScalarStorageProjection> {
     enum Projection {
         Field(ExpressionHandle),
@@ -209,7 +263,7 @@ pub(crate) fn storage_projection(
                 ) {
                     return None;
                 }
-                let value = selector(occurrence, operand)?;
+                let value = selector(occurrence, operand, element_type)?;
                 let carrier = scalar_expression_type(&value)?;
                 if !is_integer(carrier) || carrier == PrimitiveType::Addr {
                     return None;

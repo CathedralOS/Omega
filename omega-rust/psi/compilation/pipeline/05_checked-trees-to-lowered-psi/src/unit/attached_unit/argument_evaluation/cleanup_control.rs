@@ -105,6 +105,51 @@ impl Evaluation {
         Ok(multiplicity)
     }
 
+    /// The exact emitted carrier roster available to a computation expansion.
+    /// Homes and declared source types alone cannot reconstruct multiplicity.
+    pub(crate) fn completed_carrier_inventory(
+        &self,
+        operations: &OperationBuffer,
+    ) -> Result<
+        Vec<(
+            semantic_vocabulary::PlaceId,
+            terminal_psi::StructuralMultiplicity,
+        )>,
+        LoweringError,
+    > {
+        let mut places = self
+            .structural_root_parameters()
+            .map(|parameter| parameter.place)
+            .chain(
+                self.structural_value_owners
+                    .iter()
+                    .map(|owner| owner.value.place),
+            )
+            .chain(
+                operations
+                    .iter()
+                    .chain(self.blocks.iter().flat_map(|block| block.operations.iter()))
+                    .filter_map(|operation| operation.result.structural())
+                    .map(|result| result.place),
+            )
+            .chain(
+                operations
+                    .structural_values
+                    .iter()
+                    .filter_map(|(_, binding)| binding.path().is_empty().then(|| binding.place())),
+            )
+            .collect::<Vec<_>>();
+        places.sort_unstable();
+        places.dedup();
+        places
+            .into_iter()
+            .map(|place| {
+                self.carrier_multiplicity(place, operations)
+                    .map(|multiplicity| (place, multiplicity))
+            })
+            .collect()
+    }
+
     /// Releasing a descriptor ends its own home, not its borrowed backing.
     /// Qualifications do not turn an unrestricted value into an affine owner.
     pub(crate) fn descriptor_retirement(

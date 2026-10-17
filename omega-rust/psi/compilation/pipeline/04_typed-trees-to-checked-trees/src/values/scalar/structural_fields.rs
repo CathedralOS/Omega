@@ -3,13 +3,10 @@
 //! Root custody distinguishes parameters, owned locals and view locals. Selection
 //! does not: length, content and element observations must retain the same field
 //! path and selected type rather than rediscovering a whole-local source shape.
-use crate::values::scalar::expression_facts::is_integer;
-use checked_trees::CheckedBooleanExpression;
 use checked_trees::CheckedOperatorFacts;
 use checked_trees::CheckedOperatorResolutionStatus;
 use checked_trees::CheckedScalarExpression;
 use checked_trees::CheckedStructuralPredicatePathSegment;
-use numerics::arithmetic::ArithmeticDomain;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::expression::ExpressionNode;
 use typed_trees::signature::StateParameter;
@@ -48,7 +45,11 @@ pub(crate) fn structural_sequence_length(
     operators: &CheckedOperatorFacts,
     parameters: &[StateParameter],
     expression: ExpressionHandle,
-    selector: impl FnMut(ExpressionHandle, ExpressionHandle) -> Option<CheckedScalarExpression>,
+    selector: impl FnMut(
+        ExpressionHandle,
+        ExpressionHandle,
+        TypeReferenceHandle,
+    ) -> Option<CheckedScalarExpression>,
 ) -> Option<CheckedScalarExpression> {
     let receiver = program
         .expression_table
@@ -664,68 +665,6 @@ pub(crate) fn structural_data(
             .first()
             .map(|position| &program.data_definitions()[*position as usize])
     }
-}
-
-pub(crate) fn lower_structural_parameter_field(
-    program: &dyn ::validation::CheckingInput,
-    parameters: &[StateParameter],
-    expression: ExpressionHandle,
-) -> Option<(CheckedScalarExpression, ArithmeticDomain)> {
-    let (parameter_position, path, mut type_reference) =
-        structural_parameter_place(program, parameters, expression)?;
-    if path.is_empty() {
-        // A whole primitive loan and a projected primitive leaf observe
-        // storage in the same formal-place namespace. Bare scalar parameters
-        // remain value formals; write-only loans grant no read.
-        let shell = validation::reference_shell(program, type_reference)?;
-        if !matches!(
-            shell.access,
-            language_core::ReferenceAccess::Shared | language_core::ReferenceAccess::Mutable
-        ) {
-            return None;
-        }
-        type_reference =
-            validation::field_domains::readable_type_reference(program, type_reference)?;
-    }
-    if matches!(
-        path.last(),
-        Some(CheckedStructuralPredicatePathSegment::FixedIndex(_))
-    ) {
-        // The primitive-storage endpoint is an array's primitive declaration,
-        // bare or qualified only by an arithmetic policy. Membership-qualified
-        // leaves retain their existing indexed-byte/proof route; scalar record
-        // fields remain owned by field operations. An indexed carrier that
-        // continues into a record field (`maps[1].value`) instead resolves its
-        // scalar leaf through primitive_type_reference below.
-        validation::unrestricted_builtin_primitive(program, type_reference)?;
-    }
-    let primitive_type = program.primitive_type_reference(type_reference)?;
-    if primitive_type == PrimitiveType::Bool {
-        return Some((
-            CheckedScalarExpression::Boolean(Box::new(
-                CheckedBooleanExpression::StructuralParameterField {
-                    parameter_position,
-                    path,
-                },
-            )),
-            ArithmeticDomain::Exact,
-        ));
-    }
-    // A field observation retains its declared scalar carrier, including
-    // address identity. Reading storage grants no numeric conversion.
-    if !is_integer(primitive_type)
-        && !matches!(primitive_type, PrimitiveType::F32 | PrimitiveType::F64)
-    {
-        return None;
-    }
-    Some((
-        CheckedScalarExpression::StructuralParameterField {
-            parameter_position,
-            path,
-            primitive_type,
-        },
-        program.arithmetic_domain_for_type_reference(type_reference),
-    ))
 }
 
 pub(crate) fn structural_parameter_place(

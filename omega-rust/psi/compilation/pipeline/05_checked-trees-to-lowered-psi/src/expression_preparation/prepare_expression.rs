@@ -48,7 +48,7 @@ pub(crate) fn lower_checked_scalar_expression(
 
 /// Range checking publishes these handles in arena-position/generation order.
 /// Consume that ordering without another index allocation or source walk.
-fn selector_bound_is_decided(
+pub(crate) fn selector_bound_is_decided(
     selector: &checked_trees::CheckedScalarSelector,
     proven_indexes: &[checked_trees::expression::ExpressionHandle],
 ) -> bool {

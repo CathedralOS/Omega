@@ -17,7 +17,7 @@ fn canonicalize(sources: &mut Vec<StructuralArgument>) {
 
 /// Flatten against the pre-transfer state. Never reinterpret an unresolved
 /// borrowed parameter as an activation-local owning home.
-fn flatten(
+pub(super) fn flatten(
     function: &PsiOptimizationFunction,
     custody: &Custody,
     types: &[StructuralTypeDeclaration],

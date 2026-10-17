@@ -380,9 +380,10 @@ fn loads_backing_pointer(
     })
 }
 
-/// Whether an indexed field read follows a shared view field's descriptor
-/// pointer rather than addressing inline bounded-owned bytes. The carrier is
-/// resolved from the exact root declaration, never from a footprint shape.
+/// Whether an indexed field read follows a view field's descriptor pointer
+/// rather than addressing inline bounded-owned bytes. Descriptor layout is
+/// independent of access; mandatory source replay owns read permission. Resolve
+/// the carrier from the exact root declaration, never from a footprint shape.
 fn reads_through_descriptor(
     function: &AbstractFunction,
     operation: &AbstractOperation,
@@ -398,10 +399,10 @@ fn reads_through_descriptor(
         return false;
     };
     field_root_type(function, *source).is_some_and(|root| {
-        field_carrier(target, root, path, *field)
-            == Some(terminal_psi::ByteSequenceCarrier::BorrowedView {
-                access: Some(terminal_psi::StructuralAccess::SharedBorrow),
-            })
+        matches!(
+            field_carrier(target, root, path, *field),
+            Some(terminal_psi::ByteSequenceCarrier::BorrowedView { .. })
+        )
     })
 }
 
@@ -448,7 +449,7 @@ fn field_carrier(
 
 /// The footprint rows an indexed field byte read publishes: its source root,
 /// one byte, and its own selector, length and obligation. A read through a
-/// shared view field's descriptor first loads that descriptor's pointer word
+/// view field's descriptor first loads that descriptor's pointer word
 /// from the same root.
 pub(super) fn indexed_read_footprint_retained(
     function: &AbstractFunction,

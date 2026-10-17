@@ -1,0 +1,28 @@
+// A stored mutable view retains its shared call presentation after a state edge.
+// Expected exit: 0
+data Held<'row> { values: &'row mut [u8]; }
+machine changed<'row>(values: &'row mut [u8; 4], mut count: u64) -> Held<'row>
+ensures result.values.len == count
+ensures result.values.len == 3 {
+    count = 3;
+    Held { values: &mut values[0..count] }
+}
+machine need_three(values: &[u8]) requires values.len == 3 {}
+machine observed<'row>(held: Held<'row>) -> bool
+requires held.values.len == 3 {
+    transition { _ -> inspect(held) }
+    state inspect(held: Held<'row>) -> bool requires held.values.len == 3 {
+        need_three(held.values);
+        held.values.len == 3 && held.values[2] == 30
+    }
+}
+machine main() crashes Trap {
+    let mut values: [u8; 4] = [10, 20, 30, 40];
+    let held: Held = changed(&mut values, 2);
+    transition observed(held) {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

@@ -333,7 +333,8 @@ fn collect_reachable_nodes(
                     LoweringError::Unsupported("scalar computation closure has invalid arguments"),
                 )?);
             }
-            CheckedScalarComputationKind::Apply { operands, .. } => pending.extend(
+            CheckedScalarComputationKind::Apply { operands, .. }
+            | CheckedScalarComputationKind::StorageObservation { operands, .. } => pending.extend(
                 plans
                     .operands
                     .span(*operands)

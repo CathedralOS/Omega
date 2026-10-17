@@ -137,40 +137,6 @@ pub(super) fn validate_borrowed_argument(
                 ))
             .then_some(shape)
         });
-    // A mutable byte-view field has no scalar leaf, so the projection above
-    // publishes nothing. The field still stores that descriptor inside the
-    // owned record. Lend it when the callee's view sits at the field offset.
-    let stored_view_field = exclusive
-        && aggregate.is_none()
-        && aggregate_root.is_some_and(|root| {
-            let Some((shape, offset, elements)) =
-                crate::structural_inputs::structural_reference_input::collection_projection(
-                    root,
-                    &semantic.path,
-                    &signature.structural_types,
-                )
-            else {
-                return false;
-            };
-            matches!(
-                shape.as_ref(),
-                terminal_psi::StructuralTypeShape::ByteSequence(
-                    terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
-                )
-            ) && target.root_structural_type == root
-                && target.source_byte_offset == offset
-                && crate::structural_inputs::structural_reference_input::runtime_indices_match(
-                    indices, &elements,
-                )
-                && signature.structural_types.iter().any(|declaration| {
-                    declaration.id == target.structural_type
-                        && (declaration.shape.is_borrowed_byte_carrier()
-                            || matches!(
-                                declaration.shape,
-                                terminal_psi::StructuralTypeShape::ElementView { .. }
-                            ))
-                })
-        });
     // A fixed array presents its backing from an incoming parameter or
     // from a local home lent through this argument's own borrow — Terminal's
     // array-result loan. The home keeps its owned access; `aggregate_home`
@@ -409,8 +375,6 @@ pub(super) fn validate_borrowed_argument(
         )?
     } else if let Some(shape) = projected_loan {
         shape
-    } else if stored_view_field {
-        destination_shape
     } else if exclusive
         || signature.structural_types.iter().any(|declaration| {
             declaration.id == target.structural_type
@@ -486,7 +450,7 @@ pub(super) fn validate_borrowed_argument(
                     semantic.place,
                 )
                 .is_some_and(|(actual, _)| actual == producer);
-            if (aggregate.is_none() && !home_view && !descriptor_home && !stored_view_field)
+            if (aggregate.is_none() && !home_view && !descriptor_home)
                 || *psi_operation != producer
                 || producer == operation
             {

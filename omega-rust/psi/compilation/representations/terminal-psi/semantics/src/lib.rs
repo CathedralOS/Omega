@@ -158,9 +158,9 @@ pub use record_field::{
     static_field_projection,
 };
 pub use reference_views::{
-    descriptor_reborrow_matches, descriptor_source_projection_accessible,
-    descriptor_value_transfer_matches, is_shared_reference_carrier,
-    reference_byte_field_compatible, reference_source_compatible,
+    descriptor_reborrow_matches, descriptor_reborrow_shapes_match,
+    descriptor_source_projection_accessible, descriptor_value_transfer_matches,
+    is_shared_reference_carrier, reference_byte_field_compatible, reference_source_compatible,
     reference_source_projection_accessible, reference_source_projection_compatible,
     reference_source_storage_path, reference_storage_byte_width,
     reference_storage_export_byte_width, reference_storage_source_compatible,

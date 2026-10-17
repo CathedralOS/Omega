@@ -88,6 +88,7 @@ pub(crate) struct CurrentScalarValues<'program> {
     current: Vec<Binding>,
     lengths: Vec<Length>,
     hypotheses: Vec<ScopedArithmeticHypothesis>,
+    scalar_observations: Vec<validation::CapturedScalarObservation>,
 }
 
 impl<'program> CurrentScalarValues<'program> {
@@ -152,6 +153,13 @@ impl<'program> CurrentScalarValues<'program> {
             initial,
             lengths,
             hypotheses: Vec::new(),
+            scalar_observations: validation::captured_scalar_observations(
+                program,
+                machine,
+                state,
+                statement_index,
+                target.is_valid(),
+            ),
         };
         let owned_frames = frames
             .is_none()
@@ -549,15 +557,20 @@ impl<'program> CurrentScalarValues<'program> {
             ));
         }
         if let ExpressionNode::Member(_) = program.expression_table.expression(expression) {
+            if let Some(value) = length_occurrence(program, expression, &self.lengths)
+                .and_then(|length| length.value.clone())
+            {
+                return Some(value);
+            }
             if let Some(value) = field_occurrence(program, machine, state, expression) {
                 return Some(value);
             }
-            // A mutable parameter field is not frozen: a later store can change
-            // it. Two reads still name one field, so a match arm can replace
-            // that field with the pattern until a call in the same endpoint
-            // might have written it.
-            if let Some(value) = mutable_integer_field(program, machine, state, expression) {
-                return Some(value);
+            if let Some(observation) = self
+                .scalar_observations
+                .iter()
+                .find(|observation| observation.expression == expression)
+            {
+                return Some(observation.value.clone());
             }
         }
         if let Some(binary) = program.expression_table.binary_node(expression)
@@ -1098,45 +1111,6 @@ fn frozen_field(
             state.symbol, parameter.symbol
         ),
     ))
-}
-
-/// Identity of an integer field of a parameter that `frozen_field` will not
-/// freeze, including a mutable record. The identity is the field, not the
-/// expression handle, so both reads in one arm compare equal.
-fn mutable_integer_field(
-    program: &dyn ::validation::CheckingInput,
-    machine: &Machine,
-    state: &State,
-    expression: ExpressionHandle,
-) -> Option<ScopedArithmeticValue> {
-    let member = program.expression_table.member_node(expression)?;
-    // Resolve the declaration, including prepared generic and case selectors.
-    // Builtin measures have none: their values belong to the descriptor roster,
-    // never an absent field identity shared by unrelated metadata.
-    let field = validation::effective_member_symbol(program, member.receiver, member);
-    if !field.is_valid() {
-        return None;
-    }
-    let name = program.expression_table.name_path_node(member.receiver)?;
-    if name.symbol != name.head_symbol
-        || program
-            .expression_table
-            .name_path_members(name.members)
-            .len()
-            != 1
-    {
-        return None;
-    }
-    let reference =
-        validation::expression_result_type_reference(program, machine, state, expression)?;
-    let primitive = integer_carrier(program, reference)?;
-    Some(ScopedArithmeticValue::Atom {
-        identity: format!(
-            "state:{:?}:parameter:{:?}:member:{:?}",
-            state.symbol, name.symbol, field
-        ),
-        unsigned: unsigned(primitive),
-    })
 }
 
 fn field_collection_length(

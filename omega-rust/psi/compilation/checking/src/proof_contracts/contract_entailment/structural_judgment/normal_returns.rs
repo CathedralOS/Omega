@@ -30,6 +30,23 @@ pub(in crate::proof_contracts::contract_entailment) struct NormalCallEntry<'prog
     pub judge: StructuralJudge<'program>,
 }
 
+/// A consumer may demand completed fields without using its enclosing value.
+/// Required values still use the same strict normal-return operation.
+#[derive(Clone, Copy)]
+enum NormalValueDemand<'query> {
+    Value,
+    // Evaluate a checked storage coordinate without observing aggregate contents.
+    Location,
+    Observe(&'query [ExpressionHandle]),
+}
+
+#[derive(Clone, Copy)]
+struct NormalOperand<'query> {
+    expression: ExpressionHandle,
+    reference: TypeReferenceHandle,
+    demand: NormalValueDemand<'query>,
+}
+
 type ValueScope<'scope> = (
     &'scope typed_trees::machine::Machine,
     &'scope typed_trees::state::State,
@@ -174,6 +191,7 @@ impl<'program> StructuralJudge<'program> {
             0,
             ExpressionHandle::invalid(),
             &mut Vec::new(),
+            NormalValueDemand::Value,
         )
     }
 
@@ -187,7 +205,12 @@ impl<'program> StructuralJudge<'program> {
         environment: &[(String, StructuralTerm)],
         scope: ValueScope<'_>,
     ) -> Option<Vec<NormalCallEntry<'program>>> {
-        let operands = self.statement_observation_operands(statement_index, call, scope)?;
+        let operands = self.statement_observation_operands(
+            statement_index,
+            call,
+            scope,
+            NormalValueDemand::Value,
+        )?;
         let mut entries = Vec::new();
         self.clone().evaluate_normal_operands(
             &operands,
@@ -210,7 +233,12 @@ impl<'program> StructuralJudge<'program> {
         environment: &[(String, StructuralTerm)],
         scope: ValueScope<'_>,
     ) -> Option<Vec<NormalReturnPath<'program>>> {
-        let operands = self.statement_observation_operands(statement_index, expression, scope)?;
+        let operands = self.statement_observation_operands(
+            statement_index,
+            expression,
+            scope,
+            NormalValueDemand::Value,
+        )?;
         let contexts = self.clone().evaluate_normal_operands(
             &operands,
             environment,
@@ -234,12 +262,45 @@ impl<'program> StructuralJudge<'program> {
         (!paths.is_empty()).then_some(paths)
     }
 
-    fn statement_observation_operands(
+    /// Observe requested field operands through normal evaluation without
+    /// requiring an unrelated enclosing result to have a mathematical term.
+    pub(in crate::proof_contracts::contract_entailment) fn completed_observation_paths(
+        &self,
+        statement_index: usize,
+        expression: ExpressionHandle,
+        environment: &[(String, StructuralTerm)],
+        scope: ValueScope<'_>,
+        observations: &[ExpressionHandle],
+    ) -> Option<Vec<Self>> {
+        let operands = self.statement_observation_operands(
+            statement_index,
+            expression,
+            scope,
+            NormalValueDemand::Observe(observations),
+        )?;
+        Some(
+            self.clone()
+                .evaluate_normal_operands(
+                    &operands,
+                    environment,
+                    scope,
+                    0,
+                    ExpressionHandle::invalid(),
+                    &mut Vec::new(),
+                )?
+                .into_iter()
+                .map(|(judge, _)| judge)
+                .collect(),
+        )
+    }
+
+    fn statement_observation_operands<'query>(
         &self,
         statement_index: usize,
         expression: ExpressionHandle,
         scope: ValueScope<'_>,
-    ) -> Option<Vec<(ExpressionHandle, TypeReferenceHandle)>> {
+        demand: NormalValueDemand<'query>,
+    ) -> Option<Vec<NormalOperand<'query>>> {
         let roots = super::super::structural_prefix::expression_prefix_roots(
             self.program,
             scope.1,
@@ -257,7 +318,11 @@ impl<'program> StructuralJudge<'program> {
                         root,
                     )
                     .unwrap_or(scope.2);
-                    (root, reference)
+                    NormalOperand {
+                        expression: root,
+                        reference,
+                        demand,
+                    }
                 })
                 .collect(),
         )
@@ -279,7 +344,11 @@ impl<'program> StructuralJudge<'program> {
         let operands = arguments
             .iter()
             .zip(parameters)
-            .map(|(expression, parameter)| (*expression, parameter.type_reference))
+            .map(|(expression, parameter)| NormalOperand {
+                expression: *expression,
+                reference: parameter.type_reference,
+                demand: NormalValueDemand::Value,
+            })
             .collect::<Vec<_>>();
         Some(
             self.clone()
@@ -302,7 +371,7 @@ impl<'program> StructuralJudge<'program> {
 
     fn evaluate_normal_operands(
         self,
-        operands: &[(ExpressionHandle, TypeReferenceHandle)],
+        operands: &[NormalOperand<'_>],
         environment: &[(String, StructuralTerm)],
         scope: ValueScope<'_>,
         depth: usize,
@@ -310,7 +379,12 @@ impl<'program> StructuralJudge<'program> {
         entries: &mut Vec<NormalCallEntry<'program>>,
     ) -> Option<Vec<(Self, Vec<(ExpressionHandle, StructuralTerm)>)>> {
         let mut contexts = vec![(self, Vec::new())];
-        for &(child, reference) in operands {
+        for &NormalOperand {
+            expression: child,
+            reference,
+            demand,
+        } in operands
+        {
             let mut next = Vec::new();
             for (context, inputs) in contexts {
                 for path in context.evaluate_normal_paths(
@@ -320,6 +394,7 @@ impl<'program> StructuralJudge<'program> {
                     depth + 1,
                     requested_call,
                     entries,
+                    demand,
                 )? {
                     let mut inputs = inputs.clone();
                     inputs.push((child, path.value));
@@ -339,12 +414,44 @@ impl<'program> StructuralJudge<'program> {
         depth: usize,
         requested_call: ExpressionHandle,
         entries: &mut Vec<NormalCallEntry<'program>>,
+        demand: NormalValueDemand<'_>,
     ) -> Option<Vec<NormalReturnPath<'program>>> {
         if depth >= 64 || !program_expression_is_live(self.program, expression) {
             return None;
         }
         let program = self.program;
         let node = program.expression_table.expression(expression);
+        let demand = match demand {
+            NormalValueDemand::Location => {
+                let is_location = match node {
+                    ExpressionNode::Name(_) => true,
+                    ExpressionNode::Member(_) => {
+                        discarded_value_has_no_own_effects(program, scope, expression)
+                    }
+                    ExpressionNode::Indexed(_) => {
+                        crate::value_custody::places::place_has_builtin_coordinates(
+                            program,
+                            scope.0,
+                            Some(scope.1),
+                            expression,
+                        )
+                    }
+                    _ => false,
+                };
+                if is_location {
+                    NormalValueDemand::Location
+                } else {
+                    NormalValueDemand::Value
+                }
+            }
+            NormalValueDemand::Observe(observations)
+                if observations.contains(&expression)
+                    || !discarded_value_has_no_own_effects(program, scope, expression) =>
+            {
+                NormalValueDemand::Value
+            }
+            demand => demand,
+        };
         if let ExpressionNode::Binary(binary) = node
             && matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or)
             && crate::has_builtin_binary_expression_meaning(
@@ -363,6 +470,7 @@ impl<'program> StructuralJudge<'program> {
                 depth + 1,
                 requested_call,
                 entries,
+                NormalValueDemand::Value,
             )? {
                 for truth in [false, true] {
                     let mut selected = left.judge.clone();
@@ -386,6 +494,7 @@ impl<'program> StructuralJudge<'program> {
                             depth + 1,
                             requested_call,
                             entries,
+                            demand,
                         )? {
                             outcomes.push(right.at_expression(expression));
                         }
@@ -411,6 +520,7 @@ impl<'program> StructuralJudge<'program> {
                 depth + 1,
                 requested_call,
                 entries,
+                NormalValueDemand::Value,
             )?;
             for arm in program.expression_table.match_arms(dispatch.arms) {
                 let mut next_remaining = Vec::new();
@@ -425,6 +535,7 @@ impl<'program> StructuralJudge<'program> {
                             depth + 1,
                             requested_call,
                             entries,
+                            NormalValueDemand::Value,
                         )? {
                             let primitive = crate::match_subject_primitive_type(program, dispatch);
                             let equation_meaning = primitive.is_some_and(|primitive| {
@@ -481,6 +592,7 @@ impl<'program> StructuralJudge<'program> {
                                 depth + 1,
                                 requested_call,
                                 entries,
+                                demand,
                             )? {
                                 outcomes.push(value.at_expression(expression));
                             }
@@ -493,6 +605,7 @@ impl<'program> StructuralJudge<'program> {
                             depth + 1,
                             requested_call,
                             entries,
+                            demand,
                         )? {
                             outcomes.push(value.at_expression(expression));
                         }
@@ -534,6 +647,11 @@ impl<'program> StructuralJudge<'program> {
         // capture sequence and equations in the caller environment.
         std::sync::Arc::make_mut(&mut self.normal_results)
             .retain(|(source, _)| *source != expression);
+        let integer_field_read = self.requires_value_preservation()
+            && super::super::observed_projections::declared_integer_field_read(
+                program, scope.0, scope.1, expression,
+            )
+            .is_some();
         let mut children_to_evaluate = Vec::new();
         let namespace_receiver = program
             .expression_table
@@ -569,9 +687,33 @@ impl<'program> StructuralJudge<'program> {
                 } else {
                     scope.2
                 };
-                (child, child_reference)
+                let child_demand = match node {
+                    ExpressionNode::Member(member)
+                        if (integer_field_read
+                            || matches!(demand, NormalValueDemand::Location))
+                            && child == member.receiver =>
+                    {
+                        NormalValueDemand::Location
+                    }
+                    ExpressionNode::Indexed(indexed)
+                        if matches!(demand, NormalValueDemand::Location) =>
+                    {
+                        if child == indexed.collection {
+                            NormalValueDemand::Location
+                        } else {
+                            NormalValueDemand::Value
+                        }
+                    }
+                    _ => demand,
+                };
+                NormalOperand {
+                    expression: child,
+                    reference: child_reference,
+                    demand: child_demand,
+                }
             })
             .collect::<Vec<_>>();
+        let receiver_write_sequence = self.storage_write_sequence;
         let contexts = self.evaluate_normal_operands(
             &operands,
             environment,
@@ -583,6 +725,17 @@ impl<'program> StructuralJudge<'program> {
         contexts
             .into_iter()
             .map(|(mut judge, inputs)| {
+                if matches!(
+                    demand,
+                    NormalValueDemand::Observe(_) | NormalValueDemand::Location
+                ) {
+                    // Only the completed descendants are requested. No value
+                    // identity or equation is published for this unused result.
+                    return Some(NormalReturnPath {
+                        value: StructuralTerm::Opaque("unrequested result".to_owned()),
+                        judge,
+                    });
+                }
                 let call_inputs = if let Some(call) = program.expression_table.call_node(expression)
                 {
                     let mut cursor = 0;
@@ -615,42 +768,63 @@ impl<'program> StructuralJudge<'program> {
                 // Selected contracts separately require preserved live subjects;
                 // mutation cannot turn pre-state arguments into post-state facts.
                 judge.observe_storage_writes(scope.1, &writes)?;
-                let mut value = if matches!(node, ExpressionNode::Atomic(_)) {
+                let receiver_changed =
+                    integer_field_read && judge.storage_write_sequence != receiver_write_sequence;
+                let captured_field = if receiver_changed {
+                    let ExpressionNode::Member(member) = node else {
+                        return None;
+                    };
+                    let receiver_type = crate::expression_result_type_reference(
+                        program,
+                        scope.0,
+                        scope.1,
+                        member.receiver,
+                    )?;
+                    // An actual owned operand can expose its completed field.
+                    // A reference descriptor cannot stand in for its referent.
+                    if crate::reference_shell(program, receiver_type).is_none() {
+                        inputs
+                            .iter()
+                            .find(|(source, _)| *source == member.receiver)
+                            .and_then(|(_, value)| {
+                                judge.observed_field_term(value.clone(), member.member.as_str(), 0)
+                            })
+                            .filter(|value| value.observation_identity_key().is_some())
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                };
+                let mut value = if receiver_changed {
+                    // The receiver selected its base before a later operand
+                    // wrote storage. Reconstructing it from the live place now
+                    // could silently select a replacement descriptor.
+                    match captured_field {
+                        Some(value) => value,
+                        None => judge.capture_unknown_value(expression, scope)?,
+                    }
+                } else if matches!(node, ExpressionNode::Atomic(_)) {
                     // The atomic owner distinguishes an observed load from
                     // update carriers. Its value is a fresh event, not the
                     // place's prior initializer or the modeled new resident.
                     crate::value_custody::atomic_operations::atomic_load_carrier(
                         program, expression,
                     )?;
-                    judge.capture_sequence += 1;
-                    StructuralTerm::CapturedValue {
-                        expression,
-                        callable: SymbolHandle::invalid(),
-                        occurrence: judge.capture_sequence,
-                        result_type: crate::expression_result_type_reference(
-                            program, scope.0, scope.1, expression,
-                        )?,
-                    }
+                    judge.capture_unknown_value(expression, scope)?
                 } else if let Some(value) =
                     judge.callee_term_in_scope(Some(scope), expression, environment, 0)
                 {
                     value
                 } else if judge.runtime_body_values
                     && (matches!(node, ExpressionNode::Call(_))
-                        || judge.storage_observation_invalidated(expression))
+                        || judge.storage_observation_invalidated(expression)
+                        || integer_field_read)
                 {
                     // A completed call without an imported contract, or a
                     // read after a write retired the storage's old facts, is
                     // still an observation: a fresh identity, no old facts.
-                    judge.capture_sequence += 1;
-                    StructuralTerm::CapturedValue {
-                        expression,
-                        callable: SymbolHandle::invalid(),
-                        occurrence: judge.capture_sequence,
-                        result_type: crate::expression_result_type_reference(
-                            program, scope.0, scope.1, expression,
-                        )?,
-                    }
+                    judge.capture_unknown_value(expression, scope)?
                 } else {
                     return None;
                 };
@@ -698,9 +872,45 @@ impl<'program> StructuralJudge<'program> {
                         index.clone(),
                     )?;
                 }
+                if integer_field_read {
+                    // Completing a typed read observes its actual value even
+                    // when no mathematical entry value is known. Retain that
+                    // snapshot at its storage coordinate until the write owner
+                    // retires it; source text is never its identity.
+                    if value.observation_identity_key().is_none() {
+                        value = judge.capture_unknown_value(expression, scope)?;
+                    }
+                    if !receiver_changed {
+                        judge.observe_completed_storage_read(
+                            scope.0,
+                            scope.1,
+                            expression,
+                            value.clone(),
+                        );
+                    }
+                }
                 Some(NormalReturnPath { value, judge }.at_expression(expression))
             })
             .collect()
+    }
+
+    fn capture_unknown_value(
+        &mut self,
+        expression: ExpressionHandle,
+        scope: ValueScope<'_>,
+    ) -> Option<StructuralTerm> {
+        self.capture_sequence += 1;
+        Some(StructuralTerm::CapturedValue {
+            expression,
+            callable: SymbolHandle::invalid(),
+            occurrence: self.capture_sequence,
+            result_type: crate::expression_result_type_reference(
+                self.program,
+                scope.0,
+                scope.1,
+                expression,
+            )?,
+        })
     }
 
     fn assume_normal_equation(&mut self, left: StructuralTerm, right: StructuralTerm) {
@@ -976,6 +1186,86 @@ impl<'program> StructuralJudge<'program> {
         for guarantee in &case_guarantees {
             self.intake_case_guarantee(guarantee);
         }
+    }
+}
+
+/// Discarding a value never discards an operation's own effects. Calls,
+/// atomics, casts and non-builtin operators keep their complete owner; ordinary
+/// construction and projection have only the effects of their ordered children.
+fn discarded_value_has_no_own_effects(
+    program: &dyn crate::CheckingInput,
+    scope: ValueScope<'_>,
+    expression: ExpressionHandle,
+) -> bool {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Call(_)
+        | ExpressionNode::Atomic(_)
+        | ExpressionNode::Cast(_)
+        | ExpressionNode::Unary(_) => false,
+        ExpressionNode::Binary(_) => crate::has_builtin_binary_expression_meaning(
+            program,
+            scope.0,
+            Some(scope.1),
+            expression,
+        ),
+        ExpressionNode::Indexed(indexed) => {
+            crate::has_builtin_subslice_meaning(program, scope.0, Some(scope.1), expression)
+                || crate::expression_result_type_reference(
+                    program,
+                    scope.0,
+                    scope.1,
+                    indexed.collection,
+                )
+                .is_some_and(|collection| {
+                    crate::value_custody::places::value_element_has_builtin_coordinate(
+                        program,
+                        scope.0,
+                        Some(scope.1),
+                        expression,
+                        collection,
+                    )
+                })
+        }
+        ExpressionNode::Member(member) => {
+            let Some(reference) =
+                crate::expression_result_type_reference(program, scope.0, scope.1, member.receiver)
+            else {
+                return false;
+            };
+            if crate::value_custody::places::collection_operations::collection_measure_member(
+                program,
+                member,
+                crate::value_custody::places::collection_operations::MeasureReceiver::Declared(
+                    reference,
+                ),
+            )
+            .is_some()
+            {
+                return true;
+            }
+            crate::value_custody::places::data_definition_for_type(program, reference)
+                .and_then(|data| {
+                    crate::value_custody::places::exact_data_member_field(
+                        program,
+                        data,
+                        member.member_symbol,
+                        member.member.as_str(),
+                        member.case_variant.as_ref().map(|case| case.as_str()),
+                    )
+                })
+                .is_some()
+        }
+        ExpressionNode::Match(_)
+        | ExpressionNode::ArrayLiteral(_)
+        | ExpressionNode::Boolean(_)
+        | ExpressionNode::Float(_)
+        | ExpressionNode::Integer(_)
+        | ExpressionNode::Borrow(_)
+        | ExpressionNode::Name(_)
+        | ExpressionNode::Range(_)
+        | ExpressionNode::StructLiteral(_)
+        | ExpressionNode::String(_) => true,
+        ExpressionNode::UndeterminedNaN(_) | ExpressionNode::ZeroValue(_) => false,
     }
 }
 

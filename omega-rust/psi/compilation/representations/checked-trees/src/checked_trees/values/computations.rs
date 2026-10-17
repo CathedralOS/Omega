@@ -70,6 +70,7 @@ pub struct CheckedScalarComputationPlans {
     pub roots: Arena<CheckedScalarComputationRoot>,
     pub nodes: Arena<CheckedScalarComputation>,
     pub operands: Arena<CheckedScalarComputationHandle>,
+    pub observation_collections: Arena<typed_trees::types::TypeReferenceHandle>,
     pub structural_arguments: Arena<CheckedScalarComputationStructuralArgument>,
     pub temporary_cleanups: Arena<CheckedScalarComputationTemporaryCleanup>,
     pub temporary_cleanup_actions: Arena<crate::CheckedNormalCleanupAction>,
@@ -342,6 +343,17 @@ pub enum CheckedScalarComputationKind {
         condition: CheckedScalarComputationHandle,
         when_true: CheckedScalarComputationHandle,
         when_false: CheckedScalarComputationHandle,
+    },
+    /// Observe storage in source order: capture each collection before its
+    /// selector, then continue the projection from that captured referent.
+    /// Pure templates describe geometry; operands retain execution. Collection
+    /// carriers are exact declaration views, parallel to selector operands.
+    StorageObservation {
+        root_type: typed_trees::types::TypeReferenceHandle,
+        source_expression: typed_trees::expression::ExpressionHandle,
+        expression: CheckedScalarExpression,
+        operands: HandleSpan<CheckedScalarComputationHandle>,
+        collections: HandleSpan<typed_trees::types::TypeReferenceHandle>,
     },
     /// Evaluate operands left-to-right once, then apply a pure template whose
     /// Parameter positions name only these computed operands, not source locals.

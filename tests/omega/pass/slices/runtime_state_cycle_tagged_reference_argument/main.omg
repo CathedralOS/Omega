@@ -1,0 +1,48 @@
+// Expected exit: 0.
+// A normal-return state cycle preserves a tagged reference result supplied
+// directly as another call's argument. The entry reorders the two inputs.
+use omega::language::core::option;
+data Held<'input> { bytes: &'input [u8]; }
+machine select<'input>(noise: &[u8], bytes: &'input [u8], remaining: u64)
+    -> Optional<Held<'input>>
+requires remaining <= bytes.len {
+    transition remaining > 0 {
+        true -> next(bytes, noise, remaining)
+        false -> Optional::None
+    }
+    state next(bytes: &'input [u8], noise: &[u8], remaining: u64)
+        -> Optional<Held<'input>>
+    requires remaining > 0 && remaining <= bytes.len {
+        transition remaining > 1 {
+            true -> next(bytes, noise, remaining - 1)
+            false -> Optional::Some { value: Held { bytes: bytes } }
+        }
+    }
+}
+machine observed(found: Optional<Held>) -> bool {
+    transition found {
+        Optional::Some { value } -> inspect(value)
+        Optional::None -> false
+    }
+    state inspect(held: Held) -> bool {
+        transition held.bytes.len == 3 {
+            true -> contents(held)
+            false -> false
+        }
+    }
+    state contents(held: Held) -> bool requires held.bytes.len == 3 {
+        held.bytes[0] == 41 && held.bytes[2] == 43
+    }
+}
+machine main() crashes Trap {
+    let values: [u8; 3] = [41, 42, 43];
+    let noise: [u8; 1] = [99];
+    let present: bool = observed(select(&noise[..], &values[..], 3));
+    let missing: bool = observed(select(&noise[..], &values[..], 0));
+    transition present && !missing {
+        true -> done()
+        false -> wrong()
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}

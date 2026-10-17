@@ -1,0 +1,13 @@
+// Expected rejection: the returned window has length 3, not entry argument 2.
+data Held<'row> { values: &'row mut [u8]; }
+machine changed<'row>(values: &'row mut [u8; 4], mut count: u64) -> Held<'row>
+ensures result.values.len == count {
+    count = 3;
+    Held { values: &mut values[0..count] }
+}
+machine need_two(values: &[u8]) requires values.len == 2 {}
+machine main() crashes Trap {
+    let mut values: [u8; 4] = [10, 20, 30, 40];
+    let held: Held = changed(&mut values, 2);
+    need_two(held.values);
+}

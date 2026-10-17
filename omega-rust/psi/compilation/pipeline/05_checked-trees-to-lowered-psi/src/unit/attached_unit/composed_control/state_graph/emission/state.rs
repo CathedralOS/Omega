@@ -216,6 +216,11 @@ impl StateGraphEmission<'_, '_> {
                 &self.catalogs.structural_types,
                 &mut self.catalogs.next_place,
             )?,
+            observations: crate::scalar_lowering::computations::observations::prepare(
+                checked,
+                &owners,
+                &mut self.catalogs.next_place,
+            )?,
             subslices: crate::scalar_lowering::computations::subslices::prepare(
                 identities,
                 checked,

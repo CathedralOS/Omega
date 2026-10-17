@@ -174,7 +174,8 @@ impl Query<'_> {
                     }
                 }
             }
-            CheckedScalarComputationKind::Apply { operands, .. } => {
+            CheckedScalarComputationKind::Apply { operands, .. }
+            | CheckedScalarComputationKind::StorageObservation { operands, .. } => {
                 for operand in plans.operands.span(*operands)? {
                     output.append(self.computation(*operand)?);
                 }

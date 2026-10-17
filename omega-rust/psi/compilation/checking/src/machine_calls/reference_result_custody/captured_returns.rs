@@ -633,26 +633,38 @@ impl Captures<'_> {
                     )
             },
         );
-        // A captured loan that already reaches the returned type needs no
-        // body-summary refinement. Its frozen coordinates remain authoritative
-        // even when a later rebind makes the frame summary unavailable. The
-        // body relation below is needed only to refine a wider lifetime region
-        // or recover a checked presentation of another endpoint type.
+        // A captured loan that already reaches the returned type or its typed
+        // collection region needs no body-summary refinement. Keep a window's
+        // actual collection identity and WithinRegion extent, not equality to
+        // the returned descriptor or another opaque window. Its captured root
+        // and prefix remain authoritative even if a frame summary is unavailable.
+        // The body relation below refines wider lifetime regions or recovers a
+        // checked presentation of another endpoint type.
         // A retained interpretation still needs its codec, even if its target
         // type equals the original endpoint. Type equality cannot erase a view.
         if captured.is_none()
             && !has_presentation
             && let Some((suffix, endpoint, extent)) = self.origin_path(selected, &segments)
-            && self.program.normalized_type_identity(endpoint) == leaf.source.type_identity
         {
-            path.extend(suffix);
-            return Some(vec![CheckedReferenceOriginSourcePlan {
-                parameter_index,
-                path,
-                extent,
-                type_identity: leaf.source.type_identity,
-                access: leaf.source.access,
-            }]);
+            let identity = self.program.normalized_type_identity(endpoint);
+            if identity.is_valid()
+                && (identity == leaf.source.type_identity
+                    || extent == ReferenceOriginExtent::WithinRegion
+                        && self.collection_region_presents_result(
+                            endpoint,
+                            state.return_type,
+                            &result_path,
+                        ))
+            {
+                path.extend(suffix);
+                return Some(vec![CheckedReferenceOriginSourcePlan {
+                    parameter_index,
+                    path,
+                    extent,
+                    type_identity: identity,
+                    access: leaf.source.access,
+                }]);
+            }
         }
         if let Some(origins) = origins {
             // This is a state-wide union, not a menu from which one loan may
@@ -791,8 +803,9 @@ impl Captures<'_> {
         else {
             return false;
         };
-        self.program.normalized_type_identity(*element_type)
-            == self.program.normalized_type_identity(result.element)
+        let source_element = self.program.normalized_type_identity(*element_type);
+        let result_element = self.program.normalized_type_identity(result.element);
+        source_element.is_valid() && result_element.is_valid() && source_element == result_element
     }
 
     /// The complete body relation refines a lifetime loan's storage region.

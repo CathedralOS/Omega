@@ -74,6 +74,16 @@ impl ScalarBindings {
         &self,
         root: checked_trees::CheckedStorageRoot,
     ) -> Result<Option<(StructuralArgument, StructuralTypeId)>, LoweringError> {
+        let mut observations = self
+            .captured_storage_observations
+            .iter()
+            .filter(|(candidate, _, _)| *candidate == root);
+        if let Some((_, argument, structural_type)) = observations.next() {
+            if observations.next().is_some() {
+                return unsupported("storage observation has conflicting captured homes");
+            }
+            return Ok(Some((argument.clone(), *structural_type)));
+        }
         use checked_trees::CheckedStorageRoot as Root;
         if self.captured_structural_formals.is_empty() {
             return Ok(None);

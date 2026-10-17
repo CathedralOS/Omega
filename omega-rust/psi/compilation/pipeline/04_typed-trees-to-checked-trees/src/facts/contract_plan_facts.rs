@@ -860,6 +860,11 @@ fn computation_contains_trapping_operation(
                 expression,
                 operands,
                 ..
+            }
+            | Kind::StorageObservation {
+                expression,
+                operands,
+                ..
             } => {
                 if expression.contains_trapping_operation() {
                     return true;

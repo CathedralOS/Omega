@@ -213,6 +213,11 @@ pub(crate) struct ScalarBindings {
     /// Observation-only formal aliases retain completed values and their full
     /// prefixes. The ordinary published homes still own backing geometry.
     captured_structural_formals: Vec<CapturedStructuralFormal>,
+    captured_storage_observations: Vec<(
+        checked_trees::CheckedStorageRoot,
+        StructuralArgument,
+        StructuralTypeId,
+    )>,
     /// Completed anonymous producers have physical homes without an authored
     /// local binding. Their emitted declarations retain backing type geometry.
     captured_place_declarations: Vec<terminal_psi::StructuralPlaceDeclaration>,
@@ -231,6 +236,45 @@ pub(crate) struct ScalarBindings {
 }
 
 impl ScalarBindings {
+    /// A private emission namespace for one already captured collection.
+    /// Its incoming borrowed edge owns the address/type relation. Rebasing
+    /// only the remaining read path supplies no storage or content authority.
+    pub(crate) fn with_completed_storage_observation(
+        mut self,
+        root: checked_trees::CheckedStorageRoot,
+        argument: StructuralArgument,
+        structural_type: StructuralTypeId,
+    ) -> Self {
+        self.captured_storage_observations
+            .retain(|(candidate, _, _)| *candidate != root);
+        self.captured_storage_observations
+            .push((root, argument, structural_type));
+        self
+    }
+
+    pub(crate) fn storage_observation_home(
+        &self,
+        root: checked_trees::CheckedStorageRoot,
+    ) -> Result<(terminal_psi::StructuralArgument, StructuralTypeId), LoweringError> {
+        let home = self
+            .captured_storage_home(root)?
+            .map(Ok)
+            .unwrap_or_else(|| {
+                self.structural_fields.observation_home(
+                    root,
+                    &self.structural_locals,
+                    &self.view_locals,
+                )
+            })?;
+        if !matches!(
+            home.0.access,
+            StructuralAccess::Owned | terminal_psi::reading_borrow_pair_pattern!()
+        ) {
+            return unsupported("storage observation requires readable access");
+        }
+        Ok(home)
+    }
+
     pub(crate) fn owned_structural_home(
         &self,
         root: facts::PlaceRoot,
@@ -819,6 +863,7 @@ impl ScalarBindings {
             scalar_parameter_homes: Vec::new(),
             structural_parameters: Vec::new(),
             captured_structural_formals: Vec::new(),
+            captured_storage_observations: Vec::new(),
             captured_place_declarations: Vec::new(),
             structural_locals: Vec::new(),
             structural_fields: Default::default(),

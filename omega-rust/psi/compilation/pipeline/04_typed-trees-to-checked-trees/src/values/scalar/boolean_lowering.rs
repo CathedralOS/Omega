@@ -152,14 +152,16 @@ impl BooleanLowering<'_> {
         ) {
             return self.expression(leaf);
         }
-        if matches!(
-            self.program.expression_table.expression(expression),
-            ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Indexed(_)
-        ) && let Some((CheckedScalarExpression::Boolean(field), _)) =
-            structural_fields::lower_structural_parameter_field(
+        if let Some((CheckedScalarExpression::Boolean(field), _)) =
+            super::scalar_lowering::scalar_storage_read(
                 self.program,
-                self.authored_parameters,
+                self.operators,
                 expression,
+                self.parameters,
+                self.authored_parameters,
+                self.parameter_types,
+                self.locals,
+                self.exact_integer_casts,
             )
         {
             return Some(*field);

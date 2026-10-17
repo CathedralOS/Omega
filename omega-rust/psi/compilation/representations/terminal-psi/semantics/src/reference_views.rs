@@ -78,11 +78,30 @@ pub fn descriptor_reborrow_matches<'types>(
     let Some(destination) = types.clone().find(|row| row.id == destination) else {
         return false;
     };
-    let source_ceiling = descriptor_declared_access(&source.shape).flatten();
-    let destination_ceiling = descriptor_declared_access(&destination.shape).flatten();
+    descriptor_reborrow_shapes_match(
+        &source.shape,
+        source_access,
+        source_occurrence_access,
+        &destination.shape,
+        requested_access,
+    )
+}
+
+/// An inline descriptor has its exact shape in its owning field declaration,
+/// without a standalone type identity. Apply the same access and representation
+/// judgment as a catalogued descriptor; callers retain its root and projection.
+pub fn descriptor_reborrow_shapes_match(
+    source: &StructuralTypeShape,
+    source_access: StructuralAccess,
+    source_occurrence_access: Option<StructuralAccess>,
+    destination: &StructuralTypeShape,
+    requested_access: StructuralAccess,
+) -> bool {
+    let source_ceiling = descriptor_declared_access(source).flatten();
+    let destination_ceiling = descriptor_declared_access(destination).flatten();
     // Stored access cannot override an attenuated occurrence, and a canonical
     // occurrence cannot widen the declared permission of its stored carrier.
-    descriptor_geometry_matches(&source.shape, &destination.shape)
+    descriptor_geometry_matches(source, destination)
         && requested_access.admits(source_access)
         && source_occurrence_access
             .or(source_ceiling)

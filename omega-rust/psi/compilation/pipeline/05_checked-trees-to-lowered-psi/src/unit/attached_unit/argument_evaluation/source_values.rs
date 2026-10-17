@@ -49,7 +49,8 @@ impl Evaluation {
             checked,
             &self.shared_qualifications,
             root.machine,
-        );
+            operations,
+        )?;
         let entry =
             expansion.retained_root(identities, root, bindings, &source_types, result_type, 0)?;
         let states = expansion.finish();
@@ -305,8 +306,13 @@ impl Evaluation {
                 scalar_type,
             });
         }
-        let mut expansion =
-            self.scalar_computation_expansion(identities, checked, qualifications, machine);
+        let mut expansion = self.scalar_computation_expansion(
+            identities,
+            checked,
+            qualifications,
+            machine,
+            operations,
+        )?;
         let entry = match value {
             CheckedCallScalarArgument::Pure(_) => expansion.retained_pure_value(
                 identities,

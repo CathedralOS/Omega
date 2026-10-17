@@ -2105,6 +2105,15 @@ fail/core/content_conservation_unqualified_place rejected 928ms expected @a9ae30
 	callable `InvalidSplit::split` has an invalid content-conservation contract: projection `Owned::content` requires exact qualification `Region::Owned`, but `old(&whole)` is not qualified by its type or an ordinary callable contract
 fail/core/content_issuance_consumed_constructed_claims rejected 1598ms expected @a9ae30e1c334+wt
 	cannot establish call-result qualification `Chunk::Held`: the exact invocation, authorized route or consumed qualified claims, and result correspondence are not proved
+fail/core/content_partition_provider_changed_entry rejected 711ms expected @e7249344cccc
+	cannot prove ensures contract for exit from RegionSplitProvider::split at statement 5: Owned.content(old(&whole)) == separate(Owned.content(&result.left), Owned.content(&result.right))
+	cannot prove ensures contract for exit from RegionSplitProvider::split at statement 5: Owned.content(old(&whole)) == separate(Owned.content(&result.left), Owned.content(&result.right))
+fail/core/content_partition_provider_changed_entry_alias rejected 708ms expected @e7249344cccc
+	cannot prove ensures contract for exit from RegionSplitProvider::split at statement 5: Owned.content(old(&whole)) == separate(Owned.content(&result.left), Owned.content(&result.right))
+	cannot prove ensures contract for exit from RegionSplitProvider::split at statement 5: Owned.content(old(&whole)) == separate(Owned.content(&result.left), Owned.content(&result.right))
+fail/core/content_partition_provider_late_entry_read rejected 706ms expected @e7249344cccc
+	cannot prove ensures contract for exit from RegionSplitProvider::split at statement 4: Owned.content(old(&whole)) == separate(Owned.content(&result.left), Owned.content(&result.right))
+	cannot prove ensures contract for exit from RegionSplitProvider::split at statement 4: Owned.content(old(&whole)) == separate(Owned.content(&result.left), Owned.content(&result.right))
 fail/core/content_partition_provider_unconserved rejected 1476ms expected @e52673d2bcdb+wt
 	cannot prove ensures contract for exit from RegionSplitProvider::split at statement 3: Owned.content(old(&whole)) == separate(Owned.content(&result.left), Owned.content(&result.right))
 	cannot prove ensures contract for exit from RegionSplitProvider::split at statement 3: Owned.content(old(&whole)) == separate(Owned.content(&result.left), Owned.content(&result.right))
@@ -4466,6 +4475,26 @@ fail/proofs/runtime_case_guarantee_wrong_borrow_subject rejected 1578ms expected
 	cannot prove requires contract for call observe from main: other == constructor:6:Choice9:name:Cell (needs fact `choice == Choice::Cell` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/proofs/runtime_case_guarantee_wrong_return rejected 1515ms expected @a9ae30e1c334+wt
 	cannot prove ensures contract for exit from make at statement 0: result == Choice::Cell
+fail/proofs/scalar_field_snapshot_after_alias_store rejected 2178ms expected @f22c0e54a812
+	cannot prove requires contract for call demand_same from inspect: before == after (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/proofs/scalar_field_snapshot_after_call rejected 2110ms expected @f22c0e54a812
+	cannot prove requires contract for call demand_same from inspect: before == after (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/proofs/scalar_field_snapshot_after_indexed_store rejected 2104ms expected @f22c0e54a812
+	cannot prove requires contract for call demand_same from inspect: before == after (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/proofs/scalar_field_snapshot_after_selector_write rejected 1942ms expected @f22c0e54a812
+	cannot prove requires contract for call demand_same from inspect: before == after (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/proofs/scalar_field_snapshot_after_store rejected 2072ms expected @f22c0e54a812
+	cannot prove requires contract for call demand_same from inspect: before == after (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/proofs/scalar_field_snapshot_before_argument_write rejected 2093ms expected @f22c0e54a812
+	cannot prove requires contract for call demand_same from inspect: before == after (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/proofs/scalar_field_snapshot_before_binary_write rejected 2229ms expected @f22c0e54a812
+	cannot prove requires contract for call demand_same from inspect: before == after (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/proofs/scalar_field_snapshot_distinct_indexed_fields rejected 2195ms expected @f22c0e54a812
+	cannot prove requires contract for call demand_same from inspect: before == after (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/proofs/scalar_field_snapshot_distinct_selectors rejected 2221ms expected @f22c0e54a812
+	cannot prove requires contract for call demand_same from inspect: before == after (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/proofs/scalar_field_snapshot_selector_replaces_collection rejected 2080ms expected @f22c0e54a812
+	cannot prove requires contract for call demand_same from inspect: before == after (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/proofs/scalar_state_return_outside_byte_class rejected 1504ms expected @a9ae30e1c334+wt
 	cannot prove requires contract for call consume from Main::write_byte: main.bytes in [u8]::Utf8 (invalidated by prior mutation of main.bytes[0]; main.bytes is part of [u8]::Utf8)
 	cannot prove default-domain field requirement for return from Main::write_byte at statement 3: main.bytes requires [u8; N]::Utf8
@@ -5005,6 +5034,12 @@ fail/slices/returned_range_extent_contract_keeps_actual_descriptor rejected 1776
 	cannot prove ensures contract for exit from Views::middle at statement 0: result.len == end - start
 fail/slices/returned_range_extent_contract_retires_replaced_descriptor rejected 2154ms expected @a9ae30e1c334+wt
 	cannot prove ensures contract for exit from middle at statement 4: result.len == end - start
+fail/slices/returned_record_custom_comparison_length rejected 620ms expected @b0c0ed057b7c
+	cannot prove requires contract for call need_two from main: held.values.len == 2 (needs fact `values.len == 2` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/slices/returned_record_custom_operator_length rejected 680ms expected @b0c0ed057b7c
+	cannot prove requires contract for call need_two from main: held.values.len == 2 (needs fact `values.len == 2` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/slices/returned_record_mutable_parameter_length rejected 691ms expected @b0c0ed057b7c
+	cannot prove requires contract for call need_two from main: held.values.len == 2 (needs fact `values.len == 2` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/slices/returned_record_parameter_length_mismatch rejected 957ms expected @d9b14477f4cf+wt
 	cannot prove requires contract for call need from main: held.values.len == 3 (needs fact `window.len == 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/slices/returned_record_window_lengths_disagree rejected 940ms expected @2d4ff85790f0+wt
@@ -8142,6 +8177,7 @@ pass/proofs/accepted_axiom_cited_exit checked 11306ms check-target:macos_arm64 @
 pass/proofs/accumulator_guarantee_exit checked 11353ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/proofs/axiom_citation checked 9748ms @5041ef1af684+wt
 pass/proofs/borrowed_descriptor_bound_local_result_exit checked 3519ms check-target:macos_arm64 @b3d0b7396229+wt
+pass/proofs/captured_scalar_field_observations checked 12762ms check-target:macos_arm64 @f22c0e54a812
 pass/proofs/case_call_premises checked 1644ms @a9ae30e1c334+wt
 pass/proofs/cauchy_predicates_compile checked 2759ms @fedeee648fc7+wt
 pass/proofs/citation_requires_discharged checked 10576ms @b7aaf37278ea+wt
@@ -8229,6 +8265,8 @@ pass/proofs/runtime_ranked_store_through_local_exit checked 6703ms check-target:
 pass/proofs/runtime_sequential_ranked_components_exit checked 11517ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/proofs/runtime_sequential_relational_accumulator_exit checked 11587ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/proofs/runtime_two_state_accumulator_exit checked 6334ms check-target:macos_arm64 @1727c70d2f7e+wt
+pass/proofs/scalar_field_snapshot_captures_replaced_collection checked 3920ms check-target:macos_arm64 @372006f89256
+pass/proofs/scalar_field_snapshot_selector_writes_payload checked 3922ms check-target:macos_arm64 @372006f89256
 pass/proofs/scalar_state_return_keeps_byte_class checked 1677ms @a9ae30e1c334+wt
 pass/proofs/selected_specification_requires_composition checked 5090ms @4ce1ff349782+wt
 pass/proofs/selected_specification_requires_exact checked 5076ms @4ce1ff349782+wt
@@ -8466,6 +8504,8 @@ pass/relevance/runtime_static_proof_namespace_exit checked 10757ms check-target:
 pass/slices/bounded_byte_parameter_range_exit checked 10425ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/slices/byte_sequence_literal_tail_return_compile checked 10843ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/slices/callee_non_byte_view_len_index_subslice checked 11154ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/slices/captured_collection_measure checked 12507ms check-target:macos_arm64 @f22c0e54a812
+pass/slices/captured_field_window_subjects checked 13931ms check-target:macos_arm64 @f22c0e54a812
 pass/slices/captured_returned_field_observations checked 4080ms check-target:macos_arm64 @e0119fc0aaa2
 pass/slices/copy_array_under_view checked 9592ms @5041ef1af684+wt
 pass/slices/copy_view_descriptor checked 9497ms @5041ef1af684+wt
@@ -8516,6 +8556,8 @@ pass/slices/qualified_subslice_composition_exit checked 4161ms check-target:maco
 pass/slices/recursive_subslice_element_accumulator_exit checked 13843ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/slices/requires_field_count_alias_index_compile checked 1934ms @a9ae30e1c334+wt
 pass/slices/returned_collection_window_copy checked 4054ms check-target:macos_arm64 @e0119fc0aaa2
+pass/slices/returned_mutable_view_record_state_call checked 3678ms check-target:macos_arm64 @3fd4c8bce0d8
+pass/slices/returned_record_mutable_parameter_post_length checked 3678ms check-target:macos_arm64 @3fd4c8bce0d8
 pass/slices/returned_record_window_length checked 5478ms check-target:macos_arm64 @2d4ff85790f0+wt
 pass/slices/returned_record_window_lower_bound checked 5475ms check-target:macos_arm64 @2d4ff85790f0+wt
 pass/slices/runtime_affine_view_edge_cleanup_exit checked 3338ms check-target:macos_arm64 @096f2ecfd243+wt
@@ -8601,6 +8643,7 @@ pass/slices/runtime_slice_index_transition_exit checked 15811ms check-target:mac
 pass/slices/runtime_slice_indexed_read_exit checked 12248ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/slices/runtime_slice_iteration_exit checked 14323ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/slices/runtime_slice_record_field_offset_exit checked 13566ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/slices/runtime_state_cycle_tagged_reference_argument checked 13091ms check-target:macos_arm64 @f22c0e54a812
 pass/slices/runtime_state_selected_nested_view_exit checked 5692ms check-target:macos_arm64 @f329f97f57f7+wt
 pass/slices/runtime_stored_element_view_replacement_exit checked 5658ms check-target:macos_arm64 @f329f97f57f7+wt
 pass/slices/runtime_stored_view_direct_window_argument_exit checked 6320ms check-target:macos_arm64 @308fbdc54ba0

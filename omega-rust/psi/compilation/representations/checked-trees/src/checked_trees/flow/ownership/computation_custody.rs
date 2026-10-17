@@ -467,7 +467,8 @@ impl<'facts> CallTransfers<'facts> {
                         })
                         .sum::<usize>()
             }
-            CheckedScalarComputationKind::Apply { operands, .. } => plans
+            CheckedScalarComputationKind::Apply { operands, .. }
+            | CheckedScalarComputationKind::StorageObservation { operands, .. } => plans
                 .operands
                 .span_or_empty(*operands)
                 .iter()

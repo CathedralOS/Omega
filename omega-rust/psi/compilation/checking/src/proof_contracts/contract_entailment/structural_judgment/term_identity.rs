@@ -10,6 +10,43 @@
 
 use super::StructuralTerm;
 
+impl StructuralTerm {
+    /// Stable key of an already authenticated completed scalar observation.
+    /// Reuse this owner's semantic formatting, also used by polynomial keys:
+    /// it erases observation-only shells exactly as semantic equality does.
+    /// Event handles and capture sequence remain part of the key, so another
+    /// prefix can compare the same snapshot without renaming a later read.
+    pub(in crate::proof_contracts::contract_entailment) fn observation_identity_key(
+        &self,
+    ) -> Option<String> {
+        fn available(value: &StructuralTerm, depth: usize) -> bool {
+            if depth >= 64 {
+                return false;
+            }
+            match value {
+                StructuralTerm::Opaque(_) => false,
+                StructuralTerm::ObservedValue { value, .. } => available(value, depth + 1),
+                StructuralTerm::Projection { subject, .. } => available(subject, depth + 1),
+                StructuralTerm::Constructor { fields, .. } => {
+                    fields.iter().all(|(_, value)| available(value, depth + 1))
+                }
+                StructuralTerm::Application { arguments, .. }
+                | StructuralTerm::CallProjection { arguments, .. } => {
+                    arguments.iter().all(|value| available(value, depth + 1))
+                }
+                StructuralTerm::IndexedValue {
+                    collection, index, ..
+                } => available(collection, depth + 1) && available(index, depth + 1),
+                StructuralTerm::ScalarBinary { left, right, .. } => {
+                    available(left, depth + 1) && available(right, depth + 1)
+                }
+                _ => true,
+            }
+        }
+        available(self, 0).then(|| format!("{:?}", self.semantic_value()))
+    }
+}
+
 impl Eq for StructuralTerm {}
 
 impl PartialEq for StructuralTerm {

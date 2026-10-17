@@ -24,6 +24,7 @@ use crate::proof_contracts::arithmetic_domains::place_paths::place_paths_overlap
 use crate::value_custody::places::collection_length_receiver;
 use symbols::SymbolHandle;
 
+mod congruence;
 mod requirements;
 mod storage;
 mod transport;
@@ -297,6 +298,7 @@ impl Relation {
     fn literal_comparisons<'relation>(
         &'relation self,
         subject: &'relation Operand,
+        relations: &'relation [Relation],
     ) -> impl Iterator<Item = (i64, RelationConstraint, bool)> + 'relation {
         [
             (&self.left, &self.right, true),
@@ -304,7 +306,7 @@ impl Relation {
         ]
         .into_iter()
         .filter_map(move |(candidate, opposite, subject_on_left)| {
-            if candidate != subject {
+            if !congruence::same_value(relations, candidate, subject) {
                 return None;
             }
             let Operand::Integer(literal, _) = opposite else {
@@ -821,7 +823,10 @@ pub(super) fn subtract_floor(
     environment
         .ordered_values
         .iter()
-        .filter(|relation| relation.left == left && relation.right == right)
+        .filter(|relation| {
+            congruence::same_value(&environment.ordered_values, &relation.left, &left)
+                && congruence::same_value(&environment.ordered_values, &relation.right, &right)
+        })
         .filter_map(Relation::minimum_difference)
         .max()
 }
@@ -845,7 +850,9 @@ pub(super) fn excludes_integer_value(
         return false;
     };
     environment.ordered_values.iter().any(|relation| {
-        for (constant, constraint, subject_is_left) in relation.literal_comparisons(&subject) {
+        for (constant, constraint, subject_is_left) in
+            relation.literal_comparisons(&subject, &environment.ordered_values)
+        {
             let excludes = match constraint {
                 RelationConstraint::Unequal => constant == value,
                 RelationConstraint::MinimumDifference(floor) if subject_is_left => {
@@ -885,7 +892,9 @@ pub(super) fn refine_place_interval(
         return interval;
     };
     for relation in &environment.ordered_values {
-        for (constant, constraint, subject_on_left) in relation.literal_comparisons(&subject) {
+        for (constant, constraint, subject_on_left) in
+            relation.literal_comparisons(&subject, &environment.ordered_values)
+        {
             let RelationConstraint::MinimumDifference(distance) = constraint else {
                 continue;
             };
@@ -1036,6 +1045,16 @@ fn ordered_gaps<'relations>(
     relations: &'relations [Relation],
     value: &'relations Operand,
 ) -> Vec<(&'relations Operand, i64)> {
+    ordered_gaps_by(relations, value, |left, right| {
+        congruence::same_value(relations, left, right)
+    })
+}
+
+fn ordered_gaps_by<'relations>(
+    relations: &'relations [Relation],
+    value: &'relations Operand,
+    same_value: impl Fn(&Operand, &Operand) -> bool,
+) -> Vec<(&'relations Operand, i64)> {
     let mut operands: Vec<&Operand> = vec![value];
     for relation in relations {
         for operand in [&relation.left, &relation.right] {
@@ -1047,7 +1066,7 @@ fn ordered_gaps<'relations>(
     let mut dist: Vec<(&Operand, i64)> = vec![(value, 0)];
     let known_gap = |dist: &[(&Operand, i64)], operand: &Operand| {
         dist.iter()
-            .find(|(known, _)| **known == *operand)
+            .find(|(known, _)| same_value(known, operand))
             .map(|(_, gap)| *gap)
     };
     for _ in 1..operands.len() {
@@ -1062,7 +1081,10 @@ fn ordered_gaps<'relations>(
             let Some(gap) = gap.checked_add(floor) else {
                 continue;
             };
-            match dist.iter_mut().find(|(known, _)| **known == relation.left) {
+            match dist
+                .iter_mut()
+                .find(|(known, _)| same_value(known, &relation.left))
+            {
                 Some((_, known)) if *known >= gap => {}
                 Some((_, known)) => {
                     *known = gap;
