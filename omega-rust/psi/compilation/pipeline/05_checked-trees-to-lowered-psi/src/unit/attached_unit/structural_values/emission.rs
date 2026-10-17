@@ -1704,11 +1704,15 @@ impl Emission<'_, '_, '_> {
                     // jump with the unqualified source, stranding the checked
                     // membership copy after that edge.
                     let argument = self.value(identities, source, None)?;
-                    let argument = self.retain_checked_memberships(
+                    let mut argument = self.retain_checked_memberships(
                         identities,
                         argument,
                         node.qualification_decisions,
                     )?;
+                    // The operand publishes storage; the checked projected
+                    // value retains its own access at the continuation.
+                    // Owning descriptor storage does not own its backing.
+                    argument.access = self.result_access;
                     if let Some(continuation) = continuation {
                         self.complete_value(identities, argument.clone(), None, continuation)?;
                     }

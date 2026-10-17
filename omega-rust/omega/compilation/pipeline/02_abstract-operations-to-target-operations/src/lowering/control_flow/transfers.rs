@@ -340,17 +340,31 @@ pub(super) fn validate_successors(
                             live.element_view_backings(),
                             &binding.argument,
                         )?;
-                    if binding.parameter != parameter.place
-                        || binding.argument.access != parameter.access
-                        || (selected.0 != parameter.structural_type
-                            && !crate::lowering::scalar::descriptor_operands::storage_backs_view_parameter(
-                                selected.0,
-                                &binding.argument.path,
-                                parameter,
-                                structural_types,
-                            ))
+                    let invalid = |reason| LoweringError::DescriptorStateBindingMismatch {
+                        machine: function.machine,
+                        source: binding.argument.place,
+                        parameter: parameter.place,
+                        supplied_type: selected.0,
+                        required_type: parameter.structural_type,
+                        supplied_access: binding.argument.access,
+                        required_access: parameter.access,
+                        reason,
+                    };
+                    if binding.parameter != parameter.place {
+                        return Err(invalid("descriptor edge names a different parameter"));
+                    }
+                    if binding.argument.access != parameter.access {
+                        return Err(invalid("descriptor edge changes its admitted access"));
+                    }
+                    if selected.0 != parameter.structural_type
+                        && !crate::lowering::scalar::descriptor_operands::storage_backs_view_parameter(
+                            selected.0,
+                            &binding.argument.path,
+                            parameter,
+                            structural_types,
+                        )
                     {
-                        return Err(LoweringError::unsupported_control_flow(function.machine));
+                        return Err(invalid("descriptor edge changes its value representation"));
                     }
                     continue;
                 }

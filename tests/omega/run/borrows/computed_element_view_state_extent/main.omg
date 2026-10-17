@@ -1,0 +1,42 @@
+// Expected exit: 0. A selected call result keeps its window through a
+// shared reborrow, a copied record field, and a named-state arrival.
+data Held [copy] { values: &[u32]; }
+data Main { values: [u32; 4]; }
+
+machine middle(values: &[u32], start: u64, end: u64) -> &[u32]
+requires start <= end && end <= values.len;
+{ &values[start..end] }
+
+machine select(values: &[u32], narrow: bool) -> &[u32]
+requires values.len >= 4;
+{
+    match narrow {
+        true -> &middle(values, 1, 3),
+        false -> values
+    }
+}
+
+machine Main::main(main: &mut Main) crashes Trap {
+    main.values[0] = 11;
+    main.values[1] = 70;
+    main.values[2] = 71;
+    main.values[3] = 99;
+    let window: &[u32] = &select(&main.values, true);
+    let whole: &[u32] = &select(&main.values, false);
+    let held: Held = Held { values: window };
+    transition held.values.len == 2 && whole.len == 4 {
+        true -> inspect(held.values, whole)
+        false -> bad()
+    }
+    state inspect(window: &[u32], whole: &[u32])
+    requires window.len == 2 && whole.len == 4;
+    {
+        transition window[0] == 70 && window[1] == 71
+            && whole[0] == 11 && whole[3] == 99 {
+            true -> done()
+            false -> bad()
+        }
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

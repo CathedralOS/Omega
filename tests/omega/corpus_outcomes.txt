@@ -8977,6 +8977,7 @@ run/arithmetic/fixed_integer_operand_after_pressure checked 6940ms check-target:
 run/arithmetic/fixed_integer_operand_join checked 6023ms check-target:macos_arm64 @589aedee8ebc+wt
 run/arithmetic/float_structural_initializer_selection checked 24258ms check-target:macos_arm64 @9c4d1c444502
 run/arithmetic/pinned_dividend_across_console_calls checked 11062ms check-target:macos_arm64 @a9ae30e1c334+wt
+run/borrows/computed_element_view_state_extent checked 7172ms check-target:macos_arm64 @81ae4fc477c4
 run/borrows/conditional_disjoint_field_loans_exit checked 6088ms check-target:macos_arm64 @589aedee8ebc+wt
 run/borrows/direct_runtime_index_write checked 11448ms check-target:macos_arm64 @a9ae30e1c334+wt
 run/borrows/dynamic_ancestor_static_byte_child_exit checked 9163ms check-target:macos_arm64 @0e7ef4cb2ac8+wt

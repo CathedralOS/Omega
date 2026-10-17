@@ -16,11 +16,13 @@
 //! an unreachable member must not lose its conformance at this boundary.
 //! Omega projects these exact callable IDs onto an execution scope before
 //! installing providers; family membership itself grants no installation.
-//! Named implementation rows alone supply selectable provider identities. A
+//! Named implementation rows alone supply whole-trait provider identities. A
 //! realization's exact satisfaction edge proves its contract, but its qualifier
 //! (a namespace or data declaration) is not another provider. Inferring that
 //! extra candidate used to reject namespace-qualified realizations and invented
-//! data-owned candidates beside otherwise valid named maps.
+//! data-owned candidates beside otherwise valid named maps. Exact top-level
+//! requirements and operators retain their checked satisfaction edges instead;
+//! their attached owner groups leaf suppliers, never a whole-trait conformance.
 
 use super::bodies::UnitPlans;
 use super::operation_frame::BoundaryParameters;
@@ -59,6 +61,64 @@ enum CatalogRequirement<'a> {
     },
     TopLevel(&'a checked_trees::machine::Machine),
     Operator(&'a typed_trees::operator::OperatorDefinition),
+}
+
+fn provider_identities(
+    checked: &CheckedTrees,
+    machine: &Machine,
+    requirement: CatalogRequirement<'_>,
+) -> Result<Vec<(symbols::SymbolHandle, String)>, LoweringError> {
+    if matches!(requirement, CatalogRequirement::Trait { .. }) {
+        return named::provider_identities(checked, machine, requirement);
+    }
+    let supplies = checked
+        .typed
+        .machine_trait_conformances(machine)
+        .iter()
+        .any(|conformance| {
+            if conformance.external_binding.is_some() {
+                return false;
+            }
+            match requirement {
+                CatalogRequirement::TopLevel(declaration) => {
+                    (conformance.symbol == declaration.symbol
+                        && conformance.requirement_symbol == declaration.symbol)
+                        || checked
+                            .facts
+                            .provider_closed_requirements
+                            .iter()
+                            .any(|row| {
+                                row.provider == machine.symbol
+                                    && row.selecting_declaration == machine.symbol
+                                    && row.template == conformance.symbol
+                                    && row.closed_requirement == declaration.symbol
+                            })
+                }
+                CatalogRequirement::Operator(operator) => conformance.requirement_symbol
+                    == operator.symbol
+                    && typed_trees::operator::resolve_satisfied_boundary_operator_for_conformance(
+                        &checked.typed,
+                        machine,
+                        conformance,
+                    )
+                    .is_some_and(|resolved| resolved.symbol == operator.symbol),
+                CatalogRequirement::Trait { .. } => unreachable!(),
+            }
+        });
+    if !supplies {
+        return Ok(Vec::new());
+    }
+    let owner = machine.attached_data_symbol;
+    if !owner.is_valid() {
+        return unsupported("exact leaf supplier has no attached declaration owner");
+    }
+    let identity = checked
+        .typed
+        .attached_data_path(machine)
+        .ok_or(LoweringError::Unsupported(
+            "exact leaf supplier has no attached owner identity",
+        ))?;
+    Ok(vec![(owner, identity)])
 }
 
 pub(super) fn checked_unit_provider_candidates(
@@ -187,7 +247,7 @@ pub(super) fn checked_unit_provider_candidates(
         for machine in checked.typed.machines().iter().filter(|machine| {
             machine.supply_mode == language_semantics::MachineSupplyMode::CheckedBody
         }) {
-            let providers = named::provider_identities(checked, machine, requirement)?;
+            let providers = provider_identities(checked, machine, requirement)?;
             if providers.is_empty() {
                 continue;
             }

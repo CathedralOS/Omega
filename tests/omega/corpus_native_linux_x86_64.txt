@@ -3278,6 +3278,7 @@ run/arithmetic/fixed_integer_operand_join built 14907ms exit:70 stdout:match @6c
 run/arithmetic/float_structural_initializer_selection built 32751ms exit:0 @6c49683ce714
 run/arithmetic/pinned_dividend_across_console_calls built 8016ms exit:0 stdout:match @6c49683ce714
 run/borrows/call_result_mutable_window_field_exit built 9146ms exit:0 @73e11f08dcbb+wt
+run/borrows/computed_element_view_state_extent built 7252ms exit:0 @81ae4fc477c4
 run/borrows/conditional_disjoint_field_loans_exit built 6591ms exit:0 stdout:match stderr:match @326ed531359e+wt
 run/borrows/direct_runtime_index_write built 14936ms exit:9 @6c49683ce714
 run/borrows/dynamic_ancestor_static_byte_child_exit built 9150ms exit:42 @0e7ef4cb2ac8+wt
