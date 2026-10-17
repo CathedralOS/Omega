@@ -266,8 +266,8 @@ pub fn primitive_read_projection_type<'a>(
 /// access and live permission remain independent operation obligations.
 ///
 /// Restricted scalar declarations retain their complete predicate, including
-/// IEEE refinements. Plain integer/Boolean fields keep their existing readable
-/// carrier rule; plain IEEE fields already use primitive storage. This query
+/// IEEE refinements. Plain integer/Boolean fields retain their declared carrier,
+/// including inert address data; plain IEEE fields already use primitive storage. This query
 /// grants neither a canonical owned field identity nor primitive-store access.
 pub fn primitive_read_field<'a>(
     declarations: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
@@ -286,7 +286,7 @@ pub fn primitive_read_field<'a>(
     let field = crate::runtime_structural_field(declarations, root, path)?;
     match field.field_type {
         StructuralFieldType::Scalar(ScalarType::Boolean) => {}
-        StructuralFieldType::Scalar(ScalarType::Integer(integer)) if !integer.is_address() => {}
+        StructuralFieldType::Scalar(ScalarType::Integer(_)) => {}
         StructuralFieldType::BoundedInteger(_) | StructuralFieldType::RefinedScalar(_) => {
             field.field_type.scalar_type()?;
         }

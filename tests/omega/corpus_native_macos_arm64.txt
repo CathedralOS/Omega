@@ -321,6 +321,7 @@ pass/borrows/static_carrier_bounded_reference_read_exit built 1158ms exit:70 @10
 pass/borrows/static_carrier_reference_read_exit built 1134ms exit:70 @104c2da31081
 pass/borrows/static_projected_local_reference_exit built 2254ms exit:0 @9beb2be72f2d+wt
 pass/borrows/static_record_reference_return_exit built 1143ms exit:0 @2816825e8941
+pass/borrows/stored_reference_address_field_exit built 3678ms exit:0 @5e555aae7d56
 pass/borrows/stored_reference_projection_exit built 1133ms exit:70 @104c2da31081
 pass/borrows/structural_operand_view_catalog_exit built 3340ms exit:0 @ea7b63644a0a+wt
 pass/borrows/transition_shared_borrow_result built 1120ms exit:181 @4eef5b6cc89f

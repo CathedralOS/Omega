@@ -1,0 +1,5 @@
+data Image { base: addr; }
+data Output<'image> { image: &'image write Image; }
+machine invalid(output: &Output) -> addr {
+    output.image.base
+}

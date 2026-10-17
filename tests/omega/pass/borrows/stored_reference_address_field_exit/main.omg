@@ -1,0 +1,28 @@
+// Expected exit: 0. Address fields retain their address carrier through a
+// stored reference, helper calls and a second state.
+data Image { base: addr; size: u64; }
+data Output<'image> { image: &'image Image; }
+data Main { base: addr; size: u64; }
+machine base(output: &Output) -> addr { output.image.base }
+machine Main::main(context: &mut Main) crashes Trap {
+    let first: Image = Image { base: 4096, size: 41 };
+    let mut output: Output = Output { image: &first };
+    context.base = output.image.base;
+    context.size = output.image.size;
+    transition context.base == 4096 && context.size == 41 {
+        true -> next(context)
+        _ -> wrong()
+    }
+    state next(context: &mut Main) {
+        let second: Image = Image { base: 8192, size: 43 };
+        let output: Output = Output { image: &second };
+        context.base = output.image.base;
+        let observed: addr = base(&output);
+        transition context.base == 8192 && observed == 8192 && output.image.size == 43 {
+            true -> done()
+            _ -> wrong()
+        }
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}

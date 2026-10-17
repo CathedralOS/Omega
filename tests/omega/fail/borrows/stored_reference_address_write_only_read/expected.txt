@@ -1,0 +1,2 @@
+observes write-only referent through a selected value
+`&write` permits replacement or exact `&write` forwarding, never observation

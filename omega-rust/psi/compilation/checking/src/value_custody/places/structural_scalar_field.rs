@@ -446,11 +446,14 @@ pub fn structural_scalar_field(
     })
 }
 
-/// The scalar carriers a structural observation reads; an address is not one.
+/// Observable scalar data retains its declared carrier. Reading an address
+/// observes inert geometry; it neither converts it to a count nor lends the
+/// storage that its bits may describe.
 fn observable_scalar(primitive_type: PrimitiveType) -> Option<PrimitiveType> {
     matches!(
         primitive_type,
         PrimitiveType::Bool
+            | PrimitiveType::Addr
             | PrimitiveType::I8
             | PrimitiveType::I16
             | PrimitiveType::I32

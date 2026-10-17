@@ -1137,6 +1137,8 @@ fail/borrows/stored_fixed_array_write_only_read rejected 147ms expected @c4c0ab7
 	machine `invalid` state `entry` reads through index projection of write-only parameter `buffer`; `&write` permits admitted fixed-array element replacement but never observation
 fail/borrows/stored_primitive_reference_backing_write rejected 1748ms expected @a9ae30e1c334+wt
 	statement 2 mutates `backing` while local borrow `bundle` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
+fail/borrows/stored_reference_address_write_only_read rejected 164ms expected @5e555aae7d56
+	machine `invalid` state `entry` observes write-only referent through a selected value; `&write` permits replacement or exact `&write` forwarding, never observation
 fail/borrows/stored_reference_child_constructor_live_source_write rejected 5529ms expected @a9ae30e1c334+wt
 	statement 5 mutates `main.cell.value` while local borrow `held` is still active (borrowed at statement 4; its last use is at statement 7)
 fail/borrows/stored_reference_constructor_transfer_live_source_write rejected 5510ms expected @a9ae30e1c334+wt
@@ -6181,6 +6183,7 @@ pass/borrows/static_carrier_reference_read_exit checked 11129ms check-target:mac
 pass/borrows/static_projected_local_reference_exit checked 10997ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/static_record_reference_return_exit checked 10291ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/stored_primitive_reference_observations_exit checked 11205ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/borrows/stored_reference_address_field_exit checked 3628ms check-target:macos_arm64 @5e555aae7d56
 pass/borrows/stored_reference_projection_exit checked 11240ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/stored_view_return_consumers checked 1799ms @f329f97f57f7+wt
 pass/borrows/structural_operand_view_catalog_exit checked 3433ms check-target:macos_arm64 @ea7b63644a0a+wt

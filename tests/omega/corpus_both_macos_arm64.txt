@@ -47,6 +47,7 @@ pass/borrows/runtime_writeonly_checked_static_carrier_exit built 3513ms exit:0 i
 pass/borrows/runtime_writeonly_generic_returned_carrier_reborrow_exit built 3438ms exit:0 interpreter-exit:0 interpreter:agrees @3d1bd96aeaa5
 pass/borrows/runtime_writeonly_nested_reference_array_exit built 3435ms exit:0 interpreter-exit:0 interpreter:agrees @3d1bd96aeaa5
 pass/borrows/runtime_writeonly_reference_array_state_exit built 3333ms exit:0 interpreter-exit:0 interpreter:agrees @3d1bd96aeaa5
+pass/borrows/stored_reference_address_field_exit built 3695ms exit:0 interpreter-exit:0 interpreter:agrees @5e555aae7d56
 pass/borrows/structural_operand_view_catalog_exit built 3342ms exit:0 interpreter-exit:0 interpreter:agrees @ea7b63644a0a+wt
 pass/build/runtime_opaque_by_value_selected_exit built 18387ms exit:72 interpreter-exit:72 interpreter:agrees @35f5679f7d28
 pass/build/sibling_module_service_exclusion_exit built 6935ms exit:0 interpreter-exit:0 interpreter:agrees @eca66ed24a79+wt
