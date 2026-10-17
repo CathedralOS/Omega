@@ -134,14 +134,13 @@ build, passed as `cloud_requested_environment_build_id` when the user supplies
 one. Without that build, record the Windows outcome as pending. The worker
 reports its own `uname` and treats oracles for other hosts as unavailable.
 
-Pass `model` only when the user names a slug in the current exposed model
-list. Never pass a slug ending in `-fast`. High, medium, and low mean
-`grok-4.7-high`, `grok-4.7-medium`, and `grok-4.7-low`. Otherwise omit
-`model` and the worker inherits the coordinator. Confirm the model from
-returned runtime metadata when that metadata exists. Record an unreported
-model as unverified. Text in the prompt does not change the model.
-The dot default `gpt-6.1-sol` applies only when that slug is present in the
-exposed list.
+The default model is `grok-4.7-medium`. Pass that slug unless the user names
+another slug in the current exposed model list. Never pass a slug ending in
+`-fast`. High and low, when the user asks for them, mean `grok-4.7-high` and
+`grok-4.7-low`. Confirm the model from returned runtime metadata when that
+metadata exists. Record an unreported model as unverified. Text in the prompt
+does not change the model. The dot default `gpt-6.1-sol` applies only when
+that slug is present in the exposed list.
 
 ## Record, then start
 
