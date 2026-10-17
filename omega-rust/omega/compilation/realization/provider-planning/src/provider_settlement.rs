@@ -231,6 +231,8 @@ pub struct CheckedProviderSelection {
 /// selected plan facts that selected execution owns.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProviderSettlement {
+    /// Exact direct foreign candidates; only native execution demand selects them.
+    pub direct_foreign_leaves: Vec<backend_plan::DirectForeignLeaf>,
     /// Exact target used to derive candidate plans, including semantic-only
     /// checking's supported host profile. This grants no deployment entry.
     pub planning_target_profile: Option<target::TargetProfile>,
@@ -298,6 +300,14 @@ pub fn settle_checked_providers(
         &target_provider_defaults,
         build_provider_selections,
     )?;
+    let direct_foreign_leaves = crate::provider_planning::direct_foreign_leaves::derive(
+        typed,
+        &derived_provider_plans,
+        target_name,
+        provider_selection_target,
+        &boundary_calling_plan_realizations,
+        opaque_representation_selections,
+    )?;
     if package_inputs.is_some_and(PackageCompilationInputs::semantic_role_discovery) {
         semantic_roles::validate_proposed(typed, &selected_provider_plans)?;
     }
@@ -343,7 +353,10 @@ pub fn settle_checked_providers(
         target_name,
         provider_selection_target,
         &selected_semantic_plans,
-        &selected_provider_plans,
+        &selected_provider_plans
+            .iter()
+            .map(|selected| selected.derived.clone())
+            .collect::<Vec<_>>(),
         &boundary_calling_plan_realizations,
         typed,
         opaque_representation_selections,
@@ -408,6 +421,7 @@ pub fn settle_checked_providers(
     }
     Ok(CheckedProviderSelection {
         settlement: ProviderSettlement {
+            direct_foreign_leaves,
             planning_target_profile: planning_target,
             boundary_calling_plan_realizations,
             provider_plans,

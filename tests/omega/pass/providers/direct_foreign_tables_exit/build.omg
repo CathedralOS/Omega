@@ -1,0 +1,6 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "direct_foreign_tables_exit");
+    Build::select_provider<Counter, CounterProvider>(builder);
+    Build::select_provider<Process, ProcessProvider>(builder);
+    Build::bind(builder, windows_x86_64::ProgramEntry, main);
+}

@@ -9,6 +9,7 @@ name = "backend_plan"
 path = "src/lib.rs"
 
 [dependencies]
+diagnostics = { path = "../../../../../psi/foundation/diagnostics" }
 terminal-psi = { path = "../../../../../psi/compilation/representations/terminal-psi" }
 calling-conventions = { path = "../../calling-conventions" }
 function-identity = { path = "../../../../foundation/function-identity" }

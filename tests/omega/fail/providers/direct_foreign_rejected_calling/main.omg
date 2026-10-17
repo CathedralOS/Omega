@@ -1,0 +1,19 @@
+use omega_language_std::calling;
+use omega::language::core::external_binding;
+RejectCalling satisfies CallingPolicy {
+    machine plan(signature: BoundarySignature) -> BoundaryPlanResult {
+        BoundaryPlanResult::Rejected {
+            reason: CallingPolicyRejection { reason: "direct foreign policy refuses" }
+        }
+    }
+}
+boundary trait Process: Calling<RejectCalling> { machine current() -> u32; }
+data Native {}
+machine process_binding() -> ForeignBinding<12, 19, 0> {
+    ForeignBinding::DllImport { import: DllImport::PeByName {
+        library: "kernel32.dll", export: "GetCurrentProcessId"
+    } }
+}
+windows_x86_64 machine Native::current() -> u32
+satisfies Process::current via process_binding();
+machine main() reaches Process { let result: u32 = Native::current(); }

@@ -66,10 +66,22 @@ pub fn admit_native_realization<'execution>(
             request.providers.profile,
             request.providers.checked_adapters,
             request.receiving_provider_roots,
+            &[],
         )
         .map_err(|error| realization_error("execution scope", error))?
         .bind_selected_family_realizations(artifact, request.providers.selected_provider_plans)
         .map_err(|error| realization_error("selected family realization", error))?;
+    admit_prepared_native_realization(input, artifact, request)
+}
+
+/// Consume the executable projection already prepared for this invocation.
+/// Provider preparation and installation share this input rather than walking
+/// retained bodies again after selecting foreign dependencies.
+pub fn admit_prepared_native_realization<'execution>(
+    input: VerifiedNativeArtifactInput,
+    artifact: &CanonicalTerminalArtifact,
+    request: &NativeAdmissionRequest<'_, 'execution>,
+) -> Result<AdmittedNativeRealization<'execution>, Vec<Diagnostic>> {
     // Invocation-scoped supplies must answer the same executable occurrences
     // as the plan. Complete declarations stay retained in canonical Terminal.
     let settlements = request

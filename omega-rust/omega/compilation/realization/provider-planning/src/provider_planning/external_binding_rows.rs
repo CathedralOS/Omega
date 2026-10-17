@@ -13,7 +13,7 @@ pub(crate) fn extract_native_external_binding_rows(
     selected_target: Option<&str>,
     native_target: target::NativeTarget,
     selected_plans: &[effects::provider_plan::ProviderPlan],
-    selected_sources: &[crate::SelectedProviderPlanWithProvenance],
+    sources: &[crate::DerivedProviderPlan],
     boundary_calling_plan_realizations: &[
         crate::calling_policy_plans::BoundaryCallingPlanRealization
     ],
@@ -41,9 +41,9 @@ pub(crate) fn extract_native_external_binding_rows(
                 }
                 ProviderBinding::VtableField { field, .. }
                 | ProviderBinding::TableFunction { field, .. } => {
-                    let source = selected_sources
+                    let source = sources
                         .iter()
-                        .find(|source| source.derived.plan == *plan)
+                        .find(|source| source.plan == *plan)
                         .ok_or_else(|| {
                             vec![Diagnostic::error(
                                 "selected table binding has no source provenance",
@@ -52,7 +52,7 @@ pub(crate) fn extract_native_external_binding_rows(
                     let byte_offset = table_dispatch::field_offset(
                         typed,
                         native_target,
-                        &source.derived.provenance,
+                        &source.provenance,
                         row_index,
                         field,
                         opaque_representation_selections,

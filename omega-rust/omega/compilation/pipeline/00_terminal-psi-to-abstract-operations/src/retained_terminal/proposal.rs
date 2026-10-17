@@ -16,6 +16,7 @@ use diagnostics::Diagnostic;
 /// canonical artifact. Completed callback bodies arrive in placement order;
 /// neither their cardinality nor their identity is trusted.
 pub struct TerminalNativeProposalRequest<'input> {
+    pub direct_foreign_leaves: &'input [backend_plan::DirectForeignLeaf],
     pub provider_declarations:
         Vec<crate::provider_admission::NativeProviderPlanDeclaration<'input>>,
     pub target_profile: Option<target::TargetProfile>,
@@ -249,6 +250,10 @@ fn project_terminal_native_body(
     .map_err(|message| vec![Diagnostic::error(message)])?;
     Ok(TerminalNativeBodyProposal {
         providers: TerminalNativeProviders {
+            direct_foreign_leaves: bind_direct_foreign_leaves(
+                terminal_module,
+                request.direct_foreign_leaves,
+            )?,
             selection: selected,
             checked_adapters,
             external_bindings: external_binding_rows,
@@ -269,6 +274,56 @@ fn project_terminal_native_body(
             terminal_module,
         ),
     })
+}
+
+/// A foreign leaf's physical declaration identity is not the portable family
+/// head's callable identity. Join both retained source coordinates to Terminal
+/// once; exported boundary text is payload, never a source lookup key.
+fn bind_direct_foreign_leaves(
+    module: &terminal_psi::TerminalModule,
+    candidates: &[backend_plan::DirectForeignLeaf],
+) -> Result<Vec<backend_plan::DirectForeignLeaf>, Vec<Diagnostic>> {
+    let mut bound = Vec::new();
+    for candidate in candidates {
+        let mut declarations = module.boundary_machines.iter().filter(|boundary| {
+            boundary.declaration.as_ref().is_some_and(|declaration| {
+                module
+                    .identities
+                    .text(declaration.source.semantic_declaration)
+                    == Some(candidate.declaration_identity.as_str())
+                    && module.identities.text(declaration.source.callable)
+                        == Some(candidate.callable_identity.as_str())
+            })
+        });
+        let Some(boundary) = declarations.next() else {
+            continue;
+        };
+        if declarations.next().is_some() {
+            return Err(vec![Diagnostic::error(
+                "direct foreign leaf has multiple exact Terminal declarations",
+            )]);
+        }
+        let identity = module
+            .identities
+            .text(boundary.identity)
+            .filter(|text| !text.is_empty())
+            .ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "direct foreign leaf has no Terminal boundary identity",
+                )]
+            })?;
+        let mut leaf = candidate.clone();
+        leaf.plan.schema.trait_name = leaf.plan.schema.identities.intern(identity);
+        leaf.plan.rows[0].requirement_identity = leaf.plan.identities.intern(identity);
+        leaf.plan.schema.methods[0].requirement_identity =
+            leaf.plan.schema.identities.intern(identity);
+        if let Ok(binding) = &mut leaf.external_binding {
+            binding.trait_name = identity.to_owned();
+            binding.requirement_identity = identity.to_owned();
+        }
+        bound.push(leaf);
+    }
+    Ok(bound)
 }
 
 /// Rejoin retained callback placements to their exact Terminal registrar

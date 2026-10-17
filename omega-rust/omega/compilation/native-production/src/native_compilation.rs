@@ -21,21 +21,6 @@ pub fn compile(
     let recoverable_image_request = request.image_request.clone();
     let result = (|| {
         let (artifact, proposal) = request.prepare_terminal(retained)?;
-        let prepared = proposal.prepare_native_providers(
-            &artifact,
-            RetainedNativeProviderInputs {
-                optimization_selections: request.optimization_selections,
-                accepted_package_permissions: &request
-                    .accepted_package_terminal_authority_permission_policy,
-                imports: request.imports,
-            },
-        )?;
-        let native_settlements = prepared.program_settlements();
-        let mut admission = prepared.admission_request(
-            &native_settlements,
-            &request.terminal_authority_policy,
-            &request.terminal_authority_permission_policy,
-        );
         let selections = terminal_installation::admit_target_machine_selections(
             artifact.view(),
             proposal.target_profile().target_name(),
@@ -69,9 +54,26 @@ pub fn compile(
                 .map_err(|reason| vec![Diagnostic::error(reason)])
             })
             .collect::<Result<Vec<_>, _>>()?;
-        admission.private_entry_ram = &recipes;
+        let (input, execution) = proposal.prepare_native_execution(&artifact, &recipes)?;
+        let prepared = proposal.prepare_native_providers(
+            &artifact,
+            RetainedNativeProviderInputs {
+                execution: &execution,
+                optimization_selections: request.optimization_selections,
+                accepted_package_permissions: &request
+                    .accepted_package_terminal_authority_permission_policy,
+                imports: request.imports,
+            },
+        )?;
+        let native_settlements = prepared.program_settlements();
+        let admission = prepared.admission_request(
+            &native_settlements,
+            &request.terminal_authority_policy,
+            &request.terminal_authority_permission_policy,
+        );
         crate::realization::realize_native_artifact(
             artifact,
+            input,
             crate::request::NativeRealizationRequest {
                 program_entry: proposal.program_entry().as_settlement(),
                 admission,

@@ -1,0 +1,56 @@
+// Expected exit: 0
+// Direct imports and both named-table mechanisms retain the exact source leaf.
+use omega::language::core::external_binding;
+boundary trait ModuleSymbols {
+    machine module(name: &[u8; 13]) -> addr;
+    machine symbol(module: addr, name: &[u8; 24]) -> addr;
+}
+data CounterTable { value: i64; query: addr; }
+data ProcessTable { current: addr; }
+data Holder { table: ProcessTable; }
+boundary trait Counter { machine query(table: &mut CounterTable) -> i32; }
+boundary trait Process { machine current(table: &ProcessTable) -> u32; }
+machine module_binding() -> ForeignBinding<12, 16, 0> {
+    ForeignBinding::DllImport { import: DllImport::PeByName {
+        library: "kernel32.dll", export: "GetModuleHandleA"
+    } }
+}
+machine symbol_binding() -> ForeignBinding<12, 14, 0> {
+    ForeignBinding::DllImport { import: DllImport::PeByName {
+        library: "kernel32.dll", export: "GetProcAddress"
+    } }
+}
+windows_x86_64 machine native_module(name: &[u8; 13]) -> addr
+satisfies ModuleSymbols::module via module_binding();
+windows_x86_64 machine native_symbol(module: addr, name: &[u8; 24]) -> addr
+satisfies ModuleSymbols::symbol via symbol_binding();
+windows_x86_64 machine CounterTable::invoke(table: &mut CounterTable) -> i32
+satisfies Counter::query via ForeignBinding::VtableField(query);
+windows_x86_64 machine ProcessTable::invoke(table: &ProcessTable) -> u32
+satisfies Process::current via ForeignBinding::TableFunction(current);
+CounterProvider satisfies Counter {
+    machine query(table: &mut CounterTable) -> i32 { CounterTable::invoke(table) }
+}
+ProcessProvider satisfies Process {
+    machine current(table: &ProcessTable) -> u32 { ProcessTable::invoke(table) }
+}
+machine current(holder: &Holder) -> u32 reaches Process { ProcessTable::invoke(&holder.table) }
+machine main() reaches ModuleSymbols + Counter + Process crashes Trap {
+    let library: [u8; 13] = "kernel32.dll\0";
+    let counter_symbol: [u8; 24] = "QueryPerformanceCounter\0";
+    let process_symbol: [u8; 24] = "GetCurrentProcessId\0\0\0\0\0";
+    let module: addr = native_module(&library);
+    let counter_address: addr = native_symbol(module, &counter_symbol);
+    let process_address: addr = native_symbol(module, &process_symbol);
+    let mut counter: CounterTable = CounterTable { query: counter_address };
+    let success: i32 = Counter::query(&mut counter);
+    let holder: Holder = Holder { table: ProcessTable { current: process_address } };
+    let direct: u32 = current(&holder);
+    let wrapped: u32 = Process::current(&holder.table);
+    transition success != 0 && counter.value > 0 && direct > 0 && direct == wrapped {
+        true -> accepted()
+        _ -> rejected()
+    }
+    state accepted() {}
+    state rejected() { crash Trap; }
+}

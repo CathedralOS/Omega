@@ -105,6 +105,7 @@ name = "backend-plan"
 version = "0.1.0"
 dependencies = [
  "calling-conventions",
+ "diagnostics",
  "effects",
  "function-identity",
  "optimization-core",

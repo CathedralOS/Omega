@@ -1,0 +1,4 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "direct_foreign_wrong_table");
+    Build::bind(builder, windows_x86_64::ProgramEntry, main);
+}

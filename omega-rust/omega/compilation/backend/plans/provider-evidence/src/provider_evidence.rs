@@ -272,6 +272,44 @@ impl SelectedProviderPlanFacts {
         &self.plans
     }
 
+    /// Extend an invocation's selection with exact demanded foreign callables.
+    /// The caller projects already-derived candidates through executable scope;
+    /// this does not classify mechanisms or grant package/runtime authority.
+    pub fn with_direct_foreign_plans(mut self, plans: Vec<ProviderPlan>) -> Result<Self, String> {
+        let checked = Self::from_selected_plans(plans)?;
+        for plan in &checked.plans {
+            if self.plans.iter().any(|existing| {
+                existing.report_fingerprint() == plan.report_fingerprint()
+                    || (existing.schema.trait_package_identity
+                        == plan.schema.trait_package_identity
+                        && existing.schema.identity_text(existing.schema.trait_name)
+                            == plan.schema.identity_text(plan.schema.trait_name))
+            }) {
+                return Err(format!(
+                    "direct foreign callable `{}` collides with an existing selected plan",
+                    plan.name
+                ));
+            }
+        }
+        let mut identities = self.identities.clone().into_builder();
+        for plan in &checked.plans {
+            for row in &plan.rows {
+                identities.intern(plan.identities.text(row.requirement_identity));
+            }
+        }
+        self.identities = identities.build();
+        self.plans.extend(checked.plans);
+        self.plans.sort_by(ProviderPlan::selection_order);
+        self.report_fingerprint = selected_closure_report_fingerprint(
+            &self.plans,
+            &self.installation_reach_resolutions,
+            &self.specialized_requirement_rows,
+            &self.family_realization_rows,
+            &self.identities,
+        );
+        Ok(self)
+    }
+
     /// Compatibility/report lookup for existing compact-ID consumers. Code
     /// making an admission or execution decision must use
     /// [`Self::plan_by_exact_evidence`] instead.

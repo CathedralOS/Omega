@@ -50,7 +50,7 @@ mod terminal_decode_once;
 
 pub use native_admission::{
     AdmittedNativeRealization, NativeAdmissionRequest, admit_native_realization,
-    artifact_lowering_error,
+    admit_prepared_native_realization, artifact_lowering_error,
 };
 pub(crate) use native_execution_scope::NativeExecutionScopeError;
 pub use provider_admission::{
@@ -58,8 +58,8 @@ pub use provider_admission::{
     NativeCallbackArgumentProposal,
 };
 pub use retained_terminal::{
-    PreparedRetainedNativeProviders, RetainedNativeProviderInputs, RetainedTerminalArtifact,
-    SelectedFamilyRealizationSource, TerminalCallbackOccurrenceProposal,
+    PreparedNativeExecution, PreparedRetainedNativeProviders, RetainedNativeProviderInputs,
+    RetainedTerminalArtifact, SelectedFamilyRealizationSource, TerminalCallbackOccurrenceProposal,
     TerminalCallbackThunkArtifact, TerminalCompilerBuiltinProposal,
     TerminalIeeeFloatComparisonOccurrenceProposal, TerminalIntegerComparisonOccurrenceProposal,
     TerminalNativeBoundaryApplications, TerminalNativeOccurrences, TerminalNativeProposalRequest,

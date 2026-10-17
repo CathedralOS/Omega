@@ -1,0 +1,55 @@
+// Expected exit: 0
+use omega::language::core::external_binding;
+
+boundary trait ProcessProbe { machine identity() -> u32; }
+data NativeProcess {}
+data NativeUnused {}
+// Checked source may retain a table declaration beyond this target's native
+// record-layout envelope when no executed call demands its realization.
+data UnusedWideTable { padding: [u8; 65536]; invoke: addr; }
+boundary trait UnusedWideCall { machine invoke(table: &UnusedWideTable) -> u32; }
+windows_x86_64 machine UnusedWideTable::invoke(table: &UnusedWideTable) -> u32
+satisfies UnusedWideCall::invoke via ForeignBinding::TableFunction(invoke);
+UnusedWideProvider satisfies UnusedWideCall {
+    machine invoke(table: &UnusedWideTable) -> u32 { 0 }
+}
+machine windows_process_binding() -> ForeignBinding<12, 19, 0> {
+    ForeignBinding::DllImport { import: DllImport::PeByName {
+        library: "kernel32.dll", export: "GetCurrentProcessId"
+    } }
+}
+windows_x86_64 machine NativeProcess::identity() -> u32
+satisfies ProcessProbe::identity via windows_process_binding();
+ProcessProvider satisfies ProcessProbe {
+    machine identity() -> u32 {
+        let observed: u32 = NativeProcess::identity();
+        23
+    }
+}
+machine unused_process_binding() -> ForeignBinding<12, 16, 0> {
+    ForeignBinding::DllImport { import: DllImport::PeByName {
+        library: "kernel32.dll", export: "OmegaMissingLeaf"
+    } }
+}
+windows_x86_64 machine NativeUnused::identity() -> u32
+satisfies ProcessProbe::identity via unused_process_binding();
+UnusedProvider satisfies ProcessProbe {
+    machine identity() -> u32 { NativeUnused::identity() }
+}
+windows_x86_64 machine observed_process() -> u32 reaches ProcessProbe {
+    NativeProcess::identity()
+}
+archive_target machine observed_process() -> u32 reaches ProcessProbe {
+    NativeUnused::identity()
+}
+machine main() reaches ProcessProbe crashes Trap {
+    let direct: u32 = NativeProcess::identity();
+    let forwarded: u32 = observed_process();
+    let wrapped: u32 = ProcessProbe::identity();
+    transition direct > 0 && forwarded == direct && wrapped == 23 {
+        true -> accepted()
+        _ -> rejected()
+    }
+    state accepted() {}
+    state rejected() { crash Trap; }
+}

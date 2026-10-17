@@ -9,6 +9,8 @@
 
 mod callback_artifacts;
 mod callback_placements;
+mod direct_foreign_leaves;
+pub use direct_foreign_leaves::DirectForeignLeaf;
 mod target_providers;
 pub use callback_artifacts::{
     NativeCallbackThunkSettlement, TerminalCallbackOccurrenceProposal,

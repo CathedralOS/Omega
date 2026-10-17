@@ -12,7 +12,9 @@ pub use proposal::{
 
 pub use backend_plan::TerminalTargetProviderProposal;
 pub use backend_plan::{TerminalCallbackOccurrenceProposal, TerminalCallbackThunkArtifact};
-pub use native_providers::{PreparedRetainedNativeProviders, RetainedNativeProviderInputs};
+pub use native_providers::{
+    PreparedNativeExecution, PreparedRetainedNativeProviders, RetainedNativeProviderInputs,
+};
 
 pub use crate::provider_admission::TerminalCompilerBuiltinProposal;
 
@@ -24,6 +26,7 @@ pub use boundary_applications::{
 /// authority. Package permissions remain a separate independently joined input.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalNativeProviders {
+    pub direct_foreign_leaves: Vec<backend_plan::DirectForeignLeaf>,
     pub selection: effects::SelectedProviderPlanFacts,
     /// Declaration-qualified complete row projection, including closed
     /// requirements and family aliases. This is policy, not installation.

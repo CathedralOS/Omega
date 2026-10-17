@@ -13,7 +13,9 @@ use diagnostics::Diagnostic;
 use native_artifact::RequestedNativeArtifact;
 
 use self::object_emission::emit_realization_object;
-use terminal_psi_to_abstract_operations::{AdmittedNativeRealization, admit_native_realization};
+use terminal_psi_to_abstract_operations::{
+    AdmittedNativeRealization, admit_prepared_native_realization,
+};
 
 /// Image and the exact source-free runtime provisions admitted beside it.
 /// The backend image does not own host interpretation policy or runtime state.
@@ -30,27 +32,14 @@ pub struct RealizedNativeProduct {
 /// compiler entrance retains the image request on every failure path.
 pub(crate) fn realize_native_artifact(
     artifact: std::sync::Arc<terminal_codec::CanonicalTerminalArtifact>,
+    input: terminal_psi_to_abstract_operations::VerifiedNativeArtifactInput,
     request: NativeRealizationRequest<'_>,
 ) -> Result<RealizedNativeProduct, Vec<Diagnostic>> {
-    let receiving_provider_roots = request
-        .program_entry
-        .receiving_provider_roots(&artifact)
-        .map_err(|message| vec![Diagnostic::error(message)])?;
-    let admission = terminal_psi_to_abstract_operations::NativeAdmissionRequest {
-        entry: request
-            .program_entry
-            .physical_adapter()
-            .map_or(request.admission.entry, |adapter| {
-                terminal_psi::TargetMachineCallable::Machine(adapter.machine())
-            }),
-        receiving_provider_roots: &receiving_provider_roots,
-        ..request.admission
-    };
     let AdmittedNativeRealization {
         input,
         mut providers,
         boundary_application_coverage,
-    } = admit_native_realization(&artifact, &admission)?;
+    } = admit_prepared_native_realization(input, &artifact, &request.admission)?;
     let entry_settlement = native_artifact::admit_executable_entry(
         &input,
         &artifact,

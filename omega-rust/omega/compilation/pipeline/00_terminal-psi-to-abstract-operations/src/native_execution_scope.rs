@@ -13,8 +13,8 @@
 //! Image emission currently materializes the complete dynamic table catalog,
 //! so every present table row is an address root, even without an invocation.
 //! Those rows cannot be pruned until the image owner supports a selected table
-//! pool. Callback thunks are independent canonical artifacts, not machine IDs
-//! inside this program; their registrar calls remain ordinary boundary edges.
+//! pool. Retained callback bodies share the canonical namespace; a reached
+//! registrar occurrence makes its exact callback entry an executable root too.
 
 use crate::SelectedProviderAdapter;
 use abstract_operations::{AbstractCallTarget, AbstractOperation};
@@ -74,6 +74,7 @@ impl NativeExecutionScope {
         input: &crate::VerifiedPsiOptimizationInput,
         selected: &[SelectedProviderAdapter],
         receiving_provider_roots: &[BoundaryMachineId],
+        callbacks: &[backend_plan::TerminalCallbackOccurrenceProposal],
     ) -> Result<Self, NativeExecutionScopeError> {
         let plan = input.plan();
         let mut function_positions = plan
@@ -116,6 +117,14 @@ impl NativeExecutionScope {
             }
             scope.machines.push(machine);
             for operation in &plan.functions[function_position].operations {
+                if let AbstractOperation::BoundaryCall { psi_operation, .. } = operation {
+                    pending.extend(
+                        callbacks
+                            .iter()
+                            .filter(|callback| callback.terminal_operation() == *psi_operation)
+                            .map(|callback| callback.callback_thunk_artifact().entry()),
+                    );
+                }
                 for (_, cleanup) in operation.cleanup_rosters() {
                     for action in cleanup {
                         if let terminal_psi::TerminalAffineCleanupAction::InvokeNominal(cleanup) =

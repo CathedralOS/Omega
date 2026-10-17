@@ -16,6 +16,7 @@
 //! Intrinsic execution identities and labels are queries on
 //! `crate::IntrinsicRequirement`.
 
+pub(crate) mod direct_foreign_leaves;
 mod external_binding_rows;
 mod independent_components;
 mod installation_reach;

@@ -123,6 +123,7 @@ impl VerifiedNativeArtifactInput {
         profile: target::TargetProfile,
         selected: &[crate::SelectedProviderAdapter],
         receiving_provider_roots: &[semantic_vocabulary::BoundaryMachineId],
+        callbacks: &[backend_plan::TerminalCallbackOccurrenceProposal],
     ) -> Result<Self, crate::NativeExecutionScopeError> {
         if artifact.view().identity() != self.plan().psi {
             return Err(crate::NativeExecutionScopeError::TerminalIdentityMismatch);
@@ -164,6 +165,7 @@ impl VerifiedNativeArtifactInput {
             &input.optimization_input,
             selected,
             receiving_provider_roots,
+            callbacks,
         )?;
         input.retain_execution_scope(&scope);
         Ok(input)

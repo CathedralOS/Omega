@@ -1,0 +1,18 @@
+use omega::language::core::external_binding;
+boundary trait Process { machine current() -> u32; }
+boundary trait Other { machine unrelated(); }
+trait Restricted { machine current() -> u32 reaches Other; }
+data Native {}
+machine process_binding() -> ForeignBinding<12, 19, 0> {
+    ForeignBinding::DllImport { import: DllImport::PeByName {
+        library: "kernel32.dll", export: "GetCurrentProcessId"
+    } }
+}
+windows_x86_64 machine Native::current() -> u32
+satisfies Process::current via process_binding();
+RestrictedProvider satisfies Restricted {
+    machine current() -> u32 reaches Other, Process {
+        Native::current()
+    }
+}
+machine main() {}

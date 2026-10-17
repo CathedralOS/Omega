@@ -52,6 +52,7 @@ impl CheckedCompilation {
             package_terminal_authority_permission_identities,
         ) = execution.terminal_authority_permissions();
         Ok(TerminalNativeProposalRequest {
+            direct_foreign_leaves: &providers.direct_foreign_leaves,
             provider_declarations: execution.selected_provider_provenance.iter().map(|retained| {
                 let typed = &execution.program.typed;
                 let provider_declaration = retained.provider.provider_type.map(|symbol| {
