@@ -17,5 +17,5 @@ macos_x86_64 boundary machine ConsoleNativeProvider::exit_process(return_code: i
     satisfies Console::exit_process;
 
 macos_x86_64 machine ConsoleNativeProvider::provider_defaults(defaults: &mut ConsoleNativeProvider) {
-    ConsoleNativeProvider::select_provider<Console, ConsoleNativeProvider>(defaults);
+    ConsoleNativeProvider::select_provider<Console, NativeConsole>(defaults);
 }

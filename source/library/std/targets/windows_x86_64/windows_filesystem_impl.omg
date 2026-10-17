@@ -696,7 +696,7 @@ reaches WindowsFilesystemHost {
 }
 
 windows_x86_64 machine WindowsFilesystemNativeProvider::provider_defaults(defaults: &mut WindowsFilesystemNativeProvider) {
-    WindowsFilesystemNativeProvider::select_provider<WindowsFilesystemHost, WindowsFilesystemNativeProvider>(defaults);
+    WindowsFilesystemNativeProvider::select_provider<WindowsFilesystemHost, NativeWindowsFilesystem>(defaults);
     WindowsFilesystemNativeProvider::select_provider<WindowsFilesystemIo::c_read_file, WindowsFilesystemImports>(defaults);
     WindowsFilesystemNativeProvider::select_provider<WindowsFilesystemIo::c_flush_file_buffers, WindowsFilesystemImports>(defaults);
     WindowsFilesystemNativeProvider::select_provider<WindowsFilesystemIo::c_set_file_pointer, WindowsFilesystemImports>(defaults);
@@ -714,4 +714,23 @@ windows_x86_64 machine WindowsFilesystemNativeProvider::provider_defaults(defaul
     WindowsFilesystemNativeProvider::select_provider<WindowsFilesystemIo::c_write_file, WindowsFilesystemImports>(defaults);
     WindowsFilesystemNativeProvider::select_provider<WindowsFilesystemIo::c_close_handle, WindowsFilesystemImports>(defaults);
     WindowsFilesystemNativeProvider::select_provider<WindowsFilesystemIo::c_get_last_error, WindowsFilesystemImports>(defaults);
+}
+
+// Complete explicit provider map; concrete bodies retain their own namespace.
+NativeWindowsFilesystem satisfies WindowsFilesystemHost {
+    WindowsFilesystemHost::create_file = WindowsFilesystemNativeProvider::create_file;
+    WindowsFilesystemHost::write_file = WindowsFilesystemNativeProvider::write_file;
+    WindowsFilesystemHost::close_handle = WindowsFilesystemNativeProvider::close_handle;
+    WindowsFilesystemHost::last_error = WindowsFilesystemNativeProvider::last_error;
+    WindowsFilesystemHost::read_file = WindowsFilesystemNativeProvider::read_file;
+    WindowsFilesystemHost::flush_file_buffers = WindowsFilesystemNativeProvider::flush_file_buffers;
+    WindowsFilesystemHost::set_file_pointer = WindowsFilesystemNativeProvider::set_file_pointer;
+    WindowsFilesystemHost::duplicate_handle = WindowsFilesystemNativeProvider::duplicate_handle;
+    WindowsFilesystemHost::move_file = WindowsFilesystemNativeProvider::move_file;
+    WindowsFilesystemHost::set_file_time = WindowsFilesystemNativeProvider::set_file_time;
+    WindowsFilesystemHost::get_file_time = WindowsFilesystemNativeProvider::get_file_time;
+    WindowsFilesystemHost::set_file_attributes = WindowsFilesystemNativeProvider::set_file_attributes;
+    WindowsFilesystemHost::create_directory = WindowsFilesystemNativeProvider::create_directory;
+    WindowsFilesystemHost::remove_directory = WindowsFilesystemNativeProvider::remove_directory;
+    WindowsFilesystemHost::delete_file = WindowsFilesystemNativeProvider::delete_file;
 }

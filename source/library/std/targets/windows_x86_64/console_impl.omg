@@ -130,5 +130,5 @@ windows_x86_64 machine ConsoleNativeProvider::exit_process(return_code: i32)
     via exit_process_binding();
 
 windows_x86_64 machine ConsoleNativeProvider::provider_defaults(defaults: &mut ConsoleNativeProvider) {
-    ConsoleNativeProvider::select_provider<Console, ConsoleNativeProvider>(defaults);
+    ConsoleNativeProvider::select_provider<Console, NativeConsole>(defaults);
 }

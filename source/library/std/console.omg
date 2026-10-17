@@ -63,9 +63,8 @@ pub boundary trait Console {
         Console;
 }
 
-// Nominal owner of the complete selected Console provider closure. Checked
-// adapters and compiler-known native leaves attach to the same type so
-// provider selection never assembles rows from unrelated implementations.
+// Namespace and startup storage for the concrete console bodies. The named
+// implementation below owns selection of the complete provider contract.
 pub data ConsoleNativeProvider { }
 
 // Shared bounded input uses this exact provider's byte leaf, not recursive
@@ -155,4 +154,14 @@ reaches
     Console
 {
     console_write_bytes(text, true);
+}
+
+// Checked adapters and target-native leaves form one explicit implementation.
+pub NativeConsole satisfies Console {
+    Console::write_line = ConsoleNativeProvider::write_line;
+    Console::write = ConsoleNativeProvider::write;
+    Console::read_line = ConsoleNativeProvider::read_line;
+    Console::read_byte = ConsoleNativeProvider::read_byte;
+    Console::write_byte = ConsoleNativeProvider::write_byte;
+    Console::exit_process = ConsoleNativeProvider::exit_process;
 }

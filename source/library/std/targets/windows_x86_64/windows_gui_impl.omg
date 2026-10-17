@@ -119,7 +119,7 @@ reaches WindowsGuiHost {
     }
 }
 windows_x86_64 machine WindowsGuiNativeProvider::provider_defaults(defaults: &mut WindowsGuiNativeProvider) {
-    WindowsGuiNativeProvider::select_provider<WindowsGuiHost, WindowsGuiNativeProvider>(defaults);
+    WindowsGuiNativeProvider::select_provider<WindowsGuiHost, NativeWindowsGui>(defaults);
     WindowsGuiNativeProvider::select_provider<WindowsGuiIo::create_window, WindowsGuiImports>(defaults);
     WindowsGuiNativeProvider::select_provider<WindowsGuiIo::foreground_window, WindowsGuiImports>(defaults);
     WindowsGuiNativeProvider::select_provider<WindowsGuiIo::is_window, WindowsGuiImports>(defaults);
@@ -184,4 +184,18 @@ reaches WindowsGuiHost {
     requires width > 0 && width <= 2147483647 && height > 0 && height <= 2147483647 {
         WindowsGuiNativeProvider::window_create(class_name, title, style, x, y, width as i32, height as i32)
     }
+}
+
+// Complete explicit provider map; concrete bodies retain their own namespace.
+NativeWindowsGui satisfies WindowsGuiHost {
+    WindowsGuiHost::window_create = WindowsGuiNativeProvider::window_create;
+    WindowsGuiHost::foreground_window = WindowsGuiNativeProvider::foreground_window;
+    WindowsGuiHost::is_window = WindowsGuiNativeProvider::is_window;
+    WindowsGuiHost::window_destroy = WindowsGuiNativeProvider::window_destroy;
+    WindowsGuiHost::pump_message = WindowsGuiNativeProvider::pump_message;
+    WindowsGuiHost::get_dc = WindowsGuiNativeProvider::get_dc;
+    WindowsGuiHost::release_dc = WindowsGuiNativeProvider::release_dc;
+    WindowsGuiHost::client_rectangle = WindowsGuiNativeProvider::client_rectangle;
+    WindowsGuiHost::stretch_dibits = WindowsGuiNativeProvider::stretch_dibits;
+    WindowsGuiHost::window_create_client = WindowsGuiNativeProvider::window_create_client;
 }
