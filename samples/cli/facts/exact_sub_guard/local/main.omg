@@ -1,0 +1,33 @@
+// Exact subtraction discharged by requires + guard: `remaining - 2`
+// is exact u64 arithmetic because the entry `requires remaining <= 5`
+// bounds the value and the `remaining >= 2` transition guard proves
+// the operand order. No domain, no `as`.
+//
+// Place: local.
+// Compile-checked only: no ProcessExit provider.
+
+machine walk(remaining: u64) -> u64
+requires
+    remaining <= 5;
+{
+    let value: u64 = remaining;
+    transition remaining >= 2 {
+        true -> finish(value - 2)
+        false -> value
+    }
+    state finish(value: u64) -> u64 { value }
+}
+
+data Main {
+    hits: i32 in Wrapping;
+}
+
+machine Main::main(main: &mut Main) {
+    main.hits = 0;
+    transition walk(4) == 2 && walk(1) == 1 {
+        true -> pass(main)
+        _ -> fail(main)
+    }
+    state pass(main: &mut Main) { main.hits = 1; }
+    state fail(main: &mut Main) { main.hits = -1; }
+}

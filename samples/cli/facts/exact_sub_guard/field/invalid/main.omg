@@ -1,0 +1,26 @@
+// Invalid control for the field place. `requires remaining <= 5` does not prove
+// `remaining >= 2`, so `remaining - 2` is not exact u64. No domain, no `as`.
+
+data Pocket { remaining: u64; }
+
+machine walk(remaining: u64) -> u64
+requires
+    remaining <= 5;
+{
+    let pocket: Pocket = Pocket { remaining: remaining };
+    pocket.remaining - 2
+}
+
+data Main {
+    hits: i32 in Wrapping;
+}
+
+machine Main::main(main: &mut Main) {
+    main.hits = 0;
+    transition walk(4) == 2 {
+        true -> pass(main)
+        _ -> fail(main)
+    }
+    state pass(main: &mut Main) { main.hits = 1; }
+    state fail(main: &mut Main) { main.hits = -1; }
+}

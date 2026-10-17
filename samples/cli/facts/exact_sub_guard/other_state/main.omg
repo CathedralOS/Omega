@@ -1,24 +1,25 @@
 // Exact subtraction discharged by requires + guard: `remaining - 2`
-// is exact-u64 arithmetic — legal here ONLY because the entry
-// `requires remaining <= 5` bounds the value and the `remaining >= 2`
-// transition guard proves the operand order. No domain, no `as`.
+// is exact u64 arithmetic because the entry `requires remaining <= 5`
+// bounds the value and the `remaining >= 2` transition guard proves
+// the operand order. No domain, no `as`.
 //
-//   * requires + transition-guard facts compose into the exact-arith
-//     obligation.
-//   * `hits` records the reached arm.
-//
-// Compile-checked only: no standard-library dependency, no
-// ProcessExit provider.
+// Place: another state.
+// Compile-checked only: no ProcessExit provider.
 
 machine walk(remaining: u64) -> u64
 requires
     remaining <= 5;
 {
     transition remaining >= 2 {
-        true -> finish(remaining - 2)
+        true -> deduct(remaining)
         false -> remaining
     }
-    state finish(value: u64) -> u64 { value }
+    state deduct(remaining: u64) -> u64
+    requires
+        remaining <= 5 && remaining >= 2;
+    {
+        remaining - 2
+    }
 }
 
 data Main {

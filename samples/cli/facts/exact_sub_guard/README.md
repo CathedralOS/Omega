@@ -1,21 +1,20 @@
 # exact sub guard
 
-Compile-scope probe. No standard-library dependency.
-
-- exact_sub_guard: exact `remaining - 2` discharged by
-  `requires <= 5` + `>= 2` transition guard — no domain, no `as`.
-- transitivity_lemma: `requires a<b b<c` `ensures a<c` — kernel
-  entailment hop, empty body.
-- nat_import_surface: core::nat imports depend-free and Nat values
-  flow through machines. GAP filed: every Nat operator is private
-  to core::nat's own package (`-`, `<=`, saturating_sub all
-  unreachable from package provenance).
-- match_mixed_move: one match arm moves a local, the other
-  constructs inline — ownership splits per-arm.
-
-Compile-checked only (no ProcessExit provider):
+`remaining - 2` is exact u64 because `requires remaining <= 5` and the
+`remaining >= 2` transition guard prove the operand order. No domain, no
+`as`. There is no ProcessExit provider. Each place is compile-checked only.
 
 ```sh
-mbx run -p omega -- --check samples/cli/facts/exact_sub_guard/main.omg
-mbx run -p omega -- update --project samples/cli/facts/exact_sub_guard
+omega --check samples/cli/facts/exact_sub_guard/local/main.omg
+omega --check samples/cli/facts/exact_sub_guard/field/main.omg
+omega --check samples/cli/facts/exact_sub_guard/parameter/main.omg
+omega --check samples/cli/facts/exact_sub_guard/call_result/main.omg
+omega --check samples/cli/facts/exact_sub_guard/match_join/main.omg
+omega --check samples/cli/facts/exact_sub_guard/const_name/main.omg
+omega --check samples/cli/facts/exact_sub_guard/other_state/main.omg
+omega --check samples/cli/facts/exact_sub_guard/other_machine/main.omg
+omega --check samples/cli/facts/exact_sub_guard/target_body/main.omg
 ```
+
+The `invalid` child of each place drops that operand-order proof and must
+reject exact `remaining - 2`.
