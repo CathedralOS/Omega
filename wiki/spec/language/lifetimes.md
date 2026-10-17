@@ -39,6 +39,13 @@ input lifetime. The source must supply the result's declared access and remain
 live for the result's use. A signature does not authorize returning unrelated
 storage merely because its type has the same lifetime spelling.
 
+An admitted foreign boundary may establish a provider-owned reference under its
+complete safe contract, including through an output slot. Its backing need not
+be contained in the lifetime-related input object: authority comes from
+[provider admission](../build/foreign_storage.md#provider-owned-views-and-completion),
+not from the lifetime spelling. Ordinary checked machines still establish
+their result's backing and access.
+
 For an elided output, one unambiguous reference input supplies the relation.
 A qualified machine name, parameter name, or first-argument position grants no
 priority among possible sources. Several unnamed carried

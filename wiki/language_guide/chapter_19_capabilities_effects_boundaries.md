@@ -743,6 +743,15 @@ checked adapter converts it. Retaining a pointer after return requires backing
 custody in a linear protocol, not a bare borrow. `addr` and `Ptr<T>` are inert
 tokens; memory access needs an authority-bearing view.
 
+An admitted safe boundary can return a reference, or write one into an output
+slot, to storage owned by its provider. The admitted contract promises valid
+backing, the stated access and stability for the allowed lifetime. For example,
+firmware can return loaded-image metadata that is not inside the services table
+used for the call. Sharing a lifetime does not imply sharing that table's bytes.
+Omega checks subsequent use and invalidation; it trusts the admitted opaque
+provider to keep its promise. No extra root token is required just for returning
+a view, and a view of metadata does not grant ownership of the memory it describes.
+
 Write-only access lends an already valid region without permission to inspect
 its old contents. It is not vacant-storage initialization. The outcome states
 the modified prefix and preserves the untouched suffix; opaque compliance needs

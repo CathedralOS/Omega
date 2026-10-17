@@ -4805,6 +4805,11 @@ wait for Cathedral's instruction coverage. The interpreter is
   neither semantic root. Connect source-owned LoadedImage discovery, initial
   storage/stack custody and scoped providers to the selected semantic
   continuation through ordinary calling and installed-root contracts.
+  Implement provider-owned reference outputs under the existing
+  [admitted safe boundary contract](wiki/spec/build/foreign_storage.md#provider-owned-views-and-completion),
+  retaining exact invocation/backing provenance rather than inventing table
+  containment. Pin replacement from a different input, preserve independently
+  retained views' loans, and reject mutation/invalidation of live referents.
   Preserve the distinction pinned by `pass/build/uefi_selected_physical_entry`:
   a returning rejection path works without fabricating semantic arguments.
   Free and context-bearing semantic success paths must both establish their

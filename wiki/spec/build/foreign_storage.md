@@ -72,12 +72,38 @@ separately owns the code/component lease.
 
 ## Provider-owned views and completion
 
+Admission of a complete, applied safe boundary contract is the trust point for
+provider-established references. When the contract promises a reference result
+or a reference written into an output slot, its promised outcome establishes
+valid backing, the declared access and stability for the permitted lifetime.
+The referent may be provider-owned storage outside every input object. No
+additional provider-root annotation or validity token is required solely because
+the reference crosses a foreign boundary.
+
+The compiler retains the exact admitted provider invocation and resulting
+referent's provenance, access and lifetime, then checks subsequent uses,
+replacement and invalidation against that contract. It does not prove opaque
+provider compliance or infer spatial containment from an input's lifetime.
+Admission of a locator or ABI alone remains insufficient; an inert address
+remains inert. Ordinary checked code still has to establish its references.
+
 A view whose invalidators all require exclusive access to one receiver is an
 ordinary borrow from that receiver. More precise protocols use a linear validity
 claim that every invalidating operation consumes. Global, thread-local, or
 asynchronously invalidated storage must be copied, mediated by such a claim, or
 accepted under an admitted stability promise. A claim cannot prevent an opaque
 provider from invalidating through an unmodeled route.
+
+For example, an admitted firmware call may populate an output with a view of
+loaded-image metadata stored separately from its services table. The table can
+anchor the validity interval without containing those bytes. Replacement ends
+the overwritten view's loans and installs the new view's exact provenance;
+equal lifetime names do not preserve the old pointer or its input relationship.
+Independently retained views keep their own loans.
+The admitted stability promise must cover the permitted use interval, including
+any relevant firmware invalidation. This establishes the declared view, not
+ownership of the executable image or authority over ranges described by fields
+inside the metadata.
 
 Completion correlates one event with one live claim through a unique/nonreused
 identity, generation-checked identity, or exclusively ordered channel. Progress
