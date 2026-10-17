@@ -37,7 +37,7 @@ pub use contents::{
 };
 pub use payload_history::{current_payload_contract, current_selected_payload_contract};
 pub use payload_predicates::{PayloadScalarObservation, scalar_payload_expression};
-pub use scalar_contracts::instantiate_payload_scalar_guarantees;
+pub use scalar_contracts::{case_payload_scalar_types, instantiate_payload_scalar_guarantees};
 mod owned_shape;
 mod replay;
 pub use compatibility::{DescriptorCompatibilityFailure, DescriptorCompatibilityRequirement};

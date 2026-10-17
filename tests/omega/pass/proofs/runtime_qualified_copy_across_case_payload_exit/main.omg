@@ -1,0 +1,44 @@
+// Expected exit: 0. A later case capture cannot erase an earlier payload proof.
+use omega_language_std::filesystem;
+use omega_language_std::filesystem_host;
+data Outcome [copy] {
+    case Count(value: u64);
+    case Signed(value: i32);
+    case Flag(value: bool);
+}
+machine inspect(path: &[u8] in Path) -> u64 { path.len }
+machine measure(filesystem: &mut Filesystem, outcome: Outcome) -> u64 {
+    _ = Filesystem::exists(filesystem, "omega_case_capture_absent");
+    let before: u64 = inspect("pre");
+    transition outcome {
+        Outcome::Count { value } -> count(value, before)
+        Outcome::Signed { value } -> signed(value, before)
+        Outcome::Flag { value } -> flag(value, before)
+    }
+    state count(value: u64, before: u64) -> u64 {
+        transition value == 0 || value == 17 { true -> finish(before) _ -> 0 }
+    }
+    state signed(value: i32, before: u64) -> u64 {
+        transition value == -7 { true -> finish(before) _ -> 0 }
+    }
+    state flag(value: bool, before: u64) -> u64 {
+        transition value { true -> finish(before) _ -> 0 }
+    }
+    state finish(before: u64) -> u64 {
+        let after: u64 = inspect("after");
+        transition before == 3 && after == 5 { true -> 9 _ -> 0 }
+    }
+}
+data Main { filesystem: Filesystem; outcome: Outcome; }
+machine Main::main(main: &mut Main) crashes Trap {
+    let initial: u64 = measure(&mut main.filesystem, main.outcome);
+    let first: u64 = measure(&mut main.filesystem, Outcome::Count { value: 17u64 });
+    let second: u64 = measure(&mut main.filesystem, Outcome::Signed { value: -7i32 });
+    let third: u64 = measure(&mut main.filesystem, Outcome::Flag { value: true });
+    transition initial == 9 && first == 9 && second == 9 && third == 9 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

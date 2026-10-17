@@ -4,6 +4,19 @@ use crate::descriptor_lifetimes::{
     DescriptorFlowEdge, descriptor_location, descriptor_location_type,
 };
 
+/// Ordinary edges transport evaluated SSA operands. A case edge instead births
+/// scalar values by reading the selected payload before edge cleanup; those
+/// values have no predecessor SSA operand to substitute into payload history.
+enum ScalarArrival<'a> {
+    Values(&'a [semantic_vocabulary::ValueId]),
+    CasePayload {
+        source: PlaceId,
+        path: &'a [StructuralPathSegment],
+        case: semantic_vocabulary::StructuralCaseId,
+        fields: &'a [semantic_vocabulary::StructuralFieldId],
+    },
+}
+
 pub(super) fn adapt(
     module: &TerminalModule,
     machine: &TerminalMachine,
@@ -957,27 +970,63 @@ pub(super) fn adapt(
         let position = (block.id, u32::try_from(block.operations.len()).ok()?);
         let mut step = DescriptorFlowStep::default();
         let mut edge = |target,
-                        scalar_arguments: &[semantic_vocabulary::ValueId],
+                        scalar_arrival: ScalarArrival<'_>,
                         arguments: &[StructuralArgument]|
          -> Option<()> {
             let mut matching = machine.blocks.iter().filter(|block| block.id == target);
             let block = matching.next()?;
-            if matching.next().is_some()
-                || arguments.len() != block.structural_parameters.len()
-                || scalar_arguments.len() != block.parameters.len()
-            {
+            if matching.next().is_some() || arguments.len() != block.structural_parameters.len() {
                 return None;
             }
-            let scalar_bindings = block
-                .parameters
-                .iter()
-                .zip(scalar_arguments)
-                .map(|(parameter, actual)| {
-                    let value =
-                        super::payload_predicates::terminal_scalar_expression(machine, *actual)?;
-                    (value.scalar_type() == parameter.scalar_type).then_some((parameter.id, value))
-                })
-                .collect::<Option<Vec<_>>>()?;
+            let scalar_bindings = match scalar_arrival {
+                ScalarArrival::Values(arguments) => {
+                    if arguments.len() != block.parameters.len() {
+                        return None;
+                    }
+                    block
+                        .parameters
+                        .iter()
+                        .zip(arguments)
+                        .map(|(parameter, actual)| {
+                            let value = super::payload_predicates::terminal_scalar_expression(
+                                machine, *actual,
+                            )?;
+                            (value.scalar_type() == parameter.scalar_type)
+                                .then_some((parameter.id, value))
+                        })
+                        .collect::<Option<Vec<_>>>()?
+                }
+                ScalarArrival::CasePayload {
+                    source,
+                    path,
+                    case,
+                    fields,
+                } => {
+                    if fields.len() != block.parameters.len() {
+                        return None;
+                    }
+                    let root = *graph.place_types.get(&source)?;
+                    let captured = super::scalar_contracts::case_payload_scalar_types(
+                        &module.structural_types,
+                        root,
+                        path,
+                        case,
+                        fields,
+                    )?;
+                    if captured
+                        .iter()
+                        .zip(&block.parameters)
+                        .any(|(actual, parameter)| *actual != parameter.scalar_type)
+                    {
+                        return None;
+                    }
+                    // Fresh payload captures do not carry an incoming SSA
+                    // equality. The history owner still retires every target
+                    // scalar instance on arrival. Unknown scalar facts must not
+                    // erase unrelated descriptor or payload history.
+                    Vec::new()
+                }
+            };
             graph
                 .payload_scalar_bindings
                 .entry(position)
@@ -1028,7 +1077,11 @@ pub(super) fn adapt(
                 arguments,
                 structural_arguments,
                 ..
-            } => edge(*target, arguments, structural_arguments)?,
+            } => edge(
+                *target,
+                ScalarArrival::Values(arguments),
+                structural_arguments,
+            )?,
             Terminator::Conditional {
                 when_true,
                 when_false,
@@ -1037,14 +1090,27 @@ pub(super) fn adapt(
                 for successor in [when_true, when_false] {
                     edge(
                         successor.target,
-                        &successor.arguments,
+                        ScalarArrival::Values(&successor.arguments),
                         &successor.structural_arguments,
                     )?;
                 }
             }
-            Terminator::StructuralCase { cases, .. } => {
+            Terminator::StructuralCase {
+                source,
+                path,
+                cases,
+            } => {
                 for case in cases {
-                    edge(case.target, &[], &[])?;
+                    edge(
+                        case.target,
+                        ScalarArrival::CasePayload {
+                            source: *source,
+                            path,
+                            case: case.case,
+                            fields: &case.payload_fields,
+                        },
+                        &[],
+                    )?;
                 }
             }
             Terminator::ReturnStructural { source, .. } => {

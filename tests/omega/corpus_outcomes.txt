@@ -2079,7 +2079,7 @@ fail/control_flow/linear_result_repeated_successor_arguments rejected 1568ms exp
 	linear value `receipt` was already transferred or consumed; it cannot be moved here
 fail/control_flow/projected_float_payload_after_guard_mutation rejected 5837ms expected @e03f48653b6a
 	machine `read` state `entry` statement 0: cannot prove selected case for payload access
-fail/control_flow/projected_float_payload_after_negated_guard_mutation rejected 5156ms expected @e03f48653b6a
+fail/control_flow/projected_float_payload_after_negated_guard_mutation rejected 6512ms expected @7c847bad15b6+wt
 	machine `read` state `entry` statement 0: cannot prove selected case for payload access
 fail/control_flow/projected_float_payload_without_case rejected 3076ms expected @e03f48653b6a
 	machine `read` state `entry` statement 0: cannot prove selected case for payload access
@@ -2423,7 +2423,7 @@ fail/domains/case_child_membership_requires_issuance rejected 1563ms expected @a
 	construction of `Event` field `payload` is not proven in domain `Ticket::Issued`; a field declared `in Ticket::Issued` requires every construction value to be established in that domain (construct with a literal its byte-predicate fact accepts, or a value already proven in the domain)
 	cannot prove default-domain field requirement for call observe from inactive_payload_forged_common::entry: parameter event.common requires Ticket::Issued
 	construction of `Event` field `common` is not proven in domain `Ticket::Issued`; a field declared `in Ticket::Issued` requires every construction value to be established in that domain (construct with a literal its byte-predicate fact accepts, or a value already proven in the domain)
-fail/domains/case_payload_predicate_invalid_literal rejected 1533ms expected @a9ae30e1c334+wt
+fail/domains/case_payload_predicate_invalid_literal rejected 1275ms expected @7c847bad15b6+wt
 	cannot prove default-domain field requirement for return from Main::main at statement 1: main.divisor::By.amount requires i32::NonZero
 	construction of `Divisor` field `amount` is not proven in domain `i32::NonZero`; a field declared `in i32::NonZero` requires every construction value to be established in that domain (construct with a literal its byte-predicate fact accepts, or a value already proven in the domain)
 fail/domains/checked_provider_result_without_selection rejected 6477ms expected @308fbdc54ba0
@@ -3662,9 +3662,9 @@ fail/host/console_byte_payload_negative rejected 674ms expected @afccbf17d92b+wt
 	data `ByteRead` case `Byte` literal violates the case constraint: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/host/descriptor_read_guarded_prefix_without_admitted_abi rejected 3747ms expected @2375f5327b1a+wt
 	native artifact identity physical pipeline failed: common physical staging failed: Selection(Selection(SourceCustodyMismatch { machine: Some(MachineId(1)), operation: Some(OperationId(9)), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it, reason: Some("descriptor input guard requires its exact admitted native ABI") }))
-fail/host/scalar_reference_mixed_backing_foreign_export rejected 9107ms expected @7becf2fe91a5+wt
+fail/host/scalar_reference_mixed_backing_foreign_export rejected 7630ms expected @7c847bad15b6+wt
 	native artifact identity physical pipeline failed: common physical staging failed: Selection(Selection(SourceCustodyMismatch { machine: Some(MachineId(1)), operation: Some(OperationId(12)), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it, reason: Some("thin scalar foreign pointer requires the same byte footprint in every backing") }))
-fail/host/scalar_reference_narrow_backing_foreign_export rejected 9160ms expected @7becf2fe91a5+wt
+fail/host/scalar_reference_narrow_backing_foreign_export rejected 7535ms expected @7c847bad15b6+wt
 	native artifact identity physical pipeline failed: common physical staging failed: Selection(Selection(SourceCustodyMismatch { machine: Some(MachineId(1)), operation: Some(OperationId(6)), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it, reason: Some("thin scalar foreign pointer requires the same byte footprint in every backing") }))
 fail/inline_asm/asm_cli_requires_machine_authority rejected 69ms expected @9f1c8cc89b93+wt
 	machine `Main::main` uses asm instruction `cli`, which requires a FREESTANDING boundary root (the contract requires machine-owner authority, and this build's privileged-service admission does not supply it). Set `b.freestanding = true` in build.omg, or remove the asm block
@@ -4926,9 +4926,9 @@ fail/ranges/slice_bound_unbound_container_binder_rejected rejected 1656ms expect
 	cannot prove subslice range end bound `..Other` is within const extent `Extent`
 fail/ranges/subject_guard_compound_index_mutated rejected 2230ms expected @a9ae30e1c334+wt
 	cannot prove index `main.b * 20 + main.a` is within length 200 in Main::main::put
-fail/ranges/sum_payload_non_case_guard_unproven rejected 5163ms expected @a9ae30e1c334+wt
-	cannot prove selected case for payload access
-	cannot prove requires contract for call use_v from Main::main: main.p::One.v in i32::Fifty (invalidated by prior mutation of main.p; main.p::One.v is part of i32::Fifty)
+fail/ranges/sum_payload_non_case_guard_unproven rejected 2822ms expected @7c847bad15b6+wt
+	machine `Main::main` state `main` statement 2: cannot prove selected case for payload access
+	cannot prove requires contract for call use_v from Main::main: main.p::One.v in i32::Fifty (invalidated by prior mutation of main.p; main.p::One.v is part of i32::Fifty) in state `main`
 fail/recast/address_model_does_not_bound_offset rejected 297ms expected @f908755ec590
 	machine `read` state `inspect`: cannot bound the recast offset `offset` -- the region holds 16 bytes, but no declared range, dominating incoming guard, or boundary-ensures witness bounds the offset below the footprint
 fail/recast/boolean_view_requires_byte_region_representation rejected 870ms expected @a9ae30e1c334+wt
@@ -7174,7 +7174,7 @@ pass/control_flow/runtime_local_record_array_byte_render_exit checked 16908ms ch
 pass/control_flow/runtime_loop_patterns_exit checked 12355ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/control_flow/runtime_mutable_bounded_byte_formatter_exit checked 12590ms check-target:macos_arm64 @589aedee8ebc+wt
 pass/control_flow/runtime_namespace_local_state_loan checked 10916ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/control_flow/runtime_narrow_signed_case_payload_state_guard_exit checked 5708ms check-target:macos_arm64 @589aedee8ebc+wt
+pass/control_flow/runtime_narrow_signed_case_payload_state_guard_exit checked 7422ms check-target:macos_arm64 @7c847bad15b6+wt
 pass/control_flow/runtime_nested_case_pattern_guard_meet_exit checked 11183ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/control_flow/runtime_nonentry_state_local_loan_forwarded_exit checked 11487ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/control_flow/runtime_nonentry_state_local_loan_held_at_return_exit checked 11456ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -7372,7 +7372,7 @@ pass/domains/bounded_byte_domain_beside_toolchain_leaf checked 2263ms @a9ae30e1c
 pass/domains/call_requires_domain_intersection_preserved checked 1626ms @a9ae30e1c334+wt
 pass/domains/call_requires_scalar_member_expression_from_domain_fact checked 1687ms @a9ae30e1c334+wt
 pass/domains/case_payload_call_restore_exit checked 11797ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/domains/case_payload_predicate_domain_member_exit checked 11761ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/domains/case_payload_predicate_domain_member_exit checked 11675ms check-target:macos_arm64 @7c847bad15b6+wt
 pass/domains/domain_axis_cast checked 9738ms @5041ef1af684+wt
 pass/domains/domain_established_by checked 9509ms @5041ef1af684+wt
 pass/domains/domain_family_result checked 9697ms @5041ef1af684+wt
@@ -7650,8 +7650,7 @@ pass/facts/bound_through_other_state_exit checked 6159ms check-target:macos_arm6
 pass/facts/bound_through_parameter_exit checked 6140ms check-target:macos_arm64 @3b422f31da30+wt
 pass/facts/bound_through_target_body_exit checked 6380ms check-target:macos_arm64 @3b422f31da30+wt
 pass/filesystem/cross_linux_value_syscalls checked 16296ms @aebe0714a499+wt
-pass/filesystem/dir_walk_wrappers_exit rejected 23019ms check-target:macos_arm64 @aebe0714a499+wt
-	selected ProgramEntry Binding field `Main::fs::host` requires a selected Fused provider for boundary `FilesystemService`
+pass/filesystem/dir_walk_wrappers_exit checked 19471ms check-target:macos_arm64 @7c847bad15b6+wt
 pass/filesystem/native_canonicalize checked 25257ms check-target:macos_arm64 @c9eefa9130a0+wt
 pass/filesystem/native_close checked 8128ms check-target:macos_arm64 @aebe0714a499+wt
 pass/filesystem/native_crud checked 9120ms check-target:macos_arm64 @aebe0714a499+wt
@@ -7673,13 +7672,10 @@ pass/filesystem/windows_canonicalize_exit checked 24908ms check-target:linux_x86
 pass/filesystem/windows_native_create_write_close_exit checked 10616ms check-target:windows_x86_64 @aebe0714a499+wt
 pass/filesystem/windows_raw_argument_failures_exit checked 9329ms check-target:windows_x86_64 @aebe0714a499+wt
 pass/filesystem/windows_raw_breadth_exit checked 16073ms check-target:windows_x86_64 @e02ff5008d25+wt
-pass/filesystem/windows_set_file_time_exit checked 9557ms check-target:windows_x86_64 @aebe0714a499+wt
-pass/filesystem/windows_wrapper_results_exit rejected 17322ms check-target:macos_arm64 @aebe0714a499+wt
-	selected ProgramEntry Binding field `Main::fs::host` requires a selected Fused provider for boundary `FilesystemService`
-pass/filesystem/wrapper_lock_metadata_exit rejected 17313ms check-target:macos_arm64 @aebe0714a499+wt
-	selected ProgramEntry Binding field `Main::fs::host` requires a selected Fused provider for boundary `FilesystemService`
-pass/filesystem/wrapper_open_with_exit rejected 17921ms check-target:macos_arm64 @aebe0714a499+wt
-	selected ProgramEntry Binding field `Main::fs::host` requires a selected Fused provider for boundary `FilesystemService`
+pass/filesystem/windows_set_file_time_exit checked 11146ms check-target:windows_x86_64 @7c847bad15b6+wt
+pass/filesystem/windows_wrapper_results_exit checked 20212ms check-target:macos_arm64 @7c847bad15b6+wt
+pass/filesystem/wrapper_lock_metadata_exit checked 20511ms check-target:macos_arm64 @7c847bad15b6+wt
+pass/filesystem/wrapper_open_with_exit checked 19741ms check-target:macos_arm64 @7c847bad15b6+wt
 pass/filesystem/write_all_full_device_exit checked 8825ms check-target:linux_x86_64 @cc43b6679d2a+wt
 pass/float/admitted_float_conversion_crash checked 33720ms check-target:macos_arm64 @9c4d1c444502
 pass/float/admitted_float_lower_boundary_crash checked 33599ms check-target:macos_arm64 @9c4d1c444502
@@ -8490,6 +8486,7 @@ pass/proofs/runtime_inductive_climbing_sum_exit checked 12046ms check-target:mac
 pass/proofs/runtime_inductive_gauss_sum_exit checked 6282ms check-target:macos_arm64 @3e63a17a5fea+wt
 pass/proofs/runtime_mutable_ranked_accumulator_exit checked 8574ms check-target:macos_arm64 @1727c70d2f7e+wt
 pass/proofs/runtime_nat_structural_recursion_exit checked 11942ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/proofs/runtime_qualified_copy_across_case_payload_exit checked 17106ms check-target:macos_arm64 @7c847bad15b6+wt
 pass/proofs/runtime_ranked_accumulator_early_exit checked 11627ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/proofs/runtime_ranked_accumulator_guarantee_exit checked 12061ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/proofs/runtime_ranked_forwarding_state_recursion_exit checked 6774ms check-target:macos_arm64 @1727c70d2f7e+wt
@@ -9456,7 +9453,7 @@ run/calls/scalar_guard_after_borrow_parameters_exit checked 28651ms check-target
 run/calls/selected_provider_range_arguments checked 11196ms check-target:macos_arm64 terminal-inspections:match @a68c584655e1+wt
 run/calls/static_boundary_terminal_arguments checked 19964ms check-target:macos_arm64 @c48489ea6ad6
 run/calls/table_report_call_survival checked 5492ms check-target:macos_arm64 @589aedee8ebc+wt
-run/contained_health_loop_command_branch checked 12047ms check-target:macos_arm64 @bb086b40ea65+wt
+run/contained_health_loop_command_branch checked 6266ms check-target:macos_arm64 @7c847bad15b6+wt
 run/contracts/captured_bound_unused_mutation checked 5150ms check-target:macos_arm64 @7e164e32caf5+wt
 run/contracts/qualified_result_forwarding_exit checked 10542ms check-target:macos_arm64 @7c5ee11ecfb7+wt
 run/contracts/target_family_forwarded_result checked 71300ms check-target:linux_x86_64 @46f9e865d179+wt

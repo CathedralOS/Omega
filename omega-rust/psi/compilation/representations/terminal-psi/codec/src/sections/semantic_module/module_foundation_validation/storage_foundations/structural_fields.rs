@@ -52,10 +52,12 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
             &descriptors,
         );
         let mut history_failures = Vec::new();
+        let mut query_phase = "root";
         let memberships = (|| {
             let root = terminal_semantics::descriptor_results::terminal_payload_contract(
                 machine, *source,
             )?;
+            query_phase = "query";
             let query = terminal_semantics::descriptor_results::descriptor_contents_query(
                 &module.structural_types,
                 *source,
@@ -63,6 +65,7 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
                 path,
                 None,
             )?;
+            query_phase = "position";
             let position = machine.blocks.iter().find_map(|block| {
                 block
                     .operations
@@ -74,7 +77,9 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
                             .map(|ordinal| (block.id, ordinal))
                     })
             })?;
+            query_phase = "targets";
             let targets = analysis.payload_targets(machine.id, position, &query)?;
+            query_phase = "memberships";
             terminal_semantics::descriptor_results::payload_memberships(
                 &module.structural_types,
                 &module.structural_domains,
@@ -99,6 +104,7 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
             )
         })()
         .and_then(|contract| {
+            query_phase = "presentation";
             contract.presented(
                 &module.structural_types,
                 &module.structural_domains,
@@ -125,8 +131,11 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
                     .unwrap_or_else(|| format!("{:?}", machine.id)),
                 operation: operation.id,
                 reason: format!(
-                    "leaf copy memberships do not follow from every current payload source: source={source:?}, path={path:?}, requested={:?}/{:?}/{:?}, current={memberships:?}, history={history_failures:?}",
-                    result.structural_type, result.qualifications, result.projected_qualifications,
+                    "leaf copy memberships do not follow from every current payload source: source={source:?}, path={path:?}, requested={:?}/{:?}/{:?}, current={memberships:?}, history={history_failures:?}, phase={query_phase}, machine_present={}",
+                    result.structural_type,
+                    result.qualifications,
+                    result.projected_qualifications,
+                    descriptors.iter().any(|row| row.id == machine.id),
                 ),
             });
         }

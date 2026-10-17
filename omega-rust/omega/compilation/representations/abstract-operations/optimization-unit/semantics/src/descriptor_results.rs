@@ -1380,16 +1380,67 @@ fn adapt(
                     {
                         return None;
                     }
-                    let scalar_bindings = target
-                        .parameters
-                        .iter()
-                        .map(|parameter| {
-                            let binding = edge.binding(parameter.value)?;
-                            let value = scalar_expression(function, binding.argument)?;
-                            (value.scalar_type() == parameter.scalar_type)
-                                .then_some((parameter.value, value))
-                        })
-                        .collect::<Option<Vec<_>>>()?;
+                    let scalar_bindings = if let O::StructuralCase {
+                        source,
+                        path,
+                        cases,
+                        ..
+                    } = operation
+                    {
+                        let mut matching = cases.iter().filter(|case| {
+                            case.psi_edge == edge.psi_edge && case.target == edge.target
+                        });
+                        let case = matching.next()?;
+                        if matching.next().is_some()
+                            || !edge.bindings.is_empty()
+                            || case.payloads.len() != target.parameters.len()
+                        {
+                            return None;
+                        }
+                        let fields = target
+                            .parameters
+                            .iter()
+                            .map(|parameter| {
+                                let mut matching = case
+                                    .payloads
+                                    .iter()
+                                    .filter(|payload| payload.parameter == parameter.value);
+                                let payload = matching.next()?;
+                                (matching.next().is_none()
+                                    && payload.scalar_type == parameter.scalar_type)
+                                    .then_some(payload.field)
+                            })
+                            .collect::<Option<Vec<_>>>()?;
+                        let captured = kernel::case_payload_scalar_types(
+                            types,
+                            *graph.place_types.get(source)?,
+                            path,
+                            case.case,
+                            &fields,
+                        )?;
+                        if captured
+                            .iter()
+                            .zip(&target.parameters)
+                            .any(|(actual, parameter)| *actual != parameter.scalar_type)
+                        {
+                            return None;
+                        }
+                        // Case payloads are fresh scalar captures, not SSA
+                        // operands from the predecessor. Keep their facts
+                        // unknown and retain the surrounding storage history.
+                        Vec::new()
+                    } else {
+                        target
+                            .parameters
+                            .iter()
+                            .map(|parameter| {
+                                let binding = edge.binding(parameter.value)?;
+                                let value = scalar_expression(function, binding.argument)?;
+                                (value.scalar_type() == parameter.scalar_type)
+                                    .then_some((parameter.value, value))
+                            })
+                            .collect::<Option<Vec<_>>>()?
+                    };
                     graph
                         .payload_scalar_bindings
                         .entry(position)

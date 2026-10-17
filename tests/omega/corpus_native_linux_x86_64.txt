@@ -1158,7 +1158,7 @@ pass/control_flow/runtime_local_record_array_byte_render_exit built 10144ms exit
 pass/control_flow/runtime_loop_patterns_exit built 15355ms exit:70 @6c49683ce714
 pass/control_flow/runtime_mutable_bounded_byte_formatter_exit built 38612ms exit:0 @6c49683ce714
 pass/control_flow/runtime_namespace_local_state_loan built 17361ms exit:0 stdout:match @6c49683ce714
-pass/control_flow/runtime_narrow_signed_case_payload_state_guard_exit built 17319ms exit:0 @6c49683ce714
+pass/control_flow/runtime_narrow_signed_case_payload_state_guard_exit built 7390ms exit:0 @7c847bad15b6+wt
 pass/control_flow/runtime_nested_case_pattern_guard_meet_exit built 17808ms exit:0 @6c49683ce714
 pass/control_flow/runtime_nonentry_state_local_loan_forwarded_exit built 15103ms exit:70 @6c49683ce714
 pass/control_flow/runtime_nonentry_state_local_loan_held_at_return_exit built 14768ms exit:70 @6c49683ce714
@@ -1354,7 +1354,7 @@ pass/domains/bounded_byte_domain_beside_toolchain_leaf checked 3480ms @6c49683ce
 pass/domains/call_requires_domain_intersection_preserved checked 3586ms @6c49683ce714
 pass/domains/call_requires_scalar_member_expression_from_domain_fact checked 3657ms @6c49683ce714
 pass/domains/case_payload_call_restore_exit built 16040ms exit:70 @6c49683ce714
-pass/domains/case_payload_predicate_domain_member_exit built 14877ms exit:70 @6c49683ce714
+pass/domains/case_payload_predicate_domain_member_exit built 11671ms exit:70 @7c847bad15b6+wt
 pass/domains/domain_axis_cast checked 17660ms @6c49683ce714
 pass/domains/domain_established_by checked 18128ms @6c49683ce714
 pass/domains/domain_family_result checked 17807ms @6c49683ce714
@@ -1621,7 +1621,7 @@ pass/facts/bound_through_other_state_exit built 6283ms exit:0 @3b422f31da30+wt
 pass/facts/bound_through_parameter_exit built 6041ms exit:0 @3b422f31da30+wt
 pass/facts/bound_through_target_body_exit built 6208ms exit:0 @3b422f31da30+wt
 pass/filesystem/cross_linux_value_syscalls checked 16309ms @aebe0714a499+wt
-pass/filesystem/dir_walk_wrappers_exit built 27233ms exit:70 @aebe0714a499+wt
+pass/filesystem/dir_walk_wrappers_exit built 20631ms exit:70 @7c847bad15b6+wt
 pass/filesystem/native_canonicalize built 25277ms exit:0 stdout:match @c9eefa9130a0+wt
 pass/filesystem/native_close built 8247ms @aebe0714a499+wt
 pass/filesystem/native_crud built 9357ms exit:0 stdout:match @aebe0714a499+wt
@@ -1643,10 +1643,10 @@ pass/filesystem/windows_canonicalize_exit built 24237ms exit:70 @c9eefa9130a0+wt
 pass/filesystem/windows_native_create_write_close_exit built 10712ms @aebe0714a499+wt
 pass/filesystem/windows_raw_argument_failures_exit built 9441ms @aebe0714a499+wt
 pass/filesystem/windows_raw_breadth_exit built 16686ms @e02ff5008d25+wt
-pass/filesystem/windows_set_file_time_exit built 9641ms @aebe0714a499+wt
-pass/filesystem/windows_wrapper_results_exit built 19883ms exit:70 @aebe0714a499+wt
-pass/filesystem/wrapper_lock_metadata_exit built 20326ms exit:70 @aebe0714a499+wt
-pass/filesystem/wrapper_open_with_exit built 20846ms exit:70 @aebe0714a499+wt
+pass/filesystem/windows_set_file_time_exit built 12264ms @7c847bad15b6+wt
+pass/filesystem/windows_wrapper_results_exit built 19629ms exit:70 @7c847bad15b6+wt
+pass/filesystem/wrapper_lock_metadata_exit built 20347ms exit:70 @7c847bad15b6+wt
+pass/filesystem/wrapper_open_with_exit built 19660ms exit:70 @7c847bad15b6+wt
 pass/float/admitted_float_conversion_crash built 22290ms exit:signal signal:4 stdout:match @326ed531359e+wt
 pass/float/admitted_float_lower_boundary_crash built 23141ms exit:signal signal:4 stdout:match @326ed531359e+wt
 pass/float/admitted_numeric_imports_preserve_semantics built 237830ms exit:70 @909c94d50bd2
@@ -2437,6 +2437,7 @@ pass/proofs/runtime_inductive_climbing_sum_exit built 15104ms exit:70 @6c49683ce
 pass/proofs/runtime_inductive_gauss_sum_exit built 14829ms exit:70 @6c49683ce714
 pass/proofs/runtime_mutable_ranked_accumulator_exit built 14878ms exit:70 @6c49683ce714
 pass/proofs/runtime_nat_structural_recursion_exit built 14868ms exit:70 @6c49683ce714
+pass/proofs/runtime_qualified_copy_across_case_payload_exit built 16810ms exit:0 @7c847bad15b6+wt
 pass/proofs/runtime_ranked_accumulator_early_exit built 14966ms exit:70 @6c49683ce714
 pass/proofs/runtime_ranked_accumulator_guarantee_exit built 14908ms exit:70 @6c49683ce714
 pass/proofs/runtime_ranked_forwarding_state_recursion_exit built 15233ms exit:70 @6c49683ce714
@@ -3345,7 +3346,7 @@ run/calls/runtime_float_normalized_operand_single_evaluation_exit built 15773ms 
 run/calls/selected_provider_range_arguments built 34056ms exit:0 terminal-inspections:match @6c49683ce714
 run/calls/static_binding_authority built 18019ms exit:0 @6c49683ce714
 run/calls/table_report_call_survival built 6629ms exit:0 stdout:match @326ed531359e+wt
-run/contained_health_loop_command_branch built 5560ms exit:0 stdout:match @bb086b40ea65+wt
+run/contained_health_loop_command_branch built 6346ms exit:0 stdout:match @7c847bad15b6+wt
 run/contracts/captured_bound_unused_mutation built 17613ms exit:0 @6c49683ce714
 run/domains/checked_provider_issued_field built 8148ms exit:0 @03d6ab4d9d4c
 run/domains/checked_provider_issued_root built 8027ms exit:0 @03d6ab4d9d4c

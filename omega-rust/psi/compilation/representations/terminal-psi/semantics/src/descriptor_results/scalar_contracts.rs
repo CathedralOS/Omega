@@ -149,3 +149,28 @@ pub(super) fn terminal_guarantees(
         &bindings,
     ))
 }
+
+/// A case edge captures these scalar fields directly; it does not transport
+/// predecessor SSA arguments. Read the exact selected declaration roster without
+/// adding receiving qualifications, scalar equalities or availability evidence.
+pub fn case_payload_scalar_types(
+    types: &[terminal_psi::StructuralTypeDeclaration],
+    root: semantic_vocabulary::StructuralTypeId,
+    path: &[terminal_psi::StructuralPathSegment],
+    case: semantic_vocabulary::StructuralCaseId,
+    fields: &[semantic_vocabulary::StructuralFieldId],
+) -> Option<Vec<semantic_vocabulary::ScalarType>> {
+    let carrier = crate::runtime_structural_path_tip(types.iter(), root, path)?;
+    terminal_psi::find_structural_case(carrier.shape.sum_cases()?, case)?;
+    let mut selected = path.to_vec();
+    selected.push(terminal_psi::StructuralPathSegment::Case(case));
+    fields
+        .iter()
+        .map(|field| {
+            let declaration =
+                crate::projected_field_declaration(types.iter(), root, &selected, *field)?;
+            (!declaration.relevance.is_erased()).then_some(())?;
+            declaration.field_type.scalar_type()
+        })
+        .collect()
+}
