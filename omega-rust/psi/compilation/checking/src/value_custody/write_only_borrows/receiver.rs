@@ -11,6 +11,7 @@ use typed_trees::statement::TableCall;
 mod projections;
 pub(super) use projections::nonobserving_projection;
 pub(super) use projections::projected;
+pub(super) use projections::storage_projection;
 
 pub(super) fn record<'program>(
     program: &'program dyn crate::CheckingInput,

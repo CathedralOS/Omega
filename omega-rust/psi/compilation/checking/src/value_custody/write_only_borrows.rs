@@ -104,7 +104,23 @@ pub(crate) fn validate_checked_write_only_slice(
             // therefore runs whether or not any write-only root exists, so
             // `&write` formations from mutable places take the same exact-atom
             // gate in every state.
-            if !roots.is_empty() {
+            // A generic declaration retains a dependent obligation. Calls
+            // below judge its exact static application with the ordinary
+            // callable substitution, so dependence never becomes absence.
+            let opaque_write_only = !matches!(machine.supply_mode, MachineSupplyMode::CheckedBody)
+                && program.state_parameters(state).iter().any(|parameter| {
+                    matches!(
+                        crate::borrow_contracts::input_write_only_access(
+                            program,
+                            parameter.type_reference,
+                            program.machine_type_parameters(machine),
+                            &[],
+                        ),
+                        crate::borrow_contracts::InputWriteOnlyAccess::Present
+                            | crate::borrow_contracts::InputWriteOnlyAccess::Incomplete
+                    )
+                });
+            if !roots.is_empty() || opaque_write_only {
                 if !matches!(machine.supply_mode, MachineSupplyMode::CheckedBody) {
                     diagnostics.push(Diagnostic::error(format!(
                         "machine `{}` state `{}` declares `&write`, but the current milestone proves non-observation only for checked Omega bodies; boundary, accepted, requirement, and external-provider declarations require an admitted write-only boundary claim",
@@ -469,7 +485,8 @@ fn write_only_record_field_type(
     if direct_write_only_root(program, expression, roots).is_some() {
         return None;
     }
-    receiver::projected(program, expression, roots, &mut |_, _| false).map(|(_, leaf, _)| leaf)
+    receiver::projected(program, expression, roots, &mut |_, _| false)
+        .map(|projection| projection.type_reference)
 }
 
 /// The final displaced record-path leaf must be an unrestricted primitive, a
@@ -549,28 +566,12 @@ fn is_plain_domain_qualified_leaf(
         && write_only_assignment_leaf(program, *base_type)
 }
 
-fn write_only_record_field_assignment(
-    program: &dyn crate::CheckingInput,
-    expression: ExpressionHandle,
-    roots: &[WriteOnlyRoot],
-) -> bool {
-    write_only_record_field_type(program, expression, roots)
-        .is_some_and(|field_type| write_only_assignment_leaf(program, field_type))
-}
-
-/// Mutable-authority bindings that may source a `&write` formation alongside
-/// the state's declared write-only roots: `&mut` state parameters, `mut`
-/// value parameters, and the eligible locals declared
-/// before `stop_before_local` (or every such local when `None`) — immutable
-/// `&mut` carriers plus `let mut` value bindings. A `&mut` parameter may
-/// attenuate at formation, an earlier immutable `&mut` carrier preserves
-/// mutable authority until attenuation, and a `mut` value binding owns
-/// writable storage outright — but none is a write-only root: ordinary reads
-/// through them stay legal, so they join the walk only where a `&write`
-/// borrow is being formed. A mutable binding of reference type is never a source: the binding
-/// could be reseated beneath the loan. An erased binding owns no runtime
-/// storage at all.
-fn mutable_formation_sources(
+/// Declared storage used to compute an address. An owned immutable carrier
+/// still has readable descriptor slots and can hold exclusive referent access;
+/// its binding mutability is checked by ordinary place/borrow admission. This
+/// query establishes non-observation only and creates no loan or write right.
+/// Reference roots retain their declared ceiling at the first dereference.
+fn projection_sources(
     program: &dyn crate::CheckingInput,
     state: &State,
     stop_before_local: Option<SymbolHandle>,
@@ -585,17 +586,11 @@ fn mutable_formation_sources(
                     .type_reference_table
                     .type_reference(parameter.type_reference)
                 {
-                    // A `&mut` parameter lends its referent.
-                    TypeReferenceNode::Reference {
-                        referee,
-                        access: ReferenceAccess::Mutable,
-                        ..
-                    } => (*referee, { SymbolHandle::invalid() }),
-                    // A `mut` value parameter lends its own storage.
-                    _ if parameter.is_mutable
-                        && !parameter.is_const
-                        && !parameter.relevance.is_erased() =>
-                    {
+                    TypeReferenceNode::Reference { referee, .. } => {
+                        (*referee, SymbolHandle::invalid())
+                    }
+                    // The owned binding supplies descriptor storage.
+                    _ if !parameter.is_const && !parameter.relevance.is_erased() => {
                         (parameter.type_reference, { SymbolHandle::invalid() })
                     }
                     _ => return None,
@@ -605,7 +600,8 @@ fn mutable_formation_sources(
                     receiver_machine,
                     name: parameter.name.as_str().to_owned(),
                     referee,
-                    access: ReferenceAccess::Mutable,
+                    access: crate::reference_shell(program, parameter.type_reference)
+                        .map_or(ReferenceAccess::Mutable, |shell| shell.access),
                 })
             }),
     );
@@ -634,17 +630,17 @@ fn mutable_formation_sources(
                         referee,
                         access: ReferenceAccess::Mutable,
                         ..
-                    } if !source.is_mutable => *referee,
+                    } => *referee,
                     TypeReferenceNode::Reference { .. } => return None,
-                    _ if source.is_mutable => source.type_reference,
-                    _ => return None,
+                    _ => source.type_reference,
                 };
                 Some(WriteOnlyRoot {
                     symbol: source.symbol,
                     receiver_machine: SymbolHandle::invalid(),
                     name: source.name.as_str().to_owned(),
                     referee,
-                    access: ReferenceAccess::Mutable,
+                    access: crate::reference_shell(program, source.type_reference)
+                        .map_or(ReferenceAccess::Mutable, |shell| shell.access),
                 })
             }),
     );
@@ -688,11 +684,12 @@ fn write_only_call_subloan(
     // place: a borrow lent from a `&mut` reference or a `mut` value binding
     // faces the same exact-atom gate as a write-only reborrow, so the subloan
     // rungs resolve the lent place over the state's write-only roots plus its
-    // mutable formation sources. The added bindings never become write-only
-    // roots elsewhere — expression validation keeps reading through them.
+    // declared projection sources. These establish address evaluation only;
+    // ordinary argument admission still owns authority and binding mutability.
+    // They never become write-only roots for expression observation.
     let observation_roots = roots;
     let mut sources = roots.to_vec();
-    sources.extend(mutable_formation_sources(program, state, None));
+    sources.extend(projection_sources(program, state, None));
     let roots = &sources;
 
     // Whole-root forwarding lends the complete declared place.
@@ -720,7 +717,7 @@ fn write_only_call_subloan(
     // A projected loan lends an address, not its previous value. Fields and
     // fixed-array elements share the same content-independent place walk;
     // aggregate leaves owe the same exact referee contract as whole roots.
-    if let Some((_, referee, attached_root)) = receiver::nonobserving_projection(
+    if let Some(projection) = receiver::nonobserving_projection(
         program,
         machine,
         state,
@@ -729,9 +726,10 @@ fn write_only_call_subloan(
         observation_roots,
         diagnostics,
     ) {
-        if attached_root {
+        if projection.attached_root {
             return false;
         }
+        let referee = projection.type_reference;
         return match declared_referee {
             Some(declared) => {
                 is_admitted_checked_referee(program, referee)
@@ -779,61 +777,43 @@ fn reject_subloan_referee_mismatch(
     true
 }
 
-/// Admit one relevant primitive field beneath one literal fixed-array element
-/// reached through an otherwise ordinary common-field record path or directly
-/// beneath a write-only array root. The array element stays a closed
-/// unrestricted record, and the literal index fixes the complete write
-/// footprint without observing the referent.
-fn write_only_literal_indexed_record_field_assignment(
+/// A destination evaluates coordinates without loading its old value. Reuse
+/// the projection resolver used by explicit subloans; ordinary assignment
+/// checking still owns root mutability, every crossed authority and bounds.
+fn validate_projected_store(
     program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
     expression: ExpressionHandle,
     roots: &[WriteOnlyRoot],
+    diagnostics: &mut Vec<Diagnostic>,
 ) -> bool {
-    let Some(final_member) = program.expression_table.member_node(expression) else {
+    let mut sources = roots.to_vec();
+    sources.extend(projection_sources(program, state, None));
+    let Some(projection) = receiver::storage_projection(
+        program,
+        machine,
+        state,
+        expression,
+        &sources,
+        roots,
+        diagnostics,
+    ) else {
         return false;
     };
-    if final_member.case_variant.is_some() {
-        return false;
+    if projection.access == ReferenceAccess::WriteOnly
+        && !write_only_assignment_leaf(program, projection.type_reference)
+    {
+        diagnose_unsupported_write_only_assignment_target(
+            program,
+            machine.name.as_str(),
+            state.name.as_str(),
+            expression,
+            roots,
+            diagnostics,
+        );
     }
-    let Some(indexed) = program.expression_table.indexed_node(final_member.receiver) else {
-        return false;
-    };
-    // A bare `&write` array root is itself the indexed collection; a member
-    // path reaches the array through the shared non-observing record walk.
-    let Some(collection_type) = direct_write_only_root(program, indexed.collection, roots)
-        .map(|root| root.referee)
-        .or_else(|| write_only_record_field_type(program, indexed.collection, roots))
-    else {
-        return false;
-    };
-    let Some((element_type, length)) =
-        fixed_discardable_write_only_array_shape(program, collection_type)
-    else {
-        return false;
-    };
-    let Some(index) = program
-        .expression_table
-        .constant_integer_value(indexed.index)
-        .and_then(|value| usize::try_from(value).ok())
-    else {
-        return false;
-    };
-    if index >= length {
-        return false;
-    }
-    let Some(definition) = write_only_record(program, element_type) else {
-        return false;
-    };
-    program.data_members(definition).iter().any(|candidate| {
-        let Some(field) = candidate.as_field() else {
-            return false;
-        };
-        ((final_member.member_symbol.is_valid() && field.symbol == final_member.member_symbol)
-            || (!final_member.member_symbol.is_valid()
-                && field.name.as_str() == final_member.member.as_str()))
-            && !field.relevance.is_erased()
-            && write_only_assignment_leaf(program, field.type_reference)
-    })
+    true
 }
 
 fn validate_statement<'p>(
@@ -888,16 +868,6 @@ fn validate_statement<'p>(
                 // An admitted whole-value replacement observes no prior
                 // content. Aggregate roots additionally satisfy the explicit
                 // closed-shape/material/discardability checks above.
-            } else if write_only_record_field_assignment(program, assignment.target, roots) {
-                // One content-independent common-field-path store. The exact
-                // field place is retained by the ordinary checked mutation facts.
-            } else if write_only_literal_indexed_record_field_assignment(
-                program,
-                assignment.target,
-                roots,
-            ) {
-                // One literal fixed-array element and its exact relevant
-                // primitive record field form a content-independent place.
             } else if validate_write_only_fixed_array_range_assignment(
                 program,
                 machine_definition,
@@ -909,6 +879,15 @@ fn validate_statement<'p>(
             ) {
                 // This gate owns non-observation and discardable storage.
                 // Ordinary assignment validation owns reception and bounds.
+            } else if validate_projected_store(
+                program,
+                machine_definition,
+                state_definition,
+                assignment.target,
+                roots,
+                diagnostics,
+            ) {
+                // Only the destination address and its selectors are evaluated.
             } else if let Some(index) =
                 write_only_element_assignment_index(program, assignment.target, roots)
             {
@@ -943,16 +922,32 @@ fn validate_statement<'p>(
                     diagnostics,
                 );
             }
-            validate_expression(
+            let receiving = crate::value_custody::field_domains::assignment_target_type_reference(
+                program,
+                machine_definition,
+                state_definition,
+                assignment.target,
+            );
+            validate_received_value(
                 program,
                 machine_definition,
                 state_definition,
                 assignment.value,
+                receiving,
                 roots,
                 diagnostics,
             );
         }
         StatementNode::Call(call) => {
+            validate_opaque_call_inputs(
+                program,
+                machine_definition,
+                state_definition,
+                call.target_symbol,
+                &call.machine_arguments,
+                program.statement_table.expression_handles(call.arguments),
+                diagnostics,
+            );
             receiver::validate_statement_call(machine, state, call, roots, diagnostics);
             let declared_parameters =
                 crate::machine_calls::calls::machine_state_by_symbol(program, call.target_symbol)
@@ -1310,6 +1305,76 @@ fn validate_received_value(
     roots: &[WriteOnlyRoot],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    // Constructor children receive the exact prepared application, just as
+    // call operands receive their declared parameters. Moving a descriptor
+    // into its field is not an observation of the referenced content. Missing
+    // correspondence still visits the child as an ordinary expression.
+    let constructed = program
+        .expression_table
+        .constructed_value_type_reference(expression);
+    let receiving = constructed
+        .is_valid()
+        .then_some(constructed)
+        .or(receiving_type);
+    match program.expression_table.expression(expression) {
+        ExpressionNode::StructLiteral(literal) => {
+            for field in program.expression_table.struct_fields(literal.fields) {
+                let required = receiving
+                    .and_then(|reference| {
+                        program
+                            .closed_data_constructor_field(
+                                reference,
+                                literal.type_symbol,
+                                field.field_symbol,
+                            )
+                            .map(|selected| selected.type_reference)
+                    })
+                    .or_else(|| {
+                        crate::selected_construction_field_type(
+                            program,
+                            literal,
+                            field.field_symbol,
+                        )
+                    });
+                validate_received_value(
+                    program,
+                    machine,
+                    state,
+                    field.value,
+                    required,
+                    roots,
+                    diagnostics,
+                );
+            }
+            return;
+        }
+        ExpressionNode::ArrayLiteral(values) => {
+            let element = receiving.and_then(|reference| {
+                match program.type_reference_table.type_reference(
+                    program
+                        .type_reference_table
+                        .unconstrained_type_reference(reference),
+                ) {
+                    TypeReferenceNode::FixedArray { element_type, .. }
+                    | TypeReferenceNode::Slice { element_type } => Some(*element_type),
+                    _ => None,
+                }
+            });
+            for value in program.expression_table.expression_handles(*values) {
+                validate_received_value(
+                    program,
+                    machine,
+                    state,
+                    *value,
+                    element,
+                    roots,
+                    diagnostics,
+                );
+            }
+            return;
+        }
+        _ => {}
+    }
     // Every selected arm receives independently. The subject and patterns are
     // observed normally; a reference-valued arm is descriptor transport only
     // under its receiving declaration, never because another arm supplied it.
@@ -1405,6 +1470,102 @@ fn validate_received_value(
     validate_expression(program, machine, state, expression, roots, diagnostics);
 }
 
+fn validate_opaque_call_inputs(
+    program: &dyn crate::CheckingInput,
+    caller: &Machine,
+    state: &State,
+    target: SymbolHandle,
+    selected: &[typed_trees::expression::StaticMachineArgument],
+    arguments: &[ExpressionHandle],
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let mut parameters = program.machine_type_parameters(caller).to_vec();
+    let (name, inputs, bindings) = if let Some((callee, entry)) =
+        crate::machine_calls::calls::machine_state_by_symbol(program, target)
+    {
+        if matches!(callee.supply_mode, MachineSupplyMode::CheckedBody) {
+            return;
+        }
+        let Some(bindings) = crate::machine_calls::calls::call_type_arguments(
+            program,
+            caller,
+            Some(state),
+            callee,
+            entry,
+            selected,
+            arguments,
+        ) else {
+            return; // Ordinary call admission owns invalid substitution.
+        };
+        parameters.extend_from_slice(program.machine_type_parameters(callee));
+        (
+            callee.name.as_str(),
+            program.state_parameters(entry),
+            bindings,
+        )
+    } else if let Some((declaration, signature)) =
+        crate::machine_calls::calls::selected_requirement_signature(program, target)
+            .filter(|(declaration, _)| declaration.is_boundary)
+    {
+        // A boundary namespace supplies an interface, not a checked selected
+        // realization or its non-observation receipt. Its generic external
+        // supplier may remain universal while the call's formals are closed.
+        // Judge that exact application here; scanning machine declarations
+        // alone would miss stored authority behind the supplier's `&mut T`.
+        // Source-selected checked implementations took the Machine arm above.
+        // This is missing realization evidence, not a prohibition on checked
+        // providers implementing an abstract write-only interface.
+        let local_parameters = program.state_signature_type_parameters(signature);
+        let bindings = if local_parameters.is_empty() {
+            // Closed rows retain authored operands after substitution. They
+            // describe no remaining telescope to infer or validate again.
+            Some(Vec::new())
+        } else {
+            crate::machine_calls::calls::callable_type_arguments(
+                program,
+                caller,
+                Some(state),
+                local_parameters,
+                program.state_signature_parameters(signature),
+                selected,
+                arguments,
+            )
+        };
+        let Some(bindings) = bindings else {
+            return; // Ordinary requirement admission owns invalid substitution.
+        };
+        parameters.extend_from_slice(program.trait_type_parameters(declaration));
+        parameters.extend_from_slice(program.state_signature_type_parameters(signature));
+        (
+            signature.name.as_str(),
+            program.state_signature_parameters(signature),
+            bindings,
+        )
+    } else {
+        // Static binders and ordinary local requirements retain their
+        // obligation until a concrete implementation is selected. That
+        // selection's Machine body/declaration is checked after specialization.
+        return;
+    };
+    if inputs.iter().any(|parameter| {
+        matches!(
+            crate::borrow_contracts::input_write_only_access(
+                program,
+                parameter.type_reference,
+                &parameters,
+                &bindings,
+            ),
+            crate::borrow_contracts::InputWriteOnlyAccess::Present
+                | crate::borrow_contracts::InputWriteOnlyAccess::Incomplete
+        )
+    }) {
+        diagnostics.push(Diagnostic::error(format!(
+            "machine `{}` state `{}` calls `{}` with write-only input authority; an opaque selected implementation requires an admitted write-only boundary claim",
+            caller.name, state.name, name,
+        )));
+    }
+}
+
 fn validate_call_expression(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
@@ -1413,6 +1574,15 @@ fn validate_call_expression(
     roots: &[WriteOnlyRoot],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    validate_opaque_call_inputs(
+        program,
+        machine,
+        state,
+        call.target_symbol,
+        &call.machine_arguments,
+        program.expression_table.expression_handles(call.arguments),
+        diagnostics,
+    );
     if call.receiver.is_valid() {
         validate_expression(program, machine, state, call.receiver, roots, diagnostics);
     }
@@ -1525,10 +1695,16 @@ fn validate_expression(
             }
             validate_expression(program, machine, state, indexed.index, roots, diagnostics);
         }
-        ExpressionNode::ArrayLiteral(values) => {
-            for value in program.expression_table.expression_handles(*values) {
-                validate_expression(program, machine, state, *value, roots, diagnostics);
-            }
+        ExpressionNode::ArrayLiteral(_) | ExpressionNode::StructLiteral(_) => {
+            validate_received_value(
+                program,
+                machine,
+                state,
+                expression,
+                None,
+                roots,
+                diagnostics,
+            );
         }
         ExpressionNode::Atomic(atomic) => {
             validate_expression(program, machine, state, atomic.value, roots, diagnostics);
@@ -1547,11 +1723,6 @@ fn validate_expression(
         ExpressionNode::Range(range) => {
             validate_expression(program, machine, state, range.start, roots, diagnostics);
             validate_expression(program, machine, state, range.end, roots, diagnostics);
-        }
-        ExpressionNode::StructLiteral(literal) => {
-            for field in program.expression_table.struct_fields(literal.fields) {
-                validate_expression(program, machine, state, field.value, roots, diagnostics);
-            }
         }
         ExpressionNode::Unary(unary) => {
             validate_expression(program, machine, state, unary.operand, roots, diagnostics)

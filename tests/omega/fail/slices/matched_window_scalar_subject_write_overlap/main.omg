@@ -1,0 +1,14 @@
+machine reset(value: &mut u64 [0..=2]) -> u64
+ensures value == 1
+ensures result == 0 { value = 1; 0 }
+machine keep<'a>(ignored: u64, values: &'a mut [u8]) -> &'a mut [u8] { values }
+machine collide(first: &mut [u8], second: &mut u8) {}
+machine main() {
+    let mut values: [u8; 4] = [1, 2, 3, 4];
+    let mut which: u64 [0..=2] = 0;
+    let view: &mut [u8] = match which {
+        0 -> keep(reset(&mut which), &mut values[which..which + 2])
+        _ -> &mut values[0..2]
+    };
+    collide(view, &mut values[2]);
+}

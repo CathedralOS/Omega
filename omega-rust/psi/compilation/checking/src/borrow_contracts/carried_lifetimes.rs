@@ -25,6 +25,9 @@ pub(super) enum LifetimeFrontier {
     Value,
     Input,
     BorrowedStorage,
+    /// Authority reach for opaque non-observation, not a returned-loan map.
+    /// Shared references cut access; mutable references expose their contents.
+    WriteOnlyAuthority,
 }
 
 /// Ordinary flow queries retain declaration spellings. Callable refinement
@@ -46,6 +49,7 @@ pub enum DeclarationLifetimeFrontier {
 #[derive(Default)]
 struct TemplateFrontier<'a> {
     parameters: &'a [SymbolHandle],
+    authority_parameters: &'a [typed_trees::data::TypeParameter],
     dependent: bool,
     scoped_regions: bool,
     frontier: LifetimeFrontier,
@@ -80,6 +84,7 @@ pub fn declaration_lifetime_frontier(
         dependent: false,
         scoped_regions: false,
         frontier: LifetimeFrontier::Value,
+        authority_parameters: &[],
     };
     let mut leaves = Vec::new();
     let complete = collect_type(
@@ -238,6 +243,56 @@ pub(super) fn symbolic_carried_lifetimes(
     )
 }
 
+/// Classify reachable write-only access under exact substitutions. This uses
+/// the same scoped declaration traversal as lifetime frontiers, with shared
+/// attenuation and copy bounds cutting access. Dependence is retained until
+/// ordinary call admission supplies its concrete application.
+pub(super) fn input_write_only_access(
+    program: &dyn crate::CheckingInput,
+    reference: TypeReferenceHandle,
+    parameters: &[typed_trees::data::TypeParameter],
+    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+) -> super::InputWriteOnlyAccess {
+    let symbols = parameters
+        .iter()
+        .map(|parameter| parameter.symbol)
+        .collect::<Vec<_>>();
+    let mut output = Vec::new();
+    let mut template = TemplateFrontier {
+        parameters: &symbols,
+        authority_parameters: parameters,
+        frontier: LifetimeFrontier::WriteOnlyAuthority,
+        ..TemplateFrontier::default()
+    };
+    let complete = collect_type(
+        program,
+        reference,
+        &[],
+        TypeScope {
+            bindings: substitutions,
+            starts: &[0],
+            ..TypeScope::default()
+        },
+        &[],
+        &mut Vec::new(),
+        &mut output,
+        false,
+        &mut template,
+    );
+    if output
+        .iter()
+        .any(|leaf| leaf.access == language_semantics::ReferenceAccess::WriteOnly)
+    {
+        super::InputWriteOnlyAccess::Present
+    } else if !complete {
+        super::InputWriteOnlyAccess::Incomplete
+    } else if template.dependent {
+        super::InputWriteOnlyAccess::TemplateDependent
+    } else {
+        super::InputWriteOnlyAccess::Absent
+    }
+}
+
 pub(super) fn symbolic_input_lifetimes(
     program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
@@ -296,6 +351,7 @@ pub(super) fn scoped_carried_lifetimes(
             dependent: false,
             scoped_regions,
             frontier,
+            authority_parameters: &[],
         },
     )
     .then_some(output)
@@ -376,12 +432,41 @@ fn collect_type(
     if program.primitive_type_reference(reference).is_some() {
         return true;
     }
+    if template.frontier == LifetimeFrontier::WriteOnlyAuthority
+        && crate::type_satisfies_declared_property(
+            program,
+            template.authority_parameters,
+            reference,
+            crate::DeclaredPropertyRequirement::Copy,
+        )
+    {
+        return true;
+    }
     match program.type_reference_table.type_reference(reference) {
         TypeReferenceNode::Reference {
             access,
             lifetime,
             referee,
         } => {
+            if template.frontier == LifetimeFrontier::WriteOnlyAuthority {
+                match access {
+                    language_semantics::ReferenceAccess::Shared => return true,
+                    language_semantics::ReferenceAccess::Mutable => {
+                        return collect_type(
+                            program,
+                            *referee,
+                            lifetimes,
+                            types,
+                            owner_path,
+                            visiting,
+                            output,
+                            whole_elided_contract,
+                            template,
+                        );
+                    }
+                    language_semantics::ReferenceAccess::WriteOnly => {}
+                }
+            }
             if whole_elided_contract && lifetime.is_some() {
                 return false;
             }
@@ -492,6 +577,10 @@ fn collect_type(
             let typed_trees::types::FixedArrayLength::Literal(length) = length else {
                 return false;
             };
+            if frontier == LifetimeFrontier::WriteOnlyAuthority {
+                output.extend(element_frontier);
+                return true;
+            }
             for element_index in 0..*length {
                 for leaf in &element_frontier {
                     let mut path = owner_path.to_vec();
@@ -507,6 +596,23 @@ fn collect_type(
                 }
             }
             true
+        }
+        TypeReferenceNode::Slice { element_type }
+            if template.frontier == LifetimeFrontier::WriteOnlyAuthority =>
+        {
+            // Authority classification needs the element type, not a runtime
+            // inventory of indices. Shared views have already cut access.
+            collect_type(
+                program,
+                *element_type,
+                lifetimes,
+                types,
+                owner_path,
+                visiting,
+                output,
+                whole_elided_contract,
+                template,
+            )
         }
         TypeReferenceNode::Slice { element_type }
             if template.frontier == LifetimeFrontier::BorrowedStorage =>
@@ -741,6 +847,7 @@ fn collect_family(
         dependent: false,
         scoped_regions: template.scoped_regions,
         frontier: template.frontier,
+        authority_parameters: template.authority_parameters,
     };
     let complete = collect_data(
         program,

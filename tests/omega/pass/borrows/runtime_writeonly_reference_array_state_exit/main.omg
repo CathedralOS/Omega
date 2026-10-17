@@ -1,0 +1,24 @@
+data Cell { value: i32; spare: i32; }
+machine set(value: &write i32) { value = 83; }
+machine update<'storage>(targets: [&'storage write Cell; 2], index: u64 [0..=1]) {
+    transition { _ -> write(targets, index) }
+    state write(targets: [&'storage write Cell; 2], index: u64 [0..=1]) {
+        targets[index].value = 71;
+        set(&write targets[1].value);
+    }
+}
+machine prepare<'storage>(first: &'storage write Cell, second: &'storage write Cell) {
+    let targets: [&'storage write Cell; 2] = [first, second];
+    update(targets, 0);
+}
+machine main() crashes Trap {
+    let mut first: Cell = Cell { value: 1, spare: 17 };
+    let mut second: Cell = Cell { value: 2, spare: 19 };
+    prepare(&write first, &write second);
+    transition first.value == 71 && second.value == 83 && first.spare == 17 && second.spare == 19 {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

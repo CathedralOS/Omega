@@ -598,7 +598,7 @@ impl<'a> Destination<'a> {
                         TypeReferenceNode::Slice { element_type } => {
                             if matches!(program.type_reference_table.type_reference(carrier_type),
                                     TypeReferenceNode::Reference { access, .. }
-                                        if *access != language_semantics::ReferenceAccess::Mutable)
+                                        if !access.is_exclusive())
                             {
                                 return None;
                             }
@@ -653,7 +653,7 @@ impl<'a> Destination<'a> {
                 if validation::slice_view_shell(program, carrier_type, &[]).is_some() {
                     break;
                 }
-                if *access != language_semantics::ReferenceAccess::Mutable {
+                if !access.is_exclusive() {
                     return None;
                 }
                 path.push(CheckedUnitStructuralPathSegment::Referent);

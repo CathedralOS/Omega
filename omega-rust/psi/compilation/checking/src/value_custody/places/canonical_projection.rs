@@ -201,14 +201,14 @@ fn range_coordinate(
 }
 
 /// Bindings from value arms that contain `endpoint`. Contradictory patterns
-/// for one subject leave the coordinate unknown. A call inside the endpoint
-/// may store a field before a later read, so a field subject is not
-/// substituted through that call; the call's own ensured result still folds.
+/// for one subject leave the coordinate unknown. Place identity does not make
+/// a match observation survive a call: every coordinate occurrence must retain
+/// an inert evaluation prefix from the selected arm's entry. A call's own
+/// ensured result still folds independently of these match substitutions.
 fn match_arm_bindings(
     program: &dyn crate::CheckingInput,
     endpoint: ExpressionHandle,
 ) -> Option<Vec<(ExpressionHandle, i64)>> {
-    let contains_call = expression_contains_call(program, endpoint);
     let mut bindings = Vec::new();
     for state_symbol in states_naming(program, endpoint) {
         let machine_symbol = program.symbols.get(state_symbol).parent;
@@ -220,9 +220,6 @@ fn match_arm_bindings(
                 collect_arm_bindings(program, root, endpoint, &mut bindings);
             }
         }
-    }
-    if contains_call {
-        bindings.retain(|(subject, _)| !subject_is_stored_field(program, *subject));
     }
     let mut consistent = Vec::new();
     for (subject, value) in bindings {
@@ -252,10 +249,15 @@ fn collect_arm_bindings(
         let ExpressionNode::Match(dispatch) = program.expression_table.expression(node) else {
             continue;
         };
+        let mut patterns = Vec::new();
         for arm in program.expression_table.match_arms(dispatch.arms) {
             let MatchPattern::Value(pattern) = arm.pattern else {
                 continue;
             };
+            // The subject is captured once, before the ordered pattern tests.
+            // Failed patterns execute; their arm values do not. A pattern can
+            // change storage that a later literal arm's coordinate reads.
+            patterns.push(pattern);
             let Some(value) = program
                 .expression_table
                 .integer_node(pattern)
@@ -263,13 +265,7 @@ fn collect_arm_bindings(
             else {
                 continue;
             };
-            let mut arm_nodes = Vec::new();
-            crate::expression_traversal::collect_expression_tree(
-                program,
-                arm.value,
-                &mut arm_nodes,
-            );
-            if arm_nodes.contains(&endpoint) {
+            if coordinate_has_inert_prefix(program, &patterns, arm.value, endpoint) {
                 bindings.push((dispatch.subject, value));
             }
         }
@@ -359,27 +355,71 @@ fn same_match_subject(
     canonical_place_from_expression(program, expression).is_some_and(|place| place == subject_place)
 }
 
-fn subject_is_stored_field(program: &dyn crate::CheckingInput, subject: ExpressionHandle) -> bool {
-    canonical_place_from_expression(program, subject).is_some_and(|place| {
-        place
-            .segments
-            .iter()
-            .any(|segment| matches!(segment, facts::PlaceSegment::Field { .. }))
-    })
-}
-
-fn expression_contains_call(
+/// This expression-only query has no flow-frame judgment for a completed
+/// invocation. Decline match substitution after any call or atomic event,
+/// regardless of whether the subject is a field, scalar or indexed place.
+/// Walk executable edges in source order, including earlier sibling operands;
+/// the enclosing call executes only after its arguments. Later effects cannot
+/// change a coordinate already captured. Repeated handles remain occurrences,
+/// so one earlier visit cannot conceal a later read following an effect.
+/// The checked route binds selected authored operators to ordinary Call nodes
+/// during 03b preparation, including declared indexing. This query consumes
+/// that prepared input; operator syntax is not an independent purity claim.
+fn coordinate_has_inert_prefix(
     program: &dyn crate::CheckingInput,
-    expression: ExpressionHandle,
+    patterns: &[ExpressionHandle],
+    root: ExpressionHandle,
+    endpoint: ExpressionHandle,
 ) -> bool {
-    let mut nodes = Vec::new();
-    crate::expression_traversal::collect_expression_tree(program, expression, &mut nodes);
-    nodes.into_iter().any(|node| {
-        matches!(
-            program.expression_table.expression(node),
-            ExpressionNode::Call(_)
-        )
-    })
+    struct Prefix {
+        effect_seen: bool,
+        found: bool,
+        stable: bool,
+    }
+    fn visit(
+        program: &dyn crate::CheckingInput,
+        expression: ExpressionHandle,
+        endpoint: ExpressionHandle,
+        depth: usize,
+        prefix: &mut Prefix,
+    ) -> bool {
+        if !expression.is_valid() {
+            return true;
+        }
+        if depth >= 64 {
+            return false;
+        }
+        let node = program.expression_table.expression(expression);
+        let mut complete = true;
+        crate::expression_traversal::executable_children(program, node, |child| {
+            complete &= visit(program, child, endpoint, depth + 1, prefix);
+        });
+        if matches!(node, ExpressionNode::Call(_) | ExpressionNode::Atomic(_)) {
+            prefix.effect_seen = true;
+        }
+        if expression == endpoint {
+            prefix.found = true;
+            prefix.stable &= !prefix.effect_seen;
+        }
+        complete
+    }
+    let mut prefix = Prefix {
+        effect_seen: false,
+        found: false,
+        stable: true,
+    };
+    let mut complete = true;
+    for pattern in patterns {
+        complete &= visit(program, *pattern, endpoint, 0, &mut prefix);
+    }
+    // A coordinate evaluated by a pattern precedes this arm's equality.
+    // Even a repeated handle in the selected body cannot grant that earlier
+    // occurrence an observation established only after pattern evaluation.
+    if prefix.found {
+        return false;
+    }
+    complete &= visit(program, root, endpoint, 0, &mut prefix);
+    complete && prefix.found && prefix.stable
 }
 
 pub fn push_field_place_segments(

@@ -1,4 +1,9 @@
 //! Declaration-owned borrow relations shared by callable admission and flow.
+//! Opaque non-observation also queries reachable write-only authority through
+//! this same scoped declaration traversal. That presence judgment cuts shared
+//! access and consumes copy bounds; it publishes no lifetime or loan map.
+//! Template dependence stays explicit until a call's ordinary substitutions
+//! close it, rather than becoming proof that a generic input is view-free.
 //! Applying a callback must preserve the same result/input relation that loan
 //! attribution records. Keeping this query in one checking owner prevents
 //! formation from accepting a region-erased shape that flow cannot implement.
@@ -392,6 +397,26 @@ pub fn returns_borrow(
     type_reference: TypeReferenceHandle,
 ) -> bool {
     is_reference_type(program, type_reference) || is_borrow_carrying_data(program, type_reference)
+}
+
+/// Non-observation follows accessible permission, not mere type occurrence.
+/// A template-dependent input remains an obligation for its call application;
+/// it is never classified as authority-free.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum InputWriteOnlyAccess {
+    Absent,
+    Present,
+    TemplateDependent,
+    Incomplete,
+}
+
+pub(crate) fn input_write_only_access(
+    program: &dyn crate::CheckingInput,
+    type_reference: TypeReferenceHandle,
+    parameters: &[typed_trees::data::TypeParameter],
+    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+) -> InputWriteOnlyAccess {
+    carried_lifetimes::input_write_only_access(program, type_reference, parameters, substitutions)
 }
 
 /// Every structural projection within `type_reference` that carries a

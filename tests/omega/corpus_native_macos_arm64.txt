@@ -249,6 +249,7 @@ pass/borrows/runtime_nested_carrier_bounded_reference_read_exit built 1155ms exi
 pass/borrows/runtime_nested_carrier_reference_read_exit built 1164ms exit:70 @104c2da31081
 pass/borrows/runtime_nested_reference_array_bounded_read_exit built 1916ms exit:70 @15c77983aab0+wt
 pass/borrows/runtime_nested_reference_record_direct_payload_restoration_exit built 1200ms exit:70 @104c2da31081
+pass/borrows/runtime_owned_writeonly_carrier_field_exit built 3465ms exit:0 @3d1bd96aeaa5
 pass/borrows/runtime_projected_reference_call_return_exit built 5603ms exit:0 @af6b0f221559+wt
 pass/borrows/runtime_qualified_byte_argument_snapshot_exit built 1955ms exit:70 @cfbb6c8709b4+wt
 pass/borrows/runtime_recast_mut_loan_field_write_exit built 1286ms exit:0 @7d0f77ba72b8+wt
@@ -309,6 +310,10 @@ pass/borrows/runtime_whole_referent_payload_case_store_exit built 1289ms exit:70
 pass/borrows/runtime_whole_referent_record_store_exit built 1395ms exit:70 @6ec9ff444c14+wt
 pass/borrows/runtime_whole_referent_scalar_store_exit built 1098ms exit:70 @6ec9ff444c14+wt
 pass/borrows/runtime_write_only_disjoint_field_predicates_exit built 5304ms exit:0 @5b32c4eb36ff+wt
+pass/borrows/runtime_writeonly_checked_static_carrier_exit built 3537ms exit:0 @3d1bd96aeaa5
+pass/borrows/runtime_writeonly_generic_returned_carrier_reborrow_exit built 3419ms exit:0 @3d1bd96aeaa5
+pass/borrows/runtime_writeonly_nested_reference_array_exit built 3431ms exit:0 @3d1bd96aeaa5
+pass/borrows/runtime_writeonly_reference_array_state_exit built 3367ms exit:0 @3d1bd96aeaa5
 pass/borrows/same_initializer_disjoint_source_move checked 609ms @9beb2be72f2d+wt
 pass/borrows/shared_recast_loan_member_read built 746ms exit:0 @d629c0d993ca+wt
 pass/borrows/state_element_clone checked 10273ms @5041ef1af684+wt
@@ -2038,6 +2043,7 @@ pass/slices/runtime_inline_mutable_view_call_write_exit built 1688ms exit:0 @1ba
 pass/slices/runtime_join_meet_bound_exit built 596ms exit:70
 pass/slices/runtime_literal_view_return_exit built 2758ms exit:105 @9beb2be72f2d+wt
 pass/slices/runtime_machine_entry_view_requires_index_exit built 1906ms exit:70 @0991904fed3b+wt
+pass/slices/runtime_matched_window_coordinate_capture_exit built 3358ms exit:0 @3384eccdf464
 pass/slices/runtime_mutable_byte_view_loop_write_exit built 987ms exit:70 @59aa9580a54d+wt
 pass/slices/runtime_mutable_slice_element_write_exit built 1421ms exit:21 @fb2178def922
 pass/slices/runtime_mutable_slice_result_whole_forward_exit built 5068ms exit:0 @9dd545defbc0

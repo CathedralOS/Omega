@@ -896,12 +896,26 @@ fail/borrows/nested_result_retains_operand_loan rejected 568ms expected @c4c0ab7
 	state `observe` receives `value` as mutable more than once
 fail/borrows/nested_retained_mutable_loan_shared_argument rejected 5381ms expected @a9ae30e1c334+wt
 	state `observe_hold` receives `counter` as both mutable and read-only
+fail/borrows/opaque_generic_mutable_stored_writeonly_provider rejected 155ms expected @3d1bd96aeaa5
+	machine `forward` state `entry` calls `consume` with write-only input authority; an opaque selected implementation requires an admitted write-only boundary claim
+fail/borrows/opaque_generic_stored_writeonly_input rejected 158ms expected @3d1bd96aeaa5
+	machine `forward` state `entry` calls `consume$specialized$ae002a060c05fad1$0` with write-only input authority; an opaque selected implementation requires an admitted write-only boundary claim
+	machine `consume$specialized$ae002a060c05fad1$0` state `entry` declares `&write`, but the current milestone proves non-observation only for checked Omega bodies; boundary, accepted, requirement, and external-provider declarations require an admitted write-only boundary claim
+	bodyless boundary symbol `entry` has no executable realization; use it only in contracts, or satisfy a boundary requirement via an admitted provider
+fail/borrows/opaque_nested_stored_writeonly_input rejected 139ms expected @3d1bd96aeaa5
+	machine `consume` state `entry` declares `&write`, but the current milestone proves non-observation only for checked Omega bodies; boundary, accepted, requirement, and external-provider declarations require an admitted write-only boundary claim
 fail/borrows/opaque_reference_wrong_input_return rejected 1029ms expected @3ac38090e82f
 	machine `wrong` returns a view borrowing input `other`, which is not permitted by the declared result lifetime relation
 fail/borrows/opaque_region_call_keeps_view_origin rejected 616ms expected @641c98043b7c
 	machine `replace` stores a borrowed value without a complete normal-exit backing relation
 fail/borrows/opaque_sibling_stored_view_local_escape rejected 1550ms expected @a9ae30e1c334+wt
 	machine `replace` stores a borrowed value without a complete normal-exit backing relation
+fail/borrows/opaque_static_stored_writeonly_input rejected 158ms expected @3d1bd96aeaa5
+	machine `consume$specialized$ae002a060c05fad1$0` state `entry` declares `&write`, but the current milestone proves non-observation only for checked Omega bodies; boundary, accepted, requirement, and external-provider declarations require an admitted write-only boundary claim
+	machine `apply$specialized$38c5d04104142cf7$0` state `entry` calls `consume$specialized$ae002a060c05fad1$0` with write-only input authority; an opaque selected implementation requires an admitted write-only boundary claim
+	bodyless boundary symbol `entry` has no executable realization; use it only in contracts, or satisfy a boundary requirement via an admitted provider
+fail/borrows/opaque_stored_writeonly_input rejected 139ms expected @3d1bd96aeaa5
+	machine `consume` state `entry` declares `&write`, but the current milestone proves non-observation only for checked Omega bodies; boundary, accepted, requirement, and external-provider declarations require an admitted write-only boundary claim
 fail/borrows/owned_carrier_descriptor_parameter_replacement rejected 148ms expected @c4c0ab7a5d11
 	machine `replace` state `entry` assignment cannot write `slot` because it is not mutable in this state (if `slot` is undeclared -- a typo -- no such field or local exists)
 fail/borrows/owned_carrier_immutable_parameter_field rejected 149ms expected @c4c0ab7a5d11
@@ -915,10 +929,6 @@ fail/borrows/owned_carrier_shared_array_referent_write rejected 146ms expected @
 	machine `update` state `entry` assignment cannot write `slots` because it is not mutable in this state (if `slots` is undeclared -- a typo -- no such field or local exists)
 fail/borrows/owned_carrier_shared_outer_referent_write rejected 145ms expected @c4c0ab7a5d11
 	machine `update` state `entry` assignment cannot write `slot` because it is not mutable in this state (if `slot` is undeclared -- a typo -- no such field or local exists)
-fail/borrows/owned_carrier_stored_writeonly_field_unsupported rejected 146ms expected @c4c0ab7a5d11
-	machine `update` state `entry` observes write-only referent through a selected value; `&write` permits replacement or exact `&write` forwarding, never observation
-	machine `prepare` state `entry` reads write-only parameter `cell`; `&write` permits replacement or exact `&write` forwarding, never observation
-	data `Slot` field `target` uses `&write` outside the checked direct callable and local view surface; write-only stored fields and nested generic arguments are not implemented yet
 fail/borrows/owned_carrier_writeonly_outer_pointer_read rejected 146ms expected @c4c0ab7a5d11
 	machine `update` state `entry` writes through an unsupported write-only projection; accepted partial stores are a content-independent common-field path through closed invariant-free records when every field is relevant and unconstrained and the displaced leaf is an unrestricted primitive, a closed literal-ranged integer primitive proven in range at the store, an integer primitive carrying only an arithmetic-policy constraint, or a carrier qualified only by plain declared domains whose membership is proven on the stored value, a whole eligible statically discardable record or closed statically discardable material sum, or a recursively literal fixed array whose ultimate elements are unrestricted primitive scalars or statically discardable material records or sums, one relevant primitive field beneath a literal fixed-array record element, a proven-in-bounds element or statically normalized closed range of such a fixed array, or a proven-in-bounds byte element whose predicate-only fixed carrier membership is independently preserved, or a proven-in-bounds element of a direct byte slice; nested array projection, sum case/payload projection, named or non-plain domain qualification, range stores into a domain-qualified carrier, invariant-dependent, symbolic or open range, take, swap, and read-modify-write operations remain rejected
 fail/borrows/owned_input_reference_escape rejected 1771ms expected @a9ae30e1c334+wt
@@ -1143,6 +1153,21 @@ fail/borrows/stored_subview_new_backing_write rejected 972ms expected @3224bdead
 fail/borrows/stored_subview_preserved_backing_write rejected 972ms expected @3224bdead711
 	statement 3 mutates `cells[0].value` while local borrow `window` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
 	statement 3 mutates `cells[0].value` while local borrow `window` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
+fail/borrows/stored_writeonly_carrier_descriptor_replacement rejected 149ms expected @3d1bd96aeaa5
+	machine `update` state `entry` assignment cannot write `slot` because it is not mutable in this state (if `slot` is undeclared -- a typo -- no such field or local exists)
+fail/borrows/stored_writeonly_carrier_mutable_widening rejected 149ms expected @3d1bd96aeaa5
+	machine `update` state `entry` observes write-only referent through a selected value; `&write` permits replacement or exact `&write` forwarding, never observation
+	mutable argument `slot` for state `entry` is not writable in this state; the source cannot lend the requested exclusive access
+fail/borrows/stored_writeonly_carrier_pointer_in_writeonly_storage rejected 148ms expected @3d1bd96aeaa5
+	machine `update` state `entry` writes through an unsupported write-only projection; accepted partial stores are a content-independent common-field path through closed invariant-free records when every field is relevant and unconstrained and the displaced leaf is an unrestricted primitive, a closed literal-ranged integer primitive proven in range at the store, an integer primitive carrying only an arithmetic-policy constraint, or a carrier qualified only by plain declared domains whose membership is proven on the stored value, a whole eligible statically discardable record or closed statically discardable material sum, or a recursively literal fixed array whose ultimate elements are unrestricted primitive scalars or statically discardable material records or sums, one relevant primitive field beneath a literal fixed-array record element, a proven-in-bounds element or statically normalized closed range of such a fixed array, or a proven-in-bounds byte element whose predicate-only fixed carrier membership is independently preserved, or a proven-in-bounds element of a direct byte slice; nested array projection, sum case/payload projection, named or non-plain domain qualification, range stores into a domain-qualified carrier, invariant-dependent, symbolic or open range, take, swap, and read-modify-write operations remain rejected
+fail/borrows/stored_writeonly_carrier_read rejected 145ms expected @3d1bd96aeaa5
+	machine `read` state `entry` observes write-only referent through a selected value; `&write` permits replacement or exact `&write` forwarding, never observation
+fail/borrows/stored_writeonly_carrier_shared_outer rejected 146ms expected @3d1bd96aeaa5
+	machine `update` state `entry` observes write-only referent through a selected value; `&write` permits replacement or exact `&write` forwarding, never observation
+	machine `update` state `entry` assignment cannot write `slot` because it is not mutable in this state (if `slot` is undeclared -- a typo -- no such field or local exists)
+fail/borrows/stored_writeonly_carrier_shared_widening rejected 148ms expected @3d1bd96aeaa5
+	machine `update` state `entry` observes write-only referent through a selected value; `&write` permits replacement or exact `&write` forwarding, never observation
+	argument `value` for state `entry` supplies `&write` to a parameter that may read; write-only authority cannot widen to shared or mutable access
 fail/borrows/tail_recursive_mutation_retires_field_bound rejected 1343ms expected @0a951af3f8e9+wt
 	cannot prove requires contract for call require_bound from main: work.count <= 8 (needs fact `work.count <= 8` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/borrows/tail_recursive_write_conflicts_with_live_sibling_loan rejected 981ms expected @0a951af3f8e9+wt
@@ -4793,8 +4818,18 @@ fail/slices/match_index_guard_does_not_escape rejected 1510ms expected @a9ae30e1
 	cannot prove index `0` is within unknown slice length of `values` in observe::entry
 fail/slices/matched_open_window_end rejected 317ms expected @a4e565996e72+wt
 	exact arithmetic in machine `open_end` state `entry` terminal expression may overflow `i64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i64 in Wrapping`/`Saturating`/`Trapping`).
+fail/slices/matched_window_indexed_subject_write_overlap rejected 585ms expected @3384eccdf464
+	state `collide` receives `values[2]` while local borrow `view` is still active
 fail/slices/matched_window_lengths_disagree rejected 981ms expected @0e7ef4cb2ac8+wt
 	cannot prove ensures contract for exit from half at statement 0: result.len == 2
+fail/slices/matched_window_pattern_coordinate_has_no_arm_fact rejected 558ms expected @3384eccdf464
+	state `pattern` receives `values[0..which + 2]` as mutable more than once
+fail/slices/matched_window_pattern_write_overlap rejected 557ms expected @3384eccdf464
+	state `collide` receives `holder.values[2]` while local borrow `view` is still active
+fail/slices/matched_window_scalar_subject_write_overlap rejected 561ms expected @3384eccdf464
+	state `collide` receives `values[2]` while local borrow `view` is still active
+fail/slices/matched_window_sibling_write_overlap rejected 556ms expected @3384eccdf464
+	state `collide` receives `holder.values[2]` while local borrow `view` is still active
 fail/slices/mutable_matched_window_lengths_disagree rejected 1076ms expected @2cbb09f59147+wt
 	cannot prove ensures contract for exit from half at statement 0: result.len == 2
 fail/slices/mutable_subslice_state_out_of_bounds rejected 1504ms expected @a9ae30e1c334+wt
@@ -5839,8 +5874,12 @@ pass/borrows/mutable_reference_match_local checked 10255ms check-target:macos_ar
 pass/borrows/nested_reference_byte_observations_exit checked 11122ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/nested_reference_crossings_exit checked 11202ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/nested_reference_leaf_projection_exit checked 11053ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/borrows/opaque_generic_owned_input_declaration checked 817ms @3d1bd96aeaa5
+pass/borrows/opaque_generic_reference_readers checked 812ms @3d1bd96aeaa5
+pass/borrows/opaque_generic_shared_stored_writeonly_provider checked 628ms @3d1bd96aeaa5
 pass/borrows/opaque_reference_identity checked 2840ms @3ac38090e82f
 pass/borrows/opaque_region_known_calls checked 1740ms @641c98043b7c
+pass/borrows/opaque_shared_writeonly_carrier checked 606ms @3d1bd96aeaa5
 pass/borrows/owned_byte_value_call_exit checked 11067ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/owned_nested_record_copy_exit checked 11044ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/owned_reference_arrival_projection_exit checked 3581ms check-target:macos_arm64 @ea7b63644a0a+wt
@@ -5935,6 +5974,7 @@ pass/borrows/runtime_nested_reference_record_direct_payload_restoration_exit che
 pass/borrows/runtime_owned_carrier_indexed_referent_store_exit checked 3312ms check-target:macos_arm64 @c4c0ab7a5d11
 pass/borrows/runtime_owned_generic_carrier_reborrow_exit checked 3267ms check-target:macos_arm64 @c4c0ab7a5d11
 pass/borrows/runtime_owned_reference_carrier_scalar_operand_exit checked 3270ms check-target:macos_arm64 @c4c0ab7a5d11
+pass/borrows/runtime_owned_writeonly_carrier_field_exit checked 3317ms check-target:macos_arm64 @3d1bd96aeaa5
 pass/borrows/runtime_partial_reference_partition_exit checked 7334ms check-target:macos_arm64 @8a2c1f68d503
 pass/borrows/runtime_projected_call_loan_custody_exit checked 2981ms check-target:macos_arm64 @b5b743bb02aa+wt
 pass/borrows/runtime_projected_fixed_byte_array_local_exit checked 4988ms check-target:macos_arm64 @77acc22653d9
@@ -6023,6 +6063,10 @@ pass/borrows/runtime_whole_referent_payload_case_store_exit checked 11130ms chec
 pass/borrows/runtime_whole_referent_record_store_exit checked 11077ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_whole_referent_scalar_store_exit checked 11181ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_write_only_disjoint_field_predicates_exit checked 5289ms check-target:macos_arm64 @5b32c4eb36ff+wt
+pass/borrows/runtime_writeonly_checked_static_carrier_exit checked 3319ms check-target:macos_arm64 @3d1bd96aeaa5
+pass/borrows/runtime_writeonly_generic_returned_carrier_reborrow_exit checked 3314ms check-target:macos_arm64 @3d1bd96aeaa5
+pass/borrows/runtime_writeonly_nested_reference_array_exit checked 3301ms check-target:macos_arm64 @3d1bd96aeaa5
+pass/borrows/runtime_writeonly_reference_array_state_exit checked 3274ms check-target:macos_arm64 @3d1bd96aeaa5
 pass/borrows/same_initializer_disjoint_source_move checked 1596ms @a9ae30e1c334+wt
 pass/borrows/shared_recast_loan_member_read checked 10958ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/state_element_clone checked 10096ms @5041ef1af684+wt
@@ -8372,6 +8416,7 @@ pass/slices/runtime_inline_mutable_view_call_write_exit checked 12289ms check-ta
 pass/slices/runtime_join_meet_bound_exit checked 12040ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/slices/runtime_literal_view_return_exit checked 12250ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/slices/runtime_machine_entry_view_requires_index_exit checked 13911ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/slices/runtime_matched_window_coordinate_capture_exit checked 3337ms check-target:macos_arm64 @3384eccdf464
 pass/slices/runtime_matched_window_length checked 6429ms check-target:macos_arm64 @2cbb09f59147+wt
 pass/slices/runtime_mutable_byte_view_loop_write_exit checked 12016ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/slices/runtime_mutable_record_slice_result_reborrow_exit checked 11710ms check-target:macos_arm64 @a9ae30e1c334+wt

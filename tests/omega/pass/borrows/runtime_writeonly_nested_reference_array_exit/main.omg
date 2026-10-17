@@ -1,0 +1,22 @@
+data Cell { value: i32; spare: i32; }
+data Grid<'storage> { targets: [[&'storage write Cell; 2]; 2]; }
+machine update<'storage>(grid: Grid<'storage>) { grid.targets[1][0].value = 97; }
+machine prepare<'storage>(first: &'storage write Cell, second: &'storage write Cell,
+    third: &'storage write Cell, fourth: &'storage write Cell) {
+    let grid: Grid<'storage> = Grid { targets: [[first, second], [third, fourth]] };
+    update(grid);
+}
+machine main() crashes Trap {
+    let mut first: Cell = Cell { value: 1, spare: 11 };
+    let mut second: Cell = Cell { value: 2, spare: 12 };
+    let mut third: Cell = Cell { value: 3, spare: 13 };
+    let mut fourth: Cell = Cell { value: 4, spare: 14 };
+    prepare(&write first, &write second, &write third, &write fourth);
+    transition first.value == 1 && second.value == 2 && third.value == 97 && fourth.value == 4
+        && first.spare == 11 && second.spare == 12 && third.spare == 13 && fourth.spare == 14 {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

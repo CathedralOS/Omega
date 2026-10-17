@@ -1,0 +1,19 @@
+// Expected exit: 0.
+data Cell { value: i32; spare: i32; }
+data Slot<'storage> { target: &'storage write Cell; }
+machine write_slot<'storage>(value: Slot<'storage>) { value.target.value = 61; }
+machine callback<'storage, machine Write>(value: Slot<'storage>)
+where machine Write(value: Slot<'storage>);
+{ Write(value); }
+machine prepare<'storage>(cell: &'storage write Cell) {
+    callback<write_slot>(Slot { target: cell });
+}
+machine main() crashes Trap {
+    let mut cell: Cell = Cell { value: 19, spare: 17 };
+    prepare(&write cell);
+    transition cell.value == 61 && cell.spare == 17 {
+        true -> done() _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

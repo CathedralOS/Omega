@@ -1,0 +1,3 @@
+data Cell { value: i32; spare: i32; }
+data Slot<'storage> { target: &'storage write Cell; }
+machine update<'storage>(slot: &write Slot<'storage>) { slot.target.value = 61; }

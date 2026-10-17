@@ -1,0 +1,11 @@
+// Pattern arguments execute before any equality from the selected arm.
+// A later literal 0 arm cannot fix an earlier pattern's dynamic window.
+machine pattern(first: &mut [u8], second: &mut u8) -> u64 { 0 }
+machine inspect(values: &mut [u8; 4], which: u64 [0..=2]) -> u64 {
+    match which {
+        pattern(&mut values[0..which + 2], &mut values[2]) -> 0
+        0 -> 0
+        _ -> 0
+    }
+}
+machine main() {}

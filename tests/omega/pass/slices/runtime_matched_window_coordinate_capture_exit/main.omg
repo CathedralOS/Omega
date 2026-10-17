@@ -1,0 +1,54 @@
+// A coordinate evaluated before a later argument writes its subject keeps
+// the captured value. The actual window is 0..2, disjoint from element 2.
+// Expected native exit: 0
+// Expected interpreter exit: 0
+data Holder { which: u64 [0..=2]; values: [u8; 4]; }
+machine reset(value: &mut u64 [0..=2]) -> u64
+ensures value == 1
+ensures result == 0 { value = 1; 0 }
+machine keep<'a>(values: &'a mut [u8], ignored: u64) -> &'a mut [u8]
+requires values.len == 2
+ensures result.len == 2 { values }
+machine paint(first: &mut [u8], second: &mut u8)
+requires first.len >= 2 {
+    first[0] = 11;
+    first[1] = 12;
+    second = 13;
+}
+machine exercise_later() crashes Trap {
+    let mut holder: Holder = Holder { which: 0, values: [1, 2, 3, 4] };
+    let view: &mut [u8] = match holder.which {
+        0 -> keep(&mut holder.values[holder.which..holder.which + 2], reset(&mut holder.which))
+        _ -> &mut holder.values[0..2]
+    };
+    paint(view, &mut holder.values[2]);
+    transition holder.which == 1 && holder.values[0] == 11 && holder.values[1] == 12
+        && holder.values[2] == 13 && holder.values[3] == 4 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
+
+machine exercise_unselected() crashes Trap {
+    let mut holder: Holder = Holder { which: 0, values: [1, 2, 3, 4] };
+    let view: &mut [u8] = match holder.which {
+        1 -> keep(&mut holder.values[0..2], reset(&mut holder.which))
+        0 -> &mut holder.values[holder.which..holder.which + 2]
+        _ -> &mut holder.values[0..2]
+    };
+    paint(view, &mut holder.values[2]);
+    transition holder.which == 0 && holder.values[0] == 11 && holder.values[1] == 12
+        && holder.values[2] == 13 && holder.values[3] == 4 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
+
+machine main() crashes Trap {
+    exercise_later();
+    exercise_unselected();
+}

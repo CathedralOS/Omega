@@ -78,18 +78,16 @@ fn capture(
     {
         return None;
     }
-    // Mutable parameters and earlier `let mut` bindings may attenuate at
-    // formation, and earlier immutable `&mut` carriers preserve mutable
-    // authority until attenuation. None is a write-only root for ordinary
-    // expression validation, where reading remains legal — the same sources
-    // the checked-call subloan gate uses.
+    // Descriptor storage can be read while locating a held exclusive leaf.
+    // The common place/borrow checker separately owns binding mutability and
+    // access; these sources establish non-observation only, never a new loan.
     let mut sources = roots.to_vec();
-    sources.extend(super::mutable_formation_sources(
+    sources.extend(super::projection_sources(
         program,
         state,
         Some(local.symbol),
     ));
-    let (_, actual, attached_root) = receiver::nonobserving_projection(
+    let projection = receiver::nonobserving_projection(
         program,
         machine,
         state,
@@ -98,6 +96,7 @@ fn capture(
         roots,
         diagnostics,
     )?;
-    (!attached_root && super::is_admitted_checked_referee(program, actual))
-        .then_some((actual, *referee))
+    (!projection.attached_root
+        && super::is_admitted_checked_referee(program, projection.type_reference))
+    .then_some((projection.type_reference, *referee))
 }

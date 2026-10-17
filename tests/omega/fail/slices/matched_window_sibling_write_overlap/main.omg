@@ -1,0 +1,19 @@
+data Holder { which: u64 [0..=2]; values: [u8; 4]; }
+machine reset(value: &mut u64 [0..=2]) -> i64
+ensures value == 1
+ensures result == 0 {
+    value = 1;
+    0
+}
+machine keep<'a>(ignored: i64, values: &'a mut [u8]) -> &'a mut [u8]
+{ values }
+machine collide(first: &mut [u8], second: &mut u8)
+{}
+machine main() {
+    let mut holder: Holder = Holder { which: 0, values: [1, 2, 3, 4] };
+    let view: &mut [u8] = match holder.which {
+        0 -> keep(reset(&mut holder.which), &mut holder.values[holder.which..holder.which + 2])
+        _ -> &mut holder.values[0..2]
+    };
+    collide(view, &mut holder.values[2]);
+}

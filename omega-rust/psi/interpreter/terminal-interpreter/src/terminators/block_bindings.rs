@@ -360,12 +360,15 @@ impl TerminalExecution<'_> {
                 }
                 continue;
             }
-            if let Some((referent, loan)) = self.prepare_scalar_array_loan(
-                parameter,
-                argument,
-                &mut identity_cursor,
-                &mut local_array_roots,
-            )? {
+            if let Some((referent, loan)) = self
+                .prepare_scalar_array_loan(
+                    parameter,
+                    argument,
+                    &mut identity_cursor,
+                    &mut local_array_roots,
+                )
+                .map_err(|error| error.in_argument_preparation("capture array state arrival"))?
+            {
                 if !self.block_parameter_is_declared(target, parameter)
                     || self.live_affine_discard_at(parameter.place).is_some()
                     || array_loans.insert(parameter.place, loan).is_some()
@@ -390,12 +393,14 @@ impl TerminalExecution<'_> {
                         .shape,
                     StructuralTypeShape::ByteSequence(_)
                 )
-                && let Some((referent, binding)) = self.prepare_byte_sequence_loan(
-                    parameter,
-                    argument,
-                    &mut identity_cursor,
-                    &mut local_array_roots,
-                )?
+                && let Some((referent, binding)) = self
+                    .prepare_byte_sequence_loan(
+                        parameter,
+                        argument,
+                        &mut identity_cursor,
+                        &mut local_array_roots,
+                    )
+                    .map_err(|error| error.in_argument_preparation("capture byte state arrival"))?
             {
                 if !self.block_parameter_is_declared(target, parameter)
                     || self.live_affine_frontier.iter().any(|entry| {
@@ -760,7 +765,8 @@ impl TerminalExecution<'_> {
                 descriptor_parameters,
                 descriptor_arguments,
                 &resolved_arguments,
-            )?
+            )
+            .map_err(|error| error.in_argument_preparation("bind byte state arrivals"))?
         } else {
             let mut parameters = Vec::new();
             let mut arguments = Vec::new();
@@ -776,7 +782,8 @@ impl TerminalExecution<'_> {
                     values.push(value.clone());
                 }
             }
-            self.bind_byte_sequence_arguments(&parameters, &arguments, &values)?
+            self.bind_byte_sequence_arguments(&parameters, &arguments, &values)
+                .map_err(|error| error.in_argument_preparation("bind byte state arrivals"))?
         };
         for (place, binding) in byte_loans {
             if byte_sequences.insert(place, binding).is_some() {
@@ -807,7 +814,8 @@ impl TerminalExecution<'_> {
             &source_parameters,
             &self.program.structural_types(),
             &self.structural_cases,
-        )?;
+        )
+        .map_err(|error| error.in_argument_preparation("bind captured state arrivals"))?;
         let mut bound_claims = BTreeMap::new();
         for parameter in descriptor_parameters {
             let catalogue = machine
@@ -876,21 +884,25 @@ impl TerminalExecution<'_> {
                 .filter_map(|claim| claim.place.map(|place| (place, claim.path.as_slice()))),
             &|current| self.stored_case_at_discard(&structural, current),
         )?;
-        let mut element_views = self.bind_element_view_arguments(
-            descriptor_parameters,
-            descriptor_arguments,
-            &resolved_arguments,
-        )?;
+        let mut element_views = self
+            .bind_element_view_arguments(
+                descriptor_parameters,
+                descriptor_arguments,
+                &resolved_arguments,
+            )
+            .map_err(|error| error.in_argument_preparation("bind element state arrivals"))?;
         for (place, loan) in array_loans {
             if element_views.insert(place, loan).is_some() {
                 return Err(malformed());
             }
         }
-        let mut aggregate_payload = self.stage_owned_value_arguments(
-            descriptor_parameters,
-            &mut structural,
-            &mut identity_cursor,
-        )?;
+        let mut aggregate_payload = self
+            .stage_owned_value_arguments(
+                descriptor_parameters,
+                &mut structural,
+                &mut identity_cursor,
+            )
+            .map_err(|error| error.in_argument_preparation("stage owned state arrivals"))?;
         for (parameter, argument, value) in packed_arguments {
             let identity = self
                 .local_structural_identities

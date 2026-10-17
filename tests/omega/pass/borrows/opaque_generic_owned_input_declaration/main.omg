@@ -1,0 +1,3 @@
+// An open boundary telescope retains a dependent non-observation obligation.
+// Concrete calls still require an executable realization.
+boundary machine inspect<T>(value: T);

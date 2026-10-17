@@ -42,7 +42,7 @@ pub fn call_type_arguments(
 /// Ordinary entries and static callable signatures instantiate the same
 /// ordered type/const telescope. Their ownership differs, not their inference.
 #[allow(clippy::too_many_arguments)]
-pub(super) fn callable_type_arguments(
+pub(crate) fn callable_type_arguments(
     program: &dyn crate::CheckingInput,
     caller: &Machine,
     state: Option<&State>,

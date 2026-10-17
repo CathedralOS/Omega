@@ -1,0 +1,13 @@
+use omega::language::core::external_binding;
+pub data Cell { value: i32; }
+pub data Slot<'s> { target: &'s write Cell; }
+pub boundary trait Sink<T> { machine consume(value: &T); }
+macos_arm64 machine binding() -> ForeignBinding<17, 5, 0> {
+    ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+        install_name: "libSystem.B.dylib", symbol: "_exit",
+    } }
+}
+macos_arm64 machine external<T>(value: &T) satisfies Sink<T>::consume via binding();
+machine forward<'s>(value: &Slot<'s>) reaches Sink {
+    Sink<Slot<'s>>::consume(value);
+}

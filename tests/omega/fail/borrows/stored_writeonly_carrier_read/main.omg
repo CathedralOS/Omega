@@ -1,0 +1,3 @@
+data Cell { value: i32; spare: i32; }
+data Slot<'storage> { target: &'storage write Cell; }
+machine read<'storage>(slot: Slot<'storage>) -> i32 { slot.target.value }

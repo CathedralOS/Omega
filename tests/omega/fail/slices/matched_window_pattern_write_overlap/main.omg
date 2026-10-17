@@ -1,0 +1,16 @@
+// A failed pattern mutates storage after the match subject was captured.
+// The later literal 0 matches that capture, not the current index value 1.
+data Holder { which: u64 [0..=2]; values: [u8; 4]; }
+machine reset(value: &mut u64 [0..=2]) -> u64
+ensures value == 1
+ensures result == 1 { value = 1; 1 }
+machine collide(first: &mut [u8], second: &mut u8) {}
+machine main() {
+    let mut holder: Holder = Holder { which: 0, values: [1, 2, 3, 4] };
+    let view: &mut [u8] = match holder.which {
+        reset(&mut holder.which) -> &mut holder.values[0..2]
+        0 -> &mut holder.values[holder.which..holder.which + 2]
+        _ -> &mut holder.values[0..2]
+    };
+    collide(view, &mut holder.values[2]);
+}

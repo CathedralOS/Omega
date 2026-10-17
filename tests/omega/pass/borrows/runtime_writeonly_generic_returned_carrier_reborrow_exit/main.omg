@@ -1,0 +1,23 @@
+data Cell { value: i32; spare: i32; }
+data Slot<'storage, T> { target: &'storage write T; }
+machine set(value: &write i32) { value = 61; }
+machine make<'storage>(cell: &'storage write Cell) -> Slot<'storage, Cell> {
+    Slot { target: cell }
+}
+machine update<'storage>(slot: Slot<'storage, Cell>) {
+    let value: &write i32 = &write slot.target.value;
+    set(&write value);
+}
+machine prepare<'storage>(cell: &'storage write Cell) { update(make(cell)); }
+machine main() crashes Trap {
+    let mut cell: Cell;
+    cell.value = 19;
+    cell.spare = 17;
+    prepare(&write cell);
+    transition cell.value == 61 && cell.spare == 17 {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

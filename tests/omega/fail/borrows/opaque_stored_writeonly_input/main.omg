@@ -1,0 +1,3 @@
+pub data Cell { value: i32; }
+pub data Slot<'storage> { target: &'storage write Cell; }
+boundary machine consume<'storage>(value: Slot<'storage>);

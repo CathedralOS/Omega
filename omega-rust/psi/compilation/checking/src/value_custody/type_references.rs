@@ -164,31 +164,6 @@ impl TypeReferenceOwner<'_> {
         )
     }
 
-    // A direct callable view is transported through the same checked loan
-    // boundary whether it is an input or a result. Stored and nested carriers
-    // retain their separate implementation fence.
-    fn allows_checked_write_only_view(&self) -> bool {
-        matches!(
-            self,
-            Self::StateParameter {
-                generic_depth: 0,
-                ..
-            } | Self::StateReturn {
-                generic_depth: 0,
-                ..
-            } | Self::OperatorParameter {
-                generic_depth: 0,
-                ..
-            } | Self::OperatorReturn {
-                generic_depth: 0,
-                ..
-            } | Self::StateLocalData {
-                generic_depth: 0,
-                ..
-            }
-        )
-    }
-
     fn allows_borrowed_routed_service_carrier(&self) -> bool {
         matches!(
             self,
@@ -706,17 +681,8 @@ fn validate_type_reference_node(
         };
     match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::Reference {
-            referee,
-            access,
-            lifetime,
+            referee, lifetime, ..
         } => {
-            if *access == language_semantics::ReferenceAccess::WriteOnly
-                && !owner.allows_checked_write_only_view()
-            {
-                diagnostics.push(Diagnostic::error(format!(
-                    "{owner} uses `&write` outside the checked direct callable and local view surface; write-only stored fields and nested generic arguments are not implemented yet"
-                )));
-            }
             if let Some(lifetime) = lifetime
                 && !type_parameter_scope.contains_lifetime(program, lifetime.as_str())
             {

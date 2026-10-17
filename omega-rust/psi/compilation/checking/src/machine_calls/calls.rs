@@ -46,6 +46,7 @@ mod machine_parameter_arguments;
 mod type_arguments;
 use machine_parameter_arguments::validate_machine_parameter_arguments;
 pub use type_arguments::call_type_arguments;
+pub(crate) use type_arguments::callable_type_arguments;
 mod receiver_calls;
 mod receiverless_calls;
 mod recursion;

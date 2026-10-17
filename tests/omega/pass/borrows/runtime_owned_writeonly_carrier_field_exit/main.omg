@@ -8,6 +8,7 @@ machine prepare<'storage>(cell: &'storage write Cell) {
 }
 machine main() crashes Trap {
     let mut cell: Cell;
+    cell.value = 19;
     cell.spare = 17;
     prepare(&write cell);
     transition cell.value == 61 && cell.spare == 17 {

@@ -661,23 +661,18 @@ impl TerminalExecution<'_> {
         {
             return Ok(None);
         }
-        // An affine mutable window is a descriptor loan, not an unrestricted
-        // copy. The staged array arrival lends the owner's bytes; rejecting
-        // the multiplicity here drops a match result the checker already
-        // admitted.
-        if parameter.multiplicity == StructuralMultiplicity::Affine
-            && parameter.access == StructuralAccess::MutableBorrow
-        {
-            return Ok(None);
-        }
         // A loan captures the actual descriptor, whether frame-local or in a
         // field. Declared geometry grants no read/write permission: authenticate
         // every source crossing before retaining or attenuating its binding.
-        if !matches!(
-            parameter.access,
-            terminal_psi::reading_borrow_pair_pattern!()
+        // Affine arrivals incur descriptor-retirement debt in the common block
+        // binder; they still borrow these same bytes. Routing them through array
+        // establishment instead loses canonical-to-stored view presentation on
+        // a return-state edge. The shared arrival contract admits both carrier
+        // lifetimes without granting ownership or widening the source loan.
+        if !terminal_semantics::view_descriptor_parameter(
+            parameter,
+            self.program.structural_types().values(),
         ) || argument.access != parameter.access
-            || parameter.multiplicity != StructuralMultiplicity::Unrestricted
             || !parameter.projected_qualifications.is_empty()
             || self
                 .live_claims

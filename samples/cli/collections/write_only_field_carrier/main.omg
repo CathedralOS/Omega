@@ -1,0 +1,21 @@
+// Expected exit: 0
+// An owned carrier can load its pointer slot and use its write-only referent.
+data Cell { value: i32; spare: i32; }
+data Slot<'storage> { target: &'storage write Cell; }
+machine update<'storage>(slot: Slot<'storage>) { slot.target.value = 61; }
+machine prepare<'storage>(cell: &'storage write Cell) {
+    let slot: Slot<'storage> = Slot { target: cell };
+    update(slot);
+}
+machine main() crashes Trap {
+    let mut cell: Cell;
+    cell.value = 19;
+    cell.spare = 17;
+    prepare(&write cell);
+    transition cell.value == 61 && cell.spare == 17 {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
