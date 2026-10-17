@@ -94,6 +94,8 @@ fail/arithmetic/dispatch_cast_fact_escapes_arm rejected 830ms expected @a9ae30e1
 	Exact integer cast in machine `narrow` state `entry` from `u32` to `u8` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
 fail/arithmetic/dispatch_cast_wrong_arm rejected 812ms expected @a9ae30e1c334+wt
 	Exact integer cast in machine `narrow` state `entry` from `u32` to `u8` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
+fail/arithmetic/distinct_runtime_call_results_do_not_cancel rejected 179ms expected @6756ba1b9853
+	exact arithmetic in machine `difference` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `next(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
 fail/arithmetic/divide_by_zero_rejected rejected 1959ms expected @a9ae30e1c334+wt
 	anonymous division by zero has no exact numeric value
 fail/arithmetic/erased_policy_store_into_qualified_element rejected 229ms expected @97705f5a651d
@@ -2028,6 +2030,10 @@ fail/contracts/replacement_call_child_false_snapshot rejected 1648ms expected @a
 fail/contracts/returned_integer_operation_wrong_operand rejected 1617ms expected @a9ae30e1c334+wt
 	cannot prove ensures contract for exit from quotient at statement 0: result.actual == right / 2
 	cannot prove ensures contract for exit from remainder at statement 0: result.actual == right % 2
+fail/contracts/returned_length_cannot_use_later_operand_guarantee rejected 652ms expected @6756ba1b9853
+	cannot prove index `1` is within unknown slice length of `forward(bytes)` in observe::entry
+fail/contracts/returned_windows_keep_distinct_measures rejected 657ms expected @6756ba1b9853
+	cannot prove requires contract for call same from main: first.len == second.len (needs fact `left.len == right.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/contracts/runtime_requirement_after_argument_write rejected 1559ms expected @a9ae30e1c334+wt
 	cannot prove requires contract for call needs_one from outer: cell.value == 1 (needs fact `value == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/contracts/runtime_requirement_after_guard_write rejected 5847ms expected @7912abbc354e
@@ -2052,12 +2058,24 @@ fail/contracts/shared_field_recursive_actual rejected 1572ms expected @a9ae30e1c
 fail/contracts/shift_result_count_exceeds_left_width rejected 231ms expected @f70cef10b430
 fail/contracts/shift_result_negative_wrapping_count rejected 444ms expected @f70cef10b430
 fail/contracts/shift_result_wrong_count rejected 445ms expected @f70cef10b430
+fail/contracts/slice_descriptor_does_not_preserve_mutated_contents rejected 658ms expected @6756ba1b9853
+	cannot prove requires contract for call need from stale: before == items[0] (needs fact `before == after` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/contracts/slice_index_requirement_retires_mutated_contents rejected 656ms expected @6756ba1b9853
+	cannot prove requires contract for call need from stale: items[0] == before (needs fact `items[0] == before` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/contracts/state_write_retires_overlapping_guard_conjunct rejected 613ms expected @a036414cf2c9
 	cannot prove requires contract for call pop from Main::main: main.b.count >= 1 && main.b.count <= 4 (needs fact `stack.count >= 1 && stack.count <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `second`
 fail/contracts/target_family_recursive_guarantee rejected 9778ms expected @46f9e865d179+wt
 	cannot prove ensures contract for exit from forwarded at statement 1: result == 7
+fail/contracts/target_family_unselected_write_retires_fact rejected 689ms expected @6756ba1b9853
+	cannot prove requires contract for call need from main: value == 1 (needs fact `value == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/contracts/target_family_unshared_result rejected 35723ms expected @46f9e865d179+wt
 	cannot prove ensures contract for exit from ForwardedReports::status at statement 1: result.code == 7
+fail/contracts/target_family_window_invalid_sibling rejected 1738ms expected @6756ba1b9853
+	cannot prove ensures contract for exit from window at statement 0: result.len == 2
+fail/contracts/target_family_window_missing_length rejected 1740ms expected @6756ba1b9853
+	cannot prove requires contract for call need from main: view.len >= 2 (needs fact `items.len >= 2` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/contracts/target_family_window_unshared_length rejected 1697ms expected @6756ba1b9853
+	cannot prove requires contract for call need from main: view.len >= 2 (needs fact `items.len >= 2` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/contracts/target_named_fact_preserved rejected 157ms expected @eca66ed24a79+wt
 	machine `probe` state `entry` value call to `offset` violates required fact `macos_arm64 >= 0`: the instantiated fact is structurally false (`-1 >= 0`)
 fail/contracts/undischarged_contract_entailment rejected 1869ms expected @1f63ee648905+wt
@@ -6090,6 +6108,7 @@ pass/arithmetic/runtime_bounded_dividend_remainder_exit checked 10616ms check-ta
 pass/arithmetic/runtime_bounded_unsigned_sum_chain_exit checked 13816ms check-target:macos_arm64 @1b12798e27f4
 pass/arithmetic/runtime_bounded_unsigned_sum_field_and_call_exit checked 14708ms check-target:macos_arm64 @1b12798e27f4
 pass/arithmetic/runtime_call_live_remainder_recovery_exit checked 7304ms check-target:macos_arm64 @589aedee8ebc+wt
+pass/arithmetic/runtime_captured_call_result_subtracts_itself_exit checked 3731ms check-target:macos_arm64 @6756ba1b9853
 pass/arithmetic/runtime_comparison_signedness_exit checked 11182ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/arithmetic/runtime_composite_bound_arrivals_exit checked 13494ms check-target:macos_arm64 @82646dcce47b+wt
 pass/arithmetic/runtime_cyclic_parameter_fixed_use_after_console_exit checked 10981ms check-target:macos_arm64 @a9ae30e1c334+wt

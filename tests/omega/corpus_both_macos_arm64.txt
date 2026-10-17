@@ -7,6 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
+pass/arithmetic/runtime_captured_call_result_subtracts_itself_exit built 3792ms exit:0 interpreter-exit:0 interpreter:agrees @6756ba1b9853
 pass/arithmetic/runtime_composite_bound_arrivals_exit built 12850ms exit:0 interpreter-exit:0 interpreter:agrees @82646dcce47b+wt
 pass/asm/checked_label_borrow_last_use_exit built 3891ms exit:0 interpreter-exit:0 interpreter:agrees @7c138f5545aa
 pass/asm/checked_label_call_result_exit built 3810ms exit:0 interpreter-exit:0 interpreter:agrees @7c138f5545aa
