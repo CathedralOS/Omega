@@ -121,8 +121,14 @@ from the coordinator's branch.
 Inspect live claims and in-flight assignments. Follow
 [capability selection](../../../AGENTS.md#the-sample-loop) and
 [advance](../advance/SKILL.md): retain the parent task, its remaining acceptance
-and the requirement the next witness discharges. Sample-queue size is not
-priority. Reproduce the selected requirement using current evidence or a focused
+and the requirement the next witness discharges. Compiler advancement assigns
+fact folders under `samples/cli/facts` only. One fact is done only when it
+covers the nine places. `samples/cli/facts/length/` is the filled row; the
+next witness fills another fact across those places or takes the next
+uncovered fact. Do not assign a program from the rest of `samples/`.
+Sample-queue size is not priority. Use `python3 tools/sample_queue.py --facts`
+for fact failures; the unfiltered queue is ordinary program discovery.
+Reproduce the selected requirement using current evidence or a focused
 run; root causes not yet witnessed are hypotheses. Shared files are allowed.
 When resuming existing workers, send this policy and their parent-task context
 explicitly at a safe checkpoint; preserve current work and user scope.
@@ -155,7 +161,11 @@ not a Devin manifest and it is not fed to `launch.py`.
 Copy this into every worker prompt:
 
 > Read the assigned capability's full acceptance and identify the requirement
-> this witness establishes. Run its public acceptance command. Repair failures
+> this witness establishes. Compiler advancement witnesses are fact folders
+> under `samples/cli/facts`. One fact is done only when it covers the nine
+> places: local, field, parameter, call result, match join, const name,
+> another state, another machine, and another target body. Do not select a
+> program from the rest of `samples/`. Run its public acceptance command. Repair failures
 > generally, preserving valid compositions and invalid controls, and land each
 > complete repair through `landing.py`. After landing, or if this witness
 > already works, reconcile only what the evidence establishes and continue the

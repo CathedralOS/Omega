@@ -8,7 +8,7 @@ description: Coordinate compiler advancement through reusable Codex cloud sessio
 Run the requested compiler workload through a persistent pool of Codex sessions.
 Each worker keeps its own cloud executor, checkout, build cache and outcome chain.
 Reuse a settled session for its next dependency-ready assignment. The coordinator
-selects programs, reconciles ownership and verifies complete results.
+selects fact witnesses under `samples/cli/facts`, reconciles ownership and verifies complete results.
 
 Each session qualifies coherently on one checkpoint with the executable
 [qualification runner](../../../tools/qualification.md). Integrate main near
@@ -102,6 +102,12 @@ cannot dispatch work or acquire managed rollout/completion credit. See
    repeats this preflight before implementation.
 2. Inspect live claims and the coordinator's in-flight assignments. Follow
    [capability selection](../../../AGENTS.md#the-sample-loop) under `advance`.
+   Compiler advancement witnesses are fact folders under `samples/cli/facts`.
+   One fact is done only when it covers the nine places.
+   `samples/cli/facts/length/` is the filled row; the next witness fills
+   another fact across those places or
+   takes the next uncovered fact. Do not assign a program from the rest of
+   `samples/`. Use `python3 tools/sample_queue.py --facts` for fact failures.
    Record the parent task, remaining acceptance and next required witness in
    the existing assignment context; a controller's program-level success does
    not establish parent-task closure. Recheck board

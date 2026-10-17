@@ -26,6 +26,11 @@ implementation. A failed fetch stops a new launch; cached main is not a fallback
 Inspect live claims plus in-flight assignments. Follow
 [capability selection](../../../AGENTS.md#the-sample-loop): choose existing
 release capabilities or measured iteration-performance/test-environment outcomes.
+Compiler advancement witnesses are fact folders under `samples/cli/facts`.
+One fact is done only when it covers the nine places. `samples/cli/facts/length/`
+is the filled row; the next witness fills another fact across those places or
+takes the next uncovered fact. Do not assign a program from the rest of
+`samples/`. Use `python3 tools/sample_queue.py --facts` for fact failures.
 Applications are witnesses, not separate priorities. Do not manufacture mining,
 fuzzing or gardening assignments to fill slots.
 

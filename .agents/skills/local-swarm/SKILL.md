@@ -34,7 +34,13 @@ distinct outcomes, not disjoint files. Compiler capabilities and measured
 iteration-performance/test-environment incidents are eligible. Preserve explicit
 parked scope; idle rather than mine tasks or invent audits.
 
-Follow [capability selection](../../../AGENTS.md#the-sample-loop). For automatic
+Follow [capability selection](../../../AGENTS.md#the-sample-loop). Compiler
+advancement assigns fact folders under `samples/cli/facts` only. One fact is
+done only when it covers the nine places, and `samples/cli/facts/length/` is
+the filled row. The next witness fills another fact across those places or
+takes the next uncovered fact. Do not assign a program from the rest of
+`samples/`. Use `python3 tools/sample_queue.py --facts` when a failure list is
+needed; the unfiltered queue is ordinary program discovery. For automatic
 work, use the launcher's existing `board`/`item` manifest form and put the next
 witness, oracle and requirement in `suggested_first_slice`. The `sample` form
 in `tools/swarm/waves/local-example.json` remains for explicitly sample-scoped

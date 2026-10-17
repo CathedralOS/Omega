@@ -19,7 +19,9 @@ wording. Existing AGENTS.md requirements are controls, not evidence of a skill w
 
 Scenarios 18–22 exercise capability-directed selection: priority versus sample
 size, continuity after a witness lands, missing witnesses, already-satisfied
-acceptance and explicit sample scope. Review the next completed assignments
+acceptance and explicit sample scope. Compiler advancement selects fact folders
+under `samples/cli/facts`, one fact across the nine places, and leaves the rest
+of `samples/` unselected. Review the next completed assignments
 for requirements actually removed from their selected tasks, preserved regression
 behavior and continuation to remaining acceptance. A task ID attached to unrelated
 sample work is not success. If that pattern persists, revise the selection or

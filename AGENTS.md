@@ -24,6 +24,7 @@ chain.
 **The goal is a compiler that ships.** Choose a capability outcome from
 `TASKS.md`, then carry its executable witnesses end to end
 ([the sample loop](#the-sample-loop)), not a file or a stage.
+Compiler-advance witnesses are fact folders under `samples/cli/facts`.
 Demonstrate compiler work through real programs and
 relevant invalid controls; `omega run <program.omg>` must produce the authored
 result. Squalr and Cathedral expose general compiler gaps, not special cases
@@ -93,51 +94,69 @@ continuation; it does not turn unfinished work into completion.
 ## The sample loop
 
 Capability outcomes determine priority; samples provide executable evidence.
-A sample is a runnable program under `samples/` whose header documents
-`Expected exit` or `Expected output contains`. A passing witness completes
-that repair, not every requirement of its parent capability.
+Compiler advancement runs `samples/cli/facts` only. One fact is one folder.
+That fact is done only when it covers the nine places: local, field,
+parameter, call result, match join, const name, another state, another
+machine, and another target body. Those places are one row. Do not expand
+them into a combinatorial matrix. `samples/cli/facts/length/` is the filled
+row. The other folders are unfilled or one-place facts. The next advance
+fills one of those facts across the nine places, or takes the next uncovered
+fact, instead of picking an unrelated program.
+
+Programs under the rest of `samples/` stay out of compiler-advance selection.
+They may stay broken while this layer is in progress. A named assignment
+outside that tree keeps the oracle on its own program: a runnable program
+whose header documents `Expected exit` or `Expected output contains`. A
+passing witness completes that repair, not every requirement of its parent
+capability.
 
 1. **Choose the outcome, then its witness.** Repair known main regressions
    first, honor explicit user scope, and otherwise retain the current capability
    assignment. For new automatic work, choose an actionable `TASKS.md` outcome
-   by its stated priority and release dependencies. Read its full acceptance
+   by its stated priority and release dependencies, then discharge it inside
+   `samples/cli/facts`. Read its full acceptance
    and verify its remaining gap against current main. Name the exact requirement
-   the next witness will discharge. `python3 tools/sample_queue.py` supplies
-   failing witnesses; its smallest-first order does not set product priority.
-   Use existing evidence or a focused run for the selected outcome; run
-   `python3 tools/sample_native_gate.py --programs-only --find-work` when discovery
-   is needed and no recent record exists. A genuinely missing owner decision
+   the next witness will discharge. `python3 tools/sample_queue.py --facts`
+   supplies failing fact witnesses; its smallest-first order does not set
+   product priority, and a green facts list does not fill an unfilled fact.
+   Use existing evidence or a focused run for the selected fact; run
+   `python3 tools/sample_native_gate.py --programs-only --find-work --facts`
+   when discovery is needed and no recent facts record exists. The same
+   commands without `--facts` remain the ordinary program queue and are not
+   compiler-advance selection. A genuinely missing owner decision
    is cited in the sample README through `OWNER_QUESTIONS.md`.
 2. **Make it run and land.** Done for this witness means it compiles and runs
    natively with its authored result on main, with every compiler, library and fixture repair
    it needed landed with it, and its invalid controls still rejecting.
    Nothing short of that is done: a stage, checkpoint, diagnosis or board edit
-   is progress, not completion.
+   is progress, not completion. One place running does not finish the fact;
+   the fact is done only when the nine places run.
 3. **Land complete steps toward the same outcome.** Size each executable
    repair to finish in one session; the capability may require several landed
-   repairs. When a sample is too large to trace (its size hides the
+   repairs. When a fact is too large to trace (its size hides the
    failing construct, or its first failure leads into an unrelated second
-   gap), cut it down: write a smaller sample that isolates the failing
-   construct with its own oracle, make that run, land it, then return to the
-   large one. Large programs advance as a ladder of small runnable samples,
+   gap), cut it down: write a smaller witness inside that fact folder that
+   isolates the failing construct with its own oracle, make that run, land it,
+   then return to the fact. Facts advance as a ladder of those places,
    never as stage tasks.
 4. **Return to the remaining acceptance.** After a witness lands or already
    passes, subtract only the requirement its evidence establishes and take the
-   next required witness of the same capability. Write a new witness when an
+   next required place of the same fact, or the next uncovered fact under
+   `samples/cli/facts`. Write a new witness when an
    uncovered requirement needs one, not to manufacture a failure or fill a slot.
    Close the task only when its full acceptance passes. Switch capabilities on
    closure, explicit reprioritization, or a genuine external prerequisite after
    exhausting feasible work on that outcome. Regressions may interrupt this
    chain; return afterward. Respect user stops, budgets and explicitly bounded
    assignments, preserving the parent outcome and next requirement for resumption.
-   A green sample queue does not establish capability closure. Only after
-   existing actionable outcomes within scope are exhausted should open-ended
-   advancement explore a new accepted-language gap.
+   A green facts queue does not establish capability closure. Open-ended
+   advancement stays inside `samples/cli/facts` and takes the next uncovered
+   fact there.
 
-A smaller sample is a rung inside the program that is too large to trace.
-Land it in the same session that returns to that program. A session that
+A smaller witness is a rung inside the fact that is too large to trace.
+Land it in the same session that returns to that fact. A session that
 lands the rung and stops has not finished. Do not carve a new sample out of
-a program that already meets its oracle.
+a fact that already meets its oracle.
 
 Cathedral is a customer. A session driving Cathedral fixes the Omega defect
 that blocks its current acceptance, then returns to Cathedral. It does not
@@ -310,8 +329,8 @@ are byte-sensitive.
 - A newly discovered obstacle belongs to the work that found it: fix it
   rather than filing a task for someone else. Do not split work or mine
   tasks to keep agents busy; narrow parallel slices build duplicate routes for
-  the same operation. An empty sample queue calls for the selected capability's
-  next uncovered acceptance witness (step 4 of the sample loop).
+  the same operation. An empty facts queue calls for the next uncovered place
+  or fact under `samples/cli/facts` (step 4 of the sample loop).
 - Overlap is expected and needs no permission. A Git conflict is a design
   signal: two sessions are changing one decision point, so reconcile them into
   one implementation at rebase. Conflicts only show textual overlap; semantic

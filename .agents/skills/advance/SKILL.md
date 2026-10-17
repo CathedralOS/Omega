@@ -24,30 +24,44 @@ Otherwise preserve it and read from an isolated worktree based on fetched main.
 
 Apply the selection order in [AGENTS.md](../../../AGENTS.md#the-sample-loop):
 known main regressions, explicit user scope, the existing capability continuation,
-then an actionable board outcome by priority and release dependencies. Read the
-whole item's acceptance and verify its remaining gap against current main.
-Record the parent task and the exact requirement the next sample will discharge.
-Do not attach a task ID to an unrelated sample after choosing it.
+then an actionable board outcome by priority and release dependencies. Compiler
+advancement then selects the witness only from `samples/cli/facts`. One fact
+is one folder. It is done only when that fact covers the nine places: local,
+field, parameter, call result, match join, const name, another state, another
+machine, and another target body. Do not expand those places into a
+combinatorial matrix. `samples/cli/facts/length/` is the filled row. The next
+witness fills one other fact across those nine places, or takes the next
+uncovered fact. Programs under the rest of `samples/` stay out of this
+selection and may stay broken while this layer is in progress.
 
-Use `python3 tools/sample_queue.py` as witness evidence, not a global
-smallest-first assignment policy. Prefer an existing relevant program; use a
-focused reproduction when the task already names one. Run
-`python3 tools/sample_native_gate.py --programs-only --find-work` when discovery
-is needed and no recent record exists. An absent or green queue does not close
-the task: write a witness for its next uncovered requirement. Several samples
-with one demonstrated root cause may belong to one repair. Explore a new
-language-frontier gap only under open-ended scope after existing actionable
-outcomes are exhausted.
+Read the whole item's acceptance and verify its remaining gap against current
+main. Record the parent task and the exact requirement the next fact will
+discharge. Do not attach a task ID to an unrelated program after choosing it.
 
-Size the work to finish in this session. When the sample is too large to
-trace, write a smaller sample that isolates its failing construct with its own
-oracle, make that run and land it, then return to the large one in this same
-session. Landing that smaller sample and stopping leaves the large one
-unfinished. A sample that
+Use `python3 tools/sample_queue.py --facts` as witness evidence inside
+`samples/cli/facts`, not a global smallest-first assignment policy and not the
+unfiltered program queue. Prefer an existing fact folder; use a focused
+reproduction when the task already names one. Run
+`python3 tools/sample_native_gate.py --programs-only --find-work --facts` when
+discovery is needed and no recent facts record exists. The same commands
+without `--facts` still discover ordinary programs and are not this selection.
+The facts queue lists projects the sample gate admits. Also read the
+directories under `samples/cli/facts`, including folders the gate classifies
+as libraries. An absent or green facts queue does not close the task and does
+not mean an unfilled or one-place fact is done: write the next missing place,
+or take the next uncovered fact. Several places with one demonstrated root
+cause may belong to one repair. Do not leave `samples/cli/facts` to fill
+compiler-advance capacity.
+
+Size the work to finish in this session. When the fact is too large to
+trace, write a smaller witness inside that fact folder that isolates its
+failing construct with its own oracle, make that run and land it, then return
+to the fact in this same session. Landing that smaller witness and stopping
+leaves the fact unfinished. A place that
 already passes establishes only its exercised requirement. Reconcile that
-evidence and continue the same capability's remaining acceptance; do not
+evidence and continue the same fact's remaining places; do not
 manufacture a failure or compiler edit. Do not carve a new sample out of a
-program that already meets its oracle. If the full acceptance already passes,
+fact that already meets its oracle. If the full acceptance already passes,
 close the stale item through normal board reconciliation and select the next
 outcome only when the user's scope permits it.
 
@@ -62,7 +76,7 @@ Prefer distinct capability outcomes with demonstrated acceptance; shared
 implementation paths do not exclude them. A named assignment, continuation or
 known regression keeps its priority even when another session claims it: read
 the note, reuse available repairs and reconcile at rebase. Do not invent unrelated
-samples to fill capacity when the current witnesses are already assigned.
+programs to fill capacity when the current fact witnesses are already assigned.
 
 Claim the parent item (`claim --board TASKS.md --item <ID> --owner "<label>"
 --path <paths>`) and record the current witness in its note. For explicitly

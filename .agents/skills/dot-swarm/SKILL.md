@@ -113,7 +113,13 @@ absent, report the missing runtime rather than pretending a shell is an agent.
    with `python3 tools/claims.py status`. These name outcome DRIs, not file fences. Read the [coordinator selection rules](../../../tools/swarm/README.md#coordinator-selection-rules).
 3. Follow [capability selection](../../../AGENTS.md#the-sample-loop). Choose a
    required compiler capability with an executable acceptance witness, or a
-   measured development-health outcome with a bounded target. Keep a continuation
+   measured development-health outcome with a bounded target. Compiler
+   advancement witnesses are fact folders under `samples/cli/facts`. One fact
+   is done only when it covers the nine places. `samples/cli/facts/length/` is
+   the filled row; the next witness fills another fact across those places or
+   takes the next uncovered fact. Do not assign a program from the rest of
+   `samples/`. Use `python3 tools/sample_queue.py --facts` for fact failures.
+   Keep a continuation
    on its outcome through acceptance. Verify stale board claims
    against the code and recorded evidence. Do not fill spare slots with invented
    mining, fuzzing, or unrelated cleanup.
