@@ -121,11 +121,12 @@ fn value_bounds(
 /// endpoints: saturating a mathematical expression would invent a proof.
 pub(super) fn bounds_fold(
     program: &dyn crate::CheckingInput,
+    owner: symbols::SymbolHandle,
     valuation: &[(symbols::SymbolHandle, Bounds)],
     declared: &[symbols::SymbolHandle],
     expression: ExpressionHandle,
 ) -> Truth {
-    let bounds = bounds_eval(program, valuation, declared, expression);
+    let bounds = bounds_eval(program, owner, valuation, declared, expression);
     match (bounds.interval.low, bounds.interval.high) {
         (Some(low), _) if low >= 1 => Truth::True,
         (_, Some(high)) if high <= 0 => Truth::False,
@@ -173,7 +174,13 @@ pub fn case_predicates_admit_zero(
         .all(|fact| {
             fact.as_expression().is_some_and(|expression| {
                 matches!(
-                    bounds_fold(program, &valuation, &declared, *expression),
+                    bounds_fold(
+                        program,
+                        definition.symbol,
+                        &valuation,
+                        &declared,
+                        *expression
+                    ),
                     Truth::True
                 )
             })
@@ -182,11 +189,19 @@ pub fn case_predicates_admit_zero(
 
 fn bounds_eval(
     program: &dyn crate::CheckingInput,
+    owner: symbols::SymbolHandle,
     valuation: &[(symbols::SymbolHandle, Bounds)],
     declared: &[symbols::SymbolHandle],
     expression: ExpressionHandle,
 ) -> Bounds {
     use typed_trees::expression::BinaryOperator;
+    // Embedding observes its operand's completed integer. The recursive fold
+    // retains every selected runtime policy below this proof-only boundary.
+    if let Some((_, argument)) =
+        crate::proof_contracts::proof_embeddings::integer_embedding_argument(program, expression)
+    {
+        return bounds_eval(program, owner, valuation, declared, argument);
+    }
     match program.expression_table.expression(expression) {
         ExpressionNode::Name(path) => {
             if !path.symbol.is_valid() {
@@ -237,21 +252,78 @@ fn bounds_eval(
             measure.map(Bounds::point).unwrap_or(Bounds::UNKNOWN)
         }
         ExpressionNode::Binary(binary) => {
-            let left = bounds_eval(program, valuation, declared, binary.left);
-            let right = bounds_eval(program, valuation, declared, binary.right);
+            let operand_type = |expression| {
+                crate::value_custody::expression_types::declaration_expression_result_type_reference(
+                    program,
+                    owner,
+                    &|expression| {
+                        crate::proof_contracts::proof_embeddings::expression_type_reference(
+                            program, expression,
+                        )
+                    },
+                    expression,
+                )
+            };
+            let references = [binary.left, binary.right].map(operand_type);
+            if let Some(spelling) =
+                crate::proof_contracts::parameter_expression_meaning::spelled_binary_operator(
+                    binary.operator,
+                )
+                && !typed_trees::operator::has_builtin_spelled_expression_meaning(
+                    program,
+                    owner,
+                    expression,
+                    spelling,
+                    &references,
+                )
+            {
+                return Bounds::UNKNOWN;
+            }
+            let left = bounds_eval(program, owner, valuation, declared, binary.left);
+            let right = bounds_eval(program, owner, valuation, declared, binary.right);
             match binary.operator {
-                BinaryOperator::Add => Bounds {
-                    interval: left.interval.add(right.interval),
-                    ..Bounds::UNKNOWN
-                },
-                BinaryOperator::Subtract => Bounds {
-                    interval: left.interval.subtract(right.interval),
-                    ..Bounds::UNKNOWN
-                },
-                BinaryOperator::Multiply => Bounds {
-                    interval: left.interval.multiply(right.interval),
-                    ..Bounds::UNKNOWN
-                },
+                BinaryOperator::Add | BinaryOperator::Subtract | BinaryOperator::Multiply => {
+                    let interval = if crate::proof_integer_expression(program, expression)
+                        || crate::anonymous_integer_math_literal(program, expression).is_some()
+                    {
+                        match binary.operator {
+                            BinaryOperator::Add => left.interval.add(right.interval),
+                            BinaryOperator::Subtract => left.interval.subtract(right.interval),
+                            _ => left.interval.multiply(right.interval),
+                        }
+                    } else {
+                        let Some(reference) = operand_type(expression) else {
+                            return Bounds::UNKNOWN;
+                        };
+                        let Some(primitive) = program.primitive_type_reference(reference) else {
+                            return Bounds::UNKNOWN;
+                        };
+                        let policy = program.arithmetic_domain_for_type_reference(reference);
+                        let Some(kind) =
+                            crate::checked_integer_binary_kind(binary.operator, policy)
+                        else {
+                            return Bounds::UNKNOWN;
+                        };
+                        let range = |bounds: Bounds| {
+                            Some(facts::IntegerRange {
+                                minimum: numerics::bignum::BigInt::from_i64(bounds.interval.low?),
+                                maximum: numerics::bignum::BigInt::from_i64(bounds.interval.high?),
+                            })
+                        };
+                        let Some((left, right)) = range(left).zip(range(right)) else {
+                            return Bounds::UNKNOWN;
+                        };
+                        let Some(result) = crate::proof_contracts::arithmetic_domains::selected_integer_binary_interval(kind, primitive, primitive, left, right) else { return Bounds::UNKNOWN; };
+                        crate::proof_contracts::arithmetic_domains::Interval {
+                            low: result.minimum.to_i64(),
+                            high: result.maximum.to_i64(),
+                        }
+                    };
+                    Bounds {
+                        interval,
+                        ..Bounds::UNKNOWN
+                    }
+                }
                 BinaryOperator::LessOrEqual => tri(compare(left, right, |a, b| a <= b)),
                 BinaryOperator::Less => tri(compare(left, right, |a, b| a < b)),
                 BinaryOperator::GreaterOrEqual => tri(compare(right, left, |a, b| a <= b)),
@@ -263,7 +335,9 @@ fn bounds_eval(
                 _ => Bounds::UNKNOWN,
             }
         }
-        ExpressionNode::Borrow(inner) => bounds_eval(program, valuation, declared, inner.target),
+        ExpressionNode::Borrow(inner) => {
+            bounds_eval(program, owner, valuation, declared, inner.target)
+        }
         _ => Bounds::UNKNOWN,
     }
 }
@@ -365,6 +439,7 @@ pub(super) fn validate_literal_default_domain(
         state,
         observations,
         literal,
+        data_definition.symbol,
         data_definition.where_facts,
         &declared,
         &format!("data `{}`", literal.type_name.as_str()),
@@ -425,6 +500,7 @@ pub(super) fn validate_literal_case_constraints(
         state,
         observations,
         literal,
+        data_definition.symbol,
         variant.where_facts,
         &declared,
         &format!("data `{}` case `{case_name}`", literal.type_name.as_str()),
@@ -496,6 +572,7 @@ fn fold_literal_facts(
     state: &State,
     observations: &ConstructionObservations<'_>,
     literal: &TableStructLiteral,
+    owner: symbols::SymbolHandle,
     facts: arena::HandleSpan<typed_trees::domain::ProofFact>,
     declared: &[symbols::SymbolHandle],
     subject: &str,
@@ -512,7 +589,7 @@ fn fold_literal_facts(
     for fact in program.proof_facts.span_or_empty(facts) {
         match fact {
             typed_trees::domain::ProofFact::Expression(expression) => {
-                match bounds_fold(program, &valuation, declared, *expression) {
+                match bounds_fold(program, owner, &valuation, declared, *expression) {
                     Truth::True => {}
                     Truth::False => diagnostics.push(Diagnostic::error(format!(
                         "{subject} literal violates {fact_label}: a `where` \

@@ -18,6 +18,7 @@ pub(crate) struct InvocationReferenceSubject {
     pub parameter: SymbolHandle,
     pub source: LocalWriteSource,
     pub type_reference: TypeReferenceHandle,
+    pub stable_on_return: bool,
     pub preserved_on_return: bool,
 }
 
@@ -124,7 +125,10 @@ impl<'program> CallFrameResolver<'program> {
                     parameter: parameter.symbol,
                     source: source.clone(),
                     type_reference,
-                    preserved_on_return: !parameter.is_mutable
+                    // Exclusive parameters lend referent storage, not a mutable
+                    // descriptor home. Their mutability bit records access.
+                    stable_on_return: !parameter.is_mutable || shell.access.is_exclusive(),
+                    preserved_on_return: (!parameter.is_mutable || shell.access.is_exclusive())
                         && !writes
                             .iter()
                             .any(|written| super::frame_paths_overlap(written, &source.path)),

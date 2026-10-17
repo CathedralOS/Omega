@@ -8,7 +8,7 @@ use symbols::{JoinedPath, SymbolHandle, SymbolKind, SymbolTable};
 
 use super::expressions::assign_membership_symbol;
 use super::lookup::diagnostic_path_source_span;
-use super::targets::resolve_free_machine_entry_state_symbol;
+use super::targets::resolve_free_call_target_symbol;
 
 pub(super) fn assign_domain_fact_symbols(program: &mut SymbolResolvedTrees, symbols: &SymbolTable) {
     let domain_symbols = program
@@ -198,6 +198,7 @@ pub(super) fn assign_domain_fact_symbols(program: &mut SymbolResolvedTrees, symb
                         child_type_references,
                         type_constraints,
                         local_type_parameters,
+                        &local_symbols,
                         &mut program.tables.bodies.expressions,
                         membership.value,
                     );
@@ -222,6 +223,7 @@ pub(super) fn assign_domain_fact_symbols(program: &mut SymbolResolvedTrees, symb
                         child_type_references,
                         type_constraints,
                         local_type_parameters,
+                        &local_symbols,
                         &mut program.tables.bodies.expressions,
                         *expression,
                     );
@@ -563,6 +565,7 @@ fn assign_proof_expression_symbols(
     child_type_references: &mut arena::Arena<symbol_resolved_trees::types::TypeReference>,
     type_constraints: &arena::Arena<symbol_resolved_trees::types::TypeConstraint>,
     local_type_parameters: Option<&[symbol_resolved_trees::data::TypeParameter]>,
+    local_symbols: &[(String, SymbolHandle)],
     expression_table: &mut symbol_resolved_trees::expression::ExpressionTable,
     expression: symbol_resolved_trees::expression::ExpressionHandle,
 ) {
@@ -575,6 +578,7 @@ fn assign_proof_expression_symbols(
                 child_type_references,
                 type_constraints,
                 local_type_parameters,
+                local_symbols,
                 expression_table,
                 dispatch.subject,
             );
@@ -587,6 +591,7 @@ fn assign_proof_expression_symbols(
                         child_type_references,
                         type_constraints,
                         local_type_parameters,
+                        local_symbols,
                         expression_table,
                         pattern,
                     );
@@ -597,6 +602,7 @@ fn assign_proof_expression_symbols(
                     child_type_references,
                     type_constraints,
                     local_type_parameters,
+                    local_symbols,
                     expression_table,
                     arm.value,
                 );
@@ -609,6 +615,7 @@ fn assign_proof_expression_symbols(
                 child_type_references,
                 type_constraints,
                 local_type_parameters,
+                local_symbols,
                 expression_table,
                 atomic.value,
             );
@@ -619,6 +626,7 @@ fn assign_proof_expression_symbols(
                     child_type_references,
                     type_constraints,
                     local_type_parameters,
+                    local_symbols,
                     expression_table,
                     atomic.result,
                 );
@@ -632,6 +640,7 @@ fn assign_proof_expression_symbols(
                     child_type_references,
                     type_constraints,
                     local_type_parameters,
+                    local_symbols,
                     expression_table,
                     value,
                 );
@@ -644,6 +653,7 @@ fn assign_proof_expression_symbols(
                 child_type_references,
                 type_constraints,
                 local_type_parameters,
+                local_symbols,
                 expression_table,
                 binary.left,
             );
@@ -653,6 +663,7 @@ fn assign_proof_expression_symbols(
                 child_type_references,
                 type_constraints,
                 local_type_parameters,
+                local_symbols,
                 expression_table,
                 binary.right,
             );
@@ -665,6 +676,7 @@ fn assign_proof_expression_symbols(
                     child_type_references,
                     type_constraints,
                     local_type_parameters,
+                    local_symbols,
                     expression_table,
                     call.receiver,
                 );
@@ -676,12 +688,28 @@ fn assign_proof_expression_symbols(
                     child_type_references,
                     type_constraints,
                     local_type_parameters,
+                    local_symbols,
                     expression_table,
                     argument,
                 );
             }
             if !call.receiver.is_valid() && !call.target_symbol.is_valid() {
-                let target_symbol = resolve_free_machine_entry_state_symbol(symbols, &call.target);
+                // Declaration predicates select the same callable identities
+                // as machine contracts: authored declarations shadow builtins,
+                // and ambiguity stays unresolved. A machine-only lookup loses
+                // mathematical definitions and compiler proof functions before
+                // their independent proof-term admission can judge the call.
+                // A lexical binder also shadows a callable even when the
+                // binder is not callable. Duplicate binders stay unresolved;
+                // they must not expose the outer builtin through ambiguity.
+                let mut lexical_matches = local_symbols
+                    .iter()
+                    .filter(|(name, _)| name == call.target.as_str());
+                let target_symbol = match (lexical_matches.next(), lexical_matches.next()) {
+                    (Some((_, symbol)), None) => *symbol,
+                    (Some(_), Some(_)) => SymbolHandle::invalid(),
+                    (None, _) => resolve_free_call_target_symbol(symbols, &call.target),
+                };
                 if let symbol_resolved_trees::expression::ExpressionNode::Call(call) =
                     expression_table.expression_mut(expression)
                 {
@@ -715,6 +743,7 @@ fn assign_proof_expression_symbols(
                 child_type_references,
                 type_constraints,
                 local_type_parameters,
+                local_symbols,
                 expression_table,
                 cast.value,
             );
@@ -726,6 +755,7 @@ fn assign_proof_expression_symbols(
                 child_type_references,
                 type_constraints,
                 local_type_parameters,
+                local_symbols,
                 expression_table,
                 indexed.collection,
             );
@@ -735,6 +765,7 @@ fn assign_proof_expression_symbols(
                 child_type_references,
                 type_constraints,
                 local_type_parameters,
+                local_symbols,
                 expression_table,
                 indexed.index,
             );
@@ -747,6 +778,7 @@ fn assign_proof_expression_symbols(
                     child_type_references,
                     type_constraints,
                     local_type_parameters,
+                    local_symbols,
                     expression_table,
                     range.start,
                 );
@@ -758,6 +790,7 @@ fn assign_proof_expression_symbols(
                     child_type_references,
                     type_constraints,
                     local_type_parameters,
+                    local_symbols,
                     expression_table,
                     range.end,
                 );
@@ -770,6 +803,7 @@ fn assign_proof_expression_symbols(
                 child_type_references,
                 type_constraints,
                 local_type_parameters,
+                local_symbols,
                 expression_table,
                 membership.value,
             );
@@ -802,6 +836,7 @@ fn assign_proof_expression_symbols(
                 child_type_references,
                 type_constraints,
                 local_type_parameters,
+                local_symbols,
                 expression_table,
                 member.receiver,
             );
@@ -813,6 +848,7 @@ fn assign_proof_expression_symbols(
                 child_type_references,
                 type_constraints,
                 local_type_parameters,
+                local_symbols,
                 expression_table,
                 inner.target,
             );
@@ -824,6 +860,7 @@ fn assign_proof_expression_symbols(
                 child_type_references,
                 type_constraints,
                 local_type_parameters,
+                local_symbols,
                 expression_table,
                 unary.operand,
             );
@@ -839,10 +876,16 @@ fn assign_proof_expression_symbols(
                     child_type_references,
                     type_constraints,
                     local_type_parameters,
+                    local_symbols,
                     expression_table,
                     field.value,
                 );
             }
+            super::expressions::assign_struct_literal_symbols(
+                symbols,
+                expression_table,
+                expression,
+            );
         }
         symbol_resolved_trees::expression::ExpressionNode::Name(path) => {
             // Local binders were assigned first. Remaining static type names

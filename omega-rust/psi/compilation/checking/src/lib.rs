@@ -76,14 +76,16 @@ pub use proof_contracts::arithmetic_domains::normal_return_float_predicates;
 pub use proof_contracts::arithmetic_domains::plain_exact_widening_cast;
 pub use proof_contracts::arithmetic_domains::{BigIntInterval, Interval, WideInterval};
 pub use proof_contracts::arithmetic_domains::{
-    SelectedScalarIntervalSource, carrier_integer_range, frozen_declared_integer_range,
-    integer_range_contains, selected_boolean_decision, selected_scalar_interval,
+    SelectedScalarIntervalSource, carrier_integer_range, checked_integer_binary_kind,
+    frozen_declared_integer_range, integer_range_contains, selected_boolean_decision,
+    selected_scalar_interval,
 };
 pub use proof_contracts::collection_predicates::{length_member, premises_prove_expression};
 pub use proof_contracts::contract_entailment::{
     CapturedScalarObservation, captured_collection_length, captured_integer_value,
     captured_scalar_observations, closed_collection_length, closed_collection_length_at_place,
-    closed_collection_length_under_matches, completed_value_refutes_domain, unique_literal_field,
+    closed_collection_length_under_matches, completed_value_proves_domain_predicate,
+    completed_value_refutes_domain, unique_literal_field,
 };
 pub use proof_contracts::contract_results::{
     ReservedResultPlace, reserved_result_owner, reserved_result_place,

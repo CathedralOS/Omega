@@ -1,0 +1,2 @@
+literal violates the default domain
+fact evaluates FALSE at this construction

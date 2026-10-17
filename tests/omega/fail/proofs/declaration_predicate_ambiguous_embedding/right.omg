@@ -1,0 +1,3 @@
+module right;
+
+pub let embed(value: u64): u64 = value;

@@ -1,0 +1,11 @@
+data Counter { value: u64; }
+domain Counter::One(value) requires value.value == 1;
+data Captured [copy] { value: u64; }
+domain Captured::One(value) requires value.value == 1;
+machine clear(value: &mut Counter) -> u64 { value.value = 0; 0 }
+machine invalid(value: &mut Counter) -> Captured in One
+requires value in Counter::One
+{
+    let changed: u64 = clear(value);
+    Captured { value: value.value }
+}

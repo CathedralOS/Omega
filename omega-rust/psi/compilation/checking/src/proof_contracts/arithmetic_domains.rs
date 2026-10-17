@@ -71,9 +71,11 @@ pub use bigint_interval::{
 };
 pub use interval::{Interval, WideInterval};
 pub use return_ranges::normal_return_integer_bounds;
+pub(crate) use selected_scalar_intervals::binary as selected_integer_binary_interval;
 pub use selected_scalar_intervals::{
-    SelectedScalarIntervalSource, carrier_integer_range, frozen_declared_integer_range,
-    integer_range_contains, selected_boolean_decision, selected_scalar_interval,
+    SelectedScalarIntervalSource, carrier_integer_range, checked_integer_binary_kind,
+    frozen_declared_integer_range, integer_range_contains, selected_boolean_decision,
+    selected_scalar_interval,
 };
 mod stored_integer_writes;
 pub(crate) use guard_narrowing::{

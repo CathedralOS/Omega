@@ -1,0 +1,25 @@
+// Explicit synthesized calls evaluate constructor fields as values, including
+// authored equality that intentionally disagrees with logical data identity.
+trait Equatable<T> { machine equals(left: &T, right: &T) -> bool; }
+data Packet [copy] { value: u64; }
+NeverEqual satisfies Equatable<Packet> {
+    machine equals(left: &Packet, right: &Packet) -> bool
+    ensures result == false { false }
+}
+data Holder [copy] { flag: bool; }
+HolderEquality satisfies Equatable<Holder> { }
+data Input [copy] { left: Packet; right: Packet; }
+domain Input::Correct(value) requires HolderEquality::equals(
+    &(Holder { flag: value.left == value.right }), &(Holder { flag: false }));
+machine main() crashes Trap {
+    let value: Input = Input {
+        left: Packet { value: 1 }, right: Packet { value: 1 }
+    };
+    transition HolderEquality::equals(
+        &(Holder { flag: value.left == value.right }), &(Holder { flag: false })) {
+        true -> done()
+        _ -> wrong()
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}

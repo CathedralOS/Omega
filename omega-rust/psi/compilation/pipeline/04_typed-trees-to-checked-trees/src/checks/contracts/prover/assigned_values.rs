@@ -272,6 +272,21 @@ pub(in crate::checks::contracts) fn byte_predicate_proven_at_place(
     subject: &CanonicalPlace,
     required: validation::field_domains::ByteSequencePredicate,
 ) -> bool {
+    // Exact literal contents and minted per-byte classes are two forms of
+    // live place evidence. Both are retired by the ordinary write owner.
+    if literal_at_place(
+        program,
+        semantic,
+        contexts
+            .iter()
+            .map(|context| semantic.contexts.get(*context)),
+        subject,
+    )
+    .and_then(|literal| typed_trees::byte_predicates::literal_bytes(program, literal))
+    .is_some_and(|bytes| required.holds_for(&bytes))
+    {
+        return true;
+    }
     contexts.iter().any(|context| {
         semantic
             .context_view(semantic.contexts.get(*context))

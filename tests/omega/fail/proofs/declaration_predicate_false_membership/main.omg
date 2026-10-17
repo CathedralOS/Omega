@@ -1,0 +1,5 @@
+data Bounded { amount: u64; }
+domain Bounded::Small(value) requires embed(value.amount) <= 100;
+machine main() {
+    let invalid: Bounded in Small = Bounded { amount: 101 };
+}

@@ -466,6 +466,85 @@ pub(crate) fn lower_ieee_float_field(
     IeeeFloatStructuralField::new(root, path).map_err(LoweringError::InvalidCrashPredicate)
 }
 
+/// Declaration and call contracts observe the same typed byte storage.
+pub(crate) fn lower_byte_predicate_term(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+    predicate: semantic_vocabulary::ByteSequencePredicate,
+    root: checked_trees::CheckedStorageRoot,
+    path: &[checked_trees::CheckedStructuralPredicatePathSegment],
+    parameters: &[StructuralParameterDeclaration],
+    structural_types: &[StructuralTypeDeclaration],
+) -> Result<ScalarTerm, LoweringError> {
+    let position = root.parameter().ok_or(LoweringError::Unsupported(
+        "closed byte predicate requires a structural formal",
+    ))?;
+    let parameter = parameters
+        .iter()
+        .find(|parameter| parameter.position == position)
+        .ok_or(LoweringError::Unsupported(
+            "byte predicate names a non-structural formal",
+        ))?;
+    let fixed_bytes = |identity| {
+        terminal_psi::find_structural_type(structural_types, identity).is_some_and(|row| {
+            matches!(
+                row.shape,
+                terminal_psi::StructuralTypeShape::FixedArray { .. }
+            ) && terminal_semantics::fixed_byte_extent(structural_types.iter(), identity).is_some()
+        })
+    };
+    let (root, path, carrier, inline_fixed) = if path.is_empty() {
+        let carrier =
+            terminal_psi::find_structural_type(structural_types, parameter.structural_type)
+                .and_then(|declaration| match declaration.shape {
+                    terminal_psi::StructuralTypeShape::ByteSequence(carrier) => Some(carrier),
+                    _ => None,
+                });
+        (
+            parameter.place,
+            Vec::new(),
+            carrier,
+            fixed_bytes(parameter.structural_type),
+        )
+    } else {
+        let (root, path, field) = crate::proofs::crash_routes::lower_structural_member_path(
+            identities,
+            position,
+            path,
+            parameters,
+            structural_types,
+        )?;
+        (
+            root,
+            path,
+            field.byte_sequence_carrier(),
+            field.as_structural().is_some_and(fixed_bytes),
+        )
+    };
+    let readable = inline_fixed
+        || match carrier {
+            Some(terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }) => true,
+            Some(
+                terminal_psi::ByteSequenceCarrier::BorrowedView { access }
+                | terminal_psi::ByteSequenceCarrier::BoundedView { access, .. },
+            ) => {
+                matches!(
+                    access.unwrap_or(parameter.access),
+                    terminal_psi::StructuralAccess::SharedBorrow
+                        | terminal_psi::StructuralAccess::MutableBorrow
+                )
+            }
+            _ => false,
+        };
+    if !readable || parameter.access == terminal_psi::StructuralAccess::WriteOnlyBorrow {
+        return unsupported("byte predicate formal is not a readable byte carrier");
+    }
+    Ok(ScalarTerm::ByteSequencePredicate {
+        predicate,
+        root,
+        path,
+    })
+}
+
 pub(crate) fn lower_byte_sequence_field(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     field: &checked_trees::CheckedStructuralParameterField,

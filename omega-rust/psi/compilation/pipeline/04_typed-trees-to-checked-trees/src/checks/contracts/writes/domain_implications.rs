@@ -259,7 +259,7 @@ pub(in crate::checks::contracts) fn value_proves_qualification_in_contexts(
     {
         return true;
     }
-    value_proves_domain_in_contexts(
+    if value_proves_domain_in_contexts(
         program,
         facts,
         state,
@@ -267,7 +267,25 @@ pub(in crate::checks::contracts) fn value_proves_qualification_in_contexts(
         value,
         domain,
         contexts,
-    )
+    ) {
+        return true;
+    }
+    // Only a missing qualification needs predicate reconstruction. Consume
+    // existing occurrence evidence first, without replaying the same prefix.
+    // The provenance fence above still precedes this truth judgment.
+    typed_trees::domain::has_symbol_only_proof(program, domain)
+        && super::member_domains::value_satisfies_domain_predicates_in_contexts(
+            program,
+            facts,
+            state,
+            statement_index,
+            value,
+            domain,
+            contexts,
+            &mut Vec::new(),
+            None,
+            None,
+        )
 }
 
 pub(super) fn value_proves_domain_in_contexts(

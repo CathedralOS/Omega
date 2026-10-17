@@ -36,6 +36,28 @@ fn term_dependencies<'a>(
         ScalarTerm::IeeeFloatField { root, path, format } => {
             (*root, path.clone(), ScalarType::IeeeFloat(*format))
         }
+        ScalarTerm::ByteSequencePredicate { root, path, .. } => {
+            if *root != subject {
+                return None;
+            }
+            let selected = crate::canonical_structural_path_tip(types.clone(), carrier, path)?;
+            if !crate::byte_predicate_carrier(types, selected.id) {
+                return None;
+            }
+            // Fixed bytes are inline storage. A view observes indirect backing:
+            // its descriptor field cannot establish disjointness from a write.
+            output.push(
+                if matches!(
+                    selected.shape,
+                    terminal_psi::StructuralTypeShape::FixedArray { .. }
+                ) {
+                    path.clone()
+                } else {
+                    Vec::new()
+                },
+            );
+            return Some(());
+        }
         ScalarTerm::StructuralRead {
             root,
             path,

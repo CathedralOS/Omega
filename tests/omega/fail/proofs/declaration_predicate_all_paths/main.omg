@@ -1,0 +1,9 @@
+data Bounded [copy] { amount: u64; }
+domain Bounded::Small(value) requires embed(value.amount) <= 100;
+machine choose(choice: bool) -> Bounded in Small {
+    transition choice {
+        true -> Bounded { amount: 73 }
+        _ -> Bounded { amount: 101 }
+    }
+}
+machine main() { let invalid: Bounded = choose(false); }

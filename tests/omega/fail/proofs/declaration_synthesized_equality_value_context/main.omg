@@ -1,0 +1,18 @@
+// A synthesized call still evaluates its arguments as values. Authored
+// equality returns false even when the two Packet values are identical.
+trait Equatable<T> { machine equals(left: &T, right: &T) -> bool; }
+data Packet [copy] { value: u64; }
+NeverEqual satisfies Equatable<Packet> {
+    machine equals(left: &Packet, right: &Packet) -> bool
+    ensures result == false { false }
+}
+data Holder [copy] { flag: bool; }
+HolderEquality satisfies Equatable<Holder> { }
+data Input [copy] { left: Packet; right: Packet; }
+domain Input::Incorrect(value) requires HolderEquality::equals(
+    &(Holder { flag: value.left == value.right }), &(Holder { flag: true }));
+machine main() {
+    let invalid: Input in Incorrect = Input {
+        left: Packet { value: 1 }, right: Packet { value: 1 }
+    };
+}

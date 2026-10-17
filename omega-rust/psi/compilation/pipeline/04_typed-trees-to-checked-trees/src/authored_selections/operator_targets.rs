@@ -359,40 +359,17 @@ pub(crate) fn checked_structural_equality_call(
         return false;
     }
 
-    let checked_targets = facts
-        .flow
-        .control
-        .states
-        .iter()
-        .flat_map(|(_, state)| {
-            facts
-                .flow
-                .control
-                .calls
-                .span_or_empty(state.calls)
-                .iter()
-                .map(move |checked_call| (state, checked_call))
-        })
-        .filter_map(|(state, checked_call)| {
-            match validation::find_call_site(
-                program,
-                state.machine_symbol,
-                state.state_symbol,
-                checked_call.statement_index,
-                checked_call.call_ordinal,
-            ) {
-                Some(validation::CallSite::Expression {
-                    expression: candidate,
-                    ..
-                }) if candidate == expression => Some(checked_call.target_symbol),
-                _ => None,
-            }
-        })
-        .collect::<Vec<_>>();
-    !checked_targets.is_empty()
-        && checked_targets
-            .iter()
-            .all(|target| *target == call.target_symbol)
+    // Ordinary checking has already admitted the call, including proof-term
+    // formation when it belongs to a contract. Finalize through the common
+    // call-selection owner: requiring a runtime flow row here incorrectly
+    // excludes proof-static calls with the same exact selected declaration.
+    super::call_targets::checked_call_target(
+        program,
+        facts,
+        expression,
+        call.target_symbol,
+        program.expression_table.source_span(expression),
+    ) == call.target_symbol
 }
 
 /// Declaration contracts and other proof-static expressions are validated

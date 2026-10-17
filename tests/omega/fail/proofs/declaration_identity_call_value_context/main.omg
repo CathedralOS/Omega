@@ -1,0 +1,4 @@
+data Choice [copy] { case Cell(counter: u32); case Empty; }
+data Holder [copy] { choice: Choice; }
+machine accepts(value: bool) -> bool { value }
+domain Holder::Zero(value) requires accepts(value.choice == (Choice::Cell {}));

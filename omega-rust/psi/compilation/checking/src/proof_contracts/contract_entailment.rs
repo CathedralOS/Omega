@@ -80,7 +80,9 @@ mod call_requirements;
 mod citations;
 mod completed_domains;
 mod completed_values;
-pub use completed_domains::completed_value_refutes_domain;
+pub use completed_domains::{
+    completed_value_proves_domain_predicate, completed_value_refutes_domain,
+};
 mod const_ranges;
 mod content_conservation;
 mod contract_refinement;

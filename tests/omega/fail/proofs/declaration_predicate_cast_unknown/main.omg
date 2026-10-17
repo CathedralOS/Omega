@@ -1,0 +1,6 @@
+data Narrow [copy] { value: u8; }
+domain Narrow::Seven(value) requires value.value == 7;
+machine make(value: u64 [0..=255]) -> Narrow in Seven {
+    Narrow { value: value as u8 }
+}
+machine main() {}

@@ -36,12 +36,12 @@ pub(super) struct ExpressionTableLowerer<'program, 'target, 'scope> {
     pub(super) target_trees: &'target mut typed::TypedTrees,
     symbol_substitution: Option<(symbols::SymbolHandle, typed::expression::ExpressionHandle)>,
     pub(super) equality_scope: Option<&'scope EqualityScope>,
-    /// PROOF-FACT position (contract/domain facts): equality over RECURSIVE
-    /// (proof-only) data stays a raw Binary for the structural entailment
-    /// judge instead of demanding runtime synthesis (math roster N3).
+    /// Fact equality over data retains logical identity instead of selecting
+    /// executable equality. Value children leave this context explicitly.
     pub(super) fact_position: bool,
     lowered_expressions: Vec<(
         resolved::expression::ExpressionHandle,
+        bool,
         typed::expression::ExpressionHandle,
     )>,
 }
@@ -135,10 +135,12 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
         &mut self,
         expression: resolved::expression::ExpressionHandle,
     ) -> Result<typed::expression::ExpressionHandle, Diagnostic> {
-        if let Some((_, lowered)) = self
-            .lowered_expressions
-            .iter()
-            .find(|(source, _)| *source == expression)
+        if let Some((_, _, lowered)) =
+            self.lowered_expressions
+                .iter()
+                .find(|(source, fact_position, _)| {
+                    *source == expression && *fact_position == self.fact_position
+                })
         {
             return Ok(*lowered);
         }
@@ -160,8 +162,21 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
         self.target().set_source_span(lowered, source_span);
         self.target()
             .attach_authored_selection_occurrences(lowered, authored_selection_occurrences);
-        self.lowered_expressions.push((expression, lowered));
+        self.lowered_expressions
+            .push((expression, self.fact_position, lowered));
         Ok(lowered)
+    }
+
+    /// Value operands never inherit their containing declaration's Prop context.
+    fn lower_value(
+        &mut self,
+        expression: resolved::expression::ExpressionHandle,
+    ) -> Result<typed::expression::ExpressionHandle, Diagnostic> {
+        let fact_position = self.fact_position;
+        self.fact_position = false;
+        let lowered = self.lower(expression);
+        self.fact_position = fact_position;
+        lowered
     }
 
     fn lower_node(
@@ -189,8 +204,23 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
         {
             return Ok(lowered);
         }
-        let left = self.lower(binary.left)?;
-        let right = self.lower(binary.right)?;
+        let logical_children = matches!(
+            binary.operator,
+            resolved::expression::BinaryOperator::And
+                | resolved::expression::BinaryOperator::Or
+                | resolved::expression::BinaryOperator::Equal
+                | resolved::expression::BinaryOperator::NotEqual
+        );
+        let left = if logical_children {
+            self.lower(binary.left)?
+        } else {
+            self.lower_value(binary.left)?
+        };
+        let right = if logical_children {
+            self.lower(binary.right)?
+        } else {
+            self.lower_value(binary.right)?
+        };
         Ok(self
             .target()
             .insert(typed::expression::ExpressionNode::Binary(
@@ -209,12 +239,12 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
     ) -> Result<typed::expression::ExpressionHandle, Diagnostic> {
         match node {
             resolved::expression::ExpressionNode::Match(dispatch) => {
-                let subject = self.lower(dispatch.subject)?;
+                let subject = self.lower_value(dispatch.subject)?;
                 let mut arms = Vec::new();
                 for arm in self.source.match_arms(dispatch.arms) {
                     let pattern = match arm.pattern {
                         resolved::expression::MatchPattern::Value(pattern) => {
-                            typed::expression::MatchPattern::Value(self.lower(pattern)?)
+                            typed::expression::MatchPattern::Value(self.lower_value(pattern)?)
                         }
                         resolved::expression::MatchPattern::Wildcard => {
                             typed::expression::MatchPattern::Wildcard
@@ -249,9 +279,9 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                         "atomic expression result custody does not match its operation axis",
                     ));
                 }
-                let value = self.lower(atomic.value)?;
+                let value = self.lower_value(atomic.value)?;
                 let result = if atomic.result.is_valid() {
-                    self.lower(atomic.result)?
+                    self.lower_value(atomic.result)?
                 } else {
                     typed::expression::ExpressionHandle::invalid()
                 };
@@ -273,7 +303,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                 .target()
                 .insert(typed::expression::ExpressionNode::Boolean(*value))),
             resolved::expression::ExpressionNode::Cast(cast) => {
-                let value = self.lower(cast.value)?;
+                let value = self.lower_value(cast.value)?;
                 let program = self.program.ok_or_else(|| {
                     Diagnostic::error(
                         "cast target type lowering requires the enclosing resolved program",
@@ -370,9 +400,14 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                         "a proposition application is proof-only and cannot appear in a runtime value expression"
                     }));
                 }
-                if let Some(lowered) =
-                    self.try_lower_synthesized_equatable_call(expression, call)?
-                {
+                // Explicit calls retain executable argument meaning even when
+                // their Boolean result forms a fact. The synthesized row
+                // expands its operands here, before ordinary call lowering.
+                let fact_position = self.fact_position;
+                self.fact_position = false;
+                let synthesized = self.try_lower_synthesized_equatable_call(expression, call);
+                self.fact_position = fact_position;
+                if let Some(lowered) = synthesized? {
                     return Ok(lowered);
                 }
                 let quotient_operation = self.lower_quotient_operation_request(call)?;
@@ -508,8 +543,8 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                     .insert(typed::expression::ExpressionNode::Float(value.clone())))
             }
             resolved::expression::ExpressionNode::Indexed(indexed) => {
-                let collection = self.lower(indexed.collection)?;
-                let index = self.lower(indexed.index)?;
+                let collection = self.lower_value(indexed.collection)?;
+                let index = self.lower_value(indexed.index)?;
                 Ok(self
                     .target()
                     .insert(typed::expression::ExpressionNode::Indexed(
@@ -539,7 +574,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                     self.retain_builtin_type_reference(symbols::BuiltinTypeAtom::U64)?;
                 }
                 let (member_symbol, case_variant) = self.declared_member(member);
-                let receiver = self.lower(member.receiver)?;
+                let receiver = self.lower_value(member.receiver)?;
                 Ok(self
                     .target()
                     .insert(typed::expression::ExpressionNode::Member(
@@ -552,7 +587,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                     )))
             }
             resolved::expression::ExpressionNode::Borrow(expression) => {
-                let target = self.lower(expression.target)?;
+                let target = self.lower_value(expression.target)?;
                 Ok(self
                     .target()
                     .insert(typed::expression::ExpressionNode::Borrow(
@@ -632,7 +667,11 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                 .target()
                 .insert(typed::expression::ExpressionNode::String(value.clone()))),
             resolved::expression::ExpressionNode::Unary(unary) => {
-                let operand = self.lower(unary.operand)?;
+                let operand = if unary.operator == resolved::expression::UnaryOperator::LogicalNot {
+                    self.lower(unary.operand)?
+                } else {
+                    self.lower_value(unary.operand)?
+                };
                 Ok(self
                     .target()
                     .insert(typed::expression::ExpressionNode::Unary(
@@ -1050,7 +1089,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
             return Ok(typed::expression::ExpressionHandle::invalid());
         }
 
-        self.lower(expression)
+        self.lower_value(expression)
     }
 
     fn lower_expression_handle_span(
@@ -1062,7 +1101,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
             .expression_handles(expressions)
             .iter()
             .copied()
-            .map(|expression| self.lower(expression))
+            .map(|expression| self.lower_value(expression))
             .collect::<Result<Vec<_>, _>>()?;
 
         Ok(self.target().insert_expression_handles(lowered))
@@ -1077,7 +1116,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
             .struct_fields(fields)
             .iter()
             .map(|field| {
-                let value = self.lower(field.value)?;
+                let value = self.lower_value(field.value)?;
                 Ok(typed::expression::TableStructLiteralField {
                     name: lower_name(&field.name),
                     field_symbol: field.field_symbol,
@@ -1204,7 +1243,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
             ));
         };
         if membership.domain_symbol.is_valid() {
-            let value = self.lower(membership.value)?;
+            let value = self.lower_value(membership.value)?;
             return lower_domain_membership_expression(
                 program,
                 self.target_trees,
@@ -1216,7 +1255,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
         // The retained membership selections distinguish this tag predicate
         // from value equality. Validation independently rejoins its exact
         // subject, carrier and case, including borrowed and computed subjects.
-        let value = self.lower(membership.value)?;
+        let value = self.lower_value(membership.value)?;
         if let Some(lowered) = lower_case_membership_expression(
             program,
             self.source,

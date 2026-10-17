@@ -675,6 +675,8 @@ pass/ownership/runtime_whole_borrowed_transform_exit built 1665ms exit:42 interp
 pass/ownership/runtime_whole_borrowed_window_crash_exit built 1874ms exit:signal signal:5 interpreter:trapped @7d761e0fef5f
 pass/proofs/borrowed_descriptor_bound_local_result_exit built 3521ms exit:0 interpreter-exit:0 interpreter:agrees @b3d0b7396229+wt
 pass/proofs/captured_scalar_field_observations built 11598ms exit:0 interpreter-exit:0 interpreter:agrees @f22c0e54a812
+pass/proofs/declaration_predicate_calls_exit built 4308ms exit:0 interpreter-exit:0 interpreter:agrees @4ef5069e9f3b+wt
+pass/proofs/declaration_synthesized_equality_value_context built 3616ms exit:0 interpreter-exit:0 interpreter:agrees @4ef5069e9f3b+wt
 pass/proofs/kernel_integer_subtract_order built 3453ms exit:0 interpreter-exit:0 interpreter:agrees @1a353f2e117b+wt
 pass/proofs/mathematical_predicate_contract_import_exit built 3407ms exit:0 interpreter-exit:0 interpreter:agrees @4a6e7ac34b03
 pass/proofs/nested_loop_digit_bytes_keep_utf8_exit built 2843ms exit:70 interpreter-exit:70 interpreter:agrees @cba4ef8c9ab1

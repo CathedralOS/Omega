@@ -1,0 +1,3 @@
+cannot prove requires contract for specification call `guarded`
+in data `InvalidCase` case `Cell` predicate
+in data `SiblingCases` case `Unestablished` predicate

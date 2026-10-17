@@ -1,0 +1,2 @@
+cannot prove initializer of `invalid`
+domain `Bounded::Small`

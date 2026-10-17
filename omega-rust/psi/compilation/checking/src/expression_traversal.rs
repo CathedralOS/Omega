@@ -128,6 +128,60 @@ pub fn expression_has_inert_prefix(
     complete && prefix.found && prefix.stable
 }
 
+/// Completed sibling subtrees before one operation's operand evaluation.
+/// The enclosing operation and later siblings have not executed. Alternatives
+/// are conservatively unioned, so an effect in an earlier alternative can
+/// prevent preservation but cannot manufacture it. Repeated endpoint handles
+/// decline: a static handle cannot select between different occurrences.
+pub(crate) fn expressions_before_occurrence(
+    program: &dyn crate::CheckingInput,
+    roots: &[ExpressionHandle],
+    endpoint: ExpressionHandle,
+) -> Option<Vec<ExpressionHandle>> {
+    fn visit(
+        program: &dyn crate::CheckingInput,
+        expression: ExpressionHandle,
+        endpoint: ExpressionHandle,
+        depth: usize,
+        occurrences: &mut usize,
+        prefix: &mut Vec<ExpressionHandle>,
+    ) -> Option<()> {
+        if !expression.is_valid() {
+            return Some(());
+        }
+        if depth >= 64 {
+            return None;
+        }
+        if expression == endpoint {
+            *occurrences += 1;
+            return Some(());
+        }
+        let start = prefix.len();
+        let mut completed = Some(());
+        executable_children(
+            program,
+            program.expression_table.expression(expression),
+            |child| {
+                if visit(program, child, endpoint, depth + 1, occurrences, prefix).is_none() {
+                    completed = None;
+                }
+            },
+        );
+        completed?;
+        if *occurrences == 0 {
+            prefix.truncate(start);
+            prefix.push(expression);
+        }
+        Some(())
+    }
+    let mut occurrences = 0;
+    let mut prefix = Vec::new();
+    for root in roots {
+        visit(program, *root, endpoint, 0, &mut occurrences, &mut prefix)?;
+    }
+    (occurrences == 1).then_some(prefix)
+}
+
 pub fn children(
     program: &dyn crate::CheckingInput,
     node: &ExpressionNode,

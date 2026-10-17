@@ -298,6 +298,21 @@ pub(super) fn instantiated_selected_fact_judgment(
     )],
     caller_scope: Option<(&Machine, &typed_trees::state::State)>,
 ) -> StructuralJudgment {
+    if program
+        .expression_table
+        .call_node(fact)
+        .is_some_and(|call| {
+            crate::mathematical_applications::selected_definition(program, call).is_some()
+        })
+    {
+        return judge.instantiated_mathematical_predicate(
+            callee_owner,
+            callee_parameters,
+            fact,
+            map,
+            machine_map,
+        );
+    }
     if super::structural_terms::is_case_observation(program, fact) {
         return judge.instantiated_selected_case_judgment(
             callee_owner,
@@ -307,9 +322,6 @@ pub(super) fn instantiated_selected_fact_judgment(
             machine_map,
         );
     }
-    let Some(binary) = program.expression_table.binary_node(fact) else {
-        return StructuralJudgment::Unknown;
-    };
     // A preserved runtime prefix can recognize the very same selected
     // Boolean predicate after captured-actual substitution. This is truth
     // transport, not an interval law or an equality on floating values.
@@ -317,10 +329,7 @@ pub(super) fn instantiated_selected_fact_judgment(
     // fixed-width bound syntax would discard mathematical Int predicates over
     // those same captured actuals.
     if judge.has_runtime_body_values()
-        && let Some(
-            term
-            @ (StructuralTerm::ScalarBinary { .. } | StructuralTerm::MathematicalBinary { .. }),
-        ) = super::structural_terms::structural_term(
+        && let Some(term) = super::structural_terms::structural_term(
             program,
             None,
             Some((callee_owner, callee_parameters)),
@@ -335,6 +344,9 @@ pub(super) fn instantiated_selected_fact_judgment(
             StructuralJudgment::Unknown => {}
         }
     }
+    let Some(binary) = program.expression_table.binary_node(fact) else {
+        return StructuralJudgment::Unknown;
+    };
     match binary.operator {
         BinaryOperator::And | BinaryOperator::Or => {
             // Conjunction has no authored operator selection. Each leaf

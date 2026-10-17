@@ -59,6 +59,7 @@ pub fn current_payload_contract(
     let mut failure = "descriptor machine is absent";
     let result = (|| {
         let machine = descriptor_machine(graph, identity)?;
+        let relevant = query_predecessors(&machine.flow, position)?;
         let mut initial = State::default();
         if let Some((_, requirements)) = &machine.payload_entry_predicates {
             initial.scalar_requirements = super::scalar_contracts::scalar_conjuncts(requirements);
@@ -78,6 +79,9 @@ pub fn current_payload_contract(
         while let Some(current) = pending.pop_front() {
             failure = "payload history worklist exceeded its finite budget";
             remaining = remaining.checked_sub(1)?;
+            if !relevant.contains(&current) {
+                continue;
+            }
             failure = "payload history flow position is absent";
             let mut before = snapshots.get(&current)?.clone();
             if let Some(definitions) = machine.payload_scalar_definitions.get(&current) {
@@ -288,6 +292,9 @@ pub fn current_payload_contract(
                 super::payload_predicates::close(types, domains, contract);
             }
             for (ordinal, edge) in step.successors.iter().enumerate() {
+                if !relevant.contains(&edge.target) {
+                    continue;
+                }
                 let mut arrival = after.clone();
                 if let Some(Some(predicate)) = machine
                     .payload_edge_predicates
@@ -471,6 +478,88 @@ pub fn current_payload_contract(
         Some(current)
     })();
     result.ok_or(failure)
+}
+
+/// A pre-operation query depends only on arrivals that can reach its position.
+/// Include the complete reverse closure, not a lexical prefix: later operations
+/// on a loop backedge still invalidate facts at the next arrival. Other exits
+/// cannot change this observation and need no payload fixed point here.
+fn query_predecessors(
+    flow: &BTreeMap<DescriptorPosition, DescriptorFlowStep>,
+    position: DescriptorPosition,
+) -> Option<BTreeSet<DescriptorPosition>> {
+    let positions: Vec<_> = flow.keys().copied().collect();
+    let mut incoming = vec![Vec::new(); positions.len()];
+    for (index, step) in flow.values().enumerate() {
+        for edge in &step.successors {
+            let destination = positions.binary_search(&edge.target).ok()?;
+            incoming[destination].push(index);
+        }
+    }
+    let destination = positions.binary_search(&position).ok()?;
+    let mut seen = vec![false; positions.len()];
+    let mut pending = vec![destination];
+    seen[destination] = true;
+    while let Some(current) = pending.pop() {
+        for &predecessor in &incoming[current] {
+            if !seen[predecessor] {
+                seen[predecessor] = true;
+                pending.push(predecessor);
+            }
+        }
+    }
+    Some(
+        positions
+            .into_iter()
+            .zip(seen)
+            .filter_map(|(position, relevant)| relevant.then_some(position))
+            .collect(),
+    )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::descriptor_lifetimes::DescriptorFlowEdge;
+    use semantic_vocabulary::BlockId;
+
+    #[test]
+    fn query_predecessors_exclude_later_exits_but_retain_loop_backedges() {
+        let position = |index| (BlockId::new(1).unwrap(), index);
+        let step = |targets: &[u32]| DescriptorFlowStep {
+            successors: targets
+                .iter()
+                .map(|target| DescriptorFlowEdge {
+                    target: position(*target),
+                    parameters: Vec::new(),
+                    bindings: Vec::new(),
+                })
+                .collect(),
+            ..Default::default()
+        };
+        let mut flow = BTreeMap::from([
+            (position(0), step(&[1])),
+            (position(1), step(&[2])),
+            (position(2), step(&[3, 4])),
+            (position(3), step(&[])),
+            (position(4), step(&[])),
+        ]);
+        assert_eq!(
+            query_predecessors(&flow, position(1)),
+            Some(BTreeSet::from([position(0), position(1)]))
+        );
+        flow.insert(position(3), step(&[1]));
+        assert_eq!(
+            query_predecessors(&flow, position(1)),
+            Some(BTreeSet::from([
+                position(0),
+                position(1),
+                position(2),
+                position(3)
+            ]))
+        );
+        assert!(query_predecessors(&flow, position(5)).is_none());
+    }
 }
 
 fn retire(

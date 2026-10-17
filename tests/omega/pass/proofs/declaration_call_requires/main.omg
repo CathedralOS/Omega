@@ -1,0 +1,10 @@
+trait Equatable<T> { machine equals(left: &T, right: &T) -> bool; }
+data Holder { flag: bool; }
+HolderEquality satisfies Equatable<Holder> { }
+data Input { count: u64; }
+machine guarded(value: u64) -> bool requires value != 0 { true }
+domain Input::Valid(value)
+requires value.count != 0, HolderEquality::equals(
+    &(Holder { flag: guarded(value.count) }), &(Holder { flag: true }));
+data ValidData where count != 0, guarded(count) { count: u64; }
+data ValidCase { case Cell(count: u64) where count != 0, guarded(count); }

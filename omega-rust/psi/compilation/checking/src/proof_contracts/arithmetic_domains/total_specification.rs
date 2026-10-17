@@ -3,7 +3,7 @@
 //! Runtime overflow analysis remains in the parent. This module owns the
 //! separate rule that every arithmetic term admitted into a proposition has a
 //! total denotation, for both concrete and abstract contract owners.
-//! Machine/state contracts also discharge selected call requirements here,
+//! Concrete and abstract contracts discharge selected call requirements here,
 //! through `contract_entailment::specification_calls`, before any fact enters
 //! the shared prior-fact context. A second pass after intake would permit a
 //! partial call to establish the condition needed to form itself.
@@ -845,8 +845,35 @@ pub(crate) fn validate_abstract_total_specification_arithmetic(
         seen: &mut Vec<ExpressionHandle>,
         diagnostics: &mut Vec<Diagnostic>,
     ) {
+        // The declaration's binders are real operands, not a fabricated
+        // machine frame. Reuse their exact symbols for call substitution.
+        let mut parameters = bindings.parameters.to_vec();
+        if let Some(domain) = bindings.domain {
+            parameters.push(typed_trees::signature::StateParameter {
+                symbol: domain.subject_symbol,
+                name: domain.subject_name.clone(),
+                type_reference: domain.target_type,
+                ..Default::default()
+            });
+        }
+        if let Some(data) = bindings.data {
+            parameters.extend(program.data_members(data).iter().filter_map(|member| {
+                let typed_trees::data::DataMember::Field(field) = member else {
+                    return None;
+                };
+                Some(typed_trees::signature::StateParameter {
+                    symbol: field.symbol,
+                    name: field.name.clone(),
+                    type_reference: field.type_reference,
+                    ..Default::default()
+                })
+            }));
+        }
         for fact in facts {
             let diagnostics_before = diagnostics.len();
+            crate::proof_contracts::contract_entailment::specification_calls::validate_declaration_call_requirements(
+                program, bindings.owner_symbol, &parameters, fact, prior_facts, owner, diagnostics,
+            );
             crate::proof_contracts::contract_entailment::validate_proof_fact_integer_casts(
                 program,
                 fact,
@@ -966,9 +993,6 @@ pub(crate) fn validate_abstract_total_specification_arithmetic(
     for definition in program.mathematical_definitions() {
         let parameters = crate::mathematical_applications::ordinary_parameters(program, definition);
         for expression in crate::mathematical_applications::definition_roots(program, definition) {
-            crate::proof_contracts::contract_entailment::specification_calls::validate_mathematical_call_requirements(
-                program, definition, expression, diagnostics,
-            );
             validate_facts(
                 program,
                 &[ProofFact::Expression(expression)],
@@ -1068,6 +1092,39 @@ pub(crate) fn validate_abstract_total_specification_arithmetic(
             &mut seen,
             diagnostics,
         );
+        for member in program.data_members(data) {
+            let typed_trees::data::DataMember::Variant(variant) = member else {
+                continue;
+            };
+            let payload = program
+                .data_payload_fields(variant)
+                .iter()
+                .map(|field| typed_trees::signature::StateParameter {
+                    symbol: field.symbol,
+                    name: field.name.clone(),
+                    type_reference: field.type_reference,
+                    ..Default::default()
+                })
+                .collect::<Vec<_>>();
+            // Common predicates precede every case; one case's payload and
+            // facts must never become another case's formation premises.
+            validate_facts(
+                program,
+                program.proof_facts.span_or_empty(variant.where_facts),
+                &format!("data `{}` case `{}` predicate", data.name, variant.name),
+                AbstractSpecificationBindings {
+                    owner_symbol: variant.symbol,
+                    parameters: &payload,
+                    data: Some(data),
+                    ..Default::default()
+                },
+                true,
+                &mut environment.clone(),
+                &mut prior_facts.clone(),
+                &mut seen,
+                diagnostics,
+            );
+        }
     }
 
     fn validate_state_signature(

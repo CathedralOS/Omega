@@ -1,0 +1,106 @@
+// Expected exit: 0. Domain and data predicates select the same compiler proof
+// functions as machine contracts; qualification carries no runtime payload.
+use helpers;
+let small(value: u64): core::Strict<0> = embed(value) <= 100;
+data Bounded [copy] { amount: u64; }
+domain Bounded::Small(value) requires embed(value.amount) <= 100;
+domain Bounded::NamedSmall(value) requires small(value.amount);
+
+data Nested [copy] { payload: Bounded; }
+domain Nested::Small(value) requires helpers::within_hundred(value.payload.amount);
+data Envelope<T [copy]> [copy] { payload: T; }
+data Narrow [copy] { envelope: Envelope<u8>; }
+domain Narrow::Small(value) requires helpers::small_byte(value.envelope.payload);
+data Wide [copy] { envelope: Envelope<u64>; }
+domain Wide::Small(value) requires helpers::within_hundred(value.envelope.payload);
+
+data Ordered [copy] where embed(lower) <= embed(upper) {
+    lower: u64;
+    upper: u64;
+}
+
+machine read(value: &Bounded in Small) -> u64 { value.amount }
+data Wrapped [copy] where embed(left + right) == 0 {
+    left: u8 in Wrapping;
+    right: u8 in Wrapping;
+}
+data Saturated [copy] where embed(left + right) == 255 {
+    left: u8 in Saturating;
+    right: u8 in Saturating;
+}
+data Mixed [copy] { child: Bounded; tag: u8; }
+data SignedWrapped [copy] where embed(left - right) == 127 {
+    left: i8 in Wrapping;
+    right: i8 in Wrapping;
+}
+data Text [copy] { bytes: [u8; 3]; tag: u8; }
+domain Text::Ready(value) requires ascii_only(value.bytes) && value.tag == 1;
+domain Mixed::Valid(value)
+requires value.child in Bounded::Small, value.tag == 1;
+domain<T> T::Accepted(value) requires value == value;
+data Counter { value: u64; }
+data CounterResult [copy] { value: u64; }
+domain CounterResult::One(value) requires value.value == 1;
+machine initialize_counter(value: &mut Counter) -> u64 ensures value.value == 1 {
+    value.value = 1;
+    0
+}
+machine read_counter(value: &Counter) -> u64
+requires value.value == 1
+ensures result == 1
+{ value.value }
+machine counter_result() -> CounterResult in One {
+    let value: Counter = Counter { value: 0 };
+    let changed: u64 = initialize_counter(&mut value);
+    CounterResult { value: read_counter(&value) }
+}
+machine make(value: u64) -> Bounded in Small & NamedSmall
+requires value <= 100
+{ Bounded { amount: value } }
+machine changed_bytes_are_ascii() -> bool {
+    let text: Text = Text { bytes: "go!", tag: 1 };
+    transition { _ -> observe(&mut text, 0) }
+    state observe(text: &mut Text, phase: u8) {
+        let ascii: bool = ascii_only(text.bytes);
+        transition phase == 0 {
+            true -> overwrite(text, ascii)
+            _ -> ascii
+        }
+    }
+    state overwrite(text: &mut Text, before: bool) {
+        text.bytes = [103, 255, 33];
+        transition before {
+            true -> observe(text, 1)
+            _ -> true
+        }
+    }
+}
+machine main() crashes Trap {
+    let changed_ascii: bool = changed_bytes_are_ascii();
+    let bounded: Bounded in Small & NamedSmall = Bounded { amount: 73 };
+    let counter: CounterResult = counter_result();
+    let ordered: Ordered = Ordered { lower: 17, upper: 29 };
+    let observed: u64 = read(&bounded);
+    let made: Bounded = make(43);
+    let wrapped: Wrapped = Wrapped { left: 255, right: 1 };
+    let saturated: Saturated = Saturated { left: 255, right: 1 };
+    let signed: SignedWrapped = SignedWrapped { left: -128, right: 1 };
+    let mixed: Mixed in Valid = Mixed { child: bounded, tag: 1 };
+    let text: Text = Text { bytes: "go!", tag: 1 };
+    let ready: Text in Ready = text;
+    let generic_byte: Envelope<u8> in Accepted = Envelope { payload: 19u8 };
+    let generic_wide: Envelope<u64> in Accepted = Envelope { payload: 21u64 };
+    let nested: Nested in Small = Nested { payload: bounded };
+    let narrow: Narrow in Small = Narrow { envelope: Envelope { payload: 11u8 } };
+    let wide: Wide in Small = Wide { envelope: Envelope { payload: 13u64 } };
+    transition changed_ascii == false && counter.value == 1 && observed == 73 && made.amount == 43 && ordered.lower == 17 && ordered.upper == 29 &&
+               wrapped.left + wrapped.right == 0 && saturated.left + saturated.right == 255 &&
+               signed.left - signed.right == 127 &&
+               mixed.tag == 1 && ready.tag == 1 && generic_byte.payload == 19u8 && generic_wide.payload == 21u64 &&
+               nested.payload.amount == 73 && narrow.envelope.payload == 11u8 && wide.envelope.payload == 13u64 {
+        true -> done()
+        _ -> wrong()
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}

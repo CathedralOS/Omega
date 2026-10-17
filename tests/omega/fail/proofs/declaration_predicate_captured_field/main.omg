@@ -1,0 +1,11 @@
+data Counter { value: u64; }
+data Pair [copy] { first: u64; second: u64; }
+domain Pair::Small(value) requires embed(value.first) <= 100;
+machine replace(counter: &mut Counter) -> u64 {
+    counter.value = 1;
+    0
+}
+machine main() {
+    let counter: Counter = Counter { value: 101 };
+    let invalid: Pair in Small = Pair { first: counter.value, second: replace(&mut counter) };
+}

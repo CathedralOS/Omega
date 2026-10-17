@@ -124,54 +124,14 @@ pub(crate) fn validate_declaration_expression_formation(
         let ExpressionNode::Call(call) = node else {
             continue;
         };
-        let Some(selected) =
-            selected_call_contract_for_parameters(program, call, owner_symbol, parameters)
-        else {
+        if selected_call_contract_for_parameters(program, call, owner_symbol, parameters).is_none()
+        {
             diagnostics.push(
                 Diagnostic::error(format!(
                     "{owner} constant expression call has no exact declared contract owner"
                 ))
                 .with_source_span(program.expression_table.source_span(expression)),
             );
-            continue;
-        };
-        let Some(expected) = owner_parameter_scope(program, &selected) else {
-            continue;
-        };
-        let actual = program
-            .expression_table
-            .expression_handles(call.arguments)
-            .get(owner_leading_operands(&selected)..)
-            .unwrap_or(&[]);
-        if actual.len() != expected.len() {
-            diagnostics.push(
-                Diagnostic::error(format!(
-                    "{owner} constant expression call has incompatible argument arity"
-                ))
-                .with_source_span(program.expression_table.source_span(expression)),
-            );
-            continue;
-        }
-        for (argument, parameter) in actual.iter().zip(expected.iter()) {
-            let natural = crate::parameter_expression_result_type_reference(
-                program,
-                owner_symbol,
-                parameters,
-                *argument,
-            );
-            let matches = natural.map_or_else(|| {
-                // Anonymous and literal structural operands keep the shared
-                // destination formation judgment. An unresolved computation
-                // never inherits a type from its expected destination.
-                (!matches!(program.expression_table.expression(*argument), ExpressionNode::Binary(_) | ExpressionNode::Unary(_) | ExpressionNode::Call(_))
-                    || crate::has_anonymous_numeric_results(program, *argument))
-                    && crate::value_custody::expression_types::argument_matches_type_reference_with_substitutions(program, *argument, parameter.type_reference, &[])
-            }, |actual| crate::value_custody::type_references::type_references_match(program, actual, parameter.type_reference));
-            if !matches {
-                diagnostics.push(Diagnostic::error(format!("{owner} constant expression call argument `{}` does not form parameter `{}` of `{}`",
-                    program.expression_table.display_name(*argument), parameter.name, owner_name(program, &selected)))
-                    .with_source_span(program.expression_table.source_span(*argument)));
-            }
         }
     }
     validate_expression(
@@ -185,25 +145,84 @@ pub(crate) fn validate_declaration_expression_formation(
     );
 }
 
-/// Mathematical declarations reuse the same independently formed call
-/// precondition judgment under their own exact parameter telescope. They have
-/// no synthetic machine, entry state or operational binding environment.
-pub(crate) fn validate_mathematical_call_requirements(
+/// Validate a selected application's operands before its requirements or result
+/// can contribute facts. Constant recipes and abstract predicates share this owner.
+#[allow(clippy::too_many_arguments)]
+fn validate_declaration_call_arguments(
     program: &dyn crate::CheckingInput,
-    definition: &typed_trees::mathematical::MathematicalDefinition,
+    owner_symbol: SymbolHandle,
+    parameters: &[StateParameter],
     expression: ExpressionHandle,
+    call: &TableCallExpression,
+    selected: SelectedCallContract<'_>,
+    owner: &str,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let parameters = crate::mathematical_applications::ordinary_parameters(program, definition);
-    validate_expression(
-        program,
-        SpecificationCaller::Declaration(definition.symbol, &parameters),
-        expression,
-        &[],
-        &format!("mathematical definition `{}`", definition.name),
-        diagnostics,
-        &mut Vec::new(),
-    );
+    let Some(expected) = owner_parameter_scope(program, &selected) else {
+        return;
+    };
+    let actual = program
+        .expression_table
+        .expression_handles(call.arguments)
+        .get(owner_leading_operands(&selected)..)
+        .unwrap_or(&[]);
+    if actual.len() != expected.len() {
+        diagnostics.push(
+            Diagnostic::error(format!(
+                "{owner} constant expression call has incompatible argument arity"
+            ))
+            .with_source_span(program.expression_table.source_span(expression)),
+        );
+        return;
+    }
+    for (argument, parameter) in actual.iter().zip(expected.iter()) {
+        let natural = crate::parameter_expression_result_type_reference(
+            program,
+            owner_symbol,
+            parameters,
+            *argument,
+        );
+        let matches = natural.map_or_else(|| {
+                // Anonymous and literal structural operands keep the shared
+                // destination formation judgment. An unresolved computation
+                // never inherits a type from its expected destination.
+                (!matches!(program.expression_table.expression(*argument), ExpressionNode::Binary(_) | ExpressionNode::Unary(_) | ExpressionNode::Call(_))
+                    || crate::has_anonymous_numeric_results(program, *argument))
+                    && crate::value_custody::expression_types::argument_matches_type_reference_with_substitutions(program, *argument, parameter.type_reference, &[])
+            }, |actual| crate::value_custody::type_references::type_references_match(program, actual, parameter.type_reference));
+        if !matches {
+            diagnostics.push(Diagnostic::error(format!("{owner} constant expression call argument `{}` does not form parameter `{}` of `{}`",
+                    program.expression_table.display_name(*argument), parameter.name, owner_name(program, &selected)))
+                    .with_source_span(program.expression_table.source_span(*argument)));
+        }
+    }
+}
+
+/// Abstract declarations reuse the machine contract's formation judgment
+/// under their exact telescope, before the current fact becomes a premise.
+pub(crate) fn validate_declaration_call_requirements(
+    program: &dyn crate::CheckingInput,
+    owner_symbol: SymbolHandle,
+    parameters: &[StateParameter],
+    fact: &ProofFact,
+    prior_facts: &[ExpressionHandle],
+    owner: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let mut roots = Vec::new();
+    fact_roots(program, fact, &mut roots);
+    let mut visited = Vec::new();
+    for root in roots {
+        validate_expression(
+            program,
+            SpecificationCaller::Declaration(owner_symbol, parameters),
+            root,
+            prior_facts,
+            owner,
+            diagnostics,
+            &mut visited,
+        );
+    }
 }
 
 pub(crate) fn validate_specification_call_requirements(
@@ -270,9 +289,30 @@ fn validate_expression(
     // identity beside the rewritten realization target, and a direct
     // `Trait::requirement` citation resolves to the signature symbol itself.
     // Both enforce the requirement's own contract under the call's subjects.
-    let Some(contract_owner) = selected_call_contract(program, call) else {
+    let selected = match caller {
+        SpecificationCaller::Declaration(symbol, parameters) => {
+            selected_call_contract_for_parameters(program, call, symbol, parameters)
+        }
+        SpecificationCaller::Machine(..) => selected_call_contract(program, call),
+    };
+    let Some(contract_owner) = selected else {
         return;
     };
+    if let SpecificationCaller::Declaration(symbol, parameters) = caller {
+        validate_declaration_call_arguments(
+            program,
+            symbol,
+            parameters,
+            expression,
+            call,
+            contract_owner,
+            owner,
+            diagnostics,
+        );
+        if diagnostics.len() != diagnostics_before {
+            return;
+        }
+    }
     let requirements = applicable_requirements_of(program, &contract_owner);
     if requirements.is_empty() {
         return;
@@ -324,6 +364,11 @@ fn validate_expression(
     let judge = StructuralJudge::from_declaration_requires(
         program,
         caller.symbol(),
+        &caller
+            .parameters(program)
+            .into_iter()
+            .cloned()
+            .collect::<Vec<_>>(),
         &structural_facts,
         true,
     );
@@ -769,7 +814,6 @@ fn term_has_complete_substitution(
         StructuralTerm::BoundValue(_)
         | StructuralTerm::CapturedValue { .. }
         | StructuralTerm::BoundProjection { .. }
-        | StructuralTerm::Projection { .. }
         | StructuralTerm::IndexedValue { .. }
         | StructuralTerm::MathematicalBinary { .. }
         | StructuralTerm::IntegerEmbedding { .. }
@@ -850,6 +894,11 @@ fn term_has_complete_substitution(
             arguments
                 .iter()
                 .all(|argument| term_has_complete_substitution(program, argument))
+        }
+        StructuralTerm::Projection { subject, .. } => {
+            // Term formation retains a selected field or collection measure;
+            // its complete subject, not the display path alone, owns identity.
+            term_has_complete_substitution(program, subject)
         }
         StructuralTerm::ScalarBinary { left, right, .. } => {
             term_has_complete_substitution(program, left)

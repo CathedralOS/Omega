@@ -202,7 +202,7 @@ fn declared_data_field<'program>(
     Some(field)
 }
 
-fn declared_symbol_type(
+pub(super) fn declared_symbol_type(
     program: &resolved::SymbolResolvedTrees,
     symbol: SymbolHandle,
 ) -> Option<&TypeReference> {

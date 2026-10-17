@@ -26,6 +26,33 @@ pub(super) use scalar_operands::{
     scalar_operand_is_observed, scalar_operand_meaning, term_is_unobserved_descriptor,
 };
 
+/// An admitted integer conversion preserves its mathematical value; policy
+/// qualification changes later operations, never the conversion's denotation.
+/// Formation remains an occurrence obligation, observed before the conversion
+/// result exists. Plain domain qualification on the same owned carrier also
+/// preserves the value. Reference re-views and carrier-changing noninteger
+/// conversions retain their separate authority and denotation rules.
+pub(super) fn denotation_preserving_conversion(
+    program: &dyn crate::CheckingInput,
+    cast: &typed_trees::expression::TableCastExpression,
+    source: typed_trees::types::TypeReferenceHandle,
+) -> bool {
+    let integer = |reference| {
+        program
+            .primitive_type_reference(reference)
+            .is_some_and(|primitive| {
+                primitive.is_fixed_integer() || primitive == typed_trees::types::PrimitiveType::Addr
+            })
+    };
+    !cast.form.is_recast()
+        && ((integer(source) && integer(cast.target_type))
+            || (crate::reference_shell(program, source).is_none()
+                && crate::reference_shell(program, cast.target_type).is_none()
+                && crate::declared_carriers_match(program, source, cast.target_type)
+                && program.arithmetic_domain_for_type_reference(source)
+                    == program.arithmetic_domain_for_type_reference(cast.target_type)))
+}
+
 /// The builtin embedding observes the authenticated payload, not the source
 /// expression at a later proof query. Shared and owned views retain their
 /// original observation authority through the raw argument reference.
@@ -529,6 +556,20 @@ pub(super) fn structural_term(
             structural_term(program, scope, frame, unary.operand, bindings)?,
         ),
         ExpressionNode::Integer(value) => value.value_bignum().map(StructuralTerm::Integer),
+        ExpressionNode::Cast(cast) => {
+            let source = if let Some((owner, parameters)) = frame {
+                crate::parameter_expression_result_type_reference(
+                    program, owner, parameters, cast.value,
+                )
+            } else {
+                scope.and_then(|(machine, state, _)| {
+                    crate::expression_result_type_reference(program, machine, state, cast.value)
+                })
+            }?;
+            denotation_preserving_conversion(program, cast, source)
+                .then(|| structural_term(program, scope, frame, cast.value, bindings))
+                .flatten()
+        }
         // A determinate float literal carries its exact decimal spelling; the
         // ordering arm widens it once at judgment. UndeterminedNaN stays
         // term-less so a NaN operand can never pose as a decided value.

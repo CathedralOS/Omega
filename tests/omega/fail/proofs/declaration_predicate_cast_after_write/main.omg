@@ -1,0 +1,11 @@
+data Wide { value: u64; }
+machine widen(value: &mut Wide) -> u64 ensures value.value == 256 {
+    value.value = 256;
+    0
+}
+machine main() {
+    let value: Wide = Wide { value: 7 };
+    let first: u8 = value.value as u8;
+    let changed: u64 = widen(&mut value);
+    let invalid: u8 = value.value as u8;
+}

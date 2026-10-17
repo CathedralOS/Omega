@@ -1,0 +1,4 @@
+use left::embed;
+use right::embed;
+data Box { amount: u64; }
+domain Box::Small(value) requires embed(value.amount) <= 100;

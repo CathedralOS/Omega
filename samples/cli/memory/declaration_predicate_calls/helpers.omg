@@ -1,0 +1,4 @@
+module helpers;
+
+pub let within_hundred(value: u64): core::Strict<0> = embed(value) <= 100;
+pub let small_byte(value: u8): core::Strict<0> = embed(value) <= 100;

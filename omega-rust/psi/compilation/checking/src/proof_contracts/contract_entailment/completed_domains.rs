@@ -1,5 +1,7 @@
-//! Refutation of an admitted domain consumes completed values, never its own
-//! membership claim. The normal-return owner captures constructors, locals and
+//! Domain predicates consume completed values, never their own membership
+//! claim. Positive evidence requires every reachable observation to prove the
+//! predicate; a single refuted conjunct still vetoes admitted membership.
+//! The normal-return owner captures constructors, locals and
 //! public call equations in evaluation order. Unsupported conjuncts stay
 //! unknown and cannot hide another conjunct that is independently false.
 
@@ -24,21 +26,69 @@ pub fn completed_value_refutes_domain(
     expression: ExpressionHandle,
     domain_symbol: SymbolHandle,
 ) -> bool {
+    completed_domain_judgment(
+        program,
+        machine,
+        state,
+        statement_index,
+        expression,
+        domain_symbol,
+        ExpressionHandle::invalid(),
+    )
+    .refuted
+}
+
+/// Establish a declared predicate on the value captured at its evaluation
+/// occurrence. This proves truth only; callers retain qualification authority.
+pub fn completed_value_proves_domain_predicate(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    statement_index: usize,
+    expression: ExpressionHandle,
+    domain_symbol: SymbolHandle,
+    predicate: ExpressionHandle,
+) -> bool {
+    let judgment = completed_domain_judgment(
+        program,
+        machine,
+        state,
+        statement_index,
+        expression,
+        domain_symbol,
+        predicate,
+    );
+    judgment.observed && judgment.proven
+}
+
+#[derive(Default)]
+struct CompletedDomainJudgment {
+    observed: bool,
+    proven: bool,
+    refuted: bool,
+}
+
+fn completed_domain_judgment(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    statement_index: usize,
+    expression: ExpressionHandle,
+    domain_symbol: SymbolHandle,
+    predicate: ExpressionHandle,
+) -> CompletedDomainJudgment {
     let Some(domain) = program.domain_definition(domain_symbol) else {
-        return false;
+        return CompletedDomainJudgment::default();
     };
-    if !domain.type_parameters.is_empty()
-        || !domain.index_arguments.is_empty()
-        || domain.alias.is_some()
+    if !typed_trees::domain::has_symbol_only_proof(program, domain_symbol) || domain.alias.is_some()
     {
-        return false;
+        return CompletedDomainJudgment::default();
     }
-    let Some(reference) =
-        crate::expression_result_type_reference(program, machine, state, expression)
-    else {
-        return false;
-    };
-    let mut visitor = DomainRefutation {
+    // Anonymous values receive the selected domain's carrier at this admission
+    // site. A typed value retains its own actual instance, including generics.
+    let reference = crate::expression_result_type_reference(program, machine, state, expression)
+        .unwrap_or(domain.target_type);
+    let mut visitor = DomainObservation {
         site: StructuralPrefixSite {
             state: state.symbol,
             statement_index,
@@ -52,20 +102,28 @@ pub fn completed_value_refutes_domain(
         expression,
         reference,
         domain,
-        refuted: false,
+        predicate,
+        judgment: CompletedDomainJudgment {
+            proven: true,
+            ..Default::default()
+        },
     };
-    observe_runtime_state_prefix(program, machine, state, &mut visitor).is_some() && visitor.refuted
+    if observe_runtime_state_prefix(program, machine, state, &mut visitor).is_none() {
+        return CompletedDomainJudgment::default();
+    }
+    visitor.judgment
 }
 
-struct DomainRefutation<'program> {
+struct DomainObservation<'program> {
     site: StructuralPrefixSite,
     expression: ExpressionHandle,
     reference: typed_trees::types::TypeReferenceHandle,
     domain: &'program typed_trees::domain::DomainDefinition,
-    refuted: bool,
+    predicate: ExpressionHandle,
+    judgment: CompletedDomainJudgment,
 }
 
-impl StructuralPrefixVisitor for DomainRefutation<'_> {
+impl StructuralPrefixVisitor for DomainObservation<'_> {
     fn site(&self) -> StructuralPrefixSite {
         self.site
     }
@@ -86,6 +144,7 @@ impl StructuralPrefixVisitor for DomainRefutation<'_> {
         }
         guarantees.intake(&mut judge);
         let Some(state) = program.state_in_machine(machine, self.site.state) else {
+            self.judgment.proven = false;
             return;
         };
         let Some(outcomes) = judge.completed_statement_paths(
@@ -94,35 +153,50 @@ impl StructuralPrefixVisitor for DomainRefutation<'_> {
             environment,
             (machine, state, self.reference),
         ) else {
+            self.judgment.proven = false;
             return;
         };
+        self.judgment.observed |= !outcomes.is_empty();
         let parameters = [typed_trees::signature::StateParameter {
             symbol: self.domain.subject_symbol,
             name: self.domain.subject_name.clone(),
-            type_reference: self.domain.target_type,
+            // Carrier-only families observe this exact completed instance.
+            // Indexed theories remain fenced above: their arguments cannot be
+            // recovered from a family symbol.
+            type_reference: self.reference,
             ..Default::default()
         }];
         for outcome in outcomes {
             let bindings = [(self.domain.subject_name.to_string(), outcome.value)];
-            self.refuted |= program
-                .proof_facts(self.domain)
-                .iter()
-                .filter_map(|fact| fact.as_expression())
-                .any(|expression| {
-                    matches!(
-                        instantiated_selected_fact_judgment(
-                            program,
-                            &outcome.judge,
-                            self.domain.symbol,
-                            &parameters,
-                            *expression,
-                            &bindings,
-                            &[],
-                            Some((machine, state)),
-                        ),
-                        StructuralJudgment::Refuted
-                    )
-                });
+            // Positive callers supply the declared predicate (or a Boolean
+            // component of it); sibling memberships have their own evidence
+            // owner. Refutation scans all expression conjuncts independently.
+            let expressions = self
+                .predicate
+                .is_valid()
+                .then_some(self.predicate)
+                .into_iter()
+                .chain(
+                    program
+                        .proof_facts(self.domain)
+                        .iter()
+                        .filter(|_| !self.predicate.is_valid())
+                        .filter_map(|fact| fact.as_expression().copied()),
+                );
+            for expression in expressions {
+                let judgment = instantiated_selected_fact_judgment(
+                    program,
+                    &outcome.judge,
+                    self.domain.symbol,
+                    &parameters,
+                    expression,
+                    &bindings,
+                    &[],
+                    Some((machine, state)),
+                );
+                self.judgment.proven &= matches!(judgment, StructuralJudgment::Proven);
+                self.judgment.refuted |= matches!(judgment, StructuralJudgment::Refuted);
+            }
         }
     }
 }

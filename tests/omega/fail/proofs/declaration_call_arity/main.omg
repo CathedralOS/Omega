@@ -1,0 +1,3 @@
+machine accepts(value: u64) -> bool { true }
+data Input { count: u64; }
+domain Input::Invalid(value) requires accepts(1, 2);

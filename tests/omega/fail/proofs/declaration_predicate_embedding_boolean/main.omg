@@ -1,0 +1,3 @@
+data Flag { value: bool; }
+domain Flag::Invalid(flag) requires embed(flag.value) == 0;
+machine main() {}

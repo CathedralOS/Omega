@@ -1,0 +1,8 @@
+data Wrapped [copy] where embed(left + right) >= 0 {
+    left: i8 in Wrapping;
+    right: i8 in Wrapping;
+}
+machine make(value: i8 [126..=127]) -> Wrapped {
+    Wrapped { left: value as i8 in Wrapping, right: 1 }
+}
+machine main() { let invalid: Wrapped = make(127); }

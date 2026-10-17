@@ -1,0 +1,5 @@
+data Wrapped [copy] where embed(left + right) == 256 {
+    left: u8 in Wrapping;
+    right: u8 in Wrapping;
+}
+machine main() { let invalid: Wrapped = Wrapped { left: 255, right: 1 }; }

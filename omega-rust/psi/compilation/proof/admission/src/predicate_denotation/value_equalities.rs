@@ -22,6 +22,7 @@ pub(super) fn is_definition_subject(term: &ScalarTerm) -> bool {
             | ScalarTerm::IeeeFloatField { .. }
             | ScalarTerm::ViewExtent { .. }
             | ScalarTerm::StructuralRead { .. }
+            | ScalarTerm::ByteSequencePredicate { .. }
     )
 }
 

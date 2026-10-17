@@ -810,6 +810,16 @@ fn hinted_named_value_type_reference(
         return None;
     }
     match program.symbols.get(parent).kind {
+        // A domain subject is an ordinary lexical value with the domain's
+        // declared carrier. Preserve that reference before following member
+        // projections or applying mathematical functions; an untyped subject
+        // would erase fixed-width and arithmetic-policy custody.
+        symbols::SymbolKind::Domain => program
+            .domain_definitions()
+            .iter()
+            .find(|domain| domain.symbol == parent)
+            .filter(|domain| matches_symbol(domain.subject_symbol))
+            .map(|domain| domain.target_type),
         // A declaration predicate has no machine or state. Its field binder
         // still supplies a real destination type: float endpoints must land
         // in that carrier's format before the predicate is evaluated. Follow

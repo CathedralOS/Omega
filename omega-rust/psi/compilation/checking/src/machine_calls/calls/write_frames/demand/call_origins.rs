@@ -277,10 +277,16 @@ impl<'program> CallFrameResolver<'program> {
         match site {
             CallerWriteSite::Expression(expression) => {
                 let roots = frames::statement_value_expression_roots(self.program, statement);
-                !roots.contains(&expression)
-                    && !self
-                        .statement_value_may_write_paths(machine, statement)
-                        .is_some_and(|paths| paths.is_empty())
+                crate::expression_traversal::expressions_before_occurrence(
+                    self.program,
+                    &roots,
+                    expression,
+                )
+                .is_none_or(|prefix| {
+                    prefix
+                        .into_iter()
+                        .any(|expression| self.operand_may_change_origins(machine, expression))
+                })
             }
             CallerWriteSite::Transition(_) => {
                 let Some(transition) = statement.as_transition() else {

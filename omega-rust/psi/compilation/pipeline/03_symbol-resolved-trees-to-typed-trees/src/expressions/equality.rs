@@ -3,8 +3,8 @@
 //! value -- only its domain -- so comparing against it is an error that
 //! suggests `in`. The brace form (`Command::Move { dx: 1 }`) IS a constructed
 //! value: when an `Equatable<Type>` implementation exists the compare is
-//! legal and lowers through it (`crate::expressions::equatable`); without
-//! one it stays an error that suggests declaring the implementation.
+//! legal and lowers through it (`crate::expressions::equatable`). Logical fact
+//! positions instead elaborate data identity without executable equality.
 //! Payload-less cases stay legal `==` operands everywhere (tag identity is
 //! the only thing equality could mean for them).
 //!
@@ -176,18 +176,18 @@ fn scan_expression(
     let expressions = &program.tables.bodies.expressions;
     match expressions.expression(expression) {
         ExpressionNode::Match(dispatch) => {
-            scan_expression(program, dispatch.subject, fact_position)?;
+            scan_expression(program, dispatch.subject, false)?;
             for arm in expressions.match_arms(dispatch.arms) {
                 if let resolved::expression::MatchPattern::Value(pattern) = arm.pattern {
-                    check_equality_operand(program, dispatch.subject, fact_position)?;
-                    check_equality_operand(program, pattern, fact_position)?;
-                    scan_expression(program, pattern, fact_position)?;
+                    check_equality_operand(program, dispatch.subject, false)?;
+                    check_equality_operand(program, pattern, false)?;
+                    scan_expression(program, pattern, false)?;
                 }
                 scan_expression(program, arm.value, fact_position)?;
             }
             Ok(())
         }
-        ExpressionNode::Atomic(atomic) => scan_expression(program, atomic.value, fact_position),
+        ExpressionNode::Atomic(atomic) => scan_expression(program, atomic.value, false),
         ExpressionNode::Binary(binary) => {
             if matches!(
                 binary.operator,
@@ -197,45 +197,55 @@ fn scan_expression(
                     check_equality_operand(program, operand, fact_position)?;
                 }
             }
-            scan_expression(program, binary.left, fact_position)?;
-            scan_expression(program, binary.right, fact_position)
+            let children_are_facts = fact_position
+                && matches!(
+                    binary.operator,
+                    BinaryOperator::And
+                        | BinaryOperator::Or
+                        | BinaryOperator::Equal
+                        | BinaryOperator::NotEqual
+                );
+            scan_expression(program, binary.left, children_are_facts)?;
+            scan_expression(program, binary.right, children_are_facts)
         }
         ExpressionNode::ArrayLiteral(elements) => {
             for element in expressions.expression_handles(*elements) {
-                scan_expression(program, *element, fact_position)?;
+                scan_expression(program, *element, false)?;
             }
             Ok(())
         }
-        ExpressionNode::Cast(cast) => scan_expression(program, cast.value, fact_position),
+        ExpressionNode::Cast(cast) => scan_expression(program, cast.value, false),
         ExpressionNode::Call(call) => {
-            scan_expression(program, call.receiver, fact_position)?;
+            scan_expression(program, call.receiver, false)?;
             for argument in expressions.expression_handles(call.arguments) {
-                scan_expression(program, *argument, fact_position)?;
+                scan_expression(program, *argument, false)?;
             }
             Ok(())
         }
         ExpressionNode::Indexed(indexed) => {
-            scan_expression(program, indexed.collection, fact_position)?;
-            scan_expression(program, indexed.index, fact_position)
+            scan_expression(program, indexed.collection, false)?;
+            scan_expression(program, indexed.index, false)
         }
-        ExpressionNode::Member(member) => scan_expression(program, member.receiver, fact_position),
+        ExpressionNode::Member(member) => scan_expression(program, member.receiver, false),
         // The membership DOMAIN is a name path, not a value: a bare case
         // name is exactly what `in` is for, so only the subject is scanned.
-        ExpressionNode::Membership(membership) => {
-            scan_expression(program, membership.value, fact_position)
-        }
-        ExpressionNode::Borrow(inner) => scan_expression(program, inner.target, fact_position),
+        ExpressionNode::Membership(membership) => scan_expression(program, membership.value, false),
+        ExpressionNode::Borrow(inner) => scan_expression(program, inner.target, false),
         ExpressionNode::Range(range) => {
-            scan_expression(program, range.start, fact_position)?;
-            scan_expression(program, range.end, fact_position)
+            scan_expression(program, range.start, false)?;
+            scan_expression(program, range.end, false)
         }
         ExpressionNode::StructLiteral(literal) => {
             for field in expressions.struct_fields(literal.fields) {
-                scan_expression(program, field.value, fact_position)?;
+                scan_expression(program, field.value, false)?;
             }
             Ok(())
         }
-        ExpressionNode::Unary(unary) => scan_expression(program, unary.operand, fact_position),
+        ExpressionNode::Unary(unary) => scan_expression(
+            program,
+            unary.operand,
+            fact_position && unary.operator == resolved::expression::UnaryOperator::LogicalNot,
+        ),
         ExpressionNode::Boolean(_)
         | ExpressionNode::Float(_)
         | ExpressionNode::UndeterminedNaN(_)
@@ -296,12 +306,10 @@ fn check_equality_operand(
             ) {
                 return Ok(());
             }
-            // FACT position over RECURSIVE (hence proof-only) data: no
-            // runtime lowering exists to synthesize -- the structural
-            // entailment judge owns this equality (math roster N3;
-            // injectivity/disjointness over constructed cases). Runtime
-            // positions keep the fence.
-            if fact_position && data_is_directly_recursive(program, data) {
+            // Logical identity applies to every data carrier. Typed formation
+            // still checks complete operand types and the proof owner checks
+            // all common/payload fields; this is never a tag-only comparison.
+            if fact_position {
                 return Ok(());
             }
             Err(Diagnostic::error(format!(
@@ -333,42 +341,4 @@ fn payload_bearing_case<'program>(
             }
             _ => None,
         })
-}
-
-/// Whether `type_name`'s definition contains itself INLINE through any field
-/// or case payload (Nat's `prev: Nat`, Seq's `tail: Seq<T>`) -- the seed of
-/// the typed layer's proof-only classification, recomputed here at the
-/// resolved level because this pass runs before typing. Direct recursion
-/// only: mutually recursive types stay conservatively fenced in fact
-/// position until a consumer needs them.
-pub(crate) fn data_is_directly_recursive(
-    program: &SymbolResolvedTrees,
-    definition: &DataDefinition,
-) -> bool {
-    let type_name = definition.name.as_str();
-    program
-        .data_members(definition.members)
-        .iter()
-        .any(|member| {
-            let fields = match member {
-                DataMember::Field(field) => std::slice::from_ref(field),
-                DataMember::Variant(variant) => program.data_payload_fields(variant.payload),
-            };
-            fields
-                .iter()
-                .any(|field| type_reference_names(&field.type_reference, type_name))
-        })
-}
-
-/// Whether a declaration-storage type reference names `goal` inline (named
-/// or generic-base forms -- the shapes the roster's recursive payloads use;
-/// references and slices are indirection and never count, mirroring the
-/// proof-only containment rule).
-fn type_reference_names(reference: &resolved::types::TypeReference, goal: &str) -> bool {
-    use resolved::types::TypeReference;
-    match reference {
-        TypeReference::Named { name, .. } => name.as_str() == goal,
-        TypeReference::Generic(generic) => generic.base_name.as_str() == goal,
-        _ => false,
-    }
 }

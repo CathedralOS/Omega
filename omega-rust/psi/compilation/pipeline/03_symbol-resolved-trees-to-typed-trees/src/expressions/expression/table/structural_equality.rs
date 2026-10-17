@@ -199,6 +199,11 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
         &mut self,
         binary: &resolved::expression::TableBinaryExpression,
     ) -> Result<Option<typed::expression::ExpressionHandle>, Diagnostic> {
+        // Logical identity has its own complete-carrier formation judgment;
+        // executable equality selection and its shape checks do not apply.
+        if self.fact_position {
+            return Ok(None);
+        }
         let Some(program) = self.program else {
             return Ok(None);
         };
@@ -280,12 +285,6 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
             return Ok(None);
         };
         if data.quotient.is_some() {
-            if self.fact_position {
-                // Logical quotient equality is owned by the exact retained
-                // relation and the quotient-congruence judge. Keep the raw
-                // fact expression; never lower it to representative bytes.
-                return Ok(None);
-            }
             return Err(Diagnostic::error(format!(
                 "cannot compare quotient `{type_name}` values with `==`/`!=`: retained representatives are opaque and have no synthesized structural equality; call a named lifted equality operation"
             )));
@@ -303,16 +302,6 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
         let implementation = match equality_selection(program, data) {
             EqualitySelection::Selected(implementation) => implementation,
             EqualitySelection::Missing => {
-                // PROOF-FACT position over RECURSIVE (proof-only) data: the
-                // compare stays a raw Binary for the structural entailment
-                // judge (math roster N3) -- no runtime lowering exists to
-                // synthesize, and the resolved-level pre-pass already stood
-                // down for exactly this shape.
-                if self.fact_position
-                    && crate::expressions::equality::data_is_directly_recursive(program, data)
-                {
-                    return Ok(None);
-                }
                 return Err(Diagnostic::error(format!(
                     "cannot compare `{type_name}` values with `==`: structural equality is synthesized only through a named implementation -- declare `{}` to synthesize structural equality",
                     suggested_equality_declaration(&type_name)
@@ -524,6 +513,15 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                 self.operand_data_type_name(inner.target)
             }
             resolved::expression::ExpressionNode::Name(path) => {
+                // Declaration subjects and abstract parameters do not belong
+                // to a machine's local inference scope. Their resolved symbol
+                // carries the same declared type used by member binding.
+                if let Some(reference) =
+                    super::member_binding::declared_symbol_type(program, path.symbol)
+                    && let Some(name) = value_type_base_name(program, reference)
+                {
+                    return Some(name);
+                }
                 let members = self.source.name_path_members(path.members);
                 let scope = self.equality_scope?;
                 let [name] = members else {

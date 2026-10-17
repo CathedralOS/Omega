@@ -7,6 +7,7 @@ use std::sync::Arc;
 use symbols::JoinedPath;
 use typed_trees::types::TypeReferenceHandle;
 
+mod domain_premises;
 mod integer_predicates;
 mod licenses;
 pub(super) mod normal_returns;
@@ -245,6 +246,8 @@ pub(super) struct StructuralJudge<'program> {
     // Runtime prefix facts belong to the current state invocation. Keep its
     // declaration frame separate from the machine's dependency identity.
     declaration_state: SymbolHandle,
+    // Abstract owners supply their actual telescope, without a synthetic machine.
+    declaration_parameters: Arc<Vec<typed_trees::signature::StateParameter>>,
     premise_facts: Vec<ExpressionHandle>,
     // Term-bearing fact vectors are Arc-shared so the per-leaf judge clone
     // (one per recognized case-arm path) costs refcount bumps instead of
@@ -272,6 +275,8 @@ pub(super) struct StructuralJudge<'program> {
     /// hypothesis rewrites the self-application away instead of expanding a
     /// variable into it, which also serves asymmetric goals.
     rewrites: Arc<rewrite_table::RewriteTable>,
+    // Inequality facts constrain complete captured values, not case tags.
+    disequalities: Arc<Vec<(StructuralTerm, StructuralTerm)>>,
     // Tag predicates are not value equations: even a payload-free case may
     // have common fields. Retain exact classifier identities while ordinary
     // argument substitution acts only on the observed subject.
@@ -298,6 +303,7 @@ impl Clone for StructuralJudge<'_> {
             entry_machines: std::sync::Arc::clone(&self.entry_machines),
             machine_symbol: self.machine_symbol,
             declaration_state: self.declaration_state,
+            declaration_parameters: Arc::clone(&self.declaration_parameters),
             premise_facts: self.premise_facts.clone(),
             normal_results: Arc::clone(&self.normal_results),
             invalidated_storage: Arc::clone(&self.invalidated_storage),
@@ -312,6 +318,7 @@ impl Clone for StructuralJudge<'_> {
             case_facts_only: self.case_facts_only,
             substitutions: Arc::clone(&self.substitutions),
             rewrites: Arc::clone(&self.rewrites),
+            disequalities: Arc::clone(&self.disequalities),
             case_facts: Arc::clone(&self.case_facts),
             case_substitutions: Arc::clone(&self.case_substitutions),
             hypotheses_contradictory: self.hypotheses_contradictory,
@@ -370,6 +377,7 @@ impl<'program> StructuralJudge<'program> {
         for fact in requires {
             judge.intake(program, *fact);
         }
+        judge.intake_entry_domain_predicates(machine, state);
         judge
     }
 
@@ -400,6 +408,7 @@ impl<'program> StructuralJudge<'program> {
         self.case_facts_only = true;
         self.substitutions = Arc::new(Vec::new());
         self.rewrites = Arc::new(rewrite_table::RewriteTable::default());
+        self.disequalities = Arc::new(Vec::new());
         self.case_substitutions = Arc::new(Vec::new());
         self.hypotheses_contradictory = false;
     }
@@ -413,6 +422,7 @@ impl<'program> StructuralJudge<'program> {
         Self::from_declaration_requires(
             program,
             judged_machine.symbol,
+            &[],
             requires,
             resolve_applications,
         )
@@ -421,6 +431,7 @@ impl<'program> StructuralJudge<'program> {
     pub(super) fn from_declaration_requires(
         program: &'program dyn crate::CheckingInput,
         owner: SymbolHandle,
+        parameters: &[typed_trees::signature::StateParameter],
         requires: &[ExpressionHandle],
         resolve_applications: bool,
     ) -> Self {
@@ -438,6 +449,7 @@ impl<'program> StructuralJudge<'program> {
             ),
             machine_symbol: owner,
             declaration_state: SymbolHandle::invalid(),
+            declaration_parameters: Arc::new(parameters.to_vec()),
             premise_facts: requires.to_vec(),
             normal_results: Arc::new(Vec::new()),
             invalidated_storage: Arc::new(Vec::new()),
@@ -452,6 +464,7 @@ impl<'program> StructuralJudge<'program> {
             case_facts_only: false,
             substitutions: Arc::new(Vec::new()),
             rewrites: Arc::new(rewrite_table::RewriteTable::default()),
+            disequalities: Arc::new(Vec::new()),
             frame_resolver: Arc::new(std::sync::OnceLock::new()),
             case_facts: Arc::new(Vec::new()),
             case_substitutions: Arc::new(Vec::new()),
@@ -471,38 +484,26 @@ impl<'program> StructuralJudge<'program> {
         judge
     }
 
-    fn declaration_term(&self, expression: ExpressionHandle) -> Option<StructuralTerm> {
-        if let Some(definition) = self
-            .program
-            .mathematical_definitions()
-            .iter()
-            .find(|definition| definition.symbol == self.machine_symbol)
-        {
-            return super::structural_terms::structural_term(
-                self.program,
-                None,
-                Some((
-                    definition.symbol,
-                    &crate::mathematical_applications::ordinary_parameters(
-                        self.program,
-                        definition,
-                    ),
-                )),
-                expression,
-                None,
-            );
-        }
-        let machine = self.program.machine(self.machine_symbol)?;
+    fn declaration_scope(
+        &self,
+    ) -> Option<(SymbolHandle, &[typed_trees::signature::StateParameter])> {
+        let Some(machine) = self.program.machine(self.machine_symbol) else {
+            return Some((self.machine_symbol, &self.declaration_parameters));
+        };
         let state = if self.declaration_state.is_valid() {
             self.program
                 .state_in_machine(machine, self.declaration_state)?
         } else {
             self.program.machine_states(machine).first()?
         };
+        Some((machine.symbol, self.program.state_parameters(state)))
+    }
+
+    fn declaration_term(&self, expression: ExpressionHandle) -> Option<StructuralTerm> {
         super::structural_terms::structural_term(
             self.program,
             None,
-            Some((machine.symbol, self.program.state_parameters(state))),
+            Some(self.declaration_scope()?),
             expression,
             None,
         )
@@ -525,30 +526,11 @@ impl<'program> StructuralJudge<'program> {
         &self,
         expression: ExpressionHandle,
     ) -> Option<typed_trees::types::TypeReferenceHandle> {
-        if let Some(definition) = self
-            .program
-            .mathematical_definitions()
-            .iter()
-            .find(|definition| definition.symbol == self.machine_symbol)
-        {
-            return crate::parameter_expression_result_type_reference(
-                self.program,
-                definition.symbol,
-                &crate::mathematical_applications::ordinary_parameters(self.program, definition),
-                expression,
-            );
-        }
-        let machine = self.program.machine(self.machine_symbol)?;
-        let state = if self.declaration_state.is_valid() {
-            self.program
-                .state_in_machine(machine, self.declaration_state)?
-        } else {
-            self.program.machine_states(machine).first()?
-        };
+        let (owner, parameters) = self.declaration_scope()?;
         crate::parameter_expression_result_type_reference(
             self.program,
-            machine.symbol,
-            self.program.state_parameters(state),
+            owner,
+            parameters,
             expression,
         )
     }
@@ -590,35 +572,13 @@ impl<'program> StructuralJudge<'program> {
     }
 
     fn has_identity_equality_meaning(&self, expression: ExpressionHandle) -> bool {
-        if let Some(definition) = self
-            .program
-            .mathematical_definitions()
-            .iter()
-            .find(|definition| definition.symbol == self.machine_symbol)
-        {
-            return super::structural_terms::has_identity_equality_meaning(
-                self.program,
-                definition.symbol,
-                &crate::mathematical_applications::ordinary_parameters(self.program, definition),
-                expression,
-            );
-        }
-        let Some(machine) = self.program.machine(self.machine_symbol) else {
-            return false;
-        };
-        let state = if self.declaration_state.is_valid() {
-            self.program
-                .state_in_machine(machine, self.declaration_state)
-        } else {
-            self.program.machine_states(machine).first()
-        };
-        let Some(state) = state else {
+        let Some((owner, parameters)) = self.declaration_scope() else {
             return false;
         };
         super::structural_terms::has_identity_equality_meaning(
             self.program,
-            machine.symbol,
-            self.program.state_parameters(state),
+            owner,
+            parameters,
             expression,
         )
     }
@@ -669,6 +629,9 @@ impl<'program> StructuralJudge<'program> {
                 self.intake(program, binary.left);
                 self.intake(program, binary.right);
             }
+            BinaryOperator::NotEqual if !self.case_facts_only => {
+                self.intake_preserved_predicate(fact);
+            }
             BinaryOperator::Equal
                 if !self.case_facts_only && self.has_identity_equality_meaning(fact) =>
             {
@@ -691,6 +654,17 @@ impl<'program> StructuralJudge<'program> {
             return;
         }
         let program = self.program;
+        if let Some(binary) = program.expression_table.binary_node(fact)
+            && binary.operator == BinaryOperator::NotEqual
+            && self.has_identity_equality_meaning(fact)
+            && let Some(terms) = self.declaration_term_pair(binary)
+        {
+            let [left, right] = terms.source;
+            let values = (self.resolve(left), self.resolve(right));
+            if !self.disequalities.contains(&values) {
+                Arc::make_mut(&mut self.disequalities).push(values);
+            }
+        }
         if let Some(binary) = program.expression_table.binary_node(fact)
             && binary.operator == BinaryOperator::And
             && self.has_boolean_connective_meaning(fact)
@@ -1734,6 +1708,22 @@ impl<'program> StructuralJudge<'program> {
                 )?,
             ),
             ExpressionNode::Integer(value) => value.value_bignum().map(StructuralTerm::Integer),
+            ExpressionNode::Cast(cast) => {
+                let (machine, state, _) = scope?;
+                let source =
+                    crate::expression_result_type_reference(program, machine, state, cast.value)?;
+                super::structural_terms::denotation_preserving_conversion(program, cast, source)
+                    .then(|| {
+                        self.callee_term(
+                            cast.value,
+                            environment,
+                            machine_environment,
+                            scope,
+                            depth + 1,
+                        )
+                    })
+                    .flatten()
+            }
             ExpressionNode::Float(value) => Some(StructuralTerm::Float(value.clone())),
             ExpressionNode::ZeroValue(type_reference) => {
                 super::structural_terms::zero_value_structural_term(program, *type_reference)
@@ -2641,6 +2631,18 @@ impl<'program> StructuralJudge<'program> {
         let right = right.into_semantic_value();
         if left == right {
             return StructuralJudgment::Proven;
+        }
+        if self.disequalities.iter().any(|(known_left, known_right)| {
+            let known_left = self
+                .resolve_at(known_left.clone(), depth + 1)
+                .into_semantic_value();
+            let known_right = self
+                .resolve_at(known_right.clone(), depth + 1)
+                .into_semantic_value();
+            (known_left == left && known_right == right)
+                || (known_left == right && known_right == left)
+        }) {
+            return StructuralJudgment::Refuted;
         }
         if matches!(
             (&left, &right),

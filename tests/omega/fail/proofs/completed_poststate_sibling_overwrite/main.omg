@@ -1,0 +1,16 @@
+data Pair { first: u64; second: u64; }
+data Captured [copy] { first: u64; second: u64; }
+domain Captured::Both(value) requires value.first == 1 && value.second == 1;
+machine initialize(value: &mut Pair) -> u64
+ensures value.first == 1 && value.second == 1
+{
+    value.first = 1;
+    value.second = 1;
+    0
+}
+machine invalid() -> Captured in Both {
+    let value: Pair = Pair { first: 0, second: 0 };
+    let changed: u64 = initialize(&mut value);
+    value.second = 0;
+    Captured { first: value.first, second: value.second }
+}

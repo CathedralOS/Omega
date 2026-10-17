@@ -1,0 +1,12 @@
+data Wide { value: u64; }
+data Narrow [copy] { value: u64; }
+domain Narrow::Seven(value) requires value.value == 7;
+machine widen(value: &mut Wide) -> u64 [0..=255] ensures value.value == 256 {
+    value.value = 256;
+    0
+}
+machine main() {
+    let value: Wide = Wide { value: 7 };
+    let converted: u8 = widen(&mut value) as u8;
+    let invalid: Narrow in Seven = Narrow { value: value.value };
+}

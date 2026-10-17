@@ -190,9 +190,18 @@ impl RouteTerms<'_> {
             CheckedBooleanExpression::ByteSequenceEqual { .. } => {
                 unsupported("byte-sequence equality lowers as an atomic proposition")
             }
-            CheckedBooleanExpression::ByteSequencePredicate { .. } => {
-                unsupported("byte-sequence predicate evaluation lowers as an atomic proposition")
-            }
+            CheckedBooleanExpression::ByteSequencePredicate {
+                predicate,
+                root,
+                path,
+            } => super::structural_members::lower_byte_predicate_term(
+                identities,
+                *predicate,
+                *root,
+                path,
+                self.parameters,
+                self.structural_types,
+            ),
             CheckedBooleanExpression::StructuralCaseMembership { .. } => {
                 unsupported("sum membership lowers as an atomic proposition")
             }

@@ -180,30 +180,7 @@ impl StructuralJudge<'_> {
             return false;
         };
         let goal_operations = 0..observations.operations.len();
-        let mut comparisons = Vec::new();
-        for (predicate, truth) in self.rewrites.iter() {
-            let truth = self.resolve(truth.clone());
-            let StructuralTerm::Constructor { data, case, fields } = truth.semantic_value() else {
-                continue;
-            };
-            if data != "bool" || !fields.is_empty() {
-                continue;
-            }
-            let Some(holds) = language_semantics::const_value::boolean_literal_spelling(case)
-            else {
-                continue;
-            };
-            let start = observations.operations.len();
-            let Some((operator, left, right)) =
-                self.integer_comparison(predicate, &mut observations)
-            else {
-                continue;
-            };
-            comparisons.push((
-                (if holds { operator } else { negate(operator) }, left, right),
-                start..observations.operations.len(),
-            ));
-        }
+        let mut comparisons = self.observed_integer_premises(&mut observations);
         if !observations.install_premises(&mut comparisons)
             || !observations.admitted(goal_operations)
         {
@@ -221,6 +198,114 @@ impl StructuralJudge<'_> {
             BinaryOperator::Equal => proves(left.sub(&right), 0) && proves(right.sub(&left), 0),
             BinaryOperator::NotEqual => proves(left.sub(&right), 1) || proves(right.sub(&left), 1),
             _ => false,
+        }
+    }
+
+    fn observed_integer_premises(
+        &self,
+        observations: &mut IntegerObservations<'_>,
+    ) -> Vec<(Comparison, Range<usize>)> {
+        let mut comparisons = Vec::new();
+        for (predicate, truth) in self.rewrites.iter() {
+            let truth = self.resolve(truth.clone());
+            let StructuralTerm::Constructor { data, case, fields } = truth.semantic_value() else {
+                continue;
+            };
+            if data != "bool" || !fields.is_empty() {
+                continue;
+            }
+            let Some(holds) = language_semantics::const_value::boolean_literal_spelling(case)
+            else {
+                continue;
+            };
+            let start = observations.operations.len();
+            let Some((operator, left, right)) = self.integer_comparison(predicate, observations)
+            else {
+                continue;
+            };
+            comparisons.push((
+                (if holds { operator } else { negate(operator) }, left, right),
+                start..observations.operations.len(),
+            ));
+        }
+        comparisons
+    }
+
+    /// Prepared calculus captures are rebound to completed values in the same
+    /// integer namespace as runtime predicates. Source syntax supplies identity
+    /// and carrier only; it cannot reread the caller's storage.
+    pub(in crate::proof_contracts::contract_entailment) fn instantiated_mathematical_predicate(
+        &self,
+        owner: symbols::SymbolHandle,
+        parameters: &[typed_trees::signature::StateParameter],
+        expression: typed_trees::expression::ExpressionHandle,
+        bindings: &[(String, StructuralTerm)],
+        machine_bindings: &[(
+            symbols::SymbolHandle,
+            typed_trees::types::TypeReferenceHandle,
+            typed_trees::expression::StaticMachineArgument,
+        )],
+    ) -> StructuralJudgment {
+        if !self.runtime_body_values || self.case_facts_only {
+            return StructuralJudgment::Unknown;
+        }
+        let Some(view) = self.program.prepared_mathematics() else {
+            return StructuralJudgment::Unknown;
+        };
+        let Some(application) = view.application(expression) else {
+            return StructuralJudgment::Unknown;
+        };
+        let mut observations = IntegerObservations {
+            engine: Engine::for_explicit_bindings(self.program),
+            atoms: Vec::new(),
+            operations: Vec::new(),
+            carrier_facts: Vec::new(),
+        };
+        for capture in view
+            .applications
+            .captures
+            .span_or_empty(application.captures)
+        {
+            let Some(value) = super::super::structural_terms::structural_term(
+                self.program,
+                None,
+                Some((owner, parameters)),
+                capture.expression,
+                None,
+            ) else {
+                return StructuralJudgment::Unknown;
+            };
+            let value = StructuralJudge::substitute_call_term(&value, bindings, machine_bindings);
+            let value = StructuralTerm::IntegerEmbedding {
+                reference: capture.source_type,
+                value: Box::new(value),
+            };
+            let Some(polynomial) = self.mathematical_value(&value, &mut observations, 0) else {
+                return StructuralJudgment::Unknown;
+            };
+            if !observations
+                .engine
+                .bind_strict_occurrence(capture.expression, polynomial)
+            {
+                return StructuralJudgment::Unknown;
+            }
+        }
+        let goal_operations = 0..observations.operations.len();
+        let mut premises = self.observed_integer_premises(&mut observations);
+        if !observations.install_premises(&mut premises) || !observations.admitted(goal_operations)
+        {
+            return StructuralJudgment::Unknown;
+        }
+        match observations
+            .engine
+            .judge_mathematical_application(expression)
+        {
+            super::super::arithmetic_judgment::Judgment::Proven => StructuralJudgment::Proven,
+            super::super::arithmetic_judgment::Judgment::ConstantFalse
+            | super::super::arithmetic_judgment::Judgment::Refuted => StructuralJudgment::Refuted,
+            super::super::arithmetic_judgment::Judgment::Unknown { .. } => {
+                StructuralJudgment::Unknown
+            }
         }
     }
 

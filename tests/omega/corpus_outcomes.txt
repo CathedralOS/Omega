@@ -4252,6 +4252,12 @@ fail/proofs/collection_predicate_deferred_disjunction_false_rejected rejected 41
 	cannot prove ensures contract for exit from cell_is_set at statement 0: cells[index] >= 1
 fail/proofs/completed_case_guarantee_keeps_common_fields_unknown rejected 1668ms expected @a9ae30e1c334+wt
 	cannot prove requires contract for call needs_unmarked_empty from completed_call: value.marked == false (needs fact `value.marked == false` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/proofs/completed_entry_domain_after_write rejected 745ms expected @4ef5069e9f3b+wt
+	cannot prove default-domain field requirement for return from invalid at statement 1: Captured requires Captured::One
+	construction value is not proven in domain `Captured::One`
+fail/proofs/completed_poststate_sibling_overwrite rejected 732ms expected @4ef5069e9f3b+wt
+	cannot prove default-domain field requirement for return from invalid at statement 3: Captured requires Captured::Both
+	construction value is not proven in domain `Captured::Both`
 fail/proofs/conditional_ih_requires_discharge rejected 1118ms expected @a9ae30e1c334+wt
 	machine `conditional_ih_requires_all` cites `add_le_add`, but the callee's requires fact `saturating_sub(c, d) == Nat` is not established at this citation site under the citing machine's hypotheses -- add the matching requires (or cite at operands that satisfy it)
 	machine `conditional_ih_requires_all` ensures contract proof fact `saturating_sub(mul(a, factor), mul(b, factor)) == Nat` speaks about proof-only `Nat`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or wait for the structural extraction tier (math roster N3)
@@ -4263,6 +4269,66 @@ fail/proofs/copied_descriptor_cannot_take_later_extent rejected 610ms expected @
 	cannot prove requires contract for call demand from test: snapshot.samples.len >= 2 (needs fact `view.samples.len >= 2` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/proofs/core_nat_runtime_consumption_rejected rejected 2761ms expected @a9ae30e1c334+wt
 	machine `Main::main` state `main` parameter `main` mentions proof-only `Main`, which has no runtime layout
+fail/proofs/declaration_byte_predicate_loop_write rejected 698ms expected @4ef5069e9f3b+wt
+	cannot prove initializer of `invalid` in main is in domain `Text::Ascii`; an annotation cannot establish routed qualification
+	construction value is not proven in domain `Text::Ascii`
+fail/proofs/declaration_call_argument_type rejected 171ms expected @4ef5069e9f3b+wt
+	domain `Input::Invalid` predicate constant expression call argument `false` does not form parameter `value` of `accepts`
+fail/proofs/declaration_call_arity rejected 173ms expected @4ef5069e9f3b+wt
+	domain `Input::Invalid` predicate constant expression call has incompatible argument arity
+fail/proofs/declaration_call_future_requires rejected 170ms expected @4ef5069e9f3b+wt
+	cannot prove requires contract for specification call `guarded` in domain `Input::Invalid` predicate: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `guarded` in data `InvalidData` default-domain predicate: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `guarded` in data `InvalidCase` case `Cell` predicate: establish its selected precondition in an independently formed prior requires fact
+fail/proofs/declaration_call_requires rejected 185ms expected @4ef5069e9f3b+wt
+	cannot prove requires contract for specification call `guarded` in domain `Input::Invalid` predicate: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `guarded` in data `InvalidCase` case `Cell` predicate: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `guarded` in data `SiblingCases` case `Unestablished` predicate: establish its selected precondition in an independently formed prior requires fact
+fail/proofs/declaration_identity_call_value_context rejected 20ms expected @4ef5069e9f3b+wt
+	cannot compare against payload-bearing case `Choice::Cell` with `==`: structural equality is synthesized only through a named implementation -- match on the case in a transition to bind its payload, or declare `ChoiceEquality satisfies Equatable<Choice> { }` to synthesize structural equality
+fail/proofs/declaration_predicate_all_paths rejected 653ms expected @4ef5069e9f3b+wt
+	cannot prove default-domain field requirement for return from choose at statement 1: Bounded requires Bounded::Small
+	construction value is not proven in domain `Bounded::Small`
+fail/proofs/declaration_predicate_ambiguous_embedding rejected 162ms expected @4ef5069e9f3b+wt
+	`embed` is a compiler-owned proof term; an authored, package-qualified, or same-spelled call cannot replace it
+fail/proofs/declaration_predicate_byte_contents rejected 651ms expected @4ef5069e9f3b+wt
+	cannot prove initializer of `invalid` in main is in domain `Text::Ready`; an annotation cannot establish routed qualification
+fail/proofs/declaration_predicate_captured_field rejected 655ms expected @4ef5069e9f3b+wt
+	cannot prove initializer of `invalid` in main is in domain `Pair::Small`; an annotation cannot establish routed qualification
+	construction value is not proven in domain `Pair::Small`
+fail/proofs/declaration_predicate_cast_after_write rejected 171ms expected @4ef5069e9f3b+wt
+	Exact integer cast in machine `main` state `entry` from `u64` to `u8` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
+fail/proofs/declaration_predicate_cast_unknown rejected 649ms expected @4ef5069e9f3b+wt
+	cannot prove default-domain field requirement for return from make at statement 0: Narrow requires Narrow::Seven
+	construction value is not proven in domain `Narrow::Seven`
+fail/proofs/declaration_predicate_effectful_cast rejected 656ms expected @4ef5069e9f3b+wt
+	cannot prove initializer of `invalid` in main is in domain `Narrow::Seven`; an annotation cannot establish routed qualification
+	construction value is not proven in domain `Narrow::Seven`
+fail/proofs/declaration_predicate_embedding_boolean rejected 174ms expected @4ef5069e9f3b+wt
+	compiler-owned `embed(value)` accepts only a fixed-width integer or address value
+fail/proofs/declaration_predicate_false_data rejected 172ms expected @4ef5069e9f3b+wt
+	data `Ordered` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/proofs/declaration_predicate_false_membership rejected 655ms expected @4ef5069e9f3b+wt
+	cannot prove initializer of `invalid` in main is in domain `Bounded::Small`; an annotation cannot establish routed qualification
+	construction value is not proven in domain `Bounded::Small`
+fail/proofs/declaration_predicate_field_shadow rejected 161ms expected @4ef5069e9f3b+wt
+	`embed` is a compiler-owned proof term; an authored, package-qualified, or same-spelled call cannot replace it
+fail/proofs/declaration_predicate_lexical_shadow rejected 162ms expected @4ef5069e9f3b+wt
+	`embed` is a compiler-owned proof term; an authored, package-qualified, or same-spelled call cannot replace it
+fail/proofs/declaration_predicate_saturating rejected 169ms expected @4ef5069e9f3b+wt
+	data `Saturated` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/proofs/declaration_predicate_shadowed_embedding rejected 170ms expected @4ef5069e9f3b+wt
+	`embed` is a compiler-owned proof term and cannot be declared or implemented as a machine
+	`embed` is a compiler-owned proof term; an authored, package-qualified, or same-spelled call cannot replace it
+fail/proofs/declaration_predicate_wrapping rejected 172ms expected @4ef5069e9f3b+wt
+	data `Wrapped` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/proofs/declaration_predicate_wrapping_interval rejected 171ms expected @4ef5069e9f3b+wt
+	data `Wrapped` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/proofs/declaration_synthesized_equality_missing_selection rejected 18ms expected @4ef5069e9f3b+wt
+	cannot compare `Packet` values with `==`: structural equality is synthesized only through a named implementation -- declare `PacketEquality satisfies Equatable<Packet> { }` to synthesize structural equality
+fail/proofs/declaration_synthesized_equality_value_context rejected 629ms expected @4ef5069e9f3b+wt
+	cannot prove initializer of `invalid` in main is in domain `Input::Incorrect`; an annotation cannot establish routed qualification
+	construction value is not proven in domain `Input::Incorrect`
 fail/proofs/defined_proposition_premise_not_symmetric rejected 168ms expected @77ecdbf5e7c6
 	checked machine `before_symmetric` cannot establish proposition ensure `boolean:right.x < left.x` in state `entry`; require it, cite a checked/accepted proof that ensures it, or supply its declared evidence
 fail/proofs/fact_only_proof_value_citation_linear_resource rejected 4427ms expected @4ce1ff349782+wt
@@ -8312,6 +8378,10 @@ pass/proofs/cauchy_predicates_compile checked 2759ms @fedeee648fc7+wt
 pass/proofs/citation_requires_discharged checked 10576ms @b7aaf37278ea+wt
 pass/proofs/collection_predicate_deferred_disjunction_sixteen_cells checked 1240ms @1cb01af2f0bb
 pass/proofs/copied_descriptor_keeps_capture_extent checked 678ms @b3d0b7396229+wt
+pass/proofs/declaration_call_requires checked 730ms @4ef5069e9f3b+wt
+pass/proofs/declaration_constructed_data_identity checked 730ms @4ef5069e9f3b+wt
+pass/proofs/declaration_predicate_calls_exit checked 4470ms check-target:macos_arm64 @4ef5069e9f3b+wt
+pass/proofs/declaration_synthesized_equality_value_context checked 3810ms check-target:macos_arm64 @4ef5069e9f3b+wt
 pass/proofs/defined_proposition_premises checked 1193ms @77ecdbf5e7c6
 pass/proofs/descriptor_bound_after_element_call checked 678ms @b3d0b7396229+wt
 pass/proofs/descriptor_bound_call_after_element_call checked 679ms @b3d0b7396229+wt

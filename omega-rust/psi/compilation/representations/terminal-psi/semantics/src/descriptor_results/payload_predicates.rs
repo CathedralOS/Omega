@@ -12,6 +12,9 @@ use semantic_vocabulary::{
 };
 use terminal_psi::{StructuralDomainDeclaration, StructuralTypeDeclaration};
 
+#[cfg(test)]
+mod tests;
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PayloadScalarObservation {
     pub path: Vec<DescriptorPathSegment>,
@@ -102,6 +105,11 @@ pub(super) fn close(
             };
             equations.push(Proposition::Equal(observed, observation.value.clone()));
         }
+        visit_proposition_terms(&predicate.proposition, &mut |term| {
+            if let Some(value) = observed_byte_predicate(types, contract, predicate.subject, term) {
+                equations.push(Proposition::Equal(term.clone(), ScalarTerm::Boolean(value)));
+            }
+        });
         let checked = proof_admission::check_predicate_denotations_with_value_equalities(
             &context,
             &predicate.proposition,
@@ -124,14 +132,24 @@ fn collect_value_types(
     output: &mut Vec<(semantic_vocabulary::ValueId, ScalarType)>,
     depth: usize,
 ) {
+    visit_scalar_terms(
+        term,
+        &mut |term| {
+            if let ScalarTerm::Value { id, scalar_type } = term {
+                output.push((*id, *scalar_type));
+            }
+        },
+        depth,
+    );
+}
+
+fn visit_scalar_terms(term: &ScalarTerm, visit: &mut impl FnMut(&ScalarTerm), depth: usize) {
     if depth > 64 {
         return;
     }
-    if let ScalarTerm::Value { id, scalar_type } = term {
-        output.push((*id, *scalar_type));
-    }
+    visit(term);
     for operand in term.operands() {
-        collect_value_types(operand, output, depth + 1);
+        visit_scalar_terms(operand, visit, depth + 1);
     }
 }
 
@@ -139,6 +157,14 @@ fn collect_proposition_types(
     proposition: &Proposition,
     output: &mut Vec<(semantic_vocabulary::ValueId, ScalarType)>,
 ) {
+    visit_proposition_terms(proposition, &mut |term| {
+        if let ScalarTerm::Value { id, scalar_type } = term {
+            output.push((*id, *scalar_type));
+        }
+    });
+}
+
+fn visit_proposition_terms(proposition: &Proposition, visit: &mut impl FnMut(&ScalarTerm)) {
     use semantic_vocabulary::IntegerMathTerm;
     enum Pending<'a> {
         Proposition(&'a Proposition),
@@ -149,8 +175,8 @@ fn collect_proposition_types(
         match item {
             Pending::Proposition(proposition) => match proposition {
                 semantic_vocabulary::scalar_comparison_operands!(left, right) => {
-                    collect_value_types(left, output, 0);
-                    collect_value_types(right, output, 0);
+                    visit_scalar_terms(left, visit, 0);
+                    visit_scalar_terms(right, visit, 0);
                 }
                 semantic_vocabulary::integer_math_comparison_operands!(left, right) => {
                     pending.push(Pending::Math(left));
@@ -169,14 +195,69 @@ fn collect_proposition_types(
                 _ => {}
             },
             Pending::Math(term) => match term {
-                IntegerMathTerm::Embed(term) => collect_value_types(term, output, 0),
-                IntegerMathTerm::MathValue { source_type, value } => {
-                    output.push((*value, ScalarType::Integer(*source_type)))
-                }
+                IntegerMathTerm::Embed(term) => visit_scalar_terms(term, visit, 0),
+                IntegerMathTerm::MathValue { source_type, value } => visit(&ScalarTerm::value(
+                    *value,
+                    ScalarType::Integer(*source_type),
+                )),
                 _ => pending.extend(term.operands().into_iter().map(Pending::Math)),
             },
         }
     }
+}
+
+/// Only complete, typed current bytes determine a content predicate. A view,
+/// unknown element or retired observation supplies no literal content evidence.
+fn observed_byte_predicate(
+    types: &[StructuralTypeDeclaration],
+    contract: &PayloadMembershipContract,
+    subject: semantic_vocabulary::PlaceId,
+    term: &ScalarTerm,
+) -> Option<bool> {
+    let ScalarTerm::ByteSequencePredicate {
+        predicate,
+        root,
+        path,
+    } = term
+    else {
+        return None;
+    };
+    if *root != subject {
+        return None;
+    }
+    let selected = crate::canonical_structural_path_tip(types.iter(), contract.carrier, path)?;
+    let terminal_psi::StructuralTypeShape::FixedArray { length, .. } = selected.shape else {
+        return None;
+    };
+    if !crate::byte_predicate_carrier(types.iter(), selected.id)
+        || length > contract.scalar_observations.len() as u64
+    {
+        return None;
+    }
+    let mut bytes = Vec::new();
+    for index in 0..length {
+        let mut element_path = path.clone();
+        element_path.push(CanonicalStructuralPathSegment::FixedIndex(index));
+        let mut matching = contract.scalar_observations.iter().filter(|observation| {
+            canonical_path(&observation.path).as_ref() == Some(&element_path)
+        });
+        let observation = matching.next()?;
+        if matching.next().is_some()
+            || observation_type(types, contract.carrier, &observation.path)
+                != Some(observation.value.scalar_type())
+        {
+            return None;
+        }
+        let ScalarTerm::Integer { value, .. } = observation.value else {
+            return None;
+        };
+        let byte = match value {
+            semantic_vocabulary::IntegerValue::Unsigned(value) => u8::try_from(value).ok()?,
+            semantic_vocabulary::IntegerValue::Signed(value) => u8::try_from(value).ok()?,
+        };
+        bytes.push(byte);
+    }
+    Some(predicate.holds_for(&bytes))
 }
 
 pub(super) fn terminal_scalar_literal(

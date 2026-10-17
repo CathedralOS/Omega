@@ -20,6 +20,42 @@ fn truth() -> ProofNode {
     }
 }
 
+#[test]
+fn byte_content_equations_require_the_exact_observation_and_evidence() {
+    use semantic_vocabulary::{ByteSequencePredicate, PlaceId, StructuralPlaceKind};
+    let roots = [PlaceId::new(1).unwrap(), PlaceId::new(2).unwrap()];
+    let context = PropositionContext::from_value_types_and_places(
+        [],
+        roots.into_iter().enumerate().map(|(position, root)| {
+            (
+                root,
+                StructuralPlaceKind::Parameter {
+                    position: position as u32,
+                },
+            )
+        }),
+    )
+    .unwrap();
+    let observation = |root| ScalarTerm::ByteSequencePredicate {
+        predicate: ByteSequencePredicate::AsciiOnly,
+        root,
+        path: Vec::new(),
+    };
+    let goal = Proposition::Equal(observation(roots[0]), ScalarTerm::Boolean(true));
+    let equations = vec![goal.clone()];
+    let proof = transport(goal.clone(), axiom_proofs(&equations));
+    assert!(accept_certificate(&context, &goal, &[], &equations, &proof).is_ok());
+    assert!(accept_certificate(&context, &goal, &[], &[], &proof).is_err());
+    for equation in [
+        Proposition::Equal(observation(roots[1]), ScalarTerm::Boolean(true)),
+        Proposition::Equal(observation(roots[0]), ScalarTerm::Boolean(false)),
+    ] {
+        let equations = vec![equation];
+        let proof = transport(goal.clone(), axiom_proofs(&equations));
+        assert!(accept_certificate(&context, &goal, &[], &equations, &proof).is_err());
+    }
+}
+
 fn axiom_proofs(equations: &[Proposition]) -> Vec<ProofNode> {
     equations
         .iter()

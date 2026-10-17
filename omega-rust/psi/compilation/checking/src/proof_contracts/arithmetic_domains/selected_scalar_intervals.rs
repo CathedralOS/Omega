@@ -23,8 +23,10 @@ use checked_trees::{
     CheckedScalarExpression, CheckedStructuralPredicatePathSegment,
 };
 use facts::IntegerRange;
+use numerics::arithmetic::ArithmeticDomain;
 use numerics::bignum::BigInt;
 use symbols::SymbolHandle;
+use typed_trees::expression::BinaryOperator;
 use typed_trees::types::{
     PrimitiveType, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
 };
@@ -302,7 +304,7 @@ fn integer(
         .then_some((primitive, bounds))
 }
 
-fn binary(
+pub(crate) fn binary(
     kind: CheckedIntegerBinaryKind,
     primitive: PrimitiveType,
     right_primitive: PrimitiveType,
@@ -396,10 +398,28 @@ fn binary(
             integer_range_contains(&carrier, &bounds).then_some(bounds)
         }
         Kind::WrappingAdd | Kind::WrappingSubtract | Kind::WrappingMultiply => {
-            // Crossing a wrap boundary is not a monotone endpoint mapping.
-            // Conservatively retain the full carrier instead of a false range.
-            Some(if integer_range_contains(&carrier, &bounds) {
-                bounds
+            // Reduction is monotone only within one modular period. Shift by
+            // the signed carrier minimum before selecting that period.
+            let modulus = carrier
+                .maximum
+                .sub(&carrier.minimum)
+                .add(&BigInt::from_u64(1));
+            let reduce = |value: &BigInt| {
+                let shifted = value.sub(&carrier.minimum);
+                let (quotient, remainder) = shifted.div_rem(&modulus)?;
+                Some(if remainder.is_negative() {
+                    (quotient.sub(&BigInt::from_u64(1)), remainder.add(&modulus))
+                } else {
+                    (quotient, remainder)
+                })
+            };
+            let (low_period, low) = reduce(&bounds.minimum)?;
+            let (high_period, high) = reduce(&bounds.maximum)?;
+            Some(if low_period == high_period {
+                IntegerRange {
+                    minimum: low.add(&carrier.minimum),
+                    maximum: high.add(&carrier.minimum),
+                }
             } else {
                 carrier
             })
@@ -419,6 +439,103 @@ fn binary(
 /// Whether every value of a divisor interval is nonzero.
 fn excludes_zero(divisor: &IntegerRange) -> bool {
     divisor.minimum >= BigInt::from_u64(1) || divisor.maximum <= BigInt::from_i64(-1)
+}
+
+/// Select the primitive after the caller establishes builtin operator meaning.
+pub fn checked_integer_binary_kind(
+    operator: BinaryOperator,
+    domain: ArithmeticDomain,
+) -> Option<CheckedIntegerBinaryKind> {
+    match (operator, domain) {
+        (BinaryOperator::BitwiseAnd, _) => Some(CheckedIntegerBinaryKind::BitwiseAnd),
+        (BinaryOperator::BitwiseOr, _) => Some(CheckedIntegerBinaryKind::BitwiseOr),
+        (BinaryOperator::BitwiseXor, _) => Some(CheckedIntegerBinaryKind::BitwiseXor),
+        (BinaryOperator::ShiftLeft, ArithmeticDomain::Wrapping) => {
+            Some(CheckedIntegerBinaryKind::WrappingShiftLeft)
+        }
+        (BinaryOperator::ShiftRight, ArithmeticDomain::Wrapping) => {
+            Some(CheckedIntegerBinaryKind::WrappingShiftRight)
+        }
+        (BinaryOperator::ShiftRight, ArithmeticDomain::Exact) => {
+            Some(CheckedIntegerBinaryKind::ExactShiftRight)
+        }
+        (BinaryOperator::ShiftLeft, ArithmeticDomain::Exact) => {
+            Some(CheckedIntegerBinaryKind::ExactShiftLeft)
+        }
+        (BinaryOperator::ShiftLeft, ArithmeticDomain::Saturating) => {
+            Some(CheckedIntegerBinaryKind::SaturatingShiftLeft)
+        }
+        (BinaryOperator::ShiftRight, ArithmeticDomain::Saturating) => {
+            Some(CheckedIntegerBinaryKind::SaturatingShiftRight)
+        }
+        (BinaryOperator::ShiftLeft, ArithmeticDomain::Trapping) => {
+            Some(CheckedIntegerBinaryKind::TrappingShiftLeft)
+        }
+        (BinaryOperator::ShiftRight, ArithmeticDomain::Trapping) => {
+            Some(CheckedIntegerBinaryKind::TrappingShiftRight)
+        }
+        // Trapping arithmetic selects its own runtime-checked primitive; it is
+        // never rewritten into the Exact, Wrapping, or Saturating sibling.
+        (BinaryOperator::Add, ArithmeticDomain::Trapping) => {
+            Some(CheckedIntegerBinaryKind::TrappingAdd)
+        }
+        (BinaryOperator::Subtract, ArithmeticDomain::Trapping) => {
+            Some(CheckedIntegerBinaryKind::TrappingSubtract)
+        }
+        (BinaryOperator::Multiply, ArithmeticDomain::Trapping) => {
+            Some(CheckedIntegerBinaryKind::TrappingMultiply)
+        }
+        (BinaryOperator::Divide, ArithmeticDomain::Trapping) => {
+            Some(CheckedIntegerBinaryKind::TrappingDivide)
+        }
+        (BinaryOperator::Modulo, ArithmeticDomain::Trapping) => {
+            Some(CheckedIntegerBinaryKind::TrappingRemainder)
+        }
+        (BinaryOperator::Add, ArithmeticDomain::Exact) => Some(CheckedIntegerBinaryKind::ExactAdd),
+        (BinaryOperator::Subtract, ArithmeticDomain::Exact) => {
+            Some(CheckedIntegerBinaryKind::ExactSubtract)
+        }
+        (BinaryOperator::Multiply, ArithmeticDomain::Exact) => {
+            Some(CheckedIntegerBinaryKind::ExactMultiply)
+        }
+        (BinaryOperator::Divide, ArithmeticDomain::Exact) => {
+            Some(CheckedIntegerBinaryKind::ExactDivide)
+        }
+        (BinaryOperator::Modulo, ArithmeticDomain::Exact) => {
+            Some(CheckedIntegerBinaryKind::ExactRemainder)
+        }
+        (BinaryOperator::Divide, ArithmeticDomain::Wrapping) => {
+            Some(CheckedIntegerBinaryKind::WrappingDivide)
+        }
+        (BinaryOperator::Modulo, ArithmeticDomain::Wrapping) => {
+            Some(CheckedIntegerBinaryKind::WrappingRemainder)
+        }
+        (BinaryOperator::Divide, ArithmeticDomain::Saturating) => {
+            Some(CheckedIntegerBinaryKind::SaturatingDivide)
+        }
+        (BinaryOperator::Modulo, ArithmeticDomain::Saturating) => {
+            Some(CheckedIntegerBinaryKind::SaturatingRemainder)
+        }
+        (BinaryOperator::Add, ArithmeticDomain::Wrapping) => {
+            Some(CheckedIntegerBinaryKind::WrappingAdd)
+        }
+        (BinaryOperator::Add, ArithmeticDomain::Saturating) => {
+            Some(CheckedIntegerBinaryKind::SaturatingAdd)
+        }
+        (BinaryOperator::Subtract, ArithmeticDomain::Wrapping) => {
+            Some(CheckedIntegerBinaryKind::WrappingSubtract)
+        }
+        (BinaryOperator::Subtract, ArithmeticDomain::Saturating) => {
+            Some(CheckedIntegerBinaryKind::SaturatingSubtract)
+        }
+        (BinaryOperator::Multiply, ArithmeticDomain::Wrapping) => {
+            Some(CheckedIntegerBinaryKind::WrappingMultiply)
+        }
+        (BinaryOperator::Multiply, ArithmeticDomain::Saturating) => {
+            Some(CheckedIntegerBinaryKind::SaturatingMultiply)
+        }
+        _ => None,
+    }
 }
 
 /// `dividend % divisor` under truncated division: the remainder takes the

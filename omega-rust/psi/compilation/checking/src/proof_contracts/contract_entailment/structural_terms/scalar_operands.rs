@@ -57,6 +57,15 @@ pub(in crate::proof_contracts::contract_entailment) fn scalar_operand_is_observe
                 *result_type,
             )
             .is_some()
+                // A completed owned aggregate can be observed through a
+                // borrow of that exact carrier. A produced reference remains
+                // a descriptor and was rejected above; this does not follow
+                // reference fields inside the owned snapshot.
+                || (crate::reference_shell(program, *result_type).is_none()
+                    && crate::reference_shell(program, declared).is_some_and(|shell| {
+                        shell.access.is_readable()
+                            && crate::declared_carriers_match(program, shell.referee, *result_type)
+                    }))
         }
         StructuralTerm::IndexedValue { element_type, .. } => {
             crate::value_custody::expression_types::scalar_observation_meaning(program, declared)

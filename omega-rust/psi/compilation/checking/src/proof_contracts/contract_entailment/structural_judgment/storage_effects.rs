@@ -154,6 +154,23 @@ impl StructuralJudge<'_> {
             self.program,
             expression,
         )?;
+        self.capture_storage_place(place)
+    }
+
+    pub(super) fn captured_reference_subject(
+        &self,
+        subject: &crate::machine_calls::calls::InvocationReferenceSubject,
+    ) -> Option<CapturedStorageCoordinate> {
+        self.capture_storage_place(crate::CanonicalPlace {
+            root: facts::PlaceRoot::Symbol(subject.source.root),
+            segments: subject.source.segments.clone(),
+        })
+    }
+
+    fn capture_storage_place(
+        &self,
+        place: crate::CanonicalPlace,
+    ) -> Option<CapturedStorageCoordinate> {
         let segments = place
             .segments
             .into_iter()
@@ -202,11 +219,90 @@ impl StructuralJudge<'_> {
         // Case-only judgments intentionally do not track storage writes.
         self.requires_value_preservation().then_some(())?;
         let place = self.captured_storage_coordinate(scope, expression)?;
-        let captured = self
+        self.current_storage_value(&place)
+    }
+
+    pub(super) fn current_storage_value(
+        &self,
+        place: &CapturedStorageCoordinate,
+    ) -> Option<super::StructuralTerm> {
+        if let Some(value) = self
             .stored_values
             .iter()
-            .find(|stored| stored.coordinate == place);
-        captured.and_then(|stored| stored.current.clone())
+            .find(|stored| &stored.coordinate == place)
+            .and_then(|stored| stored.current.clone())
+        {
+            return Some(value);
+        }
+        // A fresh aggregate observation owns its fields too. Projection uses
+        // that exact current value, never the retired source initializer.
+        self.stored_values.iter().find_map(|stored| {
+            if stored.coordinate.root != place.root
+                || !place.segments.starts_with(&stored.coordinate.segments)
+            {
+                return None;
+            }
+            let mut value = stored.current.clone()?;
+            for segment in &place.segments[stored.coordinate.segments.len()..] {
+                let CapturedStorageSegment::Place(facts::PlaceSegment::Field { symbol }) = segment
+                else {
+                    return None;
+                };
+                value = self.observed_field_term(value, self.program.symbols.name(*symbol), 0)?;
+            }
+            Some(value)
+        })
+    }
+
+    /// A whole-value read after a field replacement captures the current field
+    /// snapshots alongside its otherwise unknown value. It cannot reconstruct
+    /// unobserved siblings from the old aggregate or grant reference contents.
+    pub(super) fn intake_current_storage_fields(
+        &mut self,
+        machine: &Machine,
+        state: &State,
+        expression: ExpressionHandle,
+        value: &super::StructuralTerm,
+    ) {
+        let Some(coordinate) = self.captured_storage_coordinate(Some((machine, state)), expression)
+        else {
+            return;
+        };
+        let Some(reference) =
+            crate::expression_result_type_reference(self.program, machine, state, expression)
+        else {
+            return;
+        };
+        let equations = self
+            .stored_values
+            .iter()
+            .filter_map(|stored| {
+                if stored.coordinate.root != coordinate.root
+                    || stored.coordinate.segments.len() <= coordinate.segments.len()
+                    || !stored.coordinate.segments.starts_with(&coordinate.segments)
+                {
+                    return None;
+                }
+                let current = stored.current.clone()?;
+                let suffix = stored.coordinate.segments[coordinate.segments.len()..]
+                    .iter()
+                    .map(|segment| match segment {
+                        CapturedStorageSegment::Place(segment) => Some(*segment),
+                        CapturedStorageSegment::Index(_) => None,
+                    })
+                    .collect::<Option<Vec<_>>>()?;
+                let projection = super::super::observed_projections::project_observed_value(
+                    self.program,
+                    reference,
+                    value.clone(),
+                    &suffix,
+                )?;
+                Some((projection, current))
+            })
+            .collect::<Vec<_>>();
+        for (projection, current) in equations {
+            self.intake_equation(projection, current, 0);
+        }
     }
 
     /// Capture a completed scalar read using the same storage roster as exact
@@ -237,7 +333,7 @@ impl StructuralJudge<'_> {
         self.retain_storage_value(place, value, entry);
     }
 
-    fn retain_storage_value(
+    pub(super) fn retain_storage_value(
         &mut self,
         coordinate: CapturedStorageCoordinate,
         value: super::StructuralTerm,

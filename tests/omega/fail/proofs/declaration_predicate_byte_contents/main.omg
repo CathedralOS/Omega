@@ -1,0 +1,6 @@
+data Text [copy] { bytes: [u8; 3]; tag: u8; }
+domain Text::Ready(value) requires ascii_only(value.bytes) && value.tag == 1;
+machine main() {
+    let text: Text = Text { bytes: [103, 255, 33], tag: 1 };
+    let invalid: Text in Ready = text;
+}

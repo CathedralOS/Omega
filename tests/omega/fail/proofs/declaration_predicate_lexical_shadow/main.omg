@@ -1,0 +1,3 @@
+data Box { amount: u64; }
+domain Box::Small(embed)
+requires embed(embed.amount) <= 100;

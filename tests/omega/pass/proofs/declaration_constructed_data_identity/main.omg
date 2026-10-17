@@ -1,0 +1,6 @@
+data Choice [copy] { case Cell(counter: u32); case Empty; }
+data Holder [copy] { choice: Choice; }
+domain Holder::Zero(value) requires value.choice == (Choice::Cell {});
+machine make() -> Holder in Zero {
+    Holder { choice: Choice::Cell { counter: 0 } }
+}

@@ -30,21 +30,6 @@ use typed_trees::types::PrimitiveType;
 
 use crate::values::float_predicates::{comparison, has_ieee_meaning, literal};
 
-pub(in crate::checks::contracts) fn literal_comparison_holds(
-    program: &dyn ::validation::CheckingInput,
-    value: ExpressionHandle,
-    operator: BinaryOperator,
-    constant: ExpressionHandle,
-    domain: &DomainDefinition,
-) -> Option<bool> {
-    let format = domain_float_format(program, domain)?;
-    let actual = literal(program, value, format)?;
-    let expected = literal(program, constant, format)?;
-    let observed = facts::FloatPredicate::comparison(format, BinaryOperator::Equal, &actual)?;
-    let required = facts::FloatPredicate::comparison(format, operator, &expected)?;
-    Some(observed.implies(required))
-}
-
 pub(in crate::checks::contracts) fn expression_establishes_domain_predicate(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,

@@ -1,0 +1,1 @@
+`embed` is a compiler-owned proof term; an authored, package-qualified, or same-spelled call cannot replace it

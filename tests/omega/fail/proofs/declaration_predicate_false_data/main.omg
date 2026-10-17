@@ -1,0 +1,7 @@
+data Ordered [copy] where embed(lower) <= embed(upper) {
+    lower: u64;
+    upper: u64;
+}
+machine main() {
+    let invalid: Ordered = Ordered { lower: 29, upper: 17 };
+}
