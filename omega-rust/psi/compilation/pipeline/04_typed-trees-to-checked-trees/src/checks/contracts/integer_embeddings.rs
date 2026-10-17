@@ -86,17 +86,39 @@ pub(super) fn proves_embedded_literal_exit(
     if binary.operator != BinaryOperator::Equal {
         return false;
     }
-    let Some((embedded, literal)) = embedded_literal(program, binary.left, binary.right)
-        .or_else(|| embedded_literal(program, binary.right, binary.left))
-    else {
-        return false;
-    };
     let returned = exit_return_expression(program, exit_flow);
-    let subject = returned_subject(program, machine, embedded, returned);
-    let Some(value) = known_exit_integer(program, machine, state, subject) else {
+    if let Some((embedded, literal)) = embedded_literal(program, binary.left, binary.right)
+        .or_else(|| embedded_literal(program, binary.right, binary.left))
+    {
+        let subject = returned_subject(program, machine, embedded, returned);
+        let Some(value) = known_exit_integer(program, machine, state, subject) else {
+            return false;
+        };
+        return value == literal;
+    }
+    let Some((_, left)) = validation::integer_embedding_argument(program, binary.left) else {
         return false;
     };
-    value == literal
+    let Some((_, right)) = validation::integer_embedding_argument(program, binary.right) else {
+        return false;
+    };
+    let Some(left) = known_exit_integer(
+        program,
+        machine,
+        state,
+        returned_subject(program, machine, left, returned),
+    ) else {
+        return false;
+    };
+    let Some(right) = known_exit_integer(
+        program,
+        machine,
+        state,
+        returned_subject(program, machine, right, returned),
+    ) else {
+        return false;
+    };
+    left == right
 }
 
 fn embedded_literal(

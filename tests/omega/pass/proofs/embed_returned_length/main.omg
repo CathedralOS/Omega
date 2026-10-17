@@ -14,11 +14,18 @@ ensures embed(result) == 3
     items.len
 }
 
+machine same(items: [i32; 3]) -> u64
+ensures embed(result) == embed(items.len)
+{
+    items.len
+}
+
 machine main() crashes Trap {
     let row: [i32; 3] = [2, 3, 4];
     let counted: Counted = measured(row);
     let value: u64 = direct(row);
-    transition counted.count == 3 && value == 3 { true -> done() false -> bad() }
+    let matched: u64 = same(row);
+    transition counted.count == 3 && value == 3 && matched == 3 { true -> done() false -> bad() }
     state done() {}
     state bad() { crash Trap; }
 }
