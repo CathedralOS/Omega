@@ -3015,10 +3015,12 @@ fail/facts/bound_through_target_body_rejected rejected 1071ms expected @3b422f31
 	cannot prove index `index` is within length 3 in read_target::entry
 fail/facts/case_const_unequal_literals_subtraction_rejected rejected 445ms expected @e0ddeec45d6b+wt
 	exact arithmetic in machine `Main::main` state `take` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/case_const_unequal_predicate_rejected rejected 27ms expected @af17919d299f
+	constant `INTERVAL` is invalid: data constant `Interval` violates its case predicate
 fail/facts/case_equality_through_call_result_compile rejected 661ms expected @2ef2ab353498+wt
 	exact arithmetic in machine `Main::main` state `take` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/case_equality_through_const_name_compile rejected 82ms expected @2ef2ab353498+wt
-	constant `INTERVAL` is invalid: data constant `Interval` violates its case predicate
+fail/facts/case_equality_through_const_name_compile rejected 343ms expected @af17919d299f
+	exact arithmetic in machine `Main::main` state `take` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/case_equality_through_field_compile rejected 570ms expected @2ef2ab353498+wt
 	exact arithmetic in machine `Main::main` state `take` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/case_equality_through_local_compile rejected 910ms expected @2ef2ab353498+wt
@@ -7876,9 +7878,11 @@ pass/facts/bound_through_other_machine_exit checked 6145ms check-target:macos_ar
 pass/facts/bound_through_other_state_exit checked 6159ms check-target:macos_arm64 @3b422f31da30+wt
 pass/facts/bound_through_parameter_exit checked 6140ms check-target:macos_arm64 @3b422f31da30+wt
 pass/facts/bound_through_target_body_exit checked 6380ms check-target:macos_arm64 @3b422f31da30+wt
+pass/facts/case_const_equal_literals_with_predicate checked 1243ms @af17919d299f
 pass/facts/case_const_equal_literals_without_predicate checked 1506ms @e0ddeec45d6b+wt
+pass/facts/case_const_forwarded_binder_compile checked 1313ms @af17919d299f
 pass/facts/case_equality_through_call_result_compile checked 3294ms @2ef2ab353498+wt
-pass/facts/case_equality_through_const_name_compile checked 1993ms @2ef2ab353498+wt
+pass/facts/case_equality_through_const_name_compile checked 1269ms @af17919d299f
 pass/facts/case_equality_through_field_compile checked 2122ms @2ef2ab353498+wt
 pass/facts/case_equality_through_local_compile checked 2290ms @2ef2ab353498+wt
 pass/facts/case_equality_through_match_join_compile checked 3847ms @2ef2ab353498+wt
@@ -7886,6 +7890,7 @@ pass/facts/case_equality_through_other_machine_compile checked 2139ms @2ef2ab353
 pass/facts/case_equality_through_other_state_compile checked 2349ms @2ef2ab353498+wt
 pass/facts/case_equality_through_parameter_compile checked 3429ms @2ef2ab353498+wt
 pass/facts/case_equality_through_target_body_compile checked 2116ms @2ef2ab353498+wt
+pass/facts/case_value_binder_payload_compile checked 1268ms @af17919d299f
 pass/facts/compound_guard_through_call_result_compile checked 1913ms @2ef2ab353498+wt
 pass/facts/compound_guard_through_const_name_compile checked 1881ms @2ef2ab353498+wt
 pass/facts/compound_guard_through_field_compile checked 1863ms @2ef2ab353498+wt

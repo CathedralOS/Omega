@@ -1,6 +1,10 @@
 //! Bind missing members through the receiver's exact declared type or
-//! constructor owner. Substituted constant values are ordinary constructors;
-//! their projections need the same field identity before checked scalar replay.
+//! constructor owner. Static and runtime-capable value binders retain their
+//! declared carriers even before a concrete application exists. Their payload
+//! projections need the same exact field identity as ordinary parameters;
+//! specialization must not inherit an unresolved member from its template.
+//! Substituted constant values are ordinary constructors and use that identity
+//! before checked scalar replay.
 
 use super::lowerer::ExpressionTableLowerer;
 use crate::expressions::call_results::peel;
@@ -235,6 +239,26 @@ pub(super) fn declared_symbol_type(
     }
     let declaration = program.symbols.get(symbol);
     match declaration.kind {
+        SymbolKind::TypeParameter => program
+            .tables
+            .declarations
+            .data_type_parameters
+            .iter()
+            .find_map(|(_, parameter)| {
+                if parameter.symbol != symbol {
+                    return None;
+                }
+                // Staging controls when the value is supplied, not the type
+                // of its fields. Resolve through the authored carrier without
+                // guessing a value or treating a type binder as a value.
+                match &parameter.kind {
+                    resolved::data::TypeParameterKind::Const { type_reference }
+                    | resolved::data::TypeParameterKind::Value { type_reference } => {
+                        Some(type_reference)
+                    }
+                    _ => None,
+                }
+            }),
         SymbolKind::Parameter
             if program.symbols.get(declaration.parent).kind == SymbolKind::Domain =>
         {
