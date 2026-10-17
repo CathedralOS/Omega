@@ -229,6 +229,22 @@ fn prove(
             );
             Some((bounds, place_type))
         }
+        // A field of a loan is the field of the storage the loan names.
+        // `count == 1` on that storage is the interval the formal's
+        // `count >= 1 && count <= 16` reads, for a borrow, a local, or one
+        // exact returned reference.
+        ExpressionNode::Member(_) => loan_field_bounds(
+            program,
+            facts,
+            state,
+            call,
+            contexts,
+            &explicit,
+            &arguments,
+            callee,
+            callee_state,
+            expression,
+        ),
         _ => None,
     };
     let ((left_low, left_high), left_type) = operand(binary.left)?;
@@ -253,6 +269,55 @@ fn prove(
         BinaryOperator::GreaterOrEqual => left_low? >= right_high?,
         _ => return None,
     })
+}
+
+fn loan_field_bounds(
+    program: &dyn ::validation::CheckingInput,
+    facts: &CheckFacts,
+    state: &typed_trees::state::State,
+    call: &FlowCallFact,
+    contexts: &[facts::FactContextHandle],
+    explicit: &[&typed_trees::signature::StateParameter],
+    arguments: &[typed_trees::expression::ExpressionHandle],
+    callee: &typed_trees::machine::Machine,
+    callee_state: &typed_trees::state::State,
+    expression: typed_trees::expression::ExpressionHandle,
+) -> Option<(
+    (Option<i64>, Option<i64>),
+    Option<typed_trees::types::TypeReferenceHandle>,
+)> {
+    let required = crate::flow::projected_leaf_place(program, expression)?;
+    let formal = required.root.as_symbol()?;
+    let position = explicit
+        .iter()
+        .position(|parameter| parameter.symbol == formal)?;
+    let argument = *arguments.get(position)?;
+    let places = crate::flow::reference_expression_storage_places_including_shared(
+        program,
+        state.symbol,
+        call.statement_index,
+        argument,
+        None,
+    )?;
+    let [storage] = places.as_slice() else {
+        return None;
+    };
+    let mut actual = storage.clone();
+    actual.extend_segments(&required.segments);
+    let bounds = crate::values::integer_bounds_at_place(
+        program,
+        &facts.semantic,
+        contexts
+            .iter()
+            .map(|context| facts.semantic.contexts.get(*context)),
+        &actual,
+    )?;
+    let place_type =
+        validation::declared_place_type_raw(program, callee, Some(callee_state), expression);
+    Some((
+        (bounds.minimum.to_i64(), bounds.maximum.to_i64()),
+        place_type,
+    ))
 }
 
 /// Narrow storage reads before transferring their bounds through arithmetic.

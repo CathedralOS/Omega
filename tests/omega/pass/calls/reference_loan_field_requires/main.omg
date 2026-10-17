@@ -1,0 +1,54 @@
+// A caller fact about a record field proves a callee requires on that field
+// when the record arrives as a field borrow, a local loan, a parameter, or
+// one exact returned loan.
+data ValueStack {
+    items: [i32; 4] in Wrapping;
+    count: u64;
+}
+
+machine ValueStack::push(stack: &mut ValueStack, value: i32 in Wrapping)
+requires stack.count < 4 {
+    stack.items[stack.count] = value;
+    stack.count = stack.count + 1;
+}
+
+machine ValueStack::top(stack: &ValueStack) -> u64
+requires stack.count >= 1 && stack.count <= 4 {
+    stack.count
+}
+
+data Main {
+    values: ValueStack;
+}
+
+machine loan(main: &mut Main) -> &mut ValueStack {
+    &mut main.values
+}
+
+machine shared_loan(main: &Main) -> &ValueStack {
+    &main.values
+}
+
+machine observe(stack: &ValueStack)
+requires stack.count >= 1 && stack.count <= 4 {
+    _ = ValueStack::top(stack);
+}
+
+machine Main::main(main: &mut Main) {
+    main.values.count = 1;
+    transition main.values.count >= 1 && main.values.count <= 4 && main.values.count < 4 {
+        true -> use_loans(main)
+        _ -> {}
+    }
+    state use_loans(main: &mut Main)
+    requires main.values.count >= 1 && main.values.count <= 4 && main.values.count < 4 {
+        let stack: &ValueStack = &main.values;
+        observe(&main.values);
+        observe(stack);
+        observe(shared_loan(main));
+        _ = ValueStack::top(&main.values);
+        _ = ValueStack::top(stack);
+        _ = ValueStack::top(shared_loan(main));
+        ValueStack::push(loan(main), 1);
+    }
+}

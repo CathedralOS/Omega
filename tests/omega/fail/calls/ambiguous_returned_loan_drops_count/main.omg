@@ -1,0 +1,36 @@
+// A returned loan that may name either record does not inherit one record's
+// count fact. `pick` selects the other stack, whose count is not `< 4`.
+data ValueStack {
+    items: [i32; 4] in Wrapping;
+    count: u64;
+}
+
+machine ValueStack::push(stack: &mut ValueStack, value: i32 in Wrapping)
+requires stack.count < 4 {
+    stack.items[stack.count] = value;
+    stack.count = stack.count + 1;
+}
+
+data Main {
+    left: ValueStack;
+    right: ValueStack;
+}
+
+machine loan(main: &mut Main, pick: bool) -> &mut ValueStack {
+    transition pick {
+        true -> &mut main.left
+        _ -> &mut main.right
+    }
+}
+
+machine Main::main(main: &mut Main) {
+    main.left.count = 0;
+    main.right.count = 9;
+    transition main.left.count < 4 {
+        true -> stored(main)
+        _ -> {}
+    }
+    state stored(main: &mut Main) {
+        ValueStack::push(loan(main, false), 1);
+    }
+}

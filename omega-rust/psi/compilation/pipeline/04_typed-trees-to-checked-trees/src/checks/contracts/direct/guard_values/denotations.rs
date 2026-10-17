@@ -1,6 +1,9 @@
 //! Compare guard observations in the caller's current namespace. A captured
 //! local expands only through its exact selected producer and a complete frame
-//! preserving both the destination and every observed storage root. Expansion
+//! preserving both the destination and every observed storage root. A reference
+//! actual — a local loan or a returned loan — denotes that loan's storage, so
+//! a field fact on the storage proves the formal's field requirement. Several
+//! exact storages do not: the callee may receive any of them. Expansion
 //! establishes denotation; it never evaluates a user call or assumes its purity.
 
 use checked_trees::{
@@ -12,6 +15,12 @@ use typed_trees::{
     statement::StatementNode,
     types::PrimitiveType,
 };
+
+enum LoanStorage {
+    One(validation::CanonicalPlace),
+    Many,
+    Unknown,
+}
 
 pub(in super::super) struct Denotations<'a> {
     pub program: &'a dyn ::validation::CheckingInput,
@@ -76,7 +85,7 @@ impl Denotations<'_> {
             }
         }
         if formal
-            && let Some(mut required) = crate::flow::projected_leaf_place(self.program, right)
+            && let Some(required) = crate::flow::projected_leaf_place(self.program, right)
             && let Some(root) = required.root.as_symbol()
             && let Some(position) = validation::call_contract_parameter_position(
                 self.program,
@@ -84,11 +93,27 @@ impl Denotations<'_> {
                 root,
             )
             && let Some(actual) = self.arguments.get(position)
-            && let Some(mut actual) = crate::flow::projected_leaf_place(self.program, *actual)
             && let Some(observed) = crate::flow::projected_leaf_place(self.program, left)
         {
-            actual.segments.append(&mut required.segments);
-            return actual == observed;
+            // A borrow spelled at the call already is the storage place.
+            // A local or returned loan is a different expression for that
+            // same storage; compare the loan's exact referent, not its name.
+            if let Some(mut syntactic) = crate::flow::projected_leaf_place(self.program, *actual) {
+                syntactic.extend_segments(&required.segments);
+                if syntactic == observed {
+                    return true;
+                }
+            }
+            if self.expression_is_reference_loan(*actual) {
+                match self.exact_loan_storage(*actual) {
+                    LoanStorage::One(mut storage) => {
+                        storage.extend_segments(&required.segments);
+                        return storage == observed;
+                    }
+                    LoanStorage::Many => return false,
+                    LoanStorage::Unknown => {}
+                }
+            }
         }
         let equal = |left, right, remaining: &mut usize| {
             self.compare(left, right, formal, remaining, depth + 1)
@@ -177,6 +202,69 @@ impl Denotations<'_> {
                 table.expressions_structurally_equal(left, right)
             }
             _ => false,
+        }
+    }
+
+    fn expression_is_reference_loan(&self, expression: ExpressionHandle) -> bool {
+        match self.program.expression_table.expression(expression) {
+            ExpressionNode::Call(_) => true,
+            ExpressionNode::Name(path) => {
+                self.name_is_reference_local(path.symbol, path.head_symbol)
+            }
+            _ => false,
+        }
+    }
+
+    fn name_is_reference_local(&self, symbol: SymbolHandle, head_symbol: SymbolHandle) -> bool {
+        if !symbol.is_valid() || symbol != head_symbol {
+            return false;
+        }
+        let Some((_, state)) = validation::find_state(self.program, self.caller_state_symbol)
+        else {
+            return false;
+        };
+        let Some((_, local)) = self.program.state_local_declaration(state, symbol) else {
+            return false;
+        };
+        crate::checks::type_reference_is_reference(self.program, local.type_reference)
+    }
+
+    /// One exact referent of a reference actual at this call. `Many` means the
+    /// loan may name more than one storage, so one field fact cannot prove it.
+    fn exact_loan_storage(&self, expression: ExpressionHandle) -> LoanStorage {
+        let Some(frames) = self.call_frames else {
+            return LoanStorage::Unknown;
+        };
+        let Some((machine, state)) = validation::find_state(self.program, self.caller_state_symbol)
+        else {
+            return LoanStorage::Unknown;
+        };
+        let Some(statement) = self
+            .program
+            .statement_table
+            .statement_at(state, self.statement_index)
+        else {
+            return LoanStorage::Unknown;
+        };
+        let Some(origins) =
+            frames.reference_expression_origins_before_statement(machine, statement, expression)
+        else {
+            return LoanStorage::Unknown;
+        };
+        let mut storages = Vec::new();
+        for (root, segments) in origins {
+            let place = validation::CanonicalPlace {
+                root: facts::PlaceRoot::Symbol(root),
+                segments,
+            };
+            if !storages.contains(&place) {
+                storages.push(place);
+            }
+        }
+        match storages.len() {
+            0 => LoanStorage::Unknown,
+            1 => LoanStorage::One(storages.remove(0)),
+            _ => LoanStorage::Many,
         }
     }
 

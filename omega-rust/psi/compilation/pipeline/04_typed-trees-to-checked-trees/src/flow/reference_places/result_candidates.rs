@@ -64,7 +64,14 @@ pub(crate) fn reference_result_candidates_before_statement(
     let Some(call) = program.expression_table.call_node(local.initial_value) else {
         return None;
     };
-    call_result_candidates(program, state_symbol, binding_index, call, call_frames)
+    call_result_candidates(
+        program,
+        state_symbol,
+        binding_index,
+        call,
+        call_frames,
+        false,
+    )
 }
 
 fn call_result_candidates(
@@ -73,15 +80,17 @@ fn call_result_candidates(
     statement_index: usize,
     call: &TableCallExpression,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
+    include_shared: bool,
 ) -> Option<Vec<CanonicalPlace>> {
     let mut candidates = Vec::new();
-    for source in call_result_sources(program, call, call_frames)? {
-        for mut storage in reference_expression_storage_places(
+    for source in call_result_sources(program, call, call_frames, include_shared)? {
+        for mut storage in storage_places(
             program,
             caller_state_symbol,
             statement_index,
             source.actual,
             call_frames,
+            include_shared,
         )? {
             storage.segments.extend_from_slice(&source.segments);
             if !candidates.contains(&storage) {
@@ -102,18 +111,50 @@ pub(crate) fn reference_expression_storage_places(
     expression: ExpressionHandle,
     frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<CanonicalPlace>> {
+    storage_places(program, state, statement_index, expression, frames, false)
+}
+
+/// Same storage places as [`reference_expression_storage_places`], also
+/// accepting a shared reference return. Proof reads the referent; effect
+/// frames stay on the mutable-only query.
+pub(crate) fn reference_expression_storage_places_including_shared(
+    program: &dyn ::validation::CheckingInput,
+    state: SymbolHandle,
+    statement_index: usize,
+    expression: ExpressionHandle,
+    frames: Option<&validation::CallFrameResolver<'_>>,
+) -> Option<Vec<CanonicalPlace>> {
+    storage_places(program, state, statement_index, expression, frames, true)
+}
+
+fn storage_places(
+    program: &dyn ::validation::CheckingInput,
+    state: SymbolHandle,
+    statement_index: usize,
+    expression: ExpressionHandle,
+    frames: Option<&validation::CallFrameResolver<'_>>,
+    include_shared: bool,
+) -> Option<Vec<CanonicalPlace>> {
     match program.expression_table.expression(expression) {
         ExpressionNode::Borrow(borrow) => {
-            return reference_expression_storage_places(
+            return storage_places(
                 program,
                 state,
                 statement_index,
                 borrow.target,
                 frames,
+                include_shared,
             );
         }
         ExpressionNode::Call(call) => {
-            return call_result_candidates(program, state, statement_index, call, frames);
+            return call_result_candidates(
+                program,
+                state,
+                statement_index,
+                call,
+                frames,
+                include_shared,
+            );
         }
         _ => {}
     }
@@ -158,6 +199,7 @@ fn call_result_sources(
     program: &dyn ::validation::CheckingInput,
     call: &TableCallExpression,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
+    include_shared: bool,
 ) -> Option<Vec<ReferenceResultSource>> {
     let (callee, callee_state) = validation::find_state(program, call.target_symbol)?;
     if callee.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
@@ -206,10 +248,7 @@ fn call_result_sources(
         let parameter = parameters
             .iter()
             .find(|parameter| parameter.symbol == root)?;
-        if !crate::checks::contracts::is_readable_mutable_reference(
-            program,
-            parameter.type_reference,
-        ) {
+        if !parameter_grants_readable_loan(program, parameter.type_reference, include_shared) {
             return None;
         }
         let actual = {
@@ -225,6 +264,29 @@ fn call_result_sources(
         });
     }
     (!sources.is_empty()).then_some(sources)
+}
+
+fn parameter_grants_readable_loan(
+    program: &dyn ::validation::CheckingInput,
+    type_reference: typed_trees::types::TypeReferenceHandle,
+    include_shared: bool,
+) -> bool {
+    if !include_shared {
+        return crate::checks::contracts::is_readable_mutable_reference(program, type_reference);
+    }
+    let mut reference = type_reference;
+    while reference.is_valid() {
+        match program.type_reference_table.type_reference(reference) {
+            typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
+                reference = *base_type;
+            }
+            typed_trees::types::TypeReferenceNode::Reference { access, .. } => {
+                return *access != language_semantics::ReferenceAccess::WriteOnly;
+            }
+            _ => return false,
+        }
+    }
+    false
 }
 
 /// Every returned expression of the callee's entry state with its statement

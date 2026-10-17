@@ -537,6 +537,16 @@ fn capture_preserves_source(
     // Their actual dependencies below, not root category, establish whether
     // source substitution preserves the completed value.
     if !computed_values_have_source_identity(program, facts, capture.expression) {
+        // A returned loan is the storage it names, not a fresh computed value.
+        // Field facts on that storage stay subject to ordinary substitution.
+        if exact_returned_loan(
+            program,
+            state.state_symbol,
+            call.statement_index,
+            capture.expression,
+        ) {
+            return Some(true);
+        }
         return Some(false);
     }
     let mut observations = Vec::new();
@@ -590,6 +600,14 @@ fn reference_construction_preserves_source(
     invocation: &checked_trees::FlowOperandFact,
 ) -> Option<bool> {
     if !computed_values_have_source_identity(program, facts, capture.expression) {
+        if exact_returned_loan(
+            program,
+            state.state_symbol,
+            capture.statement_index,
+            capture.expression,
+        ) {
+            return Some(true);
+        }
         return Some(false);
     }
     let mut selectors = Vec::new();
@@ -697,6 +715,62 @@ fn reference_construction_preserves_source(
         }
     }
     Some(true)
+}
+
+/// One exact returned reference to parameter storage. The callee projects a
+/// loan; it does not produce a value whose epoch replaces the referent.
+fn exact_returned_loan(
+    program: &dyn ::validation::CheckingInput,
+    state_symbol: symbols::SymbolHandle,
+    statement_index: usize,
+    expression: typed_trees::expression::ExpressionHandle,
+) -> bool {
+    let Some(places) = crate::flow::reference_expression_storage_places_including_shared(
+        program,
+        state_symbol,
+        statement_index,
+        expression,
+        None,
+    ) else {
+        return false;
+    };
+    let [place] = places.as_slice() else {
+        return false;
+    };
+    place
+        .root
+        .as_symbol()
+        .is_some_and(|symbol| symbol.is_valid())
+        && place.segments.iter().all(|segment| {
+            matches!(
+                segment,
+                facts::PlaceSegment::Field { .. }
+                    | facts::PlaceSegment::Case { .. }
+                    | facts::PlaceSegment::FixedIndex { .. }
+            )
+        })
+        && loan_call_does_not_write(program, state_symbol, expression)
+}
+
+/// The returned loan contributes no write of its own. A callee that stores
+/// through the referent before returning it changes the facts substitution
+/// would otherwise read, and an opaque write frame is not an empty one.
+fn loan_call_does_not_write(
+    program: &dyn ::validation::CheckingInput,
+    state_symbol: symbols::SymbolHandle,
+    expression: typed_trees::expression::ExpressionHandle,
+) -> bool {
+    let mut owned = None;
+    let Some(frames) = crate::flow::shared_call_frames_or(None, program, &mut owned) else {
+        return false;
+    };
+    let Some((machine, _)) = validation::find_state(program, state_symbol) else {
+        return false;
+    };
+    matches!(
+        frames.expression_may_write_paths(machine, expression),
+        Some(paths) if paths.is_empty()
+    )
 }
 
 /// Runtime invocations are distinct observations unless the existing checked

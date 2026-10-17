@@ -1,17 +1,27 @@
-// Expected exit: 188.
-// An infix calculator over standard input: it reads "7*(30+4)-50" byte by
-// byte, tokenizes multi-digit numbers and operators into an array of `Token`
-// cases, then evaluates the tokens with precedence and parentheses on two
-// stacks and exits with the value, 7 * 34 - 50 = 188.
+// Expected exit: 10.
+// An infix calculator over standard input. It reads
+// "- ( 3 - 10 ) * 17 % 50 - 3 ^ 2", skips spaces and tabs, tokenizes
+// numbers and operators, then evaluates with precedence and parentheses.
+// Unary minus, integer division, remainder, and right-associative power
+// are included:
+//   -(3-10) = 7
+//   7*17 = 119
+//   119%50 = 19
+//   3^2 = 9
+//   19-9 = 10
 //
-// The stacks are small data types whose `push` and `pop` machines carry their
-// own bounds as `requires` contracts and are called on fields of `Main`
-// (`&mut main.values`), the way ordinary programs factor such helpers.
-// Evaluation is Dijkstra's shunting-yard: Omega runs recursion only in tail
-// position, so precedence parsing keeps its own stacks. Malformed or
-// oversized input exits 1.
+// The stacks are small data types whose `push` and `pop` machines carry
+// their own bounds as `requires` contracts. Callers reach those stacks
+// through `value_stack` and `operator_stack`, which return the field
+// loans, and read each token through `token_at` matched as a call result.
+// Evaluation is Dijkstra's shunting-yard: Omega runs recursion only in
+// tail position, so precedence parsing keeps its own stacks. Power is a
+// separate machine whose remaining-exponent step is a tail transition.
+// Malformed or oversized input, and division or remainder by zero, exits 1.
 //
-// Bytes: '(' 40, ')' 41, '*' 42, '+' 43, '-' 45, '0'..'9' 48..57, LF 10.
+// Bytes: '(' 40, ')' 41, '*' 42, '+' 43, '-' 45, '/' 47, '%' 37, '^' 94,
+// '0'..'9' 48..57, space 32, tab 9, LF 10.
+// Unary minus is stored as operator 126 so it stays distinct from binary '-'.
 
 use omega_language_std::console;
 
@@ -60,9 +70,23 @@ requires stack.count >= 1 && stack.count <= 16 {
 }
 
 machine precedence(symbol: u8) -> u64 {
-    transition symbol == 42 {
-        true -> high()
-        _ -> additive(symbol)
+    transition symbol == 126 || symbol == 94 {
+        true -> tight(symbol)
+        _ -> multiplicative(symbol)
+    }
+    state tight(symbol: u8) -> u64 {
+        transition symbol == 126 {
+            true -> unary()
+            _ -> power()
+        }
+    }
+    state unary() -> u64 { 4 }
+    state power() -> u64 { 3 }
+    state multiplicative(symbol: u8) -> u64 {
+        transition symbol == 42 || symbol == 47 || symbol == 37 {
+            true -> high()
+            _ -> additive(symbol)
+        }
     }
     state high() -> u64 { 2 }
     state additive(symbol: u8) -> u64 {
@@ -73,6 +97,38 @@ machine precedence(symbol: u8) -> u64 {
     }
     state low() -> u64 { 1 }
     state none() -> u64 { 0 }
+}
+
+// Left-associative operators apply on equal precedence. Power and unary
+// minus are right-associative, so an equal incoming operator waits.
+machine binds_tighter(top: u8, incoming: u8) -> bool {
+    transition precedence(top) > precedence(incoming) {
+        true -> yes()
+        _ -> equal_left(top, incoming)
+    }
+    state yes() -> bool { true }
+    state equal_left(top: u8, incoming: u8) -> bool {
+        transition precedence(top) == precedence(incoming) && incoming != 94 && incoming != 126 {
+            true -> yes()
+            _ -> no()
+        }
+    }
+    state no() -> bool { false }
+}
+
+// Repeated multiplication. `remaining` descends to 0; each step is a tail
+// transition back into this machine.
+machine power(left: i32 in Wrapping, right: i32 in Wrapping) -> i32 in Wrapping
+requires right >= 0 && right <= 12 {
+    transition { _ -> step(left, right, 1) }
+    state step(left: i32 in Wrapping, remaining: i32 in Wrapping, accumulated: i32 in Wrapping) -> i32 in Wrapping
+    requires remaining >= 0 && remaining <= 12 {
+        transition remaining >= 1 {
+            true -> step(left, remaining - 1, accumulated * left)
+            _ -> finish(accumulated)
+        }
+    }
+    state finish(accumulated: i32 in Wrapping) -> i32 in Wrapping { accumulated }
 }
 
 // Where `apply` returns once it has reduced one operator.
@@ -89,6 +145,8 @@ data Main {
     // flush.
     number: i32 in Wrapping;
     in_number: bool;
+    // True when the next token must be an operand or unary minus.
+    expect_value: bool;
     cursor: u64;
     symbol: u8;
     values: ValueStack;
@@ -96,10 +154,24 @@ data Main {
     resume: Resume;
 }
 
+machine value_stack(main: &mut Main) -> &mut ValueStack {
+    &mut main.values
+}
+
+machine operator_stack(main: &Main) -> &OperatorStack {
+    &main.operators
+}
+
+machine token_at(main: &Main) -> Token
+requires main.cursor < main.token_count && main.cursor < 16 {
+    main.tokens[main.cursor]
+}
+
 machine Main::main(main: &mut Main) reaches Console {
     main.token_count = 0;
     main.number = 0;
     main.in_number = false;
+    main.expect_value = true;
     main.values.count = 0;
     main.operators.count = 0;
     transition { _ -> read(main) }
@@ -115,8 +187,15 @@ machine Main::main(main: &mut Main) reaches Console {
 
     state classify(main: &mut Main, value: i32) {
         transition value >= 48 && value <= 57 {
-            true -> digit(main, value)
+            true -> digit_or_reject(main, value)
             _ -> not_digit(main, value)
+        }
+    }
+
+    state digit_or_reject(main: &mut Main, value: i32) {
+        transition main.in_number || main.expect_value {
+            true -> digit(main, value)
+            _ -> malformed()
         }
     }
 
@@ -130,8 +209,38 @@ machine Main::main(main: &mut Main) reaches Console {
     state not_digit(main: &mut Main, value: i32) {
         transition value == 10 {
             true -> end_of_input(main)
+            _ -> blank_or_token(main, value)
+        }
+    }
+
+    state blank_or_token(main: &mut Main, value: i32) {
+        transition value == 32 || value == 9 {
+            true -> space(main)
             _ -> flush_then_symbol(main, value)
         }
+    }
+
+    state space(main: &mut Main) {
+        transition main.in_number {
+            true -> flush_space(main)
+            _ -> read(main)
+        }
+    }
+
+    state flush_space(main: &mut Main) {
+        transition main.token_count < 16 {
+            true -> store_space_number(main)
+            _ -> malformed()
+        }
+    }
+
+    state store_space_number(main: &mut Main) {
+        main.tokens[main.token_count] = Token::Number { value: main.number };
+        main.token_count = main.token_count + 1;
+        main.number = 0;
+        main.in_number = false;
+        main.expect_value = false;
+        transition { _ -> read(main) }
     }
 
     state flush_then_symbol(main: &mut Main, value: i32) {
@@ -153,26 +262,84 @@ machine Main::main(main: &mut Main) reaches Console {
         main.token_count = main.token_count + 1;
         main.number = 0;
         main.in_number = false;
+        main.expect_value = false;
         transition { _ -> symbol(main, value) }
     }
 
     state symbol(main: &mut Main, value: i32) {
-        transition (value == 40 || value == 41 || value == 42 || value == 43 || value == 45)
-            && main.token_count < 16 {
+        transition value == 45 && main.expect_value {
+            true -> store_unary(main)
+            _ -> store_binary(main, value)
+        }
+    }
+
+    state store_unary(main: &mut Main) {
+        transition main.token_count < 16 {
+            true -> stored_unary(main)
+            _ -> malformed()
+        }
+    }
+
+    state stored_unary(main: &mut Main) {
+        main.tokens[main.token_count] = Token::Operator { symbol: 126 };
+        main.token_count = main.token_count + 1;
+        main.expect_value = true;
+        transition { _ -> read(main) }
+    }
+
+    state store_binary(main: &mut Main, value: i32) {
+        transition value == 40 {
+            true -> open_paren(main)
+            _ -> binary_operator(main, value)
+        }
+    }
+
+    state open_paren(main: &mut Main) {
+        transition main.expect_value && main.token_count < 16 {
+            true -> store_symbol(main, 40)
+            _ -> malformed()
+        }
+    }
+
+    state binary_operator(main: &mut Main, value: i32) {
+        transition !main.expect_value && main.token_count < 16
+            && (value == 41 || value == 42 || value == 43 || value == 45
+                || value == 37 || value == 47 || value == 94) {
             true -> store_symbol(main, value)
             _ -> malformed()
         }
     }
 
     state store_symbol(main: &mut Main, value: i32) {
-        main.tokens[main.token_count] = Token::Operator { symbol: value as u8 };
+        let symbol: u8 = value as u8;
+        main.tokens[main.token_count] = Token::Operator { symbol: symbol };
         main.token_count = main.token_count + 1;
+        transition symbol == 41 {
+            true -> after_operand(main)
+            _ -> after_operator(main)
+        }
+    }
+
+    state after_operand(main: &mut Main) {
+        main.expect_value = false;
+        transition { _ -> read(main) }
+    }
+
+    state after_operator(main: &mut Main) {
+        main.expect_value = true;
         transition { _ -> read(main) }
     }
 
     state end_of_input(main: &mut Main) {
         transition main.in_number {
             true -> final_number(main)
+            _ -> end_ready(main)
+        }
+    }
+
+    state end_ready(main: &mut Main) {
+        transition main.expect_value && main.token_count != 0 {
+            true -> malformed()
             _ -> evaluate(main)
         }
     }
@@ -188,6 +355,7 @@ machine Main::main(main: &mut Main) reaches Console {
         main.tokens[main.token_count] = Token::Number { value: main.number };
         main.token_count = main.token_count + 1;
         main.in_number = false;
+        main.expect_value = false;
         transition { _ -> evaluate(main) }
     }
 
@@ -204,13 +372,22 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state dispatch(main: &mut Main) {
-        let token: Token = main.tokens[main.cursor];
-        main.cursor = main.cursor + 1;
-        transition token {
-            Token::Number { value } -> push_value(main, value)
-            Token::Operator { symbol } -> operator_token(main, symbol)
+    state dispatch(main: &mut Main)
+    requires main.cursor < main.token_count && main.cursor < 16 {
+        transition token_at(main) {
+            Token::Number { value } -> advance_number(main, value)
+            Token::Operator { symbol } -> advance_operator(main, symbol)
         }
+    }
+
+    state advance_number(main: &mut Main, value: i32 in Wrapping) {
+        main.cursor = main.cursor + 1;
+        transition { _ -> push_value(main, value) }
+    }
+
+    state advance_operator(main: &mut Main, symbol: u8) {
+        main.cursor = main.cursor + 1;
+        transition { _ -> operator_token(main, symbol) }
     }
 
     state push_value(main: &mut Main, value: i32 in Wrapping) {
@@ -221,7 +398,7 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state stored_value(main: &mut Main, value: i32 in Wrapping) {
-        ValueStack::push(&mut main.values, value);
+        ValueStack::push(value_stack(main), value);
         transition { _ -> next_token(main) }
     }
 
@@ -261,7 +438,7 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state close_top(main: &mut Main) {
-        transition OperatorStack::top(&main.operators) == 40 {
+        transition OperatorStack::top(operator_stack(main)) == 40 {
             true -> pop_open(main)
             _ -> close_apply(main)
         }
@@ -285,7 +462,8 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     // An operator first applies every stacked operator that binds at least as
-    // tightly, then stacks itself.
+    // tightly, then stacks itself. Power and unary minus do not apply an
+    // equal-precedence operator already on the stack.
     state operator(main: &mut Main) {
         transition main.operators.count >= 1 && main.operators.count <= 16 {
             true -> operator_top(main)
@@ -294,8 +472,8 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state operator_top(main: &mut Main) {
-        let top: u8 = OperatorStack::top(&main.operators);
-        transition top != 40 && precedence(top) >= precedence(main.symbol) {
+        let top: u8 = OperatorStack::top(operator_stack(main));
+        transition top != 40 && binds_tighter(top, main.symbol) {
             true -> operator_apply(main)
             _ -> push_operator(main)
         }
@@ -331,14 +509,49 @@ machine Main::main(main: &mut Main) reaches Console {
         transition { _ -> apply(main) }
     }
 
-    // Pop two values and one operator, push the result, and return to the loop
-    // that asked.
     state apply(main: &mut Main) {
+        transition main.operators.count >= 1 && main.operators.count <= 16 {
+            true -> apply_kind(main)
+            _ -> malformed()
+        }
+    }
+
+    state apply_kind(main: &mut Main) {
+        let symbol: u8 = OperatorStack::top(operator_stack(main));
+        transition symbol == 40 {
+            true -> malformed()
+            _ -> unary_or_binary(main, symbol)
+        }
+    }
+
+    state unary_or_binary(main: &mut Main, symbol: u8) {
+        transition symbol == 126 {
+            true -> apply_unary(main)
+            _ -> apply_binary(main)
+        }
+    }
+
+    state apply_unary(main: &mut Main) {
+        transition main.values.count >= 1 && main.values.count <= 16 {
+            true -> reduce_unary(main)
+            _ -> malformed()
+        }
+    }
+
+    state apply_binary(main: &mut Main) {
         transition main.values.count >= 2 && main.values.count <= 16
             && main.operators.count >= 1 && main.operators.count <= 16 {
             true -> reduce(main)
             _ -> malformed()
         }
+    }
+
+    state reduce_unary(main: &mut Main)
+        requires main.values.count >= 1 && main.values.count <= 16
+            && main.operators.count >= 1 && main.operators.count <= 16 {
+        let value: i32 in Wrapping = ValueStack::pop(value_stack(main));
+        _ = OperatorStack::pop(&mut main.operators);
+        transition { _ -> push_result(main, 0 - value) }
     }
 
     // One pop per state: each pop's bound is the guard on the edge into it.
@@ -347,7 +560,7 @@ machine Main::main(main: &mut Main) reaches Console {
     state reduce(main: &mut Main)
         requires main.values.count >= 2 && main.values.count <= 16
             && main.operators.count >= 1 && main.operators.count <= 16 {
-        let right: i32 in Wrapping = ValueStack::pop(&mut main.values);
+        let right: i32 in Wrapping = ValueStack::pop(value_stack(main));
         transition main.values.count >= 1 && main.values.count <= 16 {
             true -> reduce_left(main, right)
             _ -> malformed()
@@ -355,19 +568,76 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state reduce_left(main: &mut Main, right: i32 in Wrapping) {
-        let left: i32 in Wrapping = ValueStack::pop(&mut main.values);
+        let left: i32 in Wrapping = ValueStack::pop(value_stack(main));
         let symbol: u8 = OperatorStack::pop(&mut main.operators);
         transition symbol == 42 {
             true -> push_result(main, left * right)
+            _ -> divide_or_rest(main, symbol, left, right)
+        }
+    }
+
+    state divide_or_rest(main: &mut Main, symbol: u8, left: i32 in Wrapping, right: i32 in Wrapping) {
+        transition symbol == 47 {
+            true -> try_divide(main, left, right)
+            _ -> modulo_or_rest(main, symbol, left, right)
+        }
+    }
+
+    state try_divide(main: &mut Main, left: i32 in Wrapping, right: i32 in Wrapping) {
+        transition right != 0 {
+            true -> divide(main, left, right)
+            _ -> malformed()
+        }
+    }
+
+    state divide(main: &mut Main, left: i32 in Wrapping, right: i32 in Wrapping)
+    requires right != 0 {
+        transition { _ -> push_result(main, left / right) }
+    }
+
+    state modulo_or_rest(main: &mut Main, symbol: u8, left: i32 in Wrapping, right: i32 in Wrapping) {
+        transition symbol == 37 {
+            true -> try_modulo(main, left, right)
             _ -> additive_result(main, symbol, left, right)
         }
+    }
+
+    state try_modulo(main: &mut Main, left: i32 in Wrapping, right: i32 in Wrapping) {
+        transition right != 0 {
+            true -> modulo(main, left, right)
+            _ -> malformed()
+        }
+    }
+
+    state modulo(main: &mut Main, left: i32 in Wrapping, right: i32 in Wrapping)
+    requires right != 0 {
+        transition { _ -> push_result(main, left % right) }
     }
 
     state additive_result(main: &mut Main, symbol: u8, left: i32 in Wrapping, right: i32 in Wrapping) {
         transition symbol == 43 {
             true -> push_result(main, left + right)
+            _ -> power_or_subtract(main, symbol, left, right)
+        }
+    }
+
+    state power_or_subtract(main: &mut Main, symbol: u8, left: i32 in Wrapping, right: i32 in Wrapping) {
+        transition symbol == 94 {
+            true -> try_power(main, left, right)
             _ -> push_result(main, left - right)
         }
+    }
+
+    state try_power(main: &mut Main, left: i32 in Wrapping, right: i32 in Wrapping) {
+        transition right >= 0 && right <= 12 {
+            true -> raise(main, left, right)
+            _ -> malformed()
+        }
+    }
+
+    state raise(main: &mut Main, left: i32 in Wrapping, right: i32 in Wrapping)
+    requires right >= 0 && right <= 12 {
+        transition { _ -> push_result(main, power(left, right)) }
     }
 
     state push_result(main: &mut Main, result: i32 in Wrapping) {
@@ -378,7 +648,7 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state stored_result(main: &mut Main, result: i32 in Wrapping) {
-        ValueStack::push(&mut main.values, result);
+        ValueStack::push(value_stack(main), result);
         transition main.resume {
             Resume::Close -> close(main)
             Resume::Operator -> operator(main)
@@ -394,7 +664,7 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state report(main: &mut Main) {
-        let result: i32 in Wrapping = ValueStack::pop(&mut main.values);
+        let result: i32 in Wrapping = ValueStack::pop(value_stack(main));
         Console::exit_process(result as i32);
     }
 

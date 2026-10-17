@@ -151,6 +151,19 @@ pub(crate) fn instantiate_call_contract_expression_label(
                             ) => borrow.target,
                             _ => argument,
                         };
+                        // A local or returned loan is another spelling of the
+                        // borrowed storage. The predicate reads that storage,
+                        // so the label has to name it or the caller's fact
+                        // (`main.values.count < 4`) cannot meet `stack.count`.
+                        if let Some(storage) = reference_actual_storage_label(
+                            program,
+                            caller_state_symbol,
+                            statement_index,
+                            parameter.type_reference,
+                            argument,
+                        ) {
+                            return storage;
+                        }
                         program.render_proof_expression(argument, ProofSubstitutions::None)
                     })
                     .unwrap_or_else(|| parameter.name.to_string());
@@ -191,6 +204,97 @@ pub(crate) fn instantiate_call_contract_expression_label(
         &name_label,
         &|literal| program.render_proof_constructor_value(literal, |value| render(value)),
     )
+}
+
+/// The caller's spelling of storage a reference actual names, when that
+/// actual is a local loan or a returned loan rather than a borrow written
+/// at the call. One exact referent is required: several candidates would
+/// let a fact about one of them discharge a requirement on all of them.
+fn reference_actual_storage_label(
+    program: &dyn ::validation::CheckingInput,
+    caller_state_symbol: SymbolHandle,
+    statement_index: usize,
+    parameter_type: typed_trees::types::TypeReferenceHandle,
+    argument: typed_trees::expression::ExpressionHandle,
+) -> Option<String> {
+    if !type_is_reference(program, parameter_type) {
+        return None;
+    }
+    let state = program.state_by_symbol(caller_state_symbol)?;
+    let rendered = match program.expression_table.expression(argument) {
+        typed_trees::expression::ExpressionNode::Name(path)
+            if path.symbol == path.head_symbol
+                && program
+                    .expression_table
+                    .name_path_members(path.members)
+                    .len()
+                    == 1 =>
+        {
+            let statements = program.statement_table.statements(state.statement_nodes);
+            let source = crate::flow::reference_route_source(
+                program,
+                state,
+                statements,
+                statement_index,
+                path.symbol,
+            )?;
+            referent_label(program, caller_state_symbol, statement_index, source)
+        }
+        typed_trees::expression::ExpressionNode::Call(_) => {
+            referent_label(program, caller_state_symbol, statement_index, argument)
+        }
+        _ => None,
+    }?;
+    Some(rendered)
+}
+
+fn referent_label(
+    program: &dyn ::validation::CheckingInput,
+    caller_state_symbol: SymbolHandle,
+    statement_index: usize,
+    expression: typed_trees::expression::ExpressionHandle,
+) -> Option<String> {
+    let mut referent = expression;
+    loop {
+        match program.expression_table.expression(referent) {
+            typed_trees::expression::ExpressionNode::Borrow(borrow) => referent = borrow.target,
+            typed_trees::expression::ExpressionNode::Cast(cast) if cast.form.is_recast() => {
+                referent = cast.value;
+            }
+            typed_trees::expression::ExpressionNode::Call(_) => {
+                let places = crate::flow::reference_expression_storage_places_including_shared(
+                    program,
+                    caller_state_symbol,
+                    statement_index,
+                    referent,
+                    None,
+                )?;
+                let [place] = places.as_slice() else {
+                    return None;
+                };
+                return Some(place.label(program));
+            }
+            _ => {
+                return Some(program.render_proof_expression(referent, ProofSubstitutions::None));
+            }
+        }
+    }
+}
+
+fn type_is_reference(
+    program: &dyn ::validation::CheckingInput,
+    mut reference: typed_trees::types::TypeReferenceHandle,
+) -> bool {
+    while reference.is_valid() {
+        match program.type_reference_table.type_reference(reference) {
+            typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
+                reference = *base_type;
+            }
+            typed_trees::types::TypeReferenceNode::Reference { .. } => return true,
+            _ => return false,
+        }
+    }
+    false
 }
 
 /// The static generic arguments authored on the call (`bounded<K>`), empty

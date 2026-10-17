@@ -1435,6 +1435,8 @@ fail/calls/affine_call_local_moved_twice rejected 942ms expected @0e7ef4cb2ac8+w
 	cannot use `value` in machine `main` state `entry` (statement 2) after `value` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `value` first
 fail/calls/affine_constructor_result_reuse rejected 1183ms expected @a9ae30e1c334+wt
 	cannot use `item` in machine `Worker::check` state `check` (statement 2) after `item` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `item` first
+fail/calls/ambiguous_returned_loan_drops_count rejected 965ms expected @d9b14477f4cf+wt
+	cannot prove requires contract for call push from Main::main: loan(main, false).count < 4 (needs fact `stack.count < 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `stored`
 fail/calls/authored_numeric_name_requires rejected 1601ms expected @a9ae30e1c334+wt
 	cannot prove requires contract for call abs from main: 100 >= -3 && 100 <= 3 (needs fact `value >= -3 && value <= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/calls/borrowed_binding_nested_field rejected 323ms expected @8df1d091a810
@@ -1619,6 +1621,8 @@ fail/calls/selected_local_owner_reuse rejected 1632ms expected @a9ae30e1c334+wt
 fail/calls/selector_field_predicate_upper_bound rejected 178ms expected @12d4cf2df172+wt
 	machine `replace_row` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
 	machine `replace_position` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
+fail/calls/stale_returned_loan_drops_count rejected 974ms expected @d9b14477f4cf+wt
+	cannot prove requires contract for call push from Main::main: main.values.count < 4 (needs fact `stack.count < 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `stored`
 fail/calls/state_arrival_call_result_above_bound rejected 421ms expected @a0a35c7bbb43+wt
 	cannot prove requires contract for call visit from main: index <= 3 (needs fact `index <= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/calls/statement_call_undeclared_callee_rejected rejected 829ms expected @a9ae30e1c334+wt
@@ -6261,6 +6265,7 @@ pass/calls/private_callback_call_closure checked 6188ms check-target:macos_arm64
 pass/calls/projected_receiver_callee checked 9366ms @5041ef1af684+wt
 pass/calls/qualified_record_call_result_field_exit checked 11150ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/recursive_terminal_block_acknowledgement_exit checked 10144ms check-target:macos_arm64 @5acf32321f42+wt
+pass/calls/reference_loan_field_requires checked 1100ms @d9b14477f4cf+wt
 pass/calls/requires_carrier_ceiling_vacuous checked 11061ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/requires_operand_flip_discharge checked 11165ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/result_overload_terminal_arm_exit checked 7518ms check-target:macos_arm64 @098b7c4bf0f0+wt

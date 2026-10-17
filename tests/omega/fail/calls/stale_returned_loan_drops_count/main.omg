@@ -1,0 +1,33 @@
+// Writing through the referent before returning the loan drops the caller's
+// old count fact. The push requires must not reuse `count < 4` from before
+// the write.
+data ValueStack {
+    items: [i32; 4] in Wrapping;
+    count: u64;
+}
+
+machine ValueStack::push(stack: &mut ValueStack, value: i32 in Wrapping)
+requires stack.count < 4 {
+    stack.items[stack.count] = value;
+    stack.count = stack.count + 1;
+}
+
+data Main {
+    values: ValueStack;
+}
+
+machine loan(main: &mut Main) -> &mut ValueStack {
+    main.values.count = 9;
+    &mut main.values
+}
+
+machine Main::main(main: &mut Main) {
+    main.values.count = 0;
+    transition main.values.count < 4 {
+        true -> stored(main)
+        _ -> {}
+    }
+    state stored(main: &mut Main) {
+        ValueStack::push(loan(main), 1);
+    }
+}
