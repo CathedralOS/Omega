@@ -1,0 +1,22 @@
+// Another machine indexes a result whose producer ensures the bound.
+// Expected exit: 0.
+machine produced(index: u64) -> u64
+requires index < 3
+ensures result < 3
+{ index }
+machine consumed(index: u64) -> u8
+requires index < 3
+{
+    let values: [u8; 3] = [7, 8, 9];
+    values[index]
+}
+machine read_other(index: u64) -> u8
+requires index < 3
+{
+    consumed(produced(index))
+}
+machine main() crashes Trap {
+    transition read_other(1) == 8 { true -> done() _ -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}

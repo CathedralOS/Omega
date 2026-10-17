@@ -1606,6 +1606,15 @@ pass/expressions/runtime_widened_comparison_exit built 14956ms exit:70 @6c49683c
 pass/expressions/scalar_match_boundary_composition_exit built 32828ms exit:70 @6c49683ce714
 pass/expressions/seq_consuming_combinators checked 17840ms @6c49683ce714
 pass/expressions/unit_case_return_call_product built 14789ms exit:70 @6c49683ce714
+pass/facts/bound_through_call_result_exit built 6102ms exit:0 @3b422f31da30+wt
+pass/facts/bound_through_const_name_exit built 6125ms exit:0 @3b422f31da30+wt
+pass/facts/bound_through_field_exit built 6156ms exit:0 @3b422f31da30+wt
+pass/facts/bound_through_local_exit built 6096ms exit:0 @3b422f31da30+wt
+pass/facts/bound_through_match_join_exit built 6064ms exit:0 @3b422f31da30+wt
+pass/facts/bound_through_other_machine_exit built 6125ms exit:0 @3b422f31da30+wt
+pass/facts/bound_through_other_state_exit built 6283ms exit:0 @3b422f31da30+wt
+pass/facts/bound_through_parameter_exit built 6041ms exit:0 @3b422f31da30+wt
+pass/facts/bound_through_target_body_exit built 6208ms exit:0 @3b422f31da30+wt
 pass/filesystem/cross_linux_value_syscalls checked 16309ms @aebe0714a499+wt
 pass/filesystem/dir_walk_wrappers_exit built 27233ms exit:70 @aebe0714a499+wt
 pass/filesystem/native_canonicalize built 21466ms exit:0 stdout:match @aebe0714a499+wt

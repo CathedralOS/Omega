@@ -20,6 +20,7 @@ Compiler cases are organized by outcome first, then by feature area.
 Inside each bucket, prefer feature folders when a group becomes noisy:
 
 - `arithmetic/`
+- `facts/`
 - `borrows/`
 - `calls/`
 - `collections/`

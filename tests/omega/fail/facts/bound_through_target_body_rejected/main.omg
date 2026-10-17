@@ -1,0 +1,27 @@
+// A target body cannot index an unproved parameter.
+linux_x86_64 machine read_target(index: u64) -> u8
+{
+    let values: [u8; 3] = [7, 8, 9];
+    values[index]
+}
+linux_arm64 machine read_target(index: u64) -> u8
+{
+    let values: [u8; 3] = [7, 8, 9];
+    values[index]
+}
+macos_arm64 machine read_target(index: u64) -> u8
+{
+    let values: [u8; 3] = [7, 8, 9];
+    values[index]
+}
+windows_x86_64 machine read_target(index: u64) -> u8
+{
+    let values: [u8; 3] = [7, 8, 9];
+    values[index]
+}
+
+machine main() crashes Trap {
+    transition read_target(1) == 8 { true -> done() _ -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}

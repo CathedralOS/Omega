@@ -1,0 +1,18 @@
+// A record where-bound on a field still indexes through that field.
+// Expected exit: 0.
+data Cursor
+where
+    index < 3,
+{
+    index: u64;
+}
+machine read_field(cursor: &Cursor) -> u8 {
+    let values: [u8; 3] = [7, 8, 9];
+    values[cursor.index]
+}
+machine main() crashes Trap {
+    let cursor: Cursor = Cursor { index: 1 };
+    transition read_field(&cursor) == 8 { true -> done() _ -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}

@@ -1,0 +1,16 @@
+// Another state indexes with the bound stated on its own requires.
+// Expected exit: 0.
+machine read_state(index: u64) -> u8
+requires index < 3
+{
+    let values: [u8; 3] = [7, 8, 9];
+    transition { _ -> picked(&values, index) }
+    state picked(values: &[u8; 3], chosen: u64) -> u8
+    requires chosen < 3
+    { values[chosen] }
+}
+machine main() crashes Trap {
+    transition read_state(1) == 8 { true -> done() _ -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}

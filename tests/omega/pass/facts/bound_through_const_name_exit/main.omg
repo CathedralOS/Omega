@@ -1,0 +1,12 @@
+// A const name inside the array length indexes through that name.
+// Expected exit: 0.
+const SLOT: u64 = 1;
+machine read_const() -> u8 {
+    let values: [u8; 3] = [7, 8, 9];
+    values[SLOT]
+}
+machine main() crashes Trap {
+    transition read_const() == 8 { true -> done() _ -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}

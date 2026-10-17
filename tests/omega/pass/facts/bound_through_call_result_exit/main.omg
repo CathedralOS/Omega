@@ -1,0 +1,17 @@
+// A call result that ensures a bound indexes through that result.
+// Expected exit: 0.
+machine slot(index: u64) -> u64
+requires index < 3
+ensures result < 3
+{ index }
+machine read_call(index: u64) -> u8
+requires index < 3
+{
+    let values: [u8; 3] = [7, 8, 9];
+    values[slot(index)]
+}
+machine main() crashes Trap {
+    transition read_call(1) == 8 { true -> done() _ -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}

@@ -1,0 +1,13 @@
+// A match join drops a bound when one arm lacks it.
+machine read_join(flag: bool, low: u64, high: u64) -> u8
+requires low < 3
+{
+    let values: [u8; 3] = [7, 8, 9];
+    let index: u64 = match flag { true -> low, false -> high };
+    values[index]
+}
+machine main() crashes Trap {
+    transition read_join(true, 1, 2) == 8 { true -> done() _ -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}

@@ -1,0 +1,11 @@
+// A call result with no bound cannot index an array.
+machine slot(index: u64) -> u64 { index }
+machine read_call(index: u64) -> u8 {
+    let values: [u8; 3] = [7, 8, 9];
+    values[slot(index)]
+}
+machine main() crashes Trap {
+    transition read_call(1) == 8 { true -> done() _ -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}
