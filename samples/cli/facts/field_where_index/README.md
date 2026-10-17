@@ -20,7 +20,7 @@ Nine places, one fact:
 - `other_machine/` — another machine producing and consuming the bound
 - `target_body/` — the same field index in every target body
 
-Each place has `controls/invalid/`. Removing the standing bound, raising
+Each place has `invalid/`. Removing the standing bound, raising
 the const ceiling to 4, or joining an unbounded arm must reject.
 
 ```sh
