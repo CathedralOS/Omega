@@ -16,7 +16,7 @@ use checked_trees::CheckedUnitStructuralArgumentPlan;
 pub(super) fn arguments(
     operation: &CheckedUnitEffectOperationPlan,
 ) -> &[CheckedUnitStructuralArgumentPlan] {
-    operation.call_structural_arguments()
+    operation.structural_operands()
 }
 
 pub(super) use super::view_ranges::range;

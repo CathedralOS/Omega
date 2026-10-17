@@ -1,0 +1,15 @@
+// Native publication must type the selected provider independently of main.
+// Its nested generic pointer path supplies concrete storage demands; the
+// source declaration of a stored pointer alone supplies only an identity.
+use omega::language::core::assembly_model;
+data Cell { value: AtomicU64; }
+data Holder<T> { word: &T; }
+data Ack [linear] { holder: &Holder<Cell>; }
+boundary trait Completion { machine complete(ack: Ack); }
+proposition acknowledged(ack: Ack) = atomic_release_written<AtomicU64, u64>(&ack.holder.word.value, 1);
+data Confirmation {}
+machine Confirmation::finish(ack: Ack) satisfies Completion::complete
+ensures acknowledged(ack);
+{ let nonce: u64 = 1; ack.holder.word.value.store(nonce, Publish); }
+CompletionProvider satisfies Completion { Completion::complete = Confirmation::finish; }
+machine main() {}

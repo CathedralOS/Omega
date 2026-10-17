@@ -1,0 +1,16 @@
+use omega::language::core::assembly_model;
+data Cell { value: AtomicU64; }
+data Envelope [linear] { invocation: u64; acknowledgement: &Cell; }
+domain Envelope::Pending established by Entry::enter;
+boundary trait Entry { machine enter(envelope: Envelope in Pending); }
+boundary trait Completion {
+ machine confirm(envelope: Envelope) requires envelope in Envelope::Pending;
+}
+proposition published(envelope: Envelope) = atomic_release_written<AtomicU64, u64>(&envelope.acknowledgement.value, envelope.invocation);
+machine finish(envelope: Envelope) satisfies Completion::confirm
+requires envelope in Envelope::Pending;
+ensures published(envelope);
+{ envelope.acknowledgement.value.store(0, Publish); }
+CompletionProvider satisfies Completion { Completion::confirm = finish; }
+
+machine main() {}

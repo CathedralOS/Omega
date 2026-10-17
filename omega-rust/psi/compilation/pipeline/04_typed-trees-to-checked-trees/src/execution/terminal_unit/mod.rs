@@ -554,7 +554,7 @@ pub(crate) fn build_checked_unit_effect_plans(
                             // `ref(...)`/view identities that no result type
                             // reaches; retain them with the operation.
                             let mut seeded: Vec<typed_trees::type_identity::TypeIdentityId> = operation
-                                .call_structural_arguments()
+                                .structural_operands()
                                 .iter()
                                 .flat_map(|argument| {
                                     std::iter::once(argument.type_identity)
@@ -666,7 +666,7 @@ pub(crate) fn build_checked_unit_effect_plans(
         // subslice additionally names the storage it borrows: a constrained
         // field carrier enrolls its backing type under the peeled carrier
         // identity, which no record field spelling ever reaches.
-        for argument in operation.call_structural_arguments() {
+        for argument in operation.structural_operands() {
             retained_type_identities.insert(argument.type_identity);
             retained_type_identities.extend(argument.borrowed_root_type_identity());
             if let Some(storage_type_identity) = argument.subslice_storage_type_identity() {
@@ -674,6 +674,9 @@ pub(crate) fn build_checked_unit_effect_plans(
             }
         }
         match operation {
+            CheckedUnitEffectOperationPlan::AtomicAccess(access) => {
+                retained_type_identities.insert(access.receiver_root_type_identity);
+            }
             CheckedUnitEffectOperationPlan::CaptureAssignmentDestination {
                 destination, ..
             } => {

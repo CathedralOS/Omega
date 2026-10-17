@@ -322,6 +322,14 @@ fail/arrays/qualified_array_literal_rejects_element_policy_conversion rejected 8
 	store in array literal element of type `u32` implicitly converts `u32 in Saturating` to `u32 in Wrapping` (implicit domain weakening); a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u32 in Wrapping`)
 fail/arrays/window_copy_preserves_inherited_element_policy rejected 316ms expected @308fbdc54ba0
 	array window replacement source must preserve the complete destination element type, including its qualifications
+fail/asm/atomic_completion_unestablished_claim rejected 1331ms expected @735568789750+wt
+	cannot prove requires contract for call confirm from invalid: envelope in Envelope::Pending in state `entry`
+fail/asm/atomic_completion_wrong_invocation rejected 1240ms expected @735568789750+wt
+	cannot prove ensures contract for exit from finish at statement 1: proposition:fact:atomic_release_written<AtomicU64,u64>(shared envelope.acknowledgement.value,envelope.invocation)
+	linear value `envelope` reaches scope exit without being consumed or transferred
+fail/asm/atomic_completion_wrong_receiver rejected 1352ms expected @735568789750+wt
+	cannot prove ensures contract for exit from finish at statement 2: proposition:fact:atomic_release_written<AtomicU64,u64>(shared envelope.acknowledgement.value,envelope.invocation)
+	linear value `envelope` reaches scope exit without being consumed or transferred
 fail/asm/atomic_release_disposition_bypass rejected 1383ms expected @4bfe01cd2128
 	cannot prove asm `ensures` fact at block exit in finish state `skipped` (statement 4): proposition:fact:atomic_release_written<AtomicU64,u64>(shared word.value,ack.nonce)
 	linear value `ack` reaches scope exit without being consumed or transferred
@@ -6237,6 +6245,7 @@ pass/atomics/runtime_nested_case_payload_atomic_event_exit checked 4666ms check-
 pass/atomics/runtime_projected_state_operands_exit checked 7742ms check-target:linux_x86_64 @1c8b4ab0e733+wt
 pass/atomics/runtime_shared_case_waived_atomic_exit checked 11071ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/atomics/runtime_stored_reference_atomic_events_exit checked 10420ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/atomics/selected_reference_atomic_provider checked 7515ms check-target:linux_x86_64 @735568789750+wt
 pass/atomics/shared_receiver_atomic_store checked 11103ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/blockexec/blocking_executor_custody_claims_compile checked 7985ms check-target:macos_arm64 @23c57bab5d6a+wt
 pass/blockexec/runtime_selected_worker_body_exit checked 9858ms check-target:macos_arm64 @03d6ab4d9d4c
@@ -8249,8 +8258,7 @@ pass/memory/runtime_large_frame_console_byte_homes_exit checked 11752ms check-ta
 pass/memory/runtime_large_local_record_exit checked 11731ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/memory/runtime_linear_native_allocation_call_result_exit checked 8179ms check-target:linux_x86_64 @d7fd01f47497+wt
 pass/memory/runtime_linear_native_allocation_exit checked 8274ms check-target:linux_x86_64 @d7fd01f47497+wt
-pass/memory/secondary_processor_canary rejected 1305ms check-target:macos_arm64 @a9ae30e1c334+wt
-	selected whole provider maps `<selected target>::SecondSecondaryProcessorConformance::satisfies::SecondSecondaryProcessorRoot` and `<selected target>::FirstSecondaryProcessorConformance::satisfies::FirstSecondaryProcessorRoot` supply the same exact receiver application; inherited rows cannot be mixed across choosing owners
+pass/memory/secondary_processor_canary checked 11102ms check-target:macos_arm64 @735568789750+wt
 pass/memory/weak_vacant_qualifier_satisfied checked 1690ms @a9ae30e1c334+wt
 pass/modules/aggregate_machine_indices checked 1624ms @a9ae30e1c334+wt
 pass/modules/boolean_equality_indices checked 1644ms @a9ae30e1c334+wt

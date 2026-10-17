@@ -1,6 +1,6 @@
 // SECONDARY-PROCESSOR-CANARY: Cathedral's authored route for the
-// secondary-processor startup contract, the package side of the ledger
-// in `platform_bringup::secondary_processor`.
+// secondary-processor startup contract. The hosted application emits the
+// installed entry and stack policies; it does not boot a processor.
 //
 // A secondary processor (AP on x86) starts by vector, not by resume:
 // the supervisor releases an installed startup entry whose address is
@@ -9,7 +9,7 @@
 // authored contract is the startup acknowledgement envelope: dispatch
 // establishes `StartupEnvelope` in `Pending`, the arriving processor
 // resolves its acknowledgement requirement by calling
-// `StartupEnvelope::confirm`, and reaching `confirm` is the only
+// `StartupAcknowledgementProtocol::confirm`, and reaching `confirm` is the only
 // arrival witness the supervisor's ledger accepts. The supervisor's
 // authored cancellation route is `StartupEnvelope::request_cancel` — a
 // borrowed request that keeps `Pending` established while asking, not
@@ -33,6 +33,7 @@
 // the two accounts' resource classes.
 
 use omega::language::core::assembly;
+use omega::language::core::assembly_model;
 use omega::language::core::representation;
 use omega_language_std::calling;
 
@@ -44,7 +45,15 @@ use omega_language_std::calling;
 // established envelope must resolve the acknowledgement requirement or
 // be settled by the supervisor, so an attempt is never silently
 // dropped once dispatched.
-pub boundary data StartupEnvelope [linear];
+pub boundary data StartupOccurrence [copy];
+pub boundary data StartupVector [copy];
+pub data StartupAcknowledgement { value: AtomicU64; }
+pub data StartupEnvelope [linear] {
+    processor: StartupOccurrence;
+    invocation: u64;
+    startup_vector: StartupVector;
+    acknowledgement: &StartupAcknowledgement;
+}
 
 // The dispatched startup attempt: established by a provider's `enter`,
 // extinguished by `confirm`. The ledger rejects requests and freshly
@@ -65,13 +74,14 @@ pub boundary trait SecondaryProcessorEntry {
 }
 
 // The acknowledgement edge the arriving processor executes to complete
-// startup. Any selected implementation may satisfy it; the ledger the
-// compiler drives in the test mints the witness only when this
-// requirement resolves.
-pub boundary requirement StartupEnvelope::confirm(envelope: StartupEnvelope)
-reaches MachineControl
-requires
-    envelope in StartupEnvelope::Pending;
+// startup. The consuming requirement owes one actual publication of this
+// Pending invocation to its typed acknowledgement cell. Pending admission
+// supplies a nonreused invocation identity; cancellation supplies no receipt.
+pub boundary trait StartupAcknowledgementProtocol {
+    machine confirm(envelope: StartupEnvelope)
+    reaches MachineControl
+    requires envelope in StartupEnvelope::Pending;
+}
 
 // The supervisor's cancellation route for an outstanding attempt:
 // asking is a request only. It borrows the envelope, so `Pending` stays
@@ -89,24 +99,21 @@ pub boundary requirement StartupEnvelope::request_cancel(envelope: &StartupEnvel
 // The physical carrier
 // ---------------------------------------------------------------------------
 
-// The wire record the arriving processor hands back: processor
-// occurrence, the outstanding invocation it is answering, the
-// installed startup vector it arrived at, and the acknowledgement
-// word. This is the exact shape `plan` matches at the signature.
+// Four words retain processor occurrence, nonreused invocation, installed
+// startup vector and acknowledgement address in that order. Opaque word
+// representations carry inert identity; the separate checked reference
+// supplies access to the acknowledgement cell. Both Calling policies still
+// require the complete 32-byte, 8-aligned envelope.
 pub data StartupEnvelopeCarrier {
     processor: u64;
     invocation: u64;
     startup_vector: u64;
     acknowledgement: u64;
 }
-
-// The processor-visible representation of the acknowledgement
-// envelope. Callers never construct one; the boundary materializes the
-// carrier for the dispatch's established envelope.
-pub StartupEnvelopeCarrierRepresentation satisfies OpaqueRepresentation<
-    StartupEnvelope,
-    StartupEnvelopeCarrier
-> { }
+pub data StartupOccurrenceCarrier [copy] { value: u64; }
+pub data StartupVectorCarrier [copy] { value: u64; }
+pub StartupOccurrenceRepresentation satisfies OpaqueRepresentation<StartupOccurrence, StartupOccurrenceCarrier> {}
+pub StartupVectorRepresentation satisfies OpaqueRepresentation<StartupVector, StartupVectorCarrier> {}
 
 // ---------------------------------------------------------------------------
 // First secondary processor: policy, root, provider
@@ -220,7 +227,7 @@ machine FirstSecondaryProcessor::enter(
 )
 reaches MachineControl
 {
-    StartupEnvelope::confirm(envelope);
+    StartupAcknowledgementProtocol::confirm(envelope);
 }
 
 // ---------------------------------------------------------------------------
@@ -320,21 +327,24 @@ machine SecondSecondaryProcessor::enter(
 )
 reaches MachineControl
 {
-    StartupEnvelope::confirm(envelope);
+    StartupAcknowledgementProtocol::confirm(envelope);
 }
 
-// Transitional startup-confirmation provider. The settled model moves
-// `confirm` into a one-member boundary trait and implements it with a checked
-// assembly CFG. Label contracts and instruction semantics must prove the
-// processor handshake and terminal disposition of the exact Pending envelope
-// on every normal path. `TOP-LEVEL-BOUNDARY-REQUIREMENTS` owns the
-// source/compiler migration; `CHECKED-ASM-LABEL-CONTRACTS` owns the checked
-// target body. Until both land, this obsolete CompilerIntrinsic spelling keeps
-// the current diagnostic pinned; it is not the destination or permission to
-// make AP startup compiler-owned semantics.
-pub data StartupConfirmation {
+// A performed release publishes the exact invocation to its admitted cell.
+// This historical instruction-effect receipt settles one Pending claim; it
+// grants no memory authority or observation by another processor.
+pub data StartupConfirmation {}
+pub StartupConfirmationProvider satisfies StartupAcknowledgementProtocol {
+    StartupAcknowledgementProtocol::confirm = StartupConfirmation::confirm;
 }
-
+proposition confirmed(envelope: StartupEnvelope) =
+    atomic_release_written<AtomicU64, u64>(&envelope.acknowledgement.value, envelope.invocation);
 machine StartupConfirmation::confirm(envelope: StartupEnvelope)
-    satisfies StartupEnvelope::confirm
-    via ForeignBinding::CompilerIntrinsic;
+    satisfies StartupAcknowledgementProtocol::confirm
+    reaches MachineControl
+    requires envelope in StartupEnvelope::Pending;
+    ensures confirmed(envelope);
+{
+    let nonce: u64 = envelope.invocation;
+    envelope.acknowledgement.value.store(nonce, Publish);
+}

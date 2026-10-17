@@ -268,6 +268,7 @@ pub(super) fn plan(
                 local,
                 binding_ordinal,
                 trace,
+                shapes,
             )?,
         ));
         *scalar_count = scalar_count.checked_add(1)?;

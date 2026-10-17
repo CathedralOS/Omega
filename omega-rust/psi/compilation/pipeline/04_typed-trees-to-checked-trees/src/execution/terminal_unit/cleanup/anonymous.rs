@@ -276,7 +276,7 @@ pub(in crate::execution::terminal_unit) fn append_continuation(
             continue;
         }
         let arguments = invocation
-            .call_structural_arguments()
+            .structural_operands()
             .iter()
             .filter(|argument| {
                 argument.source_structural_result_binding_ordinal() == Some(result.binding_ordinal)

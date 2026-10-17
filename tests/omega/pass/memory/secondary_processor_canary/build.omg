@@ -1,7 +1,7 @@
 // SECONDARY-PROCESSOR-CANARY build root: registers the application, binds
-// the host program entries, and selects the startup envelope's physical
-// representation so the authored boundary machines materialize against an
-// exact carrier. The build file shares the program namespace — `use` here
+// the host program entries, and selects the inert occurrence/vector word
+// representations. The envelope keeps its ordinary typed acknowledgement
+// reference and exact four-word calling shape. The build file shares the program namespace — `use` here
 // would re-declare the roots module — so the bindings name program
 // declarations directly. The bundled `omega::language::core` namespace
 // needs no declaration, but `std` is an ordinary package: the startup
@@ -17,11 +17,9 @@ machine build(builder: &mut Build) {
     Build::bind(builder, linux_arm64::ProgramEntry, main);
     Build::bind(builder, macos_arm64::ProgramEntry, main);
     Build::select_provider<
-        StartupEnvelope::confirm,
-        StartupConfirmation
+        StartupAcknowledgementProtocol,
+        StartupConfirmationProvider
     >(builder);
-    Build::select_representation<
-        StartupEnvelope,
-        StartupEnvelopeCarrierRepresentation
-    >(builder);
+    Build::select_representation<StartupOccurrence, StartupOccurrenceRepresentation>(builder);
+    Build::select_representation<StartupVector, StartupVectorRepresentation>(builder);
 }

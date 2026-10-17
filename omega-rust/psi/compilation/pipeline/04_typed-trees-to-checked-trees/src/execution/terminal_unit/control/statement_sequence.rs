@@ -440,6 +440,7 @@ pub(in crate::execution::terminal_unit) fn build(
                         assignment,
                         atomic_result.take(),
                         trace,
+                        shapes,
                     )?,
                 ));
                 continue;

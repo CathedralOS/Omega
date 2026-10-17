@@ -1352,7 +1352,7 @@ impl Emission<'_, '_, '_> {
                 })
                 .collect::<Result<Vec<_>, _>>()?;
             let range_places = super::super::byte_subslices::argument_places(
-                operation.call_structural_arguments(),
+                operation.structural_operands(),
                 &[],
                 &mut 0,
                 &staged_ranges[index],

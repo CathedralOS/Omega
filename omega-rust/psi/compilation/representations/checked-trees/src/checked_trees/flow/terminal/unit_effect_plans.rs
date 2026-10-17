@@ -786,13 +786,14 @@ impl CheckedUnitEffectOperationPlan {
         }
     }
 
-    /// Evaluated structural call arguments, including a primitive whose
-    /// proved argument is absent from its runtime event. Selected-operator
-    /// arithmetic keeps its own operand lanes.
-    pub fn call_structural_arguments(&self) -> &[CheckedUnitStructuralArgumentPlan] {
+    /// Evaluated structural operands of calls and normalized primitive events.
+    /// Atomic events borrow their cell container; a proof-erased fence still
+    /// retains its checked argument. Selected arithmetic has its own lanes.
+    pub fn structural_operands(&self) -> &[CheckedUnitStructuralArgumentPlan] {
         match self {
             Self::Call(call) => &call.structural_arguments,
             Self::AtomicFence { argument, .. } => std::slice::from_ref(argument),
+            Self::AtomicAccess(access) => std::slice::from_ref(&access.receiver),
             _ => &[],
         }
     }

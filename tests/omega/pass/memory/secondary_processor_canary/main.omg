@@ -1,9 +1,8 @@
-// SECONDARY-PROCESSOR-CANARY: package root. The secondary-processor
-// startup route is exercised by a compiler test through the checked
-// compile — provider selection, boundary realization, the ledger's
-// admission, dispatch, acknowledgement, settlement, and retirement —
-// not through `Main::main`. `Main::retain` keeps the authored contract
-// and roster in the checked surface for that inspection.
+// SECONDARY-PROCESSOR-CANARY: the checked package retains both rooted
+// entry contracts, their calling policies, roster geometry and the typed
+// acknowledgement protocol. The hosted entry is empty; runtime startup and
+// supervisor settlement are outside this compile canary. Main::retain keeps
+// the authored roster and four-word wire record in its checked surface.
 
 use cathedral::processor_startup;
 use cathedral::roster;

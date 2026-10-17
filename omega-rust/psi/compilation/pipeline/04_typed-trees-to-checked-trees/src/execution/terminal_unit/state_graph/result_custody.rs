@@ -147,7 +147,7 @@ pub(super) fn account(
                     0
                 } else {
                     edge.operand_calls()
-                        .flat_map(CheckedUnitEffectOperationPlan::call_structural_arguments)
+                        .flat_map(CheckedUnitEffectOperationPlan::structural_operands)
                         .filter(|argument| construction_owns_result(argument, operations.len()))
                         .count()
                         + constructions.iter().filter(|(_, argument)| {
@@ -667,7 +667,7 @@ pub(super) fn account(
                         // argument rather than only consumers.
                         let consumed_by_forming_call = !result_local.is_valid()
                             && operations.iter().any(|consumer| {
-                                consumer.call_structural_arguments().iter().any(|argument| {
+                                consumer.structural_operands().iter().any(|argument| {
                                     argument.source_structural_result_binding_ordinal()
                                         == Some(result.binding_ordinal)
                                 })
@@ -845,7 +845,7 @@ pub(super) fn account(
         let observed_by_call = result.multiplicity == Multiplicity::Unrestricted
             && operations[producer_index + 1..]
                 .iter()
-                .flat_map(CheckedUnitEffectOperationPlan::call_structural_arguments)
+                .flat_map(CheckedUnitEffectOperationPlan::structural_operands)
                 .any(|argument| {
                     argument.source_structural_result_binding_ordinal()
                         == Some(result.binding_ordinal)
@@ -860,7 +860,7 @@ pub(super) fn account(
             && operations[producer_index + 1..]
                 .iter()
                 .filter(|consumer| {
-                    consumer.call_structural_arguments().iter().any(|argument| {
+                    consumer.structural_operands().iter().any(|argument| {
                         argument.source_structural_result_binding_ordinal()
                             == Some(result.binding_ordinal)
                             && argument.path.is_empty()
@@ -1324,14 +1324,11 @@ pub(in crate::execution::terminal_unit) fn terminator_call_consumes_result(
     operation: &CheckedUnitEffectOperationPlan,
     binding_ordinal: u32,
 ) -> bool {
-    operation
-        .call_structural_arguments()
-        .iter()
-        .any(|argument| {
-            argument.source_structural_result_binding_ordinal() == Some(binding_ordinal)
-                && argument.access == CheckedStructuralAccess::Owned
-                && argument.path.is_empty()
-        })
+    operation.structural_operands().iter().any(|argument| {
+        argument.source_structural_result_binding_ordinal() == Some(binding_ordinal)
+            && argument.access == CheckedStructuralAccess::Owned
+            && argument.path.is_empty()
+    })
 }
 
 /// Whole owned call arguments consume affine and linear results. Accounting

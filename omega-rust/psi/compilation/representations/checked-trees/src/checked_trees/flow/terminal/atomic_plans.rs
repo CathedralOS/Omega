@@ -99,6 +99,9 @@ pub struct CheckedAtomicAccessPlan {
     /// Shared access to the record holding the atomic field. Atomic-cell
     /// identity admits mutation; this grants no ordinary shared field store.
     pub receiver: CheckedUnitStructuralArgumentPlan,
+    /// Logical storage root before the receiver's checked projection. Runtime
+    /// type demand follows only this path, never every stored pointer target.
+    pub receiver_root_type_identity: typed_trees::type_identity::TypeIdentityId,
     /// A selected payload namespace within the receiver, not a separate record.
     pub field_case: Option<CheckedMemberIdentity>,
     /// The atomic field's Terminal identity within that record.

@@ -91,6 +91,7 @@ pub(super) fn load_event(
     local: &typed_trees::statement::TableLocalData,
     binding_ordinal: u32,
     trace: &LocalConstructionTrace,
+    shapes: &mut super::types::ShapeCollector<'_>,
 ) -> Option<CheckedAtomicAccessPlan> {
     let carrier = validation::atomic_load_carrier(program, local.initial_value)?;
     let AtomicAccessOperation::Load(ordering) = carrier.operation else {
@@ -105,6 +106,7 @@ pub(super) fn load_event(
         statement_index,
         carrier.place,
         trace,
+        shapes,
     )?;
     trace.phase("atomic access: load result binding");
     if local.is_mutable
@@ -115,6 +117,7 @@ pub(super) fn load_event(
     Some(CheckedAtomicAccessPlan {
         statement_index,
         receiver: place.receiver,
+        receiver_root_type_identity: place.receiver_root_type_identity,
         field_case: place.field_case,
         field_identity: place.field_identity,
         primitive_type: place.primitive_type,
@@ -140,6 +143,7 @@ pub(super) fn writing_event(
     assignment: &typed_trees::statement::TableAssignment,
     reserved: Option<CheckedUnitScalarResultBindingPlan>,
     trace: &LocalConstructionTrace,
+    shapes: &mut super::types::ShapeCollector<'_>,
 ) -> Option<CheckedAtomicAccessPlan> {
     let carrier = validation::atomic_assignment_carrier(program, assignment)?;
     trace.phase("atomic access: writing place");
@@ -151,6 +155,7 @@ pub(super) fn writing_event(
         statement_index,
         carrier.place,
         trace,
+        shapes,
     )?;
     let primitive_type = place.primitive_type;
     trace.phase("atomic access: operands");
@@ -231,6 +236,7 @@ pub(super) fn writing_event(
     Some(CheckedAtomicAccessPlan {
         statement_index,
         receiver: place.receiver,
+        receiver_root_type_identity: place.receiver_root_type_identity,
         field_case: place.field_case,
         field_identity: place.field_identity,
         primitive_type,
@@ -288,6 +294,7 @@ fn operand_row(
 
 /// The atomic field `expression` names at `statement_index`.
 struct AtomicPlace {
+    receiver_root_type_identity: typed_trees::type_identity::TypeIdentityId,
     receiver: CheckedUnitStructuralArgumentPlan,
     field_case: Option<checked_trees::CheckedMemberIdentity>,
     field_identity: checked_trees::CheckedMemberIdentity,
@@ -305,6 +312,7 @@ fn place(
     statement_index: u32,
     expression: typed_trees::expression::ExpressionHandle,
     trace: &LocalConstructionTrace,
+    shapes: &mut super::types::ShapeCollector<'_>,
 ) -> Option<AtomicPlace> {
     trace.phase("atomic access: place: atomic storage");
     if !validation::place_is_atomic_storage(program, machine, Some(state), expression) {
@@ -384,6 +392,32 @@ fn place(
         None
     };
 
+    // Only the concrete storage crossed by this performed operation is a
+    // demand. Stored pointer declarations remain identity-only, including
+    // recursive generic families that have no runtime dereference here.
+    let binders = super::types::machine_binders(program, machine);
+    let mut root_identity = None;
+    for position in 0..=carrier.segments.len() {
+        let reference = validation::canonical_place_type_reference(
+            program,
+            state.symbol,
+            ordinal,
+            &validation::CanonicalPlace {
+                root: carrier.root,
+                segments: carrier.segments[..position].to_vec(),
+            },
+        )?;
+        let identity = if position == 0 && program.state_local_declaration(state, symbol).is_some()
+        {
+            shapes.add_stored_type(reference, &binders, &[])?
+        } else {
+            shapes.add_type(reference, &binders, &[])?
+        };
+        if position == 0 {
+            root_identity = Some(identity);
+        }
+    }
+    let receiver_root_type_identity = root_identity?;
     trace.phase("atomic access: place: shared receiver");
     // Atomic source admission already checks shared access to the dedicated
     // cell. Reuse the ordinary observation path to retain its containing
@@ -415,6 +449,7 @@ fn place(
     };
     Some(AtomicPlace {
         receiver,
+        receiver_root_type_identity,
         field_case,
         field_identity,
         primitive_type,

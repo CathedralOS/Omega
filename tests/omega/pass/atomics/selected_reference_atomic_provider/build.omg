@@ -1,0 +1,5 @@
+machine build(builder: &mut Build) {
+ Build::application(builder, "selected_reference_atomic_provider");
+ Build::bind(builder, linux_x86_64::ProgramEntry, main);
+ Build::select_provider<Completion, CompletionProvider>(builder);
+}

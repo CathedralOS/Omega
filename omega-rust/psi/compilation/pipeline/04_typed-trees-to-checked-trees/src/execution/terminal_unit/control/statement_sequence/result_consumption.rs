@@ -1113,7 +1113,7 @@ pub(in crate::execution::terminal_unit) fn consume_results(
 ) -> Option<()> {
     {
         for (binding_ordinal, access, projected) in consumer
-            .call_structural_arguments()
+            .structural_operands()
             .iter()
             .filter_map(|argument| {
                 argument

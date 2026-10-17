@@ -1777,7 +1777,7 @@ impl<'a> MachineEmission<'a> {
         // The literal roster preallocates the byte-sequence literals of every
         // call's structural arguments in call order.
         let byte_places = byte_subslices::argument_places(
-            operation.call_structural_arguments(),
+            operation.structural_operands(),
             &self.private_places,
             &mut self.next_literal_argument,
             &self.staged_subslices[step.operation_index],

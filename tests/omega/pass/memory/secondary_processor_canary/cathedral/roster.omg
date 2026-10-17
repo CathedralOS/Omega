@@ -2,7 +2,7 @@
 // roster and startup geometry, the package side of the ledger's
 // profile and account inputs.
 //
-// `secondary_processor.omg` authors the startup contract itself; this
+// `processor_startup.omg` authors the startup contract itself; this
 // module authors the DECLARED roster the contract runs over: which
 // secondary processors the machine carries, the dedicated
 // critical-stack class each one's arrivals account onto, the private
@@ -13,10 +13,9 @@
 // trampoline's byte content is compiler-emitted code, not authored
 // data.
 //
-// `declare` is evaluated at build time, so the roster is ordinary
-// authored source, not compiler-held fixture: the compiler test
-// evaluates it and drives each slot through the boundary realization,
-// the account admission, dispatch, acknowledgement, and retirement.
+// `declare` supplies ordinary authored roster data. This compile canary
+// checks its declared contract and geometry alongside both entry policies;
+// the hosted entry does not evaluate or dispatch this roster.
 
 // One declared secondary-processor slot: the dedicated critical-stack
 // class its arrivals account onto (the class the matching root policy

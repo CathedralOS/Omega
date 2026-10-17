@@ -156,6 +156,7 @@ pass/atomics/runtime_nested_case_payload_atomic_event_exit built 18436ms exit:0 
 pass/atomics/runtime_projected_state_operands_exit built 7419ms exit:0 @1c8b4ab0e733+wt
 pass/atomics/runtime_shared_case_waived_atomic_exit built 15263ms exit:70 @6c49683ce714
 pass/atomics/runtime_stored_reference_atomic_events_exit built 17795ms exit:0 @6c49683ce714
+pass/atomics/selected_reference_atomic_provider built 7623ms @735568789750+wt
 pass/atomics/shared_receiver_atomic_store built 14881ms exit:70 @6c49683ce714
 pass/blockexec/blocking_executor_custody_claims_compile built 8062ms exit:0 @23c57bab5d6a+wt
 pass/blockexec/runtime_selected_worker_body_exit built 8038ms exit:0 @03d6ab4d9d4c
@@ -2091,8 +2092,7 @@ pass/memory/runtime_large_frame_console_byte_homes_exit built 15568ms exit:70 st
 pass/memory/runtime_large_local_record_exit built 15341ms exit:70 @6c49683ce714
 pass/memory/runtime_linear_native_allocation_call_result_exit built 8200ms exit:0 @d7fd01f47497+wt
 pass/memory/runtime_linear_native_allocation_exit built 8277ms exit:0 @d7fd01f47497+wt
-pass/memory/secondary_processor_canary rejected 7894ms regressed-from:built @fa48d7bba308+wt
-	selected overload `named-callable(path(StartupEnvelope::confirm),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(nominal\\\\\\(package-owner\\\\\\(32:0101010101010101010101010101010101010101010101010101010101010101\\\\\\)\\\\\\,path\\\\\\(StartupEnvelope\\\\\\)\\\\\\)\\)\\)\\)),result-dispatch())` has no compiler-known intrinsic realization
+pass/memory/secondary_processor_canary built 11140ms @735568789750+wt
 pass/memory/weak_vacant_qualifier_satisfied checked 3425ms @6c49683ce714
 pass/modules/aggregate_machine_indices checked 3462ms @6c49683ce714
 pass/modules/boolean_equality_indices checked 3556ms @6c49683ce714
