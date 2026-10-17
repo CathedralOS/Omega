@@ -4,14 +4,12 @@ pub boundary trait ArrayReader {
     machine inspect(prefix: i32, values: [u8; 4], suffix: i32) -> i32;
 }
 
-data ArrayReaderProvider {}
-
-machine ArrayReaderProvider::inspect(prefix: i32, values: [u8; 4], suffix: i32) -> i32
-satisfies ArrayReader::inspect
-{
-    transition prefix == 30 && suffix == 40 && values[0] == 11 && values[1] == 22 && values[2] == 33 && values[3] == 44 {
-        true -> (70)
-        _ -> (71)
+pub ArrayReaderProvider satisfies ArrayReader {
+    machine inspect(prefix: i32, values: [u8; 4], suffix: i32) -> i32 {
+        transition prefix == 30 && suffix == 40 && values[0] == 11 && values[1] == 22 && values[2] == 33 && values[3] == 44 {
+            true -> (70)
+            _ -> (71)
+        }
     }
 }
 
@@ -20,7 +18,7 @@ data Main {
     result: i32;
 }
 
-machine Main::main(main: &mut Main) reaches Console + ArrayReader {
+machine Main::main(main: &mut Main) reaches Console + ArrayReader invokes Console; invokes ArrayReader; {
     main.values[0] = 11;
     main.values[1] = 22;
     main.values[2] = 33;
