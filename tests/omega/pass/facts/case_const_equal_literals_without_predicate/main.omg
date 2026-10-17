@@ -1,0 +1,21 @@
+// Audit evidence: closed scalar values, not transported case-predicate necessity.
+// Case Point(lo, hi) where lo == hi makes hi - lo exact in u64, without a guard or Wrapping.
+// Compile-checked only; no runtime oracle.
+data Interval [copy] {
+    case Empty;
+    case Point(lo: u64, hi: u64);
+}
+data Main { interval: Interval; width: u64; flag: bool; }
+
+const INTERVAL: Interval = Interval::Point { lo: 4, hi: 4 };
+
+machine Main::main(main: &mut Main) {
+    transition INTERVAL {
+        Interval::Point { lo, hi } -> take(lo, hi, main)
+        Interval::Empty -> done()
+    }
+    state take(lo: u64, hi: u64, main: &mut Main) {
+        main.width = hi - lo;
+    }
+    state done() { }
+}

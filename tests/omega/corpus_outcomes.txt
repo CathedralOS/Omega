@@ -3013,6 +3013,8 @@ fail/facts/bound_through_target_body_rejected rejected 1071ms expected @3b422f31
 	cannot prove index `index` is within length 3 in read_target::entry
 	cannot prove index `index` is within length 3 in read_target::entry
 	cannot prove index `index` is within length 3 in read_target::entry
+fail/facts/case_const_unequal_literals_subtraction_rejected rejected 445ms expected @e0ddeec45d6b+wt
+	exact arithmetic in machine `Main::main` state `take` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/case_equality_through_call_result_compile rejected 661ms expected @2ef2ab353498+wt
 	exact arithmetic in machine `Main::main` state `take` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/case_equality_through_const_name_compile rejected 82ms expected @2ef2ab353498+wt
@@ -7847,6 +7849,7 @@ pass/facts/bound_through_other_machine_exit checked 6145ms check-target:macos_ar
 pass/facts/bound_through_other_state_exit checked 6159ms check-target:macos_arm64 @3b422f31da30+wt
 pass/facts/bound_through_parameter_exit checked 6140ms check-target:macos_arm64 @3b422f31da30+wt
 pass/facts/bound_through_target_body_exit checked 6380ms check-target:macos_arm64 @3b422f31da30+wt
+pass/facts/case_const_equal_literals_without_predicate checked 1506ms @e0ddeec45d6b+wt
 pass/facts/case_equality_through_call_result_compile checked 3294ms @2ef2ab353498+wt
 pass/facts/case_equality_through_const_name_compile checked 1993ms @2ef2ab353498+wt
 pass/facts/case_equality_through_field_compile checked 2122ms @2ef2ab353498+wt
