@@ -1079,6 +1079,13 @@ fn mutable_integer_field(
     expression: ExpressionHandle,
 ) -> Option<ScopedArithmeticValue> {
     let member = program.expression_table.member_node(expression)?;
+    // Resolve the declaration, including prepared generic and case selectors.
+    // Builtin measures have none: their values belong to the descriptor roster,
+    // never an absent field identity shared by unrelated metadata.
+    let field = validation::effective_member_symbol(program, member.receiver, member);
+    if !field.is_valid() {
+        return None;
+    }
     let name = program.expression_table.name_path_node(member.receiver)?;
     if name.symbol != name.head_symbol
         || program
@@ -1095,7 +1102,7 @@ fn mutable_integer_field(
     Some(ScopedArithmeticValue::Atom {
         identity: format!(
             "state:{:?}:parameter:{:?}:member:{:?}",
-            state.symbol, name.symbol, member.member_symbol
+            state.symbol, name.symbol, field
         ),
         unsigned: unsigned(primitive),
     })

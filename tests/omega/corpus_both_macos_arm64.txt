@@ -733,6 +733,7 @@ pass/slices/runtime_nested_descriptor_scalar_store_exit built 3203ms exit:0 inte
 pass/slices/runtime_nested_stored_view_element_replacement_exit built 3131ms exit:0 interpreter-exit:0 interpreter:agrees @f48a7c9556ec+wt
 pass/slices/runtime_published_view_length_bounds_cast_exit built 2000ms exit:0 interpreter-exit:0 interpreter:agrees @1152c1496b39
 pass/slices/runtime_reborrowed_partition_append_exit built 3446ms exit:0 interpreter-exit:0 interpreter:agrees @096f2ecfd243+wt
+pass/slices/runtime_saved_collection_length_arrival_exit built 3468ms exit:0 interpreter-exit:0 interpreter:agrees @2a4f3978a3bf
 pass/slices/runtime_shared_subslice_return_exit built 1916ms exit:70 interpreter-exit:70 interpreter:agrees @45782ade0cba+wt
 pass/slices/runtime_shared_whole_view_return_exit built 6232ms exit:70 interpreter-exit:70 interpreter:agrees @3fa817733300+wt
 pass/slices/runtime_subslice_len_exit built 4666ms exit:70 interpreter-exit:70 interpreter:agrees @e477ee0294de+wt

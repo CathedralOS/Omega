@@ -1,0 +1,57 @@
+data Counter<Count> { len: Count; }
+
+machine bounded(values: &mut [u16], requested: u64) -> u64 {
+    let observed: u64 = values.len;
+    let captured: u64 = observed;
+    transition requested <= captured {
+        true -> limit(values, requested)
+        false -> limit(values, captured)
+    }
+    state limit(values: &mut [u16], count: u64) -> u64
+    requires count <= values.len {
+        transition count <= 2 {
+            true -> selected(&mut values[0..count])
+            false -> selected(&mut values[0..2])
+        }
+    }
+    state selected(values: &mut [u16]) -> u64
+    requires values.len <= 2 { values.len }
+}
+
+machine declared_field<'storage>(values: &'storage mut [u16; 4], counter: &mut Counter<u64>)
+    -> &'storage mut [u16]
+ensures result.len == 2 {
+    match counter.len {
+        0 -> &mut values[0..counter.len + 2]
+        _ -> &mut values[2..4]
+    }
+}
+
+data Choice { case Active(len: u64); case Empty; }
+machine case_window<'storage>(values: &'storage mut [u16; 4], choice: &mut Choice)
+    -> &'storage mut [u16]
+requires choice in Choice::Active
+ensures result.len == 2 {
+    match choice.len {
+        0 -> &mut values[0..choice.len + 2]
+        _ -> &mut values[2..4]
+    }
+}
+
+machine main() crashes Trap {
+    let mut values: [u16; 4] = [11, 22, 33, 44];
+    let short: u64 = bounded(&mut values[..], 1);
+    let clamped: u64 = bounded(&mut values[..], 7);
+    let mut counter: Counter<u64> = Counter { len: 0 };
+    let selected: &mut [u16] = declared_field(&mut values, &mut counter);
+    let selected_count: u64 = selected.len;
+    let mut choice: Choice = Choice::Active { len: 0 };
+    let payload_selected: &mut [u16] = case_window(&mut values, &mut choice);
+    transition short == 1 && clamped == 2 && selected_count == 2
+        && payload_selected.len == 2 && counter.len == 0 {
+        true -> done()
+        false -> wrong()
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}

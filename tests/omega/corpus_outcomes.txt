@@ -8448,6 +8448,7 @@ pass/slices/runtime_returned_nested_array_window_home_exit checked 6688ms check-
 pass/slices/runtime_returned_range_extent_contract_exit checked 14564ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/slices/runtime_same_carrier_inline_cast_index_exit checked 8205ms check-target:macos_arm64 @2ab552549670+wt
 pass/slices/runtime_saturating_array_element_guard_exit checked 12581ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/slices/runtime_saved_collection_length_arrival_exit checked 3337ms check-target:macos_arm64 @2a4f3978a3bf
 pass/slices/runtime_sequential_same_backing_views_exit checked 5639ms check-target:macos_arm64 @f329f97f57f7+wt
 pass/slices/runtime_shared_subslice_return_exit checked 13917ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/slices/runtime_shared_whole_view_return_exit checked 13933ms check-target:macos_arm64 @a9ae30e1c334+wt
