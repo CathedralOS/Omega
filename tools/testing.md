@@ -539,7 +539,14 @@ and runs it. Without `--cli` it first builds an opt-level 1 CLI into
 that: package review of a std-using sample takes minutes with the
 unoptimized dev binary, and 31 projects took 66 s with the optimized CLI
 against 436 s with the dev build, with identical results. The build is
-incremental and leaves `target/debug/omega` alone. An explicit `--cli` older
+incremental and leaves `target/debug/omega` alone. The shared
+`build/gate-cli/` caches that build across every gate in one checkout, but a
+run never executes the shared image: it copies the built binary aside under a
+`build/gate-cli.lock` and runs the copy, so two gates can reuse and rebuild the
+shared directory at once without one holding an open image the other's build
+cannot replace (witnessed 2026-10-17: the second of two concurrent gates failed
+with `failed to remove file build/gate-cli/debug/omega.exe: Access is denied`).
+An explicit `--cli` older
 than the checkout's last compiler change draws a warning, and the run record
 marks it stale. Each run is recorded under the main checkout's
 `build/sample-gate-runs/`, shared by every worktree, with per-sample and

@@ -55,6 +55,13 @@ refusals. Every run is also recorded under `--history-dir` (default
 `build/sample-gate-runs/`) with its revision, target and summary, so the pass
 rate has a history to compare against.
 
+Without `--cli` the gate builds one opt-level 1 CLI per checkout into
+`build/gate-cli/` and reuses it incrementally, but each run executes a private
+copy of that binary: a run holds the copy open, never the shared image, so two
+gates in one checkout can build, measure and rebuild concurrently. The build
+and the copy share one lock, because on Windows even a reader blocks the
+replacement a rebuild makes.
+
 `--programs-only` selects application work without probe/control trees. Its
 completed record feeds the default work queue but does not establish full
 release coverage. Unexpected failures are printed immediately, before the
@@ -62,6 +69,8 @@ remaining projects finish; a final run record is written only at completion.
 """
 
 import argparse
+import atexit
+import contextlib
 import datetime
 import json
 import os
@@ -69,6 +78,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -591,7 +601,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--cli",
                         help="compiler to measure; by default the gate builds an "
-                             "opt-level 1 CLI into build/gate-cli/ and uses that")
+                             "opt-level 1 CLI into build/gate-cli/ and executes a "
+                             "private copy of it")
     parser.add_argument("--target", default=host_target(),
                         help="defaults to this host's target")
     parser.add_argument("--filter", help="comma-separated path fragments")
@@ -622,11 +633,17 @@ def main():
         arguments.cli = build_gate_cli()
         if arguments.cli is None:
             return 2
+        # The run record cites the durable shared build; the processes execute
+        # a private copy so a concurrent gate's incremental build can replace
+        # the shared image without racing this run.
+        arguments.measured_cli = arguments.cli
+        arguments.cli = snapshot_cli(arguments.cli)
     else:
         # Programs run from per-sample scratch directories, so a relative
         # compiler path would no longer resolve.
         arguments.cli = os.path.abspath(arguments.cli)
-    staleness = cli_staleness(arguments.cli)
+        arguments.measured_cli = arguments.cli
+    staleness = cli_staleness(arguments.measured_cli)
     if staleness:
         print(f"sample_native_gate: warning: {staleness}", file=sys.stderr)
 
@@ -728,10 +745,76 @@ def timing_summary(results, wall_seconds):
     }
 
 
+# Where the gate's shared, incremental opt-level 1 build lives. The build is
+# expensive — a cold compiler is minutes — so every gate in one checkout reuses
+# it. Only the built binary is copied per run; see `snapshot_cli`.
 GATE_CLI_DIR = ROOT / "build" / "gate-cli"
+# One lock for the shared build directory. Cargo serializes concurrent builds
+# of the same target directory itself, but the copy out of it (`snapshot_cli`)
+# must not overlap another build replacing `debug/omega`; on Windows even a
+# plain read handle blocks a replacement (witnessed with `os.replace`), so a
+# copy taken while a build replaces the image corrupts the copy or fails the
+# build. The lock makes build-and-copy one atomic step across gates while
+# leaving execution of the copied binary parallel.
+def gate_cli_lock_path():
+    """The lock guarding `GATE_CLI_DIR`, beside it in `build/`."""
+    return GATE_CLI_DIR.parent / "gate-cli.lock"
+
+
+# A holder holds the lock for a full incremental build plus a copy. A cold
+# build measured ~4.5 minutes under contention, so the bound is a backstop
+# against a wedged holder, not a queue policy: the OS lock dies with its
+# holder, so a live holder is genuinely building and waiting for it is correct.
+GATE_CLI_LOCK_SECONDS = 3600
 # The compiler's own sources: a CLI older than the last commit touching
 # them was built from a different compiler than this checkout's.
 COMPILER_INPUTS = ("omega-rust", "Cargo.toml", "Cargo.lock", "rust-toolchain.toml")
+
+
+@contextlib.contextmanager
+def gate_cli_lock(path=None, seconds=GATE_CLI_LOCK_SECONDS):
+    """Blocking, process-scoped lock on Linux/macOS/Windows; never steal.
+
+    A holder that exits releases the OS lock, so a crashed gate cannot wedge
+    the next one. The deadline is a diagnostic backstop, not a queue policy:
+    a live holder is building and waiting for it is correct.
+    """
+    path = Path(path) if path is not None else gate_cli_lock_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    stream = open(path, "a+b")
+    try:
+        stream.seek(0, os.SEEK_END)
+        if stream.tell() == 0:
+            stream.write(b"\0")
+            stream.flush()
+        deadline = time.monotonic() + seconds
+        while True:
+            stream.seek(0)
+            try:
+                if os.name == "nt":
+                    import msvcrt
+                    msvcrt.locking(stream.fileno(), msvcrt.LK_NBLCK, 1)
+                else:
+                    import fcntl
+                    fcntl.flock(stream.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except OSError:
+                if time.monotonic() >= deadline:
+                    raise RuntimeError(
+                        f"gate CLI build lock {path} held for more than {seconds}s") from None
+                time.sleep(0.5)
+        yield
+    finally:
+        try:
+            stream.seek(0)
+            if os.name == "nt":
+                import msvcrt
+                msvcrt.locking(stream.fileno(), msvcrt.LK_UNLCK, 1)
+            else:
+                import fcntl
+                fcntl.flock(stream.fileno(), fcntl.LOCK_UN)
+        finally:
+            stream.close()
 
 
 def build_gate_cli():
@@ -743,14 +826,22 @@ def build_gate_cli():
     with identical results. A dedicated target directory keeps this build
     from replacing the developer's own target/debug/omega. The build is
     incremental, so an unchanged compiler costs seconds.
+
+    The returned path is the shared build output. A run executes a private
+    copy of it (`snapshot_cli`), never this path itself, so a concurrent gate
+    can reuse and rebuild the shared directory without racing a running
+    process. The caller owns the build semantics; the snapshot owns isolation.
     """
     tool = "mbx" if shutil.which("mbx") else "cargo"
     environment = dict(os.environ, CARGO_PROFILE_DEV_OPT_LEVEL="1",
                        CARGO_TARGET_DIR=str(GATE_CLI_DIR))
     print(f"sample_native_gate: building the opt-level 1 CLI into {GATE_CLI_DIR} with {tool}",
           file=sys.stderr)
-    completed = subprocess.run([tool, "build", "-p", "omega", "--bin", "omega"],
-                               cwd=ROOT, env=environment, capture_output=True, **CHILD_TEXT)
+    # Hold the lock across the build so a rebuild's replacement of
+    # `debug/omega` never overlaps another gate's copy out of it.
+    with gate_cli_lock():
+        completed = subprocess.run([tool, "build", "-p", "omega", "--bin", "omega"],
+                                   cwd=ROOT, env=environment, capture_output=True, **CHILD_TEXT)
     if completed.returncode != 0:
         print(completed.stderr[-4000:], file=sys.stderr)
         print("sample_native_gate: building the CLI failed; pass --cli to measure another build",
@@ -758,6 +849,30 @@ def build_gate_cli():
         return None
     name = "omega.exe" if os.name == "nt" else "omega"
     return str(GATE_CLI_DIR / "debug" / name)
+
+
+def snapshot_cli(cli):
+    """Return a private copy of `cli` for this process to execute.
+
+    Two gates in one checkout share the incremental `GATE_CLI_DIR`, and the
+    build there rewrites `debug/omega.exe` on every run. A run that executes
+    that path holds the image open, so a concurrent gate's incremental build
+    cannot replace it and dies the same way Windows refuses any busy image:
+    witnessed 2026-10-17 in the main checkout, the second of two gates failed
+    with "failed to remove file build/gate-cli/debug/omega.exe: Access is
+    denied (os error 5)". The shared directory still caches the expensive
+    build; each run copies the built image beside it and executes the copy, so
+    a rebuild never races a running process. The copy is removed on exit.
+
+    Copies under the build lock, so the source is not replaced mid-copy.
+    """
+    with gate_cli_lock():
+        os.makedirs(GATE_CLI_DIR.parent, exist_ok=True)
+        directory = tempfile.mkdtemp(prefix="gate-cli-run-", dir=str(GATE_CLI_DIR.parent))
+        atexit.register(shutil.rmtree, directory, ignore_errors=True)
+        target = Path(directory) / Path(cli).name
+        shutil.copy2(cli, target)
+    return str(target)
 
 
 def cli_staleness(cli):
@@ -821,7 +936,8 @@ def record_run(arguments, started, results, buckets, passed, scored, timing=None
         "revision": git("rev-parse", "HEAD"),
         "dirty": bool(git("status", "--porcelain", "--untracked-files=no")),
         "target": arguments.target,
-        "cli": dict(cli_identity(arguments.cli), stale=staleness),
+        "cli": dict(cli_identity(getattr(arguments, "measured_cli", arguments.cli)),
+                    stale=staleness),
         "jobs": getattr(arguments, "jobs", None),
         "timeout": getattr(arguments, "timeout", None),
         "filter": arguments.filter or "",

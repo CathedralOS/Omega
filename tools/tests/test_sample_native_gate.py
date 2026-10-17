@@ -3,6 +3,7 @@
 import contextlib
 import importlib.util
 import io
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -532,6 +533,111 @@ class GateCliTests(unittest.TestCase):
         with patch.object(gate.subprocess, "run", return_value=failed), \
                 contextlib.redirect_stderr(io.StringIO()):
             self.assertIsNone(gate.build_gate_cli())
+
+    def test_snapshot_copies_away_from_the_shared_build(self):
+        # The private copy must be a distinct path holding the same bytes, so
+        # executing it never holds the shared image that a rebuild replaces.
+        with tempfile.TemporaryDirectory() as directory:
+            shared = Path(directory) / "gate-cli" / "debug" / "omega.exe"
+            shared.parent.mkdir(parents=True)
+            shared.write_bytes(b"image")
+
+            with patch.object(gate, "GATE_CLI_DIR", shared.parent.parent):
+                copy = gate.snapshot_cli(str(shared))
+            self.assertNotEqual(copy, str(shared))
+            self.assertEqual(Path(copy).read_bytes(), b"image")
+            self.assertEqual(Path(copy).name, shared.name)
+            self.assertFalse(Path(copy).is_relative_to(shared.parent),
+                             "the copy must not live in the shared build directory")
+
+    def test_snapshot_takes_the_lock_so_a_rebuild_cannot_replace_the_source(self):
+        # The copy must not overlap a rebuild replacing the shared image; the
+        # snapshot acquires the gate lock around the copy.
+        with tempfile.TemporaryDirectory() as directory:
+            shared = Path(directory) / "gate-cli" / "debug" / "omega"
+            shared.parent.mkdir(parents=True)
+            shared.write_bytes(b"image")
+            order = []
+
+            @contextlib.contextmanager
+            def fake_lock(*_args, **_kwargs):
+                order.append("lock")
+                yield
+
+            with patch.object(gate, "GATE_CLI_DIR", shared.parent.parent), \
+                    patch.object(gate, "gate_cli_lock", fake_lock), \
+                    patch.object(gate.shutil, "copy2",
+                                 side_effect=lambda *a, **k: order.append("copy")):
+                gate.snapshot_cli(str(shared))
+            self.assertEqual(order, ["lock", "copy"])
+
+    def test_lock_blocks_a_second_holder_until_the_first_releases(self):
+        if os.name != "nt":
+            self.skipTest("lock semantics exercised on the Windows dev host")
+        import threading
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "gate-cli.lock"
+            inside = threading.Event()
+            release = threading.Event()
+            second_entered = threading.Event()
+
+            def first():
+                with gate.gate_cli_lock(path):
+                    inside.set()
+                    release.wait(timeout=5)
+
+            def second():
+                inside.wait(timeout=5)
+                with gate.gate_cli_lock(path):
+                    second_entered.set()
+
+            threads = [threading.Thread(target=first), threading.Thread(target=second)]
+            for thread in threads:
+                thread.start()
+            inside.wait(timeout=5)
+            self.assertFalse(second_entered.wait(timeout=1),
+                             "a held lock must exclude the second holder")
+            release.set()
+            for thread in threads:
+                thread.join(timeout=5)
+            self.assertTrue(second_entered.is_set())
+
+    def test_stale_lock_file_does_not_block_the_next_gate(self):
+        # The OS lock dies with its holder; a leftover lock file is inert.
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "gate-cli.lock"
+            path.write_bytes(b"\0")
+            with gate.gate_cli_lock(path):
+                self.assertTrue(path.exists())
+
+    def test_default_run_measures_the_shared_build_but_executes_the_copy(self):
+        # Two gates share the incremental build directory; a run executes a
+        # private copy while the record still cites the shared build.
+        with tempfile.TemporaryDirectory() as directory:
+            history = Path(directory) / "history"
+            shared = str(Path(directory) / "build" / "gate-cli" / "debug" / "omega")
+            arguments = ["sample_native_gate.py", "--jobs", "1",
+                         "--history-dir", str(history)]
+
+            def snapshot(cli):
+                self.assertEqual(cli, shared)
+                return cli + "-copy"
+
+            with patch.object(sys, "argv", arguments), \
+                    patch.object(gate, "build_gate_cli", return_value=shared), \
+                    patch.object(gate, "snapshot_cli", side_effect=snapshot) as snap, \
+                    patch.object(gate, "discover", return_value=["samples/cli/app"]), \
+                    patch.object(gate, "cli_staleness", return_value=""), \
+                    patch.object(gate, "timed_measure",
+                                 return_value={"sample": "samples/cli/app", "state": "pass",
+                                               "detail": "", "seconds": 0.0}) as measure, \
+                    contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(gate.main(), 0)
+            snap.assert_called_once_with(shared)
+            self.assertEqual(measure.call_args.args[0], shared + "-copy")
+            records = [gate.json.loads(path.read_text()) for path in history.glob("*.json")]
+            self.assertTrue(any(record["cli"]["path"] == os.path.realpath(shared)
+                                for record in records))
 
     def test_cli_older_than_last_compiler_commit_is_stale(self):
         with tempfile.NamedTemporaryFile() as cli:
