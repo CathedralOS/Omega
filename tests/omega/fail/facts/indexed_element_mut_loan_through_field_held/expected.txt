@@ -1,0 +1,1 @@
+state `bump` receives `rooms[selector.index]` while local borrow `held` is still active

@@ -1,0 +1,13 @@
+// Expected exit: 0.
+// Capture an indexed element before a later argument mutates its selector.
+data Room { exit_count: u32 in Wrapping; }
+machine bump(room: &mut Room, next: u64) { room.exit_count = room.exit_count + 1; }
+machine switch(index: &mut u64) -> u64 { index = 1; 0 }
+machine main() crashes Trap {
+    let rooms: [Room; 2] = [Room { exit_count: 0 }, Room { exit_count: 10 }];
+    let mut index: u64 = 0;
+    bump(&mut rooms[index], switch(&mut index));
+    transition rooms[0].exit_count == 1 && rooms[1].exit_count == 10 && index == 1 { true -> done() false -> wrong() }
+    state done() {}
+    state wrong() { crash Trap; }
+}

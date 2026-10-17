@@ -670,8 +670,10 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
             // projection path below it, so the loan names the same storage
             // the borrow does rather than a fresh establishment. A projected
             // argument never forwards a same-typed unrelated parameter.
-            if target.multiplicity == Multiplicity::Unrestricted
-                && matches!(target.access,
+            // A loan transports access, not ownership of its referent. The
+            // source checker has admitted this exact edge and its lifetime;
+            // requiring copyable contents would discard valid affine backing.
+            if matches!(target.access,
                     CheckedStructuralAccess::SharedBorrow | CheckedStructuralAccess::MutableBorrow
                         | CheckedStructuralAccess::WriteOnlyBorrow)
                 && validation::checked_argument_matches_type_reference(
@@ -845,20 +847,14 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                         ).and_then(|reference| {
                             validation::reference_result_custody::stored_loan_parts(program, reference)
                         }).map(|(_, access)| access);
-                        let mutable_local_loan = stored_leaf_access.is_some_and(loan_permitted)
-                            || expected_access
-                            == CheckedStructuralAccess::SharedBorrow
-                            || ((local.is_mutable || !local.initial_value.is_valid())
-                                && matches!(
-                                    result.multiplicity,
-                                    Multiplicity::Affine | Multiplicity::Unrestricted
-                                )
-                                && !super::super::types::type_graph_requires_nominal_drop(
-                                    program,
-                                    local.type_reference,
-                                    &[],
-                                    &mut std::collections::BTreeSet::new(),
-                                ));
+                        // The established owned home remains in place under
+                        // this loan, including its affine/linear and cleanup
+                        // obligations. Those obligations do not turn a borrow
+                        // into an owned transfer. A stored leaf instead keeps
+                        // its own access ceiling; it cannot acquire authority
+                        // from ownership of its descriptor's container.
+                        let mutable_local_loan = stored_leaf_access
+                            .map_or(true, loan_permitted);
                         if mutable_local_loan
                             && let Some(transfer) = projected_loan_transfer(
                                 program,

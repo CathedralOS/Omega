@@ -383,6 +383,7 @@ pass/borrows/runtime_reference_record_call_payload_restoration_exit built 15034m
 pass/borrows/runtime_reference_record_direct_payload_restoration_exit built 15029ms exit:70 @6c49683ce714
 pass/borrows/runtime_released_loan_with_forwarded_view_exit built 14763ms exit:70 @6c49683ce714
 pass/borrows/runtime_replaced_reference_record_return_exit built 17957ms exit:0 @6c49683ce714
+pass/borrows/runtime_result_element_call_selector_capture_exit built 7546ms exit:0 @907be3818acc
 pass/borrows/runtime_retained_operand_descriptor_cleanup_exit built 7859ms exit:0 @cc6649bfa8e5
 pass/borrows/runtime_returned_mutable_reference_array_bounded_read_exit built 15338ms exit:70 @6c49683ce714
 pass/borrows/runtime_returned_nested_reference_array_bounded_read_exit built 14909ms exit:70 @6c49683ce714
@@ -1632,6 +1633,15 @@ pass/facts/bound_through_other_machine_exit built 6125ms exit:0 @3b422f31da30+wt
 pass/facts/bound_through_other_state_exit built 6283ms exit:0 @3b422f31da30+wt
 pass/facts/bound_through_parameter_exit built 6041ms exit:0 @3b422f31da30+wt
 pass/facts/bound_through_target_body_exit built 6208ms exit:0 @3b422f31da30+wt
+pass/facts/indexed_element_mut_loan_through_call_result_exit built 7579ms exit:0 @907be3818acc
+pass/facts/indexed_element_mut_loan_through_const_name_exit built 9536ms exit:0 @907be3818acc
+pass/facts/indexed_element_mut_loan_through_field_exit built 9382ms exit:0 @907be3818acc
+pass/facts/indexed_element_mut_loan_through_local_exit built 11595ms exit:0 @907be3818acc
+pass/facts/indexed_element_mut_loan_through_match_join_exit built 11216ms exit:0 @907be3818acc
+pass/facts/indexed_element_mut_loan_through_other_machine_exit built 10134ms exit:0 @907be3818acc
+pass/facts/indexed_element_mut_loan_through_other_state_exit built 10435ms exit:0 @907be3818acc
+pass/facts/indexed_element_mut_loan_through_parameter_exit built 8325ms exit:0 @907be3818acc
+pass/facts/indexed_element_mut_loan_through_target_body_exit built 9465ms exit:0 @907be3818acc
 pass/filesystem/cross_linux_value_syscalls checked 16309ms @aebe0714a499+wt
 pass/filesystem/dir_walk_wrappers_exit built 20631ms exit:70 @7c847bad15b6+wt
 pass/filesystem/native_canonicalize built 25277ms exit:0 stdout:match @c9eefa9130a0+wt

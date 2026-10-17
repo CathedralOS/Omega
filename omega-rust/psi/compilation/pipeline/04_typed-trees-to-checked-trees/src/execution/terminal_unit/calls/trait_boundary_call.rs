@@ -346,6 +346,18 @@ pub(super) fn build(
             // Result operands own type/presentation and loan admission. A
             // borrowed formal need not itself be the local's owned array type.
             phase("call operation: boundary result argument");
+            let selector = |expression| {
+                let root = facts.values.scalar_computations.root_at(
+                    state.symbol,
+                    u32::try_from(call.statement_index).ok()?,
+                    checked_trees::CheckedScalarExpressionRole::CallSelector {
+                        call_ordinal: u32::try_from(call.call_ordinal).ok()?,
+                        argument_ordinal: u32::try_from(structural_arguments.len()).ok()?,
+                        expression,
+                    },
+                )?;
+                Some(checked_trees::CheckedUnitStructuralPathSegment::ComputedIndex(root.root))
+            };
             structural_arguments.push(result_arguments::argument(
                 program,
                 facts,
@@ -359,6 +371,7 @@ pub(super) fn build(
                 target_identity,
                 caller_operations,
                 trace,
+                Some(&selector),
             )?);
             continue;
         }

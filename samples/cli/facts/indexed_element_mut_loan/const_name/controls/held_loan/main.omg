@@ -1,0 +1,24 @@
+// A runtime index below 2 exclusively loans one Room to bump; its count increases once and its neighbor is unchanged.
+// Place: const_name.
+// Invalid: the selected element already has a live exclusive loan at bump.
+const ROOM_COUNT: u64 = 2;
+data Room { exit_count: u32 in Wrapping; }
+machine bump(room: &mut Room) {
+    room.exit_count = room.exit_count + 1;
+}
+machine exercise(from_index: u64) -> bool
+requires from_index < ROOM_COUNT
+{
+    let rooms: [Room; 2] = [Room { exit_count: 0 }, Room { exit_count: 10 }];
+    let selected: u64 = from_index;
+    let held: &mut Room = &mut rooms[selected];
+    bump(&mut rooms[selected]);
+    held.exit_count = held.exit_count + 1;
+    (from_index == 0 && rooms[0].exit_count == 1 && rooms[1].exit_count == 10)
+        || (from_index == 1 && rooms[0].exit_count == 0 && rooms[1].exit_count == 11)
+}
+machine main() crashes Trap {
+    transition exercise(0) && exercise(1) { true -> done() false -> wrong() }
+    state done() {}
+    state wrong() { crash Trap; }
+}

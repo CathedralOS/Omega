@@ -1,0 +1,22 @@
+// A runtime index below 2 exclusively loans one Room to bump; its count increases once and its neighbor is unchanged.
+// Place: match_join.
+// Expected exit: 0.
+data Room { exit_count: u32 in Wrapping; }
+machine bump(room: &mut Room) {
+    room.exit_count = room.exit_count + 1;
+}
+machine exercise(from_index: u64, alternate: u64, flag: bool) -> bool
+requires from_index < 2 && alternate == from_index
+{
+    let rooms: [Room; 2] = [Room { exit_count: 0 }, Room { exit_count: 10 }];
+    let selected: u64 = match flag { true -> from_index, false -> alternate };
+    bump(&mut rooms[selected]);
+    (from_index == 0 && rooms[0].exit_count == 1 && rooms[1].exit_count == 10)
+        || (from_index == 1 && rooms[0].exit_count == 0 && rooms[1].exit_count == 11)
+}
+machine main() crashes Trap {
+    transition exercise(0, 0, true) && exercise(1, 1, true)
+        && exercise(0, 0, false) && exercise(1, 1, false) { true -> done() false -> wrong() }
+    state done() {}
+    state wrong() { crash Trap; }
+}

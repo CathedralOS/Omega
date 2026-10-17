@@ -22,7 +22,7 @@ use crate::execution::terminal_unit::StatementNode;
 use crate::execution::terminal_unit::SymbolHandle;
 
 use crate::execution::terminal_unit::calls::argument_paths::{
-    projected_argument_path_for_identity, projected_borrowed_path,
+    projected_argument_path_for_identity, projected_evaluated_path,
 };
 use crate::execution::terminal_unit::calls::argument_presentation::ArgumentPresentation;
 use crate::execution::terminal_unit::calls::structural_arguments::exact_structural_argument_access;
@@ -50,6 +50,11 @@ pub(super) fn argument(
     target_identity: typed_trees::type_identity::TypeIdentityId,
     operations: &[checked_trees::CheckedUnitEffectOperationPlan],
     trace: &LocalConstructionTrace,
+    selectors: Option<
+        &dyn Fn(
+            typed_trees::expression::ExpressionHandle,
+        ) -> Option<checked_trees::CheckedUnitStructuralPathSegment>,
+    >,
 ) -> Option<CheckedUnitStructuralArgumentPlan> {
     let mut argument = argument_contract(
         program,
@@ -64,6 +69,7 @@ pub(super) fn argument(
         target_identity,
         operations,
         trace,
+        selectors,
     )?;
     // Bind producer operands to the current home without replacing an explicit
     // loan descriptor: its source already retains captured geometry and access.
@@ -97,6 +103,11 @@ fn argument_contract(
     target_identity: typed_trees::type_identity::TypeIdentityId,
     operations: &[checked_trees::CheckedUnitEffectOperationPlan],
     trace: &LocalConstructionTrace,
+    selectors: Option<
+        &dyn Fn(
+            typed_trees::expression::ExpressionHandle,
+        ) -> Option<checked_trees::CheckedUnitStructuralPathSegment>,
+    >,
 ) -> Option<CheckedUnitStructuralArgumentPlan> {
     let phase = |name| {
         trace.phase(name);
@@ -314,7 +325,18 @@ fn argument_contract(
     let borrowed_storage = if projected_borrow {
         byte_window
             .or_else(|| {
-                projected_borrowed_path(program, machine, state, call.statement_index, place)
+                // This call owns selector evaluation just as it does for a
+                // parameter-rooted operand. Reusing only the parameter/field
+                // snapshot walk loses locals and completed scalar results and
+                // can reload a selector after another operand changes it.
+                projected_evaluated_path(
+                    program,
+                    machine,
+                    state,
+                    call.statement_index,
+                    place,
+                    selectors,
+                )
             })
             .and_then(|(selected, path)| {
                 super::argument_paths::borrowed_argument_endpoint(

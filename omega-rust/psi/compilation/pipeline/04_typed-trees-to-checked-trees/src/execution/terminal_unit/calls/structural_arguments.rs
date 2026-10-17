@@ -250,6 +250,7 @@ pub(crate) fn structural_call_arguments(
                 target_identity,
                 caller_operations,
                 trace,
+                Some(&selector),
             )?);
             continue;
         }

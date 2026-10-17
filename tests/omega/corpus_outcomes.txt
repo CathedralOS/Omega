@@ -3171,6 +3171,39 @@ fail/facts/guarded_line_loan_through_parameter_held rejected 2453ms expected @86
 fail/facts/guarded_line_loan_through_target_body_held rejected 2461ms expected @866a955e52f8
 	state `receive` receives `line` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
 	statement 2 mutates `line` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
+fail/facts/indexed_element_mut_loan_through_call_result_held rejected 1261ms expected @dee77250b5b9
+	state `bump` receives `rooms[selected]` while local borrow `held` is still active (borrowed at statement 2; its last use is at statement 4)
+	statement 3 mutates `rooms[selected].exit_count` while local borrow `held` is still active (borrowed at statement 2; its last use is at statement 4)
+fail/facts/indexed_element_mut_loan_through_const_name_held rejected 1181ms expected @dee77250b5b9
+	state `bump` receives `rooms[selected]` while local borrow `held` is still active (borrowed at statement 2; its last use is at statement 4)
+	statement 3 mutates `rooms[selected].exit_count` while local borrow `held` is still active (borrowed at statement 2; its last use is at statement 4)
+fail/facts/indexed_element_mut_loan_through_field_held rejected 1207ms expected @dee77250b5b9
+	state `bump` receives `rooms[selector.index]` while local borrow `held` is still active (borrowed at statement 2; its last use is at statement 4)
+	statement 3 mutates `rooms[selector.index].exit_count` while local borrow `held` is still active (borrowed at statement 2; its last use is at statement 4)
+fail/facts/indexed_element_mut_loan_through_local_held rejected 1174ms expected @dee77250b5b9
+	state `bump` receives `rooms[selected]` while local borrow `held` is still active (borrowed at statement 2; its last use is at statement 4)
+	statement 3 mutates `rooms[selected].exit_count` while local borrow `held` is still active (borrowed at statement 2; its last use is at statement 4)
+fail/facts/indexed_element_mut_loan_through_match_join_held rejected 1183ms expected @dee77250b5b9
+	state `bump` receives `rooms[selected]` while local borrow `held` is still active (borrowed at statement 2; its last use is at statement 4)
+	statement 3 mutates `rooms[selected].exit_count` while local borrow `held` is still active (borrowed at statement 2; its last use is at statement 4)
+fail/facts/indexed_element_mut_loan_through_other_machine_held rejected 1191ms expected @dee77250b5b9
+	state `bump` receives `rooms[selected]` while local borrow `held` is still active (borrowed at statement 0; its last use is at statement 2 and it is released at state exit)
+	statement 1 mutates `rooms[selected].exit_count` while local borrow `held` is still active (borrowed at statement 0; its last use is at statement 2 and it is released at state exit)
+fail/facts/indexed_element_mut_loan_through_other_state_held rejected 1157ms expected @dee77250b5b9
+	state `bump` receives `rooms[selected]` while local borrow `held` is still active (borrowed at statement 0; its last use is at statement 2)
+	statement 1 mutates `rooms[selected].exit_count` while local borrow `held` is still active (borrowed at statement 0; its last use is at statement 2)
+fail/facts/indexed_element_mut_loan_through_parameter_held rejected 1179ms expected @dee77250b5b9
+	state `bump` receives `rooms[selected]` while local borrow `held` is still active (borrowed at statement 0; its last use is at statement 2 and it is released at state exit)
+	statement 1 mutates `rooms[selected].exit_count` while local borrow `held` is still active (borrowed at statement 0; its last use is at statement 2 and it is released at state exit)
+fail/facts/indexed_element_mut_loan_through_target_body_held rejected 1232ms expected @dee77250b5b9
+	state `bump` receives `rooms[selected]` while local borrow `held` is still active (borrowed at statement 0; its last use is at statement 2 and it is released at state exit)
+	state `bump` receives `rooms[selected]` while local borrow `held` is still active (borrowed at statement 0; its last use is at statement 2 and it is released at state exit)
+	state `bump` receives `rooms[selected]` while local borrow `held` is still active (borrowed at statement 0; its last use is at statement 2 and it is released at state exit)
+	state `bump` receives `rooms[selected]` while local borrow `held` is still active (borrowed at statement 0; its last use is at statement 2 and it is released at state exit)
+	statement 1 mutates `rooms[selected].exit_count` while local borrow `held` is still active (borrowed at statement 0; its last use is at statement 2 and it is released at state exit)
+	statement 1 mutates `rooms[selected].exit_count` while local borrow `held` is still active (borrowed at statement 0; its last use is at statement 2 and it is released at state exit)
+	statement 1 mutates `rooms[selected].exit_count` while local borrow `held` is still active (borrowed at statement 0; its last use is at statement 2 and it is released at state exit)
+	statement 1 mutates `rooms[selected].exit_count` while local borrow `held` is still active (borrowed at statement 0; its last use is at statement 2 and it is released at state exit)
 fail/facts/matched_window_through_call_result_rejected rejected 664ms expected @a48b0ac286f5
 	cannot prove ensures contract for exit from from_call at statement 0: result.len == 2
 fail/facts/matched_window_through_const_name_rejected rejected 659ms expected @a48b0ac286f5
@@ -6675,6 +6708,7 @@ pass/borrows/runtime_reference_record_call_payload_restoration_exit checked 1110
 pass/borrows/runtime_reference_record_direct_payload_restoration_exit checked 11080ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_released_loan_with_forwarded_view_exit checked 10914ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_replaced_reference_record_return_exit checked 10284ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/borrows/runtime_result_element_call_selector_capture_exit checked 7412ms check-target:macos_arm64 @dee77250b5b9
 pass/borrows/runtime_retained_operand_descriptor_cleanup_exit checked 8383ms check-target:macos_arm64 @cc6649bfa8e5
 pass/borrows/runtime_returned_mutable_reference_array_bounded_read_exit checked 11194ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_returned_nested_reference_array_bounded_read_exit checked 11205ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -8009,6 +8043,15 @@ pass/facts/guarded_line_loan_through_other_machine_exit checked 5832ms check-tar
 pass/facts/guarded_line_loan_through_other_state_exit checked 5736ms check-target:macos_arm64 @866a955e52f8
 pass/facts/guarded_line_loan_through_parameter_exit checked 5737ms check-target:macos_arm64 @866a955e52f8
 pass/facts/guarded_line_loan_through_target_body_exit checked 5788ms check-target:macos_arm64 @866a955e52f8
+pass/facts/indexed_element_mut_loan_through_call_result_exit checked 7416ms check-target:macos_arm64 @dee77250b5b9
+pass/facts/indexed_element_mut_loan_through_const_name_exit checked 7499ms check-target:macos_arm64 @dee77250b5b9
+pass/facts/indexed_element_mut_loan_through_field_exit checked 7549ms check-target:macos_arm64 @dee77250b5b9
+pass/facts/indexed_element_mut_loan_through_local_exit checked 7007ms check-target:macos_arm64 @dee77250b5b9
+pass/facts/indexed_element_mut_loan_through_match_join_exit checked 7148ms check-target:macos_arm64 @dee77250b5b9
+pass/facts/indexed_element_mut_loan_through_other_machine_exit checked 7395ms check-target:macos_arm64 @dee77250b5b9
+pass/facts/indexed_element_mut_loan_through_other_state_exit checked 7286ms check-target:macos_arm64 @dee77250b5b9
+pass/facts/indexed_element_mut_loan_through_parameter_exit checked 7060ms check-target:macos_arm64 @dee77250b5b9
+pass/facts/indexed_element_mut_loan_through_target_body_exit checked 7074ms check-target:macos_arm64 @dee77250b5b9
 pass/facts/returned_write_destination_through_call_result_exit checked 6783ms check-target:macos_arm64 @2ef2ab353498+wt
 pass/facts/returned_write_destination_through_const_name_exit checked 6674ms check-target:macos_arm64 @2ef2ab353498+wt
 pass/facts/returned_write_destination_through_field_exit checked 7303ms check-target:macos_arm64 @2ef2ab353498+wt
