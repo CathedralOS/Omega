@@ -16,8 +16,8 @@ use semantic_vocabulary::{
     IntegerSign, IntegerType, PlaceId, ScalarType, StructuralPlaceKind, StructuralTypeId,
 };
 use terminal_psi::{
-    Operation, StructuralAccess, StructuralFieldType, StructuralMultiplicity,
-    StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape, TerminalMachine,
+    Operation, StructuralAccess, StructuralMultiplicity, StructuralPathSegment,
+    StructuralTypeDeclaration, StructuralTypeShape, TerminalMachine,
 };
 
 use crate::lowering::LoweringError;
@@ -32,9 +32,17 @@ pub(super) fn lower(
     source: PlaceId,
     path: StructuralCopyPath,
 ) -> Result<AbstractOperation, LoweringError> {
-    let invalid = || LoweringError::InvalidStructuralLeafCopy(operation.id);
-    let result = operation.result.structural().ok_or_else(invalid)?;
-    let signature = source_signature(machine, source).ok_or_else(invalid)?;
+    let invalid = |reason| LoweringError::InvalidStructuralLeafCopy {
+        machine: machine.id,
+        operation: operation.id,
+        reason,
+    };
+    let result = operation
+        .result
+        .structural()
+        .ok_or_else(|| invalid("copy has no structural result"))?;
+    let signature = source_signature(machine, source)
+        .ok_or_else(|| invalid("copy source has no retained signature"))?;
     // Membership metadata was decided on the exact source occurrence in Psi.
     // It survives every snapshot without changing storage or copy permission;
     // bytes are not a separate qualification-custody mode.
@@ -57,7 +65,7 @@ pub(super) fn lower(
             }) if producer == operation.id && structural_type == result.structural_type
         )
     {
-        return Err(invalid());
+        return Err(invalid("copy result is not a fresh copyable occurrence"));
     }
     // Observation requires readable access: a write-only borrow never opens.
     if machine
@@ -67,19 +75,21 @@ pub(super) fn lower(
         .find(|parameter| parameter.place == source)
         .is_some_and(|parameter| parameter.access == StructuralAccess::WriteOnlyBorrow)
     {
-        return Err(invalid());
+        return Err(invalid("copy source is write-only"));
     }
     let selected_type = match &path {
-        StructuralCopyPath::Ordinary(path) => {
-            resolve_copyable_path(structural_types, signature.structural_type, path)
-        }
+        StructuralCopyPath::Ordinary(path) => terminal_semantics::runtime_structural_copy_type(
+            structural_types.iter(),
+            signature.structural_type,
+            path,
+        ),
         StructuralCopyPath::Case(path) => terminal_semantics::canonical_case_leaf_type(
             structural_types.iter(),
             signature.structural_type,
             path,
         ),
     }
-    .ok_or_else(invalid)?;
+    .ok_or_else(|| invalid("copy path does not select a readable declared leaf"))?;
     // All copies name the selected value's own type, including descriptors.
     // Reference formation is the separate EstablishReference operation.
     let expected_type = result.structural_type;
@@ -106,7 +116,7 @@ pub(super) fn lower(
             expected_type,
         )
     {
-        return Err(invalid());
+        return Err(invalid("copy result type does not match the selected leaf"));
     }
     Ok(AbstractOperation::StructuralLeafCopy {
         psi_operation: operation.id,
@@ -114,59 +124,6 @@ pub(super) fn lower(
         source,
         path,
     })
-}
-
-/// Resolve the leaf's declared type beneath `root` through the spelled path,
-/// mirroring the verifier's `resolve_structural_path`: field segments select
-/// a non-erased record member whose structural or canonical leaf shape joins
-/// the declaration roster, fixed indices step into in-bounds array elements,
-/// and indexed views select their declared element. A view's extent is its
-/// live runtime length, not a static type length; the verifier discharges
-/// that bound before this static-shape replay and the path retains its proof.
-fn resolve_copyable_path(
-    structural_types: &[StructuralTypeDeclaration],
-    mut structural_type: StructuralTypeId,
-    path: &[StructuralPathSegment],
-) -> Option<StructuralTypeId> {
-    for segment in path {
-        let declaration = terminal_psi::find_structural_type(structural_types, structural_type)?;
-        structural_type = match (segment, &declaration.shape) {
-            (
-                StructuralPathSegment::Referent,
-                StructuralTypeShape::Reference { referent, access },
-            ) if *access != StructuralAccess::WriteOnlyBorrow => *referent,
-            (
-                StructuralPathSegment::Field(identity),
-                StructuralTypeShape::Record { fields, .. },
-            ) => {
-                let field = terminal_psi::live_field_by_identity(fields, *identity)?;
-                match &field.field_type {
-                    StructuralFieldType::Structural(next) => *next,
-                    leaf => {
-                        let shape = leaf.leaf_copy_shape()?;
-                        structural_types
-                            .iter()
-                            .find(|candidate| candidate.shape == shape)
-                            .map(|candidate| candidate.id)?
-                    }
-                }
-            }
-            (
-                StructuralPathSegment::FixedIndex(index),
-                StructuralTypeShape::FixedArray { element, length },
-            ) if index < length => *element,
-            (
-                StructuralPathSegment::RuntimeIndex { .. },
-                StructuralTypeShape::FixedArray { element, .. },
-            ) => *element,
-            (
-                StructuralPathSegment::FixedIndex(_) | StructuralPathSegment::RuntimeIndex { .. },
-                StructuralTypeShape::ElementView { element, .. },
-            ) => *element,
-            _ => return None,
-        };
-    }
-    Some(structural_type)
 }
 
 /// Whether a leaf copy mints a record out of a byte carrier: `path` ends at a
@@ -189,7 +146,9 @@ fn byte_carrier_leaf_copy(
     let Some((StructuralPathSegment::FixedIndex(index), prefix)) = path.split_last() else {
         return false;
     };
-    let Some(parent) = resolve_copyable_path(structural_types, root, prefix) else {
+    let Some(parent) =
+        terminal_semantics::runtime_structural_copy_type(structural_types.iter(), root, prefix)
+    else {
         return false;
     };
     let Some(declaration) = terminal_psi::find_structural_type(structural_types, parent) else {

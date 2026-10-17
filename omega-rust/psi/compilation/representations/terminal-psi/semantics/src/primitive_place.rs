@@ -391,6 +391,43 @@ pub fn runtime_structural_path_tip<'a>(
     }
 }
 
+/// The value type selected by a leaf copy, using the shared projection grammar.
+/// Copying an inline byte field materializes its descriptor or owned snapshot;
+/// it is not reference formation. Readability across reference boundaries is
+/// required, but active-case evidence, bounds and live custody remain with the
+/// checked operation. Resolving a declared payload never proves it is active.
+pub fn runtime_structural_copy_type<'a>(
+    declarations: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
+    root: StructuralTypeId,
+    path: &[StructuralPathSegment],
+) -> Option<StructuralTypeId> {
+    for (position, segment) in path.iter().enumerate() {
+        if matches!(segment, StructuralPathSegment::Referent) {
+            let parent =
+                runtime_structural_path_tip(declarations.clone(), root, &path[..position])?;
+            if !matches!(parent.shape, StructuralTypeShape::Reference { access, .. }
+                if access != terminal_psi::StructuralAccess::WriteOnlyBorrow)
+            {
+                return None;
+            }
+        }
+    }
+    if matches!(path.last(), Some(StructuralPathSegment::Field(_))) {
+        let field = crate::runtime_structural_field(declarations.clone(), root, path)?;
+        if let StructuralFieldType::Structural(child) = field.field_type {
+            return Some(child);
+        }
+        // The endpoint is a materialized value, not a geometry-only view of
+        // its storage. In particular, retain a stored byte descriptor's access.
+        let shape = field.field_type.leaf_copy_shape()?;
+        return declarations
+            .clone()
+            .find(|declaration| declaration.shape == shape)
+            .map(|declaration| declaration.id);
+    }
+    runtime_structural_path_tip(declarations, root, path).map(|declaration| declaration.id)
+}
+
 /// Whether a typed projection stays inside its root's inline storage. A
 /// descriptor field itself is inline; selecting its referent or an element
 /// leaves that storage. Runtime selection within an owned array does not.
@@ -732,6 +769,15 @@ fn walk_primitive_projection_with_policy<'a>(
                 StructuralTypeShape::FixedArray { element, length },
             ) if index < length => {
                 step(Some(CanonicalStructuralPathSegment::FixedIndex(*index)));
+                Position::Declared(*element)
+            }
+            (
+                StructuralPathSegment::FixedIndex(_),
+                StructuralTypeShape::ElementView { element, .. },
+            ) => {
+                // A literal index still crosses descriptor-backed storage;
+                // its runtime bound is not an owned canonical field fact.
+                step(None);
                 Position::Declared(*element)
             }
             (

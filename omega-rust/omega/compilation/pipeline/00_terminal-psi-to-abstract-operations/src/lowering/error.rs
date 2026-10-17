@@ -18,7 +18,11 @@ pub enum LoweringError {
     /// The leaf copy did not re-check the verifier's static shape: a fresh
     /// `Unrestricted` operation result, a readable source signature, and the
     /// spelled path landing on the exact leaf type.
-    InvalidStructuralLeafCopy(semantic_vocabulary::OperationId),
+    InvalidStructuralLeafCopy {
+        machine: MachineId,
+        operation: semantic_vocabulary::OperationId,
+        reason: &'static str,
+    },
     /// Scalar-array establishment has no abstract storage realization yet.
     UnsupportedScalarArray(semantic_vocabulary::OperationId),
     /// Terminal preserves the exact non-scalar sum case payload, but Omega has

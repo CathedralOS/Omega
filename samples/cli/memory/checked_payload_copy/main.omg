@@ -1,0 +1,48 @@
+// Expected exit: 0.
+// Copy an established record payload out of a checked case into another state.
+data Extent [copy] { base: u64; length: u64; }
+domain Extent::Nonempty(extent) requires extent.length > 0;
+data CheckedExtent { case Rejected; case Ready(extent: Extent in Nonempty); }
+data Envelope { stamp: u64; checked: CheckedExtent; }
+
+machine check(extent: Extent) -> CheckedExtent {
+    transition extent.length > 0 {
+        true -> CheckedExtent::Ready { extent: extent }
+        _ -> CheckedExtent::Rejected
+    }
+}
+
+machine inspect(checked: CheckedExtent) -> bool {
+    transition checked {
+        CheckedExtent::Ready { extent } -> retained(extent)
+        CheckedExtent::Rejected -> (false)
+    }
+    state retained(extent: Extent in Nonempty) -> bool {
+        extent.base == 4096 && extent.length == 8192
+    }
+}
+
+machine inspect_nested(envelope: Envelope) -> bool {
+    transition envelope.checked {
+        CheckedExtent::Ready { extent } -> retained(extent, envelope.stamp)
+        CheckedExtent::Rejected -> (false)
+    }
+    state retained(extent: Extent in Nonempty, stamp: u64) -> bool {
+        stamp == 17 && extent.base == 4096 && extent.length == 8192
+    }
+}
+
+machine main() crashes Trap {
+    let checked: CheckedExtent = check(Extent { base: 4096, length: 8192 });
+    let direct: bool = inspect(checked);
+    let nested: bool = inspect_nested(Envelope {
+        stamp: 17, checked: check(Extent { base: 4096, length: 8192 })
+    });
+    let rejected: bool = inspect(check(Extent { base: 4096, length: 0 }));
+    transition direct && nested && !rejected {
+        true -> done()
+        _ -> wrong()
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}

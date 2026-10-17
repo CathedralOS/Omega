@@ -865,6 +865,7 @@ pass/control_flow/owned_array_state_transfer_exit built 1366ms exit:70 @cf6e9ae2
 pass/control_flow/projected_case_subject_root_forwarding_exit built 1968ms exit:70 @e06e59f77bec+wt
 pass/control_flow/projected_field_exhaustive_case_dispatch_exit built 1372ms exit:70 @74a78aefec94+wt
 pass/control_flow/projected_loan_state_argument_exit built 2223ms exit:11 @af9f91f2fb06+wt
+pass/control_flow/qualified_case_payload_copy_exit built 3675ms exit:0 @7c847bad15b6+wt
 pass/control_flow/record_pattern_arm_rename_guard_exit built 601ms exit:70
 pass/control_flow/runtime_boolean_equality_copied_record_instances_exit built 2111ms exit:70 @36ad3370c97a
 pass/control_flow/runtime_boundary_case_subject_exit built 2694ms exit:70 @02be27637e24+wt
@@ -2359,6 +2360,7 @@ pass/text/runtime_view_local_reassign_exit built 1076ms exit:70 @42ea16c25de8+wt
 pass/text/runtime_view_local_record_local_field_store_exit built 1274ms exit:70 @e2ddcac05fbc+wt
 pass/text/runtime_view_local_state_transfer_exit built 1903ms exit:70 @7adc5f2420e5+wt
 pass/text/state_parameter_byte_replacement_exit built 1031ms exit:70 @63377f7122bb+wt
+pass/text/stored_shared_byte_descriptor_copy_exit built 3675ms exit:0 @7c847bad15b6+wt
 pass/text/text_concat_assign checked 10188ms @5041ef1af684+wt
 pass/text/utf8_boundary_established checked 211ms
 pass/text/utf8_member_verdict checked 15764ms @5041ef1af684+wt

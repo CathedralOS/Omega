@@ -141,8 +141,8 @@ pub use primitive_place::{
     canonical_primitive_read_path, canonical_static_projection, fixed_array_place_shape,
     primitive_place_type, primitive_projection_declaration, primitive_projection_restriction,
     primitive_projection_type, primitive_read_field, primitive_read_projection_type,
-    primitive_read_requirement, projection_stays_in_inline_storage, runtime_structural_path_tip,
-    stored_descriptor_paths,
+    primitive_read_requirement, projection_stays_in_inline_storage, runtime_structural_copy_type,
+    runtime_structural_path_tip, stored_descriptor_paths,
 };
 pub use proof_bearing_scalar::{
     CanonicalScalarGoal, ProofBearingIntegerPolicyBinding, ProofBearingScalarLeafElision,

@@ -1,0 +1,19 @@
+// Expected exit: 0. Copy the descriptor itself, not just its containing record.
+data Holder [copy] { bytes: &[u8]; }
+machine returned(holder: Holder) -> &[u8] { holder.bytes }
+machine transferred(holder: Holder) -> bool {
+    transition { _ -> inspect(holder.bytes) }
+    state inspect(bytes: &[u8]) -> bool { bytes == "View" }
+}
+machine main() crashes Trap {
+    let holder: Holder = Holder { bytes: "View" };
+    let local: &[u8] = holder.bytes;
+    let result: &[u8] = returned(holder);
+    let moved: bool = transferred(holder);
+    transition local == "View" && result == "View" && moved {
+        true -> done()
+        _ -> wrong()
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}

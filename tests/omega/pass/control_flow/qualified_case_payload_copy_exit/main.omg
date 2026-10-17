@@ -1,0 +1,38 @@
+// Expected exit: 0. A qualified copyable payload survives case/field projection.
+data Item [copy] { value: u64; }
+domain Item::Positive(item) requires item.value > 0;
+data Outcome { case Empty; case Ready(item: Item in Positive); }
+data Envelope { outcome: Outcome; }
+
+machine checked(value: u64) -> Outcome {
+    transition value > 0 {
+        true -> Outcome::Ready { item: Item { value: value } }
+        _ -> Outcome::Empty
+    }
+}
+machine direct(outcome: Outcome) -> u64 {
+    transition outcome {
+        Outcome::Ready { item } -> consume(item)
+        Outcome::Empty -> (0)
+    }
+    state consume(item: Item in Positive) -> u64 { item.value }
+}
+machine nested(envelope: Envelope) -> u64 {
+    transition envelope.outcome {
+        Outcome::Ready { item } -> consume(item)
+        Outcome::Empty -> (0)
+    }
+    state consume(item: Item in Positive) -> u64 { item.value }
+}
+machine main() crashes Trap {
+    let local: Outcome = checked(41);
+    let first: u64 = direct(local);
+    let second: u64 = nested(Envelope { outcome: checked(73) });
+    let empty: u64 = direct(checked(0));
+    transition first == 41 && second == 73 && empty == 0 {
+        true -> done()
+        _ -> wrong()
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}
