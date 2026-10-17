@@ -4,6 +4,14 @@ use alignment::local;
 
 // Scores and coordinates are nonnegative and at most 48. Emit decimal rather
 // than exposing an exit-code-only witness. Output preserves the traceback bytes.
+// The printed traces are the prefix whose length is the wrapping column count.
+machine trace_window<'row>(bytes: &'row [u8; 32], count: i32 in Wrapping) -> &'row [u8]
+requires count >= 0 && count <= 32
+ensures result.len == count as u64
+{
+    &bytes[0..count]
+}
+
 pub machine number(value: i32 in Wrapping) reaches Console
 invokes Console;
 {
@@ -22,11 +30,25 @@ invokes Console;
 pub machine report(result: &alignment::local::Alignment) reaches Console
 invokes Console;
 {
-    Console::write("score="); number(result.score); Console::write_line("");
-    Console::write("first="); number(result.first_start); Console::write(":"); number(result.first_end); Console::write_line("");
-    Console::write("second="); number(result.second_start); Console::write(":"); number(result.second_end); Console::write_line("");
-    Console::write("alignment-first=");
-    transition { _ -> first(result, result.columns) }
+    transition result.columns >= 0 && result.columns <= 32 {
+        true -> windows(result)
+        false -> bad()
+    }
+    state windows(result: &alignment::local::Alignment) {
+        let first_window: &[u8] = trace_window(&result.first_trace, result.columns);
+        let second_window: &[u8] = trace_window(&result.second_trace, result.columns);
+        transition first_window.len == second_window.len {
+            true -> score(result)
+            false -> bad()
+        }
+    }
+    state score(result: &alignment::local::Alignment) {
+        Console::write("score="); number(result.score); Console::write_line("");
+        Console::write("first="); number(result.first_start); Console::write(":"); number(result.first_end); Console::write_line("");
+        Console::write("second="); number(result.second_start); Console::write(":"); number(result.second_end); Console::write_line("");
+        Console::write("alignment-first=");
+        transition { _ -> first(result, result.columns) }
+    }
     state first(result: &alignment::local::Alignment, remaining: i32 in Wrapping) {
         transition remaining > 0 && remaining <= 32 { true -> first_index(result, remaining - 1) false -> second_begin(result) }
     }

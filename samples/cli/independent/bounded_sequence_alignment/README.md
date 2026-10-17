@@ -1,7 +1,7 @@
 # Bounded biological local alignment
 
 The Omega application reads two biological sequences from stdin, computes a
-scored local alignment with a private 17×17 score/direction arena, follows its
+scored local alignment with a private nested 17×17 score/direction arena, follows its
 traceback, and prints score, coordinates, and both aligned strings. Nothing is
 imported from another sample or an in-progress numerical library.
 
@@ -25,7 +25,7 @@ all actual arithmetic fit signed 32 bits.
 
 `main.omg` owns input, computation and output dispatch. `input/sequence.omg`
 parses bytes, `alignment/local.omg` owns the entire matrix and traceback,
-`output/report.omg` renders results. `build.omg` binds the real entrypoint to
+`output/report.omg` renders results. Each traceback is also the prefix window of its 32-byte line whose length is the wrapping column count. `build.omg` binds the real entrypoint to
 existing std providers on Linux x86_64/arm64, Windows x86_64 and macOS arm64.
 The complete separate project in `invalid/` deliberately reads element 16 of
 an array with capacity 16 and must be rejected by checking.

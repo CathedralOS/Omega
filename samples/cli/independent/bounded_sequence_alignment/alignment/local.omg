@@ -2,10 +2,12 @@ module alignment::local;
 use input::sequence;
 
 // Private fixed-capacity score/trace arena. Row zero and column zero are ZII.
+// Scores and directions are a nested 17 by 17 matrix. Cell reads travel through
+// a call result, a copied local row, a coordinate parameter, and a field store.
 // Strict updates preserve diagonal/up/left tie order and first row-major maximum.
 pub data Alignment {
-    scores: [i32; 289];
-    directions: [u8; 289];
+    scores: [[i32; 17]; 17];
+    directions: [[u8; 17]; 17];
     first_trace: [u8; 32];
     second_trace: [u8; 32];
     columns: i32 in Wrapping;
@@ -16,15 +18,29 @@ pub data Alignment {
     second_end: i32 in Wrapping;
     row: i32 in Wrapping;
     column: i32 in Wrapping;
-    index: i32 in Wrapping;
-    diagonal_index: i32 in Wrapping;
-    up_index: i32 in Wrapping;
-    left_index: i32 in Wrapping;
     candidate: i32 in Wrapping;
     direction: u8;
     first_base: u8;
     second_base: u8;
     substitution: i32 in Wrapping;
+}
+
+machine read_score(grid: &[[i32; 17]; 17], row: i32 in Wrapping, column: i32 in Wrapping) -> i32
+requires row >= 0 && row < 17, column >= 0 && column < 17
+{
+    grid[row][column]
+}
+
+machine copy_row(grid: &[[i32; 17]; 17], row: i32 in Wrapping) -> [i32; 17]
+requires row >= 0 && row < 17
+{
+    grid[row]
+}
+
+machine read_direction(grid: &[[u8; 17]; 17], row: i32 in Wrapping, column: i32 in Wrapping) -> u8
+requires row >= 0 && row < 17, column >= 0 && column < 17
+{
+    grid[row][column]
 }
 
 pub machine align(first: &input::sequence::Sequence, second: &input::sequence::Sequence, result: &mut Alignment) -> bool {
@@ -43,15 +59,23 @@ pub machine align(first: &input::sequence::Sequence, second: &input::sequence::S
     }
     state clear(first: &input::sequence::Sequence, second: &input::sequence::Sequence, result: &mut Alignment, position: i32 in Wrapping) -> bool {
         transition position >= 0 && position < 289 {
-            true -> zero(first, second, result, position)
+            true -> split(first, second, result, position)
             false -> cell(first, second, result)
         }
     }
-    state zero(first: &input::sequence::Sequence, second: &input::sequence::Sequence, result: &mut Alignment, position: i32 in Wrapping) -> bool
-    requires position >= 0 && position < 289
+    state split(first: &input::sequence::Sequence, second: &input::sequence::Sequence, result: &mut Alignment, position: i32 in Wrapping) -> bool {
+        let row: i32 in Wrapping = position / 17;
+        let column: i32 in Wrapping = position % 17;
+        transition row >= 0 && row < 17 && column >= 0 && column < 17 {
+            true -> zero(first, second, result, position, row, column)
+            false -> (false)
+        }
+    }
+    state zero(first: &input::sequence::Sequence, second: &input::sequence::Sequence, result: &mut Alignment, position: i32 in Wrapping, row: i32 in Wrapping, column: i32 in Wrapping) -> bool
+    requires row >= 0 && row < 17, column >= 0 && column < 17
     {
-        result.scores[position] = 0;
-        result.directions[position] = 0;
+        result.scores[row][column] = 0;
+        result.directions[row][column] = 0;
         transition { _ -> clear(first, second, result, position + 1) }
     }
     state cell(first: &input::sequence::Sequence, second: &input::sequence::Sequence, result: &mut Alignment) -> bool {
@@ -72,10 +96,6 @@ pub machine align(first: &input::sequence::Sequence, second: &input::sequence::S
         transition { _ -> cell(first, second, result) }
     }
     state positions(first: &input::sequence::Sequence, second: &input::sequence::Sequence, result: &mut Alignment) -> bool {
-        result.index = result.row * 17 + result.column;
-        result.diagonal_index = result.index - 18;
-        result.up_index = result.index - 17;
-        result.left_index = result.index - 1;
         let first_position: i32 in Wrapping = result.row - 1;
         let second_position: i32 in Wrapping = result.column - 1;
         transition result.row >= 1 && result.row <= 16 && result.column >= 1 && result.column <= 16 {
@@ -112,19 +132,25 @@ pub machine align(first: &input::sequence::Sequence, second: &input::sequence::S
         transition { _ -> bounds(first, second, result) }
     }
     state bounds(first: &input::sequence::Sequence, second: &input::sequence::Sequence, result: &mut Alignment) -> bool {
-        transition result.index >= 0 && result.index < 289 && result.diagonal_index >= 0 && result.diagonal_index < 289 && result.up_index >= 0 && result.up_index < 289 && result.left_index >= 0 && result.left_index < 289 {
-            true -> score_cell(first, second, result)
+        let diagonal_row: i32 in Wrapping = result.row - 1;
+        let diagonal_column: i32 in Wrapping = result.column - 1;
+        let up_column: i32 in Wrapping = result.column;
+        let left_row: i32 in Wrapping = result.row;
+        let left_column: i32 in Wrapping = result.column - 1;
+        transition diagonal_row >= 0 && diagonal_row < 17 && diagonal_column >= 0 && diagonal_column < 17 && result.row >= 1 && result.row <= 16 && up_column >= 0 && up_column < 17 && left_row >= 0 && left_row < 17 && left_column >= 0 && left_column < 17 && result.column >= 1 && result.column <= 16 {
+            true -> score_cell(first, second, result, diagonal_row, diagonal_column, up_column, left_row, left_column)
             false -> (false)
         }
     }
-    state score_cell(first: &input::sequence::Sequence, second: &input::sequence::Sequence, result: &mut Alignment) -> bool
-    requires result.index >= 0 && result.index < 289, result.diagonal_index >= 0 && result.diagonal_index < 289, result.up_index >= 0 && result.up_index < 289, result.left_index >= 0 && result.left_index < 289
+    state score_cell(first: &input::sequence::Sequence, second: &input::sequence::Sequence, result: &mut Alignment, diagonal_row: i32 in Wrapping, diagonal_column: i32 in Wrapping, up_column: i32 in Wrapping, left_row: i32 in Wrapping, left_column: i32 in Wrapping) -> bool
+    requires diagonal_row >= 0 && diagonal_row < 17, diagonal_column >= 0 && diagonal_column < 17, result.row >= 1 && result.row <= 16, up_column >= 0 && up_column < 17, left_row >= 0 && left_row < 17, left_column >= 0 && left_column < 17, result.column >= 1 && result.column <= 16
     {
         result.candidate = 0;
         result.direction = 0;
-        let diagonal: i32 in Wrapping = (result.scores[result.diagonal_index] as i32 in Wrapping) + result.substitution;
-        let up: i32 in Wrapping = (result.scores[result.up_index] as i32 in Wrapping) - 2;
-        let left: i32 in Wrapping = (result.scores[result.left_index] as i32 in Wrapping) - 2;
+        let up_values: [i32; 17] = copy_row(&result.scores, diagonal_row);
+        let diagonal: i32 in Wrapping = (up_values[diagonal_column] as i32 in Wrapping) + result.substitution;
+        let up: i32 in Wrapping = (up_values[up_column] as i32 in Wrapping) - 2;
+        let left: i32 in Wrapping = (read_score(&result.scores, left_row, left_column) as i32 in Wrapping) - 2;
         transition { _ -> choose_diagonal(first, second, result, diagonal, up, left) }
     }
     state choose_diagonal(first: &input::sequence::Sequence, second: &input::sequence::Sequence, result: &mut Alignment, diagonal: i32 in Wrapping, up: i32 in Wrapping, left: i32 in Wrapping) -> bool {
@@ -152,13 +178,13 @@ pub machine align(first: &input::sequence::Sequence, second: &input::sequence::S
         transition { _ -> store_guard(first, second, result) }
     }
     state store_guard(first: &input::sequence::Sequence, second: &input::sequence::Sequence, result: &mut Alignment) -> bool {
-        transition result.index >= 0 && result.index < 289 { true -> store(first, second, result) false -> (false) }
+        transition result.row >= 1 && result.row <= 16 && result.column >= 1 && result.column <= 16 { true -> store(first, second, result) false -> (false) }
     }
     state store(first: &input::sequence::Sequence, second: &input::sequence::Sequence, result: &mut Alignment) -> bool
-    requires result.index >= 0 && result.index < 289
+    requires result.row >= 1 && result.row <= 16, result.column >= 1 && result.column <= 16
     {
-        result.scores[result.index] = result.candidate as i32;
-        result.directions[result.index] = result.direction;
+        result.scores[result.row][result.column] = result.candidate as i32;
+        result.directions[result.row][result.column] = result.direction;
         transition result.candidate > result.score { true -> maximum(first, second, result) false -> advance(first, second, result) }
     }
     state maximum(first: &input::sequence::Sequence, second: &input::sequence::Sequence, result: &mut Alignment) -> bool {
@@ -177,13 +203,12 @@ pub machine align(first: &input::sequence::Sequence, second: &input::sequence::S
         transition { _ -> trace(first, second, result) }
     }
     state trace(first: &input::sequence::Sequence, second: &input::sequence::Sequence, result: &mut Alignment) -> bool {
-        result.index = result.row * 17 + result.column;
-        transition result.index >= 0 && result.index < 289 { true -> trace_read(first, second, result) false -> (false) }
+        transition result.row >= 0 && result.row < 17 && result.column >= 0 && result.column < 17 { true -> trace_read(first, second, result) false -> (false) }
     }
     state trace_read(first: &input::sequence::Sequence, second: &input::sequence::Sequence, result: &mut Alignment) -> bool
-    requires result.index >= 0 && result.index < 289
+    requires result.row >= 0 && result.row < 17, result.column >= 0 && result.column < 17
     {
-        result.direction = result.directions[result.index];
+        result.direction = read_direction(&result.directions, result.row, result.column);
         transition result.direction == 0 { true -> finish(result) false -> trace_bounds(first, second, result) }
     }
     state trace_bounds(first: &input::sequence::Sequence, second: &input::sequence::Sequence, result: &mut Alignment) -> bool {
