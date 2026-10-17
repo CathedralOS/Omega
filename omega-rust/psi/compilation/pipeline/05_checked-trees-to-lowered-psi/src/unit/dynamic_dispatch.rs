@@ -242,7 +242,8 @@ pub(crate) fn lower_dynamic_dispatch_catalog(
         })
         .collect::<Vec<_>>();
     // The emitted domain catalog retains the exact source semantic identity
-    // and storage carrier; no implementation or diagnostic spelling selects it.
+    // and the source carrier's unchanged descriptor presentation. The catalog
+    // owns those presentations; no implementation or diagnostic spelling selects it.
     let domain_ids = module
         .structural_domains
         .iter()
@@ -256,7 +257,14 @@ pub(crate) fn lower_dynamic_dispatch_catalog(
                 .find(|plan| {
                     u64::from(plan.domain.0) == domain.semantic_domain.get()
                         && type_ids.iter().any(|(identity, carrier)| {
-                            *identity == plan.carrier_type_identity && *carrier == domain.carrier
+                            *identity == plan.carrier_type_identity
+                                && terminal_semantics::borrowed_referent_presentation(
+                                    module.structural_types.iter(),
+                                    *carrier,
+                                    domain.carrier,
+                                ) == Some(
+                                    terminal_semantics::BorrowedReferentPresentation::Unchanged,
+                                )
                         })
                 })
                 .map(|plan| plan.domain)
