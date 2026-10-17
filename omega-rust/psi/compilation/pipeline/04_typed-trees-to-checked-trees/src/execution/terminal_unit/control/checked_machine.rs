@@ -13,11 +13,10 @@ use crate::execution::terminal_unit::providers::checked_provider_attachment_requ
 use crate::execution::terminal_unit::types::{
     ShapeCollector, checked_state_contracts_have_plan, is_unit, machine_binders,
     parameter_storage_plans, return_unit_affine_discards, state_flow,
-    type_graph_requires_nominal_drop,
 };
 use crate::execution::terminal_unit::{
     BTreeSet, CheckFacts, CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan,
-    CheckedUnitPartialAffineDiscardPlan, StatementNode,
+    CheckedUnitPartialAffineDiscardPlan,
 };
 
 /// Build the machine while retaining the exit edge's residual
@@ -304,33 +303,10 @@ pub(crate) fn build_checked_machine_residual_parts(
             | CheckedUnitEffectOperationPlan::Complete { .. } => Vec::new(),
         })
         .collect::<BTreeSet<_>>();
-    trace.phase("completion: local cleanup");
-    // A cleanup-owned local still owned at return would need its exact
-    // owner-attached `::drop` invoked here; the bounded lane has no per-local
-    // cleanup edge, so the machine stays outside the slice rather than
-    // discarding the owner silently.
-    if operations.iter().any(|operation| {
-        let CheckedUnitEffectOperationPlan::EstablishLocal(
-            checked_trees::CheckedUnitLocalBindingPlan::StructuralValue {
-                result,
-                discard_result_on_return,
-                ..
-            },
-        ) = operation
-        else {
-            return false;
-        };
-        *discard_result_on_return
-            && matches!(
-                    statements.get(result.statement_index as usize),
-                    Some(StatementNode::LocalData(local))
-                        if type_graph_requires_nominal_drop(program, local.type_reference,
-            &[],
-            &mut BTreeSet::new())
-                )
-    }) {
-        return None;
-    }
+    // Named local disposition is selected after the complete callable roster
+    // exists, by the common sequence/state normal-exit cleanup planner. Its
+    // checked residual partition owns nominal hooks and empty complements;
+    // an initializer's provisional return-discard flag cannot decide liveness.
     trace.phase("completion: parameter cleanup");
     let (trivial_affine_discards, residual_affine_discards, has_projected_parameter_moves) =
         return_unit_affine_discards(

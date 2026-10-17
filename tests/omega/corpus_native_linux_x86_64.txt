@@ -3399,6 +3399,7 @@ pass/borrows/state_reference_scalar_snapshots built 17596ms exit:0 @6c49683ce714
 run/ownership/declared_record_selected_exit_disposal built 17428ms exit:0 @6c49683ce714
 run/ownership/owned_parameter_member_moves_exit built 11327ms exit:0 @6c49683ce714
 run/ownership/owned_parameter_narrow_member_moves_exit built 15691ms exit:0 @6c49683ce714
+run/ownership/sequence_owned_local_cleanup built 6584ms exit:0 stdout:match @8e4a9b2fb97a
 run/ownership/temporary_case_observation built 7411ms exit:0 @6c49683ce714
 run/ownership/temporary_projected_copy_argument built 13299ms exit:0 @6c49683ce714
 run/ownership/temporary_projected_value_residual built 11600ms exit:0 @6c49683ce714

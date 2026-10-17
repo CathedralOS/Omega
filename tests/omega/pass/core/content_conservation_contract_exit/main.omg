@@ -124,3 +124,10 @@ machine Main::main(main: &mut Main) reaches Console, RegionSplit, RegionSink {
     state good(main: &mut Main) { Console::exit_process(70); }
     state bad(main: &mut Main) { Console::exit_process(72); }
 }
+
+RegionSplitImplementation satisfies RegionSplit {
+    RegionSplit::split = RegionSplitProvider::split;
+}
+RegionSinkImplementation satisfies RegionSink {
+    RegionSink::accept = RegionSinkProvider::accept;
+}

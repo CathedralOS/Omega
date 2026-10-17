@@ -1,0 +1,76 @@
+// Expected exit: 0, output AB. An ordinary returning sequence disposes
+// its remaining owned subtree after capturing the result. A fully consumed
+// local has no second cleanup: each note prints exactly once.
+use omega::language::core::drop;
+use omega::language::core::content;
+// The fixture-local console assumes finite normal byte writes, as the
+// existing nominal-cleanup fixtures do; it does not strengthen std::Console.
+pub boundary trait Console {
+    machine write_byte(byte: i32) reaches Console terminates;
+    machine exit_process(return_code: i32) reaches Console;
+}
+pub data ConsoleNativeProvider {}
+linux_x86_64 boundary machine ConsoleNativeProvider::write_byte(byte: i32)
+    satisfies Console::write_byte;
+linux_x86_64 boundary machine ConsoleNativeProvider::exit_process(return_code: i32)
+    satisfies Console::exit_process;
+linux_arm64 boundary machine ConsoleNativeProvider::write_byte(byte: i32)
+    satisfies Console::write_byte;
+linux_arm64 boundary machine ConsoleNativeProvider::exit_process(return_code: i32)
+    satisfies Console::exit_process;
+macos_arm64 boundary machine ConsoleNativeProvider::write_byte(byte: i32)
+    satisfies Console::write_byte;
+macos_arm64 boundary machine ConsoleNativeProvider::exit_process(return_code: i32)
+    satisfies Console::exit_process;
+CleanupConsole satisfies Console {
+    Console::write_byte = ConsoleNativeProvider::write_byte;
+    Console::exit_process = ConsoleNativeProvider::exit_process;
+}
+
+data Unit {}
+data Receipt [linear] { code: u64; }
+domain Receipt::Owned;
+machine Owned::content(receipt: &Receipt) -> CountedQuantity<Unit>
+satisfies Content<Receipt, CountedQuantity<Unit>>::project {
+    CountedQuantity { magnitude: embed(receipt.code) as Nat }
+}
+machine Receipt::drop(receipt: &mut Receipt) {}
+data Note { code: i32; }
+machine Note::drop(note: &mut Note) reaches Console {
+    Console::write_byte(note.code);
+}
+data Bundle { receipt: Receipt in Owned; note: Note; }
+
+machine remaining() -> u64 reaches Console {
+    let bundle: Bundle = Bundle {
+        receipt: Receipt { code: 70 },
+        note: Note { code: 65 }
+    };
+    let receipt: Receipt in Owned = bundle.receipt;
+    let result: u64 = receipt.code;
+    drop(receipt);
+    result
+}
+
+machine consumed() -> u64 reaches Console {
+    let bundle: Bundle = Bundle {
+        receipt: Receipt { code: 71 },
+        note: Note { code: 66 }
+    };
+    let { receipt, note } = bundle;
+    let result: u64 = receipt.code;
+    drop(receipt);
+    drop(note);
+    result
+}
+
+machine main() reaches Console crashes Trap {
+    let first: u64 = remaining();
+    let second: u64 = consumed();
+    transition first == 70 && second == 71 {
+        true -> done()
+        false -> bad()
+    }
+    state done() { Console::write_byte(10); }
+    state bad() { crash Trap; }
+}

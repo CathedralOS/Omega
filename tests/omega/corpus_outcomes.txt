@@ -9088,6 +9088,7 @@ run/nested_mut_alias_assignment_return checked 11468ms check-target:macos_arm64 
 run/ownership/declared_record_selected_exit_disposal checked 11660ms check-target:macos_arm64 @93ba1f664f65+wt
 run/ownership/owned_parameter_member_moves_exit checked 9269ms check-target:macos_arm64 @4a0ccff8236e+wt
 run/ownership/owned_parameter_narrow_member_moves_exit checked 9238ms check-target:macos_arm64 @e47dcb1ff6d8+wt
+run/ownership/sequence_owned_local_cleanup checked 6945ms check-target:macos_arm64 @8e4a9b2fb97a
 run/ownership/temporary_case_observation checked 5301ms check-target:macos_arm64 @0e81fb3e4cce+wt
 run/ownership/temporary_projected_copy_argument checked 5449ms check-target:macos_arm64 @0e81fb3e4cce+wt
 run/ownership/temporary_projected_value_residual checked 11846ms check-target:macos_arm64 @93ba1f664f65+wt
