@@ -8,7 +8,11 @@
 
 use super::{Operand, Relation, ordered_gaps_by};
 
-pub(super) fn same_value(relations: &[Relation], left: &Operand, right: &Operand) -> bool {
+pub(in crate::proof_contracts::arithmetic_domains) fn same_value(
+    relations: &[Relation],
+    left: &Operand,
+    right: &Operand,
+) -> bool {
     compare(relations, left, right, 0)
 }
 

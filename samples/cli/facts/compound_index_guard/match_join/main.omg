@@ -1,0 +1,20 @@
+// The live fact 0 <= b * 20 + a < 200 permits storing 7 at grid[b * 20 + a].
+// Compile-checked only: no ProgramEntry and no native oracle.
+data Main {
+    hits: i32 in Wrapping;
+    a: i32 in Wrapping;
+    b: i32 in Wrapping;
+    grid: [i32; 200] in Wrapping;
+}
+machine Main::main(main: &mut Main) {
+    transition main.b * 20 + main.a >= 0 && main.b * 20 + main.a < 200 {
+        true -> put(main)
+        _ -> done(main)
+    }
+    state put(main: &mut Main) {
+        let a: i32 in Wrapping = match main.hits == 0 { true -> main.a, false -> main.a };
+        main.grid[main.b * 20 + a] = 7;
+        main.hits = 1;
+    }
+    state done(main: &mut Main) { main.hits = -1; }
+}

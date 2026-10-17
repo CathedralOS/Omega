@@ -1,0 +1,15 @@
+// Backing extent 200 does not make a twenty-element view have extent 200.
+data Main { a: i32 in Wrapping; b: i32 in Wrapping; grid: [i32; 200]; }
+machine Main::main(main: &mut Main) {
+    transition main.b * 20 + main.a >= 0 && main.b * 20 + main.a < 200 {
+        true -> put(main)
+        _ -> done(main)
+    }
+    state put(main: &mut Main) {
+        let a: i32 in Wrapping = main.a;
+        let b: i32 in Wrapping = main.b;
+        let view: &mut [i32] = &mut main.grid[0..20];
+        view[b * 20 + a] = 7;
+    }
+    state done(main: &mut Main) { }
+}

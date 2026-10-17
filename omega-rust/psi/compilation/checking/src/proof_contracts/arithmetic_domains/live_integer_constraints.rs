@@ -185,13 +185,9 @@ pub(super) fn proves_collection_bounds(
     collection: ExpressionHandle,
     index: ExpressionHandle,
 ) -> bool {
-    let Some(collection) =
-        super::ordered_values::operand(program, machine, state, collection, None)
-    else {
-        return false;
-    };
     let mut observations = Observations::default();
-    let Some(length) = observations.value(&Operand::CollectionLength(Box::new(collection))) else {
+    let Some(length) = collection_length(program, machine, state, collection, &mut observations)
+    else {
         return false;
     };
     let mut value = |expression| {
@@ -269,17 +265,12 @@ pub(super) fn proves_collection_footprint(
     if width < 0 {
         return false;
     }
-    let Some(collection) =
-        super::ordered_values::operand(program, machine, state, collection, None)
-    else {
-        return false;
-    };
     let Some(start) = super::ordered_values::operand(program, machine, state, start, None) else {
         return false;
     };
     let mut observations = Observations::default();
     let (Some(length), Some(start)) = (
-        observations.value(&Operand::CollectionLength(Box::new(collection))),
+        collection_length(program, machine, state, collection, &mut observations),
         observations.value(&start),
     ) else {
         return false;
@@ -307,6 +298,30 @@ pub(super) fn proves_collection_footprint(
             }],
         )
     })
+}
+
+/// Exact always-full array geometry and symbolic runtime lengths share the
+/// same judgment. Capacity of a variable-fill owner is never a live extent;
+/// the declared geometry owner preserves that distinction through type shells.
+fn collection_length(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    collection: ExpressionHandle,
+    observations: &mut Observations,
+) -> Option<ScopedArithmeticValue> {
+    let observed = super::ordered_values::operand(program, machine, state, collection, None)?;
+    if let Some(extent) = crate::value_custody::places::declared_collection_extent(
+        program,
+        machine,
+        Some(state),
+        collection,
+    ) {
+        return Some(ScopedArithmeticValue::Integer(BigInt::from_u128(
+            extent as u128,
+        )));
+    }
+    observations.value(&Operand::CollectionLength(Box::new(observed)))
 }
 
 fn contradicts(
@@ -358,6 +373,23 @@ fn contradicts(
             left,
             right,
         });
+    }
+    // Retain every opaque observation before relating congruent constructors.
+    // A copied result may be hoisted: hoist == f(copy), copy == original.
+    // Deduplicating f(copy) into hoist while building the atoms would erase
+    // the bridge to f(original). Publish proved equalities after all atoms
+    // exist instead. Carrier/policy and child identity remain the shared
+    // congruence owner's judgment; Wrapping is never expanded as Exact math.
+    for (position, operand) in observations.atoms.iter().enumerate() {
+        for (other_position, other) in observations.atoms[..position].iter().enumerate() {
+            if super::ordered_values::same_value(&environment.ordered_values, operand, other) {
+                comparisons.push(ScopedArithmeticComparison {
+                    operator: BinaryOperator::Equal,
+                    left: atom(position),
+                    right: atom(other_position),
+                });
+            }
+        }
     }
     // Only paths belonging to resolved current observations can contribute
     // interval facts. The environment already owns their invalidation and

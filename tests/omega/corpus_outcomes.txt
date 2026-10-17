@@ -3034,6 +3034,39 @@ fail/facts/case_equality_through_target_body_compile rejected 671ms expected @2e
 	exact arithmetic in machine `Main::main` state `take` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `Main::main` state `take` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `Main::main` state `take` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/compound_guard_different_call_result_compile rejected 3197ms expected @2ef2ab353498+wt
+	cannot prove index `main.b * 20 + a` is within length 200 in Main::main::put
+fail/facts/compound_guard_different_grouping_compile rejected 3217ms expected @2ef2ab353498+wt
+	cannot prove index `main.b * 20 + a` is within length 200 in Main::main::put
+fail/facts/compound_guard_missing_lower_compile rejected 3183ms expected @2ef2ab353498+wt
+	cannot prove index `main.b * 20 + a` is within length 200 in Main::main::put
+fail/facts/compound_guard_mutated_coordinate_compile rejected 3633ms expected @2ef2ab353498+wt
+	cannot prove index `main.b * 20 + a` is within length 200 in Main::main::put
+fail/facts/compound_guard_shorter_slice_compile rejected 1857ms expected @2ef2ab353498+wt
+	cannot prove index `b * 20 + a` is within length 20 in Main::main::put
+fail/facts/compound_guard_through_call_result_compile rejected 3926ms expected @2ef2ab353498+wt
+	cannot prove index `main.b * 20 + a` is within length 200 in Main::main::put
+fail/facts/compound_guard_through_const_name_compile rejected 3163ms expected @2ef2ab353498+wt
+	cannot prove index `main.b * 20 + main.a` is within length 200 in Main::main::put
+fail/facts/compound_guard_through_field_compile rejected 2980ms expected @2ef2ab353498+wt
+	cannot prove index `main.b * 20 + main.a` is within length 200 in Main::main::put
+fail/facts/compound_guard_through_local_compile rejected 3169ms expected @2ef2ab353498+wt
+	cannot prove index `b * 20 + a` is within length 200 in Main::main::put
+fail/facts/compound_guard_through_match_join_compile rejected 3589ms expected @2ef2ab353498+wt
+	cannot prove index `main.b * 20 + a` is within length 200 in Main::main::put
+fail/facts/compound_guard_through_other_machine_compile rejected 2599ms expected @2ef2ab353498+wt
+	cannot prove index `main.b * 20 + main.a` is within length 200 in store::entry
+fail/facts/compound_guard_through_other_state_compile rejected 3695ms expected @2ef2ab353498+wt
+	cannot prove index `main.b * 20 + main.a` is within length 200 in Main::main::put
+fail/facts/compound_guard_through_parameter_compile rejected 2369ms expected @2ef2ab353498+wt
+	cannot prove index `b * 20 + a` is within length 200 in store::entry
+fail/facts/compound_guard_through_target_body_compile rejected 2356ms expected @2ef2ab353498+wt
+	cannot prove index `main.b * 20 + main.a` is within length 200 in Main::main::put
+	cannot prove index `main.b * 20 + main.a` is within length 200 in Main::main::put
+	cannot prove index `main.b * 20 + main.a` is within length 200 in Main::main::put
+	cannot prove index `main.b * 20 + main.a` is within length 200 in Main::main::put
+fail/facts/compound_guard_unequal_match_arm_compile rejected 2639ms expected @2ef2ab353498+wt
+	cannot prove index `main.b * 20 + a` is within length 200 in Main::main::put
 fail/facts/dependent_subtract_through_call_result_rejected rejected 284ms expected @fd94a7b8095c+wt
 	exact arithmetic in machine `Main::main` state `main` local `remaining` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`). Here the operand `used_amount(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u32 in Wrapping`).
 fail/facts/dependent_subtract_through_const_name_rejected rejected 297ms expected @fd94a7b8095c+wt
@@ -7823,6 +7856,15 @@ pass/facts/case_equality_through_other_machine_compile checked 2139ms @2ef2ab353
 pass/facts/case_equality_through_other_state_compile checked 2349ms @2ef2ab353498+wt
 pass/facts/case_equality_through_parameter_compile checked 3429ms @2ef2ab353498+wt
 pass/facts/case_equality_through_target_body_compile checked 2116ms @2ef2ab353498+wt
+pass/facts/compound_guard_through_call_result_compile checked 1913ms @2ef2ab353498+wt
+pass/facts/compound_guard_through_const_name_compile checked 1881ms @2ef2ab353498+wt
+pass/facts/compound_guard_through_field_compile checked 1863ms @2ef2ab353498+wt
+pass/facts/compound_guard_through_local_compile checked 1846ms @2ef2ab353498+wt
+pass/facts/compound_guard_through_match_join_compile checked 1842ms @2ef2ab353498+wt
+pass/facts/compound_guard_through_other_machine_compile checked 2089ms @2ef2ab353498+wt
+pass/facts/compound_guard_through_other_state_compile checked 1834ms @2ef2ab353498+wt
+pass/facts/compound_guard_through_parameter_compile checked 1854ms @2ef2ab353498+wt
+pass/facts/compound_guard_through_target_body_compile checked 2049ms @2ef2ab353498+wt
 pass/facts/dependent_subtract_through_call_result_compile checked 1268ms @fd94a7b8095c+wt
 pass/facts/dependent_subtract_through_const_name_compile checked 1226ms @fd94a7b8095c+wt
 pass/facts/dependent_subtract_through_field_compile checked 1211ms @fd94a7b8095c+wt

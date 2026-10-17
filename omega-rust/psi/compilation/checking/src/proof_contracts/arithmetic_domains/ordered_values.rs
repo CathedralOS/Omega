@@ -28,6 +28,7 @@ use crate::value_custody::places::collection_length_receiver;
 use symbols::SymbolHandle;
 
 mod congruence;
+pub(super) use congruence::same_value;
 mod delivered;
 mod requirements;
 mod storage;
