@@ -491,8 +491,9 @@ defines the complete product bar.
     `pass/borrows/runtime_computed_case_copy_order_exit` and
     `pass/operators/runtime_constructed_operand_result_exit` (exit 0 in both
     engines). Computed copies retain selectors and the selected value before
-    later operands mutate their source. Use ordinary expression continuations
-    for selected payload returns, not raw jump arguments.
+    later operands mutate their source. Selected payload returns use ordinary
+    expression continuations with captured backing across conditional arms and
+    cyclic argument permutations; element origins retain logical window indices.
     Value dispatch still needs its full construction schedule. Preserve
     occurrence-bound routed memberships through completed
     children, copies and nested projections:
