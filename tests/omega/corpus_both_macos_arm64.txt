@@ -850,11 +850,13 @@ pass/wire/runtime_wire_signed_extremes_roundtrip_exit built 4454ms exit:0 interp
 pass/wire/runtime_wire_utf8_edge_verdicts_exit built 7756ms exit:70 interpreter-exit:70 interpreter:agrees @cba4ef8c9ab1
 pass/wire/wire_preserving_decode_relay_exit built 1783ms exit:70 interpreter-exit:70 interpreter:agrees @bf6726603463+wt
 pass/write_only/state_forwarded_scalar_store_exit built 1360ms exit:70 interpreter-exit:70 interpreter:agrees @2bde2a770491
+run/borrows/conditional_returned_descriptor_origins built 3566ms exit:0 interpreter-exit:0 interpreter:agrees @137efb5802df
 run/borrows/incoming_carrier_transport built 5794ms exit:0 interpreter-exit:0 interpreter:agrees @5930657b943b
 run/borrows/owned_array_view_establishment built 5886ms exit:0 interpreter-exit:0 interpreter:agrees @a68c584655e1+wt
 run/borrows/qualified_owner_views built 5481ms exit:0 interpreter-exit:0 interpreter:agrees @5797c45a64c3+wt
 run/borrows/reference_local_binding_routes built 6013ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @3fa817733300+wt
 run/borrows/reference_result_call_binding built 5902ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @3fa817733300+wt
+run/borrows/returned_element_from_offset_view built 3492ms exit:0 interpreter-exit:0 interpreter:agrees @137efb5802df
 run/borrows/runtime_index_bounded_borrow built 4784ms exit:0 interpreter-exit:0 interpreter:agrees @e477ee0294de+wt
 run/borrows/shared_indexed_read built 5703ms exit:0 interpreter-exit:0 interpreter:agrees @3fa817733300+wt
 run/borrows/shared_local_borrow built 5331ms exit:0 interpreter-exit:0 interpreter:agrees @3fa817733300+wt

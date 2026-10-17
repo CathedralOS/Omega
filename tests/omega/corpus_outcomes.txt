@@ -695,6 +695,8 @@ fail/borrows/clock_out_parameter_mutable_from_shared rejected 3759ms expected @a
 fail/borrows/computed_case_copy_requires_live_bounds rejected 428ms expected @6043bf4a18bd+wt
 	cannot prove index `select()` is within unknown slice length of `cells` in copy::entry
 fail/borrows/conditional_overlapping_field_loans rejected 4727ms expected @16ed47526a08
+fail/borrows/conditional_returned_descriptor_local_escape rejected 593ms expected @137efb5802df
+	machine `select` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 fail/borrows/constructor_case_owner_mismatch rejected 812ms expected @a9ae30e1c334+wt
 	construction of `Holder` field `choice` expects the `Correct` data type but got `Other` in the `field` position; these are incompatible data types (a place is accepted structurally, but its declared type must match)
 fail/borrows/constructor_reference_element_mismatch rejected 903ms expected @a9ae30e1c334+wt
@@ -9000,6 +9002,7 @@ run/arithmetic/float_structural_initializer_selection checked 24258ms check-targ
 run/arithmetic/pinned_dividend_across_console_calls checked 11062ms check-target:macos_arm64 @a9ae30e1c334+wt
 run/borrows/computed_element_view_state_extent checked 7172ms check-target:macos_arm64 @81ae4fc477c4
 run/borrows/conditional_disjoint_field_loans_exit checked 6088ms check-target:macos_arm64 @589aedee8ebc+wt
+run/borrows/conditional_returned_descriptor_origins checked 3465ms check-target:macos_arm64 @137efb5802df
 run/borrows/direct_runtime_index_write checked 11448ms check-target:macos_arm64 @a9ae30e1c334+wt
 run/borrows/dynamic_ancestor_static_byte_child_exit checked 9163ms check-target:macos_arm64 @0e7ef4cb2ac8+wt
 run/borrows/incoming_carrier_transport checked 5826ms check-target:macos_arm64 @5930657b943b
@@ -9013,6 +9016,7 @@ run/borrows/qualified_owner_views checked 5319ms check-target:macos_arm64 @5797c
 run/borrows/recast_mut_borrow checked 11805ms check-target:macos_arm64 @a9ae30e1c334+wt
 run/borrows/reference_local_binding_routes checked 11261ms check-target:macos_arm64 @a9ae30e1c334+wt
 run/borrows/reference_result_call_binding checked 11177ms check-target:macos_arm64 @a9ae30e1c334+wt
+run/borrows/returned_element_from_offset_view checked 3337ms check-target:macos_arm64 @137efb5802df
 run/borrows/runtime_index_bounded_borrow checked 11411ms check-target:macos_arm64 @a9ae30e1c334+wt
 run/borrows/shared_field_borrow checked 11475ms check-target:macos_arm64 @a9ae30e1c334+wt
 run/borrows/shared_indexed_read checked 12014ms check-target:macos_arm64 @a9ae30e1c334+wt

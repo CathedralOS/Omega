@@ -2425,6 +2425,7 @@ run/arithmetic/fixed_integer_operand_after_call built 11486ms exit:70 stdout:mat
 run/arithmetic/fixed_integer_operand_after_pressure built 11202ms exit:70 stdout:match @589aedee8ebc+wt
 run/arithmetic/fixed_integer_operand_join built 8724ms exit:70 stdout:match @589aedee8ebc+wt
 run/borrows/conditional_disjoint_field_loans_exit built 8288ms exit:0 stdout:match stderr:match @589aedee8ebc+wt
+run/borrows/conditional_returned_descriptor_origins built 3576ms exit:0 @137efb5802df
 run/borrows/direct_runtime_index_write built 1114ms exit:9 @48008365d839
 run/borrows/indexed_loan_element_write built 1123ms exit:0 @48008365d839
 run/borrows/local_mut_borrow built 6985ms exit:9 @51b2cebdd24f
@@ -2434,6 +2435,7 @@ run/borrows/qualified_owner_views built 5395ms exit:0 @5797c45a64c3+wt
 run/borrows/recast_mut_borrow built 1125ms exit:0 @48008365d839
 run/borrows/reference_local_binding_routes built 1309ms exit:0 stdout:match @48008365d839
 run/borrows/reference_result_call_binding built 1332ms exit:0 stdout:match @48008365d839
+run/borrows/returned_element_from_offset_view built 3504ms exit:0 @137efb5802df
 run/borrows/runtime_index_bounded_borrow built 1299ms exit:0 @48008365d839
 run/borrows/shared_field_borrow built 916ms exit:0 @48008365d839
 run/borrows/shared_indexed_read built 946ms exit:0 @48008365d839
