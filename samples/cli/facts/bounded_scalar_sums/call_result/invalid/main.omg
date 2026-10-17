@@ -1,0 +1,12 @@
+// A call result spanning all of u64 does not prove an exact sum.
+machine bounded(value: u64 [0..=18446744073709551615]) -> u64 [0..=18446744073709551615] {
+    value
+}
+
+machine add(a: u64 [0..=18446744073709551615], b: u64 [0..=18446744073709551615]) -> u64 {
+    bounded(a) + bounded(b)
+}
+
+machine main() {
+    _ = add(30, 40);
+}

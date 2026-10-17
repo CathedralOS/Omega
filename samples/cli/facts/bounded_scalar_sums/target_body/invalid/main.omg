@@ -1,0 +1,20 @@
+// Every target body with full-range u64 parameters leaves the exact sum unproved.
+linux_x86_64 machine add(a: u64 [0..=18446744073709551615], b: u64 [0..=18446744073709551615]) -> u64 {
+    a + b
+}
+
+linux_arm64 machine add(a: u64 [0..=18446744073709551615], b: u64 [0..=18446744073709551615]) -> u64 {
+    a + b
+}
+
+macos_arm64 machine add(a: u64 [0..=18446744073709551615], b: u64 [0..=18446744073709551615]) -> u64 {
+    a + b
+}
+
+windows_x86_64 machine add(a: u64 [0..=18446744073709551615], b: u64 [0..=18446744073709551615]) -> u64 {
+    a + b
+}
+
+machine main() {
+    _ = add(30, 40);
+}

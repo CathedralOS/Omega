@@ -1,23 +1,40 @@
 # Bounded Scalar Sums
 
-Compile-scope probe: bounded scalar carriers `u64 [a..=b]` on
-parameters, results, and record fields — and the exact-arithmetic
-payoff (decision-17 narrowing): declared bounds prove sums cannot
-overflow, so no Wrapping domain and no `as` widening is needed. No
-standard-library dependency.
+Compile-scope fact: a `u64 [a..=b]` bound on a parameter, result, or
+record field proves an exact sum cannot overflow. The body stays a
+plain `a + b`, with no Wrapping domain and no `as` widening. There is
+no ProcessExit provider and no runtime exit oracle.
 
-- `add50(a, b) -> u64 [0..=100]` — the result bound is proven from the
-  parameter bounds; the body is a plain exact `a + b`.
-- `main.left + main.right` is exact for the same reason — bounded
-  record fields narrow the operands to [0, 100].
-- `main.result: u64 [0..=100]` — a bounded field receiving the
-  call result directly.
+The original project at this folder's root mixes parameter bounds,
+bounded record fields, and a bounded field receiving the call result.
+The nine places below each carry that same sum fact alone:
 
-Compile-checked only (no ProcessExit provider):
+| Place | Project |
+| --- | --- |
+| local | `local/` |
+| field | `field/` |
+| parameter | `parameter/` |
+| call result | `call_result/` |
+| match join | `match_join/` |
+| const name | `const_name/` |
+| another state | `other_state/` |
+| another machine | `other_machine/` |
+| another target body | `target_body/` |
+
+Each `invalid/` child keeps the same place and widens the declared
+bounds to every `u64` value, so the exact sum is refused.
 
 ```sh
-mbx run -p omega -- --check samples/cli/facts/bounded_scalar_sums/main.omg
-mbx run -p omega -- update --project samples/cli/facts/bounded_scalar_sums
+omega --check samples/cli/facts/bounded_scalar_sums/local/main.omg
+omega --check samples/cli/facts/bounded_scalar_sums/field/main.omg
+omega --check samples/cli/facts/bounded_scalar_sums/parameter/main.omg
+omega --check samples/cli/facts/bounded_scalar_sums/call_result/main.omg
+omega --check samples/cli/facts/bounded_scalar_sums/match_join/main.omg
+omega --check samples/cli/facts/bounded_scalar_sums/const_name/main.omg
+omega --check samples/cli/facts/bounded_scalar_sums/other_state/main.omg
+omega --check samples/cli/facts/bounded_scalar_sums/other_machine/main.omg
+omega --check samples/cli/facts/bounded_scalar_sums/target_body/main.omg
 ```
 
-Both green on Linux x86-64; `omega.lock` publishes locally, ignored.
+`omega --check` on each `invalid/main.omg` exits 1 and reports that the
+exact sum may overflow `u64`.
