@@ -1,0 +1,38 @@
+// `count - used` under `used <= count` is non-negative in exact u32.
+// `data where count <= 11` keeps that fact standing for `as i32`.
+// Compile-checked only: no Main::exit.
+data Main where count <= 11 { count: u32; j: u32; out: i32; }
+
+linux_x86_64 machine gap(count: u32, used: u32) -> i32
+requires used <= count && count <= 11
+{
+    let remaining: u32 = count - used;
+    remaining as i32
+}
+
+linux_arm64 machine gap(count: u32, used: u32) -> i32
+requires used <= count && count <= 11
+{
+    let remaining: u32 = count - used;
+    remaining as i32
+}
+
+macos_arm64 machine gap(count: u32, used: u32) -> i32
+requires used <= count && count <= 11
+{
+    let remaining: u32 = count - used;
+    remaining as i32
+}
+
+windows_x86_64 machine gap(count: u32, used: u32) -> i32
+requires used <= count && count <= 11
+{
+    let remaining: u32 = count - used;
+    remaining as i32
+}
+
+machine Main::main(main: &mut Main)
+    requires main.j <= main.count
+{
+    main.out = gap(main.count, main.j);
+}

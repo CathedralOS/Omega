@@ -1,0 +1,3 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "dependent_subtract_parameter_invalid");
+}
