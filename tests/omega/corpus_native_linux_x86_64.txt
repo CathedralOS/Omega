@@ -2074,6 +2074,8 @@ pass/memory/interrupt_table_canary checked 14089ms @eac8a2f4b8cc+wt
 pass/memory/runtime_large_entry_record_field_exit built 14674ms exit:70 @6c49683ce714
 pass/memory/runtime_large_frame_console_byte_homes_exit built 15568ms exit:70 stdout:match @6c49683ce714
 pass/memory/runtime_large_local_record_exit built 15341ms exit:70 @6c49683ce714
+pass/memory/runtime_linear_native_allocation_call_result_exit built 8200ms exit:0 @d7fd01f47497+wt
+pass/memory/runtime_linear_native_allocation_exit built 8277ms exit:0 @d7fd01f47497+wt
 pass/memory/secondary_processor_canary rejected 7894ms regressed-from:built @fa48d7bba308+wt
 	selected overload `named-callable(path(StartupEnvelope::confirm),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(nominal\\\\\\(package-owner\\\\\\(32:0101010101010101010101010101010101010101010101010101010101010101\\\\\\)\\\\\\,path\\\\\\(StartupEnvelope\\\\\\)\\\\\\)\\)\\)\\)),result-dispatch())` has no compiler-known intrinsic realization
 pass/memory/weak_vacant_qualifier_satisfied checked 3425ms @6c49683ce714

@@ -3804,6 +3804,13 @@ fail/memory/bump_allocator_release_with_live_resident rejected 942ms expected @a
 	implicit domain strengthening in argument `returned` for state `release::entry` assumes `Vacant`; a qualification with no predicate or establishment route may be introduced only by an explicit `as` to the intended target
 fail/memory/bump_allocator_restated_resident_index_mismatch rejected 1316ms expected @a9ae30e1c334+wt
 	index compatibility condition `index-equality:Resident:exercise::entry:statement-4:Resident<SlotPlacement, Slot>==Resident<OtherPlacement, Slot>` is not established: actual `Resident<SlotPlacement, Slot>` and expected `Resident<OtherPlacement, Slot>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
+fail/memory/native_allocation_direct_issuance_rejected rejected 339ms expected @d7fd01f47497+wt
+	external machine `allocate` cannot directly admit domain membership `Allocation::Held`; publish `ensures result in Allocation::Held` on an owner-authorized boundary trait requirement and satisfy that requirement through the provider
+fail/memory/native_allocation_double_release_rejected rejected 496ms expected @d7fd01f47497+wt
+	cannot use `allocation` in machine `main` state `entry` (statement 2) after `allocation` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `allocation` first
+fail/memory/native_allocation_unissued_release_rejected rejected 1267ms expected @d7fd01f47497+wt
+	cannot prove requires contract for call release from main: Allocation in Allocation::Held in state `entry`
+	construction value is not proven in domain `Allocation::Held`
 fail/memory/weak_vacant_qualifier_drop rejected 889ms expected @a9ae30e1c334+wt
 	implicit domain strengthening in construction of `Weak` field `e` assumes `Vacant`; a qualification with no predicate or establishment route may be introduced only by an explicit `as` to the intended target
 fail/modules/ambiguous_attached_machine_carrier rejected 140ms expected @61ba1df9375e+wt
@@ -4661,6 +4668,9 @@ fail/providers/module_operator_satisfier_signature_mismatch rejected 1977ms expe
 	machine `Supplier::wrong` does not match one exact overload of operator requirement `Conversion::read`; its entry parameter and result types must equal one declared requirement signature
 fail/providers/named_provider_wrong_requirement_owner rejected 27ms expected @a9ae30e1c334+wt
 	closed conformance `WrongProvider satisfies CounterOperations` has no inherited requirement slot `OtherOperations::read`
+fail/providers/named_target_family_sibling_guarantee_rejected rejected 587ms expected @d7fd01f47497+wt
+	machine `read` realizes `PositiveSource::read` but does not guarantee its `ensures result > 0`; callers of the requirement assume it
+	machine `read` realizes `PositiveSource::read` but does not guarantee its `ensures result > 0`; callers of the requirement assume it
 fail/providers/nested_binding_missing_establishment rejected 23947ms expected @a9ae30e1c334+wt
 	selected ProgramEntry Binding field `Main::session::reading` requires a selected Fused provider for boundary `Reading`
 fail/providers/occurrence_region_binding_conflicting_inputs rejected 42ms expected @619f89e4fed6+wt
@@ -7945,6 +7955,8 @@ pass/memory/interrupt_table_canary checked 13186ms @eac8a2f4b8cc+wt
 pass/memory/runtime_large_entry_record_field_exit checked 12386ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/memory/runtime_large_frame_console_byte_homes_exit checked 11752ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/memory/runtime_large_local_record_exit checked 11731ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/memory/runtime_linear_native_allocation_call_result_exit checked 8179ms check-target:linux_x86_64 @d7fd01f47497+wt
+pass/memory/runtime_linear_native_allocation_exit checked 8274ms check-target:linux_x86_64 @d7fd01f47497+wt
 pass/memory/secondary_processor_canary rejected 1305ms check-target:macos_arm64 @a9ae30e1c334+wt
 	selected whole provider maps `<selected target>::SecondSecondaryProcessorConformance::satisfies::SecondSecondaryProcessorRoot` and `<selected target>::FirstSecondaryProcessorConformance::satisfies::FirstSecondaryProcessorRoot` supply the same exact receiver application; inherited rows cannot be mixed across choosing owners
 pass/memory/weak_vacant_qualifier_satisfied checked 1690ms @a9ae30e1c334+wt

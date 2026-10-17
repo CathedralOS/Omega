@@ -1,0 +1,5 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "runtime_linear_native_allocation_call_result_exit");
+    Build::select_provider<NativeHeap, HeapProvider>(builder);
+    Build::bind(builder, linux_x86_64::ProgramEntry, Main::main);
+}

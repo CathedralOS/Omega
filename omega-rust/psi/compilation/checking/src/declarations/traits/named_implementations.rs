@@ -4,6 +4,9 @@
 //! signature matching as machine-level `satisfies` clauses, under the
 //! implementation's explicit trait arguments. No row is discovered from
 //! machines attached to a data type: data does not satisfy traits.
+//! A target family contributes its complete authored member roster to that
+//! judgment. Its generated interface names the portable callable contract,
+//! but carries neither a body nor a member's satisfaction/issuance authority.
 //!
 //! Check-then-synthesize (chapter 13): a written member is CHECKED; trait
 //! machines with bodies are synthesized as member rows before resolution, and
@@ -178,23 +181,63 @@ fn validate_closed_rows(
             )));
             continue;
         };
-        super::conformance::validate_applied_trait_signature(
-            program,
-            service_reaches,
-            machine,
-            state,
-            &application,
-            requirement,
-            diagnostics,
-        );
-        crate::proof_contracts::contract_entailment::check_law_conformance(
-            program,
-            machine,
-            conformance_name,
-            &application,
-            requirement,
-            diagnostics,
-            &mut Vec::new(),
-        );
+        let validate_member = |machine: &typed_trees::machine::Machine,
+                               state: &typed_trees::state::State,
+                               diagnostics: &mut Vec<Diagnostic>| {
+            super::conformance::validate_applied_trait_signature(
+                program,
+                service_reaches,
+                machine,
+                state,
+                &application,
+                requirement,
+                diagnostics,
+            );
+            crate::proof_contracts::contract_entailment::check_law_conformance(
+                program,
+                machine,
+                conformance_name,
+                &application,
+                requirement,
+                diagnostics,
+                &mut Vec::new(),
+            );
+        };
+        if !machine.target_family_interface {
+            validate_member(machine, state, diagnostics);
+            continue;
+        }
+        let Some(members) = crate::machine_calls::calls::target_family_members(program, machine)
+        else {
+            diagnostics.push(Diagnostic::error(format!(
+                "closed conformance `{implementation_name}` target family `{}` retains no complete authored member roster",
+                machine.name,
+            )));
+            continue;
+        };
+        let Some(state_position) =
+            typed_trees::state::state_position(program.machine_states(machine), state.symbol)
+        else {
+            diagnostics.push(Diagnostic::error(format!(
+                "closed conformance `{implementation_name}` target family `{}` retains a state outside its callable interface",
+                machine.name,
+            )));
+            continue;
+        };
+        for member in members {
+            let Some((body, entry)) = program.machine(member.machine).and_then(|body| {
+                program
+                    .machine_states(body)
+                    .get(state_position)
+                    .map(|entry| (body, entry))
+            }) else {
+                diagnostics.push(Diagnostic::error(format!(
+                    "closed conformance `{implementation_name}` target family `{}` has no corresponding callable state on target `{}`",
+                    machine.name, member.target,
+                )));
+                continue;
+            };
+            validate_member(body, entry, diagnostics);
+        }
     }
 }

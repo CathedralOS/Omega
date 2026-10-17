@@ -1,0 +1,8 @@
+// Every target-family body must satisfy the named implementation's guarantee.
+boundary trait PositiveSource {
+    machine read() -> u64 ensures result > 0;
+}
+linux_x86_64 machine read() -> u64 { 7 }
+macos_arm64 machine read() -> u64 { 0 }
+SelectedSource satisfies PositiveSource { PositiveSource::read = read; }
+machine main() {}

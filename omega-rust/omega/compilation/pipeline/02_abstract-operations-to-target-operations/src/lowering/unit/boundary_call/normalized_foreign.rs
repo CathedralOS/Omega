@@ -134,10 +134,7 @@ pub(super) fn lower_normalized_foreign_structural_arguments(
             };
             if !permitted_access
                 || local_homes.get(&argument.place).is_some_and(|home| {
-                    home.place() != argument.place
-                        || home.access() != StructuralAccess::Owned
-                        || !home.qualifications().is_empty()
-                        || !home.projected_qualifications().is_empty()
+                    home.place() != argument.place || home.access() != StructuralAccess::Owned
                 })
             {
                 return Err(LoweringError::BoundaryRealizationMismatch(boundary));
@@ -352,6 +349,9 @@ pub(super) fn lower_normalized_foreign_structural_arguments(
                         row.shape.is_borrowed_byte_carrier()
                             || matches!(row.shape, StructuralTypeShape::ElementView { .. })
                     });
+            // Qualifications and completed claims were admitted on this exact
+            // operand. They do not change owned bytes or an unchanged borrow's
+            // ABI; the retained caller place and path still identify custody.
             let unchanged_presentation = argument.access != StructuralAccess::Owned
                 && terminal_semantics::borrowed_referent_presentation(
                     structural_types.values().copied(),
@@ -361,8 +361,6 @@ pub(super) fn lower_normalized_foreign_structural_arguments(
             if (projected_type != parameter.structural_type && !unchanged_presentation)
                 || argument.access != parameter.access
                 || !multiplicity_matches
-                || !parameter.qualifications.is_empty()
-                || !parameter.projected_qualifications.is_empty()
                 || (!projects_view_backing
                     && !argument.path.contains(&StructuralPathSegment::Referent)
                     && projected_shape
@@ -647,12 +645,12 @@ pub(super) fn lower_normalized_foreign_result(
             || result.multiplicity != expected.multiplicity
             || result.qualifications != expected.qualifications
             || result.projected_qualifications != expected.projected_qualifications
-            || !result.projected_qualifications.is_empty()
-            || !result.claims.is_empty()
-            || !result.qualification_establishments.is_empty()
         {
             return Err(LoweringError::BoundaryRealizationMismatch(boundary));
         }
+        // The admitted boundary owns qualification establishment and claim
+        // issuance. The ordinary aggregate home retains that exact operation
+        // result beside its bytes; transport neither discards nor reissues it.
         let home = crate::lowering::control_flow::aggregate_results::home(
             defining_operation,
             result,

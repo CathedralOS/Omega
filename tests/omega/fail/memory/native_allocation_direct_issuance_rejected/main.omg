@@ -1,0 +1,36 @@
+// Expected exit: 0. Native allocation returns the release claim itself.
+// The address stays inert: this program neither creates a reference nor grants
+// an extent from an allocator result. Held means exactly the right to free it.
+use omega::language::core::external_binding;
+
+pub data Allocation [linear] { address: addr; }
+pub domain Allocation::Held established by NativeHeap::allocate;
+pub boundary trait NativeHeap {
+    machine allocate(bytes: u64) -> Allocation
+    ensures result in Held;
+    machine release(allocation: Allocation in Held);
+}
+
+HeapProvider satisfies NativeHeap {
+    NativeHeap::allocate = allocate;
+    NativeHeap::release = release;
+}
+linux_x86_64 machine allocation_binding() -> ForeignBinding<9, 6, 11> {
+    ForeignBinding::DllImport { import: DllImport::ElfVersioned {
+        object: "libc.so.6", symbol: "malloc", version: "GLIBC_2.2.5",
+    } }
+}
+linux_x86_64 machine release_binding() -> ForeignBinding<9, 4, 11> {
+    ForeignBinding::DllImport { import: DllImport::ElfVersioned {
+        object: "libc.so.6", symbol: "free", version: "GLIBC_2.2.5",
+    } }
+}
+linux_x86_64 machine allocate(bytes: u64) -> Allocation
+satisfies NativeHeap::allocate
+via allocation_binding()
+ensures result in Held;
+
+linux_x86_64 machine release(allocation: Allocation in Held)
+satisfies NativeHeap::release via release_binding();
+
+machine main() {}
