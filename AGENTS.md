@@ -95,13 +95,23 @@ continuation; it does not turn unfinished work into completion.
 
 Capability outcomes determine priority; samples provide executable evidence.
 Compiler advancement runs `samples/cli/facts` only. One fact is one folder.
-That fact is done only when it covers the nine places: local, field,
-parameter, call result, match join, const name, another state, another
-machine, and another target body. Those places are one row. Do not expand
-them into a combinatorial matrix. `samples/cli/facts/length/` is the filled
-row. The other folders are unfilled or one-place facts. The next advance
-fills one of those facts across the nine places, or takes the next uncovered
-fact, instead of picking an unrelated program.
+The nine places are local, field, parameter, call result, match join, const
+name, another state, another machine, and another target body. Those places
+are one row. Do not expand them into a combinatorial matrix.
+`samples/cli/facts/length/` is the filled row that met this bar. The other
+folders are unfilled or one-place facts. The next advance fills one of those
+facts across the nine places, or takes the next uncovered fact, instead of
+picking an unrelated program.
+
+A fact folder is done only when the same fact survives all nine places. One
+sentence names the fact and the operation, and every place copies that
+sentence. Changing the fact, the bound, or the operation so a place passes
+is a different fact and does not count. A red place is a checking repair:
+keep the program the same shape, and record the diagnostic before editing
+the compiler. Each place needs a reject twin that breaks only that fact and
+still rejects. A place with no twin does not count. A landing that only
+rewrites the failing place is not acceptance. Exact subtraction, alias
+transfer, and dependent subtract are examples of that repair path.
 
 Programs under the rest of `samples/` stay out of compiler-advance selection.
 They may stay broken while this layer is in progress. A named assignment
@@ -129,15 +139,16 @@ capability.
    natively with its authored result on main, with every compiler, library and fixture repair
    it needed landed with it, and its invalid controls still rejecting.
    Nothing short of that is done: a stage, checkpoint, diagnosis or board edit
-   is progress, not completion. One place running does not finish the fact;
-   the fact is done only when the nine places run.
+   is progress, not completion. One place running does not finish the fact.
+   A landing that only rewrites the failing place is not acceptance.
 3. **Land complete steps toward the same outcome.** Size each executable
    repair to finish in one session; the capability may require several landed
    repairs. When a fact is too large to trace (its size hides the
    failing construct, or its first failure leads into an unrelated second
    gap), cut it down: write a smaller witness inside that fact folder that
    isolates the failing construct with its own oracle, make that run, land it,
-   then return to the fact. Facts advance as a ladder of those places,
+   then return to the fact. The smaller witness keeps the same fact, bound,
+   and operation. Facts advance as a ladder of those places,
    never as stage tasks.
 4. **Return to the remaining acceptance.** After a witness lands or already
    passes, subtract only the requirement its evidence establishes and take the

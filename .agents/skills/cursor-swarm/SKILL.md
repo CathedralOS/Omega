@@ -122,10 +122,12 @@ Inspect live claims and in-flight assignments. Follow
 [capability selection](../../../AGENTS.md#the-sample-loop) and
 [advance](../advance/SKILL.md): retain the parent task, its remaining acceptance
 and the requirement the next witness discharges. Compiler advancement assigns
-fact folders under `samples/cli/facts` only. One fact is done only when it
-covers the nine places. `samples/cli/facts/length/` is the filled row; the
-next witness fills another fact across those places or takes the next
-uncovered fact. Do not assign a program from the rest of `samples/`.
+fact folders under `samples/cli/facts` only. One fact is one folder. The nine
+places are one row, not a matrix. `samples/cli/facts/length/` is the filled
+row that met this bar. The next witness fills another fact across those
+places or takes the next uncovered fact. Do not assign a program from the
+rest of `samples/`. Copy the worker goal below; it states when a fact folder
+is done.
 Sample-queue size is not priority. Use `python3 tools/sample_queue.py --facts`
 for fact failures; the unfiltered queue is ordinary program discovery.
 Reproduce the selected requirement using current evidence or a focused
@@ -162,10 +164,20 @@ Copy this into every worker prompt:
 
 > Read the assigned capability's full acceptance and identify the requirement
 > this witness establishes. Compiler advancement witnesses are fact folders
-> under `samples/cli/facts`. One fact is done only when it covers the nine
-> places: local, field, parameter, call result, match join, const name,
-> another state, another machine, and another target body. Do not select a
-> program from the rest of `samples/`. Run its public acceptance command. Repair failures
+> under `samples/cli/facts`. One fact is one folder. The nine places are one
+> row, not a matrix: local, field, parameter, call result, match join, const
+> name, another state, another machine, and another target body. Do not select
+> a program from the rest of `samples/`. `samples/cli/facts/length/` is the
+> filled row that met this bar. A fact folder is done only when the same fact
+> survives all nine places. One sentence names the fact and the operation, and
+> every place copies that sentence. Changing the fact, the bound, or the
+> operation so a place passes is a different fact and does not count. A red
+> place is a checking repair: keep the program the same shape, and record the
+> diagnostic before editing the compiler. Each place needs a reject twin that
+> breaks only that fact and still rejects. A place with no twin does not count.
+> A landing that only rewrites the failing place is not acceptance. Exact
+> subtraction, alias transfer, and dependent subtract are examples of that
+> repair path. Run its public acceptance command. Repair failures
 > generally, preserving valid compositions and invalid controls, and land each
 > complete repair through `landing.py`. After landing, or if this witness
 > already works, reconcile only what the evidence establishes and continue the

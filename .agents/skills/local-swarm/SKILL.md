@@ -36,11 +36,46 @@ parked scope; idle rather than mine tasks or invent audits.
 
 Follow [capability selection](../../../AGENTS.md#the-sample-loop). Compiler
 advancement assigns fact folders under `samples/cli/facts` only. One fact is
-done only when it covers the nine places, and `samples/cli/facts/length/` is
-the filled row. The next witness fills another fact across those places or
-takes the next uncovered fact. Do not assign a program from the rest of
-`samples/`. Use `python3 tools/sample_queue.py --facts` when a failure list is
-needed; the unfiltered queue is ordinary program discovery. For automatic
+one folder. The nine places are one row, not a matrix.
+`samples/cli/facts/length/` is the filled row that met this bar. The next
+witness fills another fact across those places or takes the next uncovered
+fact. Do not assign a program from the rest of `samples/`. Copy the worker
+goal below into every assignment. Use `python3 tools/sample_queue.py --facts`
+when a failure list is needed; the unfiltered queue is ordinary program
+discovery.
+
+## The worker's goal
+
+Copy this into every worker prompt:
+
+> Read the assigned capability's full acceptance and identify the requirement
+> this witness establishes. Compiler advancement witnesses are fact folders
+> under `samples/cli/facts`. One fact is one folder. The nine places are one
+> row, not a matrix: local, field, parameter, call result, match join, const
+> name, another state, another machine, and another target body. Do not select
+> a program from the rest of `samples/`. `samples/cli/facts/length/` is the
+> filled row that met this bar. A fact folder is done only when the same fact
+> survives all nine places. One sentence names the fact and the operation, and
+> every place copies that sentence. Changing the fact, the bound, or the
+> operation so a place passes is a different fact and does not count. A red
+> place is a checking repair: keep the program the same shape, and record the
+> diagnostic before editing the compiler. Each place needs a reject twin that
+> breaks only that fact and still rejects. A place with no twin does not count.
+> A landing that only rewrites the failing place is not acceptance. Exact
+> subtraction, alias transfer, and dependent subtract are examples of that
+> repair path. Run its public acceptance command. Repair failures
+> generally, preserving valid compositions and invalid controls, and land each
+> complete repair through `landing.py`. After landing, or if this witness
+> already works, reconcile only what the evidence establishes and continue the
+> same capability's next remaining requirement. Do not manufacture a failing
+> sample or a compiler edit. Full task acceptance, not the first passing
+> program, closes the capability. Return to the remaining acceptance in this
+> same session. A session that lands the witness and stops has not finished.
+> The claim note names what of the customer now runs and what still fails,
+> in words a person can read without the diff. Respect explicit one-sample
+> scope, user stops and budgets; preserve remaining acceptance when interrupted.
+
+For automatic
 work, use the launcher's existing `board`/`item` manifest form and put the next
 witness, oracle and requirement in `suggested_first_slice`. The `sample` form
 in `tools/swarm/waves/local-example.json` remains for explicitly sample-scoped

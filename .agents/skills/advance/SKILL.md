@@ -26,13 +26,23 @@ Apply the selection order in [AGENTS.md](../../../AGENTS.md#the-sample-loop):
 known main regressions, explicit user scope, the existing capability continuation,
 then an actionable board outcome by priority and release dependencies. Compiler
 advancement then selects the witness only from `samples/cli/facts`. One fact
-is one folder. It is done only when that fact covers the nine places: local,
-field, parameter, call result, match join, const name, another state, another
-machine, and another target body. Do not expand those places into a
-combinatorial matrix. `samples/cli/facts/length/` is the filled row. The next
-witness fills one other fact across those nine places, or takes the next
+is one folder. The nine places are local, field, parameter, call result,
+match join, const name, another state, another machine, and another target
+body. Those places are one row. Do not expand them into a combinatorial
+matrix. `samples/cli/facts/length/` is the filled row that met this bar. The
+next witness fills one other fact across those nine places, or takes the next
 uncovered fact. Programs under the rest of `samples/` stay out of this
 selection and may stay broken while this layer is in progress.
+
+A fact folder is done only when the same fact survives all nine places. One
+sentence names the fact and the operation, and every place copies that
+sentence. Changing the fact, the bound, or the operation so a place passes
+is a different fact and does not count. A red place is a checking repair:
+keep the program the same shape, and record the diagnostic before editing
+the compiler. Each place needs a reject twin that breaks only that fact and
+still rejects. A place with no twin does not count. A landing that only
+rewrites the failing place is not acceptance. Exact subtraction, alias
+transfer, and dependent subtract are examples of that repair path.
 
 Read the whole item's acceptance and verify its remaining gap against current
 main. Record the parent task and the exact requirement the next fact will
@@ -56,11 +66,14 @@ compiler-advance capacity.
 Size the work to finish in this session. When the fact is too large to
 trace, write a smaller witness inside that fact folder that isolates its
 failing construct with its own oracle, make that run and land it, then return
-to the fact in this same session. Landing that smaller witness and stopping
+to the fact in this same session. The smaller witness keeps the same fact,
+bound, and operation. Landing that smaller witness and stopping
 leaves the fact unfinished. A place that
-already passes establishes only its exercised requirement. Reconcile that
+already passes establishes only its exercised requirement, and only when its
+reject twin still rejects. A place with no twin does not count. Reconcile that
 evidence and continue the same fact's remaining places; do not
-manufacture a failure or compiler edit. Do not carve a new sample out of a
+manufacture a failure or compiler edit. Changing the fact, the bound, or the
+operation so a place passes is a different fact and does not count. Do not carve a new sample out of a
 fact that already meets its oracle. If the full acceptance already passes,
 close the stale item through normal board reconciliation and select the next
 outcome only when the user's scope permits it.
