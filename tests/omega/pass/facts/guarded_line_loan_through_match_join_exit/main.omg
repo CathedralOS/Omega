@@ -1,0 +1,38 @@
+// A byte owner written through a mutable loan and read through a shared loan after a selected case edge observes the written byte.
+// Place: match join.
+// Expected exit: 0.
+data ReadOutcome {
+    case Complete(count: u64);
+    case End(count: u64);
+    case Full(count: u64);
+    case Invalid;
+}
+machine receive(line: &mut [u8; 64]) -> ReadOutcome {
+    line[0] = 37;
+    ReadOutcome::Complete { count: 5 }
+}
+machine observe(line: &[u8; 64], count: u64) -> u64 in Wrapping {
+    (line[0] as u64 in Wrapping + count as u64 in Wrapping)
+}
+machine read_joined(line: &[u8; 64], count: u64, choice: bool) -> u64 in Wrapping {
+    let peek: &[u8; 64] = match choice { true -> line, false -> line };
+    observe(peek, count)
+}
+machine main() crashes Trap {
+    let mut line: [u8; 64];
+    let result: ReadOutcome = receive(&mut line);
+    transition result {
+        ReadOutcome::Complete { count } -> evaluate(read_joined(&line, count, true))
+        ReadOutcome::End { count } -> evaluate(read_joined(&line, count, false))
+        ReadOutcome::Full { count } -> done()
+        ReadOutcome::Invalid -> done()
+    }
+    state evaluate(value: u64 in Wrapping) {
+        transition value == 42 {
+            true -> done()
+            false -> wrong()
+        }
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}
