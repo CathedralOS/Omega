@@ -8801,6 +8801,7 @@ pass/termination/natural_call_variable_step checked 1751ms @a9ae30e1c334+wt
 pass/termination/nested_leaf_rank checked 9949ms @5041ef1af684+wt
 pass/termination/nested_pair_endpoint checked 9582ms @5041ef1af684+wt
 pass/termination/nested_projection_measure checked 9557ms @5041ef1af684+wt
+pass/termination/predicate_requires_ranked_cycle checked 5648ms @039ba3f207a7
 pass/termination/projected_subject_measure checked 9712ms @5041ef1af684+wt
 pass/termination/proof_non_tail_joint_machine_cycle_compile checked 1547ms @a9ae30e1c334+wt
 pass/termination/quotient_endpoint_call_component checked 1728ms @a9ae30e1c334+wt

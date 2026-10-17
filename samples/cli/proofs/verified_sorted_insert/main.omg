@@ -1,0 +1,232 @@
+// Verified sorted insertion into a fixed-capacity table.
+//
+// `sorted` is a pure predicate machine over a sixteen-cell array; `seed`
+// discharges it statically through `ensures`, `search` requires it, and
+// `insert` re-verifies the whole table at runtime after its shift writes
+// (a runtime `sorted` guard selects the attested exit). `search` returns the
+// insertion point as an upper bound over `values[lo..hi)`, carrying the
+// interval facts as `requires`/`ensures` contracts and `width` as the proved
+// termination measure. `insert` shifts the suffix right under a `cursor`
+// rank, then writes the key and the grown live count.
+//
+// Expected exit: 58 = found positions (3 + 1 + 4 + 1) + grown counts
+// (5 + 6) + live cells sum (1 + 2 + 3 + 5 + 7 + 20).
+use omega_language_std::console;
+
+machine sorted(values: &[i32; 16]) -> bool {
+    check_sorted(values, 15)
+}
+
+machine check_sorted(values: &[i32; 16], remaining: u64) -> bool
+requires remaining <= 15
+terminates;
+terminates by remaining in 0..=15;
+{
+    transition remaining >= 1 {
+        true -> inspect(values, remaining)
+        false -> (true)
+    }
+    state inspect(values: &[i32; 16], remaining: u64) -> bool
+        requires remaining >= 1
+        requires remaining <= 15
+    {
+        let prev: u64 = remaining - 1;
+        transition values[prev] <= values[remaining] {
+            true -> check_sorted(values, prev)
+            false -> (false)
+        }
+    }
+}
+
+data Main {
+    values: [i32; 16];
+    live: u64;
+}
+
+// Upper bound over the sorted prefix: the first index in [lo, hi) whose
+// element exceeds `key`, or `hi` when none does. `width == hi - lo` is the
+// interval measure; each recursive call halves it.
+machine search(values: &[i32; 16], lo: u64, hi: u64, width: u64, key: i32) -> u64
+requires lo <= hi
+requires hi <= 16
+requires width == hi - lo
+requires width <= 16
+requires sorted(values) == true
+ensures lo <= result && result <= hi
+terminates by width -> Nat::Descending in 0..=16;
+{
+    transition lo < hi {
+        true -> split(values, lo, hi, width, key)
+        false -> lo
+    }
+    state split(values: &[i32; 16], lo: u64, hi: u64, width: u64, key: i32) -> u64
+        requires lo < hi
+        requires hi <= 16
+        requires width == hi - lo
+        requires width <= 16
+        requires sorted(values) == true
+    {
+        let half: u64 = width / 2;
+        transition half <= width && half < width {
+            true -> probe(values, lo, hi, width, half, key)
+            false -> lo
+        }
+    }
+    state probe(values: &[i32; 16], lo: u64, hi: u64, width: u64, half: u64, key: i32) -> u64
+        requires lo < hi
+        requires hi <= 16
+        requires width == hi - lo
+        requires width <= 16
+        requires half <= width
+        requires half < width
+        requires sorted(values) == true
+    {
+        let mid: u64 = lo + half;
+        transition mid < hi && mid < 16 {
+            true -> compare(values, lo, mid, hi, width, key)
+            false -> lo
+        }
+    }
+    state compare(values: &[i32; 16], lo: u64, mid: u64, hi: u64, width: u64, key: i32) -> u64
+        requires lo <= mid
+        requires mid < hi
+        requires mid < 16
+        requires hi <= 16
+        requires sorted(values) == true
+    {
+        transition values[mid] <= key {
+            true -> descend_right(values, lo, mid, hi, width, key)
+            false -> descend_left(values, lo, mid, hi, width, key)
+        }
+    }
+    state descend_left(values: &[i32; 16], lo: u64, mid: u64, hi: u64, width: u64, key: i32) -> u64
+        requires lo <= mid
+        requires mid < hi
+        requires hi <= 16
+        requires width == hi - lo
+        requires width <= 16
+        requires sorted(values) == true
+    {
+        let nwidth: u64 = mid - lo;
+        transition nwidth < width && nwidth <= 16 {
+            true -> search(values, lo, mid, nwidth, key)
+            false -> lo
+        }
+    }
+    state descend_right(values: &[i32; 16], lo: u64, mid: u64, hi: u64, width: u64, key: i32) -> u64
+        requires lo <= mid
+        requires mid < hi
+        requires hi <= 16
+        requires width == hi - lo
+        requires width <= 16
+        requires sorted(values) == true
+    {
+        let nwidth: u64 = (hi - mid) - 1;
+        transition nwidth < width && nwidth <= 16 {
+            true -> search(values, mid + 1, hi, nwidth, key)
+            false -> lo
+        }
+    }
+}
+
+// Copy `values[pos..live)` one cell right, then place `key` at `pos`.
+// `cursor` walks the shift down from `live`; the machine returns the grown
+// live count. `sorted` is deliberately absent from the contracts: the
+// suffix copy cannot carry the entry fact across its own writes, so the
+// caller re-verifies the table at runtime after the call.
+machine insert(context: &mut Main, key: i32, pos: u64, live: u64, cursor: u64) -> u64 crashes Trap
+requires pos <= cursor
+requires cursor <= live
+requires live <= 15
+ensures result == live + 1
+terminates by cursor -> Nat::Descending in 0..=15;
+{
+    transition cursor > pos {
+        true -> shift(context, key, pos, live, cursor)
+        false -> place(context, key, pos, live)
+    }
+    state shift(context: &mut Main, key: i32, pos: u64, live: u64, cursor: u64) -> u64
+        requires pos < cursor
+        requires cursor <= live
+        requires live <= 15
+    {
+        context.values[cursor] = context.values[cursor - 1];
+        let next: u64 = cursor - 1;
+        transition next >= pos {
+            true -> insert(context, key, pos, live, next)
+            false -> trap()
+        }
+    }
+    state place(context: &mut Main, key: i32, pos: u64, live: u64) -> u64
+        requires pos <= live
+        requires live <= 15
+    {
+        context.values[pos] = key;
+        context.live = live + 1;
+        transition { _ -> (live + 1) }
+    }
+    state trap() -> u64 { crash Trap; }
+}
+
+// Fill the table: four live cells ascending, the rest pinned at i32's
+// ceiling so the whole array reads sorted under `sorted`.
+machine seed(values: &mut [i32; 16])
+ensures sorted(values) == true
+{
+    values[15] = 2147483647;
+    values[14] = 2147483647;
+    values[13] = 2147483647;
+    values[12] = 2147483647;
+    values[11] = 2147483647;
+    values[10] = 2147483647;
+    values[9] = 2147483647;
+    values[8] = 2147483647;
+    values[7] = 2147483647;
+    values[6] = 2147483647;
+    values[5] = 2147483647;
+    values[4] = 2147483647;
+    values[3] = 7;
+    values[2] = 5;
+    values[1] = 3;
+    values[0] = 1;
+}
+
+machine Main::main(main: &mut Main) reaches Console crashes Trap {
+    main.live = 4;
+    seed(&mut main.values);
+    transition { _ -> probe(main) }
+
+    // The seed's `ensures` guarantee discharges `search`'s sortedness
+    // contract; the fact rides into `probe` on the state's own `requires`.
+    state probe(main: &mut Main)
+        requires sorted(&main.values) == true
+    {
+        let p5: u64 = search(&main.values, 0, 4, 4, 5);
+        let p2: u64 = search(&main.values, 0, 4, 4, 2);
+        let p20: u64 = search(&main.values, 0, 4, 4, 20);
+        let p1: u64 = search(&main.values, 0, 4, 4, 1);
+        transition p5 == 3 && p2 == 1 && p20 == 4 && p1 == 1 {
+            true -> insert_stage(main)
+            false -> bad(main)
+        }
+    }
+    // Positions were measured on the seed table, so insert the larger key
+    // first: appending 20 keeps the prefix, then 2 shifts the tail right.
+    state insert_stage(main: &mut Main) {
+        let l1: u64 = insert(main, 20, 4, 4, 4);
+        let l2: u64 = insert(main, 2, 1, 5, 5);
+        transition l1 == 5 && l2 == 6 && main.live == 6 && sorted(&main.values) == true {
+            true -> attest(main)
+            false -> bad(main)
+        }
+    }
+    state attest(main: &mut Main) {
+        transition main.values[0] == 1 && main.values[1] == 2 && main.values[2] == 3
+            && main.values[3] == 5 && main.values[4] == 7 && main.values[5] == 20 {
+            true -> good(main)
+            false -> bad(main)
+        }
+    }
+    state good(main: &mut Main) { Console::exit_process(58); }
+    state bad(main: &mut Main)  { crash Trap; }
+}

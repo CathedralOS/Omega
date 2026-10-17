@@ -1,0 +1,51 @@
+// A `requires` fact spelled through a predicate-machine call must not void a
+// ranked cycle's witness: entry-premise collection reads through the call to
+// its argument carriers, so `descend` keeps `remaining -> Nat::Descending`
+// while requiring `sorted(values)`. Earlier the collector rejected any
+// requires expression containing a machine call, collapsed the premise set,
+// and refused the whole cycle.
+
+machine sorted(values: &[i32; 4]) -> bool {
+    check_sorted(values, 3)
+}
+
+machine check_sorted(values: &[i32; 4], remaining: u64) -> bool
+requires remaining <= 3
+terminates;
+terminates by remaining in 0..=3;
+{
+    transition remaining >= 1 {
+        true -> inspect(values, remaining)
+        false -> (true)
+    }
+    state inspect(values: &[i32; 4], remaining: u64) -> bool
+        requires remaining >= 1
+        requires remaining <= 3
+    {
+        let prev: u64 = remaining - 1;
+        transition values[prev] <= values[remaining] {
+            true -> check_sorted(values, prev)
+            false -> (false)
+        }
+    }
+}
+
+machine descend(values: &[i32; 4], remaining: u64) -> u64
+requires sorted(values) == true
+requires remaining <= 9
+terminates by remaining -> Nat::Descending in 0..=9;
+{
+    transition remaining == 0 {
+        true -> (0)
+        _ -> next(values, remaining)
+    }
+    state next(values: &[i32; 4], remaining: u64) -> u64
+        requires remaining >= 1
+        requires sorted(values) == true
+    {
+        transition true {
+            true -> descend(values, remaining - 1)
+            _ -> (0)
+        }
+    }
+}

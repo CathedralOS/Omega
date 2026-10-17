@@ -172,7 +172,24 @@ fn collect(
             collect(program, machine, root, binary.left, inputs, depth + 1)?;
             collect(program, machine, root, binary.right, inputs, depth + 1)?;
         }
-        _ => return None,
+        // A fact can spell carriers through any expression shape a contract
+        // admits -- predicate calls (`sorted(values) == true`), borrows,
+        // casts, indexing, literals. Their formals still sit in the subtrees;
+        // a node this arm does not interpret contributes its children, never a
+        // refusal, so one opaque operator cannot void the whole premise set.
+        node => {
+            let mut missing = false;
+            crate::expression_traversal::children(program, node, |child| {
+                if child.is_valid()
+                    && collect(program, machine, root, child, inputs, depth + 1).is_none()
+                {
+                    missing = true;
+                }
+            });
+            if missing {
+                return None;
+            }
+        }
     }
     Some(())
 }

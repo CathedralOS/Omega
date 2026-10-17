@@ -1,0 +1,57 @@
+// Intended-invalid control for verified_sorted_insert: `search`'s
+// `requires sorted(values) == true` contract must reject a caller that never
+// established sortedness.
+
+use omega_language_std::console;
+
+machine sorted(values: &[i32; 16]) -> bool {
+    check_sorted(values, 15)
+}
+
+machine check_sorted(values: &[i32; 16], remaining: u64) -> bool
+requires remaining <= 15
+terminates;
+terminates by remaining in 0..=15;
+{
+    transition remaining >= 1 {
+        true -> inspect(values, remaining)
+        false -> (true)
+    }
+    state inspect(values: &[i32; 16], remaining: u64) -> bool
+        requires remaining >= 1
+        requires remaining <= 15
+    {
+        let prev: u64 = remaining - 1;
+        transition values[prev] <= values[remaining] {
+            true -> check_sorted(values, prev)
+            false -> (false)
+        }
+    }
+}
+
+machine search(values: &[i32; 16], lo: u64, hi: u64, width: u64, key: i32) -> u64
+requires lo <= hi
+requires hi <= 16
+requires width == hi - lo
+requires width <= 16
+requires sorted(values) == true
+ensures lo <= result && result <= hi
+terminates by width -> Nat::Descending in 0..=16;
+{
+    transition lo < hi {
+        true -> lo
+        false -> lo
+    }
+}
+
+data Main { values: [i32; 16]; }
+
+machine Main::main(main: &mut Main) reaches Console {
+    main.values[0] = 3;
+    let p: u64 = search(&main.values, 0, 1, 1, 2);
+    transition p == 0 {
+        true -> good(main)
+        _ -> good(main)
+    }
+    state good(main: &mut Main) { Console::exit_process(0); }
+}
