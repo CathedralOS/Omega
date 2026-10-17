@@ -1,0 +1,10 @@
+// A const ceiling of every u64 value does not prove an exact sum.
+const HIGH: u64 = 18446744073709551615;
+
+machine add(a: u64 [0..=HIGH], b: u64 [0..=HIGH]) -> u64 {
+    a + b
+}
+
+machine main() {
+    _ = add(30, 40);
+}

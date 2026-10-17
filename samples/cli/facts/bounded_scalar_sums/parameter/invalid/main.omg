@@ -1,0 +1,8 @@
+// Parameter bounds spanning all of u64 do not prove an exact sum.
+machine add(a: u64 [0..=18446744073709551615], b: u64 [0..=18446744073709551615]) -> u64 {
+    a + b
+}
+
+machine main() {
+    _ = add(30, 40);
+}

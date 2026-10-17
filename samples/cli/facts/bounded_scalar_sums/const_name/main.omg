@@ -1,0 +1,14 @@
+// A const name of the operand ceiling still proves the sum cannot overflow.
+// Compile-checked only: no ProcessExit provider.
+const HIGH: u64 = 50;
+
+machine add(a: u64 [0..=HIGH], b: u64 [0..=HIGH]) -> u64 [0..=100] {
+    a + b
+}
+
+machine main() {
+    let total: u64 [0..=100] = add(30, 40);
+    transition total == 70 { true -> pass() _ -> fail() }
+    state pass() {}
+    state fail() {}
+}
