@@ -6,6 +6,8 @@ use super::*;
 use semantic_vocabulary::{CanonicalStructuralPathSegment as Segment, Proposition};
 use terminal_psi::{ProofNode, ProofRule, StructuralDomainDeclaration};
 
+mod order;
+
 pub(super) fn close(
     types: &[StructuralTypeDeclaration],
     domains: &[StructuralDomainDeclaration],
@@ -143,7 +145,14 @@ fn prove_with_budget(
             conclusion: requirement.clone(),
             rule: ProofRule::Assumption { index },
         };
-        if let Some(proof) = select(goal, proof, requirements.len(), depth + 1, remaining) {
+        if let Some(proof) = select(
+            context,
+            goal,
+            proof,
+            requirements.len(),
+            depth + 1,
+            remaining,
+        ) {
             return Some(proof);
         }
     }
@@ -176,6 +185,7 @@ fn prove_with_budget(
 }
 
 fn select(
+    context: &semantic_vocabulary::PropositionContext,
     goal: &Proposition,
     proof: ProofNode,
     assumptions: usize,
@@ -195,24 +205,10 @@ fn select(
         // The kernel's assumption rule already recognizes this carrier-preserving
         // bridge. Discharge the proved relation locally so a selected conjunct
         // uses that same rule without changing the ambient premise roster.
-        return Some(ProofNode {
-            conclusion: goal.clone(),
-            rule: ProofRule::ImplicationElimination {
-                implication: Box::new(ProofNode {
-                    conclusion: Proposition::Implication {
-                        premise: Box::new(proof.conclusion.clone()),
-                        conclusion: Box::new(goal.clone()),
-                    },
-                    rule: ProofRule::ImplicationIntroduction {
-                        body: Box::new(ProofNode {
-                            conclusion: goal.clone(),
-                            rule: ProofRule::Assumption { index: assumptions },
-                        }),
-                    },
-                }),
-                premise: Box::new(proof),
-            },
-        });
+        return Some(bridge(goal.clone(), proof, assumptions));
+    }
+    if let Some(derived) = order::derive(context, goal, &proof, assumptions) {
+        return Some(derived);
     }
     if let Proposition::Conjunction(children) = &proof.conclusion {
         for (conjunct, child) in children.iter().enumerate() {
@@ -223,7 +219,9 @@ fn select(
                     conjunct,
                 },
             };
-            if let Some(selected) = select(goal, selected, assumptions, depth + 1, remaining) {
+            if let Some(selected) =
+                select(context, goal, selected, assumptions, depth + 1, remaining)
+            {
                 return Some(selected);
             }
         }
@@ -236,6 +234,7 @@ fn select(
             .iter()
             .map(|child| {
                 select(
+                    context,
                     goal,
                     ProofNode {
                         conclusion: child.clone(),
@@ -259,8 +258,14 @@ fn select(
     }
     if let Proposition::Disjunction(children) = goal {
         for (index, child) in children.iter().enumerate() {
-            if let Some(disjunct) = select(child, proof.clone(), assumptions, depth + 1, remaining)
-            {
+            if let Some(disjunct) = select(
+                context,
+                child,
+                proof.clone(),
+                assumptions,
+                depth + 1,
+                remaining,
+            ) {
                 return Some(ProofNode {
                     conclusion: goal.clone(),
                     rule: ProofRule::DisjunctionIntroduction {
@@ -272,6 +277,27 @@ fn select(
         }
     }
     None
+}
+
+fn bridge(goal: Proposition, proof: ProofNode, assumptions: usize) -> ProofNode {
+    ProofNode {
+        conclusion: goal.clone(),
+        rule: ProofRule::ImplicationElimination {
+            implication: Box::new(ProofNode {
+                conclusion: Proposition::Implication {
+                    premise: Box::new(proof.conclusion.clone()),
+                    conclusion: Box::new(goal.clone()),
+                },
+                rule: ProofRule::ImplicationIntroduction {
+                    body: Box::new(ProofNode {
+                        conclusion: goal,
+                        rule: ProofRule::Assumption { index: assumptions },
+                    }),
+                },
+            }),
+            premise: Box::new(proof),
+        },
+    }
 }
 
 #[cfg(test)]

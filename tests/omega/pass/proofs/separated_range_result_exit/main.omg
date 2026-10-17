@@ -1,0 +1,89 @@
+// Expected exit: 0. Range validation retains exact endpoints across rereads,
+// internal-state parameters and either arm of the separation predicate.
+data RangePair [copy] {
+    first_base: u64; first_length: u64;
+    second_base: u64; second_length: u64;
+}
+domain RangePair::Separated(value)
+requires value.first_length > 0 && value.second_length > 0 &&
+    embed(value.first_base) + embed(value.first_length) <= 18446744073709551615 &&
+    embed(value.second_base) + embed(value.second_length) <= 18446744073709551615 &&
+    (embed(value.first_base) + embed(value.first_length) <= embed(value.second_base) ||
+     embed(value.second_base) + embed(value.second_length) <= embed(value.first_base));
+data Checked { case Rejected; case Ready(value: RangePair in Separated); }
+machine check(value: RangePair) -> Checked {
+    transition value.first_length > 0 && value.second_length > 0 &&
+        value.first_base <= 18446744073709551615 - value.first_length &&
+        value.second_base <= 18446744073709551615 - value.second_length {
+        true -> separate(value)
+        _ -> Checked::Rejected
+    }
+    state separate(value: RangePair) -> Checked
+    requires value.first_length > 0 && value.second_length > 0 &&
+        value.first_base <= 18446744073709551615 - value.first_length &&
+        value.second_base <= 18446744073709551615 - value.second_length
+    {
+        let first_end: u64 = value.first_base + value.first_length;
+        let second_end: u64 = value.second_base + value.second_length;
+        transition first_end <= value.second_base || second_end <= value.first_base {
+            true -> Checked::Ready { value: value }
+            _ -> Checked::Rejected
+        }
+    }
+}
+machine accepted(value: RangePair) -> bool {
+    let result: Checked = check(value);
+    transition result {
+        Checked::Ready { value } -> (true)
+        Checked::Rejected -> (false)
+    }
+}
+machine main() crashes Trap {
+    let revalidated: bool = mutation_cycle(Range { base: 100, length: 20 });
+    let ordered: bool = accepted(RangePair { first_base: 4096, first_length: 4096, second_base: 16384, second_length: 8192 });
+    let reversed: bool = accepted(RangePair { first_base: 16384, first_length: 8192, second_base: 4096, second_length: 4096 });
+    let adjacent: bool = accepted(RangePair { first_base: 4096, first_length: 4096, second_base: 8192, second_length: 4096 });
+    let overlap: bool = accepted(RangePair { first_base: 4096, first_length: 8192, second_base: 8192, second_length: 4096 });
+    let contained: bool = accepted(RangePair { first_base: 4096, first_length: 8192, second_base: 8192, second_length: 1024 });
+    let empty: bool = accepted(RangePair { first_base: 4096, first_length: 0, second_base: 8192, second_length: 4096 });
+    let wrapped: bool = accepted(RangePair { first_base: 18446744073709551615, first_length: 1, second_base: 8192, second_length: 4096 });
+    let second_wrapped: bool = accepted(RangePair { first_base: 4096, first_length: 4096, second_base: 18446744073709551615, second_length: 2 });
+    transition revalidated && ordered && reversed && adjacent && !overlap && !contained && !empty && !wrapped && !second_wrapped {
+        true -> done()
+        _ -> wrong()
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}
+
+// Revisit the same read sites after a mutation. The first iteration establishes
+// a range; the second must reject an overflowing replacement, not reuse it.
+data Range [copy] { base: u64; length: u64; }
+domain Range::Bounded(value)
+requires embed(value.base) + embed(value.length) <= 18446744073709551615;
+data RangeChecked { value: Range in Bounded; }
+machine mutation_cycle(value: Range) -> bool {
+    transition { _ -> inspect(value, false) }
+    state inspect(mut value: Range, repeated: bool) -> bool {
+        let base: u64 = value.base;
+        let length: u64 = value.length;
+        transition base <= 18446744073709551615 - length {
+            true -> admitted(value, repeated)
+            _ -> (repeated)
+        }
+    }
+    state admitted(value: Range, repeated: bool) -> bool
+    requires value.base <= 18446744073709551615 - value.length
+    {
+        let result: RangeChecked = RangeChecked { value: value };
+        transition repeated {
+            true -> (false)
+            _ -> replace(result.value as Range)
+        }
+    }
+    state replace(mut value: Range) -> bool {
+        value.base = 18446744073709551615;
+        value.length = 1;
+        transition { _ -> inspect(value, true) }
+    }
+}

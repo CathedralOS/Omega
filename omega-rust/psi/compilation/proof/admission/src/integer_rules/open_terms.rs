@@ -200,10 +200,21 @@ impl Normalizer {
                 let right = self.normalize(right)?;
                 self.product(&left, &right)
             }
-            _ => match ClosedIntegerEvaluator::default().evaluate_closed(term)? {
-                Some(value) => Ok(constant(self.coefficient(value))),
-                None => Ok(atom(term)),
-            },
+            _ => {
+                // Embedding preserves the scalar's denotation. Already-exact
+                // fixed-carrier ring operations share the mathematical ring;
+                // open policy-bearing operations and projections stay opaque.
+                if let IntegerMathTerm::Embed(scalar) = term
+                    && let Some(expanded) =
+                        crate::proof::integer_math_normalization::lift_exact_integer_term(scalar)
+                {
+                    return self.normalize(&expanded);
+                }
+                match ClosedIntegerEvaluator::default().evaluate_closed(term)? {
+                    Some(value) => Ok(constant(self.coefficient(value))),
+                    None => Ok(atom(term)),
+                }
+            }
         }
     }
 }
@@ -394,6 +405,46 @@ mod tests {
         };
         assert_eq!(
             constant_difference(&closed, &integer(32)),
+            Ok(Some(BigInt::zero()))
+        );
+    }
+
+    #[test]
+    fn embedded_exact_arithmetic_expands_but_wrapping_keeps_its_denotation() {
+        use semantic_vocabulary::{ScalarTerm, ScalarType};
+        let carrier = math_type();
+        let scalar = ScalarTerm::value(ValueId::new(1).unwrap(), ScalarType::Integer(carrier));
+        let one = ScalarTerm::integer(carrier, IntegerValue::Unsigned(1)).unwrap();
+        let exact = IntegerMathTerm::embed(ScalarTerm::ExactIntegerAdd {
+            scalar_type: carrier,
+            left: Box::new(scalar.clone()),
+            right: Box::new(one.clone()),
+        })
+        .unwrap();
+        assert_eq!(
+            constant_difference(&exact, &add(atom(1), integer(1))),
+            Ok(Some(BigInt::zero()))
+        );
+        let wrapping = IntegerMathTerm::embed(ScalarTerm::WrappingIntegerAdd {
+            scalar_type: carrier,
+            left: Box::new(scalar),
+            right: Box::new(one.clone()),
+        })
+        .unwrap();
+        assert_eq!(
+            constant_difference(&wrapping, &add(atom(1), integer(1))),
+            Ok(None)
+        );
+        let closed_wrapping = IntegerMathTerm::embed(ScalarTerm::WrappingIntegerAdd {
+            scalar_type: carrier,
+            left: Box::new(
+                ScalarTerm::integer(carrier, IntegerValue::Unsigned(u64::MAX.into())).unwrap(),
+            ),
+            right: Box::new(one),
+        })
+        .unwrap();
+        assert_eq!(
+            constant_difference(&add(atom(1), closed_wrapping), &atom(1)),
             Ok(Some(BigInt::zero()))
         );
     }

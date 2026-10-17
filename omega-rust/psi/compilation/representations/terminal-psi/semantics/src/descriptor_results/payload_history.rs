@@ -265,15 +265,9 @@ pub fn current_payload_contract(
             if let Some(reads) = machine.scalar_payload_reads.get(&current) {
                 for (location, value) in reads {
                     if let Some(contract) = after.values.get_mut(&location.root) {
-                        contract
-                            .scalar_observations
-                            .retain(|observation| observation.path != location.path);
-                        contract
-                            .scalar_observations
-                            .push(super::PayloadScalarObservation {
-                                path: location.path.clone(),
-                                value: value.clone(),
-                            });
+                        if let Some(equality) = observe_scalar(contract, &location.path, value) {
+                            after.scalar_requirements.push(equality);
+                        }
                     }
                 }
             }
@@ -495,6 +489,40 @@ fn retire(
         .retain(|row| !crate::structural_paths_may_overlap(&row.path, path));
 }
 
+/// An unchanged location still contains its earlier observed value. Retain
+/// that common observation across branch-local rereads and connect the new SSA
+/// result to it. Writes and dynamic-instance retirement remove observations
+/// before this operation, so neither can resurrect a stale field equation.
+fn observe_scalar(
+    contract: &mut PayloadMembershipContract,
+    path: &[crate::descriptor_lifetimes::DescriptorPathSegment],
+    value: &semantic_vocabulary::ScalarTerm,
+) -> Option<semantic_vocabulary::Proposition> {
+    if let Some(previous) = contract.scalar_observations.iter().find(|observation| {
+        observation.path == path
+            && observation.value.scalar_type() == value.scalar_type()
+            && matches!(
+                value.scalar_type(),
+                semantic_vocabulary::ScalarType::Integer(_)
+                    | semantic_vocabulary::ScalarType::Boolean
+            )
+    }) {
+        return (previous.value != *value).then(|| {
+            semantic_vocabulary::Proposition::Equal(value.clone(), previous.value.clone())
+        });
+    }
+    contract
+        .scalar_observations
+        .retain(|observation| observation.path != path);
+    contract
+        .scalar_observations
+        .push(super::PayloadScalarObservation {
+            path: path.to_vec(),
+            value: value.clone(),
+        });
+    None
+}
+
 fn clear(state: &mut BTreeMap<PlaceId, PayloadMembershipContract>) {
     for contract in state.values_mut() {
         contract.qualifications.clear();
@@ -551,5 +579,64 @@ fn retire_scalar_instances(state: &mut State, definitions: &[semantic_vocabulary
             });
             closed && !changed
         });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::descriptor_lifetimes::DescriptorPathSegment;
+    use semantic_vocabulary::{
+        IntegerSign, IntegerType, Proposition, ScalarTerm, ScalarType, ValueId,
+    };
+
+    #[test]
+    fn rereads_preserve_common_observation_but_writes_and_instances_retire_it() {
+        let integer = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
+        let value = |identity| {
+            ScalarTerm::value(
+                ValueId::new(identity).unwrap(),
+                ScalarType::Integer(integer),
+            )
+        };
+        let path = vec![DescriptorPathSegment::FixedIndex(0)];
+        let mut contract = PayloadMembershipContract {
+            carrier: semantic_vocabulary::StructuralTypeId::new(1).unwrap(),
+            scalar_observations: Vec::new(),
+            scalar_requirements: Vec::new(),
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+        };
+        assert_eq!(observe_scalar(&mut contract, &path, &value(1)), None);
+        let mut other_branch = contract.clone();
+        assert_eq!(
+            observe_scalar(&mut contract, &path, &value(2)),
+            Some(Proposition::Equal(value(2), value(1)))
+        );
+        assert_eq!(
+            observe_scalar(&mut other_branch, &path, &value(3)),
+            Some(Proposition::Equal(value(3), value(1)))
+        );
+        assert_eq!(
+            contract.scalar_observations,
+            other_branch.scalar_observations
+        );
+        retire(
+            &mut contract,
+            &[StructuralPathSegment::FixedIndex(0)],
+            &path,
+        );
+        assert_eq!(observe_scalar(&mut contract, &path, &value(4)), None);
+        assert_eq!(contract.scalar_observations[0].value, value(4));
+        let root = PlaceId::new(1).unwrap();
+        let mut state = State {
+            values: BTreeMap::from([(root, other_branch)]),
+            scalar_requirements: Vec::new(),
+        };
+        retire_scalar_instances(&mut state, &[ValueId::new(1).unwrap()]);
+        assert_eq!(
+            observe_scalar(state.values.get_mut(&root).unwrap(), &path, &value(5)),
+            None
+        );
     }
 }

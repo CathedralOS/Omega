@@ -1,0 +1,13 @@
+data Range [copy] { base: u64; length: u64; }
+domain Range::Bounded(value)
+requires embed(value.base) + embed(value.length) <= 18446744073709551615;
+data Checked { case Rejected; case Ready(value: Range in Bounded); }
+machine check(mut value: Range) -> Checked {
+    let admitted: bool = value.base <= 18446744073709551615 - value.length;
+    value.base = 18446744073709551615;
+    value.length = 1;
+    transition admitted {
+        true -> Checked::Ready { value: value }
+        _ -> Checked::Rejected
+    }
+}

@@ -1,0 +1,2 @@
+Checked::Ready.value requires Range::Bounded
+is not proven in domain `Range::Bounded`

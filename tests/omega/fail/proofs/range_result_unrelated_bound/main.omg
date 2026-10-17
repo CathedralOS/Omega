@@ -1,0 +1,10 @@
+data Range [copy] { base: u64; length: u64; }
+domain Range::Bounded(value)
+requires embed(value.base) + embed(value.length) <= 18446744073709551615;
+data Checked { case Rejected; case Ready(value: Range in Bounded); }
+machine check(value: Range, unrelated: Range) -> Checked {
+    transition unrelated.base <= 18446744073709551615 - unrelated.length {
+        true -> Checked::Ready { value: value }
+        _ -> Checked::Rejected
+    }
+}
