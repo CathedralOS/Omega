@@ -8,8 +8,11 @@ machine travel(tour: &mut Tour, destination: i32 in Saturating) {
         false -> move(tour, destination, destination - position)
     }
     state move(tour: &mut Tour, destination: i32 in Saturating, length: i32 in Saturating) {
-        tour.distance = tour.distance + length;
-        tour.time = tour.time + length;
+        // Runtime index: the leg span is an arithmetic operand, not a scratch copy.
+        let slot: u64 = 0;
+        tour.legs[slot].span = length;
+        tour.distance = tour.distance + tour.legs[slot].span;
+        tour.time = tour.time + tour.legs[slot].span;
         tour.position = destination;
     }
 }

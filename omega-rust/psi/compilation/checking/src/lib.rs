@@ -78,7 +78,8 @@ pub use proof_contracts::arithmetic_domains::{
 pub use proof_contracts::collection_predicates::{length_member, premises_prove_expression};
 pub use proof_contracts::contract_entailment::{
     captured_collection_length, captured_integer_value, closed_collection_length,
-    closed_collection_length_at_place, unique_literal_field,
+    closed_collection_length_at_place, closed_collection_length_under_matches,
+    unique_literal_field,
 };
 pub use proof_contracts::contract_results::{
     ReservedResultPlace, reserved_result_owner, reserved_result_place,

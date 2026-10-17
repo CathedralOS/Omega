@@ -154,7 +154,7 @@ pub(crate) use ranking_range::{
 };
 pub use ranking_range::{
     captured_collection_length, captured_integer_value, closed_collection_length,
-    closed_collection_length_at_place,
+    closed_collection_length_at_place, closed_collection_length_under_matches,
 };
 pub use refuted_requires::instantiated_value_call_requires_proven;
 pub(crate) use refuted_requires::reject_refuted_value_call_requires;

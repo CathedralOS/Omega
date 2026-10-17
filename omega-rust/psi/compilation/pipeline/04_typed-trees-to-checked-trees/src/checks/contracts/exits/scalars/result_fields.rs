@@ -8,7 +8,10 @@
 //! The extent is the initializer's geometry, not a second length word on the
 //! record. A match publishes one extent only when every arm agrees. Arms with
 //! different extents still satisfy a relation when each arm does, and they
-//! never publish one arm's extent as the other's.
+//! never publish one arm's extent as the other's. A value arm measures its
+//! window after the pattern integer replaces the matched subject, so
+//! `match which { 0 -> Route { events: &route[0..which + 1] } }` has length 1
+//! in that arm. The failed-pattern arm does not keep that integer.
 
 use validation::CanonicalPlace;
 
@@ -389,7 +392,7 @@ impl ExitScalars<'_, '_> {
         }
         let returned = exit_return_expression(self.program, self.exit);
         let entry = self.program.machine_states(self.machine).first()?;
-        self.collection_lengths_through(state, returned, entry.return_type, &segments)
+        self.collection_lengths_through(state, returned, entry.return_type, &segments, &[])
     }
 
     /// Field path from this machine's reserved result to the length receiver.
@@ -486,6 +489,7 @@ impl ExitScalars<'_, '_> {
         expression: ExpressionHandle,
         reference: typed_trees::types::TypeReferenceHandle,
         segments: &[facts::PlaceSegment],
+        matched: &[(ExpressionHandle, numerics::bignum::BigInt)],
     ) -> Option<Vec<u64>> {
         if let ExpressionNode::Match(dispatch) =
             self.program.expression_table.expression(expression)
@@ -496,9 +500,17 @@ impl ExitScalars<'_, '_> {
             }
             let mut lengths = Vec::new();
             for arm in arms {
-                lengths.extend(
-                    self.collection_lengths_through(state, arm.value, reference, segments)?,
-                );
+                let mut arm_matched = matched.to_vec();
+                if let Some(binding) = self.matched_arm_integer(dispatch.subject, arm.pattern) {
+                    arm_matched.push(binding);
+                }
+                lengths.extend(self.collection_lengths_through(
+                    state,
+                    arm.value,
+                    reference,
+                    segments,
+                    &arm_matched,
+                )?);
             }
             return (!lengths.is_empty()).then_some(lengths);
         }
@@ -506,11 +518,12 @@ impl ExitScalars<'_, '_> {
             if !self.return_expression_is_stable(expression) {
                 return None;
             }
-            return validation::closed_collection_length(
+            return validation::closed_collection_length_under_matches(
                 self.program,
                 self.machine,
                 state,
                 expression,
+                matched,
             )
             .map(|length| vec![length]);
         }
@@ -534,9 +547,25 @@ impl ExitScalars<'_, '_> {
                 projection.expression,
                 reference,
                 &[],
+                matched,
             )?);
         }
         (!lengths.is_empty()).then_some(lengths)
+    }
+
+    /// The integer a value pattern contributes to its arm. A wildcard learns
+    /// nothing. A non-integer pattern contributes nothing here; the arm still
+    /// uses whatever extent its window has without that subject.
+    fn matched_arm_integer(
+        &self,
+        subject: ExpressionHandle,
+        pattern: typed_trees::expression::MatchPattern,
+    ) -> Option<(ExpressionHandle, numerics::bignum::BigInt)> {
+        let typed_trees::expression::MatchPattern::Value(pattern) = pattern else {
+            return None;
+        };
+        let value = self.integer_literal(pattern)?;
+        Some((subject, value))
     }
 
     fn result_field_equality(&self, expression: ExpressionHandle) -> Option<bool> {

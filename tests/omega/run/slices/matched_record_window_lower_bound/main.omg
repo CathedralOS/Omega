@@ -1,0 +1,52 @@
+// A match arm substitutes its integer into a returned record's window.
+// The arms have different lengths, and each length is at least 1.
+// The caller reads that window through a local, a field, a parameter,
+// and a call result. A field subject uses the same substitution.
+//
+// Expected exit: 0
+data RouteSpan<'row> { events: &'row [u64]; }
+data Shelf<'row> { span: RouteSpan<'row>; }
+data Holder { which: u64; route: [u64; 4]; }
+
+machine chosen_span<'row>(route: &'row [u64; 4], which: u64) -> RouteSpan<'row>
+ensures result.events.len >= 1
+{
+    match which {
+        0 -> RouteSpan { events: &route[0..which + 1] }
+        _ -> RouteSpan { events: &route[1..4] }
+    }
+}
+
+machine from_field<'row>(holder: &'row Holder) -> RouteSpan<'row>
+ensures result.events.len >= 1
+{
+    match holder.which {
+        0 -> RouteSpan { events: &holder.route[0..holder.which + 1] }
+        _ -> RouteSpan { events: &holder.route[1..4] }
+    }
+}
+
+machine span_starts<'row>(span: RouteSpan<'row>, expected: u64) -> bool
+requires span.events.len >= 1
+{
+    span.events[0] == expected
+}
+
+machine main() crashes Trap {
+    let route: [u64; 4] = [7, 8, 9, 1];
+    let head: RouteSpan = chosen_span(&route, 0);
+    let local_length: u64 = head.events.len;
+    let nested: Shelf = Shelf { span: chosen_span(&route, 1) };
+    let field_length: u64 = nested.span.events.len;
+    let parameter_ok: bool = span_starts(head, 7);
+    let call_ok: bool = span_starts(chosen_span(&route, 0), route[0]);
+    let holder: Holder = Holder { which: 0, route: [7, 8, 9, 1] };
+    let field_subject: RouteSpan = from_field(&holder);
+    transition local_length == 1 && field_length == 3 && parameter_ok && call_ok
+        && field_subject.events.len == 1 && field_subject.events[0] == 7 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

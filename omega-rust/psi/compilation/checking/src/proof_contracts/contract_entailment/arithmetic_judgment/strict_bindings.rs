@@ -59,6 +59,44 @@ impl<'program> Engine<'program> {
         engine
     }
 
+    /// Install one match-arm integer. A bare name replaces that symbol, including
+    /// a saved initializer of the same local. A field replaces the canonical
+    /// place so every occurrence of that field in the arm sees the pattern.
+    /// Other subjects are left untouched: a window that does not read them
+    /// still has its ordinary extent.
+    pub(in crate::proof_contracts::contract_entailment) fn bind_matched_integer_subject(
+        &mut self,
+        expression: ExpressionHandle,
+        value: BigInt,
+    ) {
+        if let Some(symbol) = crate::single_segment_name_symbol(self.program, expression) {
+            self.replace_strict_symbol(symbol, Polynomial::constant(value));
+            return;
+        }
+        if !matches!(
+            self.program.expression_table.expression(expression),
+            ExpressionNode::Member(_)
+        ) {
+            return;
+        }
+        let atom = format!(
+            "\0{}",
+            super::integer_source_identity(self.program, expression)
+        );
+        self.substitutions.insert(atom, Polynomial::constant(value));
+    }
+
+    fn replace_strict_symbol(&mut self, symbol: SymbolHandle, value: Polynomial) {
+        let Some(bindings) = &mut self.strict_symbol_bindings else {
+            return;
+        };
+        if let Some((_, existing)) = bindings.iter_mut().find(|(bound, _)| *bound == symbol) {
+            *existing = value;
+            return;
+        }
+        bindings.push((symbol, value));
+    }
+
     pub(in crate::proof_contracts::contract_entailment) fn strict_symbol_bindings_are_valid(
         &self,
     ) -> bool {

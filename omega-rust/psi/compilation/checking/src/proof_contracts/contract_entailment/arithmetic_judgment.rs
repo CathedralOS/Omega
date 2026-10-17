@@ -1027,6 +1027,13 @@ impl<'program> Engine<'program> {
                 // the atom would collide with the caller's same-declared
                 // parameter on a recursive call and read another frame's
                 // hypotheses.
+                // A match arm may already have replaced this place with its
+                // pattern integer. That constant is the arm's value, so the
+                // parameter-root guard below does not apply to it.
+                let matched = format!("\0{}", integer_source_identity(self.program, expression));
+                if let Some(replacement) = self.substitutions.get(&matched) {
+                    return Some(replacement.clone());
+                }
                 let machine = self.program.machine(self.machine_symbol)?;
                 let root = member_receiver_root_symbol(self.program, expression);
                 if root != Some(self.machine_symbol) && root.is_some() {

@@ -13,6 +13,9 @@ pub data Plan {
     latest_b: i32 in Saturating;
     horizon: i32 in Saturating;
 }
+pub data Leg {
+    span: i32 in Saturating;
+}
 pub data Tour {
     position: i32 in Saturating;
     time: i32 in Saturating;
@@ -20,6 +23,7 @@ pub data Tour {
     load: i32 in Saturating;
     peak: i32 in Saturating;
     waiting: i32 in Saturating;
+    legs: [Leg; 1];
     picked_a: bool;
     picked_b: bool;
     dropped_a: bool;

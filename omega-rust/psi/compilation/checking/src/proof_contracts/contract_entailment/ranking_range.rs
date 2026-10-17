@@ -68,8 +68,26 @@ pub fn closed_collection_length(
     state: &State,
     collection: ExpressionHandle,
 ) -> Option<u64> {
+    closed_collection_length_under_matches(program, machine, state, collection, &[])
+}
+
+/// The closed extent of `collection` after each matched subject is that arm's
+/// integer. `match which { 0 -> row[0..which + 1] }` is a one-element window
+/// in that arm only. A name subject replaces its symbol; a field subject
+/// replaces that place's canonical integer. Callers pass one arm's patterns,
+/// not facts from a pattern that already failed.
+pub fn closed_collection_length_under_matches(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    collection: ExpressionHandle,
+    matched: &[(ExpressionHandle, BigInt)],
+) -> Option<u64> {
     let mut engine = Engine::strict(program, machine, &[]);
     saved_arguments::install(program, machine, state, &[], &mut engine);
+    for (subject, value) in matched {
+        engine.bind_matched_integer_subject(*subject, value.clone());
+    }
     lengths::actual(program, machine, state, collection, &[], &mut engine)?
         .constant_value()?
         .to_u64()
