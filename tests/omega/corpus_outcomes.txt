@@ -4636,6 +4636,8 @@ fail/providers/finite_requirement_forwarded_const_without_predicate rejected 331
 	cannot prove declared where facts for static application of requirement `Service::echo` under its complete applied telescope
 fail/providers/foreign_address_fixed_carrier_mismatch rejected 1324ms expected @a9ae30e1c334+wt
 	provider machine `Imports::release` for top-level boundary requirement `AddressProbe::release` parameter 0 expects `pointer: addr`, got `pointer: u64`
+fail/providers/generic_boundary_relay_wrong_argument_rejected rejected 327ms expected @ff34e63b5705+wt
+	argument `value` for state `entry` expects `u64`, got `bool`
 fail/providers/inherited_applied_binding_ambiguous_ancestors rejected 61ms expected @fa48d7bba308+wt
 	dynamic call `Child::read` is ambiguous across inherited requirements: First::read, Second::read
 fail/providers/applied_requirement_unselected_ancestor_application rejected 6555ms expected @308fbdc54ba0
@@ -8389,6 +8391,7 @@ pass/providers/foreign_owned_record_exit checked 5505ms check-target:macos_arm64
 pass/providers/foreign_packed_record_reuse_exit checked 6220ms check-target:linux_x86_64 @589aedee8ebc+wt
 pass/providers/foreign_record_result_exit checked 6025ms check-target:macos_arm64 @589aedee8ebc+wt
 pass/providers/foreign_register_record_reuse_exit checked 6773ms check-target:linux_x86_64 @589aedee8ebc+wt
+pass/providers/generic_boundary_multiple_arguments_compile checked 7238ms @ff34e63b5705+wt
 pass/providers/generic_provider_structural_result_composition_exit checked 11133ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/providers/inherited_applied_binding_borrowed_result_exit checked 6704ms check-target:macos_arm64 @fa48d7bba308+wt
 pass/providers/inherited_applied_binding_dispatch_exit checked 6704ms check-target:macos_arm64 @fa48d7bba308+wt
@@ -8423,6 +8426,8 @@ pass/providers/runtime_boundary_owned_array_cycle_exit checked 11933ms check-tar
 pass/providers/runtime_boundary_primitive_array_argument_exit checked 11479ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/providers/runtime_foreign_leaf_borrowed_byte_argument_exit checked 16157ms check-target:macos_arm64 @7e6c0ae564d2+wt
 pass/providers/runtime_foreign_leaf_slice_element_argument_exit checked 16098ms check-target:macos_arm64 @7e6c0ae564d2+wt
+pass/providers/runtime_generic_boundary_relay_exit checked 7246ms check-target:linux_x86_64 @ff34e63b5705+wt
+pass/providers/runtime_generic_boundary_relay_places_exit checked 7094ms check-target:linux_x86_64 @ff34e63b5705+wt
 pass/providers/runtime_linear_provider_results_exit checked 11050ms check-target:macos_arm64 @83314997c2b2
 pass/providers/runtime_named_provider_explicit_state_exit checked 11429ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/providers/runtime_result_domain_requirement_overload_exit checked 11708ms check-target:macos_arm64 @a9ae30e1c334+wt

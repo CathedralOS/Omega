@@ -1,0 +1,4 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "generic_boundary_multiple_arguments_compile");
+    builder.freestanding = true;
+}

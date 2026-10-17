@@ -2499,6 +2499,7 @@ pass/providers/foreign_owned_record_exit built 10243ms exit:70 @326ed531359e+wt
 pass/providers/foreign_packed_record_reuse_exit built 18032ms exit:70 @6c49683ce714
 pass/providers/foreign_record_result_exit built 11857ms exit:70 @326ed531359e+wt
 pass/providers/foreign_register_record_reuse_exit built 17873ms exit:70 @6c49683ce714
+pass/providers/generic_boundary_multiple_arguments_compile checked 7687ms @ff34e63b5705+wt
 pass/providers/generic_provider_structural_result_composition_exit built 18326ms exit:0 @6c49683ce714
 pass/providers/inherited_applied_binding_borrowed_result_exit built 6934ms exit:0 @fa48d7bba308+wt
 pass/providers/inherited_applied_binding_dispatch_exit built 7125ms exit:0 @fa48d7bba308+wt
@@ -2530,6 +2531,8 @@ pass/providers/runtime_boundary_owned_array_cycle_exit built 6339ms exit:70 @f13
 pass/providers/runtime_boundary_primitive_array_argument_exit built 15345ms exit:70 @6c49683ce714
 pass/providers/runtime_foreign_leaf_borrowed_byte_argument_exit built 7947ms exit:70 @326ed531359e+wt
 pass/providers/runtime_foreign_leaf_slice_element_argument_exit built 8208ms exit:70 @326ed531359e+wt
+pass/providers/runtime_generic_boundary_relay_exit built 7765ms exit:0 @ff34e63b5705+wt
+pass/providers/runtime_generic_boundary_relay_places_exit built 7262ms exit:0 @ff34e63b5705+wt
 pass/providers/runtime_linear_provider_results_exit built 18304ms exit:0 @6c49683ce714
 pass/providers/runtime_named_provider_explicit_state_exit built 15464ms exit:70 @6c49683ce714
 pass/providers/runtime_result_domain_requirement_overload_exit built 15018ms exit:70 @6c49683ce714

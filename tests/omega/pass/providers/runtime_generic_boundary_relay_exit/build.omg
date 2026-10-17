@@ -1,0 +1,5 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "runtime_generic_boundary_relay_exit");
+    Build::select_provider<Forward, Identity>(builder);
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+}

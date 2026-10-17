@@ -920,7 +920,7 @@ pub(super) fn copy_expression(
 
 /// `ExpressionTable::copy_from` owns expression recursion but deliberately
 /// cannot clone handles from the separate type-reference table. A specialized
-/// machine is a new semantic graph, so copy cast/zero-value type payloads here
+/// machine is a new semantic graph, so copy call/cast/zero-value type payloads here
 /// before binder substitution; otherwise a cloned cast would still point into
 /// the authored template's type nodes, and substitution would mutate both.
 pub(super) fn copy_cloned_expression_type_payloads(
@@ -973,11 +973,18 @@ pub(super) fn copy_cloned_expression_type_payloads(
                 handle,
                 call.machine_arguments.clone(),
                 call.authored_machine_application,
+                call.requirement_application,
+                call.exact_coercion_target,
             )),
             _ => None,
         })
         .collect::<Vec<_>>();
-    for (handle, mut arguments, application) in calls {
+    for (handle, mut arguments, application, requirement, coercion_target) in calls {
+        // These are type-table payloads too: the applied trait qualifier and
+        // exact-coercion destination belong to this specialized caller, not
+        // the generic template whose expression tree was copied.
+        let requirement = copy_type_reference(source, program, requirement, symbols);
+        let coercion_target = copy_type_reference(source, program, coercion_target, symbols);
         if application.is_valid() {
             let mut authored_arguments = program
                 .expression_table
@@ -995,6 +1002,8 @@ pub(super) fn copy_cloned_expression_type_payloads(
             unreachable!();
         };
         call.machine_arguments = arguments;
+        call.requirement_application = requirement;
+        call.exact_coercion_target = coercion_target;
     }
     let cast_payloads = program
         .expression_table

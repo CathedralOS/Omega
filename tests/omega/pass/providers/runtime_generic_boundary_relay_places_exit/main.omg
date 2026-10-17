@@ -1,0 +1,29 @@
+// Expected exit: 0.
+boundary trait Forward<T> { machine call(value: T) -> T; }
+Identity satisfies Forward<u64> {
+    machine call(value: u64) -> u64 { value }
+}
+machine relay<T>(value: T) -> T { Forward<T>::call(value) }
+data Box<T> { value: T; }
+machine by_field<T>(box: Box<T>) -> T { Forward<T>::call(box.value) }
+machine identity<T>(value: T) -> T { value }
+machine by_result<T>(value: T) -> T { Forward<T>::call(identity(value)) }
+machine by_join<T>(flag: bool, first: T, second: T) -> T {
+    let value: T = match flag { true -> first, false -> second };
+    Forward<T>::call(value)
+}
+machine by_state<T>(value: T) -> T {
+    transition { _ -> forward(value) }
+    state forward(value: T) -> T { Forward<T>::call(value) }
+}
+data Other {}
+machine Other::relay<T>(value: T) -> T { Forward<T>::call(value) }
+linux_x86_64 machine by_target<T>(value: T) -> T { Forward<T>::call(value) }
+macos_arm64 machine by_target<T>(value: T) -> T { Forward<T>::call(value) }
+machine main() reaches Forward crashes Trap {
+    transition relay<u64>(41) == 41 && by_field<u64>(Box { value: 42 }) == 42 &&
+        by_result<u64>(43) == 43 && by_join<u64>(false, 44, 45) == 45 &&
+        by_state<u64>(46) == 46 && Other::relay<u64>(47) == 47 && by_target<u64>(48) == 48 { true -> done() _ -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}

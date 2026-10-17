@@ -1,0 +1,11 @@
+// Expected exit: 0.
+boundary trait Forward<T> { machine call(value: T) -> T; }
+Identity satisfies Forward<u64> {
+    machine call(value: u64) -> u64 { value }
+}
+machine relay<T>(value: T) -> T { Forward<T>::call(value) }
+machine main() reaches Forward crashes Trap {
+    transition relay<u64>(41) == 41 { true -> done() _ -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}
