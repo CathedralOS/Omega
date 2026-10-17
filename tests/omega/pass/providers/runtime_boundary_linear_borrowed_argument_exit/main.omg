@@ -52,3 +52,8 @@ machine Main::main(main: &mut Main) reaches Console, TokenScale {
     state good(main: &mut Main) { Console::exit_process(70); }
     state bad(main: &mut Main) { Console::exit_process(72); }
 }
+
+TokenScaleProviderTokenScaleImplementation satisfies TokenScale {
+    TokenScale::tag = TokenScaleProvider::tag;
+    TokenScale::weigh = TokenScaleProvider::weigh;
+}

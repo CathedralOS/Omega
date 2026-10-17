@@ -5,6 +5,7 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "described_runner_entry_left_exit");
     Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
+    Build::select_provider<left::Reader, left::ProviderReaderImplementation>(builder);
     Build::bind(builder, macos_arm64::ProgramEntry, choose(builder, "macos_arm64::ProgramEntry"));
     Build::bind(builder, linux_arm64::ProgramEntry, choose(builder, "linux_arm64::ProgramEntry"));
     Build::bind(builder, linux_x86_64::ProgramEntry, choose(builder, "linux_x86_64::ProgramEntry"));

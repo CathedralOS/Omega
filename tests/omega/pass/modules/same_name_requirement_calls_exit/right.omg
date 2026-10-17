@@ -28,3 +28,7 @@ invokes Console;
         Console::exit_process(code);
     }
 }
+
+pub ProviderSinkImplementation satisfies Sink {
+    Sink::emit = Provider::emit;
+}

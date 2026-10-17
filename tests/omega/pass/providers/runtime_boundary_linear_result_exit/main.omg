@@ -59,3 +59,8 @@ machine Main::main(main: &mut Main) reaches Console, TokenMint {
     state good(main: &mut Main) { Console::exit_process(70); }
     state bad(main: &mut Main) { Console::exit_process(72); }
 }
+
+TokenMintProviderTokenMintImplementation satisfies TokenMint {
+    TokenMint::issue = TokenMintProvider::issue;
+    TokenMint::wrap = TokenMintProvider::wrap;
+}

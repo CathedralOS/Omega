@@ -31,3 +31,7 @@ machine Main::main(main: &mut Main) reaches Console + ArrayReader {
     state good(main: &mut Main) { Console::exit_process(70); }
     state bad(main: &mut Main) { Console::exit_process(72); }
 }
+
+ArrayReaderProviderArrayReaderImplementation satisfies ArrayReader {
+    ArrayReader::inspect = ArrayReaderProvider::inspect;
+}

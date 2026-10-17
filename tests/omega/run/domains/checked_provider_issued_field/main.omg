@@ -20,3 +20,7 @@ machine Main::main(context: &mut Main) reaches Source crashes Trap {
     transition { _ -> received(package.resource) }
     state received(resource: Resource in Open) { close(resource); }
 }
+
+CheckedSourceSourceImplementation satisfies Source {
+    Source::open = CheckedSource::open;
+}

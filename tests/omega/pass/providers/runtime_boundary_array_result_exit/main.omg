@@ -18,3 +18,7 @@ machine Main::main(main: &mut Main) reaches Console, ArrayFactory {
     state good(main: &mut Main) { Console::exit_process(70); }
     state bad(main: &mut Main) { Console::exit_process(72); }
 }
+
+ArrayFactoryProviderArrayFactoryImplementation satisfies ArrayFactory {
+    ArrayFactory::produce = ArrayFactoryProvider::produce;
+}

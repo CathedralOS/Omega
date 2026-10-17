@@ -12,11 +12,11 @@ satisfies Service::echo {
 }
 data Providers {}
 macos_arm64 machine Providers::provider_defaults(defaults: &mut Providers) {
-    Providers::select_provider<Service, Provider>(defaults);
+    Providers::select_provider<Service, ProviderServiceImplementation>(defaults);
 }
 
 linux_x86_64 machine Providers::provider_defaults(defaults: &mut Providers) {
-    Providers::select_provider<Service, Provider>(defaults);
+    Providers::select_provider<Service, ProviderServiceImplementation>(defaults);
 }
 data Main { }
 macos_arm64 machine Main::main(main: &mut Main) reaches Service crashes Trap {
@@ -33,4 +33,8 @@ linux_x86_64 machine Main::main(main: &mut Main) reaches Service crashes Trap {
     transition first == 18 && second == 27 { true -> done() _ -> bad() }
     state done() {}
     state bad() { crash Trap; }
+}
+
+ProviderServiceImplementation satisfies Service {
+    Service::echo = Provider::echo;
 }

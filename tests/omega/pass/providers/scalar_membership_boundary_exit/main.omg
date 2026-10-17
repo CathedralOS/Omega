@@ -16,3 +16,7 @@ machine Main::main(main: &mut Main) reaches Gate crashes Trap {
     state done() {}
     state wrong() { crash Trap; }
 }
+
+ProviderGateImplementation satisfies Gate {
+    Gate::accept = Provider::accepted;
+}

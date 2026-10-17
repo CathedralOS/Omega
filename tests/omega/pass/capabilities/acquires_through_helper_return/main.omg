@@ -62,3 +62,7 @@ data Main {
 machine Main::main(main: &mut Main) {
     let staged: Folder = Backup::stage(&mut main.backup);
 }
+
+DesktopProviderDesktopImplementation satisfies Desktop {
+    Desktop::choose_folder = DesktopProvider::choose_folder;
+}

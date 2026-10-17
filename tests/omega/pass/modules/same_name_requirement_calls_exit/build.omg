@@ -7,7 +7,7 @@ machine build(builder: &mut Build) {
     Build::application(builder, "same_name_requirement_calls_exit");
     Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
     Build::select_provider<left::Sink, left::Provider>(builder);
-    Build::select_provider<right::Sink, right::Provider>(builder);
+    Build::select_provider<right::Sink, right::ProviderSinkImplementation>(builder);
     Build::bind(builder, macos_arm64::ProgramEntry, choose(builder, "macos_arm64::ProgramEntry"));
     Build::bind(builder, linux_arm64::ProgramEntry, choose(builder, "linux_arm64::ProgramEntry"));
     Build::bind(builder, linux_x86_64::ProgramEntry, choose(builder, "linux_x86_64::ProgramEntry"));

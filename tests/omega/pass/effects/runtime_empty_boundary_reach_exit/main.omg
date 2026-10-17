@@ -16,3 +16,7 @@ machine Main::main(main: &mut Main) reaches Console {
     let forwarded: i32 = through_helper(bound);
     Console::exit_process(forwarded);
 }
+
+ProviderPureImplementation satisfies Pure {
+    Pure::evaluate = Provider::evaluate;
+}

@@ -1,7 +1,7 @@
 
 machine build(builder: &mut Build) {
     Build::application(builder, "service_fused_root_establishment");
-    Build::select_provider<Ping, PingProvider>(builder);
+    Build::select_provider<Ping, PingProviderPingImplementation>(builder);
     Build::bind(builder, linux_x86_64::ProgramEntry, Main::main);
     Build::bind(builder, windows_x86_64::ProgramEntry, Main::main);
 }

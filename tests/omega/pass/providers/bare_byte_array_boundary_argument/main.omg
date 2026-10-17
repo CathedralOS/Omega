@@ -15,11 +15,11 @@ pub boundary trait Sink { machine take(name: [u8; 7]) -> u64; }
 pub data SinkProvider { seen: u64; }
 
 pub macos_arm64 machine SinkProvider::provider_defaults(defaults: &mut SinkProvider) {
-    SinkProvider::select_provider<Sink, SinkProvider>(defaults);
+    SinkProvider::select_provider<Sink, SinkProviderSinkImplementation>(defaults);
 }
 
 pub linux_x86_64 machine SinkProvider::provider_defaults(defaults: &mut SinkProvider) {
-    SinkProvider::select_provider<Sink, SinkProvider>(defaults);
+    SinkProvider::select_provider<Sink, SinkProviderSinkImplementation>(defaults);
 }
 
 pub macos_arm64 machine SinkProvider::take(name: [u8; 7]) -> u64 satisfies Sink::take {
@@ -40,4 +40,8 @@ data Main {
 machine Main::main(main: &mut Main) reaches Console + Sink {
     main.out = Sink::take(main.buf);
     Console::exit_process(0);
+}
+
+SinkProviderSinkImplementation satisfies Sink {
+    Sink::take = SinkProvider::take;
 }

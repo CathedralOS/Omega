@@ -148,3 +148,7 @@ machine Main::main(main: &mut Main) reaches Console crashes Trap {
     verify(incomplete_reversed(false));
     verify(incomplete_reversed(true));
 }
+
+ConsoleNativeProviderConsoleImplementation satisfies Console {
+    Console::write_byte = ConsoleNativeProvider::write_byte;
+}

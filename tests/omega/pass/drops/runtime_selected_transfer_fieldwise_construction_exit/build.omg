@@ -1,6 +1,6 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "runtime_selected_transfer_fieldwise_construction_exit");
-    Build::select_provider<Console, ConsoleNativeProvider>(builder);
+    Build::select_provider<Console, ConsoleNativeProviderConsoleImplementation>(builder);
     Build::bind(builder, windows_x86_64::ProgramEntry, Main::main);
     Build::bind(builder, linux_x86_64::ProgramEntry, Main::main);
     Build::bind(builder, linux_arm64::ProgramEntry, Main::main);

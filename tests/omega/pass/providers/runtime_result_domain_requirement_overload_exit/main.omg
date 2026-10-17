@@ -34,3 +34,8 @@ reaches Console, Convert
     state good(main: &mut Main) { Console::exit_process(70); }
     state bad(main: &mut Main) { Console::exit_process(77); }
 }
+
+ConvertProviderConvertImplementation satisfies Convert {
+    Convert::convert = ConvertProvider::ordinary;
+    Convert::convert = ConvertProvider::saturating;
+}

@@ -57,3 +57,9 @@ machine Main::main(main: &mut Main) reaches Echo, Console, RecordSource {
         Console::exit_process(71);
     }
 }
+
+EchoProviderEchoImplementation satisfies Echo {
+    Echo::echo = EchoProvider::echo;
+}
+
+RecordProviderRecordSourceImplementation satisfies RecordSource { RecordSource::receive = RecordProvider::receive; }

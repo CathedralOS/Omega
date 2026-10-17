@@ -1,5 +1,6 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "runtime_clock_out_parameter_loans_exit");
+    Build::select_provider<ClockProbe, ClockImportsClockProbeImplementation>(builder);
     Build::bind(builder, macos_arm64::ProgramEntry, Main::main);
     Build::bind(builder, linux_x86_64::ProgramEntry, Main::main);
 }

@@ -1,6 +1,6 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "runtime_rankless_boundary_suffix_exit");
-    Build::select_provider<Output, Provider>(builder);
+    Build::select_provider<Output, ProviderOutputImplementation>(builder);
     Build::bind(builder, macos_arm64::ProgramEntry, Main::main);
     Build::bind(builder, macos_x86_64::ProgramEntry, Main::main);
     Build::bind(builder, linux_x86_64::ProgramEntry, Main::main);

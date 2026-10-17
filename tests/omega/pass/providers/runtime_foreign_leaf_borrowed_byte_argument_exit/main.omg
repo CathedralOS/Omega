@@ -50,11 +50,11 @@ pub boundary trait Measure {
 data MeasureProvider {}
 
 macos_arm64 machine MeasureProvider::provider_defaults(defaults: &mut MeasureProvider) {
-    MeasureProvider::select_provider<Measure, MeasureProvider>(defaults);
+    MeasureProvider::select_provider<Measure, MeasureProviderMeasureImplementation>(defaults);
 }
 
 linux_x86_64 machine MeasureProvider::provider_defaults(defaults: &mut MeasureProvider) {
-    MeasureProvider::select_provider<Measure, MeasureProvider>(defaults);
+    MeasureProvider::select_provider<Measure, MeasureProviderMeasureImplementation>(defaults);
 }
 
 macos_arm64 machine MeasureProvider::measure(text: &u8, words: &Words) -> i32 satisfies Measure::measure
@@ -96,4 +96,8 @@ machine Main::main(main: &mut Main) reaches Console + CText + Measure {
     }
     state good(main: &mut Main) { Console::exit_process(70); }
     state bad(main: &mut Main) { Console::exit_process(71); }
+}
+
+MeasureProviderMeasureImplementation satisfies Measure {
+    Measure::measure = MeasureProvider::measure;
 }

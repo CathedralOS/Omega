@@ -13,3 +13,7 @@ machine Main::main(context: &mut Main) reaches Flow crashes Trap {
     state done() {}
     state bad() { crash Trap; }
 }
+
+ProviderFlowImplementation satisfies Flow {
+    Flow::forward = Provider::forward;
+}

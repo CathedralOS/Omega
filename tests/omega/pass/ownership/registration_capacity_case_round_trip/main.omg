@@ -56,3 +56,7 @@ machine Main::main(main: &mut Main) reaches Registrar + Console invokes Registra
  state good() { Console::exit_process(70); }
  state bad() { Console::exit_process(72); }
 }
+
+ProviderRegistrarImplementation satisfies Registrar {
+    Registrar::exchange = Provider::exchange;
+}

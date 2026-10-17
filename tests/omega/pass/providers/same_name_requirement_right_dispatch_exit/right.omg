@@ -21,3 +21,7 @@ invokes Console;
     state good(context: &mut Runner) { Console::exit_process(70); }
     state bad(context: &mut Runner) { Console::exit_process(71); }
 }
+
+pub ProviderSinkImplementation satisfies Sink {
+    Sink::emit = Provider::emit;
+}

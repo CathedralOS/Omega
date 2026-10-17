@@ -152,3 +152,12 @@ linux_x86_64 machine ClockImports::nanoseconds(selector: i32) -> u64
     }
     state failed() -> u64 { 0 }
 }
+
+ClockImportsClockProbeImplementation satisfies ClockProbe {
+    ClockProbe::nanoseconds = ClockImports::nanoseconds;
+    ClockProbe::read = ClockImports::read;
+    ClockProbe::read_pair = ClockImports::read_pair;
+    ClockProbe::sleep = ClockImports::sleep;
+    ClockProbe::sleep_unit = ClockImports::sleep_unit;
+    ClockProbe::wait = ClockImports::wait;
+}

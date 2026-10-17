@@ -24,3 +24,7 @@ machine Main::main(main: &mut Main) reaches Output crashes Trap {
     state done() {}
     state bad() { crash Trap; }
 }
+
+ProviderOutputImplementation satisfies Output {
+    Output::value = Provider::value;
+}

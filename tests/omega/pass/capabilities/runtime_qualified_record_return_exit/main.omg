@@ -57,3 +57,7 @@ machine Main::main(main: &mut Main) reaches Issuer crashes Trap {
     state done() {}
     state bad() { crash Trap; }
 }
+
+IssuerProviderIssuerImplementation satisfies Issuer {
+    Issuer::issue = IssuerProvider::issue;
+}

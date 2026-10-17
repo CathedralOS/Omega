@@ -14,3 +14,7 @@ data Main { }
 machine Main::main(context: &mut Main) reaches Source crashes Trap {
     close(Source::open());
 }
+
+CheckedSourceSourceImplementation satisfies Source {
+    Source::open = CheckedSource::open;
+}

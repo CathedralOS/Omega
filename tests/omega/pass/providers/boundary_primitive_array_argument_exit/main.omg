@@ -40,3 +40,7 @@ machine Main::main(main: &mut Main) reaches Console, Thing {
     state good(main: &mut Main) { Console::exit_process(70); }
     state bad(main: &mut Main) { Console::exit_process(74); }
 }
+
+ThingProviderThingImplementation satisfies Thing {
+    Thing::take = ThingProvider::take;
+}

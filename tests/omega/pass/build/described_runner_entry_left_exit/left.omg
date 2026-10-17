@@ -16,3 +16,7 @@ invokes Console;
     state deliver(runner: &mut Runner, observed: i32) { Console::exit_process(observed); }
     state wrong(runner: &mut Runner, observed: i32) { Console::exit_process(65); }
 }
+
+pub ProviderReaderImplementation satisfies Reader {
+    Reader::read = Provider::read;
+}

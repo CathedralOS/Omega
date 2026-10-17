@@ -80,3 +80,10 @@ machine Main::main(main: &mut Main) reaches Console, TokenFlow {
     }
     state bad(main: &mut Main) { Console::exit_process(73); }
 }
+
+TokenProviderTokenFlowImplementation satisfies TokenFlow {
+    TokenFlow::choose = TokenProvider::choose;
+    TokenFlow::forward = TokenProvider::forward;
+    TokenFlow::pair = TokenProvider::pair;
+    TokenFlow::replace = TokenProvider::replace;
+}

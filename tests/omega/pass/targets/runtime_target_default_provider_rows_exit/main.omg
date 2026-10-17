@@ -46,14 +46,14 @@ machine SecondProvider::spare() -> i32 satisfies Pick::spare { 22 }
 
 data TargetProviders {}
 macos_arm64 machine TargetProviders::provider_defaults(defaults: &mut TargetProviders) {
-    TargetProviders::select_provider<Pick, FirstProvider>(defaults);
+    TargetProviders::select_provider<Pick, FirstProviderPickImplementation>(defaults);
 }
 
 linux_x86_64 machine TargetProviders::provider_defaults(defaults: &mut TargetProviders) {
-    TargetProviders::select_provider<Pick, FirstProvider>(defaults);
+    TargetProviders::select_provider<Pick, FirstProviderPickImplementation>(defaults);
 }
 windows_x86_64 machine TargetProviders::provider_defaults(defaults: &mut TargetProviders) {
-    TargetProviders::select_provider<Pick, SecondProvider>(defaults);
+    TargetProviders::select_provider<Pick, SecondProviderPickImplementation>(defaults);
 }
 
 data Main {}
@@ -75,4 +75,14 @@ windows_x86_64 machine Main::main() reaches Pick crashes Trap {
     transition chosen == 2 { true -> selected() _ -> bad() }
     state selected() { crash Trap; }
     state bad() {}
+}
+
+FirstProviderPickImplementation satisfies Pick {
+    Pick::choose = FirstProvider::choose;
+    Pick::spare = FirstProvider::spare;
+}
+
+SecondProviderPickImplementation satisfies Pick {
+    Pick::choose = SecondProvider::choose;
+    Pick::spare = SecondProvider::spare;
 }

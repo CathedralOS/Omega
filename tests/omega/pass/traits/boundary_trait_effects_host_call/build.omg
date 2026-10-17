@@ -2,6 +2,7 @@
 
 machine build(builder: &mut Build) {
     Build::application(builder, "boundary_trait_effects_host_call");
+    Build::select_provider<Console, ConsoleProviderConsoleImplementation>(builder);
     Build::bind(builder, windows_x86_64::ProgramEntry, Main::main);
     Build::bind(builder, linux_x86_64::ProgramEntry, Main::main);
     Build::bind(builder, linux_arm64::ProgramEntry, Main::main);

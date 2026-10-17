@@ -41,3 +41,7 @@ machine main() reaches WorkerProvider suspends; blocks; crashes Trap {
     state done() {}
     state bad() { crash Trap; }
 }
+
+CheckedWorkerProviderWorkerProviderImplementation satisfies WorkerProvider {
+    WorkerProvider::execute = CheckedWorkerProvider::execute;
+}

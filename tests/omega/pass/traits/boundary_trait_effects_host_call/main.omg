@@ -31,3 +31,8 @@ machine Main::main(main: &mut Main) reaches Console {
     Console::write_line("boundary reach survives syntax");
     Console::exit_process(0);
 }
+
+ConsoleProviderConsoleImplementation satisfies Console {
+    Console::exit_process = ConsoleProvider::exit_process;
+    Console::write_line = ConsoleProvider::write_line;
+}

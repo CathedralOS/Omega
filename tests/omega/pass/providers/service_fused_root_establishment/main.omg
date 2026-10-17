@@ -26,3 +26,7 @@ reaches Ping
 {
     Ping::ping();
 }
+
+PingProviderPingImplementation satisfies Ping {
+    Ping::ping = PingProvider::ping;
+}

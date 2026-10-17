@@ -42,3 +42,7 @@ machine Main::main(main: &mut Main) reaches Console {
     state good() { Console::exit_process(0); }
     state bad() { Console::exit_process(1); }
 }
+
+ObserverObserveImplementation satisfies Observe {
+    Observe::read = Observer::read;
+}

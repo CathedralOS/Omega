@@ -1,7 +1,7 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "sibling_module_service_exclusion_exit");
     Build::select_provider<left::Sink, left::QuietSink>(builder);
-    Build::select_provider<right::Sink, right::QuietSink>(builder);
+    Build::select_provider<right::Sink, right::QuietSinkSinkImplementation>(builder);
     configure(builder);
     Build::bind(builder, macos_arm64::ProgramEntry, Main::main);
     Build::bind(builder, linux_x86_64::ProgramEntry, Main::main);

@@ -10,3 +10,7 @@ machine QuietSink::emit(text: &[u8])
 satisfies Sink::emit
 {
 }
+
+pub QuietSinkSinkImplementation satisfies Sink {
+    Sink::emit = QuietSink::emit;
+}

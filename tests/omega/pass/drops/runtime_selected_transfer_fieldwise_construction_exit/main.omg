@@ -111,3 +111,7 @@ machine Main::main(main: &mut Main) reaches Console crashes Trap {
     verify(fieldwise_then_selected(false));
     verify(fieldwise_then_selected(true));
 }
+
+ConsoleNativeProviderConsoleImplementation satisfies Console {
+    Console::write_byte = ConsoleNativeProvider::write_byte;
+}
