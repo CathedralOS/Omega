@@ -560,6 +560,7 @@ pub(crate) fn produced_value_root<'checked>(
         checked_trees::CheckedStructuralAccess::Owned
             | checked_trees::CheckedStructuralAccess::SharedBorrow
             | checked_trees::CheckedStructuralAccess::MutableBorrow
+            | checked_trees::CheckedStructuralAccess::WriteOnlyBorrow
     ) {
         return unsupported("computed structural operand must transfer or lend its retained owner");
     }

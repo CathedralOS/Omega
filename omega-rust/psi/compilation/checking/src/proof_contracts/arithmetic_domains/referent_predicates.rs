@@ -55,24 +55,34 @@ pub(crate) fn referent_predicates_preserved(
             symbol: field.symbol,
         });
         let label = place.label(program);
-        let interval = guarantees
-            .iter()
-            .find(|(target, _)| *target == place)
-            .map(|(_, interval)| *interval)
-            .or_else(|| {
-                (!written
-                    .iter()
-                    .any(|path| super::place_paths::place_paths_overlap(path, &label)))
-                .then(|| environment.get(&label))
-                .flatten()
-            })
-            .or_else(|| {
-                let carrier = super::integer_ranges::primitive_range(primitive)?;
-                Some(
-                    super::enforced_declared_range_interval(program, field.type_reference)
-                        .map_or(carrier, |declared| carrier.intersect(declared)),
+        let unwritten = field.symbol != selected_field
+            && !written
+                .iter()
+                .any(|path| super::place_paths::place_paths_overlap(path, &label));
+        let interval =
+            guarantees
+                .iter()
+                .find(|(target, _)| *target == place)
+                .map(|(_, interval)| *interval)
+                .or_else(|| unwritten.then(|| environment.get(&label)).flatten())
+                .or_else(|| {
+                    let carrier = super::integer_ranges::primitive_range(primitive)?;
+                    let interval =
+                        super::enforced_declared_range_interval(program, field.type_reference)
+                            .map_or(carrier, |declared| carrier.intersect(declared));
+                    Some(
+                    unwritten
+                        .then(|| {
+                            crate::proof_contracts::default_domains::field_literal_where_interval(
+                                program,
+                                definition,
+                                field.name.as_str(),
+                            )
+                        })
+                        .flatten()
+                        .map_or(interval, |where_interval| interval.intersect(where_interval)),
                 )
-            });
+                });
         let Some(interval) = interval else {
             continue;
         };

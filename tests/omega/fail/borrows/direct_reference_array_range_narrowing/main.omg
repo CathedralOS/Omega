@@ -1,7 +1,9 @@
-data Cell { value: i32 [0..=100]; }
+data Cell where value >= 0 && value <= 100 { value: i32; }
 data Main { cell: Cell; }
-machine Main::read(main: &mut Main) -> i32 {
- let cells: [&Cell; 1] = [&main.cell];
- let observed: i32 [0..=50] = cells[0].value;
- observed
+machine Main::read(main: &mut Main) -> i32
+ensures result >= 0 && result <= 50
+{
+    let cells: [&Cell; 1] = [&main.cell];
+    let observed: i32 = cells[0].value;
+    observed
 }

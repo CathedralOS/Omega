@@ -2,8 +2,8 @@
 // shared loan of one of that cell's fields.
 use omega_language_std::console;
 
-data Cell { stamp: i32; value: i32 [0..=100]; }
-data View<'a> { writer: &'a mut Cell; reader: &'a i32 [0..=100]; }
+data Cell where value >= 0 && value <= 100 { stamp: i32; value: i32; }
+data View<'a> { writer: &'a mut Cell; reader: &'a i32; }
 data Main {
     first: Cell;
     second: Cell;
@@ -16,7 +16,7 @@ machine Main::main(main: &mut Main) reaches Console {
     main.second.value = 70;
     let view: View = View { writer: &mut main.first, reader: &main.first.value };
     view.writer.value = 70;
-    let observed: i32 [0..=100] = view.reader;
+    let observed: i32 = view.reader;
     transition observed == 70 {
         true -> good(main)
         _ -> bad(main)

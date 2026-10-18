@@ -1,5 +1,5 @@
 // Ending the original descriptor cannot end a still-observed shared copy.
-data Cell { value: i32 [0..=100]; }
+data Cell where value >= 0 && value <= 100 { value: i32; }
 data Message { body: &mut Cell; stamp: i32; }
 data Held { target: &Cell; stamp: i32; }
 
@@ -10,7 +10,7 @@ machine invalid(cell: &mut Cell, selected: bool) -> i32 {
         true -> Held { target: child, stamp: 12 },
         false -> Held { target: child, stamp: 13 }
     };
-    let original: i32 [0..=100] = child.value;
+    let original: i32 = child.value;
     cell.value = 81;
     held.target.value + original
 }

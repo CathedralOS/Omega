@@ -363,15 +363,60 @@ fn field_literal_bounds(
     Some(bounds)
 }
 
+/// The interval a data declaration's literal `where` conjuncts state on `field`,
+/// independent of whether the declaration also carries relational conjuncts.
+pub(crate) fn field_literal_where_interval(
+    program: &dyn crate::CheckingInput,
+    definition: &DataDefinition,
+    field: &str,
+) -> Option<Interval> {
+    field_fact_interval(program, definition, field, 3)
+}
+
 /// The interval a store to `target` must land in when the target is a field
-/// of data whose facts are all interval-only: every store re-proves its own
-/// field's interval, which is then the whole default domain for that field.
+/// (or an immutable local exclusive loan of a field) of data whose facts are
+/// all interval-only: every store re-proves its own field's interval, which is
+/// then the whole default domain for that field.
 pub(crate) fn stored_field_where_interval(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
-    target: ExpressionHandle,
+    mut target: ExpressionHandle,
 ) -> Option<Interval> {
+    for _ in 0..8 {
+        if program.expression_table.member_node(target).is_some() {
+            break;
+        }
+        let ExpressionNode::Name(path) = program.expression_table.expression(target) else {
+            break;
+        };
+        let [name] = program.expression_table.name_path_members(path.members) else {
+            break;
+        };
+        let Some(local) = program
+            .statement_table
+            .statements(state.statement_nodes)
+            .iter()
+            .filter_map(|statement| statement.as_local_data())
+            .find(|local| !local.is_mutable && local.name == *name)
+        else {
+            break;
+        };
+        if let Some(borrow) = program
+            .expression_table
+            .borrow_expression(local.initial_value)
+        {
+            if !matches!(
+                borrow.access,
+                language_core::ReferenceAccess::Mutable | language_core::ReferenceAccess::WriteOnly
+            ) {
+                break;
+            }
+            target = borrow.target;
+        } else {
+            target = local.initial_value;
+        }
+    }
     let member = program.expression_table.member_node(target)?;
     let definition =
         data_definition_for_expression(program, machine, Some(state), member.receiver)?;

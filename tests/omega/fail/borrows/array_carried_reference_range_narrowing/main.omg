@@ -1,13 +1,15 @@
 // Select the reference carrier before crossing its pointer, then read a field.
 use omega_language_std::console;
 
-data Cell { stamp: i32; value: i32 [0..=100]; ready: bool; }
+data Cell where value >= 0 && value <= 100 { stamp: i32; value: i32; ready: bool; }
 data Message { stamp: i32; body: &Cell; }
-data Main {
+data Main where index <= 1 {
     first: Cell;
     second: Cell;
-    index: u64 [0..=1];
+    index: u64;
 }
+
+machine require_narrow_cell_value(value: i32) requires value >= 0 && value <= 10 {}
 
 machine Main::main(main: &mut Main) reaches Console {
     main.first.stamp = 3;
@@ -21,7 +23,8 @@ machine Main::main(main: &mut Main) reaches Console {
         Message { stamp: 7, body: &main.first },
         Message { stamp: 9, body: &main.second }
     ];
-    let observed: i32 [0..=10] = messages[main.index].body.value;
+    let observed: i32 = messages[main.index].body.value;
+    require_narrow_cell_value(observed);
     let ready: bool = messages[main.index].body.ready;
     transition observed == 70 && ready {
         true -> good(main)

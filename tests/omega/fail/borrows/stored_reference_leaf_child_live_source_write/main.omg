@@ -1,7 +1,7 @@
 // The stored parent descriptor remains until its explicit child borrow ends.
 use omega_language_std::console;
 
-data Cell { value: i32 [0..=100]; ready: bool; }
+data Cell where value >= 0 && value <= 100 { value: i32; ready: bool; }
 data Message { body: &mut Cell; stamp: i32; }
 data Main { cell: Cell; }
 
@@ -10,7 +10,7 @@ machine Main::main(main: &mut Main) reaches Console {
     main.cell.ready = true;
     let message: Message = Message { body: &mut main.cell, stamp: 11 };
     let child: &Cell = &message.body;
-    let observed: i32 [0..=100] = child.value;
+    let observed: i32 = child.value;
     main.cell.value = 81;
     let ready: bool = child.ready;
     let stamp: i32 = message.stamp;

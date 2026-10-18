@@ -1,1 +1,1 @@
-cannot prove assignment value `2` satisfies bounded target `selected_value`
+stores a value not provably within its data's `where` facts

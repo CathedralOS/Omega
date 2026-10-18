@@ -1,6 +1,6 @@
 // Leaving the selected arm does not retire a reference carried to its successor.
 data Choice { case Full(value: u64); case Empty; }
-data Frame { items: [Choice; 2]; selected: u64[0..2]; }
+data Frame where selected < 2 { items: [Choice; 2]; selected: u64; }
 machine reject() -> u64 {
     let mut frame: Frame;
     frame.items[0] = Choice::Empty;

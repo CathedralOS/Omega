@@ -1,1 +1,1 @@
-not provably within its declared range
+cannot prove requires contract for call require_narrow_cell_value

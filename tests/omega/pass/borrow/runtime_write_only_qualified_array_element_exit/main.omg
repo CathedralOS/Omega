@@ -5,7 +5,7 @@ domain [u8; 8]::Utf8(bytes) requires valid_utf8(bytes);
 data Container { entries: [[u8; 8] in Utf8; 2]; }
 
 machine initialize(bytes: &write [u8; 8] in Utf8) { bytes = "éééé"; }
-machine indexed(entries: &mut [[u8; 8] in Utf8; 2], position: u64 [0..=1]) {
+machine indexed(entries: &mut [[u8; 8] in Utf8; 2], position: u64) requires position <= 1 {
     initialize(&write entries[position]);
 }
 machine captured(entries: &mut [[u8; 8] in Utf8; 2]) {
@@ -30,7 +30,7 @@ machine relay_owner(bytes: &write [u8; 8] in Utf8) {
 machine overwrite(entries: &write [[u8; 8] in Utf8; 2]) {
     entries = ["kept....", "éééé"];
 }
-machine bounded(values: &write [u64 [0..=2]; 2], value: u64 [0..=2]) {
+machine bounded(values: &write [u64; 2], value: u64) requires value <= 2 {
     values = [value, 2];
 }
 machine main() crashes Trap {
@@ -40,7 +40,7 @@ machine main() crashes Trap {
     let mut arrived: [[u8; 8] in Utf8; 2] = ["kept....", "old....."];
     let mut arrived_owner: [u8; 8] in Utf8 = "old.....";
     let mut replaced: [[u8; 8] in Utf8; 2] = ["kept....", "old....."];
-    let mut bounds: [u64 [0..=2]; 2] = [0, 1];
+    let mut bounds: [u64; 2] = [0, 1];
     indexed(&mut direct, 1);
     captured(&mut local);
     field(&mut container);

@@ -1,11 +1,11 @@
 // A returned array keeps its backing unavailable through the last observation.
 use omega_language_std::console;
 
-data Cell { stamp: i32; value: i32 [0..=100]; ready: bool; }
+data Cell where value >= 0 && value <= 100 { stamp: i32; value: i32; ready: bool; }
 data Pair { first: Cell; second: Cell; }
-data Main {
+data Main where index <= 1 {
     cells: Pair;
-    index: u64 [0..=1];
+    index: u64;
 }
 
 machine Main::main(main: &mut Main) reaches Console {
@@ -18,7 +18,7 @@ machine Main::main(main: &mut Main) reaches Console {
     main.index = 1;
     let messages: [&Cell; 2] = collect(&main.cells);
     main.cells.second.value = 80;
-    let observed: i32 [0..=100] = messages[main.index].value;
+    let observed: i32 = messages[main.index].value;
     let ready: bool = messages[main.index].ready;
     transition observed == 70 && ready {
         true -> good(main)

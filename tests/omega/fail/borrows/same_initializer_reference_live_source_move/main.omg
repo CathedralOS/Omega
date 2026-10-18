@@ -1,5 +1,5 @@
 // Record fields evaluate in authored order: the loan precedes extraction.
-data Inventory { slots: i32 [0..=100]; }
+data Inventory where slots >= 0 && slots <= 100 { slots: i32; }
 data Bundle { loan: &Inventory; taken: Inventory; }
 data Main { inventory: Inventory; }
 
@@ -8,7 +8,7 @@ machine Main::peek(main: &mut Main) -> i32 {
         loan: &main.inventory,
         taken: main.inventory
     };
-    let seen: i32 [0..=100] = bundle.loan.slots;
+    let seen: i32 = bundle.loan.slots;
     main.inventory = Inventory { slots: 77 };
     seen
 }

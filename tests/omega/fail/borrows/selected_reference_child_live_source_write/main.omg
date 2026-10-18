@@ -1,5 +1,5 @@
 // A possibly selected child stays live until the selected result's last read.
-data Cell { value: i32 [0..=100]; }
+data Cell where value >= 0 && value <= 100 { value: i32; }
 data Message { body: &mut Cell; stamp: i32; }
 data Held { target: &Cell; stamp: i32; }
 

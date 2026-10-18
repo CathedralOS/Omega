@@ -1,7 +1,7 @@
 // A precise selected backing does not narrow the exclusive input loan
 // retained by a helper's returned reference.
 data Cell { value: u32; }
-data Grid { cells: [Cell; 3]; cursor: u64[0..3]; }
+data Grid where cursor < 3 { cells: [Cell; 3]; cursor: u64; }
 machine choose(grid: &mut Grid, flag: bool) -> &mut Cell {
     match flag {
         true -> &mut grid.cells[grid.cursor],

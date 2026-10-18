@@ -242,7 +242,8 @@ pub(crate) fn retain_shapes(
                             || !matches!(argument.access,
                                 checked_trees::CheckedStructuralAccess::Owned
                                     | checked_trees::CheckedStructuralAccess::SharedBorrow
-                                    | checked_trees::CheckedStructuralAccess::MutableBorrow)
+                                    | checked_trees::CheckedStructuralAccess::MutableBorrow
+                                    | checked_trees::CheckedStructuralAccess::WriteOnlyBorrow)
                         {
                             return None;
                         }

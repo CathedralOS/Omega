@@ -1,7 +1,7 @@
 // A record literal cannot hold two live exclusive loans of one field.
 use omega_language_std::console;
 
-data Cell { stamp: i32; value: i32 [0..=100]; }
+data Cell where value >= 0 && value <= 100 { stamp: i32; value: i32; }
 data Pair<'a> { left: &'a mut Cell; right: &'a mut Cell; }
 data Main {
     first: Cell;
@@ -14,7 +14,7 @@ machine Main::main(main: &mut Main) reaches Console {
     main.second.stamp = 5;
     main.second.value = 70;
     let pair: Pair = Pair { left: &mut main.first, right: &mut main.first };
-    let observed: i32 [0..=100] = pair.right.value;
+    let observed: i32 = pair.right.value;
     transition observed == 70 {
         true -> good(main)
         _ -> bad(main)

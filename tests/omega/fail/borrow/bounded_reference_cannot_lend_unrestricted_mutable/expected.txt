@@ -1,1 +1,1 @@
-expects `&mut u64`, got `named value`
+cannot prove ensures contract for exit from replace

@@ -1,4 +1,4 @@
-machine extent(references: &[&write [i32; 2]; 2], position: u64[0..=1]) -> u64 {
+machine extent(references: &[&write [i32; 2]; 2], position: u64) -> u64 requires position <= 1 {
     references[position].len
 }
 

@@ -1,7 +1,7 @@
 // Moving a descriptor into a constructor does not release its live referent.
 use omega_language_std::console;
 
-data Cell { value: i32 [0..=100]; ready: bool; }
+data Cell where value >= 0 && value <= 100 { value: i32; ready: bool; }
 data Message { body: &mut Cell; stamp: i32; }
 data Held { target: &mut Cell; stamp: i32; }
 data Main { cell: Cell; }
@@ -11,7 +11,7 @@ machine Main::main(main: &mut Main) reaches Console {
     main.cell.ready = true;
     let message: Message = Message { body: &mut main.cell, stamp: 11 };
     let held: Held = Held { target: message.body, stamp: 12 };
-    let observed: i32 [0..=100] = held.target.value;
+    let observed: i32 = held.target.value;
     main.cell.value = 81;
     let ready: bool = held.target.ready;
     let stamp: i32 = message.stamp;

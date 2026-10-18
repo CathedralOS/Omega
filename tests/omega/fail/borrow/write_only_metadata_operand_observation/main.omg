@@ -1,6 +1,6 @@
 machine observe_extent(
     references: &[&write [i32; 2]; 2],
-    position: &write u64[0..=1]
+    position: &write u64
 ) -> u64 {
     references[position].len
 }

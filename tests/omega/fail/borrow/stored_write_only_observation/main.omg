@@ -1,4 +1,4 @@
-machine observe_index(references: &[&write i32; 2], position: u64[0..=1]) -> i32 {
+machine observe_index(references: &[&write i32; 2], position: u64) -> i32 requires position <= 1 {
     references[position]
 }
 
