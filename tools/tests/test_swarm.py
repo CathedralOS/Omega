@@ -624,14 +624,18 @@ class SwarmTests(unittest.TestCase):
                 ["--repository", str(self.repository), "launch",
                  "--manifest", str(manifest_path)]), 0)
             opened.assert_not_called()
-        with mock.patch.object(self.module.urllib.request, "urlopen",
-                               return_value=Response({"session_id": "s2"})):
+        with mock.patch.object(self.module.urllib.request, "urlopen") as opened:
             self.assertEqual(self.module.main(
                 ["--repository", str(self.repository), "launch",
-                 "--manifest", str(manifest_path), "--relaunch", "alpha"]), 0)
+                 "--manifest", str(manifest_path), "--relaunch", "alpha"]), 1)
+            opened.assert_not_called()
         receipts = self.module.read_receipts(
             self.module.build_directory(self.repository, "w9"))
-        self.assertEqual(receipts["alpha"]["session_id"], "s2")
+        self.assertEqual(receipts["alpha"]["session_id"], "s1")
+        self.assertIn('--ticket ' + receipts['alpha']['claim_ticket'], receipts['alpha']['body']['prompt'])
+        code, _ = self.module.claim_call(self.repository, 'claim', '--ticket', receipts['alpha']['claim_ticket'],
+                                         '--owner', 'Tester / w9-alpha', '--item', 'ITEM-ONE')
+        self.assertEqual(code, 0)  # The worker adopts the coordinator's exact reservation.
         fetched = self.git(self.repository, "rev-parse", "FETCH_HEAD")
         self.assertEqual(receipts["alpha"]["base"], fetched)
         self.assertIn(f"freshly fetched main at `{fetched}`", receipts["alpha"]["body"]["prompt"])
@@ -716,6 +720,49 @@ class SwarmTests(unittest.TestCase):
         self.assertEqual(outcomes["summary"]["items_closed"], 1)
         self.assertEqual(outcomes["summary"]["acus_consumed"], 14.0)
         self.assertTrue((directory / "report.md").is_file())
+
+    def test_malformed_adoption_prompt_never_reserves_or_sends(self):
+        self.configure_origin()
+        session = manifest()['sessions'][0]
+        original = self.module.claim_command(session, 'owner')
+        for prompt in ['missing command', original + '\n' + original]:
+            with mock.patch.object(self.module, 'claim_call') as reserve, \
+                    mock.patch.object(self.module, 'api_request') as send:
+                with self.assertRaises(self.module.SwarmError):
+                    self.module.reserved_create(self.repository, self.root / 'malformed', 'alpha', 'owner',
+                                                session, {'prompt': prompt}, 'https://example.invalid')
+                reserve.assert_not_called()
+                send.assert_not_called()
+
+    def test_create_transport_never_retries_unknown_effects(self):
+        with mock.patch.object(self.module.urllib.request, 'urlopen',
+                               side_effect=urllib.error.URLError('connection dropped')) as opened:
+            with self.assertRaises(self.module.SwarmError):
+                self.module.api_request('POST', 'https://example.invalid', {'prompt': 'work'})
+            self.assertEqual(opened.call_count, 1)
+
+    def test_create_reserves_before_send_and_preserves_unknown_attempt(self):
+        self.configure_origin()
+        directory = self.module.build_directory(self.repository, 'unknown-create')
+        session = manifest()['sessions'][0]
+        with mock.patch.object(self.module, 'api_request', side_effect=self.module.SwarmError('unknown send')) as send:
+            with self.assertRaises(self.module.SwarmError):
+                self.module.reserved_create(self.repository, directory, 'alpha', 'owner', session,
+                                            {'prompt': self.module.claim_command(session, 'owner')}, 'https://example.invalid')
+            self.assertEqual(send.call_count, 1)
+        attempt = json.loads((directory / 'dispatch/alpha.json').read_text())
+        self.assertEqual(attempt['phase'], 'uncertain')
+        with mock.patch.object(self.module, 'api_request') as send:
+            with self.assertRaises(self.module.SwarmError):
+                self.module.reserved_create(self.repository, directory, 'alpha', 'owner', session,
+                                            {'prompt': self.module.claim_command(session, 'owner')}, 'https://example.invalid')
+            send.assert_not_called()
+        other = self.module.build_directory(self.repository, 'different-parent')
+        with mock.patch.object(self.module, 'api_request') as send:
+            with self.assertRaises(self.module.SwarmError):
+                self.module.reserved_create(self.repository, other, 'beta', 'other owner', session,
+                                            {'prompt': self.module.claim_command(session, 'other owner')}, 'https://example.invalid')
+            send.assert_not_called()
 
     def test_retry_on_429_then_success_and_fail_fast_on_401(self):
         calls = []

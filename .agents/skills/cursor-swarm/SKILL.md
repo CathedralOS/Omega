@@ -5,6 +5,16 @@ description: Coordinate a requested Cursor cloud wave, one Task cloud subagent p
 
 # Cursor cloud session swarm
 
+Before automatic implementation assignment, follow the common
+[reserve-before-dispatch procedure](../../../tools/swarm/dispatch.md). Review a
+current-main spec/fact gap, reserve outcome and chosen session atomically through
+existing claims, and arm one durable send attempt before invoking the actual
+runtime. Shared compiler paths remain advisory. Never auto-recover an expired
+Zac/Devin claim: inspect actual liveness/progress; record confirmed stop evidence
+or named user takeover authority. Adopt the coordinator's reserved ticket rather
+than registering a second claim. Unknown sends retain their ticket and require
+runtime reconciliation before retrying.
+
 Run a user-requested compiler wave as Cursor cloud subagents. Each worker has
 its own VM, checkout, and branch, and it advances a capability through complete
 landed witnesses. The coordinator selects outcomes, starts the sessions, and checks

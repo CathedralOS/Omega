@@ -10,8 +10,8 @@ Claims grant and refuse nothing. Another live claim on the same item or on
 overlapping paths is reported as an overlap, and the sessions reconcile their
 changes at rebase. --allow-overlap remains accepted for older callers and
 changes nothing.
-Expired claims are reaped by the next writer and never block
-reuse. Every mutation compares the prior object like tools/landing.py; see
+Expired unresolved records remain until explicit release/recovery. Automatic
+reserve excludes duplicate outcome/session dispatch; ordinary claim stays advisory. Every mutation compares the prior object like tools/landing.py; see
 claims.md.
 """
 
@@ -49,7 +49,6 @@ SWEPT_NOTE_RETENTION = 100
 # the newest such note per ticket for this long, then drop it.
 FINISHED_NOTE_RETENTION_DAYS = 3
 SNAPSHOT_ATTEMPTS = 3
-MAINTENANCE_LIMIT = 20
 # Transport stall bounds. ls-remote, fetch, and push are the only calls that
 # leave the local machine, and a dead connection there must fail fast into the
 # retry loops instead of parking the whole command — the write path was
@@ -157,6 +156,22 @@ def board_items(repository, board):
     markers = ITEM_MARKER.findall(path.read_text(encoding="utf-8", errors="replace"))
     return [name.strip() for marker in markers for name in marker.split("/")]
 
+def outcome_key(item):
+    """All places and path spellings of one fact share its automatic owner."""
+    spelling = item.strip().replace("\\", "/").removeprefix("./")
+    if spelling.startswith("samples/cli/facts/"):
+        return "/".join(normalize_path(spelling).split("/")[:4])
+    return spelling
+
+def session_key(value):
+    """Normalize provider vocabulary, preserving the provider's opaque handle."""
+    if not isinstance(value, str) or ":" not in value:
+        raise ClaimsError("Session identity requires codex:, cursor:, devin:, or local: namespace.")
+    provider, handle = value.split(":", 1)
+    if provider.casefold() not in {"codex", "cursor", "devin", "local"} or not handle.strip():
+        raise ClaimsError("Session identity requires codex:, cursor:, devin:, or local: namespace.")
+    return provider.casefold() + ":" + handle
+
 def expired_claims(record):
     instant = datetime.now(timezone.utc)
     return [claim for claim in record["claims"] if instant >= utc(claim["expires_utc"])]
@@ -178,6 +193,9 @@ def validate_claim(claim):
         raise ValueError("invalid claim paths")
     if not isinstance(claim["lease_minutes"], int):
         raise ValueError("invalid claim lease")
+    if "provenance" in claim and (not isinstance(claim["provenance"], dict) or
+            any(not isinstance(v, str) or not v.strip() for v in claim["provenance"].values())):
+        raise ValueError("invalid unauthenticated provenance labels")
     utc(claim["claimed_utc"])
     utc(claim["expires_utc"])
 
@@ -377,22 +395,6 @@ class Claims:
                 "inspect status before retrying.")
         self.pause(collisions, COLLISION_BACKOFF_BASE, COLLISION_BACKOFF_CAP)
 
-    def maintenance(self, snapshot):
-        """Reap expired claims separately, before interpreting an action.
-
-        None when nothing had expired, True when the reaping commit landed,
-        False when another writer moved the ref first.
-        """
-        expired = expired_claims(snapshot["record"])
-        if not expired:
-            return None
-        record = snapshot["record"]
-        record["claims"] = live_claims(record)
-        trim_notes(record)
-        updated = coordination.commit_record(self.repository, record, snapshot["version"],
-                                             deadline=self.deadline)
-        return self.publish(snapshot["version"], updated)
-
     def conflicts(self, record, item, paths):
         found = []
         for claim in live_claims(record):
@@ -412,7 +414,6 @@ class Claims:
 
     def coordinate(self, options):
         collisions = 0
-        maintenance_attempts = 0
         snapshot_failures = 0
         while True:
             try:
@@ -429,18 +430,9 @@ class Claims:
             record = snapshot["record"]
             if options.command in ("status", "available", "notes"):
                 return self.observe(options, snapshot)
-            reaped = self.maintenance(snapshot)
-            if reaped is not None:
-                if reaped:
-                    maintenance_attempts += 1
-                    if maintenance_attempts >= MAINTENANCE_LIMIT:
-                        raise ClaimsError("Claims changed repeatedly; inspect status before retrying.")
-                else:
-                    collisions += 1
-                    self.back_off_after_collision(collisions)
-                continue
+            # Expiry alone never disposes of unresolved ownership.
             claims = live_claims(record)
-            if options.command == "claim":
+            if options.command in ("claim", "reserve"):
                 prepared = self.prepare_claim(options, snapshot, claims)
                 if not prepared["proceed"]:
                     emit(prepared["record"])
@@ -460,12 +452,12 @@ class Claims:
                           "pending_left": len(pending) - len(marked)}
             else:
                 ticket_id(options.ticket)
-                claim = next((entry for entry in claims
+                claim = next((entry for entry in record["claims"]
                               if entry["ticket"] == options.ticket), None)
                 if options.command == "note":
                     if claim is None:
-                        raise ClaimsError("No live claim holds this ticket. "
-                                          "Notes attach to a live claim.")
+                        raise ClaimsError("No claim holds this ticket. "
+                                          "Notes attach to an existing claim.")
                     record["notes"].append(
                         {"ticket": claim["ticket"], "item": claim["item"],
                          "owner": claim["owner"], "text": options.text.strip(),
@@ -474,7 +466,7 @@ class Claims:
                               "item": claim["item"]}
                 elif options.command == "renew":
                     if claim is None:
-                        raise ClaimsError("No live claim holds this ticket. Claim again.")
+                        raise ClaimsError("No claim holds this ticket. Reconcile before claiming again.")
                     lease = options.lease_minutes or claim["lease_minutes"]
                     claim["expires_utc"] = (datetime.now(timezone.utc)
                                             + timedelta(minutes=lease)).isoformat()
@@ -484,7 +476,7 @@ class Claims:
                               "expires_utc": claim["expires_utc"]}
                 elif options.command == "release":
                     if claim is None:
-                        raise ClaimsError("No live claim holds this ticket. Nothing was changed.")
+                        raise ClaimsError("No claim holds this ticket. Nothing was changed.")
                     result = {"state": "released", "ticket": options.ticket,
                               "item": claim["item"]}
                 else:  # recover
@@ -503,7 +495,7 @@ class Claims:
             trim_notes(record)
             updated = coordination.commit_record(self.repository, record,
                                                  snapshot["version"], deadline=self.deadline)
-            if options.command == "claim":
+            if options.command in ("claim", "reserve"):
                 self.attempted_claims.append(updated)
             if self.publish(snapshot["version"], updated):
                 emit(result)
@@ -511,13 +503,30 @@ class Claims:
             collisions += 1
             self.back_off_after_collision(collisions)
 
+    def reservation_conflicts(self, record, item, provenance, ticket=None):
+        return [entry for entry in record["claims"] if entry["ticket"] != ticket
+                and (outcome_key(entry["item"]) == outcome_key(item) or (
+                    provenance.get("session_id") and entry.get("provenance", {}).get("session_id") and
+                    session_key(entry["provenance"]["session_id"]) == session_key(provenance["session_id"])))]
+
     def prepare_claim(self, options, snapshot, claims):
         record = snapshot["record"]
-        existing = next((entry for entry in claims
+        existing = next((entry for entry in record["claims"]
                          if entry["ticket"] == options.ticket), None)
         if existing:
             if existing["owner"] != options.owner:
                 raise ClaimsError("This ticket belongs to a different owner.")
+            if options.command == "reserve":
+                if any(existing.get(key) != getattr(options, key) for key in
+                       ("item", "board", "paths")) or existing.get("provenance", {}) != options.provenance:
+                    raise ClaimsError("Reservation retry changed outcome, paths or session provenance.")
+                occupied = self.reservation_conflicts(record, options.item, options.provenance, options.ticket)
+                if occupied:
+                    return {"code": 2, "proceed": False,
+                            "record": {"state": "occupied", "claims": occupied}}
+                if existing in expired_claims(record):
+                    return {"code": 2, "proceed": False,
+                            "record": {"state": "unresolved", "ticket": options.ticket}}
             return {"code": 0, "proceed": False,
                     "record": {"state": "claimed", "ticket": options.ticket,
                                "item": existing["item"],
@@ -546,6 +555,11 @@ class Claims:
         # A claim makes work visible; it never refuses work. Another live
         # claim on the same item is reported like an overlapping path, and
         # the sessions reconcile their changes at rebase (AGENTS.md).
+        if options.command == "reserve":
+            occupied = self.reservation_conflicts(record, options.item, options.provenance)
+            if occupied:
+                return {"code": 2, "proceed": False,
+                        "record": {"state": "occupied", "claims": occupied}}
         found = self.conflicts(record, options.item, options.paths)
         lease = options.lease_minutes
         entry = {"ticket": options.ticket, "item": options.item,
@@ -554,6 +568,10 @@ class Claims:
                  "lease_minutes": lease, "claimed_utc": now(),
                  "expires_utc": (datetime.now(timezone.utc)
                                  + timedelta(minutes=lease)).isoformat()}
+        if options.provenance:
+            entry["provenance"] = options.provenance
+        if options.command == "reserve":
+            entry["automatic"] = True
         record["claims"].append(entry)
         result = {"state": "claimed", "ticket": options.ticket, "item": options.item,
                   "expires_utc": entry["expires_utc"]}
@@ -626,7 +644,7 @@ class Claims:
                         {"ticket": claim["ticket"], "item": claim["item"],
                          "owner": claim["owner"], "paths": fences,
                          "expires_utc": claim["expires_utc"]})
-            emit({"state": "claimed" if live else "available", "claims": live,
+            emit({"state": "claimed" if live else "unresolved" if expired else "available", "claims": live,
                   "expired": expired, "off_board_fences": [],
                   "off_board_paths": off_board_fences,
                   "notes_pending": len(pending_notes(record)),
@@ -662,11 +680,13 @@ class Claims:
             emit({"state": "notes", "notes": notes, "count": len(notes)})
             return 0
         items = board_items(self.repository, options.board)
-        claimed_items = {claim["item"] for claim in live}
+        claimed_items = {claim["item"] for claim in record["claims"]}
         emit({"board": options.board,
               "unclaimed": [item for item in items if item not in claimed_items],
               "claimed": sorted(claim["item"] for claim in live
-                                if claim["board"] == options.board)})
+                                if claim["board"] == options.board),
+              "unresolved": sorted(claim["item"] for claim in expired
+                                   if claim["board"] == options.board)})
         return 0
 
 class Parser(argparse.ArgumentParser):
@@ -681,16 +701,19 @@ def main(argv=None):
                         help="explicit total deadline; default 15 seconds, 120 when registry acquisition is needed")
     subparsers = parser.add_subparsers(dest="command", required=True)
     subparsers.add_parser("status")
-    claim = subparsers.add_parser("claim")
-    claim.add_argument("--item", required=True)
-    claim.add_argument("--board", choices=BOARDS)
-    claim.add_argument("--owner", required=True)
-    claim.add_argument("--path", dest="paths", action="append", default=[])
-    claim.add_argument("--lease-minutes", type=int, default=DEFAULT_LEASE_MINUTES)
-    claim.add_argument("--note")
-    claim.add_argument("--ticket")
-    claim.add_argument("--allow-overlap", action="store_true",
-                       help="compatibility flag; paths always overlap freely, items do not")
+    for command in ("claim", "reserve"):
+        claim = subparsers.add_parser(command)
+        claim.add_argument("--item", required=True)
+        claim.add_argument("--board", choices=BOARDS)
+        claim.add_argument("--owner", required=True)
+        claim.add_argument("--path", dest="paths", action="append", default=[])
+        claim.add_argument("--lease-minutes", type=int, default=DEFAULT_LEASE_MINUTES)
+        claim.add_argument("--note")
+        claim.add_argument("--ticket")
+        claim.add_argument("--allow-overlap", action="store_true",
+                           help="compatibility flag; paths always overlap freely, items do not")
+        for field in ("session-id", "machine-id", "environment-id", "workspace-id", "dispatch-id"):
+            claim.add_argument("--" + field)
     renew = subparsers.add_parser("renew")
     renew.add_argument("--ticket", required=True)
     renew.add_argument("--lease-minutes", type=int)
@@ -732,15 +755,24 @@ def main(argv=None):
         options = parser.parse_args(argv)
         if options.timeout_seconds is not None and not 0 < options.timeout_seconds <= 300:
             raise ClaimsError("--timeout-seconds must be greater than zero and at most 300.")
-        if options.command in ("claim", "renew"):
+        if options.command in ("claim", "reserve", "renew"):
             lease = options.lease_minutes or DEFAULT_LEASE_MINUTES
             if not MIN_LEASE_MINUTES <= lease <= MAX_LEASE_MINUTES:
                 raise ClaimsError(f"Lease must be {MIN_LEASE_MINUTES}..{MAX_LEASE_MINUTES} minutes.")
-            if options.command == "claim":
+            if options.command in ("claim", "reserve"):
                 options.lease_minutes = lease
-        if options.command == "claim":
+        if options.command in ("claim", "reserve"):
             if not options.owner.strip() or len(options.owner) > 200:
                 raise ClaimsError("Supply a short, recognizable --owner.")
+            if options.command == "reserve":
+                options.item = outcome_key(options.item)
+            options.provenance = {field: getattr(options, field) for field in
+                                  ("session_id", "machine_id", "environment_id", "workspace_id", "dispatch_id")
+                                  if getattr(options, field) is not None}
+            if any(not value.strip() or len(value) > 2000 for value in options.provenance.values()):
+                raise ClaimsError("Provenance must be nonempty bounded labels; it is not authenticated.")
+            if "session_id" in options.provenance:
+                options.provenance["session_id"] = session_key(options.provenance["session_id"])
             options.fresh_ticket = options.ticket is None
             options.ticket = options.ticket or uuid.uuid4().hex
             ticket_id(options.ticket)
@@ -771,7 +803,7 @@ def main(argv=None):
         report = {"state": "unavailable", "error": str(error),
                   "command": options.command, "may_have_published": options.command not in
                   ("status", "available", "notes", "audit")}
-        if options.command == "claim":
+        if options.command in ("claim", "reserve"):
             report.update(ticket=options.ticket, item=options.item, owner=options.owner,
                           paths=options.paths)
             pending = Path(options.repository).resolve() / "build" / "claims-pending" / (options.ticket + ".json")
@@ -782,8 +814,12 @@ def main(argv=None):
             except OSError as recording_error:
                 report["recording_error"] = str(recording_error)
         emit(report)
-        print("claims: coordination unavailable; continue isolated work, report the pending claim, "
-              "and inspect status before retrying. This is not a successful registration.", file=sys.stderr)
+        if options.command == "reserve":
+            print("claims: automatic dispatch stopped; reservation may be uncertain. "
+                  "Inspect the exact ticket before retrying.", file=sys.stderr)
+        else:
+            print("claims: coordination unavailable; continue isolated work, report the pending claim, "
+                  "and inspect status before retrying. This is not a successful registration.", file=sys.stderr)
         return 3
     except (ClaimsError, OSError) as error:
         print(f"claims: {error}", file=sys.stderr)

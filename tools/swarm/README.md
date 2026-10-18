@@ -1,5 +1,12 @@
 # Swarm launcher
 
+Automatic assignment starts with the common [dispatch reservation procedure](dispatch.md):
+current-main gap evidence, atomic existing-claims outcome/session reservation,
+one durable send attempt, completed-session reuse and honest cache continuity.
+The local renderer and external Codex/Cursor calls require the parent's explicit
+reserve/arm/send/receipt procedure; Devin creates reserve in the executable path.
+No new queue or shared acceptance system is introduced.
+
 For dot cloud tasks with parent-owned create/read/follow-up tools, use the
 [cloud coordination adapter](cloud.md). It extends the recovery journal with
 durable dispatch results, dependency handoffs, final acceptance and bounded

@@ -5,6 +5,25 @@ description: Coordinate compiler advancement through reusable Codex cloud sessio
 
 # Codex session swarm
 
+Before automatic implementation assignment, follow the common
+[reserve-before-dispatch procedure](../../../tools/swarm/dispatch.md). Review a
+current-main spec/fact gap, reserve outcome and chosen session atomically through
+existing claims, and arm one durable send attempt before invoking the actual
+runtime. Shared compiler paths remain advisory. Never auto-recover an expired
+Zac/Devin claim: inspect actual liveness/progress; record confirmed stop evidence
+or named user takeover authority. Adopt the coordinator's reserved ticket rather
+than registering a second claim. Unknown sends retain their ticket and require
+runtime reconciliation before retrying.
+
+Prefer available completed sessions in the same saved Omega environment.
+Compare actual runtime/workspace/cache probes, preserve existing target/MBX
+caches and branch progress, and report unknown or reprovisioned continuity
+honestly. Reuse still fetches current main, creates an isolated lane, refreshes
+spec context and validates affected inputs with exact-SHA landing receipts.
+The repository emits/reserves requests; the parent must execute the discovered
+session API once and preserve its actual receipt. It cannot enforce arbitrary
+external tool calls. Do not start a fresh session solely because a turn ended.
+
 Run the requested compiler workload through a persistent pool of Codex sessions.
 Each worker keeps its own cloud executor, checkout, build cache and outcome chain.
 Reuse a settled session for its next dependency-ready assignment. The coordinator

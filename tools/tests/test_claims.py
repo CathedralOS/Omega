@@ -127,7 +127,7 @@ class RegistrationBudgetTests(unittest.TestCase):
         return module, registry
 
     def options(self, fresh=True):
-        return SimpleNamespace(ticket="a" * 32, owner="worker", item="ITEM",
+        return SimpleNamespace(command="claim", provenance={}, ticket="a" * 32, owner="worker", item="ITEM",
                                paths=["src/file.rs"], board=None, note=None,
                                lease_minutes=15, allow_overlap=False, fresh_ticket=fresh)
 
@@ -572,21 +572,21 @@ class ClaimsTests(unittest.TestCase):
         self.run_claims(self.b, "renew", "--ticket", "0" * 32, expected=1)
         self.run_claims(self.b, "release", "--ticket", "0" * 32, expected=1)
 
-    def test_expired_claim_is_reaped_and_never_blocks(self):
+    def test_expired_claim_stays_unresolved_but_ordinary_claim_is_advisory(self):
         claimed = self.claim(self.a, owner="A")
         record = self.remote_record()
         record["claims"][0]["expires_utc"] = (
             datetime.now(timezone.utc) - timedelta(minutes=1)).isoformat()
         self.rewrite_record(record)
         status = self.run_claims(self.b, "status")
-        self.assertEqual(status["state"], "available")
+        self.assertEqual(status["state"], "unresolved")
         self.assertEqual(status["expired"][0]["ticket"], claimed["ticket"])
         reclaimed = self.claim(self.b, owner="B")
         self.assertNotEqual(reclaimed["ticket"], claimed["ticket"])
         record = self.remote_record()
         self.assertEqual([entry["ticket"] for entry in record["claims"]],
-                         [reclaimed["ticket"]])
-        self.run_claims(self.a, "release", "--ticket", claimed["ticket"], expected=1)
+                         [claimed["ticket"], reclaimed["ticket"]])
+        self.run_claims(self.a, "release", "--ticket", claimed["ticket"])
 
     def test_recover_requires_reason_and_removes_other_owner(self):
         claimed = self.claim(self.a, owner="A")
@@ -598,6 +598,62 @@ class ClaimsTests(unittest.TestCase):
         self.assertEqual(self.run_claims(self.a, "status")["state"], "available")
         self.run_claims(self.a, "claim", "--item", "ALPHA-ITEM", "--owner", "A",
                         "--ticket", claimed["ticket"], expected=1)
+
+    def test_concurrent_automatic_reservations_exclude_same_outcome(self):
+        processes = [self.start(directory, "reserve", "--item", "ALPHA-ITEM", "--owner", owner)
+                     for directory, owner in [(self.a, "A"), (self.b, "B")]]
+        results = [self.finish(process) for process in processes]
+        self.assertEqual(sorted(code for code, _, _ in results), [0, 2])
+        self.assertEqual(len(self.remote_record()["claims"]), 1)
+
+    def test_existing_ticket_cannot_bypass_peer_ownership_for_automatic_reserve(self):
+        first = self.claim(self.a, owner="A")
+        self.claim(self.b, owner="B")
+        self.run_claims(self.a, "reserve", "--ticket", first["ticket"], "--owner", "A",
+                        "--board", "TASKS.md", "--item", "ALPHA-ITEM", expected=2)
+        self.assertEqual(len(self.remote_record()["claims"]), 2)
+
+    def test_session_namespaces_normalize_without_folding_opaque_handles(self):
+        processes = [self.start(directory, "reserve", "--item", item, "--owner", item,
+                                "--session-id", session)
+                     for directory, item, session in [(self.a, "ALPHA-ITEM", "Codex:One"),
+                                                       (self.b, "BETA-ITEM", "codex:One")]]
+        self.assertEqual(sorted(self.finish(p)[0] for p in processes), [0, 2])
+        self.run_claims(self.a, "reserve", "--item", "OTHER", "--owner", "C",
+                        "--session-id", "codex:one")
+        self.run_claims(self.a, "reserve", "--item", "UNKNOWN", "--owner", "D",
+                        "--session-id", "unrecognized:One", expected=1)
+        record = self.remote_record()
+        record["claims"][0]["provenance"]["session_id"] = "CODEX:One"
+        self.rewrite_record(record)
+        self.run_claims(self.a, "reserve", "--item", "THIRD", "--owner", "E",
+                        "--session-id", "codex:One", expected=2)
+
+    def test_distinct_outcomes_can_share_paths_but_not_session(self):
+        first = self.run_claims(self.a, "reserve", "--item", "ALPHA-ITEM", "--owner", "A",
+                                "--path", "src/shared", "--session-id", "codex:one")
+        self.run_claims(self.b, "reserve", "--item", "BETA-ITEM", "--owner", "B",
+                        "--path", "src/shared", "--session-id", "codex:one", expected=2)
+        self.run_claims(self.b, "reserve", "--item", "BETA-ITEM", "--owner", "B",
+                        "--path", "src/shared", "--session-id", "cursor:two")
+        self.assertEqual(len(self.remote_record()["claims"]), 2)
+        self.run_claims(self.a, "reserve", "--ticket", first["ticket"], "--item", "OTHER",
+                        "--owner", "A", expected=1)
+
+    def test_automatic_reservation_blocks_expired_live_or_legacy_alias_claims(self):
+        held = self.run_claims(self.a, "claim", "--item", "samples/cli/facts/example/local/main.omg",
+                               "--owner", "Zac / Devin")
+        record = self.remote_record()
+        record["claims"][0]["expires_utc"] = (datetime.now(timezone.utc) - timedelta(days=2)).isoformat()
+        self.rewrite_record(record)
+        self.claim(self.b, item="BETA-ITEM")  # Unrelated writes must not erase stale ownership.
+        self.run_claims(self.b, "reserve", "--item", "samples/cli/facts/example", "--owner", "automatic", expected=2)
+        self.assertEqual(len(self.remote_record()["claims"]), 2)
+        self.run_claims(self.a, "renew", "--ticket", held["ticket"])
+        self.run_claims(self.b, "reserve", "--item", "samples/cli/facts/example", "--owner", "automatic", expected=2)
+        self.run_claims(self.a, "recover", "--ticket", held["ticket"],
+                        "--reason", "Owner confirmed stopped; preserved branch and session checkpoint")
+        self.run_claims(self.b, "reserve", "--item", "samples/cli/facts/example", "--owner", "automatic")
 
     def test_concurrent_claims_retain_both_arrivals(self):
         for round_number in range(3):

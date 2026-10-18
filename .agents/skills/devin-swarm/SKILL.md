@@ -5,6 +5,16 @@ description: Coordinate a requested Devin swarm with complete end-to-end outcome
 
 # Devin outcome coordination
 
+Before automatic implementation assignment, follow the common
+[reserve-before-dispatch procedure](../../../tools/swarm/dispatch.md). Review a
+current-main spec/fact gap, reserve outcome and chosen session atomically through
+existing claims, and arm one durable send attempt before invoking the actual
+runtime. Shared compiler paths remain advisory. Never auto-recover an expired
+Zac/Devin claim: inspect actual liveness/progress; record confirmed stop evidence
+or named user takeover authority. Adopt the coordinator's reserved ticket rather
+than registering a second claim. Unknown sends retain their ticket and require
+runtime reconciliation before retrying.
+
 Each session carries its outcome through acceptance and integration. Follow
 [AGENTS.md](../../../AGENTS.md), [advance](../advance/SKILL.md),
 [claims](../../../tools/claims.md), [testing](../../../tools/testing.md) and

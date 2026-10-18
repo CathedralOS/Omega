@@ -1,5 +1,12 @@
 # Cloud coordination adapter
 
+Before automatic implementation dispatch, apply [common outcome/session reservation](dispatch.md).
+The parent reserves through existing claims before admitting/sending the chosen
+assignment, retains the exact ticket in this controller's ownership binding,
+and uses the actual durable adapter once. Prefer completed reusable Codex
+sessions; verify executor/workspace/cache continuity and refresh main/spec/input
+context. This controller does not replace cross-runtime outcome reservation.
+
 `cloud.py` adds cloud assignment records to the existing schema-2 recovery
 journal. It uses the same `Store`, process locks, atomic writes and revision
 checks as `recovery.py`. It has no network client, daemon, provider endpoint,

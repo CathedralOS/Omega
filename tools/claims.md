@@ -4,7 +4,9 @@ The registry at `refs/coordination/omega-claims/main` records which sessions
 are working on which outcomes, so overlapping work is visible. A claim never
 grants or refuses work: two sessions may claim the same item or overlapping
 paths, and they reconcile their changes at rebase. Publication uses
-[landing](landing.md).
+[landing](landing.md). Automatic dispatch uses opt-in `reserve` in this same
+registry; it excludes duplicate outcomes and session IDs, never shared files.
+Follow [reserve before dispatch](swarm/dispatch.md) before sending implementation.
 
 ## Inspect and claim
 
@@ -36,7 +38,7 @@ assignments may still claim the sample path. Existing sample tickets stay valid:
 record parent context in their notes rather than replacing tickets mid-repair.
 Keep the capability claim across its landed witnesses while actively continuing;
 release when its acceptance is complete or the session stops, preserving the
-remaining frontier. No registry schema change is needed.
+remaining frontier. No registry schema change is needed. Expired ownership is retained for reconciliation.
 
 `python3 tools/sample_queue.py` reads one live registry snapshot while listing
 failing samples. Unclaimed programs come first; occupied samples show their
@@ -115,9 +117,27 @@ belong to this repository, and reading them must not walk or fetch application
 submodules. This is a per-command setting; ordinary project fetches retain their
 configured submodule behavior.
 
-Mutations compare-and-swap the Git reference, so concurrent claims all
-survive, including two on the same item. Expired claims are reaped by the
-next writer. This serializes registration, not development.
+Mutations compare-and-swap the Git reference. Ordinary `claim` remains advisory:
+concurrent claims on one item survive. Opt-in `reserve` rechecks the canonical
+outcome and optional namespaced session ID after every collision; one succeeds,
+others return exit 2 (`occupied`). All nine places of a fact share its key.
+Paths remain advisory. `reserve --item ITEM --owner LABEL --session-id codex:ID`
+uses the existing registry, not a second queue. Optional `--machine-id`,
+`--environment-id`, `--workspace-id` and `--dispatch-id` labels are useful
+provenance, not authenticated identities.
+
+Exit 3/unknown reservation writes stop automatic dispatch. They do not authorize
+isolated implementation. Expired unresolved records also exclude automatic
+assignment; `status` distinguishes them, and `available` excludes them. Renew,
+note or release an expired ticket when reconciling its actual owner.
+
+Inspect runtime/session/branch progress before `recover`; lease age does not
+prove a stop. In `--reason`, name actual stopped-owner evidence and preserved
+checkpoint, or the named user's explicit active-owner takeover authority. An old
+Zac/Devin lease is never that authority. No automatic selector calls recovery.
+Refresh coordinating clients: old versions may still reap expired records or
+bypass automatic reservation. Reconcile real in-flight work even when a ticket
+is absent. This is cooperative coordination, not access control.
 
 ## Validation
 

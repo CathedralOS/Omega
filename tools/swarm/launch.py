@@ -17,11 +17,11 @@ worktrees, and prints the launch table for the coordinator to spawn from.
 Local waves have no session receipts, so status/report remain cloud-only —
 tools/swarm/worktree_status.py is the local equivalent.
 
-What this launcher deliberately does NOT do: it writes no board text, holds no
-landing claim, creates no Git refs beyond the worktrees `local` is explicitly
-asked for, and keeps no ownership state. Its receipts live only in the ignored
-build/swarm/ directory so worker/session IDs stay off the boards. Partitioning
-lives only in the manifest the coordinator wrote. Outcome claims prevent
+The launcher writes no board text and holds no landing claim. Before each
+implementation create it reserves ownership in the existing shared claims ref.
+Its durable send receipts live in the ignored build/swarm/ directory so
+worker/session IDs stay off the boards. Partitioning lives in the reviewed
+manifest the coordinator wrote. Outcome reservations prevent
 duplicate assignments; overlapping path estimates inform reconciliation,
 not permission to work.
 
@@ -40,12 +40,16 @@ import shutil
 import subprocess
 import sys
 import time
+import uuid
 import urllib.error
 import urllib.request
 
 # Sibling-tool import; claims.py lives in tools/.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import claims
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from dispatch import claim_call
+from recovery_state import atomic_json, exclusive, RecoveryError
 import corpus_scoreboard
 import sample_native_gate
 import typesafe_key
@@ -992,7 +996,8 @@ def api_request(method, url, body=None):
     key, _ = credentials()
     payload = json.dumps(body).encode("utf-8") if body is not None else None
     delay = 0.5
-    for attempt in range(1, MAX_ATTEMPTS + 1):
+    attempts = MAX_ATTEMPTS if method == "GET" else 1
+    for attempt in range(1, attempts + 1):
         request = urllib.request.Request(url, data=payload, method=method)
         request.add_header("Authorization", f"Bearer {key}")
         request.add_header("Content-Type", "application/json")
@@ -1005,16 +1010,16 @@ def api_request(method, url, body=None):
                 raise SwarmError(f"API authentication failed ({error.code}); "
                                  "check DEVIN_API_KEY and DEVIN_ORG_ID.") from error
             if error.code == 429 or error.code >= 500:
-                if attempt == MAX_ATTEMPTS:
+                if attempt == attempts:
                     raise SwarmError(f"API {method} {url} failed with {error.code} "
-                                     f"after {MAX_ATTEMPTS} attempts.") from error
+                                     f"after {attempts} attempts; reconcile writes before retrying.") from error
                 time.sleep(delay)
                 delay *= 2
                 continue
             detail = error.read().decode("utf-8", errors="replace")[:500]
             raise SwarmError(f"API {method} {url} failed ({error.code}): {detail}") from error
         except urllib.error.URLError as error:
-            if attempt == MAX_ATTEMPTS:
+            if attempt == attempts:
                 raise SwarmError(f"API {method} {url} unreachable: {error.reason}") from error
             time.sleep(delay)
             delay *= 2
@@ -1038,9 +1043,57 @@ def read_receipts(directory):
 
 def write_receipts(directory, receipts):
     directory.mkdir(parents=True, exist_ok=True)
-    ordered = [receipts[name] for name in sorted(receipts)]
-    (directory / "receipts.json").write_text(
-        json.dumps(ordered, ensure_ascii=True, indent=2) + "\n", encoding="utf-8")
+    with exclusive(directory / "receipts.lock"):
+        merged = read_receipts(directory)
+        merged.update(receipts)
+        atomic_json(directory / "receipts.json", [merged[name] for name in sorted(merged)])
+
+
+def reserved_create(repository, directory, name, owner, session, body, url):
+    """One durable create attempt; a failed/unknown send never silently retries."""
+    original = claim_command(session, owner)
+    if session.get('semantic_handoff_role') != 'review' and body['prompt'].count(original) != 1:
+        raise SwarmError(f'{name}: prompt must contain exactly one reservation adoption command')
+    path = directory / "dispatch" / (name + ".json")
+    with exclusive(str(path) + ".lock"):
+        if path.exists():
+            raise SwarmError(f"{name}: dispatch intent exists at {path}; reconcile or reuse the recorded session")
+        ticket = uuid.uuid4().hex
+        record = dict(ticket=ticket, owner=owner, item=session['item'], phase='reserving')
+        atomic_json(path, record)
+        arguments = ['reserve', '--ticket', ticket, '--owner', owner,
+                     '--item', session['item'], '--dispatch-id', ticket]
+        if session.get('board'):
+            arguments += ['--board', session['board']]
+        for owning in session['owning_paths']:
+            arguments += ['--path', owning]
+        if session.get('semantic_handoff_role') == 'review':
+            code, receipt = 0, dict(state='read-only', claim_ticket=None)
+        else:
+            code, receipt = claim_call(repository, *arguments)
+        record.update(reservation=receipt, phase='reserved' if code == 0 else 'occupied' if code == 2 else 'uncertain')
+        atomic_json(path, record)
+        if code:
+            raise SwarmError(f"{name}: no automatic reservation ({record['phase']}); inspect {path}")
+        if session.get('semantic_handoff_role') == 'review':
+            ticket = None
+        body['prompt'] = body['prompt'].replace(original, original + (' --ticket ' + ticket if ticket else ''))
+        if ticket:
+            body['prompt'] += (f"\nCoordinator reserved existing shared claim `{ticket}` for this outcome. "
+                           "Adopt/renew that ticket; do not duplicate it. Other implementation-path overlap remains advisory.\n")
+        record.update(phase='sending', body=body)
+        atomic_json(path, record)
+        try:
+            response = api_request('POST', url, body)
+            if not (response.get('session_id') or response.get('id')):
+                raise SwarmError(f"{name}: create returned no session id; inspect existing runtime before retrying")
+        except Exception as error:
+            record.update(phase='uncertain', error=str(error))
+            atomic_json(path, record)
+            raise
+        record.update(phase='sent', response=response)
+        atomic_json(path, record)
+        return response, ticket
 
 
 def command_plan(arguments, repository):
@@ -1102,8 +1155,8 @@ def command_launch(arguments, repository):
                                              route_data)
             for session in sessions
         })
-        claims_report(repository, sessions,
-                      skip=arguments.skip_claims_check)
+        # A snapshot is not an automatic dispatch reservation. Each actual
+        # create below uses the common registry CAS, even when probes skip claims.
     template = (Path(__file__).resolve().parent / "prompt_template.md").read_text(
         encoding="utf-8")
     wave_directory = build_directory(repository, manifest["wave"])
@@ -1128,15 +1181,16 @@ def command_launch(arguments, repository):
         if arguments.dry_run:
             launched.append({"name": name, "dry_run": True, "body": body})
             continue
-        response = api_request(
-            "POST",
-            f"{arguments.base_url}/organizations/{organization}/sessions", body)
+        response, ticket = reserved_create(
+            repository, wave_directory, name, f"{manifest['owner_label_prefix']}-{name}",
+            session, body, f"{arguments.base_url}/organizations/{organization}/sessions")
         session_id = response.get("session_id") or response.get("id")
         if not session_id:
             raise SwarmError(f"{name}: create response had no session id: {response}")
         receipts[name] = {
             "name": name,
             "session_id": session_id,
+            "claim_ticket": ticket,
             "url": response.get("url") or session_url(session_id),
             "created_utc": datetime.now(timezone.utc).isoformat(),
             "base": base,
@@ -1434,7 +1488,7 @@ def main(argv=None):
                    "local": command_local, "status": command_status,
                    "report": command_report}[arguments.command]
         return handler(arguments, repository)
-    except (SwarmError, OSError) as error:
+    except (SwarmError, RecoveryError, OSError) as error:
         print(f"swarm: {error}", file=sys.stderr)
         return 1
 
