@@ -1,151 +1,103 @@
-//! Borrowed addresses travel with the actual edge's owned permission roster.
-//! These aliases authenticate addresses; they neither select pointer bits nor
-//! grant a new observation of a suspended parent.
+//! Capture borrowed storage before an edge disposes its address carrier.
+//!
+//! A borrowed parameter receives the original address, not a recipe for
+//! rereading a dead descriptor. Its source retains normalized storage and the
+//! exact immediate occurrence obligations. Retired occurrences supply ancestry
+//! only; any later inner descriptor read still rejoins current resident storage.
 use super::*;
 use abstract_operations::AbstractStructuralBinding;
+use optimization_unit_semantics::StructuralStorageProjection;
 use terminal_psi::StructuralParameterDeclaration;
 
-type Sources = BTreeMap<PlaceId, Option<Vec<StructuralArgument>>>;
-type Identity = (PlaceId, Vec<StructuralPathSegment>);
+// Fixed-point propagation retains unknown predecessors explicitly. Consuming
+// an unknown arrival refuses; it never becomes an activation-local owning root.
+pub(super) type Sources = BTreeMap<PlaceId, Option<Vec<Source>>>;
 
-fn canonicalize(sources: &mut Vec<StructuralArgument>) {
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct Source {
+    root: Root,
+    projection: StructuralStorageProjection,
+    access: StructuralAccess,
+    pub(super) parents: Vec<OccurrenceIdentity>,
+}
+
+fn canonicalize(sources: &mut Vec<Source>) {
     sources.sort_by(|left, right| {
-        (&left.place, &left.path, left.access).cmp(&(&right.place, &right.path, right.access))
+        (&left.root, &left.parents, left.access).cmp(&(&right.root, &right.parents, right.access))
     });
     sources.dedup();
 }
 
-/// Flatten against the pre-transfer state. Never reinterpret an unresolved
-/// borrowed parameter as an activation-local owning home.
+/// Resolve current typed storage only when a consumer actually needs to read
+/// an inner descriptor. Captured byte geometry cannot manufacture such a slot.
 pub(super) fn flatten(
     function: &PsiOptimizationFunction,
     custody: &Custody,
     types: &[StructuralTypeDeclaration],
     source: &StructuralArgument,
 ) -> Option<Vec<StructuralArgument>> {
-    let declared = function.structural_parameter(source.place).or_else(|| {
-        function
-            .block_structural_parameters()
-            .find(|parameter| parameter.place == source.place)
-    });
-    if declared.is_some_and(|parameter| !source.access.admits(parameter.access)) {
-        return None;
-    }
-    let expected = storage_projection(function, custody, types, source)?;
     let Some(origins) = custody.borrowed_sources.get(&source.place) else {
         return Some(vec![source.clone()]);
     };
     let mut resolved = Vec::new();
-    for origin in origins.as_ref()?.iter() {
+    for origin in origins.as_ref()? {
         if !source.access.admits(origin.access) {
             return None;
         }
-        let mut actual = origin.clone();
-        actual.path.extend_from_slice(&source.path);
-        actual.access = source.access;
-        if !storage_projection(function, custody, types, &actual)?.matches(types.iter(), expected) {
+        let StructuralStorageProjection::Endpoint(referent) = origin.projection else {
             return None;
+        };
+        for storage in storage_origins(function, custody, types, &origin.root, referent).ok()? {
+            let mut path = storage.exact_path()?;
+            path.extend_from_slice(&source.path);
+            resolved.push(StructuralArgument {
+                place: storage.base.root_place()?,
+                path,
+                access: source.access,
+            });
         }
-        resolved.push(actual);
     }
     (!resolved.is_empty()).then_some(resolved)
 }
 
-fn transport(
-    before: &Custody,
-    after: &Custody,
+pub(super) fn normalize(
+    function: &PsiOptimizationFunction,
+    custody: &Custody,
+    types: &[StructuralTypeDeclaration],
     source: &StructuralArgument,
-    locations: &BTreeMap<Identity, Identity>,
-    identities: &BTreeMap<OccurrenceIdentity, Vec<OccurrenceIdentity>>,
-    parameters: &[StructuralParameterDeclaration],
-    bindings: &[AbstractStructuralBinding],
-) -> Option<StructuralArgument> {
-    let mut actual = source.clone();
-    if source
-        .path
-        .iter()
-        .any(|segment| segment.runtime_index().is_some())
-    {
-        // A raw selector is not an operation-owned captured address. Dynamic
-        // backing is admitted through the live carrier, never this geometry.
-        return None;
-    }
-    if let Some(crossing) = source
-        .path
-        .iter()
-        .rposition(|segment| *segment == StructuralPathSegment::Referent)
-    {
-        let leaf = before.leaf(source.place, &source.path[..crossing])?;
-        let location = (source.place, source.path[..crossing].to_vec());
-        let destination = locations.get(&location).unwrap_or(&location);
-        let arrived = after.leaf(destination.0, &destination.1)?;
-        let identity = if locations.contains_key(&location) {
-            OccurrenceIdentity::parameter(destination)
-        } else {
-            leaf.identity.clone()
-        };
-        if locations.contains_key(&location) {
-            let parameter = parameters
+) -> Result<(Root, Vec<OccurrenceIdentity>), LegalizationError> {
+    let Some(origins) = custody.borrowed_sources.get(&source.place) else {
+        return normalized_direct_source(function, custody, types, source);
+    };
+    let origins = origins
+        .as_ref()
+        .filter(|origins| !origins.is_empty())
+        .ok_or_else(invalid)?;
+    if source.path.contains(&StructuralPathSegment::Referent) {
+        return combine_candidate_origins(
+            flatten(function, custody, types, source)
+                .ok_or_else(invalid)?
                 .iter()
-                .find(|parameter| parameter.place == destination.0)?;
-            if arrived.contract != CarrierContract::Parameter(parameter.clone()) {
-                return None;
-            }
-        }
-        let mut parents: Vec<_> = leaf
-            .parents
-            .iter()
-            .flat_map(|parent| {
-                identities
-                    .get(parent)
-                    .cloned()
-                    .unwrap_or_else(|| vec![parent.clone()])
-            })
-            .collect();
-        parents.sort();
-        parents.dedup();
-        let mut debts = leaf.lifetime_debts.clone();
-        for debt in &mut debts {
-            debt.parents = debt
-                .parents
-                .iter()
-                .flat_map(|parent| {
-                    identities
-                        .get(parent)
-                        .cloned()
-                        .unwrap_or_else(|| vec![parent.clone()])
-                })
-                .collect();
-            debt.parents.sort();
-            debt.parents.dedup();
-        }
-        debts.sort();
-        debts.dedup();
-        if arrived.identity != identity
-            || arrived.root != leaf.root
-            || arrived.backing != leaf.backing
-            || arrived.lifetime_debts != debts
-            || arrived.referent != leaf.referent
-            || arrived.formations != leaf.formations
-            || arrived.parents != parents
-        {
-            return None;
-        }
-        actual.place = destination.0;
-        actual.path = destination.1.clone();
-        actual.path.extend_from_slice(&source.path[crossing..]);
-    } else if bindings.iter().any(|binding| {
-        binding.argument.access == StructuralAccess::Owned
-            && binding.argument.place == source.place
-            && source.path.starts_with(&binding.argument.path)
-    }) {
-        // Moving a backing home is not moving a reference permission. The
-        // carrier rule cannot manufacture authority for its relocated storage.
-        return None;
+                .map(|actual| normalized_direct_source(function, custody, types, actual))
+                .collect::<Result<Vec<_>, _>>()?,
+        );
     }
-    Some(actual)
+    // Presentation is checked at the receiving coordinate. It is not a demand
+    // to reinterpret the original byte storage as a newly declared value.
+    storage_projection(function, custody, types, source).ok_or_else(invalid)?;
+    let mut candidates = Vec::with_capacity(origins.len());
+    for origin in origins {
+        if !source.access.admits(origin.access) {
+            return Err(invalid());
+        }
+        candidates.push((origin.root.projected(&source.path), origin.parents.clone()));
+    }
+    combine_candidate_origins(candidates)
 }
 
+/// Capture every actual while all source descriptors still exist. Owned
+/// transfer has already selected the receiving leaf occurrences; remap only
+/// those exact identities, never equal backing or a declared reference type.
 pub(super) fn bind(
     function: &PsiOptimizationFunction,
     before: &Custody,
@@ -157,11 +109,7 @@ pub(super) fn bind(
     if bindings.len() != parameters.len() {
         return Err(invalid());
     }
-    // Case alternatives of one carrier hold one occurrence, which arrives at
-    // one parameter coordinate per alternative.
-    let mut identities = BTreeMap::<_, Vec<_>>::new();
-    let mut selected = BTreeMap::new();
-    let mut locations = BTreeMap::new();
+    let mut identities = Vec::new();
     for (binding, parameter) in bindings.iter().zip(parameters) {
         if binding.argument.access != StructuralAccess::Owned
             || parameter.access != StructuralAccess::Owned
@@ -169,50 +117,21 @@ pub(super) fn bind(
             continue;
         }
         for (location, leaf) in &before.leaves {
-            if location.0 != binding.argument.place {
-                continue;
-            }
-            if let Some(relative) = owned_relative_path(&location.1, &binding.argument.path) {
+            if location.0 == binding.argument.place
+                && let Some(relative) = owned_relative_path(&location.1, &binding.argument.path)
+            {
                 let destination = (parameter.place, relative.to_vec());
-                let repeated = selected
-                    .insert(leaf.identity.clone(), (location, leaf))
-                    .is_some_and(|(previous, previous_leaf)| {
-                        previous_leaf != leaf
-                            || !super::retirements::alternative_residency(previous, location)
-                    });
-                identities
-                    .entry(leaf.identity.clone())
-                    .or_default()
-                    .push(OccurrenceIdentity::parameter(&destination));
-                if repeated || locations.insert(location.clone(), destination).is_some() {
+                let arrived = after.leaves.get(&destination).ok_or_else(invalid)?;
+                if arrived.identity != OccurrenceIdentity::parameter(&destination)
+                    || arrived.contract != CarrierContract::Parameter(parameter.clone())
+                {
                     return Err(invalid());
                 }
+                identities.push((leaf.identity.clone(), arrived.identity.clone()));
             }
         }
     }
-    let mut sources: Sources = before
-        .borrowed_sources
-        .iter()
-        .map(|(place, origins)| {
-            let transported = origins.as_ref().and_then(|origins| {
-                origins
-                    .iter()
-                    .map(|origin| {
-                        transport(
-                            before,
-                            after,
-                            origin,
-                            &locations,
-                            &identities,
-                            parameters,
-                            bindings,
-                        )
-                    })
-                    .collect()
-            });
-            (*place, transported)
-        })
-        .collect();
+    let mut sources = before.borrowed_sources.as_ref().clone();
     for (binding, parameter) in bindings.iter().zip(parameters) {
         if !sources.contains_key(&parameter.place) {
             continue;
@@ -220,40 +139,104 @@ pub(super) fn bind(
         if !parameter.access.admits(binding.argument.access) {
             return Err(invalid());
         }
-        let expected = optimization_unit_semantics::StructuralStorageProjection::Endpoint(
-            parameter.structural_type,
-        );
-        let mut origins = flatten(function, before, types, &binding.argument).and_then(|origins| {
-            origins
-                .into_iter()
-                .map(|origin| {
-                    let mut actual = transport(
+        let captured = (|| {
+            let projection = storage_projection(function, before, types, &binding.argument)?;
+            if !projection.matches(
+                types.iter(),
+                StructuralStorageProjection::Endpoint(parameter.structural_type),
+            ) {
+                return None;
+            }
+            let (root, parents) = normalize(function, before, types, &binding.argument).ok()?;
+            // Moving an owning home cannot leave an address to its former
+            // storage behind. Only descriptor occurrence transport is rebased.
+            for binding in bindings
+                .iter()
+                .filter(|binding| binding.argument.access == StructuralAccess::Owned)
+            {
+                for origin in root.origins() {
+                    // Captured incoming contents are the pointee value, not
+                    // the descriptor slot named in their provenance. Moving
+                    // that slot cannot move the external pointee.
+                    if !matches!(origin.base, target_operations::TargetReferenceOriginBase::Storage { root } if root == binding.argument.place)
+                    {
+                        continue;
+                    }
+                    let cursors = storage_origins(
+                        function,
                         before,
-                        after,
-                        &origin,
-                        &locations,
-                        &identities,
-                        parameters,
-                        bindings,
-                    )?;
-                    actual.access = parameter.access;
-                    storage_projection(function, after, types, &actual)?
-                        .matches(types.iter(), expected)
-                        .then_some(actual)
-                })
-                .collect::<Option<Vec<_>>>()
-        });
-        if let Some(origins) = &mut origins {
-            canonicalize(origins);
-        }
-        sources.insert(parameter.place, origins);
+                        types,
+                        &Root::Alternatives(vec![origin]),
+                        parameter.structural_type,
+                    )
+                    .ok()?;
+                    for cursor in cursors {
+                        let path = cursor.exact_path()?;
+                        if owned_relative_path(&path, &binding.argument.path).is_some() {
+                            return None;
+                        }
+                    }
+                }
+            }
+            Some(vec![Source {
+                root,
+                projection: StructuralStorageProjection::Endpoint(parameter.structural_type),
+                access: parameter.access,
+                parents,
+            }])
+        })();
+        sources.insert(parameter.place, captured);
     }
     after.borrowed_sources = std::sync::Arc::new(sources);
+    remap_parents(after, &identities);
     Ok(())
 }
 
-/// Every arrival contributes; unknown on any path stays unknown. Selecting a
-/// carrier preserves its correlation, while direct backing alternatives union.
+pub(super) fn obligations(custody: &Custody) -> impl Iterator<Item = &OccurrenceIdentity> {
+    custody
+        .borrowed_sources
+        .values()
+        .flatten()
+        .flatten()
+        .flat_map(|source| &source.parents)
+}
+
+pub(super) fn remap_parents(
+    custody: &mut Custody,
+    identities: &[(OccurrenceIdentity, OccurrenceIdentity)],
+) {
+    if identities.is_empty() {
+        return;
+    }
+    for sources in std::sync::Arc::make_mut(&mut custody.borrowed_sources)
+        .values_mut()
+        .flatten()
+    {
+        for source in sources.iter_mut() {
+            source.parents = source
+                .parents
+                .iter()
+                .flat_map(|parent| {
+                    let moved = identities
+                        .iter()
+                        .filter(|(original, _)| original == parent)
+                        .map(|(_, destination)| destination.clone())
+                        .collect::<Vec<_>>();
+                    if moved.is_empty() {
+                        vec![parent.clone()]
+                    } else {
+                        moved
+                    }
+                })
+                .collect();
+            source.parents.sort();
+            source.parents.dedup();
+        }
+        canonicalize(sources);
+    }
+}
+
+/// Every arrival contributes; an unknown predecessor never donates evidence.
 pub(super) fn merge(left: &mut Custody, right: &Custody) -> Result<(), LegalizationError> {
     if !left
         .borrowed_sources
@@ -273,34 +256,4 @@ pub(super) fn merge(left: &mut Custody, right: &Custody) -> Result<(), Legalizat
         }
     }
     Ok(())
-}
-
-/// Operation-local carrier moves preserve permission identity. Rewrite only
-/// aliases crossing a descriptor at an exactly authenticated moved location.
-pub(super) fn relocate(custody: &mut Custody, locations: &BTreeMap<Identity, Identity>) {
-    if locations.is_empty() {
-        return;
-    }
-    for origins in std::sync::Arc::make_mut(&mut custody.borrowed_sources)
-        .values_mut()
-        .flatten()
-    {
-        for origin in origins.iter_mut() {
-            let Some(crossing) = origin
-                .path
-                .iter()
-                .rposition(|segment| *segment == StructuralPathSegment::Referent)
-            else {
-                continue;
-            };
-            let source = (origin.place, origin.path[..crossing].to_vec());
-            if let Some(destination) = locations.get(&source) {
-                let suffix = origin.path[crossing..].to_vec();
-                origin.place = destination.0;
-                origin.path = destination.1.clone();
-                origin.path.extend(suffix);
-            }
-        }
-        canonicalize(origins);
-    }
 }

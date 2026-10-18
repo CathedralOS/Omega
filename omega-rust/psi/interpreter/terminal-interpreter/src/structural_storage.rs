@@ -158,11 +158,19 @@ impl crate::execution::TerminalExecution<'_> {
             || !self.element_view_values.is_empty()
             || !self.structural_element_view_fields.is_empty()
             || self
+                .aggregate_argument_backings
+                .values()
+                .any(|backing| backing.byte_region.is_some())
+            || self
                 .reference_referents
                 .values()
                 .any(|referent| referent.primitive_loan.is_some() || referent.byte_region.is_some())
             || self.call_stack.iter().any(|frame| {
                 !frame.primitive_loan_values.is_empty()
+                    || frame
+                        .aggregate_argument_backings
+                        .values()
+                        .any(|backing| backing.byte_region.is_some())
                     || !frame.byte_sequence_values.is_empty()
                     || !frame.element_view_values.is_empty()
                     || matches!(frame.result, SuspendedCallResult::NominalCleanups { .. })

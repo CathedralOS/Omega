@@ -19,6 +19,26 @@ struct ReferenceByteRegionProjection {
     scalar: Option<(ScalarType, ScalarType)>,
 }
 
+impl ReferenceByteRegionProjection {
+    fn scalar_storage(self) -> Result<(PrimitiveStorage, ScalarType), TerminalInterpretError> {
+        let (logical_scalar, stored_scalar) =
+            self.scalar
+                .ok_or(TerminalInterpretError::UnsupportedSemanticVariant(
+                    "captured byte-region projection has no contiguous scalar geometry",
+                ))?;
+        Ok((
+            PrimitiveStorage {
+                endpoint: self.region.endpoint,
+                encoding: Some(PrimitiveStorageEncoding {
+                    source: stored_scalar,
+                    view: stored_scalar,
+                }),
+            },
+            logical_scalar,
+        ))
+    }
+}
+
 /// A replacement must fit the retained codec before any boundary publication.
 pub(crate) fn scalar_fits_storage(stored: ScalarType, scalar: TerminalScalarValue) -> bool {
     terminal_semantics::reference_storage_view_is_compatible(stored, scalar.scalar_type())
@@ -42,22 +62,23 @@ impl TerminalExecution<'_> {
         let Some(projected) = self.project_reference_byte_region(backing_view, &view.path)? else {
             return Ok(None);
         };
-        let (logical_scalar, stored_scalar) =
-            projected
-                .scalar
-                .ok_or(TerminalInterpretError::UnsupportedSemanticVariant(
-                    "captured byte-region projection has no contiguous scalar geometry",
-                ))?;
-        Ok(Some((
-            PrimitiveStorage {
-                endpoint: projected.region.endpoint,
-                encoding: Some(PrimitiveStorageEncoding {
-                    source: stored_scalar,
-                    view: stored_scalar,
-                }),
-            },
-            logical_scalar,
-        )))
+        projected.scalar_storage().map(Some)
+    }
+
+    /// A suspended ingress already owns this exact association. Project its
+    /// complete declared path without consulting another activation's place
+    /// namespace or looking for the now-retired supplying descriptor.
+    pub(crate) fn captured_byte_region_access(
+        &self,
+        anchor: &crate::values::TerminalStructuralValue,
+        region: &crate::reference::ReferenceByteRegion,
+        path: &[terminal_psi::StructuralPathSegment],
+    ) -> Result<(PrimitiveStorage, ScalarType), TerminalInterpretError> {
+        let mut projected_path = anchor.path.clone();
+        projected_path.extend_from_slice(path);
+        self.project_byte_regions(anchor, &projected_path, std::iter::once((anchor, region)))?
+            .ok_or_else(malformed)?
+            .scalar_storage()
     }
 
     /// Project a captured region under its declared type and retain its endpoint.
@@ -80,20 +101,42 @@ impl TerminalExecution<'_> {
         view: &crate::values::TerminalStructuralValue,
         projected_path: &[terminal_psi::StructuralPathSegment],
     ) -> Result<Option<ReferenceByteRegionProjection>, TerminalInterpretError> {
+        // Carrier retirement ends that descriptor, not a borrowed ingress's
+        // retained storage. Both supply the same authenticated anchor/region
+        // pair; no source expression or replacement typed cell is replayed.
+        let references = self
+            .reference_referents
+            .values()
+            .filter_map(|captured| Some((&captured.view, captured.byte_region.as_ref()?)));
+        let arguments = self
+            .aggregate_argument_backings
+            .values()
+            .filter_map(|backing| Some((&backing.value, backing.byte_region.as_ref()?)));
+        self.project_byte_regions(view, projected_path, references.chain(arguments))
+    }
+
+    fn project_byte_regions<'captured>(
+        &self,
+        view: &crate::values::TerminalStructuralValue,
+        projected_path: &[terminal_psi::StructuralPathSegment],
+        captured: impl Iterator<
+            Item = (
+                &'captured crate::values::TerminalStructuralValue,
+                &'captured crate::reference::ReferenceByteRegion,
+            ),
+        >,
+    ) -> Result<Option<ReferenceByteRegionProjection>, TerminalInterpretError> {
         let mut selected = None;
-        for captured in self.reference_referents.values() {
-            let Some(region) = &captured.byte_region else {
-                continue;
-            };
-            if view.opaque_identity != captured.view.opaque_identity {
+        for (anchor, region) in captured {
+            if view.opaque_identity != anchor.opaque_identity {
                 continue;
             }
-            let Some(path) = view.path.strip_prefix(captured.view.path.as_slice()) else {
+            let Some(path) = view.path.strip_prefix(anchor.path.as_slice()) else {
                 continue;
             };
             if crate::custody::resolve_structural_path_type(
                 &self.program.structural_types(),
-                captured.view.structural_type,
+                anchor.structural_type,
                 path,
             )
             .ok()
@@ -102,11 +145,11 @@ impl TerminalExecution<'_> {
                 continue;
             }
             let path = projected_path
-                .strip_prefix(captured.view.path.as_slice())
+                .strip_prefix(anchor.path.as_slice())
                 .ok_or_else(malformed)?;
             let geometry = terminal_semantics::reference_storage_region(
                 self.program.structural_types().values(),
-                captured.view.structural_type,
+                anchor.structural_type,
                 path,
             )
             .ok_or(TerminalInterpretError::UnsupportedSemanticVariant(

@@ -404,7 +404,7 @@ fn evaluated_condition_with_frames(
         Some(Vec::new())
     };
     let cross_writes = |values: &mut ValueEnvironment| match &writes {
-        Some(writes) => values.invalidate_written_paths(writes),
+        Some(writes) => values.invalidate_call_paths(program, state, writes),
         None => values.invalidate_unknown_writes(program, state),
     };
     let mut selected = environment.clone();

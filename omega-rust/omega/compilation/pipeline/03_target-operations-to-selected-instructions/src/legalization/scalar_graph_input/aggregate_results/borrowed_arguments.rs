@@ -272,8 +272,6 @@ pub(super) fn view_arrival<'caller>(
     let (block, declaration) = arrivals.next()?;
     let shape = terminal_psi::find_structural_type(structural_types, declaration.structural_type)
         .map(|row| &row.shape)?;
-    let view = matches!(shape, terminal_psi::StructuralTypeShape::ElementView { .. })
-        || shape.is_borrowed_byte_view();
     (arrivals.next().is_none()
         && block != caller.entry
         && caller.structural_places.iter().any(|place| {
@@ -284,20 +282,12 @@ pub(super) fn view_arrival<'caller>(
                         position: declaration.position,
                     }
         })
-        && view
-        && matches!(
-            declaration.access,
-            terminal_psi::StructuralAccess::SharedBorrow
-                | terminal_psi::StructuralAccess::MutableBorrow
-        )
-        && declaration.multiplicity == StructuralMultiplicity::Unrestricted
+        // Carrier lifetime does not change the descriptor's pointer/extent
+        // geometry. Reuse the arrival contract that admits affine borrowed
+        // descriptors too; call custody still checks the actual live loan.
+        && terminal_semantics::view_descriptor_parameter(declaration, structural_types.iter())
         && (declaration.qualifications.is_empty()
             || declaration.access == terminal_psi::StructuralAccess::SharedBorrow
-                && shape.is_borrowed_byte_view())
-        && terminal_semantics::view_descriptor_projected_qualifications(
-            structural_types.iter(),
-            declaration.structural_type,
-            &declaration.projected_qualifications,
-        ))
+                && shape.is_borrowed_byte_view()))
     .then_some((block, declaration))
 }

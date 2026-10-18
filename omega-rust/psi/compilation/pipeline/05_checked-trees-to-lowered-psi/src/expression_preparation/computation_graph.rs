@@ -53,6 +53,27 @@ pub(crate) fn borrowed_arguments_from_roots<'checked>(
                 continue;
             }
             visited.push(value);
+            // Discovery prepares original storage only. Invocations and loan
+            // formation still execute at their retained DAG positions, including
+            // selected arms, rather than ahead of the value.
+            for call in checked
+                .facts
+                .values
+                .structural_values
+                .calls_for_root(value)
+                .unwrap_or(&[])
+            {
+                for operation in call
+                    .operands()
+                    .iter()
+                    .chain(std::iter::once(call.operation()))
+                    .flat_map(checked_trees::CheckedUnitEffectOperationPlan::with_value_calls)
+                {
+                    arguments.extend(operation.structural_operands().iter().filter(|argument| {
+                        argument.access != checked_trees::CheckedStructuralAccess::Owned
+                    }));
+                }
+            }
             match &checked.facts.values.structural_values.nodes.get(value).kind {
                 checked_trees::CheckedStructuralValueKind::Reference { source, .. }
                 | checked_trees::CheckedStructuralValueKind::BorrowedSliceView { source, .. }
@@ -394,15 +415,57 @@ pub(crate) fn structural_dependencies(
         CheckedStructuralRecordFieldValue as Field, CheckedStructuralValueKind as Value,
     };
     let plans = &checked.facts.values.structural_values;
-    let values = plans
+    let mut values = plans
         .value_dependencies(root)
         .ok_or(LoweringError::Unsupported(
             "structural computation has a stale value dependency",
         ))?;
     let mut scalars = Vec::new();
-    for value in &values {
-        match &plans.nodes.get(*value).kind {
-            checked_trees::CheckedStructuralValueKind::NativeCodeLayout { .. } => {}
+    let mut value_position = 0;
+    while value_position < values.len() {
+        let value = values[value_position];
+        value_position += 1;
+        // A call's prepared operands are retained values too. Following just
+        // the result node misses reference formations nested inside an operand,
+        // so reservation and address demand would disagree with evaluation.
+        // This catalogs dependencies; it never runs an operand or selector.
+        for call in plans.calls_for_root(value).unwrap_or(&[]) {
+            for operation in call
+                .operands()
+                .iter()
+                .chain(std::iter::once(call.operation()))
+                .flat_map(checked_trees::CheckedUnitEffectOperationPlan::with_value_calls)
+            {
+                if let checked_trees::CheckedUnitEffectOperationPlan::EstablishLocal(
+                    checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { value, .. },
+                ) = operation
+                {
+                    for dependency in
+                        plans
+                            .value_dependencies(*value)
+                            .ok_or(LoweringError::Unsupported(
+                                "structural computation has a stale prepared value dependency",
+                            ))?
+                    {
+                        if !values.contains(&dependency) {
+                            values.push(dependency);
+                        }
+                    }
+                }
+                if let Some(call) = operation.call() {
+                    scalars.extend(call.scalar_arguments.iter().filter_map(
+                        |argument| match argument {
+                            checked_trees::CheckedCallScalarArgument::Computation(root) => {
+                                Some(*root)
+                            }
+                            checked_trees::CheckedCallScalarArgument::Pure(_) => None,
+                        },
+                    ));
+                }
+            }
+        }
+        match &plans.nodes.get(value).kind {
+            Value::NativeCodeLayout { .. } => {}
             Value::QuotientCall { .. } => {}
             Value::Record { fields, .. } | Value::StructuralCase { fields, .. } => {
                 for field in plans

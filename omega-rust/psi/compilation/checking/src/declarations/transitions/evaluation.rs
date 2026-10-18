@@ -95,7 +95,7 @@ fn cross_expression_effects<'program>(
     if let Some(written) =
         frames.and_then(|frames| frames.expression_may_write_paths(machine, expression))
     {
-        environment.invalidate_written_paths(&written);
+        environment.invalidate_call_paths(program, Some(state), &written);
         return;
     }
     // NO RESOLVER AT ALL is not the same verdict as an unresolved call.

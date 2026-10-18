@@ -31,6 +31,9 @@ pub use value_custody::partial_affine_residuals::{
     CaseSelectedCleanupRegion, CleanupCaseCondition, CleanupCaseReachability, reconstruct,
     reconstruct_case_selected_regions,
 };
+pub use value_custody::places::binding_observations::{
+    stable_slice_descriptor_binding, stable_slice_descriptor_place,
+};
 pub use value_custody::places::collection_operations;
 pub use value_custody::places::declaration_type_reference;
 pub use value_custody::places::declared_reference_access;

@@ -193,8 +193,9 @@ impl ValueEnvironment {
     /// An unknown write can change aliased storage, but cannot change a copied
     /// immutable scalar binding. Keep only its already established scalar facts;
     /// never reread an initializer whose source may since have changed. References
-    /// (including immutable bindings of mutable references) and aggregate paths
-    /// are excluded. Control-flow joins must still use their ordinary merge or
+    /// and aggregate content paths are excluded. Ordered facts may separately
+    /// retain a private descriptor's metadata, never its referent contents.
+    /// Control-flow joins must still use their ordinary merge or
     /// `clear`, since immutability alone does not establish an incoming fact.
     pub(crate) fn invalidate_unknown_writes(
         &mut self,
@@ -282,6 +283,19 @@ impl ValueEnvironment {
     /// also invalidates any fact recorded for the parent value itself.
     pub(crate) fn invalidate_written_paths(&mut self, written: &[String]) {
         self.invalidate_storage(written, |operand| operand.survives(written));
+    }
+
+    /// Call frames describe referent writes coarsely. A separately proven
+    /// private descriptor home can keep metadata, never its backing contents.
+    pub(crate) fn invalidate_call_paths(
+        &mut self,
+        program: &dyn crate::CheckingInput,
+        state: Option<&State>,
+        written: &[String],
+    ) {
+        self.invalidate_storage(written, |operand| {
+            operand.survives_storage_writes(program, state, written)
+        });
     }
 
     fn invalidate_storage(

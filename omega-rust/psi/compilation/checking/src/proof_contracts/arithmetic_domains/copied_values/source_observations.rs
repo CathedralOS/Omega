@@ -18,6 +18,35 @@ pub(super) struct SourceObservations<'a> {
 }
 
 impl<'a> SourceObservations<'a> {
+    /// End-environment reads need suffix effects, while completed payloads
+    /// still retire in authored order. Compute the former without reversing
+    /// the latter. Unknown effects suppress source identities, not detached
+    /// checked snapshots of earlier owned values.
+    pub(super) fn following_writes(
+        &self,
+        expressions: impl DoubleEndedIterator<Item = ExpressionHandle>,
+        following: Option<&[String]>,
+    ) -> Vec<Option<Vec<String>>> {
+        let mut written = following.map(<[String]>::to_vec);
+        let mut suffixes = Vec::new();
+        for expression in expressions.rev() {
+            suffixes.push(written.clone());
+            if let Some(paths) = written.as_mut()
+                && !self.include_effects(expression, paths)
+            {
+                written = None;
+            }
+        }
+        suffixes.reverse();
+        suffixes
+    }
+
+    pub(super) fn effects(&self, expression: ExpressionHandle) -> Option<Vec<String>> {
+        let mut written = Vec::new();
+        self.include_effects(expression, &mut written)
+            .then_some(written)
+    }
+
     pub(super) fn new(
         program: &'a dyn crate::CheckingInput,
         machine: &'a Machine,

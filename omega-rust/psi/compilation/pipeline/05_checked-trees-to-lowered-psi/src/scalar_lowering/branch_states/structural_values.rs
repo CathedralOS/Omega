@@ -95,6 +95,7 @@ impl Storage {
 pub(crate) struct PreparedValue {
     pub(crate) place: PlaceId,
     pub(crate) structural_type: StructuralTypeId,
+    pub(crate) multiplicity: terminal_psi::StructuralMultiplicity,
     /// Source homes moved whole into the value's members.
     pub(crate) consumed: Vec<PlaceId>,
     storage: Vec<crate::expression_preparation::bindings::StructuralLocalBinding>,
@@ -310,6 +311,9 @@ pub(crate) fn prepare_value(
     Ok(PreparedValue {
         place,
         structural_type,
+        multiplicity: terminal_multiplicity(crate::reference_custody::result_multiplicity(
+            checked, reference,
+        )),
         statement,
         steps: preparation.steps,
         consumed: preparation.consumed,

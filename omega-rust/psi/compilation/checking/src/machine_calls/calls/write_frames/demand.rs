@@ -653,6 +653,52 @@ impl<'program> CallFrameResolver<'program> {
         )
     }
 
+    /// Whether RHS execution preserves the address inputs needed to name the
+    /// completed store by its current destination expression. A complete write
+    /// footprint alone supplies no such correspondence.
+    pub fn assignment_destination_remains_current(
+        &self,
+        machine: &Machine,
+        statement: &StatementNode,
+    ) -> bool {
+        let Some(assignment) = statement.as_assignment() else {
+            return false;
+        };
+        let writes = self.expression_may_write_paths(machine, assignment.value);
+        super::assignment_addresses::destination_remains_current(
+            self.program,
+            machine,
+            statement,
+            writes.as_deref(),
+            None,
+        )
+        .is_some()
+    }
+
+    /// Establishment under a completed captured coordinate, rather than the
+    /// authored alias which RHS execution may already have redirected. The
+    /// caller supplies a destination from this statement's store capture;
+    /// this query verifies stability, not its access or provenance.
+    pub fn captured_assignment_destination_remains_current(
+        &self,
+        machine: &Machine,
+        statement: &StatementNode,
+        destination: &crate::CanonicalPlace,
+    ) -> bool {
+        let Some(assignment) = statement.as_assignment() else {
+            return false;
+        };
+        let writes = self.expression_may_write_paths(machine, assignment.value);
+        super::assignment_addresses::destination_remains_current(
+            self.program,
+            machine,
+            statement,
+            writes.as_deref(),
+            Some(destination),
+        )
+        .is_some()
+    }
+
     /// Performed destinations and reference origins share the captured store
     /// prefix and exposure checks. An empty destination set denotes binding
     /// replacement; unavailable provenance stays `None`.

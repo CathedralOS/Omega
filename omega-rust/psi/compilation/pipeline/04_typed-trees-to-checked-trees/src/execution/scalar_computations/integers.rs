@@ -115,6 +115,17 @@ impl Builder<'_, '_> {
             });
         }
 
+        if let Some(observation) = self.primitive_reference_observation_type(expression) {
+            if !is_integer(observation.primitive_type) {
+                return None;
+            }
+            return Some(IntegerOperand {
+                value: parameter(0, observation.primitive_type),
+                value_source: ExpressionHandle::invalid(),
+                domain: observation.domain,
+                computation: self.expression(expression, observation.primitive_type)?,
+            });
+        }
         if let Some(field) = self.structural_scalar_field(expression) {
             if !is_integer(field.primitive_type) {
                 return None;

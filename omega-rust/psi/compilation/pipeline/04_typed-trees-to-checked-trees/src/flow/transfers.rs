@@ -11,6 +11,10 @@
 //! `scalar_values` records the written scalar value and bounds;
 //! `declared_domains` records the destination's declared domains; and the new
 //! facts publish separately for each exact place and normalized domain atom.
+//! A captured address survives RHS execution, but its symbolic coordinate may
+//! cross a reference slot that the RHS replaced. Every kind of destination
+//! evidence requires that coordinate correspondence, not just scalar values.
+//! Refusing it leaves the runtime store capture and invalidation unchanged.
 
 use validation::CanonicalPlace;
 
@@ -57,6 +61,9 @@ pub(super) fn propagate_statement_transfers(
     let Some(write) = write else {
         return;
     };
+    if !write.destination_is_current {
+        return;
+    }
     let source_expression = write.source_expression;
     let source_label = program.expression_table.display_name(source_expression);
     let source_place = write.source_place;

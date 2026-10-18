@@ -186,6 +186,11 @@ pub struct CheckedScalarComputation {
     /// Generated short-circuit constants and non-value nodes use the zero handle.
     pub value_source: typed_trees::expression::ExpressionHandle,
     pub primitive_type: PrimitiveType,
+    /// Source-selected normal completion of this observation's temporary
+    /// receiver, after its scalar snapshot and before the next operand. The
+    /// actions use the shared temporary_cleanup_actions arena. An enclosing
+    /// call which already owns the receiver keeps its own completion instead.
+    pub normal_cleanup_actions: HandleSpan<crate::CheckedNormalCleanupAction>,
     pub kind: CheckedScalarComputationKind,
 }
 
@@ -195,6 +200,7 @@ impl Default for CheckedScalarComputation {
             authored_root: Handle::invalid(),
             value_source: Handle::invalid(),
             primitive_type: PrimitiveType::Bool,
+            normal_cleanup_actions: HandleSpan::empty(),
             kind: CheckedScalarComputationKind::Value(CheckedScalarExpression::Boolean(Box::new(
                 CheckedBooleanExpression::Constant(false),
             ))),

@@ -515,6 +515,12 @@ impl StructuralJudge<'_> {
             // Multiple backing alternatives cannot install one exact value.
             _ => return None,
         };
+        // A footprint identifies possible writes, not an unchanged reference
+        // slot. Retain the actual captured coordinate only while RHS effects
+        // preserve the address inputs by which this semantic place names it.
+        frames
+            .captured_assignment_destination_remains_current(machine, statement, &place)
+            .then_some(())?;
         let root = place.root.as_symbol()?;
         let footprint = crate::frame_coordinate_path(program, root, &place.segments)?;
         if written != [footprint] {
@@ -557,33 +563,11 @@ impl StructuralJudge<'_> {
         if name.symbol != name.head_symbol || !self.storage_binding_invalidated(name.symbol) {
             return None;
         }
-        use crate::value_custody::places::binding_observations::{
-            BindingObservation, binding_is_exclusively_exposed, binding_is_written,
-        };
         // A coarse outward frame can describe writes through a view without
         // distinguishing its backing from its carrier slot. The binding owner
         // separately establishes that this private descriptor home is neither
         // replaced nor exposed; referent snapshots retain the stronger fence.
-        if binding_is_exclusively_exposed(self.program, state, name.symbol)
-            || binding_is_written(
-                self.program,
-                state,
-                name.symbol,
-                BindingObservation::Descriptor,
-            )
-        {
-            return None;
-        }
-        let reference = self
-            .program
-            .state_parameter_by_symbol(state, name.symbol)
-            .map(|parameter| parameter.type_reference)
-            .or_else(|| {
-                self.program
-                    .state_local_declaration(state, name.symbol)
-                    .map(|(_, local)| local.type_reference)
-            })?;
-        crate::slice_view_shell(self.program, reference, &[])?;
+        let reference = crate::stable_slice_descriptor_binding(self.program, state, name.symbol)?;
         let binding = self.program.symbols.name(name.symbol);
         let mut values = environment.iter().filter(|(name, _)| name == binding);
         let value = values.next()?.1.clone();

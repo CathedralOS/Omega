@@ -9,6 +9,56 @@ use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::state::State;
 use typed_trees::statement::StatementNode;
 
+/// A completed slice descriptor whose private binding home cannot change in
+/// this state. Mutable backing is deliberately allowed: this is metadata
+/// preservation, never a snapshot of elements. An extra reference shell names
+/// replaceable descriptor storage, not the completed view itself.
+pub fn stable_slice_descriptor_binding(
+    program: &dyn crate::CheckingInput,
+    state: &State,
+    symbol: SymbolHandle,
+) -> Option<typed_trees::types::TypeReferenceHandle> {
+    stable_slice_descriptor_place(program, state, symbol, &[])
+}
+
+/// Fixed fields of a private owned binding may carry completed descriptors
+/// too. No reference may be crossed before the descriptor slot: a reference
+/// to a record lends replaceable fields, rather than a private captured home.
+/// Indexed descriptors retain their selector/replacement dependencies.
+pub fn stable_slice_descriptor_place(
+    program: &dyn crate::CheckingInput,
+    state: &State,
+    symbol: SymbolHandle,
+    segments: &[facts::PlaceSegment],
+) -> Option<typed_trees::types::TypeReferenceHandle> {
+    let root_reference = program
+        .state_parameter_by_symbol(state, symbol)
+        .map(|parameter| parameter.type_reference)
+        .or_else(|| {
+            program
+                .state_local_declaration(state, symbol)
+                .map(|(_, local)| local.type_reference)
+        })?;
+    let mut reference = root_reference;
+    for (position, segment) in segments.iter().enumerate() {
+        let facts::PlaceSegment::Field { symbol } = segment else {
+            return None;
+        };
+        if !symbol.is_valid() || crate::reference_shell(program, reference).is_some() {
+            return None;
+        }
+        reference = super::project_type_reference_from_segments(
+            program,
+            root_reference,
+            &segments[..=position],
+        )?;
+    }
+    crate::slice_view_shell(program, reference, &[])?;
+    (!binding_is_exclusively_exposed(program, state, symbol)
+        && !binding_is_written(program, state, symbol, BindingObservation::Descriptor))
+    .then_some(reference)
+}
+
 /// An immutable local's initializer describes this occurrence only while no
 /// exclusive borrow roots at its binding: `expose(&mut view)` hands the
 /// descriptor to a callee that can install a different slice, so the saved
@@ -36,7 +86,7 @@ pub(crate) fn binding_is_exclusively_exposed(
             ExpressionNode::Borrow(borrow) => {
                 borrow.access.is_exclusive()
                     && borrow_root_symbol(program, borrow.target) == Some(symbol)
-                    && !selects_collection_contents(program, borrow.target)
+                    && !selects_builtin_collection_contents(program, state, borrow.target)
             }
             _ => false,
         })
@@ -61,6 +111,21 @@ fn selects_collection_contents(
         }
     }
     false
+}
+
+fn selects_builtin_collection_contents(
+    program: &dyn crate::CheckingInput,
+    state: &State,
+    expression: ExpressionHandle,
+) -> bool {
+    // Authored indexing can lend a descriptor slot or execute other writes.
+    // Syntax alone cannot classify an exclusive borrow as payload-only.
+    selects_collection_contents(program, expression)
+        && program
+            .machine_holding_state(state.symbol)
+            .is_some_and(|machine| {
+                crate::place_has_builtin_coordinates(program, machine, Some(state), expression)
+            })
 }
 
 /// Metadata and value observations have different storage dependencies. A
@@ -99,17 +164,7 @@ pub(crate) fn binding_is_written(
                 // authored indexing can execute arbitrary code. Only builtin
                 // coordinates separate descriptor storage from its elements.
                 let selects_contents = observation == BindingObservation::Descriptor
-                    && selects_collection_contents(program, assignment.target)
-                    && program
-                        .machine_holding_state(state.symbol)
-                        .is_some_and(|machine| {
-                            crate::place_has_builtin_coordinates(
-                                program,
-                                machine,
-                                Some(state),
-                                assignment.target,
-                            )
-                        });
+                    && selects_builtin_collection_contents(program, state, assignment.target);
                 if !selects_contents {
                     return true;
                 }

@@ -23,7 +23,10 @@ pub(crate) struct AggregateViewRegion {
 #[derive(Clone)]
 pub(crate) struct AggregateBacking {
     pub(crate) value: TerminalStructuralValue,
-    pub(crate) region: AggregateViewRegion,
+    /// Logical re-view geometry and physical byte storage are independent:
+    /// a typed re-view may itself borrow an already captured byte region.
+    pub(crate) region: Option<AggregateViewRegion>,
+    pub(crate) byte_region: Option<super::ReferenceByteRegion>,
 }
 
 impl AggregateViewRegion {

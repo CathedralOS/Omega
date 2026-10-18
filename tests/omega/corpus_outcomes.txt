@@ -4073,6 +4073,39 @@ fail/facts/temporary_case_cleanup_through_parameter_rejected rejected 1096ms exp
 	machine `main` state `entry` value call to `through_parameter` violates required fact `value.value == 2`: the instantiated fact is structurally false (`1 == 2`)
 fail/facts/temporary_case_cleanup_through_target_body_rejected rejected 1676ms expected @46f72294c589
 	cannot prove ensures contract for exit from produced at statement 0: result.value == 2
+fail/facts/view_extent_after_write_through_call_result_unproved rejected 1061ms expected @86af356b96fb+wt
+	exact arithmetic in machine `preserve_suffix` state `entry` local `__hoist_14` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `preserve_suffix` state `entry` local `__hoist_15` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/view_extent_after_write_through_const_name_unproved rejected 1057ms expected @86af356b96fb+wt
+	exact arithmetic in machine `preserve_suffix` state `entry` local `__hoist_14` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `preserve_suffix` state `entry` local `__hoist_15` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/view_extent_after_write_through_field_unproved rejected 1058ms expected @86af356b96fb+wt
+	exact arithmetic in machine `preserve_suffix` state `entry` local `__hoist_14` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `preserve_suffix` state `entry` local `__hoist_15` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/view_extent_after_write_through_local_unproved rejected 1057ms expected @86af356b96fb+wt
+	exact arithmetic in machine `preserve_suffix` state `entry` local `__hoist_14` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `preserve_suffix` state `entry` local `__hoist_15` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/view_extent_after_write_through_match_join_unproved rejected 1057ms expected @86af356b96fb+wt
+	exact arithmetic in machine `preserve_suffix` state `entry` local `__hoist_14` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `preserve_suffix` state `entry` local `__hoist_15` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/view_extent_after_write_through_other_machine_unproved rejected 1057ms expected @86af356b96fb+wt
+	exact arithmetic in machine `forward` state `entry` local `__hoist_14` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `forward` state `entry` local `__hoist_15` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/view_extent_after_write_through_other_state_unproved rejected 1060ms expected @86af356b96fb+wt
+	exact arithmetic in machine `preserve_suffix` state `active` local `__hoist_14` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `preserve_suffix` state `active` local `__hoist_15` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/view_extent_after_write_through_parameter_unproved rejected 1058ms expected @86af356b96fb+wt
+	exact arithmetic in machine `preserve_suffix` state `entry` local `__hoist_14` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `preserve_suffix` state `entry` local `__hoist_15` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/view_extent_after_write_through_target_body_unproved rejected 1059ms expected @86af356b96fb+wt
+	exact arithmetic in machine `preserve_suffix` state `entry` local `__hoist_14` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `preserve_suffix` state `entry` local `__hoist_15` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `preserve_suffix` state `entry` local `__hoist_16` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `preserve_suffix` state `entry` local `__hoist_17` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `preserve_suffix` state `entry` local `__hoist_18` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `preserve_suffix` state `entry` local `__hoist_19` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `preserve_suffix` state `entry` local `__hoist_20` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `preserve_suffix` state `entry` local `__hoist_21` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/write_only_checked_adapter_opaque_call rejected 328ms expected @2ef2ab353498+wt
 	machine `opaque` state `entry` declares `&write`, but the current milestone proves non-observation only for checked Omega bodies; bodyless boundary, accepted, requirement, and external-provider declarations require an admitted write-only boundary claim
 	machine `lend` state `entry` calls `opaque` with write-only input authority; an opaque selected implementation requires an admitted write-only boundary claim
@@ -5417,10 +5450,25 @@ fail/proofs/addition_commutativity_false_twin rejected 810ms expected @a9ae30e1c
 	machine `false_add_commutative` ensures contract proof fact `embed(a) + embed(b) == embed(b) + embed(a) + 1` is disproved by constant arithmetic
 fail/proofs/applied_callable_unproven_law rejected 33434ms expected @a9ae30e1c334+wt
 	machine `lawless` satisfies `RingOps2::add_assoc` but proves no ensures matching the declared law `plus(plus(a, b), c) == plus(a, plus(b, c))` -- a law requirement's satisfier must carry that equation as a machine-checked ensures, general in every law parameter
+fail/proofs/assignment_alias_slot_retargeted rejected 616ms expected @86af356b96fb+wt
+	cannot prove requires contract for call demand from invalid: alias.cell.value == 11 (needs fact `value == 11` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/proofs/assignment_frozen_selector_postcondition rejected 613ms expected @86af356b96fb+wt
+	cannot prove ensures contract for exit from invalid at statement 3: values[1] == 11
+fail/proofs/assignment_parameter_slot_retargeted rejected 617ms expected @86af356b96fb+wt
+	cannot prove requires contract for call demand from invalid: holder.cell.value == 11 (needs fact `value == 11` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/proofs/assignment_reference_slot_retargeted rejected 615ms expected @86af356b96fb+wt
+	cannot prove requires contract for call demand from invalid: holder.cell.value == 11 (needs fact `value == 11` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/proofs/assignment_retargeted_slot_postcondition rejected 611ms expected @86af356b96fb+wt
+	cannot prove ensures contract for exit from invalid at statement 1: holder.cell.value == 11
+fail/proofs/assignment_selector_precedes_rhs_write rejected 613ms expected @86af356b96fb+wt
+	cannot prove requires contract for call demand from invalid: values[position] == 11 (needs fact `value == 11` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove index `position` is within length 2 in invalid::entry
 fail/proofs/bag_view_false_twin rejected 425ms expected @6ede3322eb88+wt
 	cannot prove ensures contract for exit from false_bag_distinct at statement 0: Bag(items) != Bag(before)
 fail/proofs/bounded_assignment_operand_skips_later_same_named_local rejected 994ms expected @a9ae30e1c334+wt
 	cannot prove assignment value `N + 1` satisfies bounded target `total` in `shadow.entry`; expected 0..=4
+fail/proofs/call_argument_snapshot_precedes_write rejected 612ms expected @86af356b96fb+wt
+	cannot prove requires contract for call demand from invalid: snapshot.value == 0 (needs fact `value == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/proofs/case_call_wrong_subject rejected 897ms expected @a9ae30e1c334+wt
 	cannot prove requires contract for specification call `empty_only` in machine `wrong_subject` ensures contract: establish its selected precondition in an independently formed prior requires fact
 	cannot prove requires contract for specification call `empty_only` in machine `wrong_subject` ensures contract: establish its selected precondition in an independently formed prior requires fact
@@ -5446,6 +5494,16 @@ fail/proofs/congruence_false_twin rejected 846ms expected @a9ae30e1c334+wt
 	machine `false_add_congruence` ensures contract proof fact `embed(a) + 1 == embed(b) + 2` is disproved by constant arithmetic
 fail/proofs/constant_equation_refuted rejected 888ms expected @a9ae30e1c334+wt
 	machine `false_constant_equation` ensures contract proof fact `false` is disproved by constant arithmetic
+fail/proofs/constructor_mutable_result_content_precedes_write rejected 615ms expected @86af356b96fb+wt
+	cannot prove requires contract for call demand from invalid: pair.cell.value == 11 (needs fact `value == 11` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/proofs/constructor_mutable_scalar_result_precedes_write rejected 613ms expected @86af356b96fb+wt
+	cannot prove requires contract for call demand from invalid: pair.value == 11 (needs fact `value == 11` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/proofs/constructor_shared_result_content_precedes_write rejected 613ms expected @86af356b96fb+wt
+	cannot prove requires contract for call demand from invalid: pair.cell.value == 11 (needs fact `value == 11` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/proofs/constructor_shared_scalar_result_precedes_write rejected 616ms expected @86af356b96fb+wt
+	cannot prove requires contract for call demand from invalid: pair.value == 11 (needs fact `value == 11` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/proofs/constructor_value_precedes_slot_replacement rejected 608ms expected @86af356b96fb+wt
+	cannot prove index `1023` is within unknown slice length of `pair.view` in invalid::entry
 fail/proofs/copied_descriptor_cannot_take_later_extent rejected 610ms expected @b3d0b7396229+wt
 	cannot prove requires contract for call demand from test: snapshot.samples.len >= 2 (needs fact `view.samples.len >= 2` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/proofs/core_nat_runtime_consumption_rejected rejected 2761ms expected @a9ae30e1c334+wt
@@ -9327,6 +9385,15 @@ pass/facts/temporary_case_cleanup_through_other_machine_exit checked 3644ms chec
 pass/facts/temporary_case_cleanup_through_other_state_exit checked 3644ms check-target:macos_arm64 @46f72294c589
 pass/facts/temporary_case_cleanup_through_parameter_exit checked 3645ms check-target:macos_arm64 @46f72294c589
 pass/facts/temporary_case_cleanup_through_target_body_exit checked 3646ms check-target:macos_arm64 @46f72294c589
+pass/facts/view_extent_after_write_through_call_result_exit checked 3552ms check-target:macos_arm64 @86af356b96fb+wt
+pass/facts/view_extent_after_write_through_const_name_exit checked 3552ms check-target:macos_arm64 @86af356b96fb+wt
+pass/facts/view_extent_after_write_through_field_exit checked 3519ms check-target:macos_arm64 @86af356b96fb+wt
+pass/facts/view_extent_after_write_through_local_exit checked 3522ms check-target:macos_arm64 @86af356b96fb+wt
+pass/facts/view_extent_after_write_through_match_join_exit checked 3522ms check-target:macos_arm64 @86af356b96fb+wt
+pass/facts/view_extent_after_write_through_other_machine_exit checked 3519ms check-target:macos_arm64 @86af356b96fb+wt
+pass/facts/view_extent_after_write_through_other_state_exit checked 3523ms check-target:macos_arm64 @86af356b96fb+wt
+pass/facts/view_extent_after_write_through_parameter_exit checked 3515ms check-target:macos_arm64 @86af356b96fb+wt
+pass/facts/view_extent_after_write_through_target_body_exit checked 3560ms check-target:macos_arm64 @86af356b96fb+wt
 pass/facts/write_only_checked_adapter_exit checked 5187ms check-target:macos_arm64 @2ef2ab353498+wt
 pass/filesystem/cross_linux_value_syscalls checked 16296ms @aebe0714a499+wt
 pass/filesystem/dir_walk_wrappers_exit checked 19471ms check-target:macos_arm64 @7c847bad15b6+wt
@@ -10100,6 +10167,8 @@ pass/proofs/case_call_premises checked 1644ms @a9ae30e1c334+wt
 pass/proofs/cauchy_predicates_compile checked 2759ms @fedeee648fc7+wt
 pass/proofs/citation_requires_discharged checked 10576ms @b7aaf37278ea+wt
 pass/proofs/collection_predicate_deferred_disjunction_sixteen_cells checked 1240ms @1cb01af2f0bb
+pass/proofs/completed_store_address_and_result_exit checked 3612ms check-target:macos_arm64 @86af356b96fb+wt
+pass/proofs/constructor_aggregate_guarantees_follow_evaluation_exit checked 5417ms check-target:macos_arm64 @86af356b96fb+wt
 pass/proofs/copied_descriptor_keeps_capture_extent checked 678ms @b3d0b7396229+wt
 pass/proofs/declaration_call_requires checked 730ms @4ef5069e9f3b+wt
 pass/proofs/declaration_constructed_data_identity checked 730ms @4ef5069e9f3b+wt

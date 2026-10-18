@@ -174,7 +174,7 @@ pub(in crate::execution::terminal_unit) fn install(
     }
 }
 
-/// Complete the computed-call roster in the same contextual action namespace.
+/// Complete calls and scalar observations in the same action namespace.
 /// Action storage is rebuilt once: scratch geometry never remains as a second
 /// published cleanup stream beside the selected hooks.
 pub(crate) fn finalize_scalar_actions(
@@ -207,7 +207,29 @@ pub(crate) fn finalize_scalar_actions(
             .collect::<Vec<_>>();
         let plans = &facts.values.scalar_computations;
         let mut replacements = Vec::new();
+        let mut observation_replacements = Vec::new();
         for (node_handle, node) in plans.nodes.iter() {
+            if !node.normal_cleanup_actions.is_empty() {
+                let checked_trees::CheckedScalarComputationKind::StructuralField {
+                    receiver_value,
+                    ..
+                } = node.kind
+                else {
+                    return None;
+                };
+                let receiver = facts.values.structural_values.nodes.get(receiver_value);
+                let type_identity = shapes.add_type(receiver.type_reference, &[], &[])?;
+                let selected = plans
+                    .temporary_cleanup_actions
+                    .span(node.normal_cleanup_actions)?;
+                if selected
+                    .iter()
+                    .any(|action| action.type_identity() != type_identity)
+                {
+                    return None;
+                }
+                observation_replacements.push((node_handle, selected.to_vec()));
+            }
             let (source_call, operands, retained, authority) = match node.kind {
                 checked_trees::CheckedScalarComputationKind::Call {
                     source_call,
@@ -306,20 +328,17 @@ pub(crate) fn finalize_scalar_actions(
                 )
                 .is_some()
                 {
+                    shapes.add_type(root.type_reference, &[], &[])?;
                     owners.push((
                         *ordinal,
                         root.root,
-                        vec![CheckedNormalCleanupAction::Discard(
-                            checked_trees::CheckedUnitPartialAffineDiscardPlan {
-                                source:
-                                    CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
-                                        expression: root.expression,
-                                    },
-                                path: Vec::new(),
-                                type_identity: shapes.add_type(root.type_reference, &[], &[])?,
-                                case_conditions: Default::default(),
+                        super::descriptor_retirement(
+                            program,
+                            CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+                                expression: root.expression,
                             },
-                        )],
+                            root.type_reference,
+                        )?,
                     ));
                 }
             }
@@ -391,10 +410,10 @@ pub(crate) fn finalize_scalar_actions(
             ordered.sort_by_key(|(position, ..)| std::cmp::Reverse(*position));
             replacements.push((node_handle, ordered));
         }
-        Some(replacements)
+        Some((replacements, observation_replacements))
     })();
     facts.flow.terminal_unit_effects.cleanup_control = std::mem::take(&mut shapes.cleanup_control);
-    let replacements = replacements.ok_or(refusal)?;
+    let (replacements, observation_replacements) = replacements.ok_or(refusal)?;
     let mut actions = arena::Arena::new();
     let mut cleanups = arena::Arena::new();
     for (node_handle, owners) in replacements {
@@ -421,6 +440,16 @@ pub(crate) fn finalize_scalar_actions(
         *temporary_cleanups = cleanups.insert_many(groups);
     }
     facts.values.scalar_computations.temporary_cleanups = cleanups;
+    // Both consumers publish spans into this one arena. Replacing it without
+    // remapping observations would silently alias unrelated call actions.
+    for (identity, selected) in observation_replacements {
+        facts
+            .values
+            .scalar_computations
+            .nodes
+            .get_mut(identity)
+            .normal_cleanup_actions = actions.insert_many(selected);
+    }
     facts.values.scalar_computations.temporary_cleanup_actions = actions;
     facts
         .flow

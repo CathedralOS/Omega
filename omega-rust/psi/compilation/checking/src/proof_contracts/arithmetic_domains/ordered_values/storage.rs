@@ -19,6 +19,30 @@ enum ReadSegment {
 }
 
 impl Operand {
+    pub(super) fn has_stable_descriptor(
+        &self,
+        program: &dyn crate::CheckingInput,
+        state: &typed_trees::state::State,
+    ) -> bool {
+        fn coordinate(value: &Operand, fields: &mut Vec<PlaceSegment>) -> Option<SymbolHandle> {
+            match value {
+                Operand::Place { root, .. } => Some(*root),
+                Operand::Field {
+                    receiver, field, ..
+                } => {
+                    let root = coordinate(receiver, fields)?;
+                    fields.push(PlaceSegment::Field { symbol: *field });
+                    Some(root)
+                }
+                _ => None,
+            }
+        }
+        let mut fields = Vec::new();
+        coordinate(self, &mut fields).is_some_and(|root| {
+            crate::stable_slice_descriptor_place(program, state, root, &fields).is_some()
+        })
+    }
+
     pub(in crate::proof_contracts::arithmetic_domains) fn survives_assignment(
         &self,
         written: &[String],

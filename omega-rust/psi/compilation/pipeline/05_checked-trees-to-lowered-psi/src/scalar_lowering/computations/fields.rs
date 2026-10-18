@@ -66,6 +66,7 @@ impl super::Expansion<'_> {
         subject: &CheckedUnitStructuralArgumentPlan,
         field: symbols::SymbolHandle,
         primitive: PrimitiveType,
+        normal_cleanup_actions: arena::HandleSpan<checked_trees::CheckedNormalCleanupAction>,
         input_types: &[super::QualifiedScalarType],
         target: usize,
         site: &super::Site<'_>,
@@ -184,10 +185,10 @@ impl super::Expansion<'_> {
                 .ok_or(LoweringError::Unsupported(
                     "computed receiver lost its complete value root",
                 ))?;
-            // Observation does not dispose its receiver. Source permission
-            // production retains this exact expression owner and its normal
-            // death's ordered residual/hook plan. The completed storage below
-            // is exported with the scalar expansion for that cleanup to use.
+            // Prepare the exact owner. Source production, not the read or its
+            // referent type, selects its normal completion. Reference carriers
+            // can die after this scalar snapshot; nominal owners retain their
+            // independently checked residual/hook continuation.
             let prepared = structural_values::prepare_value(
                 identities,
                 self.checked,
@@ -223,6 +224,21 @@ impl super::Expansion<'_> {
                 field,
                 primitive,
             )?
+        };
+        let target = if let Some(prepared) = &completed {
+            let mut parameters = input_types.to_vec();
+            parameters.push(terminal_scalar_type(primitive)?.into());
+            self.observation_completion(
+                identities,
+                receiver,
+                prepared,
+                normal_cleanup_actions,
+                parameters,
+                target,
+            )?
+        } else {
+            // A prior operand is still owned by its outer consuming call.
+            target
         };
         let mut arguments = super::parameters(input_types);
         arguments.push(super::parameter(

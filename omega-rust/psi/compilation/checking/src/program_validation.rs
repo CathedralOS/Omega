@@ -588,7 +588,7 @@ fn validate(
                 // value call still clears mutable-storage facts; direct writes and calls
                 // remain the statement validator's responsibility below.
                 if let Some(written) = value_written {
-                    value_environment.invalidate_written_paths(&written);
+                    value_environment.invalidate_call_paths(program, Some(state), &written);
                 } else if call_frames.is_some()
                     || calls::statement_value_expression_roots(program, statement)
                         .iter()

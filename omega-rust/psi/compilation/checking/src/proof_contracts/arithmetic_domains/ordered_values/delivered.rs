@@ -1,4 +1,4 @@
-//! Orderings a delivered integer keeps from the expression that produced it.
+//! Integer observations a delivered value keeps from its producing expression.
 //!
 //! A proved `ensures` compares `result` with the callee's immutable formals,
 //! including a field of an immutable formal. Substituting this call's actual
@@ -40,7 +40,7 @@ pub(crate) fn delivered_value_orderings(
             environment,
         ),
         ExpressionNode::Call(_) => {
-            rebound_call_orderings(program, machine, state, expression, destination)
+            rebound_call_orderings(program, machine, state, expression, destination, written)
         }
         _ => Vec::new(),
     }
@@ -56,7 +56,7 @@ pub(super) fn call_result_orderings(
     let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
         return Vec::new();
     };
-    let Some((callee, entry)) = integer_result_call(program, call) else {
+    let Some((callee, entry)) = ordered_result_call(program, call) else {
         return Vec::new();
     };
     let Some(call_value) = ensured_call_operand(program, machine, state, expression) else {
@@ -88,14 +88,35 @@ pub(super) fn call_result_orderings(
             &mut orderings,
         );
     }
+    if orderings.is_empty() {
+        return orderings;
+    }
+    let writes = crate::CallFrameResolver::new(program)
+        .and_then(|frames| frames.expression_may_write_paths(machine, expression));
+    orderings.retain(|relation| {
+        survives_delivery(
+            program,
+            state,
+            &relation.left,
+            &call_value,
+            writes.as_deref(),
+        ) && survives_delivery(
+            program,
+            state,
+            &relation.right,
+            &call_value,
+            writes.as_deref(),
+        )
+    });
     orderings
 }
 
-/// One concrete integer-returning call whose published `ensures` may be read.
+/// One concrete call whose published integer observations may be read.
 ///
-/// Parameters may be records. Mutable formals stay in the signature and are
-/// simply not substituted: their post-state is not the actual argument.
-fn integer_result_call<'program>(
+/// Parameters may be records. Mutable scalar and referent post-state cannot
+/// substitute for invocation inputs. Descriptor metadata separately requires
+/// an authenticated private home before its operand can be rebound below.
+fn ordered_result_call<'program>(
     program: &'program dyn crate::CheckingInput,
     call: &typed_trees::expression::TableCallExpression,
 ) -> Option<(&'program Machine, &'program State)> {
@@ -118,12 +139,6 @@ fn integer_result_call<'program>(
     {
         return None;
     }
-    if !program
-        .primitive_type_reference(state.return_type)
-        .is_some_and(|primitive| primitive.is_fixed_integer())
-    {
-        return None;
-    }
     let parameters = program.state_parameters(state);
     let arguments = program.expression_table.expression_handles(call.arguments);
     if parameters.len() != arguments.len()
@@ -136,7 +151,7 @@ fn integer_result_call<'program>(
     Some((machine, state))
 }
 
-/// Identity of one integer call occurrence while its `ensures` is applied.
+/// Identity of one completed call occurrence while its `ensures` is applied.
 ///
 /// Argument operands use the ordinary place identity. The call itself is not
 /// required to be a primitive value closure: a field read is a real result,
@@ -150,7 +165,7 @@ pub(super) fn ensured_call_operand(
     let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
         return None;
     };
-    integer_result_call(program, call)?;
+    ordered_result_call(program, call)?;
     let arguments = program.expression_table.expression_handles(call.arguments);
     Some(Operand::Call {
         target: call.target_symbol,
@@ -168,6 +183,7 @@ fn rebound_call_orderings(
     state: &State,
     expression: ExpressionHandle,
     destination: &Operand,
+    written: &[String],
 ) -> Vec<Relation> {
     let Some(call_value) = ensured_call_operand(program, machine, state, expression) else {
         return Vec::new();
@@ -175,14 +191,51 @@ fn rebound_call_orderings(
     call_result_orderings(program, machine, state, expression)
         .into_iter()
         .filter_map(|relation| {
+            if !survives_delivery(program, state, &relation.left, &call_value, Some(written))
+                || !survives_delivery(program, state, &relation.right, &call_value, Some(written))
+            {
+                return None;
+            }
+            let left = replace_operand(relation.left.clone(), &call_value, destination);
+            let right = replace_operand(relation.right.clone(), &call_value, destination);
+            let observes_result = left != relation.left || right != relation.right;
             let relation = Relation {
-                left: replace_operand(relation.left, &call_value, destination),
-                right: replace_operand(relation.right, &call_value, destination),
+                left,
+                right,
                 constraint: relation.constraint,
             };
-            (&relation.left == destination || &relation.right == destination).then_some(relation)
+            observes_result.then_some(relation)
         })
         .collect()
+}
+
+/// Capturing the completed result does not capture mutable actual operands.
+/// A store which replaces one of those operands must not reinstall a promise
+/// about its old value under the destination's new storage identity.
+pub(in crate::proof_contracts::arithmetic_domains) fn survives_delivery(
+    program: &dyn crate::CheckingInput,
+    state: &State,
+    operand: &Operand,
+    result: &Operand,
+    written: Option<&[String]>,
+) -> bool {
+    let preserved = written.map_or_else(
+        || operand.is_immutable_snapshot(program, state),
+        |written| operand.survives_storage_writes(program, Some(state), written),
+    );
+    if operand == result || preserved {
+        return true;
+    }
+    let survives = |operand: &Operand| survives_delivery(program, state, operand, result, written);
+    match operand {
+        Operand::Field { receiver, .. } => survives(receiver),
+        Operand::CollectionLength(collection) => survives(collection),
+        Operand::Indexed {
+            collection, index, ..
+        } => survives(collection) && survives(index),
+        Operand::Binary { operands, .. } => operands.iter().all(survives),
+        _ => false,
+    }
 }
 
 fn push_ensured_orderings(
@@ -235,6 +288,8 @@ fn push_ensured_orderings(
             | BinaryOperator::GreaterOrEqual
             | BinaryOperator::Equal
     ) || !has_builtin_binary_expression_meaning(program, callee, Some(entry), fact)
+        || !super::has_integer_order_meaning(program, callee, entry, comparison.left)
+        || !super::has_integer_order_meaning(program, callee, entry, comparison.right)
     {
         return;
     }
@@ -281,8 +336,58 @@ fn translate_ensured_operand(
     if !expression.is_valid() {
         return None;
     }
+    if let Some(receiver) =
+        crate::collection_length_receiver(program, callee, Some(entry), expression)
+    {
+        if let Some(extent) =
+            crate::declared_collection_extent(program, callee, Some(entry), receiver)
+        {
+            return Some(Operand::Integer(
+                numerics::literals::IntegerLiteral::from_value(i64::try_from(extent).ok()?),
+                None,
+            ));
+        }
+        let result_observation =
+            crate::proof_contracts::contract_results::reserved_result_place(program, receiver)
+                .is_some_and(|result| result.machine_symbol == callee.symbol);
+        // A callee may replace its private copy of an incoming descriptor.
+        // Its post-state then does not describe the caller's input descriptor.
+        // Only a retained home, or this exact completed result, supplies the
+        // metadata substitution. This grants no referent-content snapshot.
+        let translated = if result_observation {
+            translate_ensured_operand(
+                program, machine, state, callee, entry, parameters, arguments, call_value, receiver,
+            )?
+        } else {
+            let observed = operand(program, callee, entry, receiver, None)?;
+            if !observed.has_stable_descriptor(program, entry) {
+                return None;
+            }
+            // Mutable access belongs to the referent, not this private
+            // descriptor home. Rebind only this authenticated metadata
+            // receiver; ordinary scalar/field post-state substitution below
+            // still rejects mutable formals.
+            let bindings = parameters
+                .iter()
+                .zip(arguments)
+                .filter_map(|(parameter, argument)| {
+                    Some((
+                        Operand::parameter(parameter),
+                        operand(program, machine, state, *argument, None)?,
+                    ))
+                })
+                .collect::<Vec<_>>();
+            let mut translated = observed.rebound(&bindings).into_iter();
+            let receiver = translated.next()?;
+            if translated.next().is_some() {
+                return None;
+            }
+            receiver
+        };
+        return Some(Operand::CollectionLength(Box::new(translated)));
+    }
     if crate::proof_contracts::contract_results::reserved_result_owner(program, expression)
-        .is_some()
+        .is_some_and(|(owner, _)| owner == callee.symbol)
     {
         return Some(call_value.clone());
     }
@@ -358,9 +463,57 @@ fn ordering_relations(operator: BinaryOperator, left: Operand, right: Operand) -
 
 fn replace_operand(operand: Operand, call_value: &Operand, destination: &Operand) -> Operand {
     if &operand == call_value {
-        destination.clone()
-    } else {
-        operand
+        return destination.clone();
+    }
+    // The result may be observed through fields, indices or metadata. Bind
+    // the completed occurrence underneath those observations; never recreate
+    // another invocation from its arguments or equate two different calls.
+    let replace = |operand| replace_operand(operand, call_value, destination);
+    match operand {
+        Operand::CollectionLength(collection) => {
+            Operand::CollectionLength(Box::new(replace(*collection)))
+        }
+        Operand::Field {
+            receiver,
+            field,
+            name,
+            primitive,
+        } => Operand::Field {
+            receiver: Box::new(replace(*receiver)),
+            field,
+            name,
+            primitive,
+        },
+        Operand::Indexed {
+            collection,
+            index,
+            primitive,
+        } => Operand::Indexed {
+            collection: Box::new(replace(*collection)),
+            index: Box::new(replace(*index)),
+            primitive,
+        },
+        Operand::Binary {
+            operator,
+            primitive,
+            domain,
+            operands,
+        } => Operand::Binary {
+            operator,
+            primitive,
+            domain,
+            operands: operands.into_iter().map(replace).collect(),
+        },
+        Operand::Call {
+            target,
+            occurrence,
+            arguments,
+        } => Operand::Call {
+            target,
+            occurrence,
+            arguments: arguments.into_iter().map(replace).collect(),
+        },
+        operand => operand,
     }
 }
 

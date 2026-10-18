@@ -281,6 +281,7 @@ impl Builder<'_, '_> {
                     authored_root: ExpressionHandle::invalid(),
                     value_source: ExpressionHandle::invalid(),
                     primitive_type,
+                    normal_cleanup_actions: arena::HandleSpan::empty(),
                     kind: checked_trees::CheckedScalarComputationKind::Value(zero),
                 });
             // This literal has no authored scalar occurrence. The zeroed array

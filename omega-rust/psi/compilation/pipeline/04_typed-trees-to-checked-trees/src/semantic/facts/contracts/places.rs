@@ -39,9 +39,24 @@ pub(crate) fn contract_fact_dependency_places(
     contract: &ContractProofFact,
 ) -> Vec<PlaceHandle> {
     let mut places = Vec::new();
-    for expression in
-        crate::facts::contract_occurrences::fact_referenced_occurrences(program, contract.fact)
-    {
+    let state = match (contract.kind, contract.owner) {
+        (
+            ContractProofFactKind::Requires,
+            ContractProofFactOwner::MachineState { state_symbol, .. },
+        ) => Some(state_symbol),
+        (ContractProofFactKind::Requires, ContractProofFactOwner::Machine { machine_symbol }) => {
+            program
+                .machine(machine_symbol)
+                .and_then(|machine| program.machine_states(machine).first())
+                .map(|state| state.symbol)
+        }
+        _ => None,
+    };
+    for expression in crate::facts::contract_occurrences::fact_referenced_occurrences_in_state(
+        program,
+        contract.fact,
+        state,
+    ) {
         if let Some(place) = contract_expression_place(program, facts, contract, expression) {
             push_unique_place(facts, &mut places, place);
         }

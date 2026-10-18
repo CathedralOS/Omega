@@ -19,6 +19,9 @@ pub(in crate::flow) struct StatementWrite {
     pub(in crate::flow) candidate_targets: Vec<CanonicalPlace>,
     pub(in crate::flow) target_is_exact: bool,
     pub(in crate::flow) stable_value_target: bool,
+    /// The captured address still has this semantic coordinate after the RHS.
+    /// Geometry/exactness alone cannot freeze intermediate reference slots.
+    pub(in crate::flow) destination_is_current: bool,
 }
 
 pub(in crate::flow) fn statement_write(
@@ -105,6 +108,7 @@ pub(in crate::flow) fn statement_write(
         candidate_targets,
         target_is_exact,
         stable_value_target: false,
+        destination_is_current: true,
     })
 }
 

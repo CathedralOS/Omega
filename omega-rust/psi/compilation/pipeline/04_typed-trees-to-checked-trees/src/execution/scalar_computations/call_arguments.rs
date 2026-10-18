@@ -493,27 +493,30 @@ impl Builder<'_, '_> {
                     owner_type,
                 )?;
             }
-            let multiplicity = if stored.is_some() {
-                // A computed descriptor owns its lifetime even when a shared
-                // source alias is logically unrestricted. Dispose only that
-                // descriptor after the consumer, never its lent referent.
-                validation::reference_result_custody::result_multiplicity(self.program, owner_type)
-            } else {
-                self.program.type_multiplicity(owner_type)
-            };
-            match multiplicity {
-                language_semantics::Multiplicity::Affine
-                | language_semantics::Multiplicity::Linear => {
-                    discards = Some(vec![checked_trees::CheckedNormalCleanupAction::Discard(
-                        checked_trees::CheckedUnitPartialAffineDiscardPlan {
-                            source: argument_plan.source.clone(),
-                            path: Vec::new(),
-                            type_identity: self.program.normalized_type_identity(owner_type),
-                            case_conditions: Default::default(),
-                        },
-                    )]);
+            if stored.is_some() {
+                let actions = crate::execution::terminal_unit::cleanup::descriptor_retirement(
+                    self.program,
+                    argument_plan.source.clone(),
+                    owner_type,
+                )?;
+                if !actions.is_empty() {
+                    discards = Some(actions);
                 }
-                language_semantics::Multiplicity::Unrestricted => {}
+            } else {
+                match self.program.type_multiplicity(owner_type) {
+                    language_semantics::Multiplicity::Affine
+                    | language_semantics::Multiplicity::Linear => {
+                        discards = Some(vec![checked_trees::CheckedNormalCleanupAction::Discard(
+                            checked_trees::CheckedUnitPartialAffineDiscardPlan {
+                                source: argument_plan.source.clone(),
+                                path: Vec::new(),
+                                type_identity: self.program.normalized_type_identity(owner_type),
+                                case_conditions: Default::default(),
+                            },
+                        )]);
+                    }
+                    language_semantics::Multiplicity::Unrestricted => {}
+                }
             }
         } else if !argument_plan.path.is_empty() {
             discards = Some(

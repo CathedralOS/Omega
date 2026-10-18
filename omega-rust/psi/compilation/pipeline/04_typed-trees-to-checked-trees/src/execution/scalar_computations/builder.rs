@@ -272,10 +272,12 @@ impl Builder<'_, '_> {
         {
             return handle;
         }
+        let normal_cleanup_actions = self.observation_completion_actions(&kind);
         self.plans.nodes.append(CheckedScalarComputation {
             value_source: ExpressionHandle::invalid(),
             authored_root: ExpressionHandle::invalid(),
             primitive_type,
+            normal_cleanup_actions,
             kind,
         })
     }
@@ -421,6 +423,9 @@ impl Builder<'_, '_> {
     ) -> Option<CheckedScalarComputationHandle> {
         if let Some((constant, primitive)) = self.retained_constant(expression) {
             return (primitive == expected_type).then_some(constant);
+        }
+        if let Some(observation) = self.primitive_reference_observation(expression, expected_type) {
+            return Some(observation);
         }
         // A Boolean result rooted at an integer destination is the implicit
         // `{0, 1}` coercion checking admits for a raw comparison or logical

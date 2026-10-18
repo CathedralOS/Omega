@@ -36,6 +36,7 @@ pub(crate) mod copies;
 mod dispatch;
 pub(crate) mod fields;
 pub(crate) mod literals;
+mod normal_cleanup;
 pub(crate) mod observations;
 pub(crate) mod operand_types;
 pub(crate) mod produced_values;
@@ -660,6 +661,7 @@ impl<'a> Expansion<'a> {
                 &subject,
                 field,
                 node.primitive_type,
+                node.normal_cleanup_actions,
                 input_types,
                 target,
                 site,

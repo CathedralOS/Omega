@@ -382,6 +382,9 @@ pub(super) fn validate<'a, 'p>(
         machine,
         current_state,
         assignment.value,
+        assignment_target_type_raw
+            .map(|reference| places::assignment_value_type(program, reference))
+            .unwrap_or_default(),
         value_environment,
         &arithmetic_decisions.expression_values[first_checked_interval..],
     );
@@ -406,6 +409,14 @@ pub(super) fn validate<'a, 'p>(
         );
     } else {
         value_environment.invalidate_unknown_writes(program, current_state);
+    }
+    // The target address was captured before the RHS ran. Its current spelling
+    // can publish the new value only if every crossed slot stayed unchanged.
+    if !scope
+        .call_frames
+        .is_some_and(|frames| frames.assignment_destination_remains_current(machine, statement))
+    {
+        return;
     }
     let assignment_path = arithmetic_domains::place_path(program, assignment.target);
     arithmetic_domains::record_assignment(

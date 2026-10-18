@@ -889,7 +889,7 @@ pass/control_flow/runtime_branching_helper_string built 4587ms @4ffed225fc45+wt
 pass/control_flow/runtime_captured_case_reference_arm_forwarding_exit built 3753ms exit:70 @0c36a0fe0b35
 pass/control_flow/runtime_captured_case_reference_child_arm_forwarding_exit built 3586ms exit:70 @0c36a0fe0b35
 pass/control_flow/runtime_captured_local_remutated_field_exit built 677ms exit:70
-pass/control_flow/runtime_carried_local_reference_backing_exit built 7469ms exit:0 @3ea0aec65b44+wt
+pass/control_flow/runtime_carried_local_reference_backing_exit built 13214ms exit:0 interpreter-exit:0 interpreter:agrees @cba98157e519+wt
 pass/control_flow/runtime_compare_pair_dispatch_exit built 609ms exit:70
 pass/control_flow/runtime_computed_case_subject_call_operand_exit built 2779ms exit:70 @02be27637e24+wt
 pass/control_flow/runtime_computed_case_subject_single_evaluation_exit built 1592ms exit:70 @15f38e49aac2
@@ -1334,6 +1334,15 @@ pass/facts/temporary_case_cleanup_through_other_machine_exit built 3763ms exit:0
 pass/facts/temporary_case_cleanup_through_other_state_exit built 3785ms exit:0 @46f72294c589
 pass/facts/temporary_case_cleanup_through_parameter_exit built 3786ms exit:0 @46f72294c589
 pass/facts/temporary_case_cleanup_through_target_body_exit built 3670ms exit:0 @46f72294c589
+pass/facts/view_extent_after_write_through_call_result_exit built 7096ms exit:0 interpreter-exit:0 interpreter:agrees @cba98157e519+wt
+pass/facts/view_extent_after_write_through_const_name_exit built 6683ms exit:0 interpreter-exit:0 interpreter:agrees @cba98157e519+wt
+pass/facts/view_extent_after_write_through_field_exit built 6600ms exit:0 interpreter-exit:0 interpreter:agrees @cba98157e519+wt
+pass/facts/view_extent_after_write_through_local_exit built 6612ms exit:0 interpreter-exit:0 interpreter:agrees @cba98157e519+wt
+pass/facts/view_extent_after_write_through_match_join_exit built 6592ms exit:0 interpreter-exit:0 interpreter:agrees @cba98157e519+wt
+pass/facts/view_extent_after_write_through_other_machine_exit built 6581ms exit:0 interpreter-exit:0 interpreter:agrees @cba98157e519+wt
+pass/facts/view_extent_after_write_through_other_state_exit built 6588ms exit:0 interpreter-exit:0 interpreter:agrees @cba98157e519+wt
+pass/facts/view_extent_after_write_through_parameter_exit built 6581ms exit:0 interpreter-exit:0 interpreter:agrees @cba98157e519+wt
+pass/facts/view_extent_after_write_through_target_body_exit built 6626ms exit:0 interpreter-exit:0 interpreter:agrees @cba98157e519+wt
 pass/filesystem/cross_linux_value_syscalls checked 24317ms @e01f73c689de+wt
 pass/filesystem/dir_walk_wrappers_exit built 18777ms exit:70 @cc43b6679d2a+wt
 pass/filesystem/native_canonicalize built 18026ms exit:0 stdout:match @cc43b6679d2a+wt
@@ -1859,6 +1868,8 @@ pass/proofs/cauchy_predicates_compile rejected 376ms @6c75d91f0312
 	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_triangle_split$specialized$e884ebf6348c9935$0` ensures contract: establish its selected precondition in an independently formed prior requires fact
 	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_triangle_split$specialized$e884ebf6348c9935$0` ensures contract: establish its selected precondition in an independently formed prior requires fact
 pass/proofs/citation_requires_discharged checked 223ms
+pass/proofs/completed_store_address_and_result_exit built 6742ms exit:0 interpreter-exit:0 interpreter:agrees @cba98157e519+wt
+pass/proofs/constructor_aggregate_guarantees_follow_evaluation_exit built 15669ms exit:0 interpreter-exit:0 interpreter:agrees @cba98157e519+wt
 pass/proofs/defined_proposition_premises checked 1161ms @77ecdbf5e7c6
 pass/proofs/family_carrier_relation_laws checked 1653ms @47fae30824a7+wt
 pass/proofs/higher_order_machine_schema_compile checked 209ms
@@ -2023,7 +2034,7 @@ pass/recast/runtime_aggregate_slice_representation_recast_exit built 3977ms exit
 pass/recast/runtime_authored_toolchain_type_shadow_exit built 1664ms exit:0 @bf3bd23a63c0
 pass/recast/runtime_bool_representation_recast_exit built 874ms exit:70 @43d1481401ed+wt
 pass/recast/runtime_boolean_view_decision_exit built 1640ms exit:0 @6e7bf42e4877
-pass/recast/runtime_byte_region_state_transfer_exit built 4402ms exit:0 @8fd8af53161a+wt
+pass/recast/runtime_byte_region_state_transfer_exit built 7372ms exit:0 interpreter-exit:0 interpreter:agrees @cba98157e519+wt
 pass/recast/runtime_field_precondition_capture_exit built 2946ms exit:70 @9beb2be72f2d+wt
 pass/recast/runtime_float_range_representation_recast_exit built 1687ms exit:70 @43d1481401ed+wt
 pass/recast/runtime_guarded_offset_recast_exit built 1748ms exit:70 @fb2178def922

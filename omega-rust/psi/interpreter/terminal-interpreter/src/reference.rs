@@ -939,22 +939,33 @@ impl TerminalExecution<'_> {
             self.borrowed_projection_leaf(expected, argument.access),
         )?;
         let (mut value, tip) = (projected.value, projected.view_tip);
-        let backing = if let Some(AggregateViewTip::Aggregate { view, backing }) = tip {
+        let region = if let Some(AggregateViewTip::Aggregate { view, backing }) = tip {
             if argument.access == StructuralAccess::Owned
                 || expected != view.structural_type
                 || value.structural_type != backing
             {
                 return Err(malformed());
             }
-            let backing = AggregateBacking {
-                value: value.clone(),
-                region: view,
-            };
-            value.structural_type = view.structural_type;
-            Some(backing)
+            Some(view)
         } else {
             None
         };
+        // Ingress snapshots its physical association before the source edge
+        // retires temporary descriptors. A byte-backed aggregate has no typed
+        // field cells to reconstruct afterward. Repeated calls/state edges
+        // carry this same endpoint and extent, never the dead descriptor.
+        let byte_region = self.reference_byte_region(&value)?;
+        if byte_region.is_some() && argument.access == StructuralAccess::Owned {
+            return Err(malformed());
+        }
+        let backing = (region.is_some() || byte_region.is_some()).then(|| AggregateBacking {
+            value: value.clone(),
+            region,
+            byte_region,
+        });
+        if let Some(region) = region {
+            value.structural_type = region.structural_type;
+        }
         // A borrowed element descriptor presents the same pointer/count pair
         // without its stored access shell. Keep its opaque home and captured
         // path; the companion view still owns backing permission and extent.
@@ -1123,7 +1134,7 @@ impl TerminalExecution<'_> {
             }
         }
         let (backing, view) = match self.aggregate_argument_backings.get(&place) {
-            Some(backing) => (&backing.value, Some(backing.region)),
+            Some(backing) => (&backing.value, backing.region),
             None => (owner, None),
         };
         self.resolve_reference_view_path_with_leaf_type(
@@ -1188,7 +1199,7 @@ impl TerminalExecution<'_> {
     ) -> Result<TerminalStructuralValue, TerminalInterpretError> {
         let owner = self.structural_values.get(&place).ok_or_else(malformed)?;
         let (backing, view) = match self.aggregate_argument_backings.get(&place) {
-            Some(backing) => (&backing.value, Some(backing.region)),
+            Some(backing) => (&backing.value, backing.region),
             None => (owner, None),
         };
         self.resolve_reference_view_path_with_leaf_type(
@@ -1657,7 +1668,7 @@ impl TerminalExecution<'_> {
                     }
                     let path = binding.source.path.as_slice();
                     let (backing, view) = match aggregate_backings.get(&parameter.place) {
-                        Some(backing) => (&backing.value, Some(backing.region)),
+                        Some(backing) => (&backing.value, backing.region),
                         None => (owner, None),
                     };
                     let Some(projected) = self.resolve_reference_view_path_with_leaf_type(

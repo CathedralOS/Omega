@@ -23,6 +23,7 @@
 
 mod alias_bindings;
 mod alias_origins;
+mod assignment_addresses;
 mod assignment_targets;
 mod boundary_calls;
 mod call_targets;

@@ -288,6 +288,7 @@ pub(super) fn validate(
             machine,
             current_state,
             local_data.initial_value,
+            local_data.type_reference,
             value_environment,
             &arithmetic_decisions.expression_values[first_checked_interval..],
         );

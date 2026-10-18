@@ -955,6 +955,8 @@ impl ArrivalWalk<'_, '_> {
                     self.machine,
                     Some(source),
                     expression,
+                    declared_place_type_raw(self.program, self.machine, Some(source), expression)
+                        .unwrap_or_default(),
                     environment,
                     &analysis.decisions.expression_values,
                 ),
@@ -995,7 +997,7 @@ impl ArrivalWalk<'_, '_> {
         written: Option<Vec<String>>,
     ) {
         if let Some(written) = written {
-            environment.invalidate_written_paths(&written);
+            environment.invalidate_call_paths(self.program, Some(source), &written);
         } else {
             environment.invalidate_unknown_writes(self.program, Some(source));
         }
@@ -1311,7 +1313,10 @@ impl ArrivalWalk<'_, '_> {
                             .assignment_write_frame(self.machine, statement)
                             .into_complete_paths()
                     });
-                    let complete = written.is_some();
+                    let destination_is_current = written.is_some()
+                        && self.frames.is_some_and(|frames| {
+                            frames.assignment_destination_remains_current(self.machine, statement)
+                        });
                     if let Some(written) = written {
                         value.copied.capture_assignment_relations(
                             self.program,
@@ -1336,7 +1341,7 @@ impl ArrivalWalk<'_, '_> {
                     // merely the special case of a direct u64 literal. Retire
                     // aliases first, then let ordinary edge rebinding carry
                     // this snapshot to every successor that retains the place.
-                    if complete {
+                    if destination_is_current {
                         let path = self.bound_place(source, assignment.target).or_else(|| {
                             crate::exact_self_field(self.program, self.machine, assignment.target)
                                 .and_then(|_| place_path(self.program, assignment.target))

@@ -115,9 +115,11 @@ impl Root {
                 origin.extent = extent;
             }
         }
+        // Incoming contents name a captured pointer value. Its slot identity
+        // is not the physical storage of the pointee, even for one exact path.
         if origins.len() == 1
             && let Some(path) = origins[0].exact_path()
-            && let Some(root) = origins[0].base.root_place()
+            && let target_operations::TargetReferenceOriginBase::Storage { root } = origins[0].base
         {
             Self::Ingress(root, path)
         } else {
@@ -240,8 +242,9 @@ pub(in crate::legalization) struct Custody {
         BlockId,
         BTreeMap<(PlaceId, Vec<StructuralPathSegment>), Leaf>,
         BTreeMap<OccurrenceIdentity, retirements::RetiredOccurrence>,
+        std::sync::Arc<borrowed_arrivals::Sources>,
     )>,
-    borrowed_sources: std::sync::Arc<BTreeMap<PlaceId, Option<Vec<StructuralArgument>>>>,
+    borrowed_sources: std::sync::Arc<borrowed_arrivals::Sources>,
     descriptor_backing: std::sync::Arc<descriptor_backing::Observations>,
     stored_calls: std::sync::Arc<stored_calls::Effects>,
     reference_position: Option<terminal_semantics::descriptor_lifetimes::DescriptorPosition>,
@@ -266,8 +269,8 @@ impl Custody {
         let mut matching = self
             .edge_exits
             .iter()
-            .filter(|(candidate, block, _, _)| *candidate == edge && *block == target);
-        let (_, _, leaves, retired) = matching.next().ok_or_else(invalid)?;
+            .filter(|(candidate, block, _, _, _)| *candidate == edge && *block == target);
+        let (_, _, leaves, retired, borrowed_sources) = matching.next().ok_or_else(invalid)?;
         if matching.next().is_some() {
             return Err(invalid());
         }
@@ -275,7 +278,7 @@ impl Custody {
             leaves: leaves.clone(),
             retired: retired.clone(),
             edge_exits: Vec::new(),
-            borrowed_sources: self.borrowed_sources.clone(),
+            borrowed_sources: borrowed_sources.clone(),
             descriptor_backing: self.descriptor_backing.clone(),
             stored_calls: self.stored_calls.clone(),
             reference_position: self.reference_position,
@@ -908,34 +911,7 @@ fn normalized_source(
     types: &[StructuralTypeDeclaration],
     source: &StructuralArgument,
 ) -> Result<(Root, Vec<OccurrenceIdentity>), LegalizationError> {
-    let Some(origins) = custody.borrowed_sources.get(&source.place) else {
-        return normalized_direct_source(function, custody, types, source);
-    };
-    let origins = origins
-        .as_ref()
-        .filter(|origins| !origins.is_empty())
-        .ok_or(invalid())?;
-    let expected = storage_projection(function, custody, types, source).ok_or(invalid())?;
-    let mut candidates = Vec::with_capacity(origins.len());
-    for origin in origins {
-        if !source.access.admits(origin.access) {
-            return Err(invalid());
-        }
-        let mut resolved = origin.clone();
-        resolved.path.extend_from_slice(&source.path);
-        resolved.access = source.access;
-        // Rebinding may change the carrier's presentation, never a window's
-        // original backing or exact interval. Keep every possible origin.
-        if !storage_projection(function, custody, types, &resolved)
-            .is_some_and(|actual| actual.matches(types.iter(), expected))
-        {
-            return Err(invalid());
-        }
-        candidates.push(normalized_direct_source(
-            function, custody, types, &resolved,
-        )?);
-    }
-    combine_candidate_origins(candidates)
+    borrowed_arrivals::normalize(function, custody, types, source)
 }
 
 fn normalized_direct_source(
@@ -1021,7 +997,7 @@ fn backing_storage_access_conflicts(
         let Some(parameter) = function.arrival_parameter(place) else {
             return true;
         };
-        let Some(actuals) = borrowed_arrivals::flatten(
+        let Ok((root, _)) = normalized_source(
             function,
             custody,
             types,
@@ -1033,18 +1009,19 @@ fn backing_storage_access_conflicts(
         ) else {
             return true;
         };
-        return actuals.iter().any(|actual| {
-            // Flattened arrivals terminate at established homes or explicit
-            // descriptor crossings. A residual alias cannot grant separation.
-            custody.borrowed_sources.contains_key(&actual.place)
-                || backing_intersects_storage(
-                    function,
-                    custody,
-                    types,
-                    backing,
-                    actual.place,
-                    &actual.path,
-                )
+        return root.origins().iter().any(|origin| {
+            // Only a real storage origin can refine this containment query;
+            // incoming pointer contents cannot be reinterpreted as their slot.
+            let target_operations::TargetReferenceOriginBase::Storage { root: place } = origin.base
+            else {
+                return true;
+            };
+            let Some(path) = origin.exact_path() else {
+                return true;
+            };
+            origin.extent != semantic_vocabulary::ReferenceOriginExtent::Projected
+                || custody.borrowed_sources.contains_key(&place)
+                || backing_intersects_storage(function, custody, types, backing, place, &path)
         });
     }
     backing_intersects_storage(function, custody, types, backing, place, path)
@@ -1778,7 +1755,6 @@ fn relocate_subtree_leaves<'a>(
 ) -> Result<(), LegalizationError> {
     let mut relocations = Vec::new();
     let mut moved = BTreeSet::new();
-    let mut locations = BTreeMap::new();
     for (argument, nested, prefix) in operands {
         if !contains_reference(types, nested) {
             continue;
@@ -1878,7 +1854,6 @@ fn relocate_subtree_leaves<'a>(
                 if !moved.insert(source.clone()) {
                     return Err(invalid());
                 }
-                locations.insert(source, (destination, target_path.clone()));
             }
             relocations.push((leaf, target_path));
         }
@@ -1889,7 +1864,8 @@ fn relocate_subtree_leaves<'a>(
     for (leaf, to) in relocations {
         custody.leaves.insert((destination, to), leaf);
     }
-    borrowed_arrivals::relocate(custody, &locations);
+    // Moving a carrier preserves its occurrence and captured backing. Borrowed
+    // arrivals no longer contain source spellings to relocate.
     Ok(())
 }
 
@@ -2774,6 +2750,14 @@ pub(in crate::legalization) fn apply_terminator(
                     &destination.structural_parameters,
                     types,
                 )?;
+                borrowed_arrivals::bind(
+                    function,
+                    custody,
+                    &mut exit,
+                    bindings,
+                    &destination.structural_parameters,
+                    types,
+                )?;
             }
             apply_cleanup_actions(
                 &mut exit,
@@ -2782,7 +2766,13 @@ pub(in crate::legalization) fn apply_terminator(
                 types,
                 retirements::DisposalEvent::Edge(edge),
             )?;
-            exits.push((edge, target, exit.leaves, exit.retired));
+            exits.push((
+                edge,
+                target,
+                exit.leaves,
+                exit.retired,
+                exit.borrowed_sources,
+            ));
         } else {
             apply_cleanup_actions(
                 custody,
@@ -2883,7 +2873,7 @@ fn apply_cleanup_actions(
 fn borrowed_sources(
     function: &PsiOptimizationFunction,
     types: &[StructuralTypeDeclaration],
-) -> std::sync::Arc<BTreeMap<PlaceId, Option<Vec<StructuralArgument>>>> {
+) -> std::sync::Arc<borrowed_arrivals::Sources> {
     let sources = function
         .block_structural_parameters()
         .filter(|parameter| {
@@ -3029,15 +3019,15 @@ pub(in crate::legalization) fn block_entry_states(
                     types,
                 )?;
             }
-            borrowed_arrivals::bind(
-                function,
-                &custody,
-                &mut arrival,
-                &edge.structural_bindings,
-                &blocks[target_position].structural_parameters,
-                types,
-            )?;
             let scope = dominators.get(&edge.target).ok_or(invalid())?;
+            for (place, source) in std::sync::Arc::make_mut(&mut arrival.borrowed_sources) {
+                if storage_definitions
+                    .get(place)
+                    .is_some_and(|(definition, _)| !scope.contains(definition))
+                {
+                    *source = None;
+                }
+            }
             arrival.leaves.retain(|(carrier, path), _| {
                 owned_relative_path(path, &[]).is_none()
                     || storage_definitions

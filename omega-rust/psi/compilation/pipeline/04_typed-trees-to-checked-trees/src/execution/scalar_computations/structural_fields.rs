@@ -14,7 +14,145 @@ use checked_trees::{
     CheckedUnitStructuralArgumentSourcePlan,
 };
 
+pub(super) struct PrimitiveReferenceObservation {
+    pub(super) type_reference: typed_trees::types::TypeReferenceHandle,
+    pub(super) primitive_type: typed_trees::types::PrimitiveType,
+    pub(super) domain: numerics::arithmetic::ArithmeticDomain,
+}
+
 impl Builder<'_, '_> {
+    /// A scalar read finishes its fresh reference receiver before a later
+    /// operand can write the backing. The captured scalar is independent; the
+    /// descriptor is not an owned referent or a receiver kept until scope exit.
+    /// Nominal temporary owners retain their separately checked normal death.
+    pub(super) fn observation_completion_actions(
+        &mut self,
+        kind: &CheckedScalarComputationKind,
+    ) -> arena::HandleSpan<checked_trees::CheckedNormalCleanupAction> {
+        let CheckedScalarComputationKind::StructuralField { receiver_value, .. } = kind else {
+            return arena::HandleSpan::empty();
+        };
+        if !receiver_value.is_valid() {
+            return arena::HandleSpan::empty();
+        }
+        let receiver = self.structural_values.nodes.get(*receiver_value);
+        if !validation::canonical_place_from_expression_in_state(
+            self.program,
+            self.state,
+            self.statement_index,
+            receiver.expression,
+        )
+        .is_some_and(|place| {
+            place.root == facts::PlaceRoot::Expression(receiver.expression)
+                && place.segments.is_empty()
+        }) {
+            return arena::HandleSpan::empty();
+        }
+        if !validation::reference_shell(self.program, receiver.type_reference)
+            .is_some_and(|shell| shell.access.is_readable())
+        {
+            return arena::HandleSpan::empty();
+        }
+        let source = CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+            expression: receiver.expression,
+        };
+        let Some(actions) = crate::execution::terminal_unit::cleanup::descriptor_retirement(
+            self.program,
+            source,
+            receiver.type_reference,
+        ) else {
+            return arena::HandleSpan::empty();
+        };
+        self.plans.temporary_cleanup_actions.insert_many(actions)
+    }
+
+    /// A computed reference first produces its permission carrier; a scalar
+    /// receiving position then observes that carrier's referent. This is the
+    /// same explicit storage read as a field projection, not a scalar ABI for
+    /// the producer and not an equation to its possible ingress origins.
+    pub(super) fn primitive_reference_observation(
+        &mut self,
+        expression: ExpressionHandle,
+        expected: typed_trees::types::PrimitiveType,
+    ) -> Option<CheckedScalarComputationHandle> {
+        let observation = self.primitive_reference_observation_type(expression)?;
+        if observation.primitive_type != expected {
+            return None;
+        }
+        let reference = observation.type_reference;
+        let receiver_value = self.structural_value(expression, reference)?;
+        let statement = u32::try_from(self.statement_index).ok()?;
+        if self
+            .structural_values
+            .root_for_expression(self.state, statement, expression)
+            .is_none()
+        {
+            self.push_structural_root(statement, expression, reference, receiver_value);
+        }
+        Some(self.insert(
+            expected,
+            CheckedScalarComputationKind::StructuralField {
+                source_expression: expression,
+                receiver_expression: expression,
+                source_type: reference,
+                receiver_value,
+                subject: CheckedUnitStructuralArgumentPlan {
+                    source: CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+                        expression,
+                    },
+                    path: vec![checked_trees::CheckedUnitStructuralPathSegment::Referent],
+                    type_identity: validation::stored_structural_type_identity(
+                        self.program,
+                        reference,
+                        &[],
+                        &[],
+                    ),
+                    access: CheckedStructuralAccess::SharedBorrow,
+                },
+                field: symbols::SymbolHandle::invalid(),
+                field_identity: Default::default(),
+            },
+        ))
+    }
+
+    /// Receiving positions and arithmetic operands ask the same type question.
+    /// The reference's declared referee supplies its scalar carrier and policy;
+    /// neither a surrounding operator nor the return ABI may invent them.
+    pub(super) fn primitive_reference_observation_type(
+        &self,
+        expression: ExpressionHandle,
+    ) -> Option<PrimitiveReferenceObservation> {
+        if validation::canonical_place_from_expression_in_state(
+            self.program,
+            self.state,
+            self.statement_index,
+            expression,
+        )
+        .is_some_and(|place| place.root.as_symbol().is_some())
+        {
+            // Established storage already has the ordinary named/projected
+            // observation route. It must not be copied into another home.
+            return None;
+        }
+        let reference = validation::expression_type_reference_in_state(
+            self.program,
+            self.state,
+            self.statement_index,
+            expression,
+        )?;
+        let shell = validation::reference_shell(self.program, reference)?;
+        if !shell.access.is_readable() {
+            return None;
+        }
+        Some(PrimitiveReferenceObservation {
+            type_reference: reference,
+            primitive_type: self.program.primitive_type_reference(shell.referee)?,
+            domain: self
+                .program
+                .arithmetic_domain_for_type_reference(shell.referee),
+        })
+    }
+
     pub(super) fn structural_scalar_field(
         &self,
         expression: ExpressionHandle,

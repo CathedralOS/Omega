@@ -15,6 +15,8 @@ pub(in crate::execution::terminal_unit) use actions::checked_path_segments;
 pub(super) mod anonymous;
 pub(crate) use anonymous::projected_temporary_cleanup;
 mod cleanup_evidence;
+mod descriptor_retirement;
+pub(crate) use descriptor_retirement::descriptor_retirement;
 mod nominal_requirements;
 pub(super) mod normal_edges;
 mod order;

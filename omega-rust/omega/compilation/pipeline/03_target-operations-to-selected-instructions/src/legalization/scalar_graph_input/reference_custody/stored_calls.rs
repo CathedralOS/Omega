@@ -829,6 +829,7 @@ pub(super) fn commit(
             custody.leaves.insert(destination, leaf);
         }
     }
-    borrowed_arrivals::relocate(custody, &staged.relocations);
+    // Captured borrowed arrivals retain storage and occurrence identity, not
+    // the former physical location of a moved carrier.
     Ok(())
 }

@@ -423,6 +423,7 @@ pub(super) fn remap_parents(
     custody: &mut Custody,
     identities: &[(OccurrenceIdentity, OccurrenceIdentity)],
 ) {
+    super::borrowed_arrivals::remap_parents(custody, identities);
     for leaf in custody.leaves.values_mut().chain(
         custody
             .retired

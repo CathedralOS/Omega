@@ -4,8 +4,8 @@
 //! checking. Record and array constructors compose those leaves, and ordinary
 //! aggregate copies translate their retained descendants. Capture precedes
 //! destination invalidation, so overlapping stores cannot erase the new value.
-//! The supplying environment has already crossed value-evaluation effects;
-//! this owner never replays an initializer or independently summarizes calls.
+//! Checked visits supply each leaf's captured facts. Complete write frames expire
+//! observations before later operands; this owner never reevaluates an initializer.
 //! Reference bindings transport observations of live storage, not a frozen
 //! referent. Ordinary alias-aware writes must still retire those observations.
 
@@ -15,6 +15,8 @@ use crate::value_custody::places::{CanonicalPlace, canonical_place_from_expressi
 use std::collections::BTreeMap;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 
+mod captured_observations;
+use captured_observations::CapturedValue;
 mod source_observations;
 use source_observations::SourceObservations;
 
@@ -31,12 +33,20 @@ pub(crate) struct CopiedIntegerValue {
         String,
         checked_trees::IntegerRangeRecipe,
     )>,
-    intervals: Vec<(String, Interval)>,
-    unsigned_values: Vec<(String, u64)>,
-    float_intervals: Vec<(String, super::value_environment::FloatInterval)>,
-    non_nan_paths: Vec<String>,
-    float_aliases: Vec<(String, String)>,
+    intervals: Vec<CapturedScalarObservation<Interval>>,
+    unsigned_values: Vec<CapturedScalarObservation<u64>>,
+    float_intervals: Vec<CapturedScalarObservation<super::value_environment::FloatInterval>>,
+    non_nan_paths: Vec<CapturedScalarObservation<()>>,
+    float_aliases: Vec<CapturedScalarObservation<String>>,
     ordered_relations: Vec<ordered_values::Relation>,
+}
+
+struct CapturedScalarObservation<Value> {
+    // None means only a legacy text-keyed descendant was available. It may
+    // survive an empty frame, but cannot establish separation from writes.
+    segments: Option<Vec<facts::PlaceSegment>>,
+    suffix: String,
+    value: Value,
 }
 
 impl CopiedIntegerValue {
@@ -45,6 +55,7 @@ impl CopiedIntegerValue {
         machine: &typed_trees::machine::Machine,
         state: Option<&typed_trees::state::State>,
         expression: ExpressionHandle,
+        receiving_type: typed_trees::types::TypeReferenceHandle,
         environment: &ValueEnvironment,
         checked_values: &[super::expression_analysis::CheckedIntegerValue],
     ) -> Self {
@@ -54,7 +65,7 @@ impl CopiedIntegerValue {
             environment,
             checked_values,
         };
-        value.capture_at(&context, expression, "", &[], &[]);
+        value.capture_at(&context, receiving_type, expression, "", &[], Some(&[]));
         value
     }
 
@@ -105,7 +116,7 @@ impl CopiedIntegerValue {
             }
         }
         if let Some(state) = state {
-            self.capture_aggregate_identities(
+            self.capture_descendant_observations(
                 program,
                 machine,
                 state,
@@ -113,17 +124,15 @@ impl CopiedIntegerValue {
                 &destination,
                 &written,
                 environment,
+                local.type_reference,
             );
-            self.ordered_relations
-                .extend(ordered_values::delivered_value_orderings(
-                    program,
-                    machine,
-                    state,
-                    local.initial_value,
-                    &destination,
-                    &written,
-                    environment,
-                ));
+            self.retain_completed_observations(
+                program,
+                machine,
+                state,
+                local.initial_value,
+                &destination,
+            );
         }
     }
 
@@ -146,9 +155,8 @@ impl CopiedIntegerValue {
                 })
                 .and_then(|reference| program.primitive_type_reference(reference));
         // Dynamic destinations require a captured selector, not its later
-        // spelling. A static projection is stable here only because the
-        // shared RHS operand admission below recursively refuses effectful
-        // calls; a reference-retargeting RHS cannot earn these relations.
+        // spelling. Effectful RHS values additionally cross their complete
+        // evaluation frame below; a static spelling does not freeze its inputs.
         let Some(destination) =
             ordered_values::operand(program, machine, state, assignment.target, None)
         else {
@@ -157,7 +165,7 @@ impl CopiedIntegerValue {
         if destination.static_path().is_none() {
             return;
         }
-        self.capture_aggregate_identities(
+        self.capture_descendant_observations(
             program,
             machine,
             state,
@@ -165,19 +173,20 @@ impl CopiedIntegerValue {
             &destination,
             written,
             environment,
+            crate::assignment_stored_value_type(program, machine, state, assignment)
+                .unwrap_or_default(),
         );
-        if !primitive.is_some_and(|primitive| primitive.is_fixed_integer()) {
-            return;
-        }
-        if let Some(observed) = self.capture_relations(
-            program,
-            machine,
-            Some(state),
-            assignment.value,
-            &destination,
-            written,
-            environment,
-        ) {
+        if primitive.is_some_and(|primitive| primitive.is_fixed_integer())
+            && let Some(observed) = self.capture_relations(
+                program,
+                machine,
+                Some(state),
+                assignment.value,
+                &destination,
+                written,
+                environment,
+            )
+        {
             self.capture_scalar_equality(observed, destination.clone(), written);
             if let Some(length) = super::slice_lengths::denoted_collection_length(
                 program,
@@ -189,16 +198,38 @@ impl CopiedIntegerValue {
                 self.capture_scalar_equality(length, destination.clone(), written);
             }
         }
-        self.ordered_relations
-            .extend(ordered_values::delivered_value_orderings(
+        self.retain_completed_observations(program, machine, state, assignment.value, &destination);
+    }
+
+    fn retain_completed_observations(
+        &mut self,
+        program: &dyn crate::CheckingInput,
+        machine: &typed_trees::machine::Machine,
+        state: &typed_trees::state::State,
+        expression: ExpressionHandle,
+        destination: &ordered_values::Operand,
+    ) {
+        // A constructor captures children in order. Later operands may change
+        // an earlier child's source home; the end environment cannot stand in
+        // for that earlier observation. Retain only independent inputs across
+        // the complete evaluation frame, plus this completed destination.
+        let writes = crate::CallFrameResolver::new(program)
+            .and_then(|frames| frames.expression_may_write_paths(machine, expression));
+        self.ordered_relations.retain(|relation| {
+            ordered_values::survives_delivery(
                 program,
-                machine,
                 state,
-                assignment.value,
-                &destination,
-                written,
-                environment,
-            ));
+                &relation.left,
+                destination,
+                writes.as_deref(),
+            ) && ordered_values::survives_delivery(
+                program,
+                state,
+                &relation.right,
+                destination,
+                writes.as_deref(),
+            )
+        });
     }
 
     fn capture_relations(
@@ -220,12 +251,15 @@ impl CopiedIntegerValue {
         }
         bindings.retain(|(source, _)| source.survives(written));
         bindings.push((observed.clone(), destination.clone()));
-        self.ordered_relations =
-            ordered_values::rebind_relations(&environment.ordered_values, &bindings);
+        self.ordered_relations
+            .extend(ordered_values::rebind_relations(
+                &environment.ordered_values,
+                &bindings,
+            ));
         Some(observed)
     }
 
-    fn capture_aggregate_identities(
+    fn capture_descendant_observations(
         &mut self,
         program: &dyn crate::CheckingInput,
         machine: &typed_trees::machine::Machine,
@@ -234,21 +268,97 @@ impl CopiedIntegerValue {
         destination: &ordered_values::Operand,
         written: &[String],
         environment: &ValueEnvironment,
+        type_reference: typed_trees::types::TypeReferenceHandle,
     ) {
+        let captured = CapturedValue {
+            operand: destination,
+            type_reference,
+        };
+        let source = SourceObservations::new(program, machine, Some(state), expression);
+        self.capture_descendants(
+            program,
+            machine,
+            state,
+            expression,
+            destination,
+            written,
+            environment,
+            &captured,
+            &source,
+            Some(&[]),
+        );
+    }
+
+    fn capture_descendants(
+        &mut self,
+        program: &dyn crate::CheckingInput,
+        machine: &typed_trees::machine::Machine,
+        state: &typed_trees::state::State,
+        expression: ExpressionHandle,
+        destination: &ordered_values::Operand,
+        written: &[String],
+        environment: &ValueEnvironment,
+        captured: &CapturedValue<'_>,
+        source: &SourceObservations<'_>,
+        later_writes: Option<&[String]>,
+    ) {
+        if !matches!(
+            program.expression_table.expression(expression),
+            ExpressionNode::StructLiteral(_)
+        ) {
+            // Children are evaluated in authored initializer order. Expire earlier
+            // borrowed-content observations before this operand runs, then
+            // capture this operand's completed guarantees. Applying the whole
+            // constructor frame afterward cannot recover that ordering.
+            let writes = source.effects(expression);
+            self.ordered_relations.retain(|relation| {
+                captured.observation_survives(program, state, &relation.left, writes.as_deref())
+                    && captured.observation_survives(
+                        program,
+                        state,
+                        &relation.right,
+                        writes.as_deref(),
+                    )
+            });
+        }
+        // A value binding transports integer observations of that value,
+        // whether the observation is the scalar itself, a field, or a view's
+        // extent. Nested constructor operands use the same delivery route as
+        // a whole local/store; payload equality is never inferred from length.
+        self.ordered_relations
+            .extend(ordered_values::delivered_value_orderings(
+                program,
+                machine,
+                state,
+                expression,
+                destination,
+                written,
+                environment,
+            ));
+        if later_writes.is_some_and(|written| source.permits(expression, written))
+            && super::declared_place_type_raw(program, machine, Some(state), expression)
+                .is_some_and(|reference| crate::slice_view_shell(program, reference, &[]).is_some())
+            && let Some(observed) =
+                ordered_values::operand(program, machine, state, expression, None)
+        {
+            self.capture_scalar_equality(
+                ordered_values::Operand::CollectionLength(Box::new(observed)),
+                ordered_values::Operand::CollectionLength(Box::new(destination.clone())),
+                written,
+            );
+        }
         let ExpressionNode::StructLiteral(literal) =
             program.expression_table.expression(expression)
         else {
             return;
         };
         let fields = program.expression_table.struct_fields(literal.fields);
-        let source = SourceObservations::new(program, machine, Some(state), expression);
-        // This environment is after the entire initializer. A field copied
-        // before a later sibling writes its source is no longer equal to a
-        // current read of that source. Walk backward to accumulate the exact
-        // intervening effects; nested literals inherit the outer suffix too.
-        // Unknown effects withhold earlier identities, never revive them.
-        let mut written = written.to_vec();
-        for field in fields.iter().rev() {
+        // Source equalities read the completed environment; payload guarantees
+        // belong to their authored occurrence. Carry suffix effects separately
+        // so computing the former never reverses retirement of the latter.
+        let following =
+            source.following_writes(fields.iter().map(|field| field.value), later_writes);
+        for (field, following) in fields.iter().zip(&following) {
             let primitive = integer_field_primitive(program, machine, state, field.value);
             let field_operand = ordered_values::Operand::Field {
                 receiver: Box::new(destination.clone()),
@@ -256,11 +366,27 @@ impl CopiedIntegerValue {
                 name: field.name.as_str().to_owned(),
                 primitive,
             };
-            if primitive.is_some() {
+            self.capture_descendants(
+                program,
+                machine,
+                state,
+                field.value,
+                &field_operand,
+                written,
+                environment,
+                captured,
+                source,
+                following.as_deref(),
+            );
+            if primitive.is_some()
+                && following
+                    .as_deref()
+                    .is_some_and(|written| source.permits(field.value, written))
+            {
                 if let Some(observed) =
                     ordered_values::operand(program, machine, state, field.value, None)
                 {
-                    self.capture_scalar_equality(observed, field_operand.clone(), &written);
+                    self.capture_scalar_equality(observed, field_operand.clone(), written);
                 }
                 if let Some(length) = super::slice_lengths::denoted_collection_length(
                     program,
@@ -269,21 +395,8 @@ impl CopiedIntegerValue {
                     environment,
                     field.value,
                 ) {
-                    self.capture_scalar_equality(length, field_operand, &written);
+                    self.capture_scalar_equality(length, field_operand, written);
                 }
-            } else {
-                self.capture_aggregate_identities(
-                    program,
-                    machine,
-                    state,
-                    field.value,
-                    &field_operand,
-                    &written,
-                    environment,
-                );
-            }
-            if !source.include_effects(field.value, &mut written) {
-                break;
             }
         }
     }
@@ -316,73 +429,94 @@ impl CopiedIntegerValue {
     fn capture_at(
         &mut self,
         context: &CaptureContext<'_>,
+        receiving_type: typed_trees::types::TypeReferenceHandle,
         expression: ExpressionHandle,
         suffix: &str,
         segments: &[facts::PlaceSegment],
-        later_writes: &[String],
+        later_writes: Option<&[String]>,
     ) {
         let program = context.source.program;
         let environment = context.environment;
         let checked_values = context.checked_values;
         match program.expression_table.expression(expression) {
             ExpressionNode::StructLiteral(literal) => {
-                let mut later_writes = later_writes.to_vec();
-                for field in program
-                    .expression_table
-                    .struct_fields(literal.fields)
-                    .iter()
-                    .rev()
-                {
+                let fields = program.expression_table.struct_fields(literal.fields);
+                let following = context
+                    .source
+                    .following_writes(fields.iter().map(|field| field.value), later_writes);
+                for (field, following) in fields.iter().zip(&following) {
                     let mut field_segments = segments.to_vec();
                     field_segments.push(facts::PlaceSegment::Field {
                         symbol: field.field_symbol,
                     });
                     self.capture_at(
                         context,
+                        receiving_type,
                         field.value,
                         &format!("{suffix}.{}", field.name),
                         &field_segments,
-                        &later_writes,
+                        following.as_deref(),
                     );
-                    if !context
-                        .source
-                        .include_effects(field.value, &mut later_writes)
-                    {
-                        break;
-                    }
                 }
             }
             ExpressionNode::ArrayLiteral(elements) => {
-                let mut later_writes = later_writes.to_vec();
-                for (index, element) in program
-                    .expression_table
-                    .expression_handles(*elements)
-                    .iter()
-                    .enumerate()
-                    .rev()
-                {
+                let elements = program.expression_table.expression_handles(*elements);
+                let following = context
+                    .source
+                    .following_writes(elements.iter().copied(), later_writes);
+                for ((index, element), following) in elements.iter().enumerate().zip(&following) {
                     let mut element_segments = segments.to_vec();
                     element_segments.push(facts::PlaceSegment::FixedIndex { index });
                     self.capture_at(
                         context,
+                        receiving_type,
                         *element,
                         &format!("{suffix}[{index}]"),
                         &element_segments,
-                        &later_writes,
+                        following.as_deref(),
                     );
-                    if !context.source.include_effects(*element, &mut later_writes) {
-                        break;
-                    }
                 }
             }
             _ => {
-                // Arrival analysis can recheck these leaves in the completed
-                // environment too. Neither its recipe nor a current-source
-                // range/float alias is an earlier occurrence snapshot.
-                if !context.source.permits(expression, later_writes) {
-                    return;
-                }
-                if let Some(source) = canonical_place_from_expression(program, expression) {
+                // Retire *every* earlier payload before this authored operand
+                // executes, then capture its completed facts. An interval or
+                // recipe is no more detached from borrowed backing than an
+                // ordered relation; the receiving type decides what was copied.
+                let writes = context.source.effects(expression);
+                let survives = |path: Option<&[facts::PlaceSegment]>| {
+                    captured_observations::scalar_path_survives(
+                        program,
+                        receiving_type,
+                        path,
+                        writes.as_deref(),
+                    )
+                };
+                self.recipes.retain(|(path, _, _)| survives(Some(path)));
+                self.intervals
+                    .retain(|observed| survives(observed.segments.as_deref()));
+                self.unsigned_values
+                    .retain(|observed| survives(observed.segments.as_deref()));
+                self.float_intervals
+                    .retain(|observed| survives(observed.segments.as_deref()));
+                self.non_nan_paths
+                    .retain(|observed| survives(observed.segments.as_deref()));
+                self.float_aliases.retain(|observed| {
+                    survives(observed.segments.as_deref())
+                        && writes.as_ref().is_some_and(|writes| {
+                            writes.iter().all(|written| {
+                                !super::place_paths::place_paths_overlap(&observed.value, written)
+                            })
+                        })
+                });
+                // Post-environment metadata is not an occurrence snapshot.
+                // Keep authored-order retirement above, but admit source reads
+                // only if their own expression and every following sibling
+                // (including enclosing siblings) left that observation current.
+                let source_is_current =
+                    later_writes.is_some_and(|written| context.source.permits(expression, written));
+                if let Some(source) = canonical_place_from_expression(program, expression)
+                    && source_is_current
+                {
                     for stored in &environment.integer_ranges {
                         if stored.place.root == source.root
                             && stored.place.segments.starts_with(&source.segments)
@@ -416,18 +550,27 @@ impl CopiedIntegerValue {
                 }
                 if let Some(source) = place_path(program, expression)
                     .or_else(|| super::element_place_path(program, expression))
+                    .filter(|_| source_is_current)
                 {
-                    copy_retained(&environment.intervals, &source, suffix, &mut self.intervals);
+                    copy_retained(
+                        &environment.intervals,
+                        &source,
+                        suffix,
+                        segments,
+                        &mut self.intervals,
+                    );
                     copy_retained(
                         &environment.known_u64_values,
                         &source,
                         suffix,
+                        segments,
                         &mut self.unsigned_values,
                     );
                     copy_retained(
                         &environment.float_intervals,
                         &source,
                         suffix,
+                        segments,
                         &mut self.float_intervals,
                     );
                     for path in environment
@@ -438,11 +581,19 @@ impl CopiedIntegerValue {
                         if let Some(tail) = path.strip_prefix(&source)
                             && (tail.is_empty() || tail.starts_with('.') || tail.starts_with('['))
                         {
-                            self.non_nan_paths.push(format!("{suffix}{tail}"));
+                            self.non_nan_paths.push(CapturedScalarObservation {
+                                segments: tail.is_empty().then(|| segments.to_vec()),
+                                suffix: format!("{suffix}{tail}"),
+                                value: (),
+                            });
                         }
                     }
                     if !suffix.is_empty() {
-                        self.float_aliases.push((suffix.to_owned(), source.clone()));
+                        self.float_aliases.push(CapturedScalarObservation {
+                            segments: Some(segments.to_vec()),
+                            suffix: suffix.to_owned(),
+                            value: source.clone(),
+                        });
                     }
                     for (left, right) in &environment.float_aliases {
                         for (candidate, partner) in [(left, right), (right, left)] {
@@ -451,30 +602,43 @@ impl CopiedIntegerValue {
                                     || tail.starts_with('.')
                                     || tail.starts_with('['))
                             {
-                                self.float_aliases
-                                    .push((format!("{suffix}{tail}"), partner.clone()));
+                                self.float_aliases.push(CapturedScalarObservation {
+                                    segments: tail.is_empty().then(|| segments.to_vec()),
+                                    suffix: format!("{suffix}{tail}"),
+                                    value: partner.clone(),
+                                });
                             }
                         }
                     }
                 } else if !suffix.is_empty()
+                    && source_is_current
                     && let Some(source) =
                         super::assignments::float_source_place_path(program, expression)
                 {
-                    self.float_aliases.push((suffix.to_owned(), source));
+                    self.float_aliases.push(CapturedScalarObservation {
+                        segments: Some(segments.to_vec()),
+                        suffix: suffix.to_owned(),
+                        value: source,
+                    });
                 }
                 if !suffix.is_empty()
                     && let Some(value) =
                         super::float_arithmetic::float_literal_value(program, expression)
                     && !value.is_nan()
                 {
-                    self.float_intervals.push((
-                        suffix.to_owned(),
-                        super::value_environment::FloatInterval {
+                    self.float_intervals.push(CapturedScalarObservation {
+                        segments: Some(segments.to_vec()),
+                        suffix: suffix.to_owned(),
+                        value: super::value_environment::FloatInterval {
                             low: Some(value),
                             high: Some(value),
                         },
-                    ));
-                    self.non_nan_paths.push(suffix.to_owned());
+                    });
+                    self.non_nan_paths.push(CapturedScalarObservation {
+                        segments: Some(segments.to_vec()),
+                        suffix: suffix.to_owned(),
+                        value: (),
+                    });
                 }
                 if !suffix.is_empty()
                     && let Some(interval) = checked_values
@@ -484,10 +648,18 @@ impl CopiedIntegerValue {
                         })
                         .reduce(Interval::union)
                 {
-                    self.intervals.push((suffix.to_owned(), interval));
+                    self.intervals.push(CapturedScalarObservation {
+                        segments: Some(segments.to_vec()),
+                        suffix: suffix.to_owned(),
+                        value: interval,
+                    });
                 }
                 if let Some(value) = super::integer_ranges::literal_u64(program, expression) {
-                    self.unsigned_values.push((suffix.to_owned(), value));
+                    self.unsigned_values.push(CapturedScalarObservation {
+                        segments: Some(segments.to_vec()),
+                        suffix: suffix.to_owned(),
+                        value,
+                    });
                 }
             }
         }
@@ -530,22 +702,23 @@ impl CopiedIntegerValue {
                 environment.ordered_values.push(relation.clone());
             }
         }
-        for (suffix, interval) in &self.intervals {
-            if !suffix.is_empty() {
-                environment.set(format!("{path}{suffix}"), *interval);
+        for observed in &self.intervals {
+            if !observed.suffix.is_empty() {
+                environment.set(format!("{path}{}", observed.suffix), observed.value);
             }
         }
-        for (suffix, value) in &self.unsigned_values {
-            environment.mark_known_u64(format!("{path}{suffix}"), *value);
+        for observed in &self.unsigned_values {
+            environment.mark_known_u64(format!("{path}{}", observed.suffix), observed.value);
         }
-        for (suffix, interval) in &self.float_intervals {
-            environment.narrow_float(format!("{path}{suffix}"), *interval);
+        for observed in &self.float_intervals {
+            environment.narrow_float(format!("{path}{}", observed.suffix), observed.value);
         }
-        for suffix in &self.non_nan_paths {
-            environment.mark_non_nan(format!("{path}{suffix}"));
+        for observed in &self.non_nan_paths {
+            environment.mark_non_nan(format!("{path}{}", observed.suffix));
         }
-        for (suffix, source) in &self.float_aliases {
-            environment.mark_float_alias(format!("{path}{suffix}"), source.clone());
+        for observed in &self.float_aliases {
+            environment
+                .mark_float_alias(format!("{path}{}", observed.suffix), observed.value.clone());
         }
     }
 }
@@ -645,7 +818,8 @@ fn copy_retained<Value: Copy>(
     retained: &BTreeMap<String, Value>,
     source: &str,
     destination: &str,
-    copied: &mut Vec<(String, Value)>,
+    segments: &[facts::PlaceSegment],
+    copied: &mut Vec<CapturedScalarObservation<Value>>,
 ) {
     copied.extend(
         retained
@@ -653,8 +827,13 @@ fn copy_retained<Value: Copy>(
             .take_while(|(path, _)| path.starts_with(source))
             .filter_map(|(path, value)| {
                 let suffix = path.strip_prefix(source)?;
-                (suffix.is_empty() || suffix.starts_with('.') || suffix.starts_with('['))
-                    .then(|| (format!("{destination}{suffix}"), *value))
+                (suffix.is_empty() || suffix.starts_with('.') || suffix.starts_with('[')).then(
+                    || CapturedScalarObservation {
+                        segments: suffix.is_empty().then(|| segments.to_vec()),
+                        suffix: format!("{destination}{suffix}"),
+                        value: *value,
+                    },
+                )
             }),
     );
 }

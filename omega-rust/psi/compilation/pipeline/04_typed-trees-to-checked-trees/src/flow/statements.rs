@@ -276,6 +276,35 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
             );
             write.target_place = target;
             write.stable_value_target = stable && write.target_is_exact;
+            if statement.as_assignment().is_some() {
+                let mut owned_frames = None;
+                let frames =
+                    super::shared_call_frames_or(build.call_frames, program, &mut owned_frames);
+                write.destination_is_current = frames.is_some_and(|frames| {
+                    if write.target_is_exact {
+                        super::canonical_place_from_semantic_place(
+                            program,
+                            semantic,
+                            semantic.places.get(target),
+                        )
+                        .is_some_and(|destination| {
+                            frames.captured_assignment_destination_remains_current(
+                                machine,
+                                statement,
+                                &destination,
+                            )
+                        })
+                    } else {
+                        write.candidate_targets.iter().all(|destination| {
+                            frames.captured_assignment_destination_remains_current(
+                                machine,
+                                statement,
+                                destination,
+                            )
+                        })
+                    }
+                });
+            }
         }
         let storage_writes = if let Some(write) = write.as_ref()
             && statement.as_assignment().is_some()

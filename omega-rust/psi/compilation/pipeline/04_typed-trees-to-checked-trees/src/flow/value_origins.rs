@@ -1,4 +1,8 @@
 //! Capture exact value origins before local writes, not the last spelling of a slot.
+//!
+//! Following a store backward equates a later read with that store's captured
+//! value. Its pre-RHS address must still name the demanded storage after RHS
+//! effects; a write footprint alone does not establish that correspondence.
 
 use validation::CanonicalPlace;
 
@@ -363,12 +367,28 @@ where
                     Some(frames),
                 )
                 .filter(|storage_target| *storage_target != target);
-                let suffix = exact_suffix(&place, &target).or_else(|| {
-                    storage_target
-                        .as_ref()
-                        .and_then(|storage_target| exact_suffix(&place, storage_target))
-                });
-                if let Some(suffix) = suffix {
+                let captured_target = exact_suffix(&place, &target)
+                    .map(|suffix| (&target, suffix))
+                    .or_else(|| {
+                        storage_target.as_ref().and_then(|storage_target| {
+                            exact_suffix(&place, storage_target)
+                                .map(|suffix| (storage_target, suffix))
+                        })
+                    });
+                if let Some((captured_target, suffix)) = captured_target {
+                    // A completed store and a later read can have the same
+                    // source path but different addresses: the RHS may replace
+                    // an intervening reference or selector after LHS capture.
+                    // The raw store roster records that operation, not current
+                    // value equality. Reuse the captured-coordinate judgment
+                    // before transporting its RHS into this later observation.
+                    if !frames.captured_assignment_destination_remains_current(
+                        machine,
+                        statement,
+                        captured_target,
+                    ) {
+                        return None;
+                    }
                     let stored_type = validation::declared_place_type_raw(
                         program,
                         machine,

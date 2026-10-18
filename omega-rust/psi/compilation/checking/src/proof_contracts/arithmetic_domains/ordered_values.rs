@@ -10,7 +10,8 @@
 //! Observed comparisons also retain consequences of finite integer carriers:
 //! a ceiling may disappear at a state edge without losing its bound on a
 //! surviving scalar. This is not repeated-call equality. Effects invalidate
-//! mutable subjects; only exact immutable copied values survive unknown writes.
+//! mutable subjects; immutable copied values and separately proven private
+//! descriptor metadata survive unknown writes, never mutable backing contents.
 //! At a state edge, forgetting an undelivered operand must not forget the
 //! consequences it connects between delivered operands. The same bounded
 //! difference walk serves arithmetic queries and this scope projection; only
@@ -34,6 +35,7 @@ mod requirements;
 mod storage;
 mod transport;
 pub(crate) use delivered::delivered_value_orderings;
+pub(super) use delivered::survives_delivery;
 use delivered::{call_result_orderings, ensured_call_operand, match_subtract_floor};
 pub use requirements::validate_ordered_requirement_call_totality;
 pub(super) use transport::rebind_relations;
@@ -178,7 +180,35 @@ impl Operand {
             Self::Binary { operands, .. } => operands
                 .iter()
                 .all(|value| value.is_immutable_snapshot(program, state)),
-            Self::CollectionLength(_) | Self::Indexed { .. } | Self::Field { .. } => false,
+            Self::CollectionLength(collection) => collection.has_stable_descriptor(program, state),
+            Self::Indexed { .. } | Self::Field { .. } => false,
+        }
+    }
+
+    pub(super) fn survives_storage_writes(
+        &self,
+        program: &dyn crate::CheckingInput,
+        state: Option<&State>,
+        written: &[String],
+    ) -> bool {
+        if self.survives(written) {
+            return true;
+        }
+        match self {
+            Self::CollectionLength(_) => {
+                state.is_some_and(|state| self.is_immutable_snapshot(program, state))
+            }
+            Self::Binary { operands, .. } => operands
+                .iter()
+                .all(|value| value.survives_storage_writes(program, state, written)),
+            Self::Call {
+                occurrence,
+                arguments,
+                ..
+            } if !occurrence.is_valid() => arguments
+                .iter()
+                .all(|value| value.survives_storage_writes(program, state, written)),
+            _ => false,
         }
     }
 
@@ -381,6 +411,24 @@ pub(super) fn operand(
     frames: Option<&crate::CallFrameResolver<'_>>,
 ) -> Option<Operand> {
     build_operand(program, machine, state, expression, 0, frames)
+}
+
+/// Whether reevaluating an admitted value observation after these writes
+/// retains its captured identity. Runtime call events stay opaque; only the
+/// ordinary repeatable-value call judgment can construct a call operand here.
+pub(crate) fn observation_survives_writes(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    expression: ExpressionHandle,
+    written: Option<&[String]>,
+) -> bool {
+    operand(program, machine, state, expression, None).is_some_and(|observed| {
+        written.map_or_else(
+            || observed.is_immutable_snapshot(program, state),
+            |written| observed.survives_storage_writes(program, Some(state), written),
+        )
+    })
 }
 
 fn build_operand(
@@ -748,17 +796,12 @@ pub(super) fn record(
     };
     let left_meaning = integer_meaning(program, machine, state, left);
     let right_meaning = integer_meaning(program, machine, state, right);
-    let bounded_integer = |expression, meaning: Option<(PrimitiveType, ArithmeticDomain)>| {
-        meaning.is_some()
-            || matches!(program.expression_table.expression(expression),
-                ExpressionNode::Integer(literal)
-                    if literal.landing().is_none()
-                        && (literal.value_i64().is_some() || literal.value_bignum().and_then(|value| value.to_u64()).is_some()))
-    };
     // An anonymous comparison literal has no carrier yet, but its exact value
     // can still be an ordered operand if it lies in the fixed-integer window.
     // Retain its anonymous identity: this does not stamp a guessed width.
-    if !bounded_integer(left, left_meaning) || !bounded_integer(right, right_meaning) {
+    if !has_integer_order_meaning(program, machine, state, left)
+        || !has_integer_order_meaning(program, machine, state, right)
+    {
         return;
     }
     if unequal {
@@ -854,6 +897,22 @@ pub(super) fn record(
             }
         }
     }
+}
+
+/// Integer order has discrete gaps; IEEE or unresolved comparisons cannot
+/// donate that rule. Anonymous literals retain their exact admitted value.
+fn has_integer_order_meaning(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    expression: ExpressionHandle,
+) -> bool {
+    integer_meaning(program, machine, state, expression).is_some()
+        || matches!(program.expression_table.expression(expression),
+            ExpressionNode::Integer(literal)
+                if literal.landing().is_none()
+                    && (literal.value_i64().is_some()
+                        || literal.value_bignum().and_then(|value| value.to_u64()).is_some()))
 }
 
 fn integer_carrier_ceiling(primitive: PrimitiveType) -> Option<Operand> {

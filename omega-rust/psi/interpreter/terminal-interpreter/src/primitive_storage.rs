@@ -1116,14 +1116,20 @@ impl TerminalExecution<'_> {
             // The home contract has already authenticated this activation's
             // access and logical path. Translate that path into its retained
             // supplying declaration, exactly as a descriptor crossing does.
-            let (storage, scalar_type, _) = self.aggregate_view_primitive_access(
-                &backing.value,
-                crate::reference::AggregateViewTip::Aggregate {
-                    view: backing.region,
-                    backing: backing.value.structural_type,
-                },
-                path,
-            )?;
+            if let Some(region) = backing.region {
+                let (storage, scalar_type, _) = self.aggregate_view_primitive_access(
+                    &backing.value,
+                    crate::reference::AggregateViewTip::Aggregate {
+                        view: region,
+                        backing: backing.value.structural_type,
+                    },
+                    path,
+                )?;
+                return Ok((storage, scalar_type, shared_view));
+            }
+            let region = backing.byte_region.as_ref().ok_or_else(malformed)?;
+            let (storage, scalar_type) =
+                self.captured_byte_region_access(&backing.value, region, path)?;
             return Ok((storage, scalar_type, shared_view));
         }
         // Suspended activations retain their original descriptor namespace.

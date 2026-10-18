@@ -51,11 +51,11 @@ impl Evaluation {
             .iter()
             .filter_map(|(ordinal, root)| (*ordinal == statement).then_some(*root))
             .collect::<Vec<_>>();
-        for argument in
+        let borrowed =
             crate::expression_preparation::computation_graph::borrowed_arguments_from_roots(
                 checked, &roots,
-            )?
-        {
+            )?;
+        for argument in borrowed {
             self.prepare_borrowed_argument(
                 identities,
                 checked,

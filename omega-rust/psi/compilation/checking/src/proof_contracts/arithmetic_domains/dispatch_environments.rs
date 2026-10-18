@@ -58,7 +58,7 @@ pub(crate) fn dispatch_arm_environments(
                 );
             }
             match &writes {
-                Some(writes) => selected.invalidate_written_paths(writes),
+                Some(writes) => selected.invalidate_call_paths(program, state, writes),
                 None => selected.invalidate_unknown_writes(program, state),
             }
             selected

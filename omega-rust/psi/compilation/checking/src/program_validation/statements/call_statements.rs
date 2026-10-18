@@ -82,7 +82,7 @@ pub(super) fn validate(
     // conservative. Authored `stores` clauses are retired; exactness
     // grows through inferred implementation summaries.
     if let Some(written) = direct_written.as_deref() {
-        value_environment.invalidate_written_paths(written);
+        value_environment.invalidate_call_paths(program, current_state, written);
     } else {
         value_environment.invalidate_unknown_writes(program, current_state);
     }

@@ -35,13 +35,26 @@ pub(super) fn analyze(
     if let Some(interval) =
         collection_length_interval(walk.program, walk.machine, walk.state, expression)
     {
+        let interval = super::super::place_path(walk.program, expression)
+            .and_then(|path| walk.environment.get(&path))
+            .map_or(interval, |retained| interval.intersect(retained));
+        // A builtin count is still an observed integer. Its early carrier
+        // answer must consume the same surviving order facts as an ordinary
+        // place read; otherwise coarse content frames erase the string cache
+        // and hide already-proved facts about an unchanged descriptor.
+        let interval = super::super::ordered_values::refine_place_interval(
+            walk.program,
+            walk.machine,
+            walk.state,
+            walk.environment,
+            expression,
+            interval,
+        );
         return Some(Analysis {
             recipe: None,
             // Counts keep their declared carrier even when their value is known.
             // They do not select an arithmetic policy for enclosing operations.
-            interval: super::super::place_path(walk.program, expression)
-                .and_then(|path| walk.environment.get(&path))
-                .map_or(interval, |retained| interval.intersect(retained)),
+            interval,
             primitive: Some(PrimitiveType::U64),
             ..NEUTRAL
         });

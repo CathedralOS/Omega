@@ -57,7 +57,8 @@ impl Custody {
         false
     }
 
-    /// A disposed ancestor matters only while reachable from a resident leaf.
+    /// A disposed ancestor matters while reachable from a resident leaf or an
+    /// in-scope borrowed arrival that captured it before disposal.
     /// Do not preserve arbitrary history through loops or manufacture a parent
     /// when a source graph omitted it; completion still diagnoses missing links.
     pub(super) fn prune_retired(&mut self) {
@@ -65,6 +66,7 @@ impl Custody {
             .leaves
             .values()
             .flat_map(|leaf| leaf.obligations())
+            .chain(super::borrowed_arrivals::obligations(self))
             .collect::<Vec<_>>();
         let mut retained = BTreeSet::new();
         while let Some(identity) = pending.pop() {
@@ -104,6 +106,13 @@ impl Custody {
                     reason: terminal_semantics::ReferenceCompletionError::MissingParent,
                 });
             }
+        }
+        if super::borrowed_arrivals::obligations(self)
+            .any(|parent| !identities.contains_key(parent) && !self.retired.contains_key(parent))
+        {
+            return Err(LegalizationError::ReferenceCompletion {
+                reason: terminal_semantics::ReferenceCompletionError::MissingParent,
+            });
         }
         Ok(())
     }

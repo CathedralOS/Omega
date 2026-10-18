@@ -80,7 +80,7 @@ pub fn evaluated_call_requires_proven(
                 .as_ref()
                 .and_then(|frames| frames.expression_may_write_paths(caller, *argument))
             {
-                Some(writes) => evaluated.invalidate_written_paths(&writes),
+                Some(writes) => evaluated.invalidate_call_paths(program, Some(state), &writes),
                 None => evaluated.invalidate_unknown_writes(program, Some(state)),
             }
         }

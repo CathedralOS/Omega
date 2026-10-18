@@ -14,11 +14,15 @@ machine RecordLayout::plan(schema: Schema) -> Plan {
     Plan { entries: entries, entry_count: 1, size_fixed: 8, size_is_dynamic: false, align: 8 }
 }
 
+machine decode_record(value: &RecordLayout<Record>) -> i64 { value.number }
+machine decode_view(view: &RecordView) -> i64 { decode_record(&view.value) }
+
 machine read(host: &Host) -> i64 {
     let view: &RecordView = &host.bytes[0] as &RecordView;
     let number: i64 = view.value.number;
     transition number >= 0 { true -> decode(view) _ -> -1 }
-    state decode(view: &RecordView) -> i64 { view.value.number }
+    state decode(view: &RecordView) -> i64 { transition { _ -> finish(view) } }
+    state finish(view: &RecordView) -> i64 { decode_view(view) }
 }
 
 machine read_owned() -> i64 {
@@ -26,7 +30,8 @@ machine read_owned() -> i64 {
     let view: &RecordView = &host.bytes[0] as &RecordView;
     let copied: &RecordView = view;
     transition copied.value.number >= 0 { true -> decode(copied) _ -> -1 }
-    state decode(view: &RecordView) -> i64 { view.value.number }
+    state decode(view: &RecordView) -> i64 { transition { _ -> finish(view) } }
+    state finish(view: &RecordView) -> i64 { decode_view(view) }
 }
 
 machine read_stored() -> u64 {
