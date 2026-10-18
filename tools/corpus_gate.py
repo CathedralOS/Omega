@@ -613,14 +613,24 @@ def diff_questions(diffs: list) -> dict:
 
 
 def jev_advise(diffs: list) -> None:
-    """Advisory annotation for structural diffs. Never raises; silent when
-    no key; OMEGA_JEV_OFFLINE=1 suppresses."""
+    """Advisory annotation for structural diffs. Never raises; reports a
+    missing key on stderr so an absent advisory is not read as a clean one;
+    OMEGA_JEV_OFFLINE=1 suppresses."""
     if os.environ.get("OMEGA_JEV_OFFLINE", "").strip() == "1":
+        print("  = jev advisory suppressed by OMEGA_JEV_OFFLINE=1",
+              file=sys.stderr)
         return
     if not diffs:
         return
     key = typesafe_key.find_key(None)
     if not key:
+        # A bare return here is indistinguishable from 'advisory ran and
+        # found nothing wrong', which is how a missing key becomes a silent
+        # blessing for --record. jev_attribute.py already names the missing
+        # key on stderr; match it.
+        print("  = jev advisory unavailable: no TYPESAFE_API_KEY "
+              "(set it, or OMEGA_JEV_OFFLINE=1 to suppress) — no advisory "
+              "was produced for this diff", file=sys.stderr)
         return
     try:
         subject = subprocess.run(

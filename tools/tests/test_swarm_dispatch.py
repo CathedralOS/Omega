@@ -37,6 +37,19 @@ class DispatchTests(unittest.TestCase):
         (self.cache / 'artifact').write_bytes(b'preserved producer; validity still needs exact input checks')
         self.module.probe(self.a, [self.cache], initialize=True)
 
+    def probe_row(self):
+        """Probe for a continuity comparison.
+
+        dispatch.md tells a host without a readable kernel boot ID to pass
+        `--runtime-id` from actual runtime metadata. /proc/sys/kernel/random/
+        boot_id exists only on Linux, so an unsupplied id leaves runtime_id
+        empty and session_options() can never verify cache continuity there.
+        Supply a stable id on those hosts so the test measures the continuity
+        logic rather than the host's kernel interface."""
+        boot = Path('/proc/sys/kernel/random/boot_id')
+        runtime_id = None if boot.is_file() else 'simulated-runtime-generation'
+        return self.module.probe(self.a, [self.cache], runtime_id)
+
     def binding(self, path, record):
         path.write_text(json.dumps(record))
         return dict(path=str(path), sha256=hashlib.sha256(path.read_bytes()).hexdigest())
@@ -50,7 +63,7 @@ class DispatchTests(unittest.TestCase):
                              source_inputs=self.module.qualification.source_inputs(
                                  self.a, self.base, [item, 'wiki/spec/contract.md'])))
         observed = datetime.now(timezone.utc).isoformat()
-        probe = self.module.probe(self.a, [self.cache])
+        probe = self.probe_row()
         session_rows = [dict(platform='codex', id=name, status='completed', available=True,
                              outcome_complete=True, observed_utc=observed,
                              runtime_fields=dict(id=['session_id'], status=['status']),
@@ -186,12 +199,12 @@ class DispatchTests(unittest.TestCase):
 
     def test_reuse_preserves_cache_and_progress_but_refuses_stale_main(self):
         (self.a / 'unpublished-progress').write_text('keep this session branch')
-        before = self.module.probe(self.a, [self.cache])
+        before = self.probe_row()
         attempt, record = self.reserve()
         self.assertEqual(record['session']['action'], 'continue')
         self.assertTrue(record['session']['cache_continuity'])
         kit.git(self, self.a, 'worktree', 'add', '--detach', str(self.root / 'fresh-lane'), self.base)
-        self.assertEqual(self.module.probe(self.a, [self.cache]), before)
+        self.assertEqual(self.probe_row(), before)
         (self.b / 'new-main-file').write_text('main advanced')
         kit.git(self, self.b, 'add', '.')
         kit.git(self, self.b, 'commit', '-m', 'advance main')
@@ -199,7 +212,7 @@ class DispatchTests(unittest.TestCase):
         self.arm(attempt, expected=1)
         self.assertEqual(json.loads(attempt.read_text())['phase'], 'reserved')
         self.assertEqual((self.a / 'unpublished-progress').read_text(), 'keep this session branch')
-        self.assertEqual(self.module.probe(self.a, [self.cache]), before)
+        self.assertEqual(self.probe_row(), before)
         self.call(self.a, 'cancel', '--attempt', attempt)
         self.call(self.a, 'reserve', '--packet', self.root / 'attempt.json', '--attempt',
                   self.root / 'stale-attempt.json', '--owner', 'parent', expected=1)

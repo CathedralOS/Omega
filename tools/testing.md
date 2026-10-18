@@ -243,7 +243,13 @@ them: a bulk `--record` pins whatever another lane broke as expected. Adding
 `--jev` to the same diffing invocation asks the advisory `record_safe`
 verdict, which names suspect rows through the causal "could this commit
 produce this diff" question — advisory only; it does not replace
-attributing each row. `python tools/corpus_pin_audit.py` lists fixtures
+attributing each row. The advisory needs a Typesafe key
+(`TYPESAFE_API_KEY`, `build/typesafe.env.txt` or
+`~/.config/typesafe/typesafe.env.txt`); with no key it says so on stderr and
+produces no advisory, so an absent line means "not asked", never "asked and
+clean". `OMEGA_JEV_OFFLINE=1` suppresses it deliberately and also says so.
+Reading a silent `--jev` as approval is how a bulk `--record` proceeds
+without any advisory at all. `python tools/corpus_pin_audit.py` lists fixtures
 whose expected fragment matches many other fixtures' diagnostics (a pin
 that cannot tell its rule from any rejection) and fixtures whose extra
 diagnostics trip a sibling's pinned rule; tighten those pins before
@@ -321,6 +327,52 @@ On the pinned nightly, content freshness needs both
 `CARGO_UNSTABLE_CHECKSUM_FRESHNESS=true` (or `cargo -Z checksum-freshness`)
 and `CARGO_BUILD_FINGERPRINT=content`; enabling the unstable feature alone keeps
 timestamp freshness. See [Cargo's checksum freshness contract](https://doc.rust-lang.org/nightly/cargo/reference/unstable.html#checksum-freshness).
+
+**A directly invoked `target/debug/omega` can predate the commit you are
+judging, and it reports failures the tree does not have.** The same hazard as a
+stale `--runner` applies to hand-run CLI baselines, and it is easier to hit
+because nothing stamps the binary: the executable's mtime is the only evidence,
+it is easy to read a result as a property of the checked-out source, and the
+`--check` output names the fixture path rather than the compiler that judged it.
+A worktree `git worktree add` shares the repository but not `target/`, so a
+worktree has no binary at all until it builds one; the *main checkout's*
+`target/debug/omega` is the one that goes stale while other lanes land commits,
+and it can be built from a different checkout root entirely (a relocated
+repository leaves that absolute path compiled in, visible as
+`missing Omega toolchain library at <other path>`). Two facts make a wrong
+baseline survive review: the failure text is a plausible language diagnostic
+rather than a toolchain complaint once `OMEGA_LIBRARY_ROOT` is set, and every
+fact-place witness is currently pinned on Linux and Windows only, so on macOS
+no golden row exists to contradict a mis-measured result.
+
+Before judging any fact or program by hand, build in the tree you are judging
+and check the binary is younger than the commit under test:
+
+```bash
+git log -1 --format=%cd --date=iso HEAD   # commit time
+ls -l target/debug/omega                  # must be newer
+OMEGA_LIBRARY_ROOT=$PWD/source/library ./target/debug/omega --check <root.omg>
+```
+
+A binary older than HEAD invalidates every verdict it produced. One wave
+assigned four fact folders from a baseline taken with a binary built over an
+hour before the launch commit; the reported red places did not exist on the
+base, and two of the four facts needed no compiler repair at all. Rebuilding is
+seconds against a warm cache and is never worth skipping.
+
+The opposite misreading is just as costly: a *fresh* binary over a sample
+project whose accepted review was recorded by an older compiler. The
+package-manager compares the accepted occurrence's `compiler_identity` against
+the current one and fails with ``accepted package `<name>` compiler identity
+changed; run `omega update` for fresh review before compiling``, so every place
+of a fact exits 1 and looks like a regression the rebuild introduced. It is a
+stale accepted-review cache, not a compiler verdict; run `omega update` in the
+project directory (it rewrites only ignored `build/` output) and measure again.
+The corpus fixtures are immune because they run in fresh temporary directories,
+so a discrepancy between a hand-run sample and the same fixture in the corpus
+is this cache rather than a real behavioral difference. Rebuilding a compiler
+and rebuilding a sample's accepted review are separate steps, and only the
+first is automatic.
 
 The gate defaults `OMEGA_LIBRARY_ROOT` to the measured checkout's
 `source/library`, preserving an explicit caller override. Shared Cargo caches
