@@ -4450,7 +4450,7 @@ and `mapped` need matching-host measurements, including the full-i32 status.
 - **PROOF-RELEVANCE-MIGRATION.** Erased arguments are not carrier-independent
   under [explicit erased bindings](wiki/spec/proofs/contracts.md#explicit-erased-bindings).
   Owners: stage 04 call plans and stage 05 contract/proof-term lowering. Static
-  scalar contract arguments and record/sum constructions with
+  scalar and shared primitive-reference contract arguments, plus record/sum constructions with
   `ProofTerm::Scalar` leaves work; `pass/relevance/erased_record_parameter_exit`
   covers signature stripping, not a contract consuming its witness. Array-field
   carriers refuse, and dynamic calls do not lower yet
@@ -4463,8 +4463,10 @@ and `mapped` need matching-host measurements, including the full-i32 status.
 
   Acceptance: erased record/enum and array-bearing formals and a dynamic trait
   call use their erased evidence in checked contracts and execute with stripped
-  signatures; `fail/relevance/erased_nonscalar_parameter` and
-  `fail/relevance/dynamic_erased_formal_lane` become passing positives. Missing,
+  signatures; `fail/relevance/dynamic_erased_formal_lane` becomes a passing
+  positive. Static shared-reference signature stripping is covered by
+  `pass/relevance/erased_reference_parameter_exit` and fact-sensitive contracts
+  by `facts/erased_reference_contract`. Missing,
   substituted, out-of-scope or violating actuals reject. Keep
   `pass/relevance/erased_parameter_proof_only` and
   `pass/relevance/erased_parameter_named_transition_forward`, plus runtime-read,
