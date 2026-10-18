@@ -270,11 +270,13 @@ generated Windows path fails, measure the actual path before relocating work or
 changing compiler architecture.
 
 Keep the loop fast. Run samples and the corpus with an optimized compiler in its
-own target directory (`CARGO_PROFILE_DEV_OPT_LEVEL=1 CARGO_TARGET_DIR=<dir>
-mbx build -p omega`), and close stdin (`< /dev/null`) on every direct `omega`
-command you run in the background (the gates already do): `omega run` forwards
-stdin and otherwise waits forever at zero CPU. A step that still takes minutes is a finding to
-measure and remove, not a wait.
+own short target directory (`CARGO_PROFILE_DEV_OPT_LEVEL=1 CARGO_TARGET_DIR=<dir>
+mbx build -p omega`; on Windows, keep `<dir>` short such as `C:\tmp\tgt-<short>`
+so deep crate paths stay below MSVC `link.exe`'s 260-character `MAX_PATH`), and
+close stdin (`< /dev/null` in sh, or `$null | ...` in PowerShell) on every direct
+`omega` command you run in the background (the gates already do): `omega run`
+forwards stdin to stdin-reading programs and otherwise waits for EOF at zero CPU.
+A step that still takes minutes is a finding to measure and remove, not a wait.
 
 Read the existing module entrance and decision-site explanations before tracing
 the shared implementation and callers, preserving the Psi/Omega firewall

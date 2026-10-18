@@ -111,9 +111,15 @@ def sample_roots(filters: list[str]) -> list[Path]:
 
 
 def build_cli() -> Path:
+    from corpus_gate import windows_safe_target_dir
     tool = "mbx" if shutil.which("mbx") else "cargo"
     args = [tool, "build", "--message-format=json", "-p", "omega"]
-    proc = subprocess.run(args, cwd=ROOT, capture_output=True, text=True)
+    env = dict(os.environ)
+    configured = Path(env.get("CARGO_TARGET_DIR") or (ROOT / "target"))
+    safe_target = windows_safe_target_dir(configured)
+    if safe_target != configured:
+        env["CARGO_TARGET_DIR"] = str(safe_target)
+    proc = subprocess.run(args, cwd=ROOT, capture_output=True, text=True, env=env)
     if proc.returncode != 0:
         sys.stderr.write(proc.stdout[-4000:])
         sys.stderr.write(proc.stderr[-4000:])

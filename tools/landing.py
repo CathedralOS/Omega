@@ -218,6 +218,24 @@ def declared_pending(repository, base, candidate):
             pending.append((commit[:12], match.group(0)))
     return pending
 
+def windows_safe_target_kwargs(repository):
+    """Keep Cargo target paths short on Windows inside deep worktree paths so
+    build scripts and crates stay below MSVC link.exe's 260-char MAX_PATH."""
+    configured = Path(os.environ.get("CARGO_TARGET_DIR") or (Path(repository) / "target"))
+    if os.name != "nt" or len(str(configured)) <= 100:
+        return {}
+    import hashlib
+    import tempfile
+    digest = hashlib.sha256(str(configured.resolve()).encode("utf-8")).hexdigest()[:10]
+    base = Path(os.environ.get("SYSTEMDRIVE", "C:") + "\\tmp")
+    try:
+        base.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        base = Path(tempfile.gettempdir())
+    env = dict(os.environ)
+    env["CARGO_TARGET_DIR"] = str(base / f"omega-tgt-{digest}")
+    return {"env": env}
+
 def intermediate_checks(repository, base, head, tool):
     """Check every commit before `head` in base..head on its own.
 
@@ -233,6 +251,7 @@ def intermediate_checks(repository, base, head, tool):
         return results
     branch = coordination.git(repository, "symbolic-ref", "-q", "--short", "HEAD",
                               allow_failure=True).stdout.strip()
+    target_kwargs = windows_safe_target_kwargs(repository)
     try:
         for commit in commits[:-1]:
             workspaces = affected_workspaces(repository, base, commit)
@@ -245,7 +264,7 @@ def intermediate_checks(repository, base, head, tool):
                     command += ["--manifest-path", str(repository / workspace)]
                 for package in sorted(names):
                     command += ["-p", package]
-                exit_code = subprocess.run(command, cwd=repository).returncode
+                exit_code = subprocess.run(command, cwd=repository, **target_kwargs).returncode
                 results.append({"commit": commit, "workspace": workspace,
                                 "packages": sorted(names), "exit_code": exit_code})
     finally:
@@ -437,6 +456,7 @@ def verify(repository, base, qualification_path=None):
     exit_code = 0
     if packages:
         tool = "mbx" if shutil.which("mbx") else "cargo"
+        target_kwargs = windows_safe_target_kwargs(repository)
         for workspace, names in sorted(workspaces.items()):
             check_command = [tool, "check"]
             if workspace != ".":
@@ -444,7 +464,7 @@ def verify(repository, base, qualification_path=None):
             for package in sorted(names):
                 check_command += ["-p", package]
             check_started = time.monotonic()
-            checked_exit = subprocess.run(check_command, cwd=repository).returncode
+            checked_exit = subprocess.run(check_command, cwd=repository, **target_kwargs).returncode
             checks.append({"workspace": workspace, "packages": sorted(names),
                            "command": check_command, "exit_code": checked_exit,
                            "duration_seconds": time.monotonic() - check_started})

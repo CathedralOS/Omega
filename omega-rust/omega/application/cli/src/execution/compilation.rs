@@ -23,6 +23,8 @@ const REFERENCE_EXECUTION_FUEL_ALLOWANCE: u64 = 10_000_000;
 
 pub(super) struct ProbeCompilation {
     pub report: CompileReport,
+    /// Target name selected for this compilation.
+    pub target_name: &'static str,
     /// One reference execution per supplied input, in input order.
     pub interpretations: Vec<Result<TerminalRuntimeObservation, TerminalRuntimeError>>,
 }
@@ -64,19 +66,21 @@ pub(super) fn compile(
         )
         .and_then(compiler::CompileOutcomes::into_single_report)?
     };
+    let target_name = target.target_name();
     let interpretations = reference_inputs
         .into_iter()
-        .map(|input| interpret_product(&report, input, target.target_name()))
+        .map(|input| interpret_product(&report, Some(input), target_name))
         .collect();
     Ok(ProbeCompilation {
         report,
+        target_name,
         interpretations,
     })
 }
 
-fn interpret_product(
+pub(super) fn interpret_product(
     report: &CompileReport,
-    input: std::fs::File,
+    input: Option<std::fs::File>,
     target: &str,
 ) -> Result<TerminalRuntimeObservation, TerminalRuntimeError> {
     let artifact = report
@@ -99,7 +103,7 @@ fn interpret_product(
         // `run` sponsors one standalone private domain. Its death cannot end
         // this CLI or invalidate another instance's storage/capabilities.
         domain_exit: TerminalDomainExitDelegation::IsolatedContainingDomain,
-        standard_input: Some(Box::new(input)),
+        standard_input: input.map(|file| Box::new(file) as Box<dyn std::io::Read + Send>),
         clock: Some(compiler::runtime::TerminalClockSnapshot::capture_host_epoch()?),
     })
 }

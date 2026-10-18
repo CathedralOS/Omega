@@ -29,10 +29,12 @@ the image. Host execution returns raw stdout/stderr bytes and process status;
 unsupported interpretation is a decline, not an agreement.
 
 Ordinary host runs inherit the caller's stdin without waiting for EOF upfront.
-Interpreter comparison (`--both`) instead snapshots stdin to EOF before compilation
-for independent native and Terminal replay. Use a finite pipe or redirected file
-for comparison; interactive input must be ended with EOF. Temporary input storage
-is deleted even with `--keep`.
+When a compared program (`--both`) demands a standard-input host import,
+comparison snapshots stdin to EOF for independent Terminal and native replay;
+programs without stdin imports run without reading the caller's stdin. Use a
+finite pipe or redirected file when comparing stdin-reading programs;
+interactive input must be ended with EOF. Temporary input storage is deleted
+even with `--keep`.
 `--inputs <dir> --outputs <dir>` runs many cases against one compilation:
 every `*.stdin` file in the input directory, in name order (or each
 repeated `--input <file>`, in the given order, named by file stem), is fed to the

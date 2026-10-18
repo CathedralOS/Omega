@@ -88,7 +88,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from corpus_gate import host_target
+from corpus_gate import host_target, windows_safe_target_dir
 from sample_projects import ROOT, discover as discover_projects, project_at, rejection_verdict, work_kind
 
 # Freestanding targets have no host oracle: a UEFI image cannot run on the
@@ -792,7 +792,7 @@ def timing_summary(results, wall_seconds):
 # Where the gate's shared, incremental opt-level 1 build lives. The build is
 # expensive — a cold compiler is minutes — so every gate in one checkout reuses
 # it. Only the built binary is copied per run; see `snapshot_cli`.
-GATE_CLI_DIR = ROOT / "build" / "gate-cli"
+GATE_CLI_DIR = windows_safe_target_dir(ROOT / "build" / "gate-cli")
 # One lock for the shared build directory. Cargo serializes concurrent builds
 # of the same target directory itself, but the copy out of it (`snapshot_cli`)
 # must not overlap another build replacing `debug/omega`; on Windows even a

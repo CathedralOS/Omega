@@ -20,8 +20,9 @@ pub struct RunRequest {
     pub root_path: PathBuf,
     /// An explicit target produces an image without executing it on the host.
     pub target_name: Option<String>,
-    /// Host comparison snapshots process stdin to EOF for independent native
-    /// and Terminal replay. Without comparison, native execution inherits stdin.
+    /// Host comparison snapshots process stdin to EOF when the compiled program
+    /// demands a stdin host import, replaying that stream to Terminal and native
+    /// execution. Programs without stdin imports run without reading caller stdin.
     pub compare_interpreter: bool,
     pub keep_artifacts: bool,
 }
@@ -111,19 +112,10 @@ pub fn run_project(request: RunRequest) -> Result<RunOutcome, RunError> {
     let output_directory = TemporaryDirectory::create("probe", request.keep_artifacts)
         .map_err(RunError::TemporaryStorage)?;
     let build_dir = output_directory.path().to_path_buf();
-    // Only comparison needs a finite snapshot. Ordinary execution inherits the
-    // caller's stream, and target-only compilation must never consume it.
-    let replay_input = if request.compare_interpreter && request.target_name.is_none() {
-        Some(
-            standard_input::ReplayInput::capture(std::io::stdin().lock())
-                .map_err(RunError::StandardInput)?,
-        )
-    } else {
-        None
-    };
     let compilation::ProbeCompilation {
         report,
-        interpretations,
+        target_name,
+        ..
     } = compilation::compile(
         request.private_entry_ram,
         CompileOptions {
@@ -131,16 +123,30 @@ pub fn run_project(request: RunRequest) -> Result<RunOutcome, RunError> {
             build_dir: Some(build_dir.clone()),
             target_name: request.target_name.clone(),
         },
-        replay_input
-            .as_ref()
-            .map(|input| input.open_input())
-            .transpose()
-            .map_err(RunError::StandardInput)?
-            .into_iter()
-            .collect(),
+        Vec::new(),
     )
     .map_err(RunError::Compilation)?;
-    let interpretation = interpretations.into_iter().next();
+    // Only comparison of a stdin-reading program needs a finite snapshot.
+    // Programs without a stdin host import complete preflight and execution
+    // with `None` without blocking on an open caller pipe or console.
+    let (replay_input, interpretation) =
+        if request.compare_interpreter && request.target_name.is_none() {
+            match compilation::interpret_product(&report, None, target_name) {
+                Err(compiler::runtime::TerminalRuntimeError::MissingProvision {
+                    capability: "runtime-standard-input",
+                    ..
+                }) => {
+                    let captured = standard_input::ReplayInput::capture(std::io::stdin().lock())
+                        .map_err(RunError::StandardInput)?;
+                    let input = captured.open_input().map_err(RunError::StandardInput)?;
+                    let retry = compilation::interpret_product(&report, Some(input), target_name);
+                    (Some(captured), Some(retry))
+                }
+                outcome => (None, Some(outcome)),
+            }
+        } else {
+            (None, None)
+        };
     if request.keep_artifacts
         && report
             .runtime_provisions()
@@ -171,9 +177,12 @@ pub fn run_project(request: RunRequest) -> Result<RunOutcome, RunError> {
     let execution = match request.target_name {
         Some(target_name) => ExecutionOutcome::TargetOnly { target_name },
         None => {
-            let standard_input = match &replay_input {
-                Some(input) => Stdio::from(input.open_input().map_err(RunError::StandardInput)?),
-                None => Stdio::inherit(),
+            let standard_input = match (&replay_input, &interpretation) {
+                (Some(input), _) => {
+                    Stdio::from(input.open_input().map_err(RunError::StandardInput)?)
+                }
+                (None, Some(Ok(_))) => Stdio::null(),
+                (None, _) => Stdio::inherit(),
             };
             let mut command = Command::new(&executable);
             command.stdin(standard_input);
@@ -285,6 +294,7 @@ pub fn run_project_cases(request: CaseRunRequest) -> Result<CaseRunOutcome, RunE
     let compilation::ProbeCompilation {
         report,
         interpretations,
+        ..
     } = compilation::compile(
         request.private_entry_ram,
         CompileOptions {

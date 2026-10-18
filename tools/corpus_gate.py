@@ -464,6 +464,23 @@ class InfrastructureFailure(Exception):
     so `git bisect run` skips the commit instead of blaming it."""
 
 
+def windows_safe_target_dir(target_dir: Path) -> Path:
+    """Keep Cargo target paths short enough on Windows that deep crate names
+    (e.g. `build/resolved-layout-to-resolved-layout-.../out/lib....rlib`, ~135
+    chars) stay under MSVC link.exe's 260-character MAX_PATH limit."""
+    if os.name != "nt" or len(str(target_dir)) <= 100:
+        return target_dir
+    import hashlib
+    digest = hashlib.sha256(
+        str(target_dir.resolve()).encode("utf-8")).hexdigest()[:10]
+    base = Path(os.environ.get("SYSTEMDRIVE", "C:") + "\\tmp")
+    try:
+        base.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        base = Path(tempfile.gettempdir())
+    return base / f"omega-tgt-{digest}"
+
+
 def build_runner(root: Path = ROOT) -> Path:
     """Build `root`'s runner via cargo/mbx message-format JSON; return its path."""
     tool = "mbx" if shutil_which("mbx") else "cargo"
@@ -473,7 +490,12 @@ def build_runner(root: Path = ROOT) -> Path:
     if root != ROOT:
         # A compared checkout never shares this tree's target directory:
         # timestamp freshness could link the measured tree's artifacts.
-        env["CARGO_TARGET_DIR"] = str(root / "target")
+        env["CARGO_TARGET_DIR"] = str(windows_safe_target_dir(root / "target"))
+    else:
+        configured = Path(env.get("CARGO_TARGET_DIR") or (root / "target"))
+        safe_target = windows_safe_target_dir(configured)
+        if safe_target != configured:
+            env["CARGO_TARGET_DIR"] = str(safe_target)
     proc = subprocess.run(args, cwd=root, capture_output=True, text=True,
                           stdin=subprocess.DEVNULL, env=env)
     if proc.returncode != 0:
