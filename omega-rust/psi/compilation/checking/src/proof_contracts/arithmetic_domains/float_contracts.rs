@@ -132,8 +132,148 @@ fn project(
     ) {
         return FloatInterval::UNBOUNDED;
     }
+    if let Some(literal) = float_literal_value(program, other)
+        && let Some(interval) =
+            float_bound_from(binary.operator, literal, result_on_left, primitive)
+    {
+        return interval;
+    }
+    let Some(parameter_interval) =
+        callee_parameter_interval(program, callee, other, other_type, primitive)
+    else {
+        return FloatInterval::UNBOUNDED;
+    };
+    let operator = if result_on_left {
+        binary.operator
+    } else {
+        binary.operator.mirrored()
+    };
+    match operator {
+        BinaryOperator::Equal => parameter_interval,
+        BinaryOperator::GreaterOrEqual => FloatInterval {
+            low: parameter_interval.low,
+            high: None,
+        },
+        BinaryOperator::Greater => FloatInterval {
+            low: parameter_interval.low.and_then(|low| {
+                float_bound_from(BinaryOperator::Greater, low, true, primitive)?.low
+            }),
+            high: None,
+        },
+        BinaryOperator::LessOrEqual => FloatInterval {
+            low: None,
+            high: parameter_interval.high,
+        },
+        BinaryOperator::Less => FloatInterval {
+            low: None,
+            high: parameter_interval.high.and_then(|high| {
+                float_bound_from(BinaryOperator::Less, high, true, primitive)?.high
+            }),
+        },
+        _ => FloatInterval::UNBOUNDED,
+    }
+}
+
+fn callee_parameter_interval(
+    program: &dyn crate::CheckingInput,
+    callee: &CalleeContract<'_>,
+    other: ExpressionHandle,
+    other_type: Option<TypeReferenceHandle>,
+    primitive: PrimitiveType,
+) -> Option<FloatInterval> {
+    let path = super::place_path(program, other)?;
+    let parameter = callee
+        .parameters
+        .iter()
+        .find(|parameter| parameter.name.as_str() == path)?;
+    let declared = other_type
+        .or(Some(parameter.type_reference))
+        .and_then(|reference| {
+            super::float_arithmetic::float_range_constraint_interval(program, reference)
+        })
+        .unwrap_or(FloatInterval::UNBOUNDED);
+    let interval = program
+        .contract_expressions(callee.contracts.iter(), SignatureContractKind::Requires)
+        .fold(declared, |interval, expression| {
+            interval.intersect(project_parameter(
+                program,
+                callee,
+                expression,
+                &path,
+                parameter.type_reference,
+                primitive,
+            ))
+        });
+    (interval != FloatInterval::UNBOUNDED).then_some(interval)
+}
+
+fn project_parameter(
+    program: &dyn crate::CheckingInput,
+    callee: &CalleeContract<'_>,
+    expression: ExpressionHandle,
+    parameter_name: &str,
+    parameter_type: TypeReferenceHandle,
+    primitive: PrimitiveType,
+) -> FloatInterval {
+    let Some(binary) = program.expression_table.binary_node(expression) else {
+        return FloatInterval::UNBOUNDED;
+    };
+    if matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or) {
+        let left = project_parameter(
+            program,
+            callee,
+            binary.left,
+            parameter_name,
+            parameter_type,
+            primitive,
+        );
+        let right = project_parameter(
+            program,
+            callee,
+            binary.right,
+            parameter_name,
+            parameter_type,
+            primitive,
+        );
+        return if binary.operator == BinaryOperator::And {
+            left.intersect(right)
+        } else {
+            left.union(right)
+        };
+    }
+    let matches_parameter =
+        |operand| super::place_path(program, operand).as_deref() == Some(parameter_name);
+    let (other, parameter_on_left) = if matches_parameter(binary.left) {
+        (binary.right, true)
+    } else if matches_parameter(binary.right) {
+        (binary.left, false)
+    } else {
+        return FloatInterval::UNBOUNDED;
+    };
+    let other_type = crate::parameter_expression_result_type_reference(
+        program,
+        callee.callable,
+        callee.parameters,
+        other,
+    );
+    let operand_types = if parameter_on_left {
+        [Some(parameter_type), other_type]
+    } else {
+        [other_type, Some(parameter_type)]
+    };
+    if !comparison_meaning(
+        program,
+        callee.callable,
+        expression,
+        binary.operator,
+        &operand_types,
+    ) {
+        return FloatInterval::UNBOUNDED;
+    }
     float_literal_value(program, other)
-        .and_then(|literal| float_bound_from(binary.operator, literal, result_on_left, primitive))
+        .and_then(|literal| {
+            float_bound_from(binary.operator, literal, parameter_on_left, primitive)
+        })
         .unwrap_or(FloatInterval::UNBOUNDED)
 }
 
@@ -191,6 +331,7 @@ pub fn float_return_postcondition(
         program,
         machine.symbol,
         condition,
+        &actual,
         &source_bounds,
         &result_type,
     )
@@ -222,13 +363,28 @@ fn predicate(
     program: &dyn crate::CheckingInput,
     owner: symbols::SymbolHandle,
     expression: ExpressionHandle,
+    actual: &dyn Fn(ExpressionHandle) -> ExpressionHandle,
     source_bounds: &dyn Fn(ExpressionHandle) -> Option<FloatSourceBounds>,
     result_type: &dyn Fn(ExpressionHandle) -> Option<TypeReferenceHandle>,
 ) -> Option<bool> {
     let binary = program.expression_table.binary_node(expression)?;
     if matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or) {
-        let left = predicate(program, owner, binary.left, source_bounds, result_type);
-        let right = predicate(program, owner, binary.right, source_bounds, result_type);
+        let left = predicate(
+            program,
+            owner,
+            binary.left,
+            actual,
+            source_bounds,
+            result_type,
+        );
+        let right = predicate(
+            program,
+            owner,
+            binary.right,
+            actual,
+            source_bounds,
+            result_type,
+        );
         return match (left, right, binary.operator) {
             (Some(false), _, BinaryOperator::And) | (_, Some(false), BinaryOperator::And) => {
                 Some(false)
@@ -258,6 +414,14 @@ fn predicate(
     let right = source_bounds(binary.right)?;
     if left.primitive != right.primitive {
         return None;
+    }
+    if matches!(
+        binary.operator,
+        BinaryOperator::Equal | BinaryOperator::NotEqual
+    ) && super::place_path(program, actual(binary.left)).is_some_and(|left_path| {
+        super::place_path(program, actual(binary.right)).as_deref() == Some(left_path.as_str())
+    }) {
+        return Some(binary.operator == BinaryOperator::Equal);
     }
     compare(binary.operator, &left, &right)
 }

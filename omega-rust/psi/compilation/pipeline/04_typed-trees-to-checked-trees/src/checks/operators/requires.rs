@@ -619,6 +619,7 @@ fn contexts_prove_boolean_expression(
                 program,
                 semantic,
                 operators,
+                contexts,
                 &contexts.for_expressions(program, parameters, [expression]),
                 parameters,
                 operands,

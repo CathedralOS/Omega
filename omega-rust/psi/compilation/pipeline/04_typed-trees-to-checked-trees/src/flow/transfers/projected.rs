@@ -121,7 +121,8 @@ pub(super) fn append_copied_field_predicates(
             }
             FactPayload::AssignedCase { .. }
             | FactPayload::AssignedScalarValue { .. }
-            | FactPayload::BytePredicate { .. } => fact.payload,
+            | FactPayload::BytePredicate { .. }
+            | FactPayload::FloatPredicate { .. } => fact.payload,
             _ => continue,
         };
         let Some(place) = fact.place.as_place() else {

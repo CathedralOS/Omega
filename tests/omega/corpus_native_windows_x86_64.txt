@@ -2140,6 +2140,15 @@ pass/facts/guarded_line_loan_through_other_machine_exit built 5122ms exit:0 @866
 pass/facts/guarded_line_loan_through_other_state_exit built 5057ms exit:0 @866a955e52f8
 pass/facts/guarded_line_loan_through_parameter_exit built 5136ms exit:0 @866a955e52f8
 pass/facts/guarded_line_loan_through_target_body_exit built 5033ms exit:0 @866a955e52f8
+pass/facts/ieee_guard_i32_from_f64_call_result built 13164ms exit:0 @1cf00aa9ba90+wt
+pass/facts/ieee_guard_i32_from_f64_const_name built 13219ms exit:0 @1cf00aa9ba90+wt
+pass/facts/ieee_guard_i32_from_f64_field built 13024ms exit:0 @1cf00aa9ba90+wt
+pass/facts/ieee_guard_i32_from_f64_local built 13182ms exit:0 @1cf00aa9ba90+wt
+pass/facts/ieee_guard_i32_from_f64_match_join built 13128ms exit:0 @1cf00aa9ba90+wt
+pass/facts/ieee_guard_i32_from_f64_other_machine built 13329ms exit:0 @1cf00aa9ba90+wt
+pass/facts/ieee_guard_i32_from_f64_other_state built 13311ms exit:0 @1cf00aa9ba90+wt
+pass/facts/ieee_guard_i32_from_f64_parameter built 13061ms exit:0 @1cf00aa9ba90+wt
+pass/facts/ieee_guard_i32_from_f64_target_body built 13033ms exit:0 @1cf00aa9ba90+wt
 pass/facts/remainder_width_through_call_result_exit built 5810ms exit:0 @d070d134851d+wt
 pass/facts/remainder_width_through_const_name_exit built 5793ms exit:0 @d070d134851d+wt
 pass/facts/remainder_width_through_field_exit built 5725ms exit:0 @d070d134851d+wt

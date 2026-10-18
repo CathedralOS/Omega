@@ -3586,6 +3586,27 @@ fail/facts/guarded_record_line_loan_through_target_body_shared_record rejected 2
 	machine `inspect` state `entry` assignment cannot write `application` because it is not mutable in this state (if `application` is undeclared -- a typo -- no such field or local exists)
 	machine `inspect` state `entry` assignment cannot write `application` because it is not mutable in this state (if `application` is undeclared -- a typo -- no such field or local exists)
 	machine `inspect` state `entry` assignment cannot write `application` because it is not mutable in this state (if `application` is undeclared -- a typo -- no such field or local exists)
+fail/facts/ieee_guard_i32_from_f64_call_result_invalid rejected 4433ms expected @1cf00aa9ba90+wt
+	machine `bounded` state `entry` cannot prove unqualified `I32::from_f64` operand `supply(value)` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
+fail/facts/ieee_guard_i32_from_f64_const_name_invalid rejected 4495ms expected @1cf00aa9ba90+wt
+	machine `bounded` state `entry` cannot prove unqualified `I32::from_f64` operand `value` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
+fail/facts/ieee_guard_i32_from_f64_field_invalid rejected 4476ms expected @1cf00aa9ba90+wt
+	machine `bounded` state `entry` cannot prove unqualified `I32::from_f64` operand `reading.value` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
+fail/facts/ieee_guard_i32_from_f64_local_invalid rejected 3891ms expected @1cf00aa9ba90+wt
+	machine `bounded` state `entry` cannot prove unqualified `I32::from_f64` operand `copied` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
+fail/facts/ieee_guard_i32_from_f64_match_join_invalid rejected 3933ms expected @1cf00aa9ba90+wt
+	machine `bounded_choice` state `entry` cannot prove unqualified `I32::from_f64` operand `chosen` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
+fail/facts/ieee_guard_i32_from_f64_other_machine_invalid rejected 3892ms expected @1cf00aa9ba90+wt
+	machine `convert` state `entry` cannot prove unqualified `I32::from_f64` operand `value` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
+fail/facts/ieee_guard_i32_from_f64_other_state_invalid rejected 3820ms expected @1cf00aa9ba90+wt
+	machine `bounded` state `land` cannot prove unqualified `I32::from_f64` operand `value` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
+fail/facts/ieee_guard_i32_from_f64_parameter_invalid rejected 3841ms expected @1cf00aa9ba90+wt
+	machine `bounded` state `entry` cannot prove unqualified `I32::from_f64` operand `value` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
+fail/facts/ieee_guard_i32_from_f64_target_body_invalid rejected 3775ms expected @1cf00aa9ba90+wt
+	machine `convert` state `entry` cannot prove unqualified `I32::from_f64` operand `value` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
+	machine `convert` state `entry` cannot prove unqualified `I32::from_f64` operand `value` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
+	machine `convert` state `entry` cannot prove unqualified `I32::from_f64` operand `value` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
+	machine `convert` state `entry` cannot prove unqualified `I32::from_f64` operand `value` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
 fail/facts/index_every_width_through_call_result_rejected rejected 4857ms expected @465f5043822d+wt
 	cannot prove index `picked_i64` is within length 4 in read_all::entry
 fail/facts/index_every_width_through_const_name_rejected rejected 2801ms expected @465f5043822d+wt
@@ -8818,6 +8839,15 @@ pass/facts/guarded_record_line_loan_through_other_machine_exit checked 7000ms ch
 pass/facts/guarded_record_line_loan_through_other_state_exit checked 7062ms check-target:macos_arm64 @e7cf0c8c7f70+wt
 pass/facts/guarded_record_line_loan_through_parameter_exit checked 7121ms check-target:macos_arm64 @e7cf0c8c7f70+wt
 pass/facts/guarded_record_line_loan_through_target_body_exit checked 7046ms check-target:macos_arm64 @e7cf0c8c7f70+wt
+pass/facts/ieee_guard_i32_from_f64_call_result checked 13505ms check-target:macos_arm64 @1cf00aa9ba90+wt
+pass/facts/ieee_guard_i32_from_f64_const_name checked 13526ms check-target:macos_arm64 @1cf00aa9ba90+wt
+pass/facts/ieee_guard_i32_from_f64_field checked 13495ms check-target:macos_arm64 @1cf00aa9ba90+wt
+pass/facts/ieee_guard_i32_from_f64_local checked 13501ms check-target:macos_arm64 @1cf00aa9ba90+wt
+pass/facts/ieee_guard_i32_from_f64_match_join checked 13513ms check-target:macos_arm64 @1cf00aa9ba90+wt
+pass/facts/ieee_guard_i32_from_f64_other_machine checked 13508ms check-target:macos_arm64 @1cf00aa9ba90+wt
+pass/facts/ieee_guard_i32_from_f64_other_state checked 13529ms check-target:macos_arm64 @1cf00aa9ba90+wt
+pass/facts/ieee_guard_i32_from_f64_parameter checked 13491ms check-target:macos_arm64 @1cf00aa9ba90+wt
+pass/facts/ieee_guard_i32_from_f64_target_body checked 13497ms check-target:macos_arm64 @1cf00aa9ba90+wt
 pass/facts/index_every_width_through_call_result_exit checked 11535ms check-target:macos_arm64 @465f5043822d+wt
 pass/facts/index_every_width_through_const_name_exit checked 7146ms check-target:macos_arm64 @465f5043822d+wt
 pass/facts/index_every_width_through_field_exit checked 6839ms check-target:macos_arm64 @465f5043822d+wt

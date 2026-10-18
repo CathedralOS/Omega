@@ -264,6 +264,29 @@ impl<'facts> InvocationContexts<'facts> {
                 .collect()
         })
     }
+
+    pub(crate) fn flow(&self) -> &'facts FlowFacts {
+        self.flow
+    }
+
+    pub(crate) fn operand_at(
+        &self,
+        ordinal: usize,
+    ) -> Option<&'facts checked_trees::FlowOperandFact> {
+        let invocation = self.invocation.as_ref()?;
+        let (operands, receiver_offset) = match invocation {
+            CapturedInvocation::Operator(invocation) => (invocation.operands, 0),
+            CapturedInvocation::Call {
+                call,
+                receiver_offset,
+            } => (call.operands, *receiver_offset),
+        };
+        self.flow
+            .control
+            .operands
+            .span_or_empty(operands)
+            .get(ordinal + receiver_offset)
+    }
 }
 
 /// The capture row names its exact operand expressions in evaluation order;

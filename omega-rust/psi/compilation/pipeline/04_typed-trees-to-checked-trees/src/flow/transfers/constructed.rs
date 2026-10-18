@@ -139,9 +139,9 @@ pub(super) fn append_constructed_field_values(
         }
         for fact in &active_facts {
             let payload = match fact.payload {
-                FactPayload::AssignedValue { .. } | FactPayload::AssignedScalarValue { .. } => {
-                    fact.payload
-                }
+                FactPayload::AssignedValue { .. }
+                | FactPayload::AssignedScalarValue { .. }
+                | FactPayload::FloatPredicate { .. } => fact.payload,
                 facts::domain_membership_fields_pattern!(
                     domain,
                     domain_symbol,

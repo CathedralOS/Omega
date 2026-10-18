@@ -100,7 +100,9 @@ fn value_bounds(
         );
         return Bounds::floating(
             primitive,
-            captured.map(|value| (value.minimum, value.maximum)),
+            captured
+                .and_then(|value| value.bounds)
+                .map(|value| (value.minimum, value.maximum)),
         );
     }
     match program.expression_table.expression(expression) {

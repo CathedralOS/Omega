@@ -138,6 +138,32 @@ pub(crate) fn float_source_bounds(
     let primitive = reference
         .and_then(|reference| program.primitive_type_reference(reference))
         .filter(|primitive| matches!(primitive, PrimitiveType::F32 | PrimitiveType::F64))?;
+    if let ExpressionNode::Match(dispatch) = program.expression_table.expression(value) {
+        let arms = program.expression_table.match_arms(dispatch.arms);
+        if !arms.is_empty() {
+            let mut minimum = f64::INFINITY;
+            let mut maximum = f64::NEG_INFINITY;
+            let mut all_bounded = true;
+            for arm in arms {
+                let Some(bounds) =
+                    float_source_bounds(program, environment, arm.value, result_type)
+                        .filter(|bounds| bounds.primitive == primitive)
+                else {
+                    all_bounded = false;
+                    break;
+                };
+                minimum = minimum.min(bounds.minimum);
+                maximum = maximum.max(bounds.maximum);
+            }
+            if all_bounded && minimum <= maximum {
+                return Some(FloatSourceBounds {
+                    primitive,
+                    minimum,
+                    maximum,
+                });
+            }
+        }
+    }
     let declared =
         reference.and_then(|reference| float_range_constraint_interval(program, reference));
     let guaranteed = program

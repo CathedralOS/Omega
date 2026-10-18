@@ -1691,9 +1691,12 @@ defines the complete product bar.
   (first-case zero establishment proves its actual predicates, never a later
   case or a saturated mathematical expression; preserve command facts through
   locals, parameters, results and matched writes),
-  `pass/float/runtime_{exact_format_narrowing,exact_integer_coercion,format_conversion_result_bounds,result_predicate_custody}_exit`
+  `pass/float/runtime_{exact_format_narrowing,exact_integer_coercion,format_conversion_result_bounds,result_predicate_custody}_exit`,
+  `pass/facts/ieee_guard_i32_from_f64_{local,field,parameter,call_result,match_join,const_name,other_state,other_machine,target_body}`,
+  `fail/facts/ieee_guard_i32_from_f64_{local,field,parameter,call_result,match_join,const_name,other_state,other_machine,target_body}_invalid`
   and `fail/float/{exact_format_conversion_requires_denotation,exact_integer_coercion_requires_denotation,format_conversion_exclusive_upper,parameter_guarantee_does_not_bound_result,result_predicate_stale_or_wrong_value,unbounded_result_does_not_prove_guarantee}`
-  (selected IEEE result predicates survive local, field, state and saved-copy
+  (selected IEEE result predicates and checked IEEE guards survive local, field,
+  parameter, call-result, match-join, const-name, state, machine and target-body
   transport; neither receiving bounds, stale storage nor parameter-only
   guarantees authorize Exact conversion or stricter rounded results),
   `pass/termination/rank_range_{declared_step_copies,call_declared_step_copy}`.

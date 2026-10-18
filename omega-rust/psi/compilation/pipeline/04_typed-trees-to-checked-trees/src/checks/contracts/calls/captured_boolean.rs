@@ -116,6 +116,7 @@ fn captured_float_requirement(
                     program,
                     &facts.semantic,
                     &facts.operators,
+                    &contexts,
                     &contexts.for_expressions(program, parameters, [leaf]),
                     parameters,
                     &arguments,

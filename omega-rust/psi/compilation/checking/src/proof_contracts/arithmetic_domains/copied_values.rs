@@ -24,6 +24,9 @@ pub(crate) struct CopiedIntegerValue {
     )>,
     intervals: Vec<(String, Interval)>,
     unsigned_values: Vec<(String, u64)>,
+    float_intervals: Vec<(String, super::value_environment::FloatInterval)>,
+    non_nan_paths: Vec<String>,
+    float_aliases: Vec<(String, String)>,
     ordered_relations: Vec<ordered_values::Relation>,
 }
 
@@ -371,6 +374,57 @@ impl CopiedIntegerValue {
                         suffix,
                         &mut self.unsigned_values,
                     );
+                    copy_retained(
+                        &environment.float_intervals,
+                        &source,
+                        suffix,
+                        &mut self.float_intervals,
+                    );
+                    for path in environment
+                        .non_nan
+                        .range(source.clone()..)
+                        .take_while(|path| path.starts_with(&source))
+                    {
+                        if let Some(tail) = path.strip_prefix(&source)
+                            && (tail.is_empty() || tail.starts_with('.') || tail.starts_with('['))
+                        {
+                            self.non_nan_paths.push(format!("{suffix}{tail}"));
+                        }
+                    }
+                    if !suffix.is_empty() {
+                        self.float_aliases.push((suffix.to_owned(), source.clone()));
+                    }
+                    for (left, right) in &environment.float_aliases {
+                        for (candidate, partner) in [(left, right), (right, left)] {
+                            if let Some(tail) = candidate.strip_prefix(&source)
+                                && (tail.is_empty()
+                                    || tail.starts_with('.')
+                                    || tail.starts_with('['))
+                            {
+                                self.float_aliases
+                                    .push((format!("{suffix}{tail}"), partner.clone()));
+                            }
+                        }
+                    }
+                } else if !suffix.is_empty()
+                    && let Some(source) =
+                        super::assignments::float_source_place_path(program, expression)
+                {
+                    self.float_aliases.push((suffix.to_owned(), source));
+                }
+                if !suffix.is_empty()
+                    && let Some(value) =
+                        super::float_arithmetic::float_literal_value(program, expression)
+                    && !value.is_nan()
+                {
+                    self.float_intervals.push((
+                        suffix.to_owned(),
+                        super::value_environment::FloatInterval {
+                            low: Some(value),
+                            high: Some(value),
+                        },
+                    ));
+                    self.non_nan_paths.push(suffix.to_owned());
                 }
                 if !suffix.is_empty()
                     && let Some(interval) = checked_values
@@ -433,6 +487,15 @@ impl CopiedIntegerValue {
         }
         for (suffix, value) in &self.unsigned_values {
             environment.mark_known_u64(format!("{path}{suffix}"), *value);
+        }
+        for (suffix, interval) in &self.float_intervals {
+            environment.narrow_float(format!("{path}{suffix}"), *interval);
+        }
+        for suffix in &self.non_nan_paths {
+            environment.mark_non_nan(format!("{path}{suffix}"));
+        }
+        for (suffix, source) in &self.float_aliases {
+            environment.mark_float_alias(format!("{path}{suffix}"), source.clone());
         }
     }
 }

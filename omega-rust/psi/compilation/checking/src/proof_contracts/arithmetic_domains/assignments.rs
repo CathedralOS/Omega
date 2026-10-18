@@ -59,6 +59,35 @@ pub(crate) fn record_unsigned_literal_assignment(
     }
 }
 
+pub(crate) struct CapturedFloatAssignment {
+    pub(crate) bounds: Option<super::FloatSourceBounds>,
+    source_path: Option<String>,
+}
+
+pub(super) fn float_source_place_path(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+) -> Option<String> {
+    if let Some(path) = super::place_path(program, expression)
+        .or_else(|| super::element_place_path(program, expression))
+    {
+        return Some(path);
+    }
+    if let ExpressionNode::Match(dispatch) = program.expression_table.expression(expression) {
+        let arms = program.expression_table.match_arms(dispatch.arms);
+        let first = arms.first()?;
+        let candidate = float_source_place_path(program, first.value)?;
+        if arms
+            .iter()
+            .skip(1)
+            .all(|arm| float_source_place_path(program, arm.value).as_ref() == Some(&candidate))
+        {
+            return Some(candidate);
+        }
+    }
+    None
+}
+
 /// Capture the completed IEEE value before destination invalidation. Literals,
 /// live copies and selected public result guarantees share one enclosure query.
 /// A receiving predicate never supplies bounds, and a later write cannot
@@ -70,56 +99,69 @@ pub(crate) fn capture_float_assignment(
     environment: &ValueEnvironment,
     destination: Option<PrimitiveType>,
     value: ExpressionHandle,
-) -> Option<super::FloatSourceBounds> {
+) -> Option<CapturedFloatAssignment> {
     let Some(destination @ (PrimitiveType::F32 | PrimitiveType::F64)) = destination else {
         return None;
     };
-    if let ExpressionNode::Float(literal) = program.expression_table.expression(value) {
+    let bounds = if let ExpressionNode::Float(literal) = program.expression_table.expression(value)
+    {
         let format = match destination {
             PrimitiveType::F32 => numerics::literals::FloatFormat::F32,
             _ => numerics::literals::FloatFormat::F64,
         };
         if literal.landing().is_some_and(|retained| retained != format) {
-            return None;
+            None
+        } else {
+            let value = literal.with_landing(format).landed_f64();
+            (!value.is_nan()).then_some(super::FloatSourceBounds {
+                primitive: destination,
+                minimum: value,
+                maximum: value,
+            })
         }
-        let value = literal.with_landing(format).landed_f64();
-        return (!value.is_nan()).then_some(super::FloatSourceBounds {
-            primitive: destination,
-            minimum: value,
-            maximum: value,
-        });
-    }
-    super::float_source_bounds(program, environment, value, &|expression| {
-        state
-            .and_then(|state| {
-                crate::expression_result_type_reference(program, machine, state, expression)
-            })
-            .or_else(|| {
-                crate::value_custody::places::declared_place_type_raw(
-                    program, machine, state, expression,
-                )
-            })
+    } else {
+        super::float_source_bounds(program, environment, value, &|expression| {
+            state
+                .and_then(|state| {
+                    crate::expression_result_type_reference(program, machine, state, expression)
+                })
+                .or_else(|| {
+                    crate::value_custody::places::declared_place_type_raw(
+                        program, machine, state, expression,
+                    )
+                })
+        })
+        .filter(|bounds| bounds.primitive == destination)
+    };
+    let source_path = float_source_place_path(program, value);
+    (bounds.is_some() || source_path.is_some()).then_some(CapturedFloatAssignment {
+        bounds,
+        source_path,
     })
-    .filter(|bounds| bounds.primitive == destination)
 }
 
 /// Publish an already captured value only after retiring old destination facts.
 pub(crate) fn record_float_assignment(
     environment: &mut ValueEnvironment,
     path: Option<String>,
-    captured: Option<super::FloatSourceBounds>,
+    captured: Option<CapturedFloatAssignment>,
 ) {
     let (Some(path), Some(captured)) = (path, captured) else {
         return;
     };
-    environment.narrow_float(
-        path.clone(),
-        super::value_environment::FloatInterval {
-            low: Some(captured.minimum),
-            high: Some(captured.maximum),
-        },
-    );
-    environment.mark_non_nan(path);
+    if let Some(bounds) = captured.bounds {
+        environment.narrow_float(
+            path.clone(),
+            super::value_environment::FloatInterval {
+                low: Some(bounds.minimum),
+                high: Some(bounds.maximum),
+            },
+        );
+        environment.mark_non_nan(path.clone());
+    }
+    if let Some(source_path) = captured.source_path {
+        environment.mark_float_alias(path, source_path);
+    }
 }
 
 /// The declared `[a..=b]` range of a place's type, ONLY when that range is

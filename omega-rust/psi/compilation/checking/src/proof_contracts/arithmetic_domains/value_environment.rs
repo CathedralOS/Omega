@@ -68,6 +68,7 @@ pub(crate) struct ValueEnvironment {
     pub(super) known_u64_values: BTreeMap<String, u64>,
     pub(super) float_intervals: BTreeMap<String, FloatInterval>,
     pub(super) non_nan: BTreeSet<String>,
+    pub(super) float_aliases: BTreeSet<(String, String)>,
     pub(super) joint_subtract_bounds: BTreeSet<(String, String)>,
     pub(super) signed_joint_subtract_lower_bounds: BTreeSet<(String, String)>,
     pub(super) signed_joint_subtract_upper_bounds: BTreeSet<(String, String)>,
@@ -154,7 +155,7 @@ impl ValueEnvironment {
         maps!(intervals, known_u64_values, float_intervals);
         sets!(non_nan, signed_joint_multiply_negation_bounds);
         pairs!(true;
-            joint_multiply_bounds, signed_joint_multiply_lower_bounds,
+            float_aliases, joint_multiply_bounds, signed_joint_multiply_lower_bounds,
             signed_joint_multiply_upper_bounds);
         pairs!(false; joint_subtract_bounds, signed_joint_subtract_lower_bounds,
             signed_joint_subtract_upper_bounds);
@@ -174,6 +175,7 @@ impl ValueEnvironment {
         self.known_u64_values.clear();
         self.float_intervals.clear();
         self.non_nan.clear();
+        self.float_aliases.clear();
         self.ordered_values.clear();
         self.clear_joint_relations();
     }
@@ -254,6 +256,8 @@ impl ValueEnvironment {
         self.known_u64_values.retain(|path, _| retained(path));
         self.float_intervals.retain(|path, _| retained(path));
         self.non_nan.retain(|path| retained(path));
+        self.float_aliases
+            .retain(|(left, right)| retained(left) && retained(right));
         self.ordered_values.retain(|relation| {
             relation.left.is_immutable_snapshot(program, state)
                 && relation.right.is_immutable_snapshot(program, state)
@@ -307,6 +311,7 @@ impl ValueEnvironment {
         self.known_u64_values.retain(|path, _| !overlaps(path));
         self.float_intervals.retain(|path, _| !overlaps(path));
         self.non_nan.retain(|path| !overlaps(path));
+        self.float_aliases.retain(keep_pair);
         self.joint_subtract_bounds.retain(keep_pair);
         self.signed_joint_subtract_lower_bounds.retain(keep_pair);
         self.signed_joint_subtract_upper_bounds.retain(keep_pair);
@@ -363,7 +368,7 @@ impl ValueEnvironment {
         self.intervals.insert(path, merged);
     }
 
-    pub(super) fn narrow_float(&mut self, path: String, interval: FloatInterval) {
+    fn narrow_float_single(&mut self, path: String, interval: FloatInterval) {
         let merged = match self.float_intervals.get(&path) {
             Some(existing) => existing.intersect(interval),
             None => interval,
@@ -371,8 +376,69 @@ impl ValueEnvironment {
         self.float_intervals.insert(path, merged);
     }
 
+    pub(super) fn float_alias_partners<'a>(
+        &'a self,
+        target: &'a str,
+    ) -> impl Iterator<Item = String> + 'a {
+        self.float_aliases.iter().filter_map(move |(left, right)| {
+            if left == target {
+                Some(right.clone())
+            } else if right == target {
+                Some(left.clone())
+            } else {
+                None
+            }
+        })
+    }
+
+    pub(super) fn narrow_float(&mut self, path: String, interval: FloatInterval) {
+        let aliases: Vec<String> = self.float_alias_partners(&path).collect();
+        self.narrow_float_single(path, interval);
+        for alias in aliases {
+            self.narrow_float_single(alias, interval);
+        }
+    }
+
     pub(super) fn mark_non_nan(&mut self, path: String) {
+        let aliases: Vec<String> = self.float_alias_partners(&path).collect();
         self.non_nan.insert(path);
+        self.non_nan.extend(aliases);
+    }
+
+    pub(super) fn mark_float_alias(&mut self, left: String, right: String) {
+        if left == right || place_paths_overlap(&left, &right) {
+            return;
+        }
+        let mut left_group = vec![left.clone()];
+        left_group.extend(self.float_alias_partners(&left));
+        let mut right_group = vec![right.clone()];
+        right_group.extend(self.float_alias_partners(&right));
+        for left_member in &left_group {
+            for right_member in &right_group {
+                if left_member != right_member && !place_paths_overlap(left_member, right_member) {
+                    self.float_aliases.insert(canonical_path_pair(
+                        left_member.clone(),
+                        right_member.clone(),
+                    ));
+                }
+            }
+        }
+        let combined_interval = match (
+            self.float_intervals.get(&left).copied(),
+            self.float_intervals.get(&right).copied(),
+        ) {
+            (Some(left_interval), Some(right_interval)) => {
+                Some(left_interval.intersect(right_interval))
+            }
+            (left_interval, right_interval) => left_interval.or(right_interval),
+        };
+        let is_non_nan = self.non_nan.contains(&left) || self.non_nan.contains(&right);
+        if let Some(interval) = combined_interval {
+            self.narrow_float(left.clone(), interval);
+        }
+        if is_non_nan {
+            self.mark_non_nan(left);
+        }
     }
 
     pub(super) fn mark_joint_subtract_bound(&mut self, left: String, right: String) {
@@ -564,6 +630,11 @@ impl ValueEnvironment {
         joined
             .non_nan
             .extend(self.non_nan.intersection(&other.non_nan).cloned());
+        joined.float_aliases.extend(
+            self.float_aliases
+                .intersection(&other.float_aliases)
+                .cloned(),
+        );
         joined.joint_subtract_bounds.extend(
             self.joint_subtract_bounds
                 .intersection(&other.joint_subtract_bounds)
