@@ -3202,7 +3202,7 @@ pass/time/runtime_duration_core_exit built 38212ms exit:70 @6c49683ce714
 pass/time/runtime_duration_units_and_scaling_exit built 37868ms exit:0 @6c49683ce714
 pass/time/runtime_fs_mtime_system_time_interop_exit built 22541ms @aebe0714a499+wt
 pass/time/runtime_kernel_clock_wait_loans_exit built 18193ms exit:0 @6c49683ce714
-pass/time/runtime_time_elapsed_since_exit built 20561ms exit:70 @6c49683ce714
+pass/time/runtime_time_elapsed_since_exit built 20690ms exit:70 @37d4e3a21427+wt
 pass/time/runtime_time_host_native_darwin_exit built 6772ms exit:70 @f137abafccda+wt
 pass/time/runtime_time_host_native_darwin_x86_64_exit built 19540ms @6c49683ce714
 pass/time/runtime_time_host_virtual_exit checked 15358ms @6c49683ce714

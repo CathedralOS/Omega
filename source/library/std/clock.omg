@@ -49,3 +49,11 @@ pub boundary trait Clock {
 // attach to this type so provider selection never assembles the row from
 // unrelated implementations.
 pub data ClockNativeProvider { }
+
+// Select the explicit whole-trait map. The inline member preserves the exact
+// target body's checked wait and raw-provider closure.
+pub NativeClock satisfies Clock {
+    machine sleep(milliseconds: u32) reaches Clock {
+        ClockNativeProvider::sleep(milliseconds);
+    }
+}
