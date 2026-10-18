@@ -57,11 +57,16 @@ one row per construct, never a combinatorial matrix. Lowering and realization
 rows carry width/signedness scalars, floats, fixed-size arrays, nested
 structural records, tagged case payloads, slice views, borrowed projections,
 `&write` write-only borrows, affine cleanup, linear claim retirement,
-named-implementation/`dyn` dispatch, boundary/provider calls, and checked
-`asm` through the same nine places. When a repair adds or changes a carrier,
-access mode, or cleanup disposition in Stage 04 checking, complete the
-matching Stage 05 (`checked-trees-to-lowered-psi`) and Omega Stage 00
-(`terminal-psi-to-abstract-operations`) lowering arms in the same change.
+named-implementation/`dyn` dispatch, boundary/provider calls, checked
+`asm`, and Omega Stages 03–09 native realization (`abi_multi_arg_spill`,
+`signed_division_quotient`, `scalar_sign_zero_extension`,
+`live_across_call_spill`, `stack_frame_slot_isolation`,
+`record_layout_geometry`) through the same nine places. When a repair adds or
+changes a carrier, access mode, cleanup disposition, or target realization
+rule, complete the matching Stage 05 (`checked-trees-to-lowered-psi`), Omega
+Stage 00 (`terminal-psi-to-abstract-operations`), and Omega Stages 03–09
+(ABI lowering, instruction selection, register allocation, frame finalization,
+and native encoding) arms in the same change.
 
 Read the whole item's acceptance and verify its remaining gap against current
 main. Record the parent task and the exact requirement the next fact will

@@ -127,11 +127,17 @@ transport, lowering and realization rows carry width/signedness scalars,
 floats, fixed-size arrays, nested structural records, tagged case payloads,
 slice views, borrowed projections, `&write` write-only borrows, affine
 cleanup, linear claim retirement, named-implementation/`dyn` dispatch,
-boundary/provider calls, and checked `asm` through the same nine places. When
-a repair adds or changes a carrier, access mode, or cleanup disposition in
-Stage 04 checking, complete the matching Stage 05 (`checked-trees-to-lowered-psi`)
-and Omega Stage 00 (`terminal-psi-to-abstract-operations`) lowering arms in
-the same change. Checking and proof completion also follows the
+boundary/provider calls, checked `asm`, and Omega Stages 03–09 native
+realization (multi-argument ABI register/stack spill, signed/unsigned
+division and condition selection, narrow-to-wide sign/zero extension,
+live-across-call register preservation and spill/reload, disjoint stack-frame
+slot isolation, and `size_of`/`align_of` layout realization) through the same
+nine places. When a repair adds or changes a carrier, access mode, cleanup
+disposition, or target realization rule, complete the matching Stage 05
+(`checked-trees-to-lowered-psi`), Omega Stage 00
+(`terminal-psi-to-abstract-operations`), and Omega Stages 03–09
+(ABI, instruction selection, register allocation, frame layout, and encoding)
+arms in the same change. Checking and proof completion also follows the
 [requirements and evidence rule](#requirements-and-evidence): each completed
 fact row names the requirement it establishes, and each requirement closes only
 when its full acceptance is demonstrated.
