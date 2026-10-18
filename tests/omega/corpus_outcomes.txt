@@ -7899,24 +7899,15 @@ pass/facts/address_count_partition_through_other_machine_exit checked 4002ms che
 pass/facts/address_count_partition_through_other_state_exit checked 4004ms check-target:macos_arm64 @70da601bb299+wt
 pass/facts/address_count_partition_through_parameter_exit checked 3998ms check-target:macos_arm64 @70da601bb299+wt
 pass/facts/address_count_partition_through_target_body_exit checked 4145ms check-target:macos_arm64 @70da601bb299+wt
-pass/facts/assumed_binding_result_bound_through_call_result_exit rejected 7439ms check-target:linux_x86_64 @73ea0eccebbc
-	assumed binding requires explicit accepted root Product risk rows; run omega update
-pass/facts/assumed_binding_result_bound_through_const_name_exit rejected 7402ms check-target:linux_x86_64 @73ea0eccebbc
-	assumed binding requires explicit accepted root Product risk rows; run omega update
-pass/facts/assumed_binding_result_bound_through_field_exit rejected 7272ms check-target:linux_x86_64 @73ea0eccebbc
-	assumed binding requires explicit accepted root Product risk rows; run omega update
-pass/facts/assumed_binding_result_bound_through_local_exit rejected 7395ms check-target:linux_x86_64 @73ea0eccebbc
-	assumed binding requires explicit accepted root Product risk rows; run omega update
-pass/facts/assumed_binding_result_bound_through_match_join_exit rejected 7447ms check-target:linux_x86_64 @73ea0eccebbc
-	assumed binding requires explicit accepted root Product risk rows; run omega update
-pass/facts/assumed_binding_result_bound_through_other_machine_exit rejected 7565ms check-target:linux_x86_64 @73ea0eccebbc
-	assumed binding requires explicit accepted root Product risk rows; run omega update
-pass/facts/assumed_binding_result_bound_through_other_state_exit rejected 7378ms check-target:linux_x86_64 @73ea0eccebbc
-	assumed binding requires explicit accepted root Product risk rows; run omega update
-pass/facts/assumed_binding_result_bound_through_parameter_exit rejected 7402ms check-target:linux_x86_64 @73ea0eccebbc
-	assumed binding requires explicit accepted root Product risk rows; run omega update
-pass/facts/assumed_binding_result_bound_through_target_body_exit rejected 7360ms check-target:linux_x86_64 @73ea0eccebbc
-	assumed binding requires explicit accepted root Product risk rows; run omega update
+pass/facts/assumed_binding_result_bound_through_call_result_exit checked 6148ms check-target:linux_x86_64 @ac963cec7a35
+pass/facts/assumed_binding_result_bound_through_const_name_exit checked 6269ms check-target:linux_x86_64 @ac963cec7a35
+pass/facts/assumed_binding_result_bound_through_field_exit checked 6184ms check-target:linux_x86_64 @ac963cec7a35
+pass/facts/assumed_binding_result_bound_through_local_exit checked 6271ms check-target:linux_x86_64 @ac963cec7a35
+pass/facts/assumed_binding_result_bound_through_match_join_exit checked 6183ms check-target:linux_x86_64 @ac963cec7a35
+pass/facts/assumed_binding_result_bound_through_other_machine_exit checked 6199ms check-target:linux_x86_64 @ac963cec7a35
+pass/facts/assumed_binding_result_bound_through_other_state_exit checked 6275ms check-target:linux_x86_64 @ac963cec7a35
+pass/facts/assumed_binding_result_bound_through_parameter_exit checked 6143ms check-target:linux_x86_64 @ac963cec7a35
+pass/facts/assumed_binding_result_bound_through_target_body_exit checked 6146ms check-target:linux_x86_64 @ac963cec7a35
 pass/facts/borrowed_projection_cleanup_through_call_result_exit checked 7801ms check-target:macos_arm64 @dec223be05fb
 pass/facts/borrowed_projection_cleanup_through_const_name_exit checked 6361ms check-target:macos_arm64 @dec223be05fb
 pass/facts/borrowed_projection_cleanup_through_field_exit checked 6543ms check-target:macos_arm64 @dec223be05fb
