@@ -4492,8 +4492,10 @@ and `mapped` need matching-host measurements, including the full-i32 status.
   readers, not a second guarantee collector. Expand read footprints only for a
   demonstrated fact loss; distinguish builtin bound-meaning admission from fact
   invalidation.
-  Unverified: the `low + 0u64` subslice lead (matched probes reject `view[0]`
-  for unknown slice length even before an unrelated write).
+  Direct computed subslice bounds already work. Remaining predicate coverage
+  extends beyond the exact scalar/descriptor interval consequences exercised
+  by `samples/cli/facts/computed_subslice_extent`; preserve exact application
+  identity and current observations at each ordinary call and arrival.
 
   Acceptance: corpus pass fixtures accept disjoint loans, writes and exclusive
   call operands established by each remaining premise kind; fail fixtures reject

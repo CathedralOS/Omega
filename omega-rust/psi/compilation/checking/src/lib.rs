@@ -82,7 +82,9 @@ pub use proof_contracts::arithmetic_domains::{
     frozen_declared_integer_range, integer_range_contains, selected_boolean_decision,
     selected_scalar_interval,
 };
-pub use proof_contracts::collection_predicates::{length_member, premises_prove_expression};
+pub use proof_contracts::collection_predicates::{
+    exact_predicate_intervals, length_member, premises_prove_expression,
+};
 pub use proof_contracts::contract_entailment::{
     CapturedScalarObservation, captured_collection_length, captured_integer_value,
     captured_scalar_observations, closed_collection_length, closed_collection_length_at_place,
@@ -362,7 +364,7 @@ pub use proof_contracts::arithmetic_domains::CollectionBoundsObservations;
 pub use proof_contracts::arithmetic_domains::arrival_integer_expression_bounds;
 pub use proof_contracts::arithmetic_domains::builtin_monotonic_integer_update_bounds;
 pub use proof_contracts::arithmetic_domains::enforced_integer_type_bounds;
-pub use proof_contracts::arithmetic_domains::guarded_call_requires_proven;
+pub use proof_contracts::arithmetic_domains::evaluated_call_requires_proven;
 pub use proof_contracts::arithmetic_domains::immutable_integer_expression_bounds;
 pub use proof_contracts::arithmetic_domains::integer_widen_is_total;
 pub use proof_contracts::arithmetic_domains::normal_return_integer_bounds;

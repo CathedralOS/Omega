@@ -1,7 +1,7 @@
 //! Path exploration of one checked predicate body over refinable values.
 //!
 //! Every integer the explorer can learn about is an *atom*: one element of an
-//! argument array, or one scalar argument. A path carries one [`IntegerSet`]
+//! argument array, one scalar argument, or one runtime descriptor extent. A path carries one [`IntegerSet`]
 //! per atom. A comparison whose outcome the current sets do not decide splits
 //! the path on exactly one atom, so each fork refines that atom and makes the
 //! comparison decided. Paths that arrive at the same state with the same
@@ -22,7 +22,8 @@
 //! Captures belong to one immutable state activation; a state transfer creates
 //! a new activation. Joining can lose correlations but never excludes a real
 //! caller value. Collection length reads use the captured extent, not a new
-//! fixed-array type for a slice. Anything else stands down; a complete
+//! fixed-array type for a slice. An extent-only descriptor has no invented
+//! elements: indexing it stands down. Anything else stands down; a complete
 //! exploration inside the work budget is itself the termination witness for
 //! these exact arguments.
 
@@ -58,6 +59,10 @@ pub(crate) enum Binding {
         first: usize,
         length: usize,
         element_type: TypeReferenceHandle,
+    },
+    /// The live extent of a runtime descriptor. This supplies no elements.
+    CollectionExtent {
+        atom: usize,
     },
     /// A refinable integer.
     Atom {
@@ -226,6 +231,9 @@ pub(crate) enum Stop {
 #[derive(Debug, Clone)]
 pub(crate) enum Value {
     Boolean(bool),
+    CollectionExtent {
+        atom: usize,
+    },
     Integer {
         set: IntegerSet,
         atom: Option<usize>,
@@ -585,6 +593,9 @@ fn argument_binding(
             length,
             element_type,
         }),
+        (Value::CollectionExtent { atom }, ValueShape::Collection { length: None, .. }) => {
+            Ok(Binding::CollectionExtent { atom })
+        }
         (Value::Integer { set, atom, .. }, ValueShape::Integer(carrier)) => {
             let (low, high) = integer_carrier(program, carrier).ok_or(Stop::Unsupported)?;
             if !set.is_subset_of(&IntegerSet::range(low, high)) {
@@ -642,13 +653,17 @@ pub(crate) fn evaluate(
             })
         }
         ExpressionNode::Member(member) if super::length_member(program, expression).is_some() => {
-            let Value::Array { length, .. } = evaluate(program, frame, atoms, member.receiver)?
-            else {
-                return Err(Stop::Unsupported);
+            let (set, atom) = match evaluate(program, frame, atoms, member.receiver)? {
+                Value::Array { length, .. } => (IntegerSet::singleton(length as i128), None),
+                Value::CollectionExtent { atom } => (
+                    atoms.get(atom).ok_or(Stop::Unsupported)?.clone(),
+                    Some(atom),
+                ),
+                _ => return Err(Stop::Unsupported),
             };
             Ok(Value::Integer {
-                set: IntegerSet::singleton(length as i128),
-                atom: None,
+                set,
+                atom,
                 carrier: Some(
                     crate::proof_contracts::bound_expression_meaning::builtin_type_reference(
                         program,
@@ -700,6 +715,7 @@ pub(crate) fn evaluate(
                     length: *length,
                     element_type: *element_type,
                 },
+                Binding::CollectionExtent { atom } => Value::CollectionExtent { atom: *atom },
                 Binding::Atom { atom, carrier } => Value::Integer {
                     set: atoms.get(*atom).ok_or(Stop::Unsupported)?.clone(),
                     atom: Some(*atom),
@@ -718,7 +734,7 @@ pub(crate) fn evaluate(
             if borrow.access == language_core::ReferenceAccess::Shared =>
         {
             match evaluate(program, frame, atoms, borrow.target)? {
-                array @ Value::Array { .. } => Ok(array),
+                array @ (Value::Array { .. } | Value::CollectionExtent { .. }) => Ok(array),
                 _ => Err(Stop::Unsupported),
             }
         }

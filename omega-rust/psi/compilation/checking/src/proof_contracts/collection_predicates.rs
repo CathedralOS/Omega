@@ -16,8 +16,10 @@
 //!   argument field zero (`data_fact_holds_at_zero`).
 //! - Consequences: under a fact `P(..) == true`, each array element and
 //!   scalar argument lies in the join of its values over the paths that
-//!   return `true` (`application_consequences`). Invariant windows use this for
-//!   the facts standing before a store (`exploration.rs`).
+//!   return `true` (`unfold` / `when_true`). Invariant windows use this for
+//!   the facts standing before a store; live guards project the same checked
+//!   consequences onto their exact scalar arguments and descriptor extents.
+//!   Extent knowledge never supplies element contents (`exploration.rs`).
 //! - Proof: helper-theorem implication and predicate handback use symbolic
 //!   descriptors, selected read coordinates and functional store versions.
 //!   Recursive cases owe a complete substituted induction-premise roster and
@@ -56,6 +58,8 @@ pub(crate) enum ArgumentKnowledge {
     /// One set per element of a fixed integer array, in order.
     Array(Vec<IntegerSet>),
     Integer(IntegerSet),
+    /// A runtime descriptor's extent, without invented element contents.
+    CollectionExtent(IntegerSet),
     Boolean(bool),
 }
 
@@ -112,6 +116,70 @@ pub(crate) fn predicate_application(
         machine,
         arguments: program.expression_table.expression_handles(call.arguments),
     })
+}
+
+/// One formal observation in a checked exact interval description of a predicate.
+/// Descriptor extents describe metadata only, never collection contents.
+#[derive(Debug, Clone)]
+pub struct PredicateInterval {
+    pub argument: ExpressionHandle,
+    pub extent: bool,
+    pub low: i128,
+    pub high: i128,
+}
+
+/// Describe an admitted application using the existing explorer, in both
+/// directions. True outcomes imply these hulls; re-exploration of their full
+/// Cartesian product must also return true on every path. A mere necessary
+/// consequence cannot replace an authored public requirement. Unsupported
+/// carriers, empty truth sets and non-exact hulls grant no representation.
+pub fn exact_predicate_intervals(
+    program: &dyn crate::CheckingInput,
+    owner: symbols::SymbolHandle,
+    expression: ExpressionHandle,
+) -> Option<Vec<PredicateInterval>> {
+    let application = predicate_application(program, owner, expression)?;
+    let entry = program
+        .machine_states(&program.machines()[application.machine])
+        .first()?;
+    let knowledge = program
+        .state_parameters(entry)
+        .iter()
+        .map(|parameter| unknown_knowledge(program, parameter.type_reference))
+        .collect::<Option<Vec<_>>>()?;
+    if knowledge.len() != application.arguments.len() {
+        return None;
+    }
+    let unfolding = unfold(program, application.machine, &knowledge)?;
+    let mut narrowed = Vec::with_capacity(knowledge.len());
+    let mut rows = Vec::with_capacity(knowledge.len());
+    for (position, (argument, knowledge)) in
+        application.arguments.iter().zip(&knowledge).enumerate()
+    {
+        let extent = match knowledge {
+            ArgumentKnowledge::Integer(_) => false,
+            ArgumentKnowledge::CollectionExtent(_) => true,
+            _ => return None,
+        };
+        let values = unfolding.when_true(position)?;
+        let [values] = values.as_slice() else {
+            return None;
+        };
+        let (low, high) = values.bounds()?;
+        let hull = IntegerSet::range(low, high);
+        narrowed.push(if extent {
+            ArgumentKnowledge::CollectionExtent(hull)
+        } else {
+            ArgumentKnowledge::Integer(hull)
+        });
+        rows.push(PredicateInterval {
+            argument: *argument,
+            extent,
+            low,
+            high,
+        });
+    }
+    (unfold(program, application.machine, &narrowed)?.decided() == Some(true)).then_some(rows)
 }
 
 /// One exploration of a predicate at fixed initial knowledge.
@@ -175,6 +243,13 @@ pub(crate) fn unfold(
                     element_type,
                 });
             }
+            (
+                ValueShape::Collection { length: None, .. },
+                ArgumentKnowledge::CollectionExtent(set),
+            ) => {
+                atoms.push(set.intersect(&IntegerSet::range(0, i128::from(u64::MAX))));
+                bindings.push(Binding::CollectionExtent { atom: first });
+            }
             (ValueShape::Integer(carrier), ArgumentKnowledge::Integer(set)) => {
                 let (low, high) = integer_carrier(program, carrier)?;
                 atoms.push(set.intersect(&IntegerSet::range(low, high)));
@@ -215,7 +290,10 @@ pub(crate) fn unknown_knowledge(
             let (low, high) = integer_carrier(program, carrier)?;
             ArgumentKnowledge::Integer(IntegerSet::range(low, high))
         }
-        ValueShape::Boolean | ValueShape::Collection { length: None, .. } => return None,
+        ValueShape::Collection { length: None, .. } => {
+            ArgumentKnowledge::CollectionExtent(IntegerSet::range(0, i128::from(u64::MAX)))
+        }
+        ValueShape::Boolean => return None,
     })
 }
 
@@ -404,10 +482,13 @@ pub(crate) fn data_fact_element_consequences(
             continue;
         };
         let implied = unfolding.when_true(position)?;
-        let is_array = matches!(
-            unknown_knowledge(program, field_type(program, definition, *field)?)?,
-            ArgumentKnowledge::Array(_)
-        );
+        let is_array = match unknown_knowledge(program, field_type(program, definition, *field)?)? {
+            ArgumentKnowledge::Array(_) => true,
+            ArgumentKnowledge::Integer(_) => false,
+            // Descriptor metadata is not the value stored in this field.
+            // These rows certify element/scalar field domains only.
+            ArgumentKnowledge::CollectionExtent(_) | ArgumentKnowledge::Boolean(_) => return None,
+        };
         match consequences
             .iter_mut()
             .find(|(symbol, _, _)| symbol == field)

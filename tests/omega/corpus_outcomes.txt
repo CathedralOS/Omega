@@ -3432,6 +3432,34 @@ fail/facts/computed_record_window_through_target_body_rejected rejected 3481ms e
 	cannot prove ensures contract for exit from window at statement 0: result.len == 2
 	cannot prove ensures contract for exit from window at statement 0: result.len == 2
 	cannot prove ensures contract for exit from window at statement 0: result.len == 2
+fail/facts/computed_subslice_extent_call_result_insufficient_bound rejected 4336ms expected @166de40fb052+wt
+	cannot prove requires contract for call range from window: __hoist_15 <= __hoist_16 && __hoist_16 <= items.len (needs fact `start <= end && end <= items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/computed_subslice_extent_const_name_insufficient_bound rejected 4446ms expected @166de40fb052+wt
+	cannot prove requires contract for call range from read: __hoist_15 <= __hoist_16 && __hoist_16 <= items.len (needs fact `start <= end && end <= items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/computed_subslice_extent_effectful_actual rejected 544ms expected @166de40fb052+wt
+	exact arithmetic in machine `read` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/computed_subslice_extent_field_insufficient_bound rejected 4329ms expected @166de40fb052+wt
+	cannot prove requires contract for call range from read: low + 0 <= low + 2 && low + 2 <= items.len (needs fact `start <= end && end <= items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/computed_subslice_extent_local_insufficient_bound rejected 4527ms expected @166de40fb052+wt
+	cannot prove requires contract for call range from read: __hoist_15 <= __hoist_16 && __hoist_16 <= items.len (needs fact `start <= end && end <= items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/computed_subslice_extent_match_join_insufficient_bound rejected 4239ms expected @166de40fb052+wt
+	cannot prove requires contract for call range from read: low + 0 <= low + 2 && low + 2 <= items.len (needs fact `start <= end && end <= items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call range from read: low + 0 <= low + 2 && low + 2 <= items.len (needs fact `start <= end && end <= items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/computed_subslice_extent_other_machine_insufficient_bound rejected 4017ms expected @166de40fb052+wt
+	cannot prove requires contract for call range from read: __hoist_15 <= __hoist_16 && __hoist_16 <= items.len (needs fact `start <= end && end <= items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/computed_subslice_extent_other_state_insufficient_bound rejected 3851ms expected @166de40fb052+wt
+	cannot prove requires contract for call range from read: __hoist_15 <= __hoist_16 && __hoist_16 <= items.len (needs fact `start <= end && end <= items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/computed_subslice_extent_parameter_insufficient_bound rejected 3899ms expected @166de40fb052+wt
+	cannot prove requires contract for call range from exercise: low + 0 <= low + 2 && low + 2 <= items.len (needs fact `start <= end && end <= items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/computed_subslice_extent_saved_predicate rejected 1513ms expected @166de40fb052+wt
+	cannot prove requires contract for call range from read: cursor.low + 0 <= cursor.low + 2 && cursor.low + 2 <= items.len (needs fact `start <= end && end <= items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/computed_subslice_extent_stale_field rejected 1520ms expected @166de40fb052+wt
+	cannot prove requires contract for call range from read: __hoist_15 <= __hoist_16 && __hoist_16 <= items.len (needs fact `start <= end && end <= items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/computed_subslice_extent_target_body_insufficient_bound rejected 4128ms expected @166de40fb052+wt
+	cannot prove requires contract for call range from read: __hoist_15 <= __hoist_16 && __hoist_16 <= items.len (needs fact `start <= end && end <= items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call range from read: __hoist_17 <= __hoist_18 && __hoist_18 <= items.len (needs fact `start <= end && end <= items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call range from read: __hoist_19 <= __hoist_20 && __hoist_20 <= items.len (needs fact `start <= end && end <= items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call range from read: __hoist_21 <= __hoist_22 && __hoist_22 <= items.len (needs fact `start <= end && end <= items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/data_where_standing_through_call_result_rejected rejected 2381ms expected @07f1c64be9c1
 	exact arithmetic in machine `compute` state `entry` terminal expression may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/data_where_standing_through_const_name_rejected rejected 2160ms expected @07f1c64be9c1
@@ -8901,6 +8929,15 @@ pass/facts/computed_record_window_through_other_machine_exit checked 20855ms che
 pass/facts/computed_record_window_through_other_state_exit checked 20453ms check-target:macos_arm64 @dd658fb23eef
 pass/facts/computed_record_window_through_parameter_exit checked 20761ms check-target:macos_arm64 @dd658fb23eef
 pass/facts/computed_record_window_through_target_body_exit checked 20511ms check-target:macos_arm64 @dd658fb23eef
+pass/facts/computed_subslice_extent_call_result_exit checked 8600ms check-target:macos_arm64 @166de40fb052+wt
+pass/facts/computed_subslice_extent_const_name_exit checked 9427ms check-target:macos_arm64 @166de40fb052+wt
+pass/facts/computed_subslice_extent_field_exit checked 9031ms check-target:macos_arm64 @166de40fb052+wt
+pass/facts/computed_subslice_extent_local_exit checked 9045ms check-target:macos_arm64 @166de40fb052+wt
+pass/facts/computed_subslice_extent_match_join_exit checked 9724ms check-target:macos_arm64 @166de40fb052+wt
+pass/facts/computed_subslice_extent_other_machine_exit checked 9170ms check-target:macos_arm64 @166de40fb052+wt
+pass/facts/computed_subslice_extent_other_state_exit checked 9254ms check-target:macos_arm64 @166de40fb052+wt
+pass/facts/computed_subslice_extent_parameter_exit checked 9421ms check-target:macos_arm64 @166de40fb052+wt
+pass/facts/computed_subslice_extent_target_body_exit checked 9072ms check-target:macos_arm64 @166de40fb052+wt
 pass/facts/data_where_standing_through_call_result_exit checked 8632ms check-target:macos_arm64 @07f1c64be9c1
 pass/facts/data_where_standing_through_const_name_exit checked 8260ms check-target:macos_arm64 @07f1c64be9c1
 pass/facts/data_where_standing_through_field_exit checked 8405ms check-target:macos_arm64 @07f1c64be9c1

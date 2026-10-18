@@ -651,6 +651,65 @@ impl ContractPredicates<'_, '_> {
             })
     }
 
+    /// Publish a whole predicate only after checked bidirectional equivalence.
+    /// Actual observations still pass the ordinary closed formal namespace and
+    /// readable descriptor gates; the explorer supplies no executable access.
+    fn exact_predicate(
+        &mut self,
+        expression: ExpressionHandle,
+        depth: usize,
+    ) -> Option<CheckedBooleanExpression> {
+        let rows = validation::exact_predicate_intervals(self.program, self.owner, expression)?;
+        *self.remaining = self.remaining.checked_sub(rows.len())?;
+        let mut predicate = CheckedBooleanExpression::Constant(true);
+        for row in rows {
+            let subject = if row.extent {
+                let term = super::structural_fields::structural_sequence_receiver_length(
+                    self.program,
+                    self.operators,
+                    self.parameters,
+                    row.argument,
+                    |_, operand, _| self.numeric_term(operand, depth + 1).map(|(term, _)| term),
+                )?;
+                if let CheckedScalarExpression::StructuralSequenceLength { root, path } = &term {
+                    root.parameter()?;
+                    checked_trees::CheckedScalarReadProjection::static_path(path)?;
+                }
+                term
+            } else {
+                self.numeric_term(row.argument, depth + 1)?.0
+            };
+            let primitive = scalar_expression_type(&subject)?;
+            if !is_integer(primitive) {
+                return None;
+            }
+            for (value, lower) in [(row.low, true), (row.high, false)] {
+                let literal = numerics::bignum::BigInt::from_i128(value);
+                let bound = CheckedScalarExpression::IntegerLiteral {
+                    literal: validation::land_integer_value(&literal, primitive)?,
+                };
+                let comparison = if lower {
+                    construct_integer_comparison(
+                        BinaryOperator::LessOrEqual,
+                        bound,
+                        subject.clone(),
+                    )?
+                } else {
+                    construct_integer_comparison(
+                        BinaryOperator::LessOrEqual,
+                        subject.clone(),
+                        bound,
+                    )?
+                };
+                predicate = CheckedBooleanExpression::And {
+                    left: Box::new(predicate),
+                    right: Box::new(comparison),
+                };
+            }
+        }
+        Some(predicate)
+    }
+
     fn boolean(
         &mut self,
         expression: ExpressionHandle,
@@ -682,6 +741,9 @@ impl ContractPredicates<'_, '_> {
             })
         {
             return Some(membership);
+        }
+        if let Some(predicate) = self.exact_predicate(expression, depth + 1) {
+            return Some(predicate);
         }
         // A primitive formal/result already has an authenticated dense scalar
         // coordinate, as numeric_term uses. Trying storage first would invent

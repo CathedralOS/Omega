@@ -54,6 +54,22 @@ pub(crate) fn structural_sequence_length(
     let receiver = program
         .expression_table
         .authored_length_receiver(expression)?;
+    structural_sequence_receiver_length(program, operators, parameters, receiver, selector)
+}
+
+/// Observe the exact descriptor actual of a checked predicate application.
+/// This shares all geometry, readability and selector gates with authored len.
+pub(crate) fn structural_sequence_receiver_length(
+    program: &dyn ::validation::CheckingInput,
+    operators: &CheckedOperatorFacts,
+    parameters: &[StateParameter],
+    receiver: ExpressionHandle,
+    selector: impl FnMut(
+        ExpressionHandle,
+        ExpressionHandle,
+        TypeReferenceHandle,
+    ) -> Option<CheckedScalarExpression>,
+) -> Option<CheckedScalarExpression> {
     let projection = super::scalar_lowering::storage_projection(
         program, operators, receiver, parameters, selector,
     )?;

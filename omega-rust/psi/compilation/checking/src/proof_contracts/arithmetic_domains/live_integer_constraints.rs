@@ -12,14 +12,17 @@ use crate::proof_contracts::contract_entailment::{
 };
 use numerics::bignum::BigInt;
 
-/// Prove a builtin integer condition from existing observations. The goal's
-/// complement is queried for contradiction; it is never installed as a fact.
+/// Substitute the exact evaluated actual operands into a callee condition.
+/// Keep the caller's complete live relation graph: rebinding only delivered
+/// roots would discard intermediate values needed for captured-view geometry.
+/// The source condition still owns selected builtin meaning and integer types.
 pub(super) fn proves_condition(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     environment: &ValueEnvironment,
     expression: ExpressionHandle,
+    bindings: &[(Operand, Operand)],
 ) -> bool {
     let Some(binary) = program.expression_table.binary_node(expression) else {
         return program.expression_table.boolean_node(expression) == Some(&true);
@@ -34,12 +37,12 @@ pub(super) fn proves_condition(
     }
     match binary.operator {
         BinaryOperator::And => {
-            return proves_condition(program, machine, state, environment, binary.left)
-                && proves_condition(program, machine, state, environment, binary.right);
+            return proves_condition(program, machine, state, environment, binary.left, bindings)
+                && proves_condition(program, machine, state, environment, binary.right, bindings);
         }
         BinaryOperator::Or => {
-            return proves_condition(program, machine, state, environment, binary.left)
-                || proves_condition(program, machine, state, environment, binary.right);
+            return proves_condition(program, machine, state, environment, binary.left, bindings)
+                || proves_condition(program, machine, state, environment, binary.right, bindings);
         }
         _ => {}
     }
@@ -50,6 +53,9 @@ pub(super) fn proves_condition(
     // IEEE comparison cannot inherit integer complement/order laws.
     let integer = |value| {
         program.expression_table.integer_node(value).is_some()
+            // Builtin descriptor counts are u64 observations, not nominal
+            // fields with declaration type handles.
+            || crate::collection_length_receiver(program, machine, Some(state), value).is_some()
             || super::declared_place_type_raw(program, machine, Some(state), value)
                 .and_then(|reference| program.primitive_type_reference(reference))
                 .is_some_and(|primitive| {
@@ -74,6 +80,16 @@ pub(super) fn proves_condition(
         super::ordered_values::operand(program, machine, state, binary.right, None),
     ) else {
         return false;
+    };
+    let (left, right) = if bindings.is_empty() {
+        (left, right)
+    } else {
+        let rebound_left = left.rebound(bindings);
+        let rebound_right = right.rebound(bindings);
+        let ([left], [right]) = (rebound_left.as_slice(), rebound_right.as_slice()) else {
+            return false;
+        };
+        (left.clone(), right.clone())
     };
     // The ordered operand owner admits fixed-integer observations only.
     let mut observations = Observations::default();

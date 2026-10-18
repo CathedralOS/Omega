@@ -59,7 +59,7 @@ mod integer_ranges;
 pub(crate) use integer_carriers::{admitted_integer, integer_magnitude, integer_type};
 mod interval;
 mod invariant_bounds;
-pub use guard_requirements::guarded_call_requires_proven;
+pub use guard_requirements::evaluated_call_requires_proven;
 mod live_integer_constraints;
 mod monotonic_update;
 mod operand_reports;

@@ -105,7 +105,7 @@ pub fn instantiated_value_call_requires_proven(
     arguments: &[ExpressionHandle],
     expression: ExpressionHandle,
 ) -> bool {
-    if crate::guarded_call_requires_proven(
+    if crate::evaluated_call_requires_proven(
         program,
         caller_machine,
         caller_state,

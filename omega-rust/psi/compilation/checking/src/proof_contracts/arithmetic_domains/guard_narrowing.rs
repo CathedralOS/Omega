@@ -21,6 +21,7 @@ pub(super) use boolean_values::BooleanValue;
 pub(crate) use boolean_values::{record_boolean_assignment, record_boolean_local};
 mod case_facts;
 mod parameter_bounds;
+mod predicate_facts;
 pub(super) mod projected_facts;
 pub use arrivals::{
     CollectionBoundsObservations, arrival_integer_expression_bounds,
@@ -469,6 +470,9 @@ pub(super) fn narrow_environment_by_condition(
     positive: bool,
 ) {
     if boolean_values::select(program, machine, state, environment, condition, positive) {
+        return;
+    }
+    if positive && predicate_facts::narrow(program, machine, state, environment, condition) {
         return;
     }
     if let ExpressionNode::Unary(unary) = program.expression_table.expression(condition)

@@ -556,6 +556,20 @@ fn condition_belongs_to_state(
         | ExpressionNode::Float(_)
         | ExpressionNode::UndeterminedNaN(_) => true,
         ExpressionNode::Call(_) => {
+            if let Some(application) =
+                crate::proof_contracts::collection_predicates::predicate_application(
+                    program,
+                    machine.symbol,
+                    expression,
+                )
+            {
+                // Scope belongs to this exact actual telescope. Predicate
+                // consequence checking remains with the existing body explorer;
+                // this lexical admission supplies no truth or call equality.
+                return application.arguments.iter().all(|argument| {
+                    condition_belongs_to_state(program, machine, state, *argument, frames)
+                });
+            }
             // The proof-only projection has no executable operand, but its
             // lexical scope is exactly its source's scope. Rejecting it here
             // discarded unrelated conjuncts of a state invariant before the
