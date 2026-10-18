@@ -1,5 +1,5 @@
 // The live fact 0 <= b * 20 + a < 200 permits storing 7 at grid[b * 20 + a].
-// Compile-checked only: no ProgramEntry and no native oracle.
+// Expected exit: 0
 data Main {
     hits: i32 in Wrapping;
     a: i32 in Wrapping;
@@ -9,7 +9,10 @@ data Main {
 machine coordinate(a: i32 in Wrapping) -> i32 in Wrapping
 ensures result == a
 { a }
-machine Main::main(main: &mut Main) {
+machine Main::main(main: &mut Main) crashes Trap {
+    main.hits = 0;
+    main.a = 15;
+    main.b = 3;
     transition main.b * 20 + main.a >= 0 && main.b * 20 + main.a < 200 {
         true -> put(main)
         _ -> done(main)
@@ -18,6 +21,18 @@ machine Main::main(main: &mut Main) {
         let a: i32 in Wrapping = coordinate(main.a);
         main.grid[main.b * 20 + a] = 7;
         main.hits = 1;
+        transition main.hits == 1 && main.grid[75] == 7 {
+            true -> pass(main)
+            _ -> fail(main)
+        }
     }
-    state done(main: &mut Main) { main.hits = -1; }
+    state done(main: &mut Main) {
+        main.hits = -1;
+        transition false {
+            true -> pass(main)
+            _ -> fail(main)
+        }
+    }
+    state pass(main: &mut Main) {}
+    state fail(main: &mut Main) { crash Trap; }
 }

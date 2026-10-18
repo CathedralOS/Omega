@@ -3,15 +3,14 @@
 The live fact `0 <= b * 20 + a < 200` permits storing `7` at
 `grid[b * 20 + a]`.
 
-This is a compile-scope probe, with no standard-library dependency or native
-exit oracle. The root and nine place projects bind no `ProgramEntry`; check them rather
-than running them. Source acceptance is distinct from native execution.
+The root and nine place projects bind `ProgramEntry` and declare an `Expected exit: 0`
+runtime oracle. Each place verifies that the guarded store executes and that the write
+lands (`grid[75] == 7`), exiting 0 natively and under the Terminal interpreter.
 
 Each place repeats the same fact sentence in its source. The index remains a
 two-variable `i32 in Wrapping` computation, the grid has 200 elements, and the
-operation remains an indexed store. Inputs remain unknown so acceptance must
-use the guard rather than constant folding. The historical root probe retains
-its original initialized fields and state/store shape.
+operation remains an indexed store. With `a = 15` and `b = 3`, `b * 20 + a == 75`,
+which satisfies `0 <= 75 < 200`.
 
 | Place | Evidence carried to the store |
 | --- | --- |
@@ -30,7 +29,7 @@ its corresponding parameter requirement where present. The lower bound stays;
 these controls must reject for the store's missing index upper bound.
 
 ```sh
-omega --check samples/cli/facts/compound_index_guard/<place>/main.omg
+omega run --both samples/cli/facts/compound_index_guard/<place>/main.omg
 omega --check samples/cli/facts/compound_index_guard/<place>/invalid/main.omg
 ```
 
@@ -39,21 +38,12 @@ main.b * 20 + a is within length 200 in Main::main::put` (diagnostic quoting
 omitted here). The checked coordinate equality must survive in the compound
 wrapping observation.
 
-Source acceptance covers all nine places and all nine reject twins. The
-historical root also checks. The corpus mirrors the row under
-`tests/omega/{pass,fail}/facts/compound_guard_through_*_compile` and adds
-mutation, unequal-match, changed-result, lower-bound, grouping, and shorter-slice
-controls. No native execution is claimed.
-
-The checker retains each opaque wrapping observation, relates constructors
-through already checked coordinate equalities, and reads the exact extent of
-an always-full fixed array. Runtime slice lengths remain independent of backing
-capacity.
+Execution acceptance covers root and all nine places across both native and
+Terminal engines, and all nine reject twins reject under `--check`.
 
 ```sh
-python3 tools/sample_native_gate.py --cli <omega> --filter cli/facts/compound_index_guard
-python3 tools/corpus_gate.py --filter facts/compound_guard
+python3 tools/sample_native_gate.py --cli <omega> --facts --filter compound_index_guard
 ```
 
-The sample gate reports ten check-only positives (root plus nine places), nine
-intended-invalid rejections, and no native score.
+The sample gate reports ten passing programs (root plus nine places), nine
+intended-invalid rejections, and zero unscored.
