@@ -12,15 +12,13 @@
 //! generic signatures rather than reading uninstantiated contracts.
 
 use super::caller_aliases::{CallerWriteSite, caller_statement_owner};
-use super::isolation::{
-    TypeIdentityMemo, aggregate_storage_types_match_in, type_is_caller_isolated_local_in,
-};
+use super::isolation::{TypeIdentityMemo, aggregate_storage_types_match_in};
 use super::place_paths::{
     FramePathPrecision, FramePlaceOrigin, FrameSourcePlace, append_place_suffix,
     push_unique_origin, split_place_root,
 };
 use super::receiver_member_chain;
-use super::reference_origins::{exclusive_reference_origins, referent_has_only_owned_storage_in};
+use super::reference_origins::exclusive_reference_origins;
 use super::stored_origins::StoredLocalOrigins;
 use super::type_capabilities::type_may_carry_write_in;
 use super::type_instantiation::{
@@ -653,10 +651,11 @@ fn requirement_signature_in_trait<'program>(
 /// proven rather than spelled, and the requirement is then unique by name.
 /// An indexed or non-place link never reaches this fallback — its receiver
 /// chain was already rejected by the caller's exact-receiver gate.
-/// The written paths every admitted exclusive argument contributes, shared
-/// by the boundary frame and the resolved-signature frame: a by-value
-/// carrier that can still contain mutable references refuses the frame
-/// rather than manufacture a receiver-only approximation.
+/// The written paths every admitted argument contributes. Borrowed arguments
+/// expose their referent storage; owned carriers expose only their exclusive
+/// reference leaves. Prefix expansion follows those captured leaves before
+/// private-storage filtering, so descriptor writes and pointee writes remain
+/// distinct and an unresolved exclusive leaf refuses the complete frame.
 #[allow(clippy::too_many_arguments)]
 fn boundary_written_argument_paths(
     program: &dyn crate::CheckingInput,
@@ -672,27 +671,26 @@ fn boundary_written_argument_paths(
     for (parameter, argument) in parameters.into_iter().zip(arguments) {
         let parameter_type = live_unconstrained_type(program, parameter.type_reference)?;
         let parameter_type = substituted_head(program, parameter_type, &bindings);
-        let TypeReferenceNode::Reference {
-            access, referee, ..
-        } = program.type_reference_table.type_reference(parameter_type)
+        let TypeReferenceNode::Reference { access, .. } =
+            program.type_reference_table.type_reference(parameter_type)
         else {
-            if !matches!(
-                program.type_reference_table.type_reference(parameter_type),
-                TypeReferenceNode::Unit
-            ) && !type_is_caller_isolated_local_in(program, parameter_type, &bindings)
-            {
-                // A by-value carrier can still contain mutable references.
-                // Without leaf-origin transport, omitting their writes would
-                // manufacture a complete receiver-only frame.
-                return None;
+            for path in super::path_instantiation::aggregate_arguments::written_paths(
+                program,
+                current_machine,
+                *argument,
+                parameter_type,
+                "",
+                symbols,
+                inference,
+            )? {
+                if !written.contains(&path) {
+                    written.push(path);
+                }
             }
             continue;
         };
         if !access.is_exclusive() {
             continue;
-        }
-        if !referent_has_only_owned_storage_in(program, *referee, &bindings) {
-            return None;
         }
         for origin in boundary_argument_origins(
             program,

@@ -240,6 +240,7 @@ fn same_relation(left: Option<&AggregateOrigins>, right: Option<&AggregateOrigin
                     && leaf.local_segments == other.local_segments
                     && leaf.may_select == other.may_select
                     && leaf.origin == other.origin
+                    && leaf.lifetime_dependencies == other.lifetime_dependencies
             })
         })
         && left.cases.iter().all(|case| right.cases.contains(case))
@@ -260,6 +261,7 @@ fn append_new(held: &mut AggregateOrigins, incoming: AggregateOrigins) {
                 && prior.local_segments == leaf.local_segments
                 && prior.may_select == leaf.may_select
                 && prior.origin == leaf.origin
+                && prior.lifetime_dependencies == leaf.lifetime_dependencies
         }) {
             held.references.push(leaf);
         }
@@ -350,7 +352,10 @@ fn finite_substitutions(
                     {
                         AggregateOrigins {
                             references: vec![ReferenceLeaf {
-                                kind: super::super::stored_origins::StoredOriginKind::Reference,
+                                kind: super::super::stored_origins::StoredOriginKind::Reference(
+                                    crate::reference_shell(program, parameter.type_reference)?
+                                        .access,
+                                ),
                                 local_suffix: String::new(),
                                 local_segments: Vec::new(),
                                 may_select: false,
@@ -359,6 +364,7 @@ fn finite_substitutions(
                                     precision: FramePathPrecision::Exact,
                                     source,
                                 }),
+                                lifetime_dependencies: Vec::new(),
                             }],
                             ..Default::default()
                         }
@@ -380,6 +386,7 @@ fn finite_substitutions(
                                     local_segments: leaf.local_segments,
                                     may_select: leaf.may_select,
                                     origin: leaf.origin,
+                                    lifetime_dependencies: leaf.lifetime_dependencies,
                                 })
                                 .collect(),
                             cases: declared.cases,

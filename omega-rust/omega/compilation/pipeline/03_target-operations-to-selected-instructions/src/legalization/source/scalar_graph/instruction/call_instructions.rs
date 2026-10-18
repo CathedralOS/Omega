@@ -86,29 +86,17 @@ pub(super) fn project_call(
             reference.origins.iter().map(|origin| {
                 // Memory effects need a conservative storage envelope, never
                 // an address synthesized from declaration-level element families.
-                let path = origin
-                    .path
-                    .iter()
-                    .map_while(|projection| match projection {
-                        terminal_psi::ReferenceOriginProjection::Exact(segment) => {
-                            Some(segment.clone())
-                        }
-                        terminal_psi::ReferenceOriginProjection::Element => None,
-                    })
-                    .collect::<Vec<_>>();
-                let exact = path.len() == origin.path.len();
+                let Some((root, path, exact, indirect)) = origin.storage_envelope() else {
+                    return legalized_operations::LegalizedDescriptorOrigin::Opaque;
+                };
                 legalized_operations::LegalizedDescriptorOrigin::Argument {
                     source: terminal_psi::StructuralArgument {
-                        place: origin.root,
+                        place: root,
                         path,
                         access: terminal_psi::StructuralAccess::SharedBorrow,
                     },
                     exact,
-                    indirect: origin.path.contains(
-                        &terminal_psi::ReferenceOriginProjection::Exact(
-                            terminal_psi::StructuralPathSegment::Referent,
-                        ),
-                    ),
+                    indirect,
                 }
             })
         }));

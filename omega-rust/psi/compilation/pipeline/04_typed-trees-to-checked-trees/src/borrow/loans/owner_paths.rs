@@ -1,5 +1,21 @@
 use super::super::tracker::BorrowOwnerSegment;
 
+/// Retain unknown selections as unknown coordinates, never as absent loans.
+pub(super) fn owner_place_segments(path: &[BorrowOwnerSegment]) -> Vec<facts::PlaceSegment> {
+    path.iter()
+        .map(|segment| match segment {
+            BorrowOwnerSegment::Field(symbol) => facts::PlaceSegment::Field { symbol: *symbol },
+            BorrowOwnerSegment::Case(variant) => facts::PlaceSegment::Case { variant: *variant },
+            BorrowOwnerSegment::FixedIndex(index) => {
+                facts::PlaceSegment::FixedIndex { index: *index }
+            }
+            BorrowOwnerSegment::DynamicIndex => facts::PlaceSegment::Index {
+                expression: typed_trees::expression::ExpressionHandle::invalid(),
+            },
+        })
+        .collect()
+}
+
 /// Resolve the storage containing a replaced reference slot. A carried loan
 /// is an address crossing only where the declaration itself is a reference;
 /// the old loan held by the slot being replaced is deliberately not crossed.
@@ -185,6 +201,10 @@ pub(crate) fn place_path_covers_owner(
             .zip(place_segments)
             .all(|(owner, place)| match (owner, place) {
                 (BorrowOwnerSegment::DynamicIndex, _) => false,
+                (
+                    BorrowOwnerSegment::FixedIndex(owner_index),
+                    facts::PlaceSegment::FixedRange { start, end },
+                ) => *start <= *owner_index && *owner_index < *end,
                 (_, facts::PlaceSegment::Index { expression }) => {
                     let BorrowOwnerSegment::FixedIndex(owner_index) = owner else {
                         return false;

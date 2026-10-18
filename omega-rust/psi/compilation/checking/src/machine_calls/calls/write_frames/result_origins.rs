@@ -345,6 +345,7 @@ fn merge_result_arm(
                 state,
                 boundary_index,
                 result,
+                expected_result,
                 symbols,
                 inference,
             )?
@@ -421,6 +422,7 @@ pub(super) fn reference_result_relation(
     state: &State,
     boundary_index: usize,
     result: ExpressionHandle,
+    reference: TypeReferenceHandle,
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
 ) -> Option<AggregateOrigins> {
@@ -463,15 +465,17 @@ pub(super) fn reference_result_relation(
     let origins = super::parameter_relative_origins::parameter_relative_place_or_carrier_origins(
         program, machine, result, parameters, &aliases, symbols, inference,
     )?;
+    let access = crate::reference_shell(program, reference)?.access;
     Some(AggregateOrigins {
         references: origins
             .into_iter()
             .map(|origin| ReferenceLeaf {
-                kind: super::stored_origins::StoredOriginKind::Reference,
+                kind: super::stored_origins::StoredOriginKind::Reference(access),
                 local_suffix: String::new(),
                 local_segments: Vec::new(),
                 may_select: false,
                 origin: Some(origin.place),
+                lifetime_dependencies: Vec::new(),
             })
             .collect(),
         ..Default::default()
@@ -542,6 +546,7 @@ fn merge_relative_origins(
                 local_segments: leaf.local_segments.clone(),
                 may_select: leaf.may_select,
                 origin,
+                lifetime_dependencies: leaf.lifetime_dependencies.clone(),
             };
             if !relative.references.iter().any(|existing| {
                 existing.kind == leaf.kind
@@ -549,6 +554,7 @@ fn merge_relative_origins(
                     && existing.local_segments == leaf.local_segments
                     && existing.may_select == leaf.may_select
                     && existing.origin == leaf.origin
+                    && existing.lifetime_dependencies == leaf.lifetime_dependencies
             }) {
                 relative.references.push(leaf);
             }
@@ -833,8 +839,46 @@ fn instantiate_result_origins(
     )?;
     returned.cases.extend(relative.cases.iter().cloned());
     for leaf in relative.references.iter() {
+        // A provider's unknown spatial origin does not make its lifetime
+        // dependencies namespace-free. Substitute every debt before either
+        // the unknown or spatial result branch leaves the callee.
+        let mut lifetime_dependencies = Vec::new();
+        for dependency in &leaf.lifetime_dependencies {
+            if dependency.origin.source.is_static() {
+                lifetime_dependencies.push(dependency.clone());
+                continue;
+            }
+            let parameter_index = typed_trees::signature::state_parameter_position(
+                parameters,
+                dependency.origin.source.root,
+            )?;
+            for origin in input_sources::instantiate_source(
+                program,
+                host_machine,
+                &parameters[parameter_index],
+                *arguments.get(parameter_index)?,
+                &dependency.origin,
+                symbols,
+                inference,
+                include_shared,
+                resolve_reference,
+                resolve_origins,
+            )? {
+                let dependency = super::stored_calls::SlotSource {
+                    carrier: origin.source.clone(),
+                    origin,
+                    lifetime_access: dependency.lifetime_access,
+                };
+                if !lifetime_dependencies.contains(&dependency) {
+                    lifetime_dependencies.push(dependency);
+                }
+            }
+        }
         let Some(origin) = &leaf.origin else {
-            returned.references.push(leaf.clone());
+            returned.references.push(ReferenceLeaf {
+                lifetime_dependencies,
+                ..leaf.clone()
+            });
             continue;
         };
         if include_shared
@@ -843,7 +887,10 @@ fn instantiate_result_origins(
         {
             // A shared unknown is still a leaf, not an empty result footprint.
             // Mutable unknowns cannot be issued by the reference resolver.
-            returned.references.push(leaf.clone());
+            returned.references.push(ReferenceLeaf {
+                lifetime_dependencies,
+                ..leaf.clone()
+            });
             continue;
         }
         let parameter = parameters
@@ -873,6 +920,7 @@ fn instantiate_result_origins(
                 local_segments: leaf.local_segments.clone(),
                 may_select: leaf.may_select,
                 origin: Some(origin),
+                lifetime_dependencies: lifetime_dependencies.clone(),
             });
         }
     }

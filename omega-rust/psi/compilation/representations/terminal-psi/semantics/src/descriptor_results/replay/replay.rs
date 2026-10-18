@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) enum Origin {
+    Provider(DescriptorProviderOrigin<Origin>),
     Backing(DescriptorCallOrigin),
     Incoming(DescriptorLocation),
     IncomingContents(DescriptorContentsQuery, Projection),
@@ -24,6 +25,11 @@ pub(super) struct State {
     pub(super) contents_invalidated: bool,
 }
 pub(super) type States = BTreeMap<DescriptorPosition, State>;
+
+enum StorageResolution {
+    Unique(DescriptorLocation),
+    Alternatives,
+}
 
 #[derive(Clone)]
 pub(super) struct Summary {
@@ -108,24 +114,120 @@ impl<'a> Replay<'a> {
         state: &State,
         location: &DescriptorLocation,
     ) -> Option<DescriptorLocation> {
-        if location.path.is_empty() {
-            return Some(location.clone());
+        match self.resolve_storage(machine, state, location)? {
+            StorageResolution::Unique(location) => Some(location),
+            StorageResolution::Alternatives => None,
         }
-        let Some(Some(origins)) = state.slots.get(&DescriptorLocation::whole(location.root)) else {
-            return Some(location.clone());
+    }
+
+    fn resolve_storage(
+        &self,
+        machine: &DescriptorMachine,
+        state: &State,
+        location: &DescriptorLocation,
+    ) -> Option<StorageResolution> {
+        let mut current = location.clone();
+        let mut expansions = BTreeMap::new();
+        // A repeated storage equation must consume more of the finite queried
+        // path. Exact-location cycle detection alone misses suffix growth.
+        let mut expand = |equation, remaining| {
+            if expansions
+                .insert(equation, remaining)
+                .is_some_and(|previous| remaining >= previous)
+            {
+                None
+            } else {
+                Some(())
+            }
         };
-        if origins.is_empty()
-            || origins
-                .iter()
-                .any(|origin| !matches!(origin, Origin::Storage(_)))
-        {
-            return Some(location.clone());
+        loop {
+            if current.path.is_empty() {
+                return Some(StorageResolution::Unique(current));
+            }
+            if let Some(Some(origins)) = state.slots.get(&DescriptorLocation::whole(current.root))
+                && !origins.is_empty()
+                && origins
+                    .iter()
+                    .all(|origin| matches!(origin, Origin::Storage(_)))
+            {
+                let mut locations = self.storage_origins(machine, state, &current)?.into_iter();
+                let first = locations.next()?;
+                if !locations.all(|candidate| candidate == first) {
+                    return Some(StorageResolution::Alternatives);
+                }
+                if first != current {
+                    expand(DescriptorLocation::whole(current.root), current.path.len())?;
+                    current = first;
+                    continue;
+                }
+            }
+            // Canonicalize every descriptor crossing, not just the root.
+            // A field's current pointer may lead to another local carrier;
+            // stopping at the first crossing loses that carrier's occurrence.
+            // Only exact storage in this snapshot supplies the next address.
+            let mut next = None;
+            for (position, segment) in current.path.iter().enumerate() {
+                if *segment != DescriptorPathSegment::Referent {
+                    continue;
+                }
+                let prefix = DescriptorLocation {
+                    root: current.root,
+                    path: current.path[..position].to_vec(),
+                };
+                let Some(Some(origins)) = state.slots.get(&prefix) else {
+                    continue;
+                };
+                if origins.is_empty()
+                    || origins
+                        .iter()
+                        .any(|origin| !matches!(origin, Origin::Storage(_)))
+                {
+                    continue;
+                }
+                let reference = crate::descriptor_lifetimes::descriptor_location_type(
+                    self.types,
+                    *machine.place_types.get(&prefix.root)?,
+                    &prefix.path,
+                )?;
+                let StructuralTypeShape::Reference { referent, .. } =
+                    find_structural_type(self.types, reference)?.shape
+                else {
+                    return None;
+                };
+                let mut alternatives = false;
+                for origin in origins {
+                    let Origin::Storage(backing) = origin else {
+                        return None;
+                    };
+                    let backing_type = *machine.place_types.get(&backing.root)?;
+                    if crate::descriptor_lifetimes::descriptor_location_type(
+                        self.types,
+                        backing_type,
+                        &backing.path,
+                    ) != Some(referent)
+                    {
+                        return None;
+                    }
+                    let mut target = backing.clone();
+                    target.path.extend_from_slice(&current.path[position + 1..]);
+                    descriptor_path(self.types, backing_type, &target.path)?;
+                    if next.as_ref().is_some_and(|previous| previous != &target) {
+                        alternatives = true;
+                    }
+                    next = Some(target);
+                }
+                if alternatives {
+                    return Some(StorageResolution::Alternatives);
+                }
+                expand(prefix, current.path.len() - position - 1)?;
+                break;
+            }
+            match next {
+                Some(next) if next != current => current = next,
+                Some(_) => return None,
+                None => return Some(StorageResolution::Unique(current)),
+            }
         }
-        let mut locations = self.storage_origins(machine, state, location)?.into_iter();
-        let first = locations.next()?;
-        locations
-            .all(|candidate| candidate == first)
-            .then_some(first)
     }
     /// Exact storage alternatives are distinct from descriptor payload origins.
     /// Edge bindings already substituted each predecessor in the snapshot; an
@@ -202,9 +304,10 @@ impl<'a> Replay<'a> {
     ) -> Value {
         // Distinct element origins are not one address. Keep the queried path
         // and let the family below return every storage alternative.
-        let location = self
-            .canonical_storage(machine, state, location)
-            .unwrap_or(location.clone());
+        let location = match self.resolve_storage(machine, state, location)? {
+            StorageResolution::Unique(location) => location,
+            StorageResolution::Alternatives => location.clone(),
+        };
         let root = DescriptorLocation::whole(location.root);
         // The pointer temporary's origin is the pointee carrier. An unfilled
         // child slot on the temporary is not an invalidated owned subtree.
@@ -389,6 +492,10 @@ impl<'a> Replay<'a> {
                     carrier_type,
                     projection: prefix.then(projection),
                 })),
+                Origin::Provider(mut provider) => {
+                    provider.projection = provider.projection.then(projection);
+                    Some(Origin::Provider(provider))
+                }
                 Origin::Backing(DescriptorCallOrigin::Argument {
                     source,
                     projection: prefix,
@@ -681,6 +788,15 @@ impl<'a> Replay<'a> {
     ) -> Option<Summary> {
         match &call.target {
             DescriptorInvocationTarget::Machine(machine) => self.summary(*machine, depth),
+            DescriptorInvocationTarget::Provider {
+                results,
+                effects,
+                invalidates_contents,
+            } => Some(Summary {
+                result: Some(results.clone()),
+                effects: effects.clone(),
+                invalidates_contents: *invalidates_contents,
+            }),
             DescriptorInvocationTarget::Public {
                 results,
                 invalidates_contents,
@@ -696,6 +812,15 @@ impl<'a> Replay<'a> {
     pub(super) fn cached_invocation_summary(&self, call: &DescriptorInvocation) -> Option<Summary> {
         match &call.target {
             DescriptorInvocationTarget::Machine(machine) => self.summaries.get(machine)?.clone(),
+            DescriptorInvocationTarget::Provider {
+                results,
+                effects,
+                invalidates_contents,
+            } => Some(Summary {
+                result: Some(results.clone()),
+                effects: effects.clone(),
+                invalidates_contents: *invalidates_contents,
+            }),
             DescriptorInvocationTarget::Public {
                 results,
                 invalidates_contents,
@@ -760,6 +885,9 @@ impl<'a> Replay<'a> {
                     projection: projection.clone(),
                 },
             )])),
+            DescriptorStoredOrigin::Provider(provider) => {
+                self.substitute_provider(machine, state, call, provider)
+            }
             DescriptorStoredOrigin::PlacedFormation {
                 machine,
                 operation,
@@ -832,6 +960,9 @@ impl<'a> Replay<'a> {
                 projection: projection.clone().without_runtime_coordinates(),
             }),
 
+            Origin::Provider(provider) => Some(DescriptorStoredOrigin::Provider(
+                provider.map_dependencies(|dependency| self.exported(machine, dependency))?,
+            )),
             Origin::Backing(DescriptorCallOrigin::PlacedFormation {
                 machine,
                 operation,
@@ -1042,6 +1173,13 @@ impl<'a> Replay<'a> {
         origins
             .into_iter()
             .map(|origin| match origin {
+                Origin::Provider(provider) => Some(DescriptorSourceOrigin::Provider(
+                    provider.map_dependencies(|dependency| {
+                        let mut origins =
+                            self.symbolic(machine, BTreeSet::from([dependency.clone()]))?;
+                        (origins.len() == 1).then(|| origins.remove(0))
+                    })?,
+                )),
                 Origin::Backing(origin) => Some(DescriptorSourceOrigin::Backing(origin)),
                 Origin::Storage(location) => Some(DescriptorSourceOrigin::Backing(
                     self.storage_projection(machine, &location)?,
@@ -1071,6 +1209,7 @@ impl<'a> Replay<'a> {
         origin: DescriptorSourceOrigin,
     ) -> Option<DescriptorCallOrigin> {
         match origin {
+            DescriptorSourceOrigin::Provider(_) => None,
             DescriptorSourceOrigin::Backing(origin) => Some(origin),
             DescriptorSourceOrigin::IncomingSlot(location) => {
                 let DescriptorCallOrigin::Argument {

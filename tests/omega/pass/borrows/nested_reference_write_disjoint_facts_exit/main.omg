@@ -1,0 +1,30 @@
+// Expected exit: 0
+// A nested write invalidates its exact backing field, not a disjoint sibling.
+data Counters { changed: u64; retained: u64; }
+data Inner<'a> { value: &'a mut Counters; }
+data Middle<'a, 'b> { items: &'a mut [Inner<'b>; 1]; }
+data Outer<'a, 'b, 'c> { middle: &'a mut Middle<'b, 'c>; }
+
+machine change(value: &mut Outer) { value.middle.items[0].value.changed = 3u64; }
+
+machine exercise(external: &mut Counters) -> u8 {
+    external.changed = 0u64;
+    external.retained = 1u64;
+    let mut items: [Inner; 1] = [Inner { value: external }];
+    let mut middle: Middle = Middle { items: &mut items };
+    let mut outer: Outer = Outer { middle: &mut middle };
+    change(&mut outer);
+    let values: [u8; 2] = [11, 42];
+    values[external.retained]
+}
+
+machine main() crashes Trap {
+    let mut counters: Counters = Counters { changed: 0, retained: 0 };
+    let result: u8 = exercise(&mut counters);
+    transition result == 42 && counters.changed == 3u64 && counters.retained == 1u64 {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

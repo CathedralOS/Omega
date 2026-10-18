@@ -1,0 +1,81 @@
+// Expected exit: 0
+// The caller observes a checked callee's write through two reference holders.
+// Rechecking the changed value supplies the bound; its entry value does not.
+data Inner<'a> { value: &'a mut u64; }
+data Outer<'a, 'b> { inner: &'a mut Inner<'b>; }
+data ArrayOuter<'a, 'b> { items: &'a mut [Inner<'b>; 1]; }
+data ReadHolder<'a> [copy] { value: &'a u64; }
+
+machine read_reference(value: &u64) -> u64 { value }
+machine hold<'a>(value: &'a u64) -> ReadHolder<'a> { ReadHolder { value: value } }
+machine computed_read(value: &Outer) -> u64 { read_reference(&value.inner.value) }
+machine constructed_read(value: &Outer) -> u64 {
+    let holder: ReadHolder = ReadHolder { value: &value.inner.value };
+    read_reference(holder.value)
+}
+machine transitioned_read(value: &Outer) -> u64 {
+    transition { _ -> observe(&value.inner.value) }
+    state observe(value: &u64) -> u64 { value }
+}
+machine selected_read(value: &Outer, first: bool) -> u64 {
+    transition first {
+        true -> (read_reference(&value.inner.value))
+        false -> (read_reference(&value.inner.value))
+    }
+}
+machine constructed_arguments(value: &Outer) -> bool {
+    transition { _ -> observe(hold(&value.inner.value), hold(&value.inner.value)) }
+    state observe(first: ReadHolder, second: ReadHolder) -> bool {
+        first.value == 1u64 && second.value == 1u64
+    }
+}
+
+machine change(value: &mut Outer) { value.inner.value = 1u64; }
+machine change_array(value: &mut ArrayOuter) { value.items[0].value = 1u64; }
+
+machine exercise_array(external: &mut u64) {
+    let mut items: [Inner; 1] = [Inner { value: external }];
+    let mut outer: ArrayOuter = ArrayOuter { items: &mut items };
+    change_array(&mut outer);
+}
+
+machine exercise(external: &mut u64) -> u8 {
+    external = 0u64;
+    let mut inner: Inner = Inner { value: external };
+    let mut outer: Outer = Outer { inner: &mut inner };
+    change(&mut outer);
+    let observed: bool = computed_read(&outer) == 1u64
+        && constructed_read(&outer) == 1u64
+        && transitioned_read(&outer) == 1u64
+        && selected_read(&outer, true) == 1u64
+        && selected_read(&outer, false) == 1u64
+        && constructed_arguments(&outer);
+    transition observed {
+        true -> checked(external)
+        false -> invalid()
+    }
+    state checked(external: &u64) -> u8 {
+    transition external < 2u64 {
+        true -> read(external)
+        false -> invalid()
+    }
+    }
+    state read(external: &u64) -> u8 requires external < 2u64 {
+        let values: [u8; 2] = [11, 42];
+        values[external]
+    }
+    state invalid() -> u8 { 0 }
+}
+
+machine main() crashes Trap {
+    let mut value: u64 = 0;
+    let result: u8 = exercise(&mut value);
+    let mut array_value: u64 = 0;
+    exercise_array(&mut array_value);
+    transition result == 42 && value == 1u64 && array_value == 1u64 {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

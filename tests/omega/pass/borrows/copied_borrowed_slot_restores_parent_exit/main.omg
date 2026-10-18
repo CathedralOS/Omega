@@ -1,0 +1,23 @@
+// Expected exit: 0
+// Replacing a borrowed descriptor slot does not end its copied child's loan.
+// The exclusive parent becomes usable only after the copied child's last use.
+data Holder<'a> [copy] { value: &'a u64; }
+
+machine main() crashes Trap {
+    let mut original: u64 = 7;
+    let replacement: u64 = 42;
+    let parent: &mut u64 = &mut original;
+    let mut holder: Holder = Holder { value: &replacement };
+    let slot: &mut Holder = &mut holder;
+    slot.value = &parent;
+    let copied: &u64 = slot.value;
+    slot.value = &replacement;
+    let observed: u64 = copied;
+    parent = 9;
+    transition observed == 7 && parent == 9 && slot.value == 42 {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

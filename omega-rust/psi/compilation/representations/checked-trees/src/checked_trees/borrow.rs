@@ -123,6 +123,7 @@ pub struct StateBorrowFact {
 /// These are result leaves, not local activations or lifecycle resource events.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct BorrowReturnedLoanFact {
+    pub lineage: BorrowLoanLineage,
     pub statement_index: usize,
     /// The selected normal-return arm. Zero denotes a final expression.
     /// Mutually exclusive arms never authenticate each other's formations.
@@ -278,6 +279,19 @@ pub enum BorrowLoanLineage {
         parent_loan: Handle<BorrowLoanFact>,
     },
     UnretainedDerived,
+    /// An opaque output retains this input's lifetime, but does not establish
+    /// that its pointer addresses any part of the input's storage.
+    LifetimeDependency,
+}
+
+impl BorrowLoanLineage {
+    /// Transport custody without inventing a spatial reborrow predecessor.
+    pub fn derived(&self) -> Self {
+        match self {
+            Self::LifetimeDependency => Self::LifetimeDependency,
+            _ => Self::UnretainedDerived,
+        }
+    }
 }
 
 /// Exact state-invocation parent lifetime for one direct-root loan.

@@ -31,6 +31,7 @@ use crate::execution::terminal_unit::{composed_control, control};
 mod closed_sum;
 mod fused;
 mod guards;
+mod loan_backing;
 mod local_results;
 mod operation_custody;
 mod result_custody;

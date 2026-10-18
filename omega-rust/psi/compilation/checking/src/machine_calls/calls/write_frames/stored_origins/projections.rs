@@ -313,6 +313,7 @@ pub(in crate::machine_calls::calls::write_frames) fn project_stored_origins(
                     .any(|segment| matches!(segment, PlaceSegment::Index { .. })),
             local_segments,
             origin,
+            lifetime_dependencies: prior.lifetime_dependencies.clone(),
         });
     }
     for case in &established.cases {
@@ -439,22 +440,25 @@ pub(in crate::machine_calls::calls::write_frames) fn slot_origins(
     selected_slot_origins(record, selected, None)
 }
 
-/// Summaries publish each possible residence once, independently of exact
-/// inventory overlays. Expanding it into every concrete slot would duplicate
-/// the transferred exclusive permission.
-pub(in crate::machine_calls::calls::write_frames) fn summarized_slot_origins(
-    record: &StoredLocalOrigins,
-    selected: &[PlaceSegment],
-    may_select: bool,
-) -> Option<Vec<super::FramePlaceOrigin>> {
-    selected_slot_origins(record, selected, Some(may_select))
-}
-
 fn selected_slot_origins(
     record: &StoredLocalOrigins,
     selected: &[PlaceSegment],
     may_select: Option<bool>,
 ) -> Option<Vec<super::FramePlaceOrigin>> {
+    selected_slot_sources(record, selected, may_select)?
+        .into_iter()
+        .map(|source| (!source.lifetime_access.is_some()).then_some(source.origin))
+        .collect()
+}
+
+/// Capture a slot's full debt, keeping opaque lifetimes separate from spatial
+/// provenance. Spatial queries above deliberately refuse opaque rows.
+pub(in crate::machine_calls::calls::write_frames) fn selected_slot_sources(
+    record: &StoredLocalOrigins,
+    selected: &[PlaceSegment],
+    may_select: Option<bool>,
+) -> Option<Vec<super::super::stored_calls::SlotSource>> {
+    use super::super::stored_calls::SlotSource;
     let mut origins = Vec::new();
     for leaf in &record.references {
         if may_select.is_some_and(|selected| selected != leaf.may_select)
@@ -464,14 +468,29 @@ fn selected_slot_origins(
         {
             continue;
         }
-        let mut origin = leaf.origin.clone()?;
+        for dependency in &leaf.lifetime_dependencies {
+            if !origins.contains(dependency) {
+                origins.push(dependency.clone());
+            }
+        }
+        let Some(mut origin) = leaf.origin.clone() else {
+            if leaf.lifetime_dependencies.is_empty() {
+                return None;
+            }
+            continue;
+        };
         if origin.source.root == record.local_symbol
             && origin.source.segments == leaf.local_segments
         {
             origin.source.segments = selected.to_vec();
         }
-        if !origins.contains(&origin) {
-            origins.push(origin);
+        let source = SlotSource {
+            carrier: origin.source.clone(),
+            origin,
+            lifetime_access: None,
+        };
+        if !origins.contains(&source) {
+            origins.push(source);
         }
     }
     (!origins.is_empty()).then_some(origins)

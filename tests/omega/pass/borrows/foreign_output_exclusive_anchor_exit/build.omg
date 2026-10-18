@@ -1,0 +1,4 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "foreign_output_exclusive_anchor_exit");
+    Build::bind(builder, macos_arm64::ProgramEntry, Main::main);
+}

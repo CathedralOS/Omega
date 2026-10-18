@@ -2,6 +2,7 @@
 //! An owned field beside a reference cannot acquire that reference's origin
 //! merely because indexing made their write footprints identical.
 
+use super::super::stored_calls::SlotSource;
 use super::{FramePlaceOrigin, StoredLocalOrigins, compose_origin, place_suffix};
 use facts::PlaceSegment;
 
@@ -11,7 +12,16 @@ pub(in crate::machine_calls::calls::write_frames) fn canonical_reference_origins
     aliases: &[(String, FramePlaceOrigin)],
     stored: &[StoredLocalOrigins],
 ) -> Vec<Option<FramePlaceOrigin>> {
-    resolve_origins(program, origin, aliases, stored, None)
+    spatial_origins(resolve_sources(program, origin, aliases, stored, None))
+}
+
+pub(in crate::machine_calls::calls::write_frames) fn canonical_reference_sources(
+    program: &dyn crate::CheckingInput,
+    origin: &Option<FramePlaceOrigin>,
+    aliases: &[(String, FramePlaceOrigin)],
+    stored: &[StoredLocalOrigins],
+) -> Vec<Option<SlotSource>> {
+    resolve_sources(program, origin, aliases, stored, None)
 }
 
 pub(in crate::machine_calls::calls::write_frames) fn captured_reference_projection_origins(
@@ -20,6 +30,17 @@ pub(in crate::machine_calls::calls::write_frames) fn captured_reference_projecti
     projected: &FramePlaceOrigin,
     stored: &[StoredLocalOrigins],
 ) -> Vec<Option<FramePlaceOrigin>> {
+    spatial_origins(captured_reference_projection_sources(
+        program, captured, projected, stored,
+    ))
+}
+
+pub(in crate::machine_calls::calls::write_frames) fn captured_reference_projection_sources(
+    program: &dyn crate::CheckingInput,
+    captured: &FramePlaceOrigin,
+    projected: &FramePlaceOrigin,
+    stored: &[StoredLocalOrigins],
+) -> Vec<Option<SlotSource>> {
     if captured.source.root != projected.source.root
         || captured.source.is_static() != projected.source.is_static()
         || !projected
@@ -29,7 +50,7 @@ pub(in crate::machine_calls::calls::write_frames) fn captured_reference_projecti
     {
         return vec![None];
     }
-    resolve_origins(
+    resolve_sources(
         program,
         &Some(projected.clone()),
         &[],
@@ -38,24 +59,41 @@ pub(in crate::machine_calls::calls::write_frames) fn captured_reference_projecti
     )
 }
 
-fn resolve_origins(
+fn spatial_origins(sources: Vec<Option<SlotSource>>) -> Vec<Option<FramePlaceOrigin>> {
+    sources
+        .into_iter()
+        .map(|source| {
+            source.and_then(|source| (!source.lifetime_access.is_some()).then_some(source.origin))
+        })
+        .collect()
+}
+
+fn spatial_source(origin: FramePlaceOrigin) -> Option<SlotSource> {
+    Some(SlotSource {
+        carrier: origin.source.clone(),
+        origin,
+        lifetime_access: None,
+    })
+}
+
+fn resolve_sources(
     program: &dyn crate::CheckingInput,
     origin: &Option<FramePlaceOrigin>,
     aliases: &[(String, FramePlaceOrigin)],
     stored: &[StoredLocalOrigins],
     mut crossed: Option<usize>,
-) -> Vec<Option<FramePlaceOrigin>> {
+) -> Vec<Option<SlotSource>> {
     let Some(origin) = origin else {
         return vec![None];
     };
     if origin.source.is_static() {
-        return vec![Some(origin.clone())];
+        return vec![spatial_source(origin.clone())];
     }
     if !origin.source.root.is_valid() {
         // Existing path-only evidence can still conservatively invalidate
         // storage. It cannot later export an owned-formal reference boundary.
         return super::canonical_origins(program, origin, aliases, stored)
-            .map(|origins| origins.into_iter().map(Some).collect())
+            .map(|origins| origins.into_iter().map(spatial_source).collect())
             .unwrap_or_else(|| vec![None]);
     }
     let mut origin = origin.clone();
@@ -73,7 +111,7 @@ fn resolve_origins(
         .iter()
         .find(|local| local.local_symbol == origin.source.root)
     else {
-        return vec![Some(origin)];
+        return vec![spatial_source(origin)];
     };
     // A retained nested slot records its current contents. Its incoming
     // ancestor descriptor only identifies storage and must not reintroduce
@@ -82,7 +120,7 @@ fn resolve_origins(
         .references
         .iter()
         .filter(|leaf| {
-            leaf.kind == super::StoredOriginKind::Reference
+            matches!(leaf.kind, super::StoredOriginKind::Reference(_))
                 && !crossed.is_some_and(|depth| leaf.local_segments.len() <= depth)
                 && source_reaches_leaf(&origin.source.segments, &leaf.local_segments)
                 && !super::projections::reference_is_shadowed(local, leaf, &origin.source.segments)
@@ -91,7 +129,7 @@ fn resolve_origins(
         .max();
     let mut sources = Vec::new();
     for leaf in &local.references {
-        if leaf.kind != super::StoredOriginKind::Reference
+        if !matches!(leaf.kind, super::StoredOriginKind::Reference(_))
             || Some(leaf.local_segments.len()) != selected_depth
             || !source_reaches_leaf(&origin.source.segments, &leaf.local_segments)
             || super::projections::reference_is_shadowed(local, leaf, &origin.source.segments)
@@ -99,8 +137,15 @@ fn resolve_origins(
             continue;
         }
         let suffix = place_suffix(&leaf.local_path, &origin.path).unwrap_or("");
+        // Captured lifetime debts survive projection as a whole. Appending
+        // output selectors would invent geometry inside an unrelated input.
+        for dependency in &leaf.lifetime_dependencies {
+            if !sources.contains(&Some(dependency.clone())) {
+                sources.push(Some(dependency.clone()));
+            }
+        }
         let Some(mut captured) = leaf.origin.clone() else {
-            if !sources.contains(&None) {
+            if leaf.lifetime_dependencies.is_empty() && !sources.contains(&None) {
                 sources.push(None);
             }
             continue;
@@ -134,14 +179,15 @@ fn resolve_origins(
             recast.segments.drain(..leaf.local_segments.len());
         }
         source.source = captured.source.append_source(&relative);
-        if !sources.contains(&Some(source.clone())) {
-            sources.push(Some(source));
+        let source = spatial_source(source);
+        if !sources.contains(&source) {
+            sources.push(source);
         }
     }
     // No reference boundary was crossed. Preserve the private source so
     // exported result analysis rejects it; do not substitute a sibling leaf.
     if sources.is_empty() {
-        vec![Some(origin)]
+        vec![spatial_source(origin)]
     } else {
         sources
     }

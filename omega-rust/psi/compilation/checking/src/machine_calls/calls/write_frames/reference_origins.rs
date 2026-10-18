@@ -630,7 +630,8 @@ fn exclusive_reference_binding_path(
     argument: ExpressionHandle,
 ) -> Option<String> {
     let reference = caller_binding_type(program, current_machine, argument)?;
-    exclusive_reference_has_owned_storage(program, reference)
+    exclusive_reference_referee(program, reference)
+        .is_some()
         .then(|| frame_place_path(program, argument).map(|origin| origin.path))
         .flatten()
 }

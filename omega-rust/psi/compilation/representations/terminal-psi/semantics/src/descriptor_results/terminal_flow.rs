@@ -778,6 +778,7 @@ pub(super) fn adapt(
                         .slots
                         .get(usize::try_from(*slot).ok()?)?;
                     let call = public_invocation(
+                        operation.id,
                         &module.structural_types,
                         slot_kind,
                         slot,
@@ -904,6 +905,7 @@ pub(super) fn adapt(
                     graph.calls.insert(
                         position,
                         DescriptorInvocation {
+                            operation: operation.id,
                             target: DescriptorInvocationTarget::Machine(callee.id),
                             arguments,
                             argument_contents,
@@ -953,6 +955,26 @@ pub(super) fn adapt(
                                 *graph.place_types.get(&actual.place)?,
                             )?);
                         }
+                    }
+                    let mut declarations = module
+                        .boundary_machines
+                        .iter()
+                        .filter(|declaration| declaration.id == *boundary);
+                    if let (Some(declaration), None) = (declarations.next(), declarations.next())
+                        && !declaration.reference_outputs.is_empty()
+                        && slot_kind != DescriptorSlotKind::PlacedOrigins
+                    {
+                        graph.calls.insert(
+                            position,
+                            provider_invocation(
+                                operation.id,
+                                &module.structural_types,
+                                slot_kind,
+                                declaration,
+                                structural_arguments,
+                                &graph.place_types,
+                            )?,
+                        );
                     }
                 }
                 _ => {}

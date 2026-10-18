@@ -377,13 +377,25 @@ impl Retirement<'_> {
         else {
             return false;
         };
-        let mut pending = vec![parent];
-        let mut visited = Vec::new();
-        while let Some(parent) = pending.pop() {
-            if visited.contains(&parent) {
+        let mut pending = vec![(parent, false)];
+        let mut active = Vec::new();
+        let mut completed = Vec::new();
+        while let Some((parent, leaving)) = pending.pop() {
+            if leaving {
+                active.pop();
+                completed.push(parent);
+                continue;
+            }
+            if completed.contains(&parent) {
+                continue;
+            }
+            if active.contains(&parent) {
                 return false;
             }
-            visited.push(parent);
+            // Several retained children can share a descendant. A completed
+            // branch is not a cycle; only revisiting the active ancestry is.
+            active.push(parent);
+            pending.push((parent, true));
             for (handle, loan) in self.facts.borrow.loans.iter() {
                 if self.facts.borrow.state_owns_loan(state, handle)
                     && self
@@ -396,7 +408,7 @@ impl Retirement<'_> {
                     }
                     // An unmaterialized alias may have weakened before its
                     // own child. Trace that child as well as stored holders.
-                    pending.push(handle);
+                    pending.push((handle, false));
                 }
             }
         }
@@ -624,11 +636,17 @@ impl Retirement<'_> {
             .is_some_and(|owner| {
                 owner == parent.owner_symbol
                     && self.operations.iter().any(|operation| {
-                        stores::receiver(self.program, self.state, operation).is_some_and(
-                            |(stored, formation, _)| {
-                                stored == owner && formation as usize == parent.statement_index
-                            },
-                        ) && stores::loans(self, operation).is_some_and(|groups| !groups.is_empty())
+                        stores::receiver(
+                            self.program,
+                            self.facts,
+                            self.machine,
+                            self.state,
+                            operation,
+                        )
+                        .is_some_and(|(stored, formation, _)| {
+                            stored == owner && formation as usize == parent.statement_index
+                        }) && stores::loans(self, operation)
+                            .is_some_and(|groups| !groups.is_empty())
                     })
             });
         if source_holder.is_none() && !stored_holder {
@@ -691,7 +709,7 @@ impl Retirement<'_> {
         &self,
         supplier: arena::Handle<BorrowLoanFact>,
         statement_index: u32,
-        structural_result: bool,
+        requires_receiver: bool,
         active: &mut Vec<arena::Handle<BorrowLoanFact>>,
     ) -> bool {
         if !self
@@ -712,7 +730,7 @@ impl Retirement<'_> {
                 found_receiver = true;
                 self.holder_retired_following(*receiver, active)
             });
-        retired && (!structural_result || found_receiver)
+        retired && (!requires_receiver || found_receiver)
     }
 
     fn holder_retired_following(
@@ -747,17 +765,46 @@ impl Retirement<'_> {
         if self.at_exit && self.return_transfers_holder(loan) {
             return true;
         }
+        // A completed call can version a stored occurrence without moving an
+        // owned argument or returning a value. Its preserved alternatives name
+        // the old descriptor as their supplier. The old occurrence settles
+        // only when every such receiving occurrence has settled too; a lexical
+        // weakening or a coincident storage path alone cannot establish this.
+        if let Some(weakening) = validation::reference_result_custody::loan_weakening(
+            self.facts,
+            self.machine,
+            self.state.symbol,
+            handle,
+        ) && weakening.reason == checked_trees::FlowBorrowWeakeningReason::LocalReassigned
+            && let checked_trees::FlowInvalidationSource::Statement { statement_index } =
+                weakening.source
+            && let Ok(statement_index) = u32::try_from(statement_index)
+            && self
+                .operations
+                .iter()
+                .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
+                .filter_map(CheckedUnitEffectOperationPlan::call)
+                .any(|call| call.coordinate.statement_index == statement_index)
+            && self.call_receivers_retired(handle, statement_index, true, active)
+        {
+            return true;
+        }
         let mut holders = self.results.iter().filter(|(holder, root)| {
             *root == facts::PlaceRoot::Symbol(loan.owner_symbol)
                 && holder.statement_index as usize == loan.statement_index
         });
         let holder = holders.next();
         let stored = self.operations.iter().any(|operation| {
-            stores::receiver(self.program, self.state, operation).is_some_and(
-                |(owner, formation, _)| {
-                    owner == loan.owner_symbol && formation as usize == loan.statement_index
-                },
-            ) && stores::loans(self, operation).is_some_and(|groups| {
+            stores::receiver(
+                self.program,
+                self.facts,
+                self.machine,
+                self.state,
+                operation,
+            )
+            .is_some_and(|(owner, formation, _)| {
+                owner == loan.owner_symbol && formation as usize == loan.statement_index
+            }) && stores::loans(self, operation).is_some_and(|groups| {
                 groups
                     .iter()
                     .any(|(_, group)| self.facts.borrow.loans_contain(*group, handle))
@@ -898,9 +945,8 @@ impl Retirement<'_> {
                     continue;
                 }
                 Destination::Storage {
-                    symbol,
                     statement_index,
-                    path,
+                    captured_selection,
                 } => {
                     if !self
                         .order
@@ -908,6 +954,16 @@ impl Retirement<'_> {
                     {
                         return false;
                     }
+                    let Some((symbol, path)) = stores::destination(
+                        self.program,
+                        self.facts,
+                        self.machine,
+                        self.state,
+                        statement_index,
+                        &captured_selection,
+                    ) else {
+                        return false;
+                    };
                     let Some(reference) =
                         validation::reference_result_custody::storage_owner_type_reference(
                             self.program,
@@ -1179,6 +1235,9 @@ impl Retirement<'_> {
             .iter()
             .chain(self.pending)
             .any(|operation| match operation {
+                CheckedUnitEffectOperationPlan::Store(store) => {
+                    stores::replaces(self, store, handle)
+                }
                 CheckedUnitEffectOperationPlan::ReleaseReference {
                     statement_index,
                     loans,
@@ -1239,15 +1298,23 @@ impl Retirement<'_> {
                                 .order
                                 .precedes(store.statement_index as usize, statement as usize)
                             && store.installed_value().is_some()
-                            && stores::receiver(self.program, self.state, operation)
-                                .is_some_and(|(owner, _, _)| owner == loan.owner_symbol)
-                            && validation::reference_result_custody::loan_owner_path(
+                            && stores::receiver(
                                 self.program,
-                                reference,
-                                &store.destination.path,
+                                self.facts,
+                                self.machine,
+                                self.state,
+                                operation,
                             )
-                            .is_some_and(|path| {
-                                self.facts.borrow.loan_owner_path(loan).starts_with(&path)
+                            .is_some_and(|(owner, _, selection)| {
+                                owner == loan.owner_symbol
+                                    && validation::reference_result_custody::loan_owner_path(
+                                        self.program,
+                                        reference,
+                                        &selection,
+                                    )
+                                    .is_some_and(|path| {
+                                        self.facts.borrow.loan_owner_path(loan).starts_with(&path)
+                                    })
                             })
                     }) {
                         // A later replacement receipt settles the installed

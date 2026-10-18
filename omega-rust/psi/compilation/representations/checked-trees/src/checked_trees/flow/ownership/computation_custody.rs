@@ -25,12 +25,15 @@ impl CheckedUnitStructuralArgumentSourcePlan {
     /// The producer associated with current storage, for result metadata only.
     /// Named custody stays on the local; this does not retarget captured uses
     /// or grant access to a producer consumed by the receiving assignment.
-    pub fn current_result_binding(
+    pub fn current_result_binding<'plans>(
         &self,
-        operations: &[CheckedUnitEffectOperationPlan],
+        operations: impl IntoIterator<
+            Item = &'plans CheckedUnitEffectOperationPlan,
+            IntoIter: DoubleEndedIterator,
+        >,
     ) -> Option<u32> {
         let mut source = self.clone();
-        let mut prefix = operations;
+        let mut prefix = operations.into_iter();
         loop {
             let symbol = match source {
                 Self::StructuralResult { binding_ordinal } => return Some(binding_ordinal),
@@ -43,7 +46,7 @@ impl CheckedUnitStructuralArgumentSourcePlan {
                 _ => return None,
             };
             let mut previous = None;
-            for (index, operation) in prefix.iter().enumerate().rev() {
+            while let Some(operation) = prefix.next_back() {
                 if operation.ends_local_occurrence(symbol) {
                     let CheckedUnitEffectOperationPlan::Store(store) = operation else {
                         return None;
@@ -52,7 +55,7 @@ impl CheckedUnitStructuralArgumentSourcePlan {
                     if !store.destination.path.is_empty() || !value.path.is_empty() {
                         return None;
                     }
-                    previous = Some((index, value.source.clone()));
+                    previous = Some(value.source.clone());
                     break;
                 }
                 if let Some(result) = operation.statement_structural_result_binding()
@@ -61,9 +64,7 @@ impl CheckedUnitStructuralArgumentSourcePlan {
                     return Some(result.binding_ordinal);
                 }
             }
-            let (end, prior) = previous?;
-            prefix = &prefix[..end];
-            source = prior;
+            source = previous?;
         }
     }
 }

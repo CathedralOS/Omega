@@ -163,8 +163,9 @@ impl ReferenceRoot {
         }
         if origins.len() == 1
             && let Some(path) = origins[0].exact_path()
+            && let Some(root) = origins[0].base.root_place()
         {
-            Self::Ingress(origins[0].root, path)
+            Self::Ingress(root, path)
         } else {
             origins.sort();
             origins.dedup();
@@ -175,14 +176,12 @@ impl ReferenceRoot {
     pub(super) fn origins(&self) -> Vec<target_operations::TargetReferenceOrigin> {
         match self {
             Self::Place(root) => vec![target_operations::TargetReferenceOrigin {
-                kind: target_operations::TargetReferenceOriginKind::Storage,
-                root: *root,
+                base: target_operations::TargetReferenceOriginBase::Storage { root: *root },
                 extent: semantic_vocabulary::ReferenceOriginExtent::Projected,
                 path: Vec::new(),
             }],
             Self::Ingress(root, path) => vec![target_operations::TargetReferenceOrigin {
-                kind: target_operations::TargetReferenceOriginKind::Storage,
-                root: *root,
+                base: target_operations::TargetReferenceOriginBase::Storage { root: *root },
                 extent: semantic_vocabulary::ReferenceOriginExtent::Projected,
                 path: path
                     .iter()
@@ -862,7 +861,15 @@ fn normalized_direct_source(
     {
         let carrier_path = &source.path[..crossing];
         let suffix = &source.path[crossing + 1..];
-        let Some(leaf) = live.references.get(&(source.place, carrier_path.to_vec())) else {
+        let observed;
+        let leaf = match live.references.get(&(source.place, carrier_path.to_vec())) {
+            Some(leaf) => Some(leaf),
+            None => {
+                observed = observations::observe(function, live, types, source.place, carrier_path);
+                observed.as_ref()
+            }
+        };
+        let Some(leaf) = leaf else {
             // The member leaf of a carrier never held as a live reference
             // borrows that carrier's own storage; only a non-reference member
             // may root there — a missing reference carrier is a custody gap.
@@ -918,6 +925,7 @@ fn access_covers(authority: StructuralAccess, requested: StructuralAccess) -> bo
 }
 
 mod copies;
+mod observations;
 pub(super) use copies::copied_leaves;
 mod arrivals;
 pub(super) use arrivals::merge_arrivals;
@@ -1452,8 +1460,8 @@ pub(super) fn call_results(
                     }
                     let root = ReferenceRoot::Alternatives(vec![
                         target_operations::TargetReferenceOrigin {
-                            root: result.place,
-                            kind: target_operations::TargetReferenceOriginKind::Invocation {
+                            base: target_operations::TargetReferenceOriginBase::Invocation {
+                                root: result.place,
                                 carrier_type: *carrier_type,
                             },
                             path: origin_path.clone(),

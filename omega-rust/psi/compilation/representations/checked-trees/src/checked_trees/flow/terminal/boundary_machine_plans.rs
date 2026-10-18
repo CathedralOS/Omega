@@ -67,6 +67,34 @@ pub enum CheckedBoundaryScalarGuarantee {
     },
 }
 
+/// Normal completion promises a reference, not a spatial relation to an input.
+/// Parameter positions here are authored positions, before lane packing.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedBoundaryReferenceOutput {
+    pub destination: CheckedBoundaryReferenceDestination,
+    pub path: Vec<super::CheckedUnitStructuralPathSegment>,
+    pub access: language_semantics::ReferenceAccess,
+    pub dependencies: Vec<CheckedBoundaryLifetimeDependency>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CheckedBoundaryReferenceDestination {
+    Parameter(u32),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CheckedBoundaryLifetimeDependency {
+    Referent {
+        parameter_index: u32,
+        access: language_semantics::ReferenceAccess,
+    },
+    Stored {
+        parameter_index: u32,
+        path: Vec<super::CheckedUnitStructuralPathSegment>,
+        access: language_semantics::ReferenceAccess,
+    },
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedBoundaryMachinePlan {
     pub kind: semantic_vocabulary::BoundaryRequirementKind,
@@ -95,6 +123,7 @@ pub struct CheckedBoundaryMachinePlan {
     /// Retained normal-return scalar guarantees. The result follows all inputs
     /// in the same dense scalar namespace.
     pub scalar_ensures: Vec<CheckedBoundaryScalarGuarantee>,
+    pub reference_outputs: Vec<CheckedBoundaryReferenceOutput>,
     pub contract_report_fingerprint: u64,
     pub contract_commitment: crate::MachineContractCommitment,
     pub contract_service_reach: ServiceReachPlan,

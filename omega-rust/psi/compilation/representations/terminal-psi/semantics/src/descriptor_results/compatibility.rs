@@ -94,6 +94,9 @@ impl DescriptorAnalysis<'_> {
                         .ok_or_else(failure)?;
                     for loan in origins {
                         match loan {
+                            // Provider identity establishes neither inequality
+                            // nor spatial containment relative to this demand.
+                            DescriptorSourceOrigin::Provider(_) => return Err(failure()),
                             DescriptorSourceOrigin::Backing(
                                 DescriptorCallOrigin::PlacedFormation { .. }
                                 | DescriptorCallOrigin::Invocation { .. },

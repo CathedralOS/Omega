@@ -54,6 +54,7 @@ mod result_use;
 pub(crate) mod signature_queries;
 mod unit_returns;
 mod write_frames;
+pub(crate) use write_frames::provider_completion_covers_writable_slots;
 
 pub use unit_returns::{unit_return_call_is_admitted, unit_statement_call_is_admitted};
 

@@ -25,6 +25,7 @@ pass/borrows/fixed_array_reference_backing_exit built 3555ms exit:0 interpreter-
 pass/borrows/fixed_array_reference_results_exit built 5592ms exit:0 interpreter-exit:0 interpreter:agrees @c772928b87e3+wt
 pass/borrows/later_state_reference_field_loan_exit built 5216ms exit:0 interpreter-exit:0 interpreter:agrees @d75fe4ba5012+wt
 pass/borrows/literal_index_reference_copy_exit built 4410ms exit:0 interpreter-exit:0 interpreter:agrees @f2695b4cc065
+pass/borrows/nested_reference_join_state_backing_exit built 3516ms exit:0 interpreter-exit:0 interpreter:agrees @908dbe8ea8ca+wt
 pass/borrows/owned_reference_arrival_projection_exit built 4953ms exit:0 interpreter-exit:0 interpreter:agrees @ea7b63644a0a+wt
 pass/borrows/qualified_owner_state_loan_exit built 5562ms exit:0 interpreter-exit:0 interpreter:agrees @2ef2ab353498+wt
 pass/borrows/returned_primitive_reference_assignment_capture_exit built 3039ms exit:0 interpreter-exit:0 interpreter:agrees @c69e20ea61aa+wt
@@ -356,6 +357,7 @@ pass/control_flow/runtime_branch_parameter_cleanup_exit built 813ms exit:0 inter
 pass/control_flow/runtime_branch_transfer_owned_record_exit built 2293ms exit:70 interpreter-exit:70 interpreter:agrees @64c766216f02+wt
 pass/control_flow/runtime_captured_case_reference_arm_forwarding_exit built 2993ms exit:70 interpreter-exit:70 interpreter:agrees @0c36a0fe0b35
 pass/control_flow/runtime_captured_case_reference_child_arm_forwarding_exit built 2995ms exit:70 interpreter-exit:70 interpreter:agrees @0c36a0fe0b35
+pass/control_flow/runtime_carried_local_reference_backing_exit built 6566ms exit:0 interpreter-exit:0 interpreter:agrees @49ceb36406e9+wt
 pass/control_flow/runtime_computed_case_subject_call_operand_exit built 2288ms exit:70 interpreter-exit:70 interpreter:agrees @0c36a0fe0b35
 pass/control_flow/runtime_computed_case_subject_single_evaluation_exit built 1701ms exit:70 interpreter-exit:70 interpreter:agrees @ffe8db2ea9e9
 pass/control_flow/runtime_diamond_join_borrowed_record_exit built 2467ms exit:70 interpreter-exit:70 interpreter:agrees @64c766216f02+wt

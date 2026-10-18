@@ -14,6 +14,7 @@
 //! than exporting its expression identity or duplicating the transfer per slot.
 
 mod expression_effects;
+mod opaque_outputs;
 pub(super) mod retention;
 pub(super) use expression_effects::statement_effects;
 
@@ -47,6 +48,8 @@ pub struct StoredReferenceEffect {
 /// Both are required: backing alone cannot authorize an exclusive transfer.
 #[derive(Clone)]
 pub struct StoredReferenceSource {
+    /// Keeps this source alive without identifying the output's referent.
+    pub lifetime_access: Option<language_semantics::ReferenceAccess>,
     pub carrier_symbol: SymbolHandle,
     pub carrier_segments: Vec<PlaceSegment>,
     pub backing: LocalWriteSource,
@@ -62,10 +65,11 @@ pub(super) struct SlotEffect {
     access: language_semantics::ReferenceAccess,
 }
 
-#[derive(Clone, PartialEq, Eq)]
-struct SlotSource {
-    origin: FramePlaceOrigin,
-    carrier: FrameSourcePlace,
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct SlotSource {
+    pub(super) origin: FramePlaceOrigin,
+    pub(super) carrier: FrameSourcePlace,
+    pub(super) lifetime_access: Option<language_semantics::ReferenceAccess>,
 }
 
 #[derive(Clone)]
@@ -91,6 +95,7 @@ pub(super) fn public_effects(effects: Vec<SlotEffect>) -> Vec<StoredReferenceEff
                 .into_iter()
                 .filter(|source| !source.origin.source.is_static())
                 .map(|source| StoredReferenceSource {
+                    lifetime_access: source.lifetime_access,
                     carrier_symbol: source.carrier.root,
                     carrier_segments: source.carrier.segments,
                     backing: LocalWriteSource::from(source.origin),
@@ -137,6 +142,15 @@ fn invocation_effects(
     inference: &mut FrameInference,
 ) -> Option<Vec<SlotEffect>> {
     let Some((callee, state)) = super::machine_state_by_symbol(program, target) else {
+        if let Some((definition, signature)) =
+            crate::selected_requirement_signature(program, target)
+            && definition.is_boundary
+        {
+            let parameters = program.state_signature_parameters(signature);
+            return opaque_outputs::effects(
+                program, machine, parameters, arguments, context, symbols, inference,
+            );
+        }
         // A requirement or intrinsic operation has no checked body to replay.
         // It can still install a reference slot only through an argument that
         // lends exclusive storage; value and shared arguments leave every
@@ -150,9 +164,20 @@ fn invocation_effects(
     if (parameters.len() != arguments.len())
         || !machine_arguments_empty
         || !program.machine_type_parameters(callee).is_empty()
-        || !callee.body_is_present
-        || callee.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
     {
+        return None;
+    }
+    if matches!(
+        callee.supply_mode,
+        language_semantics::MachineSupplyMode::Boundary
+            | language_semantics::MachineSupplyMode::AdmissionClaim
+            | language_semantics::MachineSupplyMode::ExternalRealization { .. }
+    ) {
+        return opaque_outputs::effects(
+            program, machine, parameters, arguments, context, symbols, inference,
+        );
+    }
+    if !callee.body_is_present || !callee.supply_mode.is_checked_body() {
         return None;
     }
     if destination_inventory(program, state)?.is_empty() {
@@ -187,8 +212,43 @@ fn destination_inventory(
     program: &dyn crate::CheckingInput,
     state: &State,
 ) -> Option<Vec<SlotInventory>> {
+    parameter_destination_inventory(program, program.state_parameters(state))
+}
+
+/// Opaque calls with possible reference outputs require a complete call-site
+/// relation even when failed attribution produced no loans. This is an
+/// obligation query, not provider admission and not an empty-summary fallback.
+pub(super) fn provider_output_relation_required(
+    program: &dyn crate::CheckingInput,
+    target: symbols::SymbolHandle,
+) -> bool {
+    let parameters = if let Some((definition, signature)) =
+        crate::selected_requirement_signature(program, target)
+        && definition.is_boundary
+    {
+        program.state_signature_parameters(signature)
+    } else if let Some(state) = crate::call_target_state(program, target)
+        && let Some(machine) = program.machine_holding_state(state.symbol)
+        && matches!(
+            machine.supply_mode,
+            language_semantics::MachineSupplyMode::Boundary
+                | language_semantics::MachineSupplyMode::AdmissionClaim
+                | language_semantics::MachineSupplyMode::ExternalRealization { .. }
+        )
+    {
+        program.state_parameters(state)
+    } else {
+        return false;
+    };
+    parameter_destination_inventory(program, parameters).is_none_or(|slots| !slots.is_empty())
+}
+
+fn parameter_destination_inventory(
+    program: &dyn crate::CheckingInput,
+    parameters: &[StateParameter],
+) -> Option<Vec<SlotInventory>> {
     let mut leaves = Vec::new();
-    for parameter in program.state_parameters(state) {
+    for parameter in parameters {
         let shell = crate::reference_shell(program, parameter.type_reference);
         if shell.is_some_and(|shell| !shell.access.is_exclusive()) {
             continue;
@@ -271,6 +331,34 @@ fn destination_inventory(
         }
     }
     Some(leaves)
+}
+
+/// Both source-call effects and portable boundary publication require the
+/// complete writable frontier. A value containing an exclusive pointer can
+/// expose output storage even without an outer reference parameter.
+pub(crate) fn provider_completion_covers_writable_slots(
+    program: &dyn crate::CheckingInput,
+    parameters: &[StateParameter],
+    outputs: &[crate::borrow_contracts::ProviderOutput],
+) -> bool {
+    let Some(inventory) = parameter_destination_inventory(program, parameters) else {
+        return false;
+    };
+    inventory.iter().all(|slot| {
+        outputs.iter().any(|output| {
+            let crate::borrow_contracts::ProviderOutputDestination::Parameter(position) =
+                output.destination
+            else {
+                return false;
+            };
+            parameters
+                .get(position)
+                .is_some_and(|parameter| parameter.symbol == slot.origin.local_symbol)
+                && opaque_outputs::owner_segments(&output.owner_path).as_ref()
+                    == Some(&slot.origin.local_segments)
+                && output.access == slot.access
+        })
+    })
 }
 
 /// Seed the incoming pointee slots before the ordinary transfer walk. Missing
@@ -624,8 +712,11 @@ fn collect_exit(
                 return None;
             }
         }
-        let sources =
-            stored_origins::summarized_slot_origins(record, &slot.local_segments, slot.may_select);
+        let sources = stored_origins::selected_slot_sources(
+            record,
+            &slot.local_segments,
+            Some(slot.may_select),
+        );
         // A possible store on another exit need not occur on this one. Its
         // presence never kills an incoming alternative on either route.
         let sources = match sources {
@@ -640,7 +731,8 @@ fn collect_exit(
             }
             None => return None,
         };
-        for source in sources {
+        for supplied in sources {
+            let source = &supplied.origin;
             if !source.source.builtin_coordinates {
                 return None;
             }
@@ -669,7 +761,8 @@ fn collect_exit(
                     }
                 }
             }
-            let incoming = source.source.root == slot.local_symbol
+            let incoming = !supplied.lifetime_access.is_some()
+                && source.source.root == slot.local_symbol
                 && source.source.segments == slot.local_segments;
             if !incoming
                 && !slot.may_select
@@ -701,12 +794,8 @@ fn collect_exit(
                 return None;
             }
             effect.incoming |= incoming;
-            let source = SlotSource {
-                origin: source.clone(),
-                carrier: source.source.clone(),
-            };
-            if !incoming && !effect.sources.contains(&source) {
-                effect.sources.push(source);
+            if !incoming && !effect.sources.contains(&supplied) {
+                effect.sources.push(supplied);
             }
         }
     }
@@ -834,7 +923,7 @@ fn instantiate(
                 actual.append_relative(program, &supplied.carrier)
             };
             let candidates = if source.source.is_static() {
-                vec![Some(source.clone())]
+                vec![Some(supplied.clone())]
             } else {
                 let index = typed_trees::signature::state_parameter_position(
                     parameters,
@@ -860,23 +949,27 @@ fn instantiate(
                 } else {
                     path(program, &projected.source)
                 };
-                stored_origins::captured_reference_projection_origins(
+                stored_origins::captured_reference_projection_sources(
                     program,
                     &captured,
                     &projected,
                     &context.stored,
                 )
             };
-            for source in candidates {
-                let source = source?;
-                if (!source.source.root.is_valid() && !source.source.is_static())
-                    || !source.source.builtin_coordinates
-                {
+            for candidate in candidates {
+                let candidate = candidate?;
+                let source = &candidate.origin.source;
+                if (!source.root.is_valid() && !source.is_static()) || !source.builtin_coordinates {
                     return None;
                 }
                 let source = SlotSource {
-                    origin: source,
-                    carrier: carrier.clone(),
+                    origin: candidate.origin,
+                    carrier: if candidate.lifetime_access.is_some() {
+                        candidate.carrier
+                    } else {
+                        carrier.clone()
+                    },
+                    lifetime_access: candidate.lifetime_access.or(supplied.lifetime_access),
                 };
                 if !sources.contains(&source) {
                     sources.push(source);
@@ -988,6 +1081,7 @@ fn destination_source(
                 parameter,
                 actual,
                 &SlotSource {
+                    lifetime_access: None,
                     origin: FramePlaceOrigin {
                         path: path(program, &relative),
                         precision: FramePathPrecision::Exact,
@@ -1043,14 +1137,14 @@ fn aggregate_argument_sources(
         symbols,
         inference,
         true,
-        &|expression, _, _, inference| {
+        &|expression, reference, _, inference| {
             let (state, _, index) = super::caller_aliases::caller_statement_owner(
                 program,
                 machine,
                 super::caller_aliases::CallerWriteSite::Expression(expression),
             )?;
             super::result_origins::reference_result_relation(
-                program, machine, state, index, expression, symbols, inference,
+                program, machine, state, index, expression, reference, symbols, inference,
             )?
             .references
             .into_iter()
@@ -1075,13 +1169,14 @@ fn aggregate_argument_sources(
         {
             return None;
         }
-        for origin in stored_origins::canonical_reference_origins(
+        for candidate in stored_origins::canonical_reference_sources(
             program,
             &Some(carrier.clone()),
             &context.aliases,
             &context.stored,
         ) {
-            let origin = origin?;
+            let candidate = candidate?;
+            let origin = candidate.origin;
             if (!origin.source.root.is_valid() && !origin.source.is_static())
                 || !origin.source.builtin_coordinates
             {
@@ -1089,7 +1184,12 @@ fn aggregate_argument_sources(
             }
             let source = SlotSource {
                 origin,
-                carrier: carrier.source.clone(),
+                carrier: if candidate.lifetime_access.is_some() {
+                    candidate.carrier
+                } else {
+                    carrier.source.clone()
+                },
+                lifetime_access: candidate.lifetime_access.or(supplied.lifetime_access),
             };
             if !sources.contains(&source) {
                 sources.push(source);
@@ -1183,7 +1283,7 @@ pub(super) fn apply(
         // a conditional write. Keeping only its wildcard default would let
         // the new exact row shadow the no-write branch's surviving origin.
         let incoming = if effect.incoming && !effect.may_select {
-            stored_origins::summarized_slot_origins(record, &effect.segments, false)
+            stored_origins::selected_slot_sources(record, &effect.segments, Some(false))
         } else {
             Some(Vec::new())
         };
@@ -1198,27 +1298,34 @@ pub(super) fn apply(
                     && leaf.local_segments.starts_with(&effect.segments))
                     && (effect.incoming || leaf.local_segments != effect.segments))
         });
-        let origins = incoming
+        let sources: Vec<_> = incoming
             .into_iter()
             .flatten()
-            .map(Some)
+            .chain(effect.sources.iter().cloned())
+            .collect();
+        let lifetime_dependencies: Vec<_> = sources
+            .iter()
+            .filter(|source| source.lifetime_access.is_some())
+            .cloned()
+            .collect();
+        let origins = sources
+            .iter()
+            .filter(|source| !source.lifetime_access.is_some())
+            .map(|source| Some(source.origin.clone()))
             .chain(incoming_unknown.then_some(None))
-            .chain(
-                effect
-                    .sources
-                    .iter()
-                    .map(|source| Some(source.origin.clone())),
-            );
+            .chain((!lifetime_dependencies.is_empty()).then_some(None));
         for origin in origins {
             if record.references.iter().any(|leaf| {
                 leaf.local_segments == effect.segments
                     && leaf.origin == origin
                     && leaf.may_select == effect.may_select
+                    && leaf.lifetime_dependencies == lifetime_dependencies
             }) {
                 continue;
             }
             record.references.push(StoredWriteOrigin {
-                kind: super::stored_origins::StoredOriginKind::Reference,
+                lifetime_dependencies: lifetime_dependencies.clone(),
+                kind: super::stored_origins::StoredOriginKind::Reference(effect.access),
                 local_symbol: effect.root,
                 local_path: path(
                     program,

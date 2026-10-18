@@ -96,6 +96,7 @@ impl StateGraphEmission<'_, '_> {
         edge_evaluation.parameters = payload_values.iter().map(|(_, value)| *value).collect();
         let mut arguments = Vec::new();
         let mut structural_arguments = Vec::new();
+        let mut retiring_loan_carriers = Vec::new();
         let mut capture_parameters = Vec::new();
         let mut captured_loans = Vec::new();
         let target_state = &plan.states[target];
@@ -196,7 +197,13 @@ impl StateGraphEmission<'_, '_> {
                 let mut argument_path = Vec::new();
                 let mut completed_binding = None;
                 let mut captured_backing = None;
-                let place = match transfer.source {
+                let loan_backing = super::super::result_custody::transferred_loan_backing(
+                    checked,
+                    &state.operations,
+                    transfer,
+                );
+                let mut loan_backing_home = None;
+                let mut place = match transfer.source {
                         checked_trees::CheckedStructuralControlTransferSourcePlan::EstablishedValue { ref operands, ref establishment, ref presentation } => {
                             // The edge performs its ordinary establishment
                             // through the state's operation emitter, so the
@@ -271,6 +278,14 @@ impl StateGraphEmission<'_, '_> {
                                                 captured_loans.push((group, place));
                                             }
                                         }
+                                        if let Some(backing) = loan_backing {
+                                            let home = case_emission::result(state, backing.binding, operations)?.into_owned();
+                                            captured_backing = Some((
+                                                edge_evaluation.current_structural_place(home.place()),
+                                                home.path().to_vec(),
+                                            ));
+                                            loan_backing_home = Some(home);
+                                        }
                                         completed_binding = Some(binding);
                                         Ok(place)
                                     })
@@ -298,6 +313,7 @@ impl StateGraphEmission<'_, '_> {
                             ref subject,
                             formation_expression,
                             carrier_type_identity,
+                            ..
                         } => {
                             let storage = edge_evaluation.value_storage(
                                 &subject.source, state_parameters, |binding| {
@@ -602,12 +618,26 @@ impl StateGraphEmission<'_, '_> {
                             }
                         }
                     };
+                if let Some(backing) = loan_backing
+                    && loan_backing_home.is_none()
+                {
+                    let home =
+                        case_emission::result(state, backing.binding, operations)?.into_owned();
+                    captured_backing = Some((
+                        edge_evaluation.current_structural_place(home.place()),
+                        home.path().to_vec(),
+                    ));
+                    loan_backing_home = Some(home);
+                }
                 // A member of a later state's loan chain (`loan_chains`)
                 // either keeps a view of its one lender's home or receives the
                 // moved storage; neither retains an entry home.
                 let chain_arrival = self.loan_chains.arrival(target, target_index as u32);
                 if chain_arrival.is_some() {
-                    let lender = match &transfer.source {
+                    let lender = if let Some(home) = loan_backing_home.as_ref() {
+                        Some(std::borrow::Cow::Borrowed(home))
+                    } else {
+                        match &transfer.source {
                         checked_trees::CheckedStructuralControlTransferSourcePlan::EstablishedValue { .. } => {
                             if let Some(binding) = super::super::result_custody::loan_subject(&transfer.source, &checked.facts.values.structural_values)
                                 .and_then(|(subject, _)| subject.source.current_result_binding(&state.operations)) {
@@ -627,6 +657,7 @@ impl StateGraphEmission<'_, '_> {
                             Some(case_emission::result(state, *binding_ordinal, operations)?)
                         }
                         _ => None,
+                    }
                     };
                     if let Some(result) = lender {
                         if !result.claims().is_empty()
@@ -661,7 +692,7 @@ impl StateGraphEmission<'_, '_> {
                             | checked_trees::CheckedStructuralAccess::SharedBorrow
                     )
                 {
-                    let loaned_binding = match &transfer.source {
+                    let loaned_binding = loan_backing.map(|backing| backing.binding).or_else(|| match &transfer.source {
                         checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult { binding_ordinal } => Some(*binding_ordinal),
                         checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedLoan { .. }
                         | checked_trees::CheckedStructuralControlTransferSourcePlan::EstablishedValue { .. } =>
@@ -682,7 +713,7 @@ impl StateGraphEmission<'_, '_> {
                             })
                         }
                         _ => None,
-                    };
+                    });
                     if let Some(binding_ordinal) = loaned_binding {
                         let result = case_emission::result(state, binding_ordinal, operations)?;
                         // A reference or view lends the home of the local it was
@@ -766,6 +797,31 @@ impl StateGraphEmission<'_, '_> {
                             }
                         }
                     }
+                }
+                if chain_arrival == Some(super::loan_chains::ChainArrival::Transferred)
+                    && let Some(backing) = loan_backing
+                {
+                    let carrier = backing.retiring_carrier.ok_or(LoweringError::Unsupported(
+                        "Unit graph transferred loan still requires its captured address",
+                    ))?;
+                    let descriptor = case_emission::result(state, carrier, operations)?;
+                    if edge_evaluation.current_structural_place(descriptor.place()) != place
+                        || !descriptor.path().is_empty()
+                        || argument_path.as_slice()
+                            != [terminal_psi::StructuralPathSegment::Referent]
+                    {
+                        return unsupported(
+                            "Unit graph loan retirement lost its exact whole carrier",
+                        );
+                    }
+                    retiring_loan_carriers.push(place);
+                    let home = loan_backing_home
+                        .as_ref()
+                        .ok_or(LoweringError::Unsupported(
+                            "Unit graph transferred loan lost its independent owned backing",
+                        ))?;
+                    place = edge_evaluation.current_structural_place(home.place());
+                    argument_path.clear();
                 }
                 let mut capture = StructuralParameterDeclaration {
                     place,
@@ -1114,6 +1170,23 @@ impl StateGraphEmission<'_, '_> {
             next_edge,
             operations,
         )?;
+        for carrier in retiring_loan_carriers {
+            if structural_arguments
+                .iter()
+                .any(|argument| argument.place == carrier)
+                || !cleanup_actions.iter().any(|action| {
+                    matches!(action,
+                        terminal_psi::TerminalAffineCleanupAction::DiscardRoot(place)
+                            | terminal_psi::TerminalAffineCleanupAction::RetireHome(place)
+                            if *place == carrier
+                    )
+                })
+            {
+                return unsupported(
+                    "Unit graph owned loan arrival lacks its selected carrier retirement",
+                );
+            }
+        }
         // Payloads begin after selection. Actual edge work owns its block,
         // including any operand's private entry, joins and remapped parameters.
         // Pure forwarding alone may remain in the source block.

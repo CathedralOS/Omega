@@ -873,9 +873,10 @@ impl Preparation<'_> {
                     value,
                     whole_argument(place),
                     declaration.id,
-                    terminal_multiplicity(
-                        crate::reference_custody::result_multiplicity(self.checked, reference),
-                    ),
+                    terminal_multiplicity(crate::reference_custody::result_multiplicity(
+                        self.checked,
+                        reference,
+                    )),
                 );
             }
             let mut source = self.bindings.structural_copy_source(

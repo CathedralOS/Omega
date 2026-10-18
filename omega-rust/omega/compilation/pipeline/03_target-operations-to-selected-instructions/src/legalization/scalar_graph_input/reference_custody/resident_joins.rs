@@ -72,9 +72,7 @@ pub(super) fn merge(
                 !selected.contains(*location)
                     && arrivals.iter().any(|arrival| {
                         arrival.leaves.get(*location).is_some_and(|leaf| {
-                            leaf.parents
-                                .iter()
-                                .any(|parent| identities.contains(parent))
+                            leaf.obligations().any(|parent| identities.contains(parent))
                         })
                     })
             })

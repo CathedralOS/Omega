@@ -1242,7 +1242,10 @@ fn write_destination(
         || leaf.origins.is_empty()
         || leaf.origins.windows(2).any(|pair| pair[0] >= pair[1])
         || leaf.origins.iter().any(|origin| {
-            let Some((access, root_type)) = read_access(function, target, origin.root, purpose)
+            let Some((access, root_type)) = origin
+                .base
+                .root_place()
+                .and_then(|root| read_access(function, target, root, purpose))
             else {
                 return true;
             };
@@ -1254,13 +1257,14 @@ fn write_destination(
             ) {
                 return true;
             }
-            if origin.path.is_empty() {
+            let path = origin.type_projection();
+            if path.is_empty() {
                 return root_type != referent;
             }
             terminal_semantics::captured_reference_origin_type(
                 target.graph.structural_types.iter(),
                 root_type,
-                &origin.path,
+                &path,
             )
             .is_none_or(|selected| selected != referent)
         })

@@ -354,6 +354,16 @@ fn root_window_loan(
     // A retained alias uses its own pointer and live permission, but every
     // possible backing must still have live owned or exclusive storage
     // authority. Owning the descriptor never grants referent authority.
+    let Some(origins) = descriptors
+        .into_iter()
+        .flat_map(|leaf| leaf.root.origins())
+        .map(|origin| origin.base.root_place())
+        .collect::<Option<Vec<_>>>()
+    else {
+        // Provider backing has no caller storage coordinate. Dropping it from
+        // this all-origins check would incorrectly grant replacement authority.
+        return false;
+    };
     terminal_semantics::structural_window_origins(
         function.structural_parameters.iter().chain(
             function
@@ -361,10 +371,7 @@ fn root_window_loan(
                 .iter()
                 .flat_map(|block| &block.structural_parameters),
         ),
-        descriptors
-            .into_iter()
-            .flat_map(|leaf| leaf.root.origins())
-            .map(|origin| origin.root),
+        origins,
         required_access,
         |place| {
             live.structural_homes.get(&place).is_some_and(|home| {

@@ -1372,6 +1372,9 @@ impl LegalizedScalarTerminator {
 /// is retained even when a callee's runtime range forces a conservative parent.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LegalizedDescriptorOrigin {
+    /// Backing exists, but has no caller-relative storage coordinate. It is
+    /// not empty and supplies no exact-address or disjointness evidence.
+    Opaque,
     /// Authenticated empty descriptor; no backing storage is borrowed.
     Empty,
     Argument {

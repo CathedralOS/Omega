@@ -84,7 +84,12 @@ pub(super) fn lower(
         // checked commitment; missing provenance is not an empty contract.
         let head_contract = match canonical {
             TargetMachineCallable::Boundary(_) => {
-                unique_unit_boundary(UnitPlans::published(&checked.facts.flow), family.canonical)?
+                unique_unit_boundary(UnitPlans::published(&checked.facts.flow), family.canonical)
+                    .map_err(crate::lowering_error::unit_machine_plan_error(
+                        checked,
+                        checked.symbols.name(family.canonical),
+                        family.canonical,
+                    ))?
                     .contract_commitment
             }
             TargetMachineCallable::Machine(_) => {

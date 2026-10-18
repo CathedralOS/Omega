@@ -159,8 +159,13 @@ pub fn substituted_returns_borrow(
 mod callable_refinement;
 mod callable_regions;
 mod carried_lifetimes;
+mod provider_outputs;
 mod region_correspondence;
 mod region_inference;
+
+pub use provider_outputs::{
+    ProviderLifetimeDependency, ProviderOutput, ProviderOutputDestination, resolve_provider_outputs,
+};
 
 pub(crate) use callable_refinement::lexical_region_owner;
 pub use callable_refinement::{CallableBorrowContract, validate_callable_borrow_refinement};

@@ -14,9 +14,10 @@
 //! not such an observation (an assignment destination, a projected carrier),
 //! the loan stays live through the whole statement.
 //!
-//! Two observations are judged at their own event instead. The place a loan
-//! forms over is judged when that loan forms, and an operand a call stages in
-//! its access roster is judged against the loans live at that invocation.
+//! An operand a call stages in its access roster is judged against the loans
+//! live at that invocation. Loan formation does not replace a storage read:
+//! copying or reborrowing a stored reference reads its carrier even when the
+//! resulting loan captures a different, disjoint referent.
 
 use arena::Handle;
 use checked_trees::{
@@ -200,13 +201,7 @@ pub(super) fn check_storage_read<'p>(
     if backings.is_some() && conflicts.is_empty() {
         return;
     }
-    let forms_loan = read.expression.is_valid()
-        && facts.borrow.loans.iter().any(|(handle, loan)| {
-            loan.statement_index == statement_index
-                && loan.formation_expression == read.expression
-                && facts.borrow.state_owns_loan(read.borrow_state, handle)
-        });
-    if forms_loan || staged_operands.contains(facts, &read) {
+    if staged_operands.contains(facts, &read) {
         return;
     }
     let label = read.place.label(program);

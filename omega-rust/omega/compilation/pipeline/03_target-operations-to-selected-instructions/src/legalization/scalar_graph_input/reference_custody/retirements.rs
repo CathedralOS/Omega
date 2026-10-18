@@ -64,14 +64,14 @@ impl Custody {
         let mut pending = self
             .leaves
             .values()
-            .flat_map(|leaf| leaf.parents.iter())
+            .flat_map(|leaf| leaf.obligations())
             .collect::<Vec<_>>();
         let mut retained = BTreeSet::new();
         while let Some(identity) = pending.pop() {
             if retained.insert(identity.clone())
                 && let Some(retired) = self.retired.get(identity)
             {
-                pending.extend(&retired.leaf.parents);
+                pending.extend(retired.leaf.obligations());
             }
         }
         self.retired
@@ -97,7 +97,7 @@ impl Custody {
             .values()
             .chain(self.retired.values().map(|retired| &retired.leaf))
         {
-            if leaf.parents.iter().any(|parent| {
+            if leaf.obligations().any(|parent| {
                 !identities.contains_key(parent) && !self.retired.contains_key(parent)
             }) {
                 return Err(LegalizationError::ReferenceCompletion {

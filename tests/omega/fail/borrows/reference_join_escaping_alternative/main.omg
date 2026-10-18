@@ -1,0 +1,9 @@
+// A valid incoming alternative cannot supply lifetime for a local alternative.
+machine choose<'input>(incoming: &'input [u8; 4], outer: bool, inner: bool) -> &'input [u8; 4] {
+    let local: [u8; 4] = [1, 2, 3, 4];
+    match outer {
+        true -> incoming,
+        false -> match inner { true -> incoming, false -> &local }
+    }
+}
+machine main() {}

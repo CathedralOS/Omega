@@ -43,6 +43,11 @@ pub struct FlowOperandFact {
     /// Constructed children, attached to this exact evaluation occurrence.
     /// Each child retains its own completion facts before later child effects.
     pub children: HandleSpan<FlowOperandChild>,
+    /// Complete mutually exclusive result captures at a value join. Each
+    /// alternative retains its own completion epoch and must establish every
+    /// requested reference leaf; one resolved arm cannot cover another arm.
+    /// These are alternatives, never simultaneously installed product children.
+    pub alternatives: HandleSpan<FlowOperandFact>,
     /// Writes already evaluated in this statement when the operand completed.
     /// Later writes cannot change this prefix or its invocation-entry origin.
     pub entry_origin_writes: HandleSpan<FlowOperandReferent>,

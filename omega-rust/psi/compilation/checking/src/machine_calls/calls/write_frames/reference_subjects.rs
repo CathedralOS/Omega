@@ -115,6 +115,16 @@ pub(super) fn replaces_reference_binding(
     let StatementNode::Assignment(assignment) = statement else {
         return Some(false);
     };
+    // Preparation already selected the value installed by this assignment.
+    // A non-reference value cannot replace a descriptor slot. In particular,
+    // a collection window's receiving array is not the view produced when
+    // that same projection is evaluated as a value. Classify the operation
+    // from its receiving contract before asking for a descriptor's raw type.
+    if assignment.receiving_type.is_valid()
+        && crate::reference_shell(program, assignment.receiving_type).is_none()
+    {
+        return Some(false);
+    }
     let (state, _, _) = caller_aliases::caller_statement_owner(
         program,
         machine,

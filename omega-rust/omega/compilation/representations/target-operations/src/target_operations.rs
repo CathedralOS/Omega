@@ -70,7 +70,7 @@ pub use operations::{
 pub mod values;
 pub use values::{
     TargetBooleanExpression, TargetByteView, TargetElementView, TargetElementViewRegion,
-    TargetIntegerExpression, TargetReferenceOrigin, TargetReferenceOriginKind,
+    TargetIntegerExpression, TargetReferenceOrigin, TargetReferenceOriginBase,
     TargetReferenceResult, TargetScalarBlockValue, TargetScalarExpression, TargetScalarImmediate,
     TargetStructuralArgument, TargetStructuralArgumentSource, TargetStructuralParameter,
     TargetViewExtent,

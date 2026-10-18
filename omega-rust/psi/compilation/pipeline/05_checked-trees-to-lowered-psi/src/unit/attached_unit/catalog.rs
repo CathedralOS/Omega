@@ -27,6 +27,7 @@ use checked_trees::{CheckedBoundaryMachineResultPlan, CheckedUnitStructuralTypeP
 use terminal_psi::StructuralReferentIdentity;
 
 mod operation_types;
+mod place_types;
 pub(super) use operation_types::collect_operation_type_roots;
 
 /// Root the leaf type identity of every structural argument plan reachable
@@ -363,6 +364,7 @@ pub(super) fn lower_unit_structural_types_including(
         roots.extend(operands.identities);
         literal_view |= operands.literal_view;
         let body = UnitBody::find(plans, *symbol)?;
+        place_types::collect(checked, plans, body, &mut roots)?;
         if !matches!(body, UnitBody::Ordinary(plan) if plan.scalar_result.is_some() || plan.scalar_control.is_some())
             && let checked_trees::CheckedControlResultPlan::Structural(result) = body.result()?
         {

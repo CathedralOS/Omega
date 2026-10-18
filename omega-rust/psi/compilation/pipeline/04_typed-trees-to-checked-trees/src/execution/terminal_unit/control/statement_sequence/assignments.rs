@@ -268,6 +268,13 @@ pub(super) fn plan(
         )?;
         *structural_count = structural_count.checked_add(1 + replacement.displaced_bindings())?;
         let discard_result_on_return = produced.multiplicity == Multiplicity::Affine;
+        // The receiving stores may consume this temporary in separate leaves.
+        // Retain its exact producer just as for an operand or local result;
+        // anonymous storage still carries reference retirement obligations.
+        structural_results.push((
+            produced.clone(),
+            facts::PlaceRoot::Expression(assignment.value),
+        ));
         let establishment = structural_operands::establish_value(
             facts,
             produced,

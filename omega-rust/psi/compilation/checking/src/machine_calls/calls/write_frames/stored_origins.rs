@@ -49,11 +49,12 @@ pub(super) use frozen_bindings::{call_exposes_frozen_binding, expression_exposes
 
 pub(super) use projections::reference_leaves_before_statement_for_query;
 pub(super) use projections::symbolic_reference_leaves;
-pub(super) use projections::{path_covers, slot_origins, summarized_slot_origins};
+pub(super) use projections::{path_covers, selected_slot_sources, slot_origins};
 pub(super) use projections::{project_stored_origins, projected_storage_type, projected_type};
 pub(super) use reference_values::source_reaches_leaf;
 pub(super) use reference_values::{
-    canonical_reference_origins, captured_reference_projection_origins,
+    canonical_reference_origins, canonical_reference_sources,
+    captured_reference_projection_origins, captured_reference_projection_sources,
 };
 pub(super) use type_origins::declared_origins;
 pub(super) use type_origins::declared_origins_for_query;
@@ -165,13 +166,16 @@ pub(super) struct StoredWriteOrigin {
     /// survive transport and prevent overlapping writes from being discarded
     /// as private local storage; it proves no actual referent identity.
     pub origin: Option<FramePlaceOrigin>,
+    /// Opaque completion's retained lifetime debt, never spatial alternatives.
+    /// An absent origin remains unknown even when these dependencies are known.
+    pub lifetime_dependencies: Vec<super::stored_calls::SlotSource>,
 }
 
 /// A possible hidden pointer contributes a conservative write footprint, but
 /// is not a descriptor that reading a reference value may dereference.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum StoredOriginKind {
-    Reference,
+    Reference(language_semantics::ReferenceAccess),
     OpaqueRegion,
 }
 
@@ -344,6 +348,7 @@ pub(super) fn declaration_origins_for_query(
         };
         for origin in captured {
             origins.push(StoredWriteOrigin {
+                lifetime_dependencies: leaf.lifetime_dependencies.clone(),
                 kind: leaf.kind,
                 local_symbol: local.symbol,
                 local_path: append_place_suffix(local.name.as_str(), &leaf.local_suffix),
@@ -452,6 +457,64 @@ pub(super) fn canonical_origins(
     aliases: &[(String, FramePlaceOrigin)],
     stored: &[StoredLocalOrigins],
 ) -> Option<Vec<FramePlaceOrigin>> {
+    Some(
+        overlapping_origins(program, origin, aliases, stored, true)?
+            .into_iter()
+            .map(|(_, origin)| origin)
+            .collect(),
+    )
+}
+
+/// Close writable reach before private-home filtering. A captured pointer may
+/// lead to another local holder whose exclusive leaves reach caller storage.
+/// Shared leaves cut this closure; lifetime dependencies are never addresses.
+/// Alias producers supply canonical origins, not alias-to-alias rewrite rules.
+/// An unseen repeated descriptor projection has no established finite closure.
+pub(super) fn canonical_write_origins(
+    program: &dyn crate::CheckingInput,
+    origin: &FramePlaceOrigin,
+    aliases: &[(String, FramePlaceOrigin)],
+    stored: &[StoredLocalOrigins],
+) -> Option<Vec<FramePlaceOrigin>> {
+    let mut pending = vec![(origin.clone(), Vec::new())];
+    let mut reached = Vec::<FramePlaceOrigin>::new();
+    while let Some((origin, crossed)) = pending.pop() {
+        if reached
+            .iter()
+            .any(|prior| prior.path == origin.path && prior.precision == origin.precision)
+        {
+            continue;
+        }
+        reached.push(origin.clone());
+        for (boundary, source) in overlapping_origins(program, &origin, aliases, stored, false)? {
+            if reached
+                .iter()
+                .any(|prior| prior.path == source.path && prior.precision == source.precision)
+            {
+                continue;
+            }
+            let mut next_crossed = crossed.clone();
+            if let Some(boundary) = boundary {
+                if next_crossed.contains(&boundary) {
+                    return None;
+                }
+                next_crossed.push(boundary);
+            }
+            pending.push((source, next_crossed));
+        }
+    }
+    Some(reached)
+}
+
+/// Reference-value queries may cross shared descriptors; may-write queries
+/// cannot. Retain the descriptor's own storage separately in expand_write_path.
+fn overlapping_origins(
+    program: &dyn crate::CheckingInput,
+    origin: &FramePlaceOrigin,
+    aliases: &[(String, FramePlaceOrigin)],
+    stored: &[StoredLocalOrigins],
+    include_shared: bool,
+) -> Option<Vec<(Option<usize>, FramePlaceOrigin)>> {
     let (root, suffix) = split_place_root(&origin.path);
     let origin = aliases.iter().find(|(name, _)| name == root).map_or_else(
         || origin.clone(),
@@ -459,7 +522,16 @@ pub(super) fn canonical_origins(
     );
     let mut origins = Vec::new();
     let mut includes_private = true;
-    for leaf in stored.iter().flat_map(|local| &local.references) {
+    for (boundary, leaf) in stored
+        .iter()
+        .flat_map(|local| &local.references)
+        .enumerate()
+    {
+        if !include_shared
+            && matches!(leaf.kind, StoredOriginKind::Reference(access) if !access.is_exclusive())
+        {
+            continue;
+        }
         // Image-backed descriptors name immutable storage, not a caller write
         // path. Their empty source spelling must not become an unresolved write.
         // expand_write_path separately retains the containing slot's storage;
@@ -489,14 +561,17 @@ pub(super) fn canonical_origins(
         } else {
             continue;
         };
-        if !origins.iter().any(|prior: &FramePlaceOrigin| {
-            prior.path == source.path && prior.precision == source.precision
-        }) {
-            origins.push(source);
+        if !origins
+            .iter()
+            .any(|(_, prior): &(Option<usize>, FramePlaceOrigin)| {
+                prior.path == source.path && prior.precision == source.precision
+            })
+        {
+            origins.push((Some(boundary), source));
         }
     }
     if includes_private {
-        origins.push(origin);
+        origins.push((None, origin));
     }
     Some(origins)
 }
@@ -532,7 +607,7 @@ pub(super) fn expand_write_path(
     stored: &[StoredLocalOrigins],
 ) -> Option<Vec<String>> {
     let mut paths = vec![super::rebase_local_alias_path(program, path, aliases)];
-    for origin in canonical_origins(
+    for origin in canonical_write_origins(
         program,
         &FramePlaceOrigin {
             path: path.to_owned(),

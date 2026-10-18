@@ -39,6 +39,8 @@ use terminal_psi::{
 
 mod borrowed_arrivals;
 mod descriptor_backing;
+mod lifetime_debts;
+mod observations;
 mod occurrences;
 mod resident_joins;
 mod retirements;
@@ -60,6 +62,8 @@ pub(in crate::legalization) struct Leaf {
     pub(in crate::legalization) root: Root,
     // Captured lifetime geometry is separate from executable origin evidence.
     backing: Vec<descriptor_backing::Backing>,
+    /// Provider validity anchors are obligations, not spatial parentage.
+    lifetime_debts: Vec<lifetime_debts::Debt>,
     /// All possible immediate parent identities; selection suspends each parent.
     pub(in crate::legalization) parents: Vec<OccurrenceIdentity>,
     /// The actual operation or parameter declaration of the current occurrence.
@@ -113,8 +117,9 @@ impl Root {
         }
         if origins.len() == 1
             && let Some(path) = origins[0].exact_path()
+            && let Some(root) = origins[0].base.root_place()
         {
-            Self::Ingress(origins[0].root, path)
+            Self::Ingress(root, path)
         } else {
             origins.sort();
             origins.dedup();
@@ -124,14 +129,12 @@ impl Root {
     pub(in crate::legalization) fn origins(&self) -> Vec<target_operations::TargetReferenceOrigin> {
         match self {
             Self::Place(root) => vec![target_operations::TargetReferenceOrigin {
-                kind: target_operations::TargetReferenceOriginKind::Storage,
-                root: *root,
+                base: target_operations::TargetReferenceOriginBase::Storage { root: *root },
                 extent: semantic_vocabulary::ReferenceOriginExtent::Projected,
                 path: Vec::new(),
             }],
             Self::Ingress(root, path) => vec![target_operations::TargetReferenceOrigin {
-                kind: target_operations::TargetReferenceOriginKind::Storage,
-                root: *root,
+                base: target_operations::TargetReferenceOriginBase::Storage { root: *root },
                 extent: semantic_vocabulary::ReferenceOriginExtent::Projected,
                 path: path
                     .iter()
@@ -146,7 +149,9 @@ impl Root {
     pub(in crate::legalization) fn contains_place(&self, place: PlaceId) -> bool {
         match self {
             Self::Place(root) | Self::Ingress(root, _) => *root == place,
-            Self::Alternatives(origins) => origins.iter().any(|origin| origin.root == place),
+            Self::Alternatives(origins) => origins
+                .iter()
+                .any(|origin| origin.base.root_place() == Some(place)),
         }
     }
 }
@@ -165,7 +170,11 @@ fn storage_origins(
     root.origins()
         .into_iter()
         .map(|mut origin| {
-            let selected = source_contract(function, custody, origin.root)
+            let target_operations::TargetReferenceOriginBase::Storage { root } = origin.base else {
+                // Captured entry contents have no current storage cursor.
+                return Err(invalid());
+            };
+            let selected = source_contract(function, custody, root)
                 .and_then(|contract| {
                     terminal_semantics::captured_reference_origin_type(
                         types.iter(),
@@ -175,7 +184,7 @@ fn storage_origins(
                 })
                 .ok_or_else(invalid)?;
             if selected != referent {
-                if function.structural_parameter(origin.root).is_none()
+                if function.structural_parameter(root).is_none()
                     || origin.path.iter().any(|segment| {
                         !matches!(
                             segment,
@@ -208,13 +217,14 @@ fn roots_overlap(left: &Root, right: &Root) -> bool {
     let right = right.origins();
     left.iter().any(|left| {
         right.iter().any(|right| {
-            left.kind != target_operations::TargetReferenceOriginKind::Storage
-                || right.kind != target_operations::TargetReferenceOriginKind::Storage
-                || (left.root == right.root
-                    && terminal_semantics::reference_origin_paths_may_overlap(
-                        &left.path,
-                        &right.path,
-                    ))
+            !matches!(
+                left.base,
+                target_operations::TargetReferenceOriginBase::Storage { .. }
+            ) || !matches!(
+                right.base,
+                target_operations::TargetReferenceOriginBase::Storage { .. }
+            ) || left.base.root_place() == right.base.root_place()
+                && terminal_semantics::reference_origin_paths_may_overlap(&left.path, &right.path)
         })
     })
 }
@@ -234,12 +244,22 @@ pub(in crate::legalization) struct Custody {
     borrowed_sources: std::sync::Arc<BTreeMap<PlaceId, Option<Vec<StructuralArgument>>>>,
     descriptor_backing: std::sync::Arc<descriptor_backing::Observations>,
     stored_calls: std::sync::Arc<stored_calls::Effects>,
+    reference_position: Option<terminal_semantics::descriptor_lifetimes::DescriptorPosition>,
     /// Exact module demand rosters, separate from live permission leaves.
     placement_catalog: abstract_operations::StructuralTypeCatalog,
     placed_formals: BTreeMap<PlaceId, terminal_psi::TerminalPlacedViewInput>,
 }
 
 impl Custody {
+    pub(in crate::legalization) fn set_position(
+        &mut self,
+        block: BlockId,
+        node_index: usize,
+    ) -> Result<(), LegalizationError> {
+        self.reference_position = Some((block, u32::try_from(node_index).map_err(|_| invalid())?));
+        Ok(())
+    }
+
     /// Arrival uses this exact edge's post-transfer, post-cleanup roster.
     /// A block declaration or a dominator's survivors cannot restore a leaf.
     fn edge_custody(&self, edge: EdgeId, target: BlockId) -> Result<Self, LegalizationError> {
@@ -258,6 +278,7 @@ impl Custody {
             borrowed_sources: self.borrowed_sources.clone(),
             descriptor_backing: self.descriptor_backing.clone(),
             stored_calls: self.stored_calls.clone(),
+            reference_position: self.reference_position,
             placement_catalog: self.placement_catalog.clone(),
             placed_formals: self.placed_formals.clone(),
         })
@@ -280,7 +301,9 @@ impl Custody {
     ) -> Option<&Leaf> {
         let leaf = self.leaf(place, path)?;
         (!self.leaves.values().any(|other| {
-            other.root.contains_place(place) || self.descends_from(other, &leaf.identity)
+            other.root.contains_place(place)
+                || self.descends_from(other, &leaf.identity)
+                || self.lifetime_depends_on(other, &leaf.identity)
         }))
         .then_some(leaf)
     }
@@ -378,12 +401,12 @@ pub(in crate::legalization) fn window_backing_roots(
             access,
         },
     )?;
-    Ok(observed
+    observed
         .origins
         .iter()
         .flat_map(Root::origins)
-        .map(|origin| origin.root)
-        .collect())
+        .map(|origin| origin.base.root_place().ok_or_else(invalid))
+        .collect()
 }
 
 /// Select mutation storage through the same current-descriptor observation as
@@ -417,7 +440,7 @@ pub(in crate::legalization) fn window_regions(
         for origin in storage_origins(function, custody, types, root, observed.referent)? {
             let mut prefix = origin.exact_path().ok_or_else(invalid)?;
             prefix.extend_from_slice(&path[crossing + 1..]);
-            let region = (origin.root, prefix);
+            let region = (origin.base.root_place().ok_or_else(invalid)?, prefix);
             if !regions.contains(&region) {
                 regions.push(region);
             }
@@ -931,12 +954,11 @@ fn normalized_direct_source(
         let suffix = &path[crossing + 1..];
         // A remaining crossing is a real descriptor, never a borrowed-leaf
         // marker. Missing live custody cannot become a direct-storage origin.
-        let leaf = custody
-            .leaf(source.place, carrier_path)
+        let observed = observations::observe(function, custody, types, source.place, carrier_path)
             .ok_or_else(|| invalid())?;
         if optimization_unit_semantics::structural_borrowed_storage_projection(
             types.iter(),
-            leaf.referent,
+            observed.referent,
             suffix,
             source.access,
         )
@@ -944,7 +966,7 @@ fn normalized_direct_source(
         {
             return Err(invalid());
         }
-        Ok((leaf.root.projected(suffix), vec![leaf.identity.clone()]))
+        Ok((observed.root.projected(suffix), observed.parents))
     } else if source.path.is_empty() {
         Ok((Root::Place(source.place), Vec::new()))
     } else if storage_projection(function, custody, types, source).is_some() {
@@ -979,6 +1001,63 @@ fn storage_access_conflicts(
     path: &[StructuralPathSegment],
     requested: StructuralAccess,
 ) -> bool {
+    custody.leaves.values().any(|reference| {
+        leaf_storage_access_conflicts(function, custody, types, reference, place, path, requested)
+    })
+}
+
+/// Interference is a property of retained backing, not the path spelling used
+/// to type a captured incoming value. Each caller separately handles exact
+/// parent traversal and the occurrence it is consuming.
+fn backing_storage_access_conflicts(
+    function: &PsiOptimizationFunction,
+    custody: &Custody,
+    types: &[StructuralTypeDeclaration],
+    backing: &descriptor_backing::Backing,
+    place: PlaceId,
+    path: &[StructuralPathSegment],
+) -> bool {
+    if custody.borrowed_sources.contains_key(&place) {
+        let Some(parameter) = function.arrival_parameter(place) else {
+            return true;
+        };
+        let Some(actuals) = borrowed_arrivals::flatten(
+            function,
+            custody,
+            types,
+            &StructuralArgument {
+                place,
+                path: path.to_vec(),
+                access: parameter.access,
+            },
+        ) else {
+            return true;
+        };
+        return actuals.iter().any(|actual| {
+            // Flattened arrivals terminate at established homes or explicit
+            // descriptor crossings. A residual alias cannot grant separation.
+            custody.borrowed_sources.contains_key(&actual.place)
+                || backing_intersects_storage(
+                    function,
+                    custody,
+                    types,
+                    backing,
+                    actual.place,
+                    &actual.path,
+                )
+        });
+    }
+    backing_intersects_storage(function, custody, types, backing, place, path)
+}
+
+fn backing_intersects_storage(
+    function: &PsiOptimizationFunction,
+    custody: &Custody,
+    types: &[StructuralTypeDeclaration],
+    backing: &descriptor_backing::Backing,
+    place: PlaceId,
+    path: &[StructuralPathSegment],
+) -> bool {
     // Captured ingress pointees cannot occupy a home owned by this activation.
     // A borrowed arrival or a projection through a descriptor is not such a
     // home. Resolve this from the typed path, not its flattened overlap region:
@@ -990,6 +1069,20 @@ fn storage_access_conflicts(
     ) && source_contract(function, custody, place).is_some_and(|root| {
         terminal_semantics::projection_stays_in_inline_storage(types.iter(), root, path)
     });
+    // Machine-entry carrier storage has independent caller-granted authority.
+    // A stored pointer's lifetime does not retain that carrier's call-scoped
+    // borrow. A state alias must first flatten above: an inline-looking state
+    // parameter may actually traverse a provider descriptor and its children.
+    let independent_carrier = activation_local
+        || function
+            .structural_parameter(place)
+            .is_some_and(|parameter| {
+                terminal_semantics::projection_stays_in_inline_storage(
+                    types.iter(),
+                    parameter.structural_type,
+                    path,
+                )
+            });
     let origin_overlaps = |origin_path: &[ReferenceOriginProjection]| {
         let Some(origin) = source_contract(function, custody, place)
             .and_then(|root| {
@@ -1009,32 +1102,90 @@ fn storage_access_conflicts(
                 origin_path,
             )
     };
-    custody.leaves.values().any(|reference| {
-        let permission = leaf_type(
-            types,
-            reference.contract.structural_type(),
-            &reference.identity.path,
-        )
-        .and_then(|identity| find_structural_type(types, identity))
-        .and_then(|declaration| match declaration.shape {
-            StructuralTypeShape::Reference { access, .. } => Some(access),
-            _ => None,
-        });
-        if requested == StructuralAccess::SharedBorrow
-            && permission == Some(StructuralAccess::SharedBorrow)
-        {
-            return false;
-        }
-        reference.backing.iter().any(|backing| {
-            descriptor_backing::overlaps(
-                backing,
+    // Opaque geometry contributes no activation-local coordinate. Complete
+    // captured debts (including a provider anchor's own debts) govern those
+    // homes. This does not assert pointer inequality or refine an address.
+    if independent_carrier
+        && let descriptor_backing::Backing::Source(Root::Alternatives(origins)) = backing
+    {
+        return origins.iter().any(|origin| {
+            !matches!(
+                origin.base,
+                target_operations::TargetReferenceOriginBase::Provider { .. }
+            ) && descriptor_backing::overlaps(
+                &descriptor_backing::Backing::Source(Root::Alternatives(vec![origin.clone()])),
                 function.machine,
                 place,
                 path,
                 activation_local,
                 &origin_overlaps,
             )
+        });
+    }
+    descriptor_backing::overlaps(
+        backing,
+        function.machine,
+        place,
+        path,
+        activation_local,
+        &origin_overlaps,
+    )
+}
+
+fn lifetime_storage_access_conflicts(
+    function: &PsiOptimizationFunction,
+    custody: &Custody,
+    types: &[StructuralTypeDeclaration],
+    reference: &Leaf,
+    place: PlaceId,
+    path: &[StructuralPathSegment],
+    requested: StructuralAccess,
+) -> bool {
+    // A shared output can retain an exclusive validity anchor. Its own access
+    // therefore cannot exempt that anchor from interference checks.
+    custody
+        .captured_lifetime_debts(reference)
+        .iter()
+        .any(|debt| {
+            (requested != StructuralAccess::SharedBorrow
+                || debt.access != StructuralAccess::SharedBorrow)
+                && debt.backing.iter().any(|backing| {
+                    backing_storage_access_conflicts(function, custody, types, backing, place, path)
+                })
         })
+}
+
+fn leaf_storage_access_conflicts(
+    function: &PsiOptimizationFunction,
+    custody: &Custody,
+    types: &[StructuralTypeDeclaration],
+    reference: &Leaf,
+    place: PlaceId,
+    path: &[StructuralPathSegment],
+    requested: StructuralAccess,
+) -> bool {
+    if lifetime_storage_access_conflicts(
+        function, custody, types, reference, place, path, requested,
+    ) {
+        return true;
+    }
+    let permission = leaf_type(
+        types,
+        reference.contract.structural_type(),
+        &reference.identity.path,
+    )
+    .and_then(|identity| find_structural_type(types, identity))
+    .and_then(|declaration| match declaration.shape {
+        StructuralTypeShape::Reference { access, .. } => Some(access),
+        _ => None,
+    });
+    if requested == StructuralAccess::SharedBorrow
+        && permission == Some(StructuralAccess::SharedBorrow)
+    {
+        return false;
+    }
+    reference.backing.iter().any(|backing| {
+        backing_storage_access_conflicts(function, custody, types, backing, place, path)
     })
 }
 
@@ -1154,11 +1305,12 @@ fn call_arguments(
                 // a direct descriptor crossing. Exclusive or owned ingress
                 // still cannot abstract away a suspended parent occurrence.
                 if custody.leaves.iter().any(|((carrier, path), child)| {
-                    custody.descends_from(child, &leaf.identity)
-                        && (argument.access == StructuralAccess::Owned
-                            || !shared_source_compatible(
-                                function, custody, types, carrier, path, supplied,
-                            ))
+                    custody.lifetime_access_conflicts(child, &leaf.identity, supplied)
+                        || custody.descends_from(child, &leaf.identity)
+                            && (argument.access == StructuralAccess::Owned
+                                || !shared_source_compatible(
+                                    function, custody, types, carrier, path, supplied,
+                                ))
                 }) || (argument.access == StructuralAccess::Owned
                     && moved
                         .insert((argument.place, carrier_path.clone()), leaf.clone())
@@ -1358,8 +1510,8 @@ fn call_results(
                         return Err(invalid());
                     }
                     let root = Root::Alternatives(vec![target_operations::TargetReferenceOrigin {
-                        root: result.place,
-                        kind: target_operations::TargetReferenceOriginKind::Invocation {
+                        base: target_operations::TargetReferenceOriginBase::Invocation {
+                            root: result.place,
                             carrier_type: *carrier_type,
                         },
                         path: origin_path.clone(),
@@ -1486,10 +1638,13 @@ fn combine_alternatives(candidates: Vec<Leaf>) -> Result<Leaf, LegalizationError
         }
         origins.push((candidate.root, candidate.parents));
         leaf.backing.extend(candidate.backing);
+        leaf.lifetime_debts.extend(candidate.lifetime_debts);
         leaf.formations.extend(candidate.formations);
     }
     leaf.backing.sort();
     leaf.backing.dedup();
+    leaf.lifetime_debts.sort();
+    leaf.lifetime_debts.dedup();
     occurrences::normalize_formations(&mut leaf.formations)?;
     (leaf.root, leaf.parents) = combine_candidate_origins(origins)?;
     Ok(leaf)
@@ -1863,7 +2018,7 @@ pub(in crate::legalization) fn apply(
                         access: StructuralAccess::SharedBorrow,
                     },
                 )?;
-                if observed.descriptors.is_empty() {
+                if observed.descriptors.is_empty() && observed.borrowed.is_empty() {
                     // Only a declaration's conditional case leaves can be
                     // absent; the observation rejects every missing ordinary
                     // slot and every permission mismatch independently.
@@ -1884,6 +2039,21 @@ pub(in crate::legalization) fn apply(
                     );
                     leaf.reform(*psi_operation, result);
                     alternatives.push(leaf);
+                }
+                for borrowed in observed.borrowed {
+                    if borrowed.referent != expected {
+                        return Err(invalid());
+                    }
+                    // The copy owns a new carrier. Its borrowed source never
+                    // becomes resident here, and enclosing parents stay live.
+                    alternatives.push(Leaf::formed(
+                        (result.place, relative.clone()),
+                        borrowed.root,
+                        borrowed.parents,
+                        *psi_operation,
+                        result,
+                        expected,
+                    ));
                 }
                 copied.push((
                     (result.place, relative.clone()),
@@ -2073,27 +2243,22 @@ pub(in crate::legalization) fn apply(
             path,
             ..
         } => {
-            if custody.leaves.values().any(|enclosing| {
-                enclosing.root.origins().iter().any(|origin| {
-                    let origin_path = &origin.path;
-                    origin.root == *source
-                        && source_contract(function, custody, *source).and_then(|contract| {
-                            terminal_semantics::captured_reference_origin_type(
-                                types.iter(),
-                                contract,
-                                origin_path,
-                            )
-                        }) == Some(enclosing.referent)
-                        && terminal_semantics::reference_origin_paths_may_overlap(
-                            origin_path,
-                            &path
-                                .iter()
-                                .cloned()
-                                .map(ReferenceOriginProjection::Exact)
-                                .collect::<Vec<_>>(),
+            if custody
+                .leaves
+                .iter()
+                .any(|((carrier, carrier_path), enclosing)| {
+                    (*carrier != *source || carrier_path != path)
+                        && leaf_storage_access_conflicts(
+                            function,
+                            custody,
+                            types,
+                            enclosing,
+                            *source,
+                            path,
+                            StructuralAccess::Owned,
                         )
                 })
-            }) {
+            {
                 return Err(invalid());
             }
             let key = (*source, path.clone());
@@ -2357,15 +2522,39 @@ pub(in crate::legalization) fn apply(
             )?;
         }
         AbstractOperation::BoundaryCall {
+            psi_operation,
+            boundary,
             structural_arguments,
             ..
         } => {
             // A non-retaining foreign borrow has ordinary live-loan custody.
             // The opaque counterparty cannot receive Omega reference carriers
             // by ownership; its separately evaluated ABI owns pointer geometry.
-            if !call_arguments(function, types, custody, structural_arguments)?.is_empty() {
+            let moved = call_arguments(function, types, custody, structural_arguments)?;
+            if !moved.is_empty() {
                 return Err(invalid());
             }
+            let declaration = unit
+                .boundary_machines
+                .iter()
+                .find(|declaration| declaration.id == *boundary)
+                .ok_or_else(invalid)?;
+            if !declaration.reference_outputs.is_empty()
+                && !matches!(super::normalized_foreign::row(native, function.machine, *psi_operation)?,
+                    Some(target_operations::TargetUnitOperation::NormalizedForeignCall { boundary: selected, .. }) if selected == boundary)
+            {
+                return Err(invalid());
+            }
+            let stored = stored_calls::stage(
+                function,
+                Some(stored_calls::Callee::Boundary(declaration)),
+                types,
+                custody,
+                structural_arguments,
+                *psi_operation,
+                &moved,
+            )?;
+            stored_calls::commit(function, types, None, custody, stored)?;
         }
         _ => {}
     }
@@ -2412,12 +2601,17 @@ fn transfer_return_custody(
             .ok_or_else(invalid)?;
         let declared = |root: &Root| {
             root.origins().iter().all(|origin| {
-                if let target_operations::TargetReferenceOriginKind::Invocation { carrier_type } = origin.kind {
+                if let target_operations::TargetReferenceOriginBase::Invocation { carrier_type, .. } = origin.base {
                     return mapping.sources.contains(&terminal_psi::StructuralReferenceOrigin::Invocation {
                         carrier_type, path: origin.path.clone(), extent: origin.extent, access,
                     });
                 }
-                let Some(parameter) = function.structural_parameter(origin.root) else {
+                let target_operations::TargetReferenceOriginBase::Storage { root } = origin.base else {
+                    // An authored current-slot path is not automatically the
+                    // captured entry value after replacement.
+                    return false;
+                };
+                let Some(parameter) = function.structural_parameter(root) else {
                     return false;
                 };
                 // Summarize a captured selection without replaying its index or
@@ -2438,7 +2632,7 @@ fn transfer_return_custody(
                     path.push(ReferenceOriginProjection::Exact(StructuralPathSegment::Referent));
                 }
                 let actual = terminal_psi::ReferenceOriginSource {
-                    place: origin.root, path, access,
+                    place: root, path, access,
                     extent: origin.extent,
                 };
                 // Supplying permission is attenuated to the requested view;
@@ -2506,7 +2700,7 @@ fn transfer_return_custody(
         }
         occurrences.push(terminal_semantics::ReferenceCompletionOccurrence {
             identity: &leaf.identity,
-            parents: leaf.parents.iter().collect(),
+            parents: leaf.obligations().collect(),
             returned,
             disposed,
         });
@@ -2514,7 +2708,7 @@ fn transfer_return_custody(
     occurrences.extend(custody.retired.values().map(|retired| {
         terminal_semantics::ReferenceCompletionOccurrence {
             identity: &retired.leaf.identity,
-            parents: retired.leaf.parents.iter().collect(),
+            parents: retired.leaf.obligations().collect(),
             returned: false,
             // These are replayed disposal operations on this exact path, not
             // missing residents inferred to have been disposed at some point.
@@ -2796,7 +2990,8 @@ pub(in crate::legalization) fn block_entry_states(
         queued[position] = false;
         let block = &blocks[position];
         let mut custody = entries.get(&block.id).cloned().ok_or_else(invalid)?;
-        for node in &blocks[position].nodes {
+        for (node_index, node) in blocks[position].nodes.iter().enumerate() {
+            custody.set_position(block.id, node_index)?;
             if matches!(
                 node.operation,
                 abstract_operations::return_or_return_unit_pattern!(..)
@@ -2947,6 +3142,7 @@ fn entry(
                         path.clone(),
                     ))],
                     parents: Vec::new(),
+                    lifetime_debts: Vec::new(),
                     contract: CarrierContract::Parameter(parameter.clone()),
                     formations: vec![Formation {
                         identity: OccurrenceIdentity::parameter(&identity),
@@ -3203,7 +3399,15 @@ fn call_transition(
         placed_call_custody(caller, callee, types, arguments, custody)?;
     }
     let moved = call_arguments(caller, types, custody, arguments)?;
-    let stored = stored_calls::stage(caller, callee, types, custody, arguments, operation, &moved)?;
+    let stored = stored_calls::stage(
+        caller,
+        callee.map(stored_calls::Callee::Body),
+        types,
+        custody,
+        arguments,
+        operation,
+        &moved,
+    )?;
     commit_argument_moves(custody, &moved);
     let results = match (result_contract, result) {
         (Some(contract), Some(result)) => call_results(

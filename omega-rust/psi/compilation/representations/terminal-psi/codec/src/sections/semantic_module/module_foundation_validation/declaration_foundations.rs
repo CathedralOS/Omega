@@ -84,6 +84,7 @@ pub(super) fn validate_boundary_machine(
         return malformed("boundary machine has an unknown attachment type");
     }
     validate_structural_parameters(module, &boundary.structural_parameters)?;
+    super::reference_outputs::validate(module, boundary)?;
     super::scalar_observations::boundary(module, boundary)?;
     if let terminal_psi::BoundaryMachineResult::Structural(result) = &boundary.result {
         if !has_structural_type(module, result.structural_type) {

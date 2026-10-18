@@ -1150,6 +1150,16 @@ impl OpenWindows {
                 opening_binding,
             }
         };
+        let mut store = CheckedUnitEffectOperationPlan::new_store(
+            statement_index,
+            root,
+            place.path.clone(),
+            leaf,
+            checked_trees::CheckedStoreValue::Place(value),
+        );
+        if let CheckedUnitEffectOperationPlan::Store(store) = &mut store {
+            store.captured_selection = receiver_path.clone();
+        }
         Some(FieldReplacement {
             move_out: needs_displacement.then(|| {
                 CheckedUnitEffectOperationPlan::MoveStructuralField {
@@ -1187,13 +1197,7 @@ impl OpenWindows {
                     )],
                 }
             }),
-            store: CheckedUnitEffectOperationPlan::new_store(
-                statement_index,
-                root,
-                place.path,
-                leaf,
-                checked_trees::CheckedStoreValue::Place(value),
-            ),
+            store,
         })
     }
 

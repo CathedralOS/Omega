@@ -1,0 +1,16 @@
+// A shared output cannot weaken its exclusive lifetime anchor to shared access.
+pub data Output<'source> { value: &'source u8; }
+pub data Input { value: u8; }
+pub boundary trait ReadView {
+    machine acquire<'source>(source: &'source mut Input, output: &mut Output<'source>);
+}
+machine observe(source: &Input) -> u8 { source.value }
+machine exercise() -> u8 reaches ReadView {
+    let mut source: Input = Input { value: 120 };
+    let sentinel: u8 = 7;
+    let mut output: Output = Output { value: &sentinel };
+    ReadView::acquire(&mut source, &mut output);
+    let invalid: u8 = observe(&source);
+    let retained: u8 = output.value;
+    retained
+}

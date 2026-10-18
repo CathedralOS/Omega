@@ -43,11 +43,14 @@ mod replay;
 pub use compatibility::{DescriptorCompatibilityFailure, DescriptorCompatibilityRequirement};
 pub use owned_shape::{owned_shared_byte_descriptor_shape, plain_owned_shape};
 mod invocation;
+mod provider_invocation;
+pub use provider_invocation::{provider_invocation, provider_outputs_cover_writable_slots};
 mod terminal_flow;
 pub use invocation::{public_invocation, public_result_slots, writable_descriptor_slots};
 pub use replay::{
-    DescriptorAnalysis, DescriptorSlotInventory, DescriptorSlotKind, DescriptorStoredCallEffect,
-    DescriptorStoredEffect, DescriptorStoredOrigin, descriptor_slot_inventory, descriptor_slots,
+    DescriptorAnalysis, DescriptorSlotInventory, DescriptorSlotKind, DescriptorSourceObservation,
+    DescriptorSourceObservations, DescriptorStoredCallEffect, DescriptorStoredEffect,
+    DescriptorStoredOrigin, descriptor_slot_inventory, descriptor_slots,
     reconstruct_source_origins, reconstruct_stored_effects, writable_reference_slots,
 };
 
@@ -100,9 +103,38 @@ pub enum DescriptorCallOrigin {
 /// It conveys no disjointness or authority until the invocation is checked.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum DescriptorSourceOrigin {
+    Provider(DescriptorProviderOrigin<DescriptorSourceOrigin>),
     Backing(DescriptorCallOrigin),
     IncomingSlot(DescriptorLocation),
     IncomingContents(DescriptorContentsQuery),
+}
+
+/// Opaque provider storage and its captured lifetime obligations are independent.
+/// Invocation paths distinguish calls through wrappers, but never establish
+/// freshness or disjointness, including repeated execution of one call site.
+/// Dependencies form a flat frontier: a provider input contributes its captured
+/// debts, not another recursively nested provider history.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct DescriptorProviderOrigin<Dependency> {
+    pub boundary: semantic_vocabulary::BoundaryMachineId,
+    pub output: u32,
+    pub invocations: Vec<DescriptorInvocationSite>,
+    pub projection: Projection,
+    pub lifetime_dependencies: Vec<DescriptorLifetimeDebt<Dependency>>,
+}
+
+/// Permission retained for one lifetime anchor, independent of the access
+/// promised on the provider's unrelated referent.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct DescriptorLifetimeDebt<Origin> {
+    pub origin: Origin,
+    pub access: StructuralAccess,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct DescriptorInvocationSite {
+    pub machine: MachineId,
+    pub operation: semantic_vocabulary::OperationId,
 }
 
 /// Descriptor storage, independently of the permission it carries. Native
@@ -426,6 +458,7 @@ pub fn descriptor_machine<'graph>(
 }
 
 pub struct DescriptorInvocation {
+    pub operation: semantic_vocabulary::OperationId,
     pub target: DescriptorInvocationTarget,
     /// Every formal position is retained. None means its actual storage
     /// coordinate is unresolved, never that the invocation is absent.
@@ -440,6 +473,13 @@ pub struct DescriptorInvocation {
 /// Public regions bound backing reach, never the selected runtime descriptor.
 pub enum DescriptorInvocationTarget {
     Machine(MachineId),
+    /// Normal completion of an admitted boundary. Unlike a public region
+    /// contract, these results need not be spatially contained in any input.
+    Provider {
+        results: Vec<DescriptorResultSlot>,
+        effects: Vec<DescriptorStoredEffect>,
+        invalidates_contents: bool,
+    },
     Public {
         extent: semantic_vocabulary::ReferenceOriginExtent,
         results: Vec<DescriptorResultSlot>,
@@ -451,7 +491,8 @@ impl DescriptorInvocation {
     pub fn callee(&self) -> Option<MachineId> {
         match self.target {
             DescriptorInvocationTarget::Machine(machine) => Some(machine),
-            DescriptorInvocationTarget::Public { .. } => None,
+            DescriptorInvocationTarget::Public { .. }
+            | DescriptorInvocationTarget::Provider { .. } => None,
         }
     }
 }

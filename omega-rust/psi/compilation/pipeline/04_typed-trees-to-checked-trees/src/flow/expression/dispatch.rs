@@ -23,9 +23,18 @@ impl Execution<'_, '_, '_> {
         &mut self,
         expression: ExpressionHandle,
         dispatch: TableMatchExpression,
+        destination: typed_trees::types::TypeReferenceHandle,
         contexts: &mut HandleSpan<FlowSemanticContextRef>,
         constraints: &mut HandleSpan<FlowConstraintRef>,
-    ) {
+    ) -> HandleSpan<checked_trees::FlowOperandFact> {
+        let destination = if destination.is_valid() {
+            destination
+        } else {
+            self.context
+                .expression_result_type_at(self.program, self.machine, self.state, expression)
+                .unwrap_or_default()
+        };
+        let mut alternatives = Vec::new();
         let subject_operand = self
             .evaluated_operand(dispatch.subject, contexts, constraints)
             .capture;
@@ -99,7 +108,13 @@ impl Execution<'_, '_, '_> {
                     );
                 }
             }
-            self.expression(arm.value, &mut selected_contexts, &mut selected_constraints);
+            let completed = self.evaluated_operand_as(
+                arm.value,
+                destination,
+                &mut selected_contexts,
+                &mut selected_constraints,
+            );
+            alternatives.push(completed.capture);
             let scalar = self.scalar_value_on_value(arm.value, &selected_contexts);
             shared_scalar = Some(match shared_scalar {
                 None => scalar,
@@ -155,6 +170,14 @@ impl Execution<'_, '_, '_> {
                     constraints,
                 );
             }
+        }
+        // A partial result roster cannot supply retention evidence. Keep each
+        // covered arm's original constraints instead of the joined context,
+        // which has intentionally forgotten arm-local reference occurrences.
+        if value_coverage {
+            self.context.control.operands.insert_many(alternatives)
+        } else {
+            HandleSpan::empty()
         }
     }
 

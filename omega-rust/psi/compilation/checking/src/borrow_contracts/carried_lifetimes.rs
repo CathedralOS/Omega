@@ -115,8 +115,30 @@ pub(super) fn carried_lifetimes(
     program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
 ) -> Option<Vec<CarriedLifetime>> {
+    storage_lifetimes(program, reference, LifetimeFrontier::Value)
+}
+
+/// A borrowed storage frontier may have a runtime extent. Its element type
+/// determines whether it contains descriptors; the extent alone does not make
+/// scalar storage incomplete. Descriptor-bearing slices retain dynamic paths.
+pub(super) fn borrowed_storage_lifetimes(
+    program: &dyn crate::CheckingInput,
+    reference: TypeReferenceHandle,
+) -> Option<Vec<CarriedLifetime>> {
+    storage_lifetimes(program, reference, LifetimeFrontier::BorrowedStorage)
+}
+
+fn storage_lifetimes(
+    program: &dyn crate::CheckingInput,
+    reference: TypeReferenceHandle,
+    frontier: LifetimeFrontier,
+) -> Option<Vec<CarriedLifetime>> {
     let mut output = Vec::new();
-    collect_type(
+    let mut template = TemplateFrontier {
+        frontier,
+        ..TemplateFrontier::default()
+    };
+    let complete = collect_type(
         program,
         reference,
         &[],
@@ -125,9 +147,9 @@ pub(super) fn carried_lifetimes(
         &mut Vec::new(),
         &mut output,
         false,
-        &mut TemplateFrontier::default(),
-    )
-    .then_some(output)
+        &mut template,
+    );
+    (complete && !template.dependent).then_some(output)
 }
 
 /// Every substitution maps to a valid, registered type reference.

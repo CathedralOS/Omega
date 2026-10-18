@@ -76,6 +76,7 @@ pub use place_paths::ScalarStorageCoordinate;
 pub use place_paths::{frame_coordinate_path, frame_length_coordinate_path};
 pub use reference_subjects::assignment_stored_value_type;
 pub use stored_calls::StoredReferenceEffect;
+pub(crate) use stored_calls::provider_completion_covers_writable_slots;
 pub(crate) use transition_topology::named_state_transition_subgraph_is_acyclic;
 
 use super::receiver_member_chain;

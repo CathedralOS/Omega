@@ -663,7 +663,7 @@ pub(super) fn argument_loans(
             ) {
                 loan.kind = field.kind.clone();
             }
-            loan.lineage = checked_trees::BorrowLoanLineage::UnretainedDerived;
+            loan.lineage = loan.lineage.derived();
             loan
         })
         .collect()

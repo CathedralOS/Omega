@@ -68,25 +68,109 @@ pub struct TargetReferenceResult {
 /// The root is logical custody, never a choice of runtime backing address.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct TargetReferenceOrigin {
-    /// Actual supplying storage or invocation result, never a synthetic input.
-    pub root: PlaceId,
-    pub kind: TargetReferenceOriginKind,
+    pub base: TargetReferenceOriginBase,
     pub path: Vec<terminal_psi::ReferenceOriginProjection>,
     pub extent: semantic_vocabulary::ReferenceOriginExtent,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum TargetReferenceOriginKind {
-    Storage,
-    Invocation { carrier_type: StructuralTypeId },
+/// Storage coordinates and captured pointer values are not interchangeable.
+/// Replacing an incoming slot changes its contents, not the entry value retained
+/// by an earlier copy. `path` on the origin projects from this base's payload.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub enum TargetReferenceOriginBase {
+    Storage {
+        root: PlaceId,
+    },
+    IncomingContents {
+        root: PlaceId,
+        slot: Vec<StructuralPathSegment>,
+    },
+    /// A completed result establishes a descriptor independently of formal
+    /// input storage. Its result place identifies the occurrence, not a
+    /// physical container for the referent.
+    Invocation {
+        root: PlaceId,
+        carrier_type: StructuralTypeId,
+    },
+    /// The admitted output establishes backing without identifying a caller
+    /// storage root; it need not lie within an input but may alias one.
+    /// Static invocation sites identify provenance, never allocation freshness
+    /// or disjointness. The pointer is loaded from its actual carrier.
+    Provider {
+        boundary: semantic_vocabulary::BoundaryMachineId,
+        output: u32,
+        invocations: Vec<(semantic_vocabulary::MachineId, OperationId)>,
+        referent: StructuralTypeId,
+        access: terminal_psi::StructuralAccess,
+    },
+}
+
+impl TargetReferenceOriginBase {
+    /// A real storage/captured-slot root, never a stand-in for provider memory.
+    pub fn root_place(&self) -> Option<PlaceId> {
+        match self {
+            Self::Storage { root } | Self::IncomingContents { root, .. } => Some(*root),
+            Self::Invocation { .. } | Self::Provider { .. } => None,
+        }
+    }
 }
 
 impl TargetReferenceOrigin {
+    /// A declaration-relative path for type interpretation only. An incoming
+    /// slot contributes its declared referent type, not its current value.
+    /// This path grants neither a reload address nor storage containment.
+    pub fn type_projection(
+        &self,
+    ) -> std::borrow::Cow<'_, [terminal_psi::ReferenceOriginProjection]> {
+        match &self.base {
+            TargetReferenceOriginBase::Storage { .. }
+            | TargetReferenceOriginBase::Invocation { .. }
+            | TargetReferenceOriginBase::Provider { .. } => std::borrow::Cow::Borrowed(&self.path),
+            TargetReferenceOriginBase::IncomingContents { slot, .. } => {
+                let mut path = slot
+                    .iter()
+                    .cloned()
+                    .map(terminal_psi::ReferenceOriginProjection::Exact)
+                    .collect::<Vec<_>>();
+                path.push(terminal_psi::ReferenceOriginProjection::Exact(
+                    StructuralPathSegment::Referent,
+                ));
+                path.extend_from_slice(&self.path);
+                std::borrow::Cow::Owned(path)
+            }
+        }
+    }
+
+    /// Coarse memory-effect geometry, explicitly separate from pointer identity.
+    /// Captured entry contents are indirect even when the slot has a fixed path;
+    /// different slots supply no proof that their pointees are disjoint.
+    pub fn storage_envelope(&self) -> Option<(PlaceId, Vec<StructuralPathSegment>, bool, bool)> {
+        let root = self.base.root_place()?;
+        if let TargetReferenceOriginBase::IncomingContents { slot, .. } = &self.base {
+            return Some((root, slot.clone(), false, true));
+        }
+        let path = self
+            .path
+            .iter()
+            .map_while(|projection| match projection {
+                terminal_psi::ReferenceOriginProjection::Exact(segment) => Some(segment.clone()),
+                terminal_psi::ReferenceOriginProjection::Element => None,
+            })
+            .collect::<Vec<_>>();
+        let exact = path.len() == self.path.len();
+        let indirect = self
+            .path
+            .contains(&terminal_psi::ReferenceOriginProjection::Exact(
+                StructuralPathSegment::Referent,
+            ));
+        Some((root, path, exact, indirect))
+    }
+
     /// Only exact origins can name a stored descriptor resource. A family
     /// retains possible backing, not a usable load/store address.
     pub fn exact_path(&self) -> Option<Vec<StructuralPathSegment>> {
-        if self.extent != semantic_vocabulary::ReferenceOriginExtent::Projected
-            || self.kind != TargetReferenceOriginKind::Storage
+        if !matches!(self.base, TargetReferenceOriginBase::Storage { .. })
+            || self.extent != semantic_vocabulary::ReferenceOriginExtent::Projected
         {
             return None;
         }

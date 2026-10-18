@@ -1,0 +1,78 @@
+// Expected exit: 0. The copied output keeps its first referent when the slot
+// is replaced by a second admitted foreign call through an ordinary helper.
+use omega::language::core::external_binding;
+
+pub data Output<'source> { value: &'source u8; }
+pub data TerminatedInput where terminator == 0, {
+    digit: u8;
+    marker: u8;
+    terminator: u8;
+}
+pub boundary trait ParseNumber {
+    machine parse<'source>(source: &'source TerminatedInput, output: &mut Output<'source>, base: i32) -> i64
+    requires base == 10;
+}
+
+macos_arm64 machine parse_binding() -> ForeignBinding<26, 7, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_strtol",
+        },
+    }
+}
+linux_x86_64 machine linux_parse_binding() -> ForeignBinding<9, 6, 11> {
+    ForeignBinding::DllImport {
+        import: DllImport::ElfVersioned {
+            object: "libc.so.6", symbol: "strtol", version: "GLIBC_2.2.5",
+        },
+    }
+}
+
+// The terminated input guarantees strtol writes a nonnull end pointer within
+// the input storage. The safe contract retains its lifetime but promises no
+// caller-relative geometry. Native lowering must load the pointer it wrote.
+macos_arm64 machine parse<'source>(source: &'source TerminatedInput, output: &mut Output<'source>, base: i32) -> i64
+satisfies ParseNumber::parse via parse_binding()
+requires base == 10;
+linux_x86_64 machine parse<'source>(source: &'source TerminatedInput, output: &mut Output<'source>, base: i32) -> i64
+satisfies ParseNumber::parse via linux_parse_binding()
+requires base == 10;
+
+machine refresh<'source>(source: &'source TerminatedInput, output: &mut Output<'source>) -> i64
+reaches ParseNumber {
+    ParseNumber::parse(source, output, 10)
+}
+
+machine repeat<'source>(source: &'source TerminatedInput, output: &mut Output<'source>) -> i64
+reaches ParseNumber {
+    transition { _ -> again(source, output, 2) }
+    state again(source: &'source TerminatedInput, output: &mut Output<'source>, remaining: u64) -> i64
+    requires remaining > 0 {
+        let number: i64 = ParseNumber::parse(source, output, 10);
+        transition remaining == 1 {
+            true -> done(number)
+            false -> again(source, output, remaining - 1)
+        }
+    }
+    state done(number: i64) -> i64 { number }
+}
+
+data Main {}
+machine Main::main(main: &mut Main) reaches ParseNumber crashes Trap {
+    let first: TerminatedInput = TerminatedInput { digit: 52, marker: 120, terminator: 0 };
+    let second: TerminatedInput = TerminatedInput { digit: 53, marker: 121, terminator: 0 };
+    let sentinel: u8 = 7;
+    let mut output: Output = Output { value: &sentinel };
+    let first_number: i64 = refresh(&first, &mut output);
+    let captured: &u8 = output.value;
+    let second_number: i64 = refresh(&second, &mut output);
+    let repeated_number: i64 = repeat(&second, &mut output);
+    let previous: u8 = captured;
+    let current: u8 = output.value;
+    transition first_number == 4 && second_number == 5 && repeated_number == 5 && previous == 120 && current == 121 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

@@ -19,12 +19,59 @@ struct Effect {
 enum Source {
     Incoming(StructuralArgument),
     Backing(StructuralArgument),
+    Provider(target_operations::TargetReferenceOrigin),
 }
 
 pub(in crate::lowering) struct StoredEffects {
     machines: BTreeMap<MachineId, Option<Vec<Effect>>>,
+    provider_outputs: BTreeMap<(BoundaryMachineId, u32), (StructuralTypeId, StructuralAccess)>,
+    pub(super) observations:
+        BTreeMap<MachineId, terminal_semantics::descriptor_results::DescriptorSourceObservations>,
 }
 pub(in crate::lowering) type StoredEffectCatalog = std::sync::Arc<StoredEffects>;
+
+impl StoredEffects {
+    /// Physical metadata comes from the admitted boundary's promised leaf,
+    /// never from a lifetime input's storage. The custody audit independently
+    /// captures and enforces the provider's lifetime dependencies.
+    pub(super) fn provider_origin<Dependency>(
+        &self,
+        provider: &terminal_semantics::descriptor_results::DescriptorProviderOrigin<Dependency>,
+    ) -> Option<target_operations::TargetReferenceOrigin> {
+        let (referent, access) = *self
+            .provider_outputs
+            .get(&(provider.boundary, provider.output))?;
+        if provider.invocations.is_empty()
+            || !provider.projection.exact
+            || provider.projection.indirect
+            || provider.projection.window.is_some()
+            || provider.projection.captured_at.is_some()
+        {
+            return None;
+        }
+        Some(target_operations::TargetReferenceOrigin {
+            base: target_operations::TargetReferenceOriginBase::Provider {
+                boundary: provider.boundary,
+                output: provider.output,
+                invocations: provider
+                    .invocations
+                    .iter()
+                    .map(|site| (site.machine, site.operation))
+                    .collect(),
+                referent,
+                access,
+            },
+            path: provider
+                .projection
+                .path
+                .iter()
+                .cloned()
+                .map(terminal_psi::ReferenceOriginProjection::Exact)
+                .collect(),
+            extent: semantic_vocabulary::ReferenceOriginExtent::Projected,
+        })
+    }
+}
 
 fn writable_slots(function: &AbstractFunction, types: &StructuralTypeLookup<'_>) -> bool {
     function.structural_parameters.iter().any(|parameter| {
@@ -52,13 +99,43 @@ pub(in crate::lowering) fn catalog(
         .filter(|function| writable_slots(function, types))
         .collect::<Vec<_>>();
     let mut effects = StoredEffects {
+        provider_outputs: BTreeMap::new(),
+        observations: BTreeMap::new(),
         machines: candidates
             .iter()
             .map(|function| (function.machine, None))
             .collect(),
     };
-    if candidates.is_empty() {
-        return std::sync::Arc::new(effects);
+    for boundary in boundaries {
+        if !settlements.get(&boundary.id).is_some_and(|settlement| {
+            matches!(
+                settlement.realization,
+                target_operations::BoundarySettlementRealization::NormalizedForeignCall(_)
+            )
+        }) {
+            continue;
+        }
+        for (position, output) in boundary.reference_outputs.iter().enumerate() {
+            let root = match output.destination {
+                terminal_psi::BoundaryReferenceDestination::Parameter(position) => boundary
+                    .structural_parameters
+                    .get(position as usize)
+                    .map(|parameter| parameter.structural_type),
+            };
+            let Some(StructuralTypeShape::Reference { referent, access }) = root
+                .and_then(|root| leaf_type(types, root, &output.path))
+                .and_then(|carrier| types.get(&carrier).map(|declaration| &declaration.shape))
+            else {
+                continue;
+            };
+            if *access == output.access
+                && let Ok(position) = u32::try_from(position)
+            {
+                effects
+                    .provider_outputs
+                    .insert((boundary.id, position), (*referent, *access));
+            }
+        }
     }
     let Some(graph) =
         optimization_unit_semantics::descriptor_results::abstract_reference_catalog_graph_with_boundary_preservation(
@@ -105,6 +182,13 @@ pub(in crate::lowering) fn catalog(
         return std::sync::Arc::new(effects);
     };
     let mut analysis = DescriptorAnalysis::with_reference_slots(types.catalog(), &graph);
+    // Read-only functions also observe nested reference contents. Restricting
+    // this roster to functions with write effects loses those observations.
+    for machine in &graph {
+        effects
+            .observations
+            .insert(machine.id, analysis.source_observations(machine.id));
+    }
     for function in candidates {
         let summary = analysis.stored_effects(function.machine).and_then(|rows| {
             rows.into_iter()
@@ -163,6 +247,9 @@ pub(in crate::lowering) fn catalog(
                                 }));
                             }
                             DescriptorStoredOrigin::Empty => {}
+                            DescriptorStoredOrigin::Provider(provider) => {
+                                sources.push(Source::Provider(effects.provider_origin(&provider)?));
+                            }
                             DescriptorStoredOrigin::Invocation { .. }
                             | DescriptorStoredOrigin::IncomingContents { .. }
                             | DescriptorStoredOrigin::Literal { .. }
@@ -189,12 +276,18 @@ pub(in super::super) struct Staged {
 
 pub(in super::super) fn stage(
     function: &AbstractFunction,
+    operation: semantic_vocabulary::OperationId,
     callee: Option<&AbstractFunction>,
     types: &StructuralTypeLookup<'_>,
     live: &LiveDefinitions,
     arguments: &[StructuralArgument],
 ) -> Result<Staged, LoweringError> {
-    let invalid = || LoweringError::unsupported_control_flow(function.machine);
+    let invalid = |reason| LoweringError::StoredReferenceCall {
+        caller: function.machine,
+        callee: callee.map(|callee| callee.machine),
+        operation,
+        reason,
+    };
     let mut staged = Staged {
         replacements: Vec::new(),
     };
@@ -207,29 +300,36 @@ pub(in super::super) fn stage(
                         .is_none_or(|slots| !slots.is_empty())
                 })
         }) {
-            return Err(invalid());
+            return Err(invalid(
+                "dynamic call has no stored-reference effect summary",
+            ));
         }
         return Ok(staged);
     };
     let Some(effects) = live.stored_reference_effects.machines.get(&callee.machine) else {
         return Ok(staged);
     };
-    let effects = effects.as_ref().ok_or_else(invalid)?;
+    let effects = effects
+        .as_ref()
+        .ok_or_else(|| invalid("callee stored-reference effects are unresolved"))?;
     let actual = |formal: &StructuralArgument| {
-        let argument =
-            call_source(&callee.structural_parameters, arguments, formal).ok_or_else(invalid)?;
+        let argument = call_source(&callee.structural_parameters, arguments, formal)
+            .ok_or_else(|| invalid("effect formal has no corresponding actual argument"))?;
         window_storage(function, types, live, argument.place, &argument.path)
     };
     let mut destinations = BTreeSet::new();
     for effect in effects {
         let destination = actual(&effect.destination)?;
         if !destinations.insert(destination.clone()) {
-            return Err(invalid());
+            return Err(invalid(
+                "stored-reference effects overlap at one destination",
+            ));
         }
         let carrier_type = source_contract(function, live, destination.0)
             .and_then(|ty| leaf_type(types, ty, &destination.1))
-            .ok_or_else(invalid)?;
-        let referent = referent(types, carrier_type).ok_or_else(invalid)?;
+            .ok_or_else(|| invalid("destination has no structural carrier type"))?;
+        let referent = referent(types, carrier_type)
+            .ok_or_else(|| invalid("destination carrier is not a reference"))?;
         let mut candidates = Vec::new();
         for source in &effect.sources {
             let leaf = match source {
@@ -243,15 +343,19 @@ pub(in super::super) fn stage(
                         {
                             continue;
                         }
-                        return Err(invalid());
+                        return Err(invalid("incoming reference slot has no live provenance"));
                     };
                     leaf.clone()
                 }
                 Source::Backing(formal) => {
                     let source = call_source(&callee.structural_parameters, arguments, formal)
-                        .ok_or_else(invalid)?;
+                        .ok_or_else(|| {
+                            invalid("backing formal has no corresponding actual argument")
+                        })?;
                     if reference_source_type(function, live, types, &source) != Some(referent) {
-                        return Err(invalid());
+                        return Err(invalid(
+                            "backing argument does not have the destination referent type",
+                        ));
                     }
                     ReferenceStorage {
                         root: normalized_source(function, live, types, &source)?,
@@ -260,9 +364,57 @@ pub(in super::super) fn stage(
                         placed: super::placed_source(live, &source),
                     }
                 }
+                Source::Provider(origin) => {
+                    let mut origin = origin.clone();
+                    let target_operations::TargetReferenceOriginBase::Provider {
+                        referent: promised,
+                        access,
+                        invocations,
+                        ..
+                    } = &mut origin.base
+                    else {
+                        return Err(invalid("provider output has no admitted origin"));
+                    };
+                    let projected = origin
+                        .path
+                        .iter()
+                        .map(|segment| match segment {
+                            terminal_psi::ReferenceOriginProjection::Exact(segment) => {
+                                Some(segment.clone())
+                            }
+                            _ => None,
+                        })
+                        .collect::<Option<Vec<_>>>()
+                        .ok_or_else(|| {
+                            invalid("provider output has unresolved referent projection")
+                        })?;
+                    let StructuralTypeShape::Reference {
+                        access: required, ..
+                    } = types
+                        .get(&carrier_type)
+                        .ok_or_else(|| invalid("reference carrier is undeclared"))?
+                        .shape
+                    else {
+                        return Err(invalid("provider output destination is not a reference"));
+                    };
+                    if leaf_type(types, *promised, &projected) != Some(referent)
+                        || !access_covers(*access, required)
+                    {
+                        return Err(invalid(
+                            "provider promise does not cover the destination reference",
+                        ));
+                    }
+                    invocations.insert(0, (function.machine, operation));
+                    ReferenceStorage {
+                        root: ReferenceRoot::Alternatives(vec![origin]),
+                        carrier_type,
+                        referent,
+                        placed: None,
+                    }
+                }
             };
             if leaf.carrier_type != carrier_type || leaf.referent != referent {
-                return Err(invalid());
+                return Err(invalid("source and destination reference types disagree"));
             }
             candidates.push(leaf);
         }

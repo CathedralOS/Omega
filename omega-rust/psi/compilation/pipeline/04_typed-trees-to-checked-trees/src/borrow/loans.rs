@@ -97,11 +97,15 @@ pub(super) struct StatementBorrowLoan {
 
 #[derive(Clone)]
 struct RebasedBorrowPlace {
+    /// The descriptor location before following its captured pointee. A
+    /// containing pointer is not the supplier of a stored child descriptor.
+    source_place: accesses::BorrowAccessPlace,
     place: accesses::BorrowAccessPlace,
     retained_operand: Option<checked_trees::BorrowRetainedOperand>,
     source_owner_symbol: SymbolHandle,
     parent_loan: Handle<checked_trees::BorrowLoanFact>,
     parent_lineage_is_retained: bool,
+    lifetime_only: bool,
 }
 
 /// A reference keeps its computed backing's stored descriptors live, but those
@@ -214,16 +218,19 @@ pub(super) fn returned_value_loans(
     machine_symbol: SymbolHandle,
     statement: &StatementNode,
     loan_trackers: &[StateLoanTracker],
-) -> Vec<(
-    checked_trees::statement::TransitionTargetHandle,
-    StatementBorrowLoan,
-)> {
+) -> Result<
+    Vec<(
+        checked_trees::statement::TransitionTargetHandle,
+        StatementBorrowLoan,
+    )>,
+    &'static str,
+> {
     use checked_trees::statement::{TransitionExit, TransitionTargetNode};
 
     if !is_reference_type(program, state.return_type)
         && !is_borrow_carrying_data(program, state.return_type)
     {
-        return Vec::new();
+        return Ok(Vec::new());
     }
     let returned_value = checked_trees::statement::TableLocalData {
         role: language_core::LocalBindingRole::Value,
@@ -256,15 +263,15 @@ pub(super) fn returned_value_loans(
                     .statements(state.statement_nodes)
                     .len() =>
         {
-            return expression_loans(*expression)
+            return Ok(expression_loans(*expression)?
                 .into_iter()
                 .map(|loan| (Default::default(), loan))
-                .collect();
+                .collect());
         }
         StatementNode::Transition(transition) if transition.exit == TransitionExit::Ordinary => {
             transition
         }
-        _ => return Vec::new(),
+        _ => return Ok(Vec::new()),
     };
     // Each selected arm forms its own normal result. The target handle is
     // retained beside the loan: sharing a statement does not make alternatives
@@ -272,7 +279,7 @@ pub(super) fn returned_value_loans(
     let mut returned = Vec::new();
     for target_handle in transition.targets() {
         let loans = match program.statement_table.transition_target(target_handle) {
-            TransitionTargetNode::Value(expression) => expression_loans(*expression),
+            TransitionTargetNode::Value(expression) => expression_loans(*expression)?,
             TransitionTargetNode::Named {
                 path, arguments, ..
             } => {
@@ -331,7 +338,7 @@ pub(super) fn returned_value_loans(
         };
         returned.extend(loans.into_iter().map(|loan| (target_handle, loan)));
     }
-    returned
+    Ok(returned)
 }
 
 pub(super) fn statement_borrow_loans(
@@ -343,7 +350,7 @@ pub(super) fn statement_borrow_loans(
     loan_trackers: &[StateLoanTracker],
     call_frames: Option<&validation::CallFrameResolver<'_>>,
     replacement: Option<&CarrierReplacement>,
-) -> Vec<StatementBorrowLoan> {
+) -> Result<Vec<StatementBorrowLoan>, &'static str> {
     let mut loans = stored_calls::loans(
         program,
         state,
@@ -366,8 +373,8 @@ pub(super) fn statement_borrow_loans(
         machine_symbol,
         statement,
         loan_trackers,
-    ));
-    loans
+    )?);
+    Ok(loans)
 }
 
 fn value_borrow_loans(
@@ -377,8 +384,8 @@ fn value_borrow_loans(
     machine_symbol: SymbolHandle,
     statement: &StatementNode,
     loan_trackers: &[StateLoanTracker],
-) -> Vec<StatementBorrowLoan> {
-    match statement {
+) -> Result<Vec<StatementBorrowLoan>, &'static str> {
+    Ok(match statement {
         StatementNode::Assembly(_) => Vec::new(),
         StatementNode::Assignment(assignment) => assignment_borrow_loans(
             program,
@@ -387,7 +394,7 @@ fn value_borrow_loans(
             machine_symbol,
             assignment,
             loan_trackers,
-        ),
+        )?,
         StatementNode::LocalData(local_data) => {
             // Borrow-carrying data local (`let msg: Message = Message { body: input }`):
             // the value borrows whatever its reference field is initialized from,
@@ -395,19 +402,19 @@ fn value_borrow_loans(
             if !is_reference_type(program, local_data.type_reference)
                 && is_borrow_carrying_data(program, local_data.type_reference)
             {
-                return borrow_carrying_data_loans(
+                return Ok(borrow_carrying_data_loans(
                     program,
                     state,
                     statement_index,
                     machine_symbol,
                     local_data,
                     loan_trackers,
-                );
+                ));
             }
             if !is_reference_type(program, local_data.type_reference)
                 && !element_view_local_binding(program, state, machine_symbol, local_data)
             {
-                return Vec::new();
+                return Ok(Vec::new());
             }
 
             reference_local_borrow_loans(
@@ -424,7 +431,7 @@ fn value_borrow_loans(
         | StatementNode::AssemblyFact(_)
         | StatementNode::Expression(_)
         | StatementNode::Transition(_) => Vec::new(),
-    }
+    })
 }
 
 /// A store installs the replacement's loans in its actual carrier. A projected
@@ -439,7 +446,7 @@ fn assignment_borrow_loans(
     machine_symbol: SymbolHandle,
     assignment: &checked_trees::statement::TableAssignment,
     loan_trackers: &[StateLoanTracker],
-) -> Vec<StatementBorrowLoan> {
+) -> Result<Vec<StatementBorrowLoan>, &'static str> {
     let Some(target) = borrow_access_place(
         program,
         state.symbol,
@@ -447,7 +454,7 @@ fn assignment_borrow_loans(
         assignment.target,
         machine_symbol,
     ) else {
-        return Vec::new();
+        return Ok(Vec::new());
     };
     // The lexical event owner is not necessarily the storage owner. A direct
     // computed destination has only this statement's namespace; a named
@@ -457,10 +464,10 @@ fn assignment_borrow_loans(
     let Some(target_type) = program.machine(machine_symbol).and_then(|machine| {
         validation::assignment_stored_value_type(program, machine, state, assignment)
     }) else {
-        return Vec::new();
+        return Ok(Vec::new());
     };
     if !is_reference_type(program, target_type) && !is_borrow_carrying_data(program, target_type) {
-        return Vec::new();
+        return Ok(Vec::new());
     }
     let synthetic_local = checked_trees::statement::TableLocalData {
         role: language_core::LocalBindingRole::Value,
@@ -516,22 +523,26 @@ fn assignment_borrow_loans(
             )
         }),
     );
-    destinations
-        .iter()
-        .flat_map(|destination| {
-            let destination_symbol = destination.root.as_symbol().unwrap_or(target_symbol);
-            let owner_path = owner_path_from_place_segments(program, &destination.segments);
-            loans.iter().cloned().map(move |mut loan| {
-                loan.owner_symbol = destination_symbol;
-                loan.storage_owner = destination.root;
-                loan.owner_name = program.symbols.name(destination_symbol).into();
-                let mut path = owner_path.clone();
-                path.append(&mut loan.owner_path);
-                loan.owner_path = path;
-                loan
-            })
-        })
-        .collect()
+    let mut installed = Vec::new();
+    for destination in &destinations {
+        let destination_symbol = destination.root.as_symbol().unwrap_or(target_symbol);
+        for mut loan in loans.iter().cloned() {
+            // The receiving path is relative to the captured destination. A
+            // window and its first element share one dimension; nested array
+            // elements below that boundary remain separate dimensions. Compose
+            // before converting ranges into conservative owner coordinates.
+            let projection = owner_paths::owner_place_segments(&loan.owner_path);
+            let segments =
+                facts::project_captured_view_segments(&destination.segments, &projection)
+                    .ok_or("stored reference occurrence lies outside its captured destination")?;
+            loan.owner_symbol = destination_symbol;
+            loan.storage_owner = destination.root;
+            loan.owner_name = program.symbols.name(destination_symbol).into();
+            loan.owner_path = owner_path_from_place_segments(program, &segments);
+            installed.push(loan);
+        }
+    }
+    Ok(installed)
 }
 
 /// The borrow-fact access kind matching a reference access.

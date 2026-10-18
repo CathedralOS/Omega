@@ -54,6 +54,7 @@ fn target_family_round_trip_preserves_exact_tags_callables_and_supplies() {
             scalar_ensures: Vec::new(),
             program_local_root_introductions: Vec::new(),
             content_guarantees: Vec::new(),
+            reference_outputs: Vec::new(),
             fixed_service_reach: Vec::new(),
             owning_service: None,
             published_service_ceiling: Vec::new(),

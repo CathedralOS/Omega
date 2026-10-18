@@ -125,6 +125,12 @@ pub enum LoweringError {
         machine: MachineId,
         reason: &'static str,
     },
+    StoredReferenceCall {
+        caller: MachineId,
+        callee: Option<MachineId>,
+        operation: OperationId,
+        reason: &'static str,
+    },
     DuplicateNativeCallbackArgument(OperationId),
     MultipleNativeCallbackArguments,
     UnknownNativeCallbackArgument(OperationId),

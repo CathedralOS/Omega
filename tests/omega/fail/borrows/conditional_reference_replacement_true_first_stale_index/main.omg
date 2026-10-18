@@ -1,0 +1,26 @@
+// A conditional replacement retains the incoming descriptor as an alternative.
+// A subsequent write through another holder must invalidate both destinations.
+data Inner<'a> { value: &'a mut u64; }
+data Outer<'a, 'b> { inner: &'a mut Inner<'b>; }
+
+machine maybe_replace<'a>(holder: &mut Inner<'a>, replacement: &'a mut u64, choose: bool) {
+    transition choose {
+        true -> replace(holder, replacement)
+        false -> done()
+    }
+    state replace(holder: &mut Inner<'a>, replacement: &'a mut u64) {
+        holder.value = replacement;
+    }
+    state done() {}
+}
+
+machine change(value: &mut Outer) { value.inner.value = 3u64; }
+
+machine exercise<'a>(holder: &mut Inner<'a>, replacement: &'a mut u64, choose: bool) -> u8 {
+    maybe_replace(holder, replacement, choose);
+    holder.value = 0u64;
+    let mut outer: Outer = Outer { inner: holder };
+    change(&mut outer);
+    let values: [u8; 2] = [1, 2];
+    values[holder.value]
+}

@@ -367,11 +367,13 @@ fn rebase_borrow_places_following(
         .collect();
     if source_loans.is_empty() || place.incoming_reference.is_valid() || active.contains(&place) {
         return vec![RebasedBorrowPlace {
+            source_place: place.clone(),
             retained_operand: None,
             place,
             source_owner_symbol: SymbolHandle::invalid(),
             parent_loan: Handle::invalid(),
             parent_lineage_is_retained: false,
+            lifetime_only: false,
         }];
     }
 
@@ -379,6 +381,8 @@ fn rebase_borrow_places_following(
     let rebased = source_loans
         .into_iter()
         .map(|source_loan| {
+            let lifetime_only =
+                source_loan.lineage == checked_trees::BorrowLoanLineage::LifetimeDependency;
             let remainder = &place.segments[source_loan.owner_path.len()..];
             let mut rebased_segments = Vec::with_capacity(
                 source_loan
@@ -388,9 +392,13 @@ fn rebase_borrow_places_following(
                     .saturating_add(remainder.len()),
             );
             rebased_segments.extend(source_loan.place.segments.iter().copied());
-            rebased_segments.extend(remainder.iter().copied());
+            if !lifetime_only {
+                rebased_segments.extend(remainder.iter().copied());
+            }
 
             RebasedBorrowPlace {
+                source_place: place.clone(),
+                lifetime_only,
                 // A projection can narrow an ordinary reborrow. It cannot
                 // release the input held by an earlier call result, including
                 // an identity result that named the entire input.
@@ -406,12 +414,19 @@ fn rebase_borrow_places_following(
                 // carries no borrow ancestry: children formed through it stay
                 // derived, so the reborrow resource model never sees more than
                 // the suspension shapes it can represent.
-                parent_lineage_is_retained: source_loan.lineage
-                    != checked_trees::BorrowLoanLineage::UnretainedDerived
-                    && !source_loan.call_result,
+                parent_lineage_is_retained: matches!(
+                    source_loan.lineage,
+                    checked_trees::BorrowLoanLineage::DirectRoot
+                        | checked_trees::BorrowLoanLineage::Reborrow { .. }
+                ) && !source_loan.call_result,
             }
         })
         .flat_map(|source| {
+            if source.lifetime_only {
+                // The dependency was captured before the provider call. It is
+                // not a pointer to follow through today's carrier contents.
+                return vec![source];
+            }
             // A selected descriptor can live inside computed backing. Cross
             // each current storage boundary, not only the outer named holder.
             let nested = rebase_borrow_places_following(
@@ -420,16 +435,19 @@ fn rebase_borrow_places_following(
                 loan_trackers,
                 active,
             );
-            nested.into_iter().map(move |nested| {
-                if nested.source_owner_symbol.is_valid() {
-                    nested
-                } else {
-                    RebasedBorrowPlace {
-                        place: nested.place,
-                        ..source.clone()
+            nested
+                .into_iter()
+                .map(move |nested| {
+                    if nested.source_owner_symbol.is_valid() {
+                        nested
+                    } else {
+                        RebasedBorrowPlace {
+                            place: nested.place,
+                            ..source.clone()
+                        }
                     }
-                }
-            })
+                })
+                .collect()
         })
         .collect();
     active.pop();
@@ -442,6 +460,9 @@ pub(super) fn retained_reference_lineage(
     source: &RebasedBorrowPlace,
     rebased: &[RebasedBorrowPlace],
 ) -> checked_trees::BorrowLoanLineage {
+    if source.lifetime_only {
+        return checked_trees::BorrowLoanLineage::LifetimeDependency;
+    }
     // The formation operation decides lineage, not whether the descriptor is
     // stored in a reference local, an aggregate leaf or a replacement slot.
     let is_explicit_reborrow = super::reference_borrows::direct_reborrow_target(program, formation)

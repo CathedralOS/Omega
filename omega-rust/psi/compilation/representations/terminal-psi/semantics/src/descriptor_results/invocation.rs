@@ -5,6 +5,7 @@ use super::*;
 use crate::descriptor_lifetimes::descriptor_location;
 
 pub fn public_invocation(
+    operation: semantic_vocabulary::OperationId,
     types: &[StructuralTypeDeclaration],
     slot_kind: DescriptorSlotKind,
     slot: &terminal_psi::TerminalDynamicSlot,
@@ -59,6 +60,7 @@ pub fn public_invocation(
         return None;
     }
     Some(DescriptorInvocation {
+        operation,
         target: DescriptorInvocationTarget::Public {
             extent: semantic_vocabulary::ReferenceOriginExtent::WithinRegion,
             results,

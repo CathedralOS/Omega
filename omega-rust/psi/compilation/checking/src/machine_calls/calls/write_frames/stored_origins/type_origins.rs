@@ -229,7 +229,8 @@ fn walk_declared_origins(
                         program, name, &segments,
                     );
                     origins.references.push(StoredWriteOrigin {
-                        kind: super::StoredOriginKind::Reference,
+                        lifetime_dependencies: Vec::new(),
+                        kind: super::StoredOriginKind::Reference(*access),
                         local_symbol: symbol,
                         local_path: path.clone(),
                         local_segments: segments.clone(),
@@ -301,6 +302,7 @@ fn walk_declared_origins(
                                 program, name, &segments,
                             );
                             origins.references.push(StoredWriteOrigin {
+                                lifetime_dependencies: Vec::new(),
                                 kind: super::StoredOriginKind::OpaqueRegion,
                                 local_symbol: origins.local_symbol,
                                 local_path: path,
@@ -324,6 +326,7 @@ fn walk_declared_origins(
                                 program, name, &segments,
                             );
                             origins.references.push(StoredWriteOrigin {
+                                lifetime_dependencies: Vec::new(),
                                 kind: super::StoredOriginKind::OpaqueRegion,
                                 local_symbol: origins.local_symbol,
                                 local_path: path,

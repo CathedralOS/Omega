@@ -24,6 +24,8 @@ use crate::unit::attached_unit::call_closure::BoundaryIdentity;
 use crate::unit::attached_unit::catalog::lower_program_local_root_introductions;
 use crate::unit::{Proposition, ScalarType, ValueDeclaration};
 
+mod reference_outputs;
+
 /// Declare each retained boundary, in roster order, with the parameter roster
 /// its callers bind against. Structural parameters take places from
 /// `next_place`.
@@ -148,6 +150,12 @@ pub(crate) fn lower_declarations(
             kind: plan.kind,
             scalar_requires,
             scalar_ensures,
+            reference_outputs: reference_outputs::lower(
+                identities,
+                plan,
+                &parameters,
+                structural_types,
+            )?,
             parameter_order: lower_boundary_parameter_order(
                 &plan.scalar_parameters,
                 &plan.structural_parameters,

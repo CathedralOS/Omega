@@ -68,9 +68,15 @@ fn compose_boundary(previous: PlaceSegment, next: PlaceSegment) -> Option<Option
         | (PlaceSegment::FixedRange { .. }, PlaceSegment::OpaqueRange) => {
             Some(PlaceSegment::OpaqueRange)
         }
-        (PlaceSegment::OpaqueRange, PlaceSegment::FixedIndex { .. }) => Some(PlaceSegment::Index {
-            expression: typed_trees::expression::ExpressionHandle::invalid(),
-        }),
+        (
+            PlaceSegment::OpaqueRange,
+            PlaceSegment::FixedIndex { .. } | PlaceSegment::Index { .. },
+        )
+        | (PlaceSegment::FixedRange { .. }, PlaceSegment::Index { .. }) => {
+            Some(PlaceSegment::Index {
+                expression: typed_trees::expression::ExpressionHandle::invalid(),
+            })
+        }
         (PlaceSegment::FixedRange { start, end }, PlaceSegment::FixedIndex { index }) => {
             if index >= end.checked_sub(start)? {
                 return None;

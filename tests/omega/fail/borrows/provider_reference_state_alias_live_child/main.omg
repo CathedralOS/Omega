@@ -1,0 +1,16 @@
+// An inline-looking state parameter cannot hide a borrowed provider referent
+// or restore its mutation permission while a shared child survives.
+pub data Token { generation: u64; }
+pub data Cell { value: u8; }
+pub boundary trait Acquire {
+    machine view<'owner>(owner: &'owner mut Token) -> &'owner mut Cell;
+}
+machine exercise(owner: &mut Token) -> u8 reaches Acquire {
+    let reference: &mut Cell = Acquire::view(owner);
+    let child: &u8 = &reference.value;
+    transition { _ -> mutate(reference, child) }
+    state mutate(reference: &mut Cell, child: &u8) -> u8 {
+        reference.value = 4;
+        child
+    }
+}

@@ -21,19 +21,17 @@
 //! - **Lender home.** Exactly one state's one local lends into the chain and
 //!   that state is not itself a member. Every path into the chain passes the
 //!   lender's establishment, so its home stays in place, members keep their
-//!   views, and the chain's ends discard the home. Omega's
-//!   abstract-operation ownership replay (`current_ownership/address_joins.rs`)
-//!   today disposes of a mutably joined local home only at a return, so a
-//!   chain that ends on an edge verifies here but is not yet realized natively.
+//!   views, and the chain's ends discard the home after any descendant carriers
+//!   received by that state. A previous state's home predates the current
+//!   state's arrivals, regardless of declaration or operation-ID order.
 //! - **Transferred storage.** Several lenders (or a member that lends a fresh
 //!   local while it holds the chain) meet in one parameter, whose arrivals
 //!   would otherwise join different live homes. Every member parameter is
 //!   then declared as an owned block parameter over the moved storage; each
 //!   arrival moves its home or the previous member's parameter into it, and
-//!   the chain's ends discard that parameter. Terminal verification admits
-//!   this; native realization additionally needs Omega to store into an owned
-//!   block parameter (`00_terminal-psi-to-abstract-operations` admits stores
-//!   only through exclusive parameters and owned operation results).
+//!   the chain's ends discard that parameter. Existing descriptors permit this
+//!   only with checked selected-edge retirement and a complete captured-operand
+//!   dependency judgment; descriptor death alone grants no relocation authority.
 //!
 //! Every exclusive member's arrival must lend a local or forward a member.
 //! A projected local lends its selected path but retains its complete home,
@@ -128,10 +126,16 @@ pub(super) enum ChainArrival {
 /// How one transition argument relates to a whole exclusive loan.
 enum LoanSource {
     /// The emitting state's own local, by result binding ordinal.
-    Local { binding: u32, projected: bool },
+    Local {
+        binding: u32,
+        requires_stable_home: bool,
+    },
     /// A completed value established on this exact edge. Its binding ordinal
     /// is local to the edge's operand frame, not the source state's locals.
-    Completed(u32),
+    Completed {
+        binding: u32,
+        requires_stable_home: bool,
+    },
     /// A whole forward of the emitting state's parameter at a dense index.
     Parameter(u32),
     /// A projection below the emitting state's parameter at a dense index.
@@ -145,9 +149,10 @@ enum Arrival {
     Local {
         lender: usize,
         binding: u32,
-        /// A selected subtree retains the entire lender home, never moves it
-        /// into a parameter whose type describes only the borrowed selection.
-        projected: bool,
+        /// A selected subtree cannot move its containing owner. Likewise, an
+        /// established descriptor must keep its original backing occurrence:
+        /// moving the bytes cannot retarget an already captured address.
+        requires_stable_home: bool,
         /// Exact edge and target dense coordinate of a completed producer.
         /// Several selected edges may reuse one scratch binding ordinal.
         completed: Option<(usize, usize)>,
@@ -167,6 +172,7 @@ impl LoanChains {
     /// `state_views` holds each state's block parameter declarations, in
     /// dense order, before emission.
     pub(super) fn plan(
+        checked: &checked_trees::CheckedTrees,
         plan: &CheckedComposedUnitControlMachinePlan,
         values: &checked_trees::CheckedStructuralValuePlans,
         live: &[bool],
@@ -244,13 +250,16 @@ impl LoanChains {
                     .enumerate()
                 {
                     let destination = node(target, dense as u32);
-                    match loan_source(&transfer.source, &state.operations, values) {
-                        LoanSource::Local { binding, projected } => {
+                    match loan_source(checked, transfer, &state.operations, values) {
+                        LoanSource::Local {
+                            binding,
+                            requires_stable_home,
+                        } => {
                             if let Some(destination) = destination {
                                 arrivals[destination].push(Arrival::Local {
                                     lender: source,
                                     binding,
-                                    projected,
+                                    requires_stable_home,
                                     completed: None,
                                 });
                             }
@@ -263,12 +272,15 @@ impl LoanChains {
                                 entry_loans.entry(binding).or_default().push(destination);
                             }
                         }
-                        LoanSource::Completed(binding) => {
+                        LoanSource::Completed {
+                            binding,
+                            requires_stable_home,
+                        } => {
                             if let Some(destination) = destination {
                                 arrivals[destination].push(Arrival::Local {
                                     lender: source,
                                     binding,
-                                    projected: false,
+                                    requires_stable_home,
                                     completed: Some((edge_index, dense)),
                                 });
                             }
@@ -314,6 +326,33 @@ impl LoanChains {
                 }
             }
         }
+        // One storage occurrence has one lifetime owner, even when different
+        // descriptors lend it to otherwise disconnected successor parameters.
+        // Joining only forwarded parameters lets two chains independently put
+        // a death on the other's lending edge. Merge those member sets before
+        // choosing backing and placing any selected-edge cleanup.
+        let mut home_members = Vec::new();
+        for (destination, incoming) in arrivals.iter().enumerate() {
+            for arrival in incoming {
+                if let Arrival::Local {
+                    lender,
+                    binding,
+                    completed,
+                    ..
+                } = arrival
+                {
+                    let home = (*lender, *binding, *completed);
+                    if let Some((_, first)) = home_members
+                        .iter()
+                        .find(|(candidate, _)| *candidate == home)
+                    {
+                        link(&mut links, *first, destination);
+                    } else {
+                        home_members.push((home, destination));
+                    }
+                }
+            }
+        }
         let roots = (0..nodes.len())
             .map(|node| representative(&mut links, node))
             .collect::<Vec<_>>();
@@ -331,9 +370,14 @@ impl LoanChains {
                     .and_then(|edge| edge.transfers.get(dense))
                     .and_then(|transfer| match &transfer.source {
                         CheckedStructuralControlTransferSourcePlan::EstablishedValue {
+                            operands,
                             establishment,
                             ..
-                        } => establishment.structural_result_binding(),
+                        } => operands
+                            .iter()
+                            .chain(std::iter::once(establishment.as_ref()))
+                            .filter_map(|operation| operation.structural_result_binding())
+                            .find(|result| result.binding_ordinal == binding),
                         _ => None,
                     })
                     .filter(|result| result.binding_ordinal == binding)
@@ -395,7 +439,7 @@ impl LoanChains {
             let mut members = Vec::new();
             let mut lenders = BTreeSet::new();
             let mut multiplicity = None;
-            // A projected member needs the lender home to outlive its selected path.
+            // A projection or established descriptor keeps its original home.
             let mut derived = false;
             for (index, &(position, dense)) in nodes.iter().enumerate() {
                 if roots[index] != root {
@@ -413,15 +457,15 @@ impl LoanChains {
                             lender,
                             binding,
                             completed,
-                            projected,
+                            requires_stable_home,
                         } => {
                             // The checked loan already retains its exact selected
                             // type and path. Its backing has the containing type:
                             // compare whole homes only for whole-value arrivals.
                             // Projected arrivals force retained-home lifetime,
                             // so no subtree can become ownership of its parent.
-                            derived |= projected;
-                            if !projected
+                            derived |= requires_stable_home;
+                            if !requires_stable_home
                                 && !presents(
                                     local_result(*lender, *binding, *completed)?.type_identity,
                                     parameter,
@@ -597,7 +641,7 @@ impl LoanChains {
             .iter()
             .map(|parameter| parameter.place)
             .collect::<Vec<_>>();
-        for chain in &self.chains {
+        for (chain_index, chain) in self.chains.iter().enumerate() {
             if chain.multiplicity != StructuralMultiplicity::Affine {
                 continue;
             }
@@ -666,13 +710,9 @@ impl LoanChains {
                             storage: home,
                             forwarded: Forwarding::IntoMember(&member_headers),
                             dependent_carriers: &dependent_carriers,
-                            position: DisposalPosition::OperationResult {
-                                producer: *producers.get(&home).ok_or(
-                                    LoweringError::Unsupported(
-                                        "Unit graph state loan chain home has no producer",
-                                    ),
-                                )?,
-                                producers: &producers,
+                            position: DisposalPosition::RetainedHome {
+                                earlier_homes: self.earlier_homes(chain_index, &producers)?,
+                                machine_parameters: &machine_parameters,
                             },
                         }
                     }
@@ -699,6 +739,68 @@ impl LoanChains {
             }
         }
         Ok(())
+    }
+
+    /// A home predates another when it already lives in the latter's lender
+    /// state. Producer order decides only births within the same state; state
+    /// declaration order cannot order different dynamic lifetimes.
+    fn earlier_homes(
+        &self,
+        current: usize,
+        producers: &BTreeMap<PlaceId, OperationId>,
+    ) -> Result<Vec<PlaceId>, LoweringError> {
+        let mut pending = vec![current];
+        let mut visited = vec![current];
+        let mut earlier = Vec::new();
+        while let Some(younger) = pending.pop() {
+            let ChainBacking::LenderHome {
+                home: Some(younger_home),
+                lender,
+            } = self.chains[younger].backing
+            else {
+                continue;
+            };
+            for (candidate, chain) in self.chains.iter().enumerate() {
+                let ChainBacking::LenderHome {
+                    home: Some(home),
+                    lender: other_lender,
+                } = chain.backing
+                else {
+                    continue;
+                };
+                if candidate == younger {
+                    continue;
+                }
+                let precedes = if lender == other_lender {
+                    let older_birth = producers.get(&home).ok_or(LoweringError::Unsupported(
+                        "retained loan home has no producer",
+                    ))?;
+                    let younger_birth =
+                        producers
+                            .get(&younger_home)
+                            .ok_or(LoweringError::Unsupported(
+                                "retained loan home has no producer",
+                            ))?;
+                    older_birth < younger_birth
+                } else {
+                    chain.members.iter().any(|(state, _, _)| *state == lender)
+                };
+                if !precedes {
+                    continue;
+                }
+                if candidate == current {
+                    return Err(LoweringError::Unsupported(
+                        "retained state loan homes have cyclic lifetime dependencies",
+                    ));
+                }
+                if !visited.contains(&candidate) {
+                    visited.push(candidate);
+                    pending.push(candidate);
+                    earlier.push(home);
+                }
+            }
+        }
+        Ok(earlier)
     }
 }
 
@@ -819,15 +921,36 @@ fn retain_on_chain_arrival(
 
 /// The successor argument's relation to a retained whole home.
 fn loan_source(
-    source: &CheckedStructuralControlTransferSourcePlan,
+    checked: &checked_trees::CheckedTrees,
+    transfer: &checked_trees::CheckedStructuralControlTransferPlan,
     operations: &[checked_trees::CheckedUnitEffectOperationPlan],
     values: &checked_trees::CheckedStructuralValuePlans,
 ) -> LoanSource {
-    if let Some((subject, projected)) = super::super::result_custody::loan_subject(source, values) {
+    if let Some(backing) =
+        super::super::result_custody::transferred_loan_backing(checked, operations, transfer)
+    {
+        return if backing.completed {
+            LoanSource::Completed {
+                binding: backing.binding,
+                requires_stable_home: backing.retiring_carrier.is_none(),
+            }
+        } else {
+            LoanSource::Local {
+                binding: backing.binding,
+                requires_stable_home: backing.retiring_carrier.is_none(),
+            }
+        };
+    }
+    if let Some((subject, projected)) =
+        super::super::result_custody::loan_subject(&transfer.source, values)
+    {
         if let Some(binding) = subject.source.current_result_binding(operations) {
+            // A projection through a descriptor still needs that local carrier
+            // to survive the arrival. Retain its home, never transfer or dispose
+            // of the caller/provider-owned referent selected through it.
             return LoanSource::Local {
                 binding,
-                projected: projected || !subject.path.is_empty(),
+                requires_stable_home: projected || !subject.path.is_empty(),
             };
         }
         return match subject.source {
@@ -842,26 +965,29 @@ fn loan_source(
             _ => LoanSource::Other,
         };
     }
-    match source {
+    match &transfer.source {
         CheckedStructuralControlTransferSourcePlan::EstablishedValue {
             establishment,
             presentation,
             ..
         } => {
             if !presentation.path.is_empty() {
-                // A descriptor crossing lends external backing, not this
-                // completed home's storage. Its carrier custody stays separate.
+                // No local formation relation was found above. The completed
+                // descriptor itself is not ownership of its selected referent.
                 return LoanSource::Other;
             }
             establishment
                 .structural_result_binding()
-                .map(|result| LoanSource::Completed(result.binding_ordinal))
+                .map(|result| LoanSource::Completed {
+                    binding: result.binding_ordinal,
+                    requires_stable_home: false,
+                })
                 .unwrap_or(LoanSource::Other)
         }
         CheckedStructuralControlTransferSourcePlan::StructuralResult { binding_ordinal } => {
             LoanSource::Local {
                 binding: *binding_ordinal,
-                projected: false,
+                requires_stable_home: false,
             }
         }
         CheckedStructuralControlTransferSourcePlan::Parameter { index } => {
@@ -969,6 +1095,14 @@ enum DisposalPosition<'a> {
     OperationResult {
         producer: OperationId,
         producers: &'a BTreeMap<PlaceId, OperationId>,
+    },
+    /// Storage established before this state's arrival outlives its locals
+    /// and parameters, including owned aggregates carrying aliases to it.
+    /// Checked chain containment orders retained homes across state arrivals;
+    /// unrelated state's operation IDs provide no lifetime evidence.
+    RetainedHome {
+        earlier_homes: Vec<PlaceId>,
+        machine_parameters: &'a [PlaceId],
     },
     /// After every operation result and local: block parameters in reverse
     /// declaration order, ahead of the invocation's own parameters.
@@ -1128,6 +1262,12 @@ impl ChainExit<'_> {
                     || header_parameters
                         .iter()
                         .any(|(candidate, earlier)| candidate == discard && earlier < position)
+            }),
+            DisposalPosition::RetainedHome {
+                earlier_homes,
+                machine_parameters,
+            } => discards.iter().position(|discard| {
+                machine_parameters.contains(discard) || earlier_homes.contains(discard)
             }),
         };
         // Captured descriptors can be receiving block parameters even though

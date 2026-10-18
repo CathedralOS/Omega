@@ -146,6 +146,37 @@ pub enum BoundaryDeclarationRole {
     ContractEvidence,
 }
 
+/// A promised descriptor on normal completion of an admitted provider call.
+/// Its dependencies limit lifetime, not where the opaque referent is located.
+/// Coordinates use the packed structural parameter lane, not authored ordinals.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct BoundaryReferenceOutput {
+    pub destination: BoundaryReferenceDestination,
+    pub path: Vec<crate::StructuralPathSegment>,
+    pub access: crate::StructuralAccess,
+    pub dependencies: Vec<BoundaryLifetimeDependency>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum BoundaryReferenceDestination {
+    Parameter(u32),
+}
+
+/// A borrowed formal's referent and a descriptor in its storage are distinct
+/// lifetime anchors, including when the stored descriptor has an empty path.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum BoundaryLifetimeDependency {
+    Referent {
+        argument_index: u32,
+        access: crate::StructuralAccess,
+    },
+    Stored {
+        argument_index: u32,
+        path: Vec<crate::StructuralPathSegment>,
+        access: crate::StructuralAccess,
+    },
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct BoundaryMachineDeclaration {
     pub id: BoundaryMachineId,
@@ -195,6 +226,7 @@ pub struct BoundaryMachineDeclaration {
     /// Normal-return guarantees in the scalar-formal namespace. A scalar result
     /// uses the position immediately following the input scalar parameters.
     pub scalar_ensures: Vec<Proposition>,
+    pub reference_outputs: Vec<BoundaryReferenceOutput>,
     /// Exact portable schemas authorized by this requirement's domain routes.
     /// These rows describe per-occurrence capacity but introduce no authority;
     /// installation must still bind a concrete occurrence and cardinality.

@@ -115,6 +115,7 @@ impl ReferenceCallEffects {
                                         // reference permission at an executable address.
                                         DescriptorStoredOrigin::Invocation { .. }
                                         | DescriptorStoredOrigin::IncomingContents { .. }
+                                        | DescriptorStoredOrigin::Provider(_)
                                         | DescriptorStoredOrigin::Empty | DescriptorStoredOrigin::Literal { .. } | DescriptorStoredOrigin::PlacedFormation { .. } => None,
                                     }
                                 })

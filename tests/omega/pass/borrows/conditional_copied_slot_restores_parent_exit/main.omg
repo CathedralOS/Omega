@@ -1,0 +1,38 @@
+// Expected exit: 0
+// Preserve and replace branches retain the copied descriptor's parent ancestry.
+data Holder<'a> [copy] { value: &'a u64; }
+
+machine maybe_replace<'a>(choice: bool, holder: &mut Holder<'a>, replacement: &'a u64) {
+    transition choice {
+        true -> write(holder, replacement)
+        false -> done()
+    }
+    state write(holder: &mut Holder<'a>, replacement: &'a u64) {
+        holder.value = replacement;
+    }
+    state done() {}
+}
+
+machine selected(choice: bool) -> bool {
+    let mut original: u64 = 7;
+    let replacement: u64 = 42;
+    let parent: &mut u64 = &mut original;
+    let mut holder: Holder = Holder { value: &replacement };
+    let slot: &mut Holder = &mut holder;
+    slot.value = &parent;
+    maybe_replace(choice, slot, &parent);
+    let copied: &u64 = slot.value;
+    slot.value = &replacement;
+    let observed: u64 = copied;
+    parent = 9;
+    observed == 7 && parent == 9 && slot.value == 42
+}
+
+machine main() crashes Trap {
+    transition selected(true) && selected(false) {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

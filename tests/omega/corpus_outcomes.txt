@@ -672,6 +672,12 @@ fail/borrows/affine_array_projection_copy rejected 504ms expected @c9eefa9130a0+
 	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `invalid`, state `entry` (statement 0)
 fail/borrows/affine_record_copy_handoff rejected 1237ms expected @a9ae30e1c334+wt
 	cannot use `settings` in machine `inspect` state `entry` (statement 2) after `settings` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `settings` first
+fail/borrows/aliased_descriptor_slot_suspended_call rejected 620ms expected @3ea0aec65b44+wt
+	state `identity` receives `alias.value` while local borrow `exclusive` is still active (borrowed at statement 3; its last use is at statement 5 and it is released at state exit)
+fail/borrows/aliased_descriptor_slot_suspended_read rejected 626ms expected @3ea0aec65b44+wt
+	statement 4 reads `alias.value` while local borrow `exclusive` is still active (borrowed at statement 3; its last use is at statement 5 and it is released at state exit)
+fail/borrows/aliased_descriptor_slot_suspended_reborrow rejected 622ms expected @3ea0aec65b44+wt
+	statement 4 borrows `alias.value` while local borrow `exclusive` is still active (borrowed at statement 3; its last use is at statement 5 and it is released at state exit)
 fail/borrows/array_carried_reference_live_source_move rejected 1533ms expected @a9ae30e1c334+wt
 	statement 1 moves `main.inventory` while local borrow `loans` is still active (borrowed at statement 0; its last use is at statement 2)
 fail/borrows/array_carried_reference_live_source_write rejected 5100ms expected @a9ae30e1c334+wt
@@ -766,7 +772,13 @@ fail/borrows/completed_selector_join_unknown_arm rejected 1980ms expected @89bb9
 	cannot prove index `1` is within unknown slice length of `b` in exercise::entry
 fail/borrows/computed_case_copy_requires_live_bounds rejected 428ms expected @6043bf4a18bd+wt
 	cannot prove index `select()` is within unknown slice length of `cells` in copy::entry
+fail/borrows/conditional_copied_slot_retains_parent_loan rejected 637ms expected @3ea0aec65b44+wt
+	statement 9 mutates `parent` while local borrow `copied` is still active (borrowed at statement 7; its last use is at statement 10)
 fail/borrows/conditional_overlapping_field_loans rejected 4727ms expected @16ed47526a08
+fail/borrows/conditional_reference_replacement_false_first_stale_index rejected 621ms expected @3ea0aec65b44+wt
+	cannot prove index `holder.value` is within length 2 in exercise::entry
+fail/borrows/conditional_reference_replacement_true_first_stale_index rejected 620ms expected @3ea0aec65b44+wt
+	cannot prove index `holder.value` is within length 2 in exercise::entry
 fail/borrows/conditional_returned_descriptor_local_escape rejected 593ms expected @137efb5802df
 	machine `select` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 fail/borrows/constant_temporary_reference_escape rejected 620ms expected @1bce9ab2e5d5+wt
@@ -778,6 +790,8 @@ fail/borrows/constructor_reference_element_mismatch rejected 903ms expected @a9a
 	construction of `Choice` field `bytes` expects reference `&mut [u16]`, but the source does not supply its carrier and access
 fail/borrows/consumed_nominal_carrier_retains_backing rejected 2334ms expected @a9ae30e1c334+wt
 	statement 3 mutates `backing` while local borrow `reference` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
+fail/borrows/copied_borrowed_slot_retains_parent_loan rejected 626ms expected @3ea0aec65b44+wt
+	statement 8 mutates `parent` while local borrow `copied` is still active (borrowed at statement 6; its last use is at statement 9)
 fail/borrows/copied_byte_predicate_invalidated_by_destination_write rejected 909ms expected @ef7962801508
 	cannot prove requires contract for call take_ascii from overwrite_copy: ascii_only(saved) (needs fact `ascii_only(value)` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/borrows/copied_computed_backing_retains_nested_loan rejected 1615ms expected @a9ae30e1c334+wt
@@ -860,6 +874,12 @@ fail/borrows/float_comparison_read_during_live_exclusive_loan rejected 36720ms e
 	statement 2 reads `level` while local borrow `raised` is still active (borrowed at statement 1; its last use is at statement 3)
 fail/borrows/float_selection_store_through_shared_receiver rejected 5191ms expected @a9ae30e1c334+wt
 	machine `replace` state `entry` assignment cannot write `destination` because it is not mutable in this state (if `destination` is undeclared -- a typo -- no such field or local exists)
+fail/borrows/foreign_output_copied_lifetime_source_write rejected 629ms expected @3ea0aec65b44+wt
+	statement 7 mutates `first[0]` while local borrow `captured` is still active (borrowed at statement 5; its last use is at statement 8 and it is released at state exit)
+fail/borrows/foreign_output_exclusive_anchor_read rejected 628ms expected @3ea0aec65b44+wt
+	state `observe` receives `source` while local borrow `output` is still active (borrowed at statement 3; its last use is at statement 5)
+fail/borrows/foreign_output_live_lifetime_source_write rejected 626ms expected @3ea0aec65b44+wt
+	statement 4 mutates `source[0]` while local borrow `output` is still active (borrowed at statement 3; its last use is at statement 5 and it is released at state exit)
 fail/borrows/fresh_selector_borrow_has_no_parent_capture rejected 1554ms expected @a9ae30e1c334+wt
 	statement 3 creates local borrow `fresh` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 4)
 	statement 4 mutates `held` while local borrow `fresh` is still active (borrowed at statement 3; its last use is at statement 5 and it is released at state exit)
@@ -969,8 +989,12 @@ fail/borrows/named_jump_receiver_under_argument_loan rejected 1616ms expected @a
 	state `write_through_subject` receives `main.count` as mutable while its mutable receiver writes `main.count`
 fail/borrows/named_slice_call_result_shared_to_mutable rejected 904ms expected @a9ae30e1c334+wt
 	machine `main` state `entry` local `requested` requires mutable source access; shared or immutable storage cannot supply it
+fail/borrows/nested_array_reference_call_stale_index rejected 628ms expected @3ea0aec65b44+wt
+	cannot prove index `external` is within length 2 in exercise::entry
 fail/borrows/nested_array_shared_view_write rejected 845ms expected @a9ae30e1c334+wt
 	machine `store` state `entry` assignment cannot write `slots` because it is not mutable in this state (if `slots` is undeclared -- a typo -- no such field or local exists)
+fail/borrows/nested_reference_call_stale_index rejected 627ms expected @3ea0aec65b44+wt
+	cannot prove index `external` is within length 2 in exercise::entry
 fail/borrows/nested_reference_live_source_write rejected 1573ms expected @a9ae30e1c334+wt
 	statement 2 mutates `cell.value` while local borrow `message` is still active (borrowed at statement 0; its last use is at statement 3)
 fail/borrows/nested_result_retains_operand_loan rejected 568ms expected @c4c0ab7a5d11
@@ -1035,6 +1059,8 @@ fail/borrows/projected_descriptor_retains_backing_loan rejected 1869ms expected 
 	statement 2 mutates `cells[1].value` while local borrow `envelope` is still active (borrowed at statement 1; its last use is at statement 3)
 fail/borrows/projected_fixed_array_shared_source_mutable_local rejected 178ms expected @77acc22653d9
 	machine `violate` state `entry` local `requested` requires mutable source access; shared or immutable storage cannot supply it
+fail/borrows/provider_reference_state_alias_live_child rejected 625ms expected @3ea0aec65b44+wt
+	state `mutate` receives `reference` while local borrow `child` is still active
 fail/borrows/qualified_byte_element_mutable_call_rejected rejected 1636ms expected @a9ae30e1c334+wt
 	cannot prove default-domain field requirement for return from Packet::main at statement 1: packet.bytes requires [u8; N]::Ascii
 fail/borrows/qualified_state_loan_invalid_membership rejected 897ms expected @2ef2ab353498+wt
@@ -1090,12 +1116,16 @@ fail/borrows/reference_carrier_state_shared_write rejected 323ms expected @847c9
 	machine `forbidden` state `write` assignment requires mutable source access through every reference crossed by its destination
 fail/borrows/reference_carrier_store_while_shared rejected 1634ms expected @a9ae30e1c334+wt
 	statement 2 mutates `carrier.destination` while local borrow `observed` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
+fail/borrows/reference_join_escaping_alternative rejected 603ms expected @908dbe8ea8ca+wt
+	machine `choose` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 fail/borrows/reference_record_duplicate_mutable rejected 5388ms expected @a9ae30e1c334+wt
 	`pair` holds `main.first` as mutable more than once
 fail/borrows/reference_record_index_predicate_invalid_store rejected 251ms expected @ef7962801508
 	machine `corrupt` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
 fail/borrows/reference_record_mutable_shared_overlap rejected 5575ms expected @a9ae30e1c334+wt
 	`view` holds `main.first` as both mutable and read-only
+fail/borrows/region_store_live_sibling_reference rejected 632ms expected @3ea0aec65b44+wt
+	statement 9 mutates `parent` while local borrow `holders` is still active (borrowed at statement 5; it is reassigned at statement 11)
 fail/borrows/replaced_carrier_keeps_new_backing_loan rejected 1705ms expected @a9ae30e1c334+wt
 	statement 4 mutates `replacement.value` while local borrow `holder` is still active (borrowed at statement 3; its last use is at statement 5 and it is released at state exit)
 fail/borrows/returned_case_reference_live_source_write rejected 2145ms expected @a9ae30e1c334+wt
@@ -6850,6 +6880,7 @@ pass/borrow/write_only_composed_forward_exit checked 11148ms check-target:macos_
 pass/borrow/write_only_constrained_record_field checked 1597ms @a9ae30e1c334+wt
 pass/borrow/write_only_projected_state_receiver_exit checked 10286ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrow/write_only_whole_scalar_replace checked 1541ms @a9ae30e1c334+wt
+pass/borrows/aliased_descriptor_slot_after_last_use_exit checked 3685ms check-target:macos_arm64 @3ea0aec65b44+wt
 pass/borrows/borrow_domain_window_write_and_call checked 10327ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/borrow_guarded_window_write_and_call checked 10371ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/borrow_returned_window_write_and_call checked 10236ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -6858,6 +6889,7 @@ pass/borrows/borrowed_array_loop checked 9903ms @5041ef1af684+wt
 pass/borrows/borrowed_case_leaf_copy_exit checked 11053ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/borrowed_record_stack_parameter_writeback_exit checked 11190ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/borrowed_sum_dispatch checked 9483ms @5041ef1af684+wt
+pass/borrows/boundary_scalar_slice_write_exit checked 3682ms check-target:macos_arm64 @3ea0aec65b44+wt
 pass/borrows/branch_selected_record_composed_receiver_exit checked 11336ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/branch_selected_record_receiver_exit checked 11241ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/callee_returned_shared_reborrow_chain_exit checked 6325ms check-target:macos_arm64 @22286cb27fcc
@@ -6869,8 +6901,10 @@ pass/borrows/case_payload_state_loan_exit checked 10970ms check-target:macos_arm
 pass/borrows/collection_element_loans_exit checked 5787ms check-target:macos_arm64 @d840c6ae9019+wt
 pass/borrows/completed_selector_join_pattern_effect_exit checked 13025ms check-target:macos_arm64 @89bb9e0009e9
 pass/borrows/completed_selector_value_composition_exit checked 13787ms check-target:macos_arm64 @89bb9e0009e9
+pass/borrows/conditional_copied_slot_restores_parent_exit checked 3687ms check-target:macos_arm64 @3ea0aec65b44+wt
 pass/borrows/constant_shared_boundary_exit checked 3644ms check-target:macos_arm64 @1bce9ab2e5d5+wt
 pass/borrows/constructor_reference_access checked 1653ms @a9ae30e1c334+wt
+pass/borrows/copied_borrowed_slot_restores_parent_exit checked 3682ms check-target:macos_arm64 @3ea0aec65b44+wt
 pass/borrows/data_copy_property checked 9605ms @5041ef1af684+wt
 pass/borrows/disjoint_branch_closure_with_grandchild checked 10342ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/dynamic_window_return_custody_exit checked 3476ms check-target:macos_arm64 @ea7b63644a0a+wt
@@ -6879,6 +6913,10 @@ pass/borrows/exclusive_array_parameter_shared_lend_exit checked 11022ms check-ta
 pass/borrows/explicit_lifetime_select checked 9442ms @5041ef1af684+wt
 pass/borrows/fixed_array_reference_backing_exit checked 3328ms check-target:macos_arm64 @c4c0ab7a5d11
 pass/borrows/fixed_array_reference_results_exit checked 9558ms check-target:macos_arm64 @b7c17b88b59d
+pass/borrows/foreign_output_captured_reference_exit checked 3727ms check-target:macos_arm64 @3ea0aec65b44+wt
+pass/borrows/foreign_output_copied_lifetime_last_use checked 684ms @3ea0aec65b44+wt
+pass/borrows/foreign_output_exclusive_anchor_exit checked 3602ms check-target:macos_arm64 @3ea0aec65b44+wt
+pass/borrows/incoming_reference_slot_replacement_exit checked 3580ms check-target:macos_arm64 @3ea0aec65b44+wt
 pass/borrows/indexed_record_field_replacement_exit checked 11018ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/interleaved_parameter_field_replacement_exit checked 11225ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/later_state_reference_field_loan_exit checked 5181ms check-target:macos_arm64 @d75fe4ba5012+wt
@@ -6900,8 +6938,10 @@ pass/borrows/mut_loan_local_write_through_exit checked 10956ms check-target:maco
 pass/borrows/mutable_record_loan_read_in_state_arms_exit checked 11128ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/mutable_reference_match_local checked 10255ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/nested_reference_byte_observations_exit checked 11122ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/borrows/nested_reference_call_checked_index_exit checked 3680ms check-target:macos_arm64 @3ea0aec65b44+wt
 pass/borrows/nested_reference_crossings_exit checked 11202ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/nested_reference_leaf_projection_exit checked 11053ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/borrows/nested_reference_write_disjoint_facts_exit checked 3600ms check-target:macos_arm64 @3ea0aec65b44+wt
 pass/borrows/opaque_generic_owned_input_declaration checked 817ms @3d1bd96aeaa5
 pass/borrows/opaque_generic_reference_readers checked 812ms @3d1bd96aeaa5
 pass/borrows/opaque_generic_shared_stored_writeonly_provider checked 628ms @3d1bd96aeaa5
@@ -6928,6 +6968,7 @@ pass/borrows/qualified_owner_state_loan_exit checked 5010ms check-target:macos_a
 pass/borrows/qualified_record_view_call_exit checked 11199ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/reference_aggregate_disjoint_mutable_leaves_exit checked 10923ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/reference_parameter_field_store_exit checked 15020ms check-target:macos_arm64 @8df1d091a810
+pass/borrows/region_stored_reference_occurrences_exit checked 3615ms check-target:macos_arm64 @3ea0aec65b44+wt
 pass/borrows/retained_envelope_refs checked 9757ms @5041ef1af684+wt
 pass/borrows/returned_owned_byte_field_snapshot_exit checked 10942ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/returned_primitive_reference_assignment_capture_exit checked 3004ms check-target:macos_arm64 @c69e20ea61aa+wt
@@ -7829,6 +7870,7 @@ pass/control_flow/runtime_branching_helper_string checked 10865ms check-target:m
 pass/control_flow/runtime_captured_case_reference_arm_forwarding_exit checked 11554ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/control_flow/runtime_captured_case_reference_child_arm_forwarding_exit checked 11381ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/control_flow/runtime_captured_local_remutated_field_exit checked 11922ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/control_flow/runtime_carried_local_reference_backing_exit checked 7248ms check-target:macos_arm64 @3ea0aec65b44+wt
 pass/control_flow/runtime_compare_pair_dispatch_exit checked 11376ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/control_flow/runtime_completed_readonly_home_replacement_exit checked 10988ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/control_flow/runtime_computed_case_subject_call_operand_exit checked 11423ms check-target:macos_arm64 @a9ae30e1c334+wt

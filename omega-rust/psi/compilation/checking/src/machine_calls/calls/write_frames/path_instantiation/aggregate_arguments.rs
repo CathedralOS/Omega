@@ -9,9 +9,7 @@ use crate::machine_calls::calls::write_frames::FrameInference;
 use crate::machine_calls::calls::write_frames::isolation::{
     aggregate_storage_types_match, struct_literal_matches_expected_type,
 };
-use crate::machine_calls::calls::write_frames::reference_origins::{
-    exclusive_reference_origins, referent_has_only_owned_storage,
-};
+use crate::machine_calls::calls::write_frames::reference_origins::exclusive_reference_origins;
 use crate::machine_calls::calls::write_frames::stored_origins::{
     demand_is_declared, place_suffix, symbolic_reference_leaves,
 };
@@ -22,7 +20,7 @@ use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
 
-pub(super) fn written_paths(
+pub(in crate::machine_calls::calls::write_frames) fn written_paths(
     program: &dyn crate::CheckingInput,
     caller_machine: &Machine,
     argument: ExpressionHandle,
@@ -49,6 +47,10 @@ pub(super) fn written_paths(
     )?;
     let mut written = Vec::new();
     for leaf in leaves.references {
+        if matches!(leaf.kind, super::super::stored_origins::StoredOriginKind::Reference(access) if !access.is_exclusive())
+        {
+            continue;
+        }
         let origin = leaf.origin?;
         if !written.contains(&origin.path) {
             written.push(origin.path);
@@ -61,6 +63,7 @@ pub(super) fn written_paths(
 /// aggregate declarations. Only the string view coarsens array selectors.
 #[derive(Clone)]
 pub(in crate::machine_calls::calls::write_frames) struct ReferenceLeaf {
+    pub lifetime_dependencies: Vec<super::super::stored_calls::SlotSource>,
     pub kind: super::super::stored_origins::StoredOriginKind,
     pub local_suffix: String,
     pub local_segments: Vec<PlaceSegment>,
@@ -264,23 +267,19 @@ pub(in crate::machine_calls::calls::write_frames) fn reference_leaves(
                     scope,
                 ));
             }
-            TypeReferenceNode::Reference {
-                access, referee, ..
-            } => {
+            TypeReferenceNode::Reference { access, .. } => {
                 if !access.is_exclusive() && !include_shared {
                     continue;
                 }
-                let origins = (include_shared
-                    || referent_has_only_owned_storage(program, *referee))
-                .then(|| resolve_reference(expression, reference, false, inference))
-                .flatten();
+                let origins = resolve_reference(expression, reference, false, inference);
                 let Some(origins) = origins else {
                     leaves.references.push(ReferenceLeaf {
-                        kind: super::super::stored_origins::StoredOriginKind::Reference,
+                        kind: super::super::stored_origins::StoredOriginKind::Reference(*access),
                         local_suffix,
                         local_segments,
                         may_select: false,
                         origin: None,
+                        lifetime_dependencies: Vec::new(),
                     });
                     continue;
                 };
@@ -290,7 +289,7 @@ pub(in crate::machine_calls::calls::write_frames) fn reference_leaves(
                         FramePathPrecision::CollectionCoarse => origin.path,
                     };
                     leaves.references.push(ReferenceLeaf {
-                        kind: super::super::stored_origins::StoredOriginKind::Reference,
+                        kind: super::super::stored_origins::StoredOriginKind::Reference(*access),
                         local_suffix: local_suffix.clone(),
                         local_segments: local_segments.clone(),
                         may_select: false,
@@ -299,6 +298,7 @@ pub(in crate::machine_calls::calls::write_frames) fn reference_leaves(
                             precision: origin.precision,
                             source: origin.source,
                         }),
+                        lifetime_dependencies: Vec::new(),
                     });
                 }
             }

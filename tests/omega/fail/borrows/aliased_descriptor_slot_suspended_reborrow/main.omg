@@ -1,0 +1,10 @@
+data Holder<'a> [copy] { value: &'a u64; }
+
+machine exercise() -> bool {
+    let value: u64 = 7;
+    let mut holder: Holder = Holder { value: &value };
+    let alias: &mut Holder = &mut holder;
+    let exclusive: &mut Holder = &mut alias;
+    let copied: &u64 = &alias.value;
+    copied == 7 && exclusive.value == 7
+}

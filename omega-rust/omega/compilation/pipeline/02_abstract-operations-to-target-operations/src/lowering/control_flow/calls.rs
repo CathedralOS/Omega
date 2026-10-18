@@ -207,6 +207,7 @@ pub(super) fn lower_call(
     let moved = super::references::moved_argument_leaves(live, call.structural_arguments);
     let stored = super::references::stage_stored_effects(
         function,
+        call.psi_operation,
         callee_function,
         types,
         live,

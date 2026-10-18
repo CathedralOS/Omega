@@ -273,6 +273,13 @@ impl<'program> CallFrameResolver<'program> {
             .map(|(_, _, _, effects)| super::stored_calls::public_effects(effects))
     }
 
+    /// A reachable opaque output slot needs a complete normal-exit relation,
+    /// even when failed attribution installed no loans. Nested borrowed slots
+    /// use the same inventory as effect construction; unknown is not empty.
+    pub fn provider_output_relation_required(&self, target: SymbolHandle) -> bool {
+        super::stored_calls::provider_output_relation_required(self.program, target)
+    }
+
     /// Reference inventory after destination and RHS evaluation, before the
     /// assignment's own store. Operand calls can introduce descriptor leaves
     /// absent at entry, so an entry inventory is not a complete store frontier.

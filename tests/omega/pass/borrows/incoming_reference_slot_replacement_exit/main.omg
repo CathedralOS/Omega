@@ -1,0 +1,33 @@
+// Expected exit: 0
+// A copied reference retains its old pointee when a direct or nested borrowed
+// slot receives a new pointer. Reading that slot observes the new pointee.
+data Holder<'a> [copy] { value: &'a u64; }
+data Outer<'a, 'b> { holder: &'a mut Holder<'b>; }
+
+machine replace<'a>(holder: &mut Holder<'a>, replacement: &'a u64) -> bool {
+    let old: &'a u64 = holder.value;
+    holder.value = replacement;
+    old == 7u64 && holder.value == 42u64
+}
+
+machine nested<'a, 'b>(outer: &mut Outer<'a, 'b>, replacement: &'b u64) -> bool {
+    let old: &'b u64 = outer.holder.value;
+    outer.holder.value = replacement;
+    old == 7u64 && outer.holder.value == 42u64
+}
+
+machine main() crashes Trap {
+    let first: u64 = 7;
+    let second: u64 = 42;
+    let mut direct: Holder = Holder { value: &first };
+    let direct_ok: bool = replace(&mut direct, &second);
+    let mut inner: Holder = Holder { value: &first };
+    let mut outer: Outer = Outer { holder: &mut inner };
+    let nested_ok: bool = nested(&mut outer, &second);
+    transition direct_ok && nested_ok {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

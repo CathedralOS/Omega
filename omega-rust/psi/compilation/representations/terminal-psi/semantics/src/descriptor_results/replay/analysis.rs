@@ -6,7 +6,78 @@ use super::*;
 pub struct DescriptorAnalysis<'a> {
     replay: Replay<'a>,
 }
+
+/// Current descriptor values demanded by each source operation. These are
+/// observations, not a roster of owned carriers or permissions.
+pub type DescriptorSourceObservations =
+    BTreeMap<DescriptorPosition, BTreeMap<DescriptorLocation, DescriptorSourceObservation>>;
+
+/// The descriptor's current carrier address and captured pointer contents are
+/// independent observations of one pre-operation snapshot. A consumer may join
+/// `storage` to its exact resident occurrence; it must not search by equal
+/// pointee geometry or interpret an absent occurrence as parentless backing.
+#[derive(Debug)]
+pub struct DescriptorSourceObservation {
+    pub storage: Option<DescriptorLocation>,
+    pub origins: Option<Vec<DescriptorSourceOrigin>>,
+}
+
 impl<'a> DescriptorAnalysis<'a> {
+    /// Retain only descriptor slots intersecting this operation's source uses.
+    /// Edge demands still observe the pre-operation frontier; a newly produced
+    /// edge value must use its producer, not an entry-type reconstruction.
+    pub fn source_observations(&mut self, identity: MachineId) -> DescriptorSourceObservations {
+        let Some(machine) = self.replay.machine(identity) else {
+            return BTreeMap::new();
+        };
+        let slots = machine
+            .place_types
+            .iter()
+            .filter_map(|(place, structural_type)| {
+                self.replay
+                    .slot_kind
+                    .inventory(self.replay.types, *place, *structural_type)
+                    .map(|inventory| inventory.slots)
+            })
+            .flatten()
+            .collect::<Vec<_>>();
+        machine
+            .flow
+            .iter()
+            .filter_map(|(position, step)| {
+                let demanded = step
+                    .inputs
+                    .iter()
+                    .chain(step.derivations.iter().map(|(source, _)| source))
+                    .chain(step.authority_derivations.iter().map(|(source, _)| source))
+                    .chain(
+                        step.successors
+                            .iter()
+                            .flat_map(|edge| edge.bindings.iter().map(|(source, _)| source)),
+                    )
+                    .collect::<Vec<_>>();
+                let current = slots
+                    .iter()
+                    .filter(|slot| {
+                        demanded
+                            .iter()
+                            .any(|source| source.contains(slot) || slot.contains(source))
+                    })
+                    .map(|slot| {
+                        (
+                            slot.clone(),
+                            DescriptorSourceObservation {
+                                storage: self.location(identity, *position, slot),
+                                origins: self.symbolic_source_origins(identity, *position, slot),
+                            },
+                        )
+                    })
+                    .collect::<BTreeMap<_, _>>();
+                (!current.is_empty()).then_some((*position, current))
+            })
+            .collect()
+    }
+
     pub fn new(types: &'a [StructuralTypeDeclaration], machines: &'a [DescriptorMachine]) -> Self {
         Self {
             replay: Replay::new(types, machines),
@@ -208,6 +279,9 @@ impl<'a> DescriptorAnalysis<'a> {
                 carrier_type: *carrier_type,
                 projection: projection.clone(),
             },
+            DescriptorSourceOrigin::Provider(_) => self
+                .replay
+                .exported(callee, &Replay::source_origin(origin)?)?,
             DescriptorSourceOrigin::Backing(DescriptorCallOrigin::PlacedFormation {
                 machine,
                 operation,
@@ -541,6 +615,26 @@ impl<'a> DescriptorAnalysis<'a> {
                 continue;
             };
             let summary = self.replay.cached_invocation_summary(call)?;
+            // This graph currently transports spatial cohorts only. Provider
+            // lifetime debts are not spatial derivations: omitting them would
+            // falsely end the anchor's interference when its old slot is
+            // replaced. Keep the consumer's conservative unknown-flow route
+            // until it can retain these obligations separately.
+            if summary
+                .effects
+                .iter()
+                .flat_map(|effect| &effect.origins)
+                .chain(
+                    summary
+                        .result
+                        .iter()
+                        .flatten()
+                        .flat_map(|slot| &slot.origins),
+                )
+                .any(|origin| matches!(origin, DescriptorStoredOrigin::Provider(_)))
+            {
+                return None;
+            }
             step.may_escape |= summary.invalidates_contents;
             let mut outputs = Vec::new();
             for effect in &summary.effects {
@@ -617,6 +711,7 @@ impl<'a> DescriptorAnalysis<'a> {
                         DescriptorStoredOrigin::Invocation { .. }
                         | DescriptorStoredOrigin::Literal { .. }
                         | DescriptorStoredOrigin::Empty
+                        | DescriptorStoredOrigin::Provider(_)
                         | DescriptorStoredOrigin::PlacedFormation { .. } => {
                             continue;
                         }

@@ -528,9 +528,9 @@ pub(super) fn retain_backing_values(
         let loan = borrow.loans.get(handle);
         for dependency in std::iter::once(match loan.lineage {
             BorrowLoanLineage::Reborrow { parent_loan } => parent_loan,
-            BorrowLoanLineage::DirectRoot | BorrowLoanLineage::UnretainedDerived => {
-                Handle::invalid()
-            }
+            BorrowLoanLineage::DirectRoot
+            | BorrowLoanLineage::UnretainedDerived
+            | BorrowLoanLineage::LifetimeDependency => Handle::invalid(),
         })
         .chain(
             borrow

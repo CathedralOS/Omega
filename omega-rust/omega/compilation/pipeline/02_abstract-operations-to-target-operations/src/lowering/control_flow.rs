@@ -62,6 +62,7 @@ struct ReferenceEdgeStorage {
 struct LiveDefinitions {
     borrowed_reference_sources: references::BorrowedSources,
     stored_reference_effects: references::StoredEffectCatalog,
+    reference_position: terminal_semantics::descriptor_lifetimes::DescriptorPosition,
     /// Invocation obligations, never captured backing or permission leaves.
     placed_formals: BTreeMap<PlaceId, terminal_psi::TerminalPlacedViewInput>,
     // Dominating definitions only. Abstract-unit validation owns edge liveness.
@@ -474,6 +475,7 @@ pub(super) fn lower(
     let initial = LiveDefinitions {
         borrowed_reference_sources,
         stored_reference_effects,
+        reference_position: (entries[entry_position].block, 0),
         placed_formals: references::placed_formals(function, structural_types)?,
         structural_homes: BTreeMap::new(),
         integers: super::function_signature::integer_parameters(
@@ -629,7 +631,15 @@ pub(super) fn lower(
             let mut operations = Vec::new();
             block_provenance[position] = TerminalPsiProvenance::default();
             let provenance = &mut block_provenance[position];
-            for operation in &function.operations[range.start..range.end - 1] {
+            for (operation_index, operation) in function.operations[range.start..range.end - 1]
+                .iter()
+                .enumerate()
+            {
+                live.reference_position = (
+                    entries[position].block,
+                    u32::try_from(operation_index)
+                        .map_err(|_| LoweringError::unsupported_control_flow(function.machine))?,
+                );
                 lower_operation(
                     operation,
                     function,
@@ -649,6 +659,11 @@ pub(super) fn lower(
                     provenance,
                 )?;
             }
+            live.reference_position = (
+                entries[position].block,
+                u32::try_from(range.end - range.start - 1)
+                    .map_err(|_| LoweringError::unsupported_control_flow(function.machine))?,
+            );
             transfers::validate_successors(
                 &function.operations[range.end - 1],
                 function,

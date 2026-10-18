@@ -15,6 +15,7 @@
 mod call_foundations;
 mod declaration_foundations;
 mod machine_foundations;
+mod reference_outputs;
 mod scalar_observations;
 mod storage_foundations;
 mod structural_type_foundations;

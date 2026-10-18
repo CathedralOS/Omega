@@ -729,6 +729,7 @@ impl CheckedUnitEffectOperationPlan {
     ) -> Self {
         Self::Store(crate::CheckedStorePlan {
             statement_index,
+            captured_selection: Vec::new(),
             destination: crate::CheckedStoreDestination { root, path, leaf },
             value,
         })

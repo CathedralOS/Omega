@@ -5,7 +5,7 @@
 use super::{
     Custody, LegalizationError, PsiOptimizationFunction, Root, StructuralAccess,
     StructuralArgument, StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape,
-    invalid, leaf_type, shared_source_compatible, source_contract, storage_origins,
+    invalid, leaf_type, shared_source_compatible, source_contract,
 };
 
 /// A nonescaping call follows live descriptor custody at every crossing.
@@ -17,6 +17,7 @@ pub(super) struct ReferenceObservation {
     pub(super) referent: semantic_vocabulary::StructuralTypeId,
     pub(super) dependencies: Vec<Root>,
     pub(super) descriptors: Vec<(semantic_vocabulary::PlaceId, Vec<StructuralPathSegment>)>,
+    pub(super) borrowed: Vec<super::observations::Observed>,
     absent_case_descriptors: bool,
 }
 
@@ -87,6 +88,7 @@ pub(super) fn observe_reference_custody(
                     complete.descriptors.push(descriptor);
                 }
             }
+            complete.borrowed.extend(observed.borrowed);
         } else {
             complete = Some(observed);
         }
@@ -154,57 +156,70 @@ fn observe_direct_reference_custody(
         let mut origins = Vec::new();
         let mut next_cursors = Vec::new();
         let mut descriptors = Vec::new();
+        let mut borrowed = Vec::new();
         let mut absent_case_descriptors = false;
         for (place, mut path, ancestors) in cursors {
             path.extend_from_slice(prefix);
             let root = source_contract(function, custody, place).ok_or(invalid())?;
-            let selected =
-                terminal_semantics::StructuralStorageSelection::new(types.iter(), root, &path)
-                    .ok_or(invalid())?;
-            let candidates = custody
-                .leaves
-                .keys()
-                .filter(|(carrier, resident)| {
-                    *carrier == place
-                        && selected
-                            .relative_path(resident)
-                            .is_some_and(|relative| relative.is_empty())
-                })
-                .map(|(_, resident)| resident.clone())
-                .collect::<Vec<_>>();
-            if candidates.len() != selected.place_count {
-                if candidates.len() > selected.place_count
-                    || further_crossing
-                    || !path
-                        .iter()
-                        .any(|segment| matches!(segment, StructuralPathSegment::Case(_)))
-                {
-                    return Err(invalid());
-                }
-                absent_case_descriptors = true;
-            }
-            for path in candidates {
+            let candidates = terminal_semantics::stored_descriptor_paths(
+                types.iter(),
+                root,
+                &path,
+                cursor_budget,
+            )
+            .ok_or_else(invalid)?;
+            for mut path in candidates {
                 if source_contract(function, custody, place)
                     .and_then(|contract| leaf_type(types, contract, &path))
                     != Some(reference_type)
                 {
                     return Err(invalid());
                 }
-                let leaf = custody
-                    .leaves
-                    .get(&(place, path.clone()))
-                    .ok_or(invalid())?;
-                if leaf.referent != referent
-                    || custody.leaves.iter().any(|((carrier, path), child)| {
-                        custody.descends_from(child, &leaf.identity)
-                            && !shared_source_compatible(
-                                function,
-                                custody,
-                                types,
-                                carrier,
-                                path,
+                let Some(observed) =
+                    super::observations::observe(function, custody, types, place, &path)
+                else {
+                    if !further_crossing
+                        && !path.contains(&StructuralPathSegment::Referent)
+                        && path
+                            .iter()
+                            .any(|segment| matches!(segment, StructuralPathSegment::Case(_)))
+                    {
+                        absent_case_descriptors = true;
+                        continue;
+                    }
+                    return Err(invalid());
+                };
+                let leaf = observed
+                    .resident
+                    .as_ref()
+                    .and_then(|slot| custody.leaves.get(slot));
+                // Access concerns the receiving slot the read actually names,
+                // not an alias's syntactic root. Keep the logical cursor below
+                // for further crossings, but authenticate this physical carrier
+                // against every live enclosing loan at the same frontier.
+                let (observed_carrier_place, observed_carrier_path) = observed
+                    .resident
+                    .as_ref()
+                    .map_or((place, path.as_slice()), |(place, path)| {
+                        (*place, path.as_slice())
+                    });
+                if observed.referent != referent
+                    || leaf.is_some_and(|leaf| {
+                        custody.leaves.iter().any(|((carrier, path), child)| {
+                            custody.lifetime_access_conflicts(
+                                child,
+                                &leaf.identity,
                                 argument.access,
-                            )
+                            ) || custody.descends_from(child, &leaf.identity)
+                                && !shared_source_compatible(
+                                    function,
+                                    custody,
+                                    types,
+                                    carrier,
+                                    path,
+                                    argument.access,
+                                )
+                        })
                     })
                 {
                     return Err(invalid());
@@ -212,63 +227,56 @@ fn observe_direct_reference_custody(
                 // A descriptor is stored data too. Direct access cannot bypass
                 // a live enclosing loan; traversing that exact ancestor is the
                 // only non-shared exemption, retained separately on each cursor.
-                if custody
-                    .leaves
-                    .iter()
-                    .any(|((carrier, carrier_path), enclosing)| {
-                        !ancestors.contains(&enclosing.identity)
-                            && !shared_source_compatible(
-                                function,
-                                custody,
-                                types,
-                                carrier,
-                                carrier_path,
-                                argument.access,
-                            )
-                            && enclosing.root.origins().iter().any(|origin| {
-                                let origin_path = &origin.path;
-                                let origin_place = origin.root;
-                                origin_place == place
-                                    && source_contract(function, custody, origin_place).and_then(
-                                        |contract| {
-                                            terminal_semantics::captured_reference_origin_type(
-                                                types.iter(),
-                                                contract,
-                                                origin_path,
-                                            )
-                                        },
-                                    ) == Some(enclosing.referent)
-                                    && terminal_semantics::reference_origin_paths_may_overlap(
-                                        origin_path,
-                                        &path
-                                            .iter()
-                                            .cloned()
-                                            .map(terminal_psi::ReferenceOriginProjection::Exact)
-                                            .collect::<Vec<_>>(),
-                                    )
-                            })
-                    })
-                {
+                if custody.leaves.iter().any(|(_, enclosing)| {
+                    super::lifetime_storage_access_conflicts(
+                        function,
+                        custody,
+                        types,
+                        enclosing,
+                        observed_carrier_place,
+                        observed_carrier_path,
+                        StructuralAccess::SharedBorrow,
+                    ) || !ancestors.contains(&enclosing.identity)
+                        && super::leaf_storage_access_conflicts(
+                            function,
+                            custody,
+                            types,
+                            enclosing,
+                            observed_carrier_place,
+                            observed_carrier_path,
+                            StructuralAccess::SharedBorrow,
+                        )
+                }) {
                     return Err(invalid());
                 }
-                descriptors.push((place, path.clone()));
-                dependencies.push(Root::Ingress(place, path));
-                origins.push(leaf.root.clone());
+                if let Some(slot) = &observed.resident {
+                    descriptors.push(slot.clone());
+                }
+                dependencies.push(Root::Ingress(place, path.clone()));
+                if observed_carrier_place != place || observed_carrier_path != path.as_slice() {
+                    dependencies.push(Root::Ingress(
+                        observed_carrier_place,
+                        observed_carrier_path.to_vec(),
+                    ));
+                }
+                origins.push(observed.root.clone());
                 if further_crossing {
-                    dependencies.push(leaf.root.clone());
+                    dependencies.push(observed.root.clone());
                     let mut ancestors = ancestors.clone();
-                    ancestors.push(leaf.identity.clone());
-                    for origin in storage_origins(function, custody, types, &leaf.root, referent)? {
-                        let place = origin.root;
-                        let path = origin.exact_path().ok_or_else(invalid)?;
-                        let cursor = (place, path, ancestors.clone());
-                        if !next_cursors.contains(&cursor) {
-                            if next_cursors.len() >= cursor_budget {
-                                return Err(invalid());
-                            }
-                            next_cursors.push(cursor);
+                    ancestors.extend(observed.parents.iter().cloned());
+                    // Continue the actual logical read at this frontier. A
+                    // captured origin is never a request to reload its old slot.
+                    path.push(StructuralPathSegment::Referent);
+                    let cursor = (place, path, ancestors);
+                    if !next_cursors.contains(&cursor) {
+                        if next_cursors.len() >= cursor_budget {
+                            return Err(invalid());
                         }
+                        next_cursors.push(cursor);
                     }
+                }
+                if leaf.is_none() {
+                    borrowed.push(observed);
                 }
             }
         }
@@ -291,6 +299,7 @@ fn observe_direct_reference_custody(
                 referent,
                 dependencies,
                 descriptors,
+                borrowed,
                 absent_case_descriptors,
             });
         }

@@ -131,84 +131,120 @@ fn collect_target_argument_accesses(
     statement_index: usize,
     target_symbol: SymbolHandle,
 ) {
-    let program = collection.program;
-    let mut parameters = validation::call_target_parameters(program, target_symbol)
+    let mut parameters = validation::call_target_parameters(collection.program, target_symbol)
         .unwrap_or_default()
         .iter();
     for argument in arguments {
         let parameter = parameters.next();
-        // Forwarding a reference binding retains a loan through the
-        // invocation just like an authored borrow. The selected formal
-        // can attenuate a mutable reference to shared observation.
-        let forwarded_access = parameter.and_then(|parameter| {
-            if matches!(
-                program.expression_table.expression(*argument),
-                ExpressionNode::Borrow(_)
-            ) {
-                return None;
+        collect_formal_argument_accesses(
+            collection,
+            *argument,
+            parameter.map_or(Default::default(), |parameter| parameter.type_reference),
+            state_symbol,
+            statement_index,
+        );
+    }
+}
+
+/// A value join preserves its destination contract on each yielded value.
+/// Evaluating an arm is not enough: a reference result still has to retain
+/// the invocation's formal-directed access, including a computed call result.
+/// Subjects and patterns remain ordinary reads, not reference arguments.
+fn collect_formal_argument_accesses(
+    collection: &mut BorrowAccessCollection<'_>,
+    argument: ExpressionHandle,
+    formal: typed_trees::types::TypeReferenceHandle,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+) {
+    let program = collection.program;
+    if let ExpressionNode::Match(dispatch) = program.expression_table.expression(argument) {
+        collect_read_accesses(collection, dispatch.subject);
+        for arm in program.expression_table.match_arms(dispatch.arms) {
+            if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+                collect_read_accesses(collection, pattern);
             }
-            let formal = validation::reference_shell(program, parameter.type_reference)?;
-            let reference = collection.expression_type_reference(*argument)?;
-            // A reference binding forwards its loan; a place lent as a whole
-            // slice view does too. Its storage backs the formal's descriptor
-            // through the invocation, so its read is the live borrow, not a
-            // copied observation that ends during operand evaluation.
-            if validation::reference_shell(program, reference).is_none()
-                && !(validation::slice_view_shell(program, parameter.type_reference, &[]).is_some()
-                    && crate::semantic::calls::view_argument_names_existing_place(
-                        program, *argument,
-                    ))
-            {
-                return None;
-            }
-            Some(match formal.access {
-                language_semantics::ReferenceAccess::Shared => BorrowAccessKind::Read,
-                language_semantics::ReferenceAccess::Mutable => BorrowAccessKind::Mutable,
-                language_semantics::ReferenceAccess::WriteOnly => BorrowAccessKind::WriteOnly,
-            })
-        });
-        if let Some(kind) = forwarded_access
-            && let Some(place) = collection.borrow_access_place(*argument)
-        {
-            read::collect_place_evaluation_reads(collection, *argument);
-            collection.append_argument_access(place, kind, *argument);
-            continue;
-        }
-        // An unborrowed actual to a shared formal lends the storage it names:
-        // the implicit view keeps that place's loan through invocation rather
-        // than recording a copied observation that ends inside operand
-        // evaluation (`shared_argument_referent`, `evaluated_argument_root`).
-        let implicit_loan = parameter.and_then(|parameter| {
-            if matches!(
-                program.expression_table.expression(*argument),
-                ExpressionNode::Borrow(_)
-            ) {
-                return None;
-            }
-            let (referent, _) = crate::semantic::calls::shared_argument_referent(
-                program,
-                *argument,
-                parameter.type_reference,
-            )?;
-            validation::canonical_place_from_expression_in_state(
-                program,
+            collect_formal_argument_accesses(
+                collection,
+                arm.value,
+                formal,
                 state_symbol,
                 statement_index,
-                referent,
-            )?
-            .root
-            .as_symbol()?;
-            Some(BorrowAccessKind::Read)
-        });
-        if let Some(kind) = implicit_loan
-            && let Some(place) = collection.borrow_access_place(*argument)
-        {
-            read::collect_place_evaluation_reads(collection, *argument);
-            collection.append_argument_access(place, kind, *argument);
-            continue;
+            );
         }
-        collect_argument_accesses(collection, *argument);
+        return;
     }
+    // Forwarding a reference binding retains a loan through the
+    // invocation just like an authored borrow. The selected formal
+    // can attenuate a mutable reference to shared observation.
+    let forwarded_access = (|| {
+        if !formal.is_valid()
+            || matches!(
+                program.expression_table.expression(argument),
+                ExpressionNode::Borrow(_)
+            )
+        {
+            return None;
+        }
+        let formal_reference = formal;
+        let formal = validation::reference_shell(program, formal_reference)?;
+        let reference = collection.expression_type_reference(argument)?;
+        // A reference binding forwards its loan; a place lent as a whole
+        // slice view does too. Its storage backs the formal's descriptor
+        // through the invocation, so its read is the live borrow, not a
+        // copied observation that ends during operand evaluation.
+        if validation::reference_shell(program, reference).is_none()
+            && !(validation::slice_view_shell(program, formal_reference, &[]).is_some()
+                && crate::semantic::calls::view_argument_names_existing_place(program, argument))
+        {
+            return None;
+        }
+        Some(match formal.access {
+            language_semantics::ReferenceAccess::Shared => BorrowAccessKind::Read,
+            language_semantics::ReferenceAccess::Mutable => BorrowAccessKind::Mutable,
+            language_semantics::ReferenceAccess::WriteOnly => BorrowAccessKind::WriteOnly,
+        })
+    })();
+    if let Some(kind) = forwarded_access
+        && let Some(place) = collection.borrow_access_place(argument)
+    {
+        read::collect_place_evaluation_reads(collection, argument);
+        collection.append_argument_access(place, kind, argument);
+        return;
+    }
+    // An unborrowed actual to a shared formal lends the storage it names:
+    // the implicit view keeps that place's loan through invocation rather
+    // than recording a copied observation that ends inside operand
+    // evaluation (`shared_argument_referent`, `evaluated_argument_root`).
+    let implicit_loan = (|| {
+        if !formal.is_valid()
+            || matches!(
+                program.expression_table.expression(argument),
+                ExpressionNode::Borrow(_)
+            )
+        {
+            return None;
+        }
+        let (referent, _) =
+            crate::semantic::calls::shared_argument_referent(program, argument, formal)?;
+        validation::canonical_place_from_expression_in_state(
+            program,
+            state_symbol,
+            statement_index,
+            referent,
+        )?
+        .root
+        .as_symbol()?;
+        Some(BorrowAccessKind::Read)
+    })();
+    if let Some(kind) = implicit_loan
+        && let Some(place) = collection.borrow_access_place(argument)
+    {
+        read::collect_place_evaluation_reads(collection, argument);
+        collection.append_argument_access(place, kind, argument);
+        return;
+    }
+    collect_argument_accesses(collection, argument);
 }
 
 fn collect_argument_accesses(

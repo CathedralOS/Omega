@@ -60,7 +60,7 @@ use state::{BorrowFactArenas, append_state_borrow_facts};
 pub(crate) fn build_borrow_facts(
     program: &dyn ::validation::CheckingInput,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
-) -> BorrowFacts {
+) -> Result<BorrowFacts, Vec<diagnostics::Diagnostic>> {
     let mut writable_roots = arena::Arena::with_capacity(estimated_borrow_root_capacity(program));
     let mut incoming_references = arena::Arena::new();
     let mut access_segments =
@@ -98,12 +98,13 @@ pub(crate) fn build_borrow_facts(
                     &mut arenas,
                     &mut state_loan_trackers,
                     call_frames,
-                );
+                )
+                .map_err(|diagnostic| vec![diagnostic])?;
             }
         }
     }
 
-    BorrowFacts::with_roots(
+    Ok(BorrowFacts::with_roots(
         incoming_references,
         writable_roots,
         access_segments,
@@ -114,5 +115,5 @@ pub(crate) fn build_borrow_facts(
         loan_suppliers,
         returned_loans,
         states,
-    )
+    ))
 }

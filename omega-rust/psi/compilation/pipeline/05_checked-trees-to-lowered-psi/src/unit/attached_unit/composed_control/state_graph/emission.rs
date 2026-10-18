@@ -559,6 +559,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
                 })
     };
     let loan_chains = loan_chains::LoanChains::plan(
+        checked,
         plan,
         &checked.facts.values.structural_values,
         &admitted.live,

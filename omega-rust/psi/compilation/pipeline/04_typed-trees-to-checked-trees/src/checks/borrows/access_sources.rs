@@ -121,6 +121,18 @@ pub(in crate::checks::borrows) fn resolve_captured_all(
             continue;
         }
         let loan = facts.borrow.loans.get(candidate.local_loan);
+        if loan.lineage == BorrowLoanLineage::LifetimeDependency {
+            if loan.statement_index >= statement_index {
+                return None;
+            }
+            // Access through this completed descriptor retains its own debt;
+            // it confers no ancestry exemption for any input descriptor.
+            resolved.push(ResolvedAlias {
+                place: candidate.place,
+                lineage: vec![candidate.local_loan],
+            });
+            continue;
+        }
         if loan.lineage != BorrowLoanLineage::UnretainedDerived
             || loan.statement_index >= statement_index
         {
@@ -149,25 +161,6 @@ pub(in crate::checks::borrows) fn resolve_captured_all(
             resolve_all(program, facts, state, formation, local.initial_value)
         })();
         let mut lineage = vec![candidate.local_loan];
-        // A descriptor reborrowed through a stored one names the container's
-        // loan it was rebased through as its supplier at formation. Using the
-        // derived view is using that loan, exactly as statement checking
-        // admits the reborrow itself; a supplier that cannot lend this access
-        // grants nothing.
-        for supplier in facts
-            .borrow
-            .loan_suppliers
-            .span_or_empty(loan.supplying_loans)
-        {
-            let parent = facts.borrow.loans.get(*supplier);
-            if borrow_state_owns(&facts.borrow, borrow_state, *supplier)
-                && parent.kind.is_exclusive()
-                && parent.kind.direct_reborrow_effect(&loan.kind).is_some()
-                && !lineage.contains(supplier)
-            {
-                lineage.push(*supplier);
-            }
-        }
         if let Some(supplying) = supplying {
             for mut source in supplying {
                 source.place.segments.extend_from_slice(&place.segments);
@@ -186,12 +179,4 @@ pub(in crate::checks::borrows) fn resolve_captured_all(
         });
     }
     Some(resolved)
-}
-
-fn borrow_state_owns(
-    borrow: &checked_trees::BorrowFacts,
-    state: &checked_trees::StateBorrowFact,
-    loan: arena::Handle<checked_trees::BorrowLoanFact>,
-) -> bool {
-    borrow.loans.is_valid(loan) && borrow.state_owns_loan(state, loan)
 }

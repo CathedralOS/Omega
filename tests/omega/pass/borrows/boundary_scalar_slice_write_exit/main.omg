@@ -1,0 +1,39 @@
+// Expected exit: 0. A writable slice of scalars has no reference-output slots,
+// independent of its runtime extent or whether a helper transports the slice.
+pub boundary trait Fill {
+    machine first(output: &mut [u8]);
+}
+
+ScalarWriter satisfies Fill {
+    Fill::first = write_first;
+}
+
+machine write_first(output: &mut [u8]) {
+    transition output.len > 0 {
+        true -> write(output)
+        _ -> done()
+    }
+    state write(output: &mut [u8]) requires output.len > 0 {
+        output[0] = 77;
+    }
+    state done() {}
+}
+
+machine forward(output: &mut [u8]) reaches Fill {
+    Fill::first(output);
+}
+
+data Main {}
+machine Main::main(main: &mut Main) reaches Fill crashes Trap {
+    let mut direct: [u8; 2] = [1, 2];
+    let mut forwarded: [u8; 3] = [3, 4, 5];
+    Fill::first(&mut direct[..]);
+    forward(&mut forwarded[..]);
+    transition direct[0] == 77 && direct[1] == 2 &&
+               forwarded[0] == 77 && forwarded[1] == 4 && forwarded[2] == 5 {
+        true -> done()
+        _ -> failed()
+    }
+    state failed() { crash Trap; }
+    state done() {}
+}

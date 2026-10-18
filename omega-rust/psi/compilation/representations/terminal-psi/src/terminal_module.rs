@@ -19,8 +19,9 @@ pub mod values;
 
 pub use boundary::{
     BoundaryApplication, BoundaryApplicationArgument, BoundaryApplicationCandidate,
-    BoundaryContentGuarantee, BoundaryDeclarationRole, BoundaryMachineDeclaration,
-    BoundaryMachineResult, BoundaryOperatorRequirement, BoundaryParameterKind,
+    BoundaryContentGuarantee, BoundaryDeclarationRole, BoundaryLifetimeDependency,
+    BoundaryMachineDeclaration, BoundaryMachineResult, BoundaryOperatorRequirement,
+    BoundaryParameterKind, BoundaryReferenceDestination, BoundaryReferenceOutput,
     BoundaryStructuralResultDeclaration, BoundaryTypeIdentity, CheckedBoundaryCallable,
     ClosedConformanceApplication, ClosedConformanceApplicationCommitment,
     ClosedConformanceCallableResult, ClosedConformanceParameterBinding,

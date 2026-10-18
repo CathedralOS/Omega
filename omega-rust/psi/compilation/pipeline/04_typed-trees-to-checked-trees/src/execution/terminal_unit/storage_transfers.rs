@@ -35,9 +35,10 @@ pub(in crate::execution::terminal_unit) enum Destination {
         structural_result: bool,
     },
     Storage {
-        symbol: SymbolHandle,
+        /// One authored assignment can expand into several distinct stores;
+        /// retain the producer's selection within its captured destination.
         statement_index: u32,
-        path: Path,
+        captured_selection: Path,
     },
     Unknown,
 }
@@ -326,13 +327,9 @@ impl Query<'_> {
             && self.belongs(value)
         {
             let destination = match operation {
-                CheckedUnitEffectOperationPlan::Store(store) => match store.destination.root {
-                    checked_trees::CheckedStoreRoot::Local { symbol } => Destination::Storage {
-                        symbol,
-                        statement_index: store.statement_index,
-                        path: store.destination.path.clone(),
-                    },
-                    _ => Destination::Unknown,
+                CheckedUnitEffectOperationPlan::Store(store) => Destination::Storage {
+                    statement_index: store.statement_index,
+                    captured_selection: store.captured_selection.clone(),
                 },
                 _ => Destination::Unknown,
             };

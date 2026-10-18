@@ -249,7 +249,7 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
         }
         typed_trees::signature::state_parameter_position(program.state_parameters(source), symbol)
     };
-    let transfers = target_structural
+    let mut transfers = target_structural
         .iter()
         .enumerate()
         .map(|(target_index, target)| {
@@ -280,6 +280,7 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                         index: u32::try_from(source_index).ok()?,
                     },
                     target_parameter_index: u32::try_from(target_index).ok()?,
+                    retained_loan_backing: None,
                 });
             }
             if let Some(range_expression) = validation::subslice_expression(program, expression)
@@ -301,6 +302,7 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                 return Some(CheckedStructuralControlTransferPlan {
                     source: subslice.transfer(),
                     target_parameter_index: u32::try_from(target_index).ok()?,
+                    retained_loan_backing: None,
                 });
             }
             // An authored string literal supplied directly to a whole
@@ -339,6 +341,7 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                 return Some(CheckedStructuralControlTransferPlan {
                     source,
                     target_parameter_index: u32::try_from(target_index).ok()?,
+                    retained_loan_backing: None,
                 });
             }
             // A whole view local forwards the view its `let` published: the
@@ -427,6 +430,7 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                         return Some(CheckedStructuralControlTransferPlan {
                             source: checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult { binding_ordinal: result.binding_ordinal },
                             target_parameter_index: u32::try_from(target_index).ok()?,
+                            retained_loan_backing: None,
                         });
                     }
                 }
@@ -451,6 +455,7 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                     return Some(CheckedStructuralControlTransferPlan {
                         source,
                         target_parameter_index: u32::try_from(target_index).ok()?,
+                        retained_loan_backing: None,
                     });
                 }
             }
@@ -477,7 +482,237 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                         subject,
                     },
                     target_parameter_index: u32::try_from(target_index).ok()?,
+                    retained_loan_backing: None,
                 });
+            }
+            mark(SuccessorGuard::LoanTransfer);
+            // Resolve existing storage before constructing an argument value.
+            // A freshly materialized descriptor would hide its actual owner's
+            // lifetime from the successor's loan-chain plan. A genuine stored
+            // descriptor keeps its authenticated crossing below; constructors
+            // and descriptor conversions still use fresh establishment.
+            // A reference argument loans its resolved place into the borrowed
+            // target parameter. Declared correspondence covers explicit borrows,
+            // forwarded references and implicit shared field loans alike; an
+            // `&` token is not the authority for the transfer. The successor
+            // argument keeps the source's rooted place and walks the
+            // projection path below it, so the loan names the same storage
+            // the borrow does rather than a fresh establishment. A projected
+            // argument never forwards a same-typed unrelated parameter.
+            // A loan transports access, not ownership of its referent. The
+            // source checker has admitted this exact edge and its lifetime;
+            // requiring copyable contents would discard valid affine backing.
+            if matches!(target.access,
+                    CheckedStructuralAccess::SharedBorrow | CheckedStructuralAccess::MutableBorrow
+                        | CheckedStructuralAccess::WriteOnlyBorrow)
+                && validation::checked_argument_matches_type_reference(
+                    program,
+                    expression,
+                    target_parameters.get(target.position as usize)?.type_reference,
+                )
+            {
+                let expected_access = target.access;
+                if let Some(place) = validation::canonical_place_from_expression_in_state(
+                        program,
+                        source.symbol,
+                        ordinal as usize,
+                        expression,
+                    )
+                    && let Some(root_symbol) = place.root.as_symbol()
+                {
+                    // The root names either a source parameter — the authored
+                    // `self.field` spelling roots at `self`'s own symbol while
+                    // the implicit receiver roots at the machine — or the one
+                    // earlier result binding a local published.
+                    let parameter_subject = program.state_by_symbol(source.symbol)
+                    .and_then(|typed_state| {
+                        program
+                            .state_parameters(typed_state)
+                            .iter()
+                            .enumerate()
+                            .find(|(_, parameter)| {
+                                super::super::types::parameter_is_root(parameter, root_symbol)
+                            })
+                            .and_then(|(position, _)| {
+                                source_structural
+                                    .iter()
+                                    .enumerate()
+                                    .find(|(_, candidate)| {
+                                        candidate.position as usize == position
+                                    })
+                                    .map(|(index, structural)| (index, structural))
+                            })
+                    });
+                    let result_subject = |local_index: usize| {
+                        // Loan the local's established home, independently of
+                        // its constructor. Detached call-owned operands cannot
+                        // back an edge; normal-return cleanup remains scheduled.
+                        let mut matches = operations.iter().filter(|operation| {
+                            // Automatic normal-return discard is future cleanup,
+                            // not retirement of this currently live local home.
+                            !operand_owned_construction(operation)
+                        }).filter_map(CheckedUnitEffectOperationPlan::structural_result_binding)
+                        .filter(|result| {
+                            result.statement_index == local_index as u32
+                        });
+                        let result = matches.next()?;
+                        if matches.next().is_some() {
+                            return None;
+                        }
+                        Some(result)
+                    };
+                    let local_subject = || {
+                        let (index, local) =
+                            program.state_local_declaration(source, root_symbol)?;
+                        // The ordered home query rejects detached results and
+                        // retains rebinding identity across this state edge.
+                        super::super::local_storage::source(program, source, operations, root_symbol)?;
+                        Some((local, result_subject(index)?))
+                    };
+                    let loan_permitted = |root_access| match expected_access {
+                        CheckedStructuralAccess::SharedBorrow => matches!(
+                            root_access,
+                            CheckedStructuralAccess::Owned
+                                | checked_trees::checked_borrowed_access_pair_pattern!()),
+                        CheckedStructuralAccess::MutableBorrow => matches!(
+                            root_access,
+                            CheckedStructuralAccess::Owned | CheckedStructuralAccess::MutableBorrow
+                        ),
+                        CheckedStructuralAccess::WriteOnlyBorrow => matches!(
+                            root_access,
+                            CheckedStructuralAccess::Owned
+                                | CheckedStructuralAccess::MutableBorrow
+                                | CheckedStructuralAccess::WriteOnlyBorrow
+                        ),
+                        CheckedStructuralAccess::Owned => false,
+                    };
+                    if let Some((source_index, source_parameter)) = parameter_subject
+                    {
+                        if loan_permitted(source_parameter.access)
+                            && let Some(transfer) = projected_loan_transfer(
+                                program,
+                                facts,
+                                shapes,
+                                machine.symbol,
+                                source.symbol,
+                                ordinal,
+                                expression,
+                                &place,
+                                CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                                    parameter_index: u32::try_from(source_index).ok()?,
+                                },
+                                expected_access,
+                                target,
+                                target_parameters,
+                                target_index,
+                            )
+                        {
+                            return Some(transfer);
+                        }
+                    } else if let Some((local, result)) = local_subject() {
+                        if calls::is_stored_reference(program, local.type_reference) {
+                            // A stored result owns a descriptor, not the value
+                            // its borrowed successor presents. Calls and state
+                            // edges retain the same authenticated crossing;
+                            // failed reference admission cannot lend descriptor
+                            // storage through the ordinary owner-loan route.
+                            let mut subject = calls::retained_reference_argument(
+                                program,
+                                machine.symbol,
+                                source,
+                                ordinal as usize,
+                                &place,
+                                facts::PlaceRoot::Symbol(local.symbol),
+                                local.type_reference,
+                                result,
+                                target_parameters.get(target.position as usize)?,
+                                target.type_identity,
+                                trace,
+                            )?;
+                            if matches!(subject.source, CheckedUnitStructuralArgumentSourcePlan::StructuralResult { .. }) {
+                                subject.source = super::super::local_storage::source(
+                                    program, source, operations, root_symbol,
+                                )?;
+                            }
+                            if subject.access != expected_access
+                                || !subject.path.iter().all(|segment| {
+                                    matches!(
+                                        segment,
+                                        CheckedUnitStructuralPathSegment::Field(_)
+                                            | CheckedUnitStructuralPathSegment::Case(_)
+                                            | CheckedUnitStructuralPathSegment::FixedIndex(_)
+                                            | CheckedUnitStructuralPathSegment::Referent
+                                    )
+                                })
+                            {
+                                return None;
+                            }
+                            return Some(CheckedStructuralControlTransferPlan {
+                                source: checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedLoan {
+                                    retired_carrier_backing: super::loan_backing::retired_carrier_backing(
+                                        program, facts, machine.symbol, source.symbol,
+                                        ordinal as usize, path.symbol, arguments,
+                                        target.position as usize, operations, &subject,
+                                    ),
+                                    subject,
+                                    formation_expression: expression,
+                                    carrier_type_identity: Default::default(),
+                                },
+                                target_parameter_index: u32::try_from(target_index).ok()?,
+                                retained_loan_backing: None,
+                            });
+                        }
+                        // A mutable loan keeps the local's exact constrained
+                        // type: a bounded byte owner's represented predicates
+                        // (`[u8; N] in Utf8`) travel with it, and the
+                        // successor's declared qualifications must imply them
+                        // (argument presentation below). Checking proves each
+                        // store through the loan preserves the domain.
+                        // Lending an enrolled live home does not copy/recast
+                        // its contents. Binding-backed fields retain their own
+                        // receipts; endpoint preparation checks the selected
+                        // referent and its exact descriptor route.
+                        // A stored reference leaf supplies its own loan
+                        // authority. Its immutable container does not make
+                        // that referent shared, nor grant mutation of the
+                        // container. Source admission checked the exact leaf;
+                        // endpoint preparation retains its pointer crossing.
+                        let stored_leaf_access = validation::canonical_place_type_reference(
+                            program, source.symbol, ordinal as usize, &place,
+                        ).and_then(|reference| {
+                            validation::reference_result_custody::stored_loan_parts(program, reference)
+                        }).map(|(_, access)| access);
+                        // The established owned home remains in place under
+                        // this loan, including its affine/linear and cleanup
+                        // obligations. Those obligations do not turn a borrow
+                        // into an owned transfer. A stored leaf instead keeps
+                        // its own access ceiling; it cannot acquire authority
+                        // from ownership of its descriptor's container.
+                        let mutable_local_loan = stored_leaf_access
+                            .map_or(true, loan_permitted);
+                        if mutable_local_loan
+                            && let Some(transfer) = projected_loan_transfer(
+                                program,
+                                facts,
+                                shapes,
+                                machine.symbol,
+                                source.symbol,
+                                ordinal,
+                                expression,
+                                &place,
+                                super::super::local_storage::source(
+                                    program, source, operations, root_symbol,
+                                )?,
+                                expected_access,
+                                target,
+                                target_parameters,
+                                target_index,
+                            )
+                        {
+                            return Some(transfer);
+                        }
+                    }
+                }
             }
             mark(SuccessorGuard::EstablishedArgument);
             // A fresh composite argument — a record, case, or fixed-array
@@ -659,229 +894,29 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                         presentation,
                     },
                     target_parameter_index: u32::try_from(target_index).ok()?,
+                    retained_loan_backing: None,
                 });
-            }
-            mark(SuccessorGuard::LoanTransfer);
-            // A reference argument loans its resolved place into the borrowed
-            // target parameter. Declared correspondence covers explicit borrows,
-            // forwarded references and implicit shared field loans alike; an
-            // `&` token is not the authority for the transfer. The successor
-            // argument keeps the source's rooted place and walks the
-            // projection path below it, so the loan names the same storage
-            // the borrow does rather than a fresh establishment. A projected
-            // argument never forwards a same-typed unrelated parameter.
-            // A loan transports access, not ownership of its referent. The
-            // source checker has admitted this exact edge and its lifetime;
-            // requiring copyable contents would discard valid affine backing.
-            if matches!(target.access,
-                    CheckedStructuralAccess::SharedBorrow | CheckedStructuralAccess::MutableBorrow
-                        | CheckedStructuralAccess::WriteOnlyBorrow)
-                && validation::checked_argument_matches_type_reference(
-                    program,
-                    expression,
-                    target_parameters.get(target.position as usize)?.type_reference,
-                )
-            {
-                let expected_access = target.access;
-                if let Some(place) = validation::canonical_place_from_expression_in_state(
-                        program,
-                        source.symbol,
-                        ordinal as usize,
-                        expression,
-                    )
-                    && let Some(root_symbol) = place.root.as_symbol()
-                {
-                    // The root names either a source parameter — the authored
-                    // `self.field` spelling roots at `self`'s own symbol while
-                    // the implicit receiver roots at the machine — or the one
-                    // earlier result binding a local published.
-                    let parameter_subject = program.state_by_symbol(source.symbol)
-                    .and_then(|typed_state| {
-                        program
-                            .state_parameters(typed_state)
-                            .iter()
-                            .enumerate()
-                            .find(|(_, parameter)| {
-                                super::super::types::parameter_is_root(parameter, root_symbol)
-                            })
-                            .and_then(|(position, _)| {
-                                source_structural
-                                    .iter()
-                                    .enumerate()
-                                    .find(|(_, candidate)| {
-                                        candidate.position as usize == position
-                                    })
-                                    .map(|(index, structural)| (index, structural))
-                            })
-                    });
-                    let result_subject = |local_index: usize| {
-                        // Loan the local's established home, independently of
-                        // its constructor. Detached call-owned operands cannot
-                        // back an edge; normal-return cleanup remains scheduled.
-                        let mut matches = operations.iter().filter(|operation| {
-                            // Automatic normal-return discard is future cleanup,
-                            // not retirement of this currently live local home.
-                            !operand_owned_construction(operation)
-                        }).filter_map(CheckedUnitEffectOperationPlan::structural_result_binding)
-                        .filter(|result| {
-                            result.statement_index == local_index as u32
-                        });
-                        let result = matches.next()?;
-                        if matches.next().is_some() {
-                            return None;
-                        }
-                        Some(result)
-                    };
-                    let local_subject = || {
-                        let (index, local) =
-                            program.state_local_declaration(source, root_symbol)?;
-                        // The ordered home query rejects detached results and
-                        // retains rebinding identity across this state edge.
-                        super::super::local_storage::source(program, source, operations, root_symbol)?;
-                        Some((local, result_subject(index)?))
-                    };
-                    let loan_permitted = |root_access| match expected_access {
-                        CheckedStructuralAccess::SharedBorrow => matches!(
-                            root_access,
-                            CheckedStructuralAccess::Owned
-                                | checked_trees::checked_borrowed_access_pair_pattern!()),
-                        CheckedStructuralAccess::MutableBorrow => matches!(
-                            root_access,
-                            CheckedStructuralAccess::Owned | CheckedStructuralAccess::MutableBorrow
-                        ),
-                        CheckedStructuralAccess::WriteOnlyBorrow => matches!(
-                            root_access,
-                            CheckedStructuralAccess::Owned
-                                | CheckedStructuralAccess::MutableBorrow
-                                | CheckedStructuralAccess::WriteOnlyBorrow
-                        ),
-                        CheckedStructuralAccess::Owned => false,
-                    };
-                    if let Some((source_index, source_parameter)) = parameter_subject
-                    {
-                        if loan_permitted(source_parameter.access)
-                            && let Some(transfer) = projected_loan_transfer(
-                                program,
-                                facts,
-                                shapes,
-                                machine.symbol,
-                                source.symbol,
-                                ordinal,
-                                expression,
-                                &place,
-                                CheckedUnitStructuralArgumentSourcePlan::Parameter {
-                                    parameter_index: u32::try_from(source_index).ok()?,
-                                },
-                                expected_access,
-                                target,
-                                target_parameters,
-                                target_index,
-                            )
-                        {
-                            return Some(transfer);
-                        }
-                    } else if let Some((local, result)) = local_subject() {
-                        if calls::is_stored_reference(program, local.type_reference) {
-                            // A stored result owns a descriptor, not the value
-                            // its borrowed successor presents. Calls and state
-                            // edges retain the same authenticated crossing;
-                            // failed reference admission cannot lend descriptor
-                            // storage through the ordinary owner-loan route.
-                            let mut subject = calls::retained_reference_argument(
-                                program,
-                                machine.symbol,
-                                source,
-                                ordinal as usize,
-                                &place,
-                                facts::PlaceRoot::Symbol(local.symbol),
-                                local.type_reference,
-                                result,
-                                target_parameters.get(target.position as usize)?,
-                                target.type_identity,
-                                trace,
-                            )?;
-                            if matches!(subject.source, CheckedUnitStructuralArgumentSourcePlan::StructuralResult { .. }) {
-                                subject.source = super::super::local_storage::source(
-                                    program, source, operations, root_symbol,
-                                )?;
-                            }
-                            if subject.access != expected_access
-                                || !subject.path.iter().all(|segment| {
-                                    matches!(
-                                        segment,
-                                        CheckedUnitStructuralPathSegment::Field(_)
-                                            | CheckedUnitStructuralPathSegment::Case(_)
-                                            | CheckedUnitStructuralPathSegment::FixedIndex(_)
-                                            | CheckedUnitStructuralPathSegment::Referent
-                                    )
-                                })
-                            {
-                                return None;
-                            }
-                            return Some(CheckedStructuralControlTransferPlan {
-                                source: checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedLoan {
-                                    subject,
-                                    formation_expression: expression,
-                                    carrier_type_identity: Default::default(),
-                                },
-                                target_parameter_index: u32::try_from(target_index).ok()?,
-                            });
-                        }
-                        // A mutable loan keeps the local's exact constrained
-                        // type: a bounded byte owner's represented predicates
-                        // (`[u8; N] in Utf8`) travel with it, and the
-                        // successor's declared qualifications must imply them
-                        // (argument presentation below). Checking proves each
-                        // store through the loan preserves the domain.
-                        // Lending an enrolled live home does not copy/recast
-                        // its contents. Binding-backed fields retain their own
-                        // receipts; endpoint preparation checks the selected
-                        // referent and its exact descriptor route.
-                        // A stored reference leaf supplies its own loan
-                        // authority. Its immutable container does not make
-                        // that referent shared, nor grant mutation of the
-                        // container. Source admission checked the exact leaf;
-                        // endpoint preparation retains its pointer crossing.
-                        let stored_leaf_access = validation::canonical_place_type_reference(
-                            program, source.symbol, ordinal as usize, &place,
-                        ).and_then(|reference| {
-                            validation::reference_result_custody::stored_loan_parts(program, reference)
-                        }).map(|(_, access)| access);
-                        // The established owned home remains in place under
-                        // this loan, including its affine/linear and cleanup
-                        // obligations. Those obligations do not turn a borrow
-                        // into an owned transfer. A stored leaf instead keeps
-                        // its own access ceiling; it cannot acquire authority
-                        // from ownership of its descriptor's container.
-                        let mutable_local_loan = stored_leaf_access
-                            .map_or(true, loan_permitted);
-                        if mutable_local_loan
-                            && let Some(transfer) = projected_loan_transfer(
-                                program,
-                                facts,
-                                shapes,
-                                machine.symbol,
-                                source.symbol,
-                                ordinal,
-                                expression,
-                                &place,
-                                super::super::local_storage::source(
-                                    program, source, operations, root_symbol,
-                                )?,
-                                expected_access,
-                                target,
-                                target_parameters,
-                                target_index,
-                            )
-                        {
-                            return Some(transfer);
-                        }
-                    }
-                }
             }
             None
         })
         .collect::<Option<Vec<_>>>()?;
+    for (transfer, parameter) in transfers.iter_mut().zip(target_structural) {
+        if parameter.access != CheckedStructuralAccess::Owned {
+            trace.phase("state loan: captured backing");
+            trace.statement(Some(ordinal));
+            transfer.retained_loan_backing = super::loan_backing::retained_backing(
+                program,
+                facts,
+                machine.symbol,
+                source.symbol,
+                ordinal as usize,
+                path.symbol,
+                arguments,
+                parameter.position as usize,
+                operations,
+            )?;
+        }
+    }
     mark(SuccessorGuard::ScalarArguments);
     let scalar_arguments = target_scalar
         .iter()
@@ -1273,6 +1308,7 @@ fn projected_loan_transfer(
     };
     Some(CheckedStructuralControlTransferPlan {
         source: checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedLoan {
+            retired_carrier_backing: None,
             formation_expression,
             carrier_type_identity,
             subject: CheckedUnitStructuralArgumentPlan {
@@ -1283,6 +1319,7 @@ fn projected_loan_transfer(
             },
         },
         target_parameter_index: u32::try_from(target_index).ok()?,
+        retained_loan_backing: None,
     })
 }
 

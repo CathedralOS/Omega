@@ -142,7 +142,7 @@ pub(crate) fn build_check_facts(
     // Retain failed preparation as well as success so individual statements do
     // not rebuild the same symbol tables.
     let call_frames = validation::CallFrameResolver::new(program);
-    let borrow = build_borrow_facts(program, call_frames.as_ref());
+    let borrow = build_borrow_facts(program, call_frames.as_ref())?;
     let mut values = build_value_facts(program, proof_plan);
     let mut operators = build_operator_facts(program, &values);
     operators.exact_integer_casts = validation_facts.exact_integer_casts.clone();

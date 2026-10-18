@@ -81,12 +81,11 @@ fn storage_cursor(
 ) -> Result<(PlaceId, Vec<StructuralPathSegment>), LoweringError> {
     let invalid = || LoweringError::unsupported_control_flow(function.machine);
     let mut path = origin.exact_path().ok_or_else(invalid)?;
-    let root = source_contract(function, live, origin.root).ok_or_else(invalid)?;
+    let place = origin.base.root_place().ok_or_else(invalid)?;
+    let root = source_contract(function, live, place).ok_or_else(invalid)?;
     let selected = leaf_type(types, root, &path).ok_or_else(invalid)?;
     if selected != expected {
-        let parameter = function
-            .structural_parameter(origin.root)
-            .ok_or_else(invalid)?;
+        let parameter = function.structural_parameter(place).ok_or_else(invalid)?;
         if parameter.structural_type != root
             || path.iter().any(|segment| {
                 !matches!(
@@ -103,7 +102,7 @@ fn storage_cursor(
         }
         path.push(StructuralPathSegment::Referent);
     }
-    Ok((origin.root, path))
+    Ok((place, path))
 }
 
 pub(in super::super) fn copied_leaves(

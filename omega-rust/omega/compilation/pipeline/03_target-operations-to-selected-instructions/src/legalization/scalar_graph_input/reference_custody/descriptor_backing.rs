@@ -156,6 +156,17 @@ pub(super) fn capture(
     root: &Root,
 ) -> Result<(Vec<Backing>, Vec<super::OccurrenceIdentity>), LegalizationError> {
     let ty = source_contract(function, custody, source.place).ok_or_else(|| invalid())?;
+    // A materialized reference carries the current snapshot already. Prefer
+    // its authenticated occurrence over re-flattening the source spelling;
+    // provider backing deliberately has no caller-relative flattened address.
+    if let Some(crossing) = source
+        .path
+        .iter()
+        .rposition(|part| *part == StructuralPathSegment::Referent)
+        && let Some(leaf) = custody.leaf(source.place, &source.path[..crossing])
+    {
+        return Ok((leaf.backing.clone(), vec![leaf.identity.clone()]));
+    }
     // Formation already authenticated the complete source projection. Inspect
     // only its materialized prefixes: an intermediate Case selector has no
     // endpoint, and unrelated reference fields are not part of this borrow.
@@ -218,14 +229,6 @@ pub(super) fn capture(
         }
         return Ok((backing, parents));
     }
-    if let Some(crossing) = source
-        .path
-        .iter()
-        .rposition(|part| *part == StructuralPathSegment::Referent)
-        && let Some(leaf) = custody.leaf(source.place, &source.path[..crossing])
-    {
-        return Ok((leaf.backing.clone(), Vec::new()));
-    }
     Ok((vec![Backing::Source(root.clone())], Vec::new()))
 }
 
@@ -249,9 +252,18 @@ pub(super) fn overlaps(
                         .collect::<Vec<_>>(),
                 )
         }
-        Backing::Source(Root::Alternatives(origins)) => origins
-            .iter()
-            .any(|origin| origin.root == place && origin_overlaps(&origin.path)),
+        Backing::Source(Root::Alternatives(origins)) => {
+            origins.iter().any(|origin| match origin.base {
+                target_operations::TargetReferenceOriginBase::Storage { root } => {
+                    root == place && origin_overlaps(&origin.path)
+                }
+                target_operations::TargetReferenceOriginBase::IncomingContents { .. } => {
+                    !activation_local
+                }
+                target_operations::TargetReferenceOriginBase::Invocation { .. }
+                | target_operations::TargetReferenceOriginBase::Provider { .. } => true,
+            })
+        }
         // The captured value is outside this activation's owned inline homes.
         // Keep its conservative geometry for accesses to external storage;
         // ordinary in-body backing still protects its actual owned region.

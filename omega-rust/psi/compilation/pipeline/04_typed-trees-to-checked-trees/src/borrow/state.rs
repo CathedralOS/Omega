@@ -30,7 +30,7 @@ pub(super) fn append_state_borrow_facts(
     arenas: &mut BorrowFactArenas<'_>,
     state_loan_trackers: &mut Vec<StateLoanTracker>,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
-) {
+) -> Result<(), diagnostics::Diagnostic> {
     state_loan_trackers.clear();
     append_incoming_reference_trackers(program, machine, state, arenas, state_loan_trackers);
     // Formation reads the carrier's current contents, while last-use analysis
@@ -84,13 +84,20 @@ pub(super) fn append_state_borrow_facts(
             machine.symbol,
             statement,
             &current_loans,
-        ) {
+        )
+        .map_err(|reason| {
+            diagnostics::Diagnostic::error(format!(
+                "machine `{}` state `{}` statement {}: {reason}",
+                machine.name, state.name, statement_index,
+            ))
+        })? {
             capture_incoming_origin(arenas, &mut returned);
             let segments = arenas.access_segments.insert_many(returned.place.segments);
             let owner_path = arenas.owner_segments.insert_many(returned.owner_path);
             arenas.returned_loans.append_to_span(
                 &mut returned_loans_span,
                 checked_trees::BorrowReturnedLoanFact {
+                    lineage: returned.lineage,
                     statement_index,
                     transition_target,
                     formation_expression: returned.formation_expression,
@@ -120,7 +127,13 @@ pub(super) fn append_state_borrow_facts(
             &current_loans,
             call_frames,
             replacement.as_ref(),
-        );
+        )
+        .map_err(|reason| {
+            diagnostics::Diagnostic::error(format!(
+                "machine `{}` state `{}` statement {}: {reason}",
+                machine.name, state.name, statement_index,
+            ))
+        })?;
         retire_replaced_carrier_loans(
             program,
             machine,
@@ -172,6 +185,7 @@ pub(super) fn append_state_borrow_facts(
         loans: loans_span,
         returned_loans: returned_loans_span,
     });
+    Ok(())
 }
 
 /// Local, stored and returned carriers publish the same invocation permission.

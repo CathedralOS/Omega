@@ -86,6 +86,7 @@ pub(crate) fn build_boundary_machine(
     let machine_reach = facts.service_reaches.for_machine(machine.symbol)?;
 
     Some(CheckedBoundaryMachinePlan {
+        reference_outputs: reference_outputs(program, program.state_parameters(state), &[]).ok()?,
         machine: machine.symbol,
         kind: semantic_vocabulary::BoundaryRequirementKind::Machine,
         state: state.symbol,
@@ -462,6 +463,22 @@ pub(crate) fn build_static_boundary_requirements(
                 })
                 .collect();
             plans.push(CheckedBoundaryMachinePlan {
+                reference_outputs: match reference_outputs(
+                    program,
+                    program.state_signature_parameters(signature),
+                    &substitutions,
+                ) {
+                    Ok(outputs) => outputs,
+                    Err(reason) => {
+                        gaps.push(crate::execution::terminal_unit::plan_gaps::plan_gap(
+                            program,
+                            signature.symbol,
+                            crate::execution::terminal_unit::plan_gaps::GapSite::Machine,
+                            checked_trees::CheckedUnitPlanGapReason::Unsupported(reason),
+                        ));
+                        continue;
+                    }
+                },
                 machine: signature.symbol,
                 kind: semantic_vocabulary::BoundaryRequirementKind::Trait,
                 state: signature.symbol,
@@ -585,6 +602,8 @@ fn build_boundary_operator(
         transitive: language_semantics::ServiceReachRowTable::EMPTY_ROW,
     };
     Some(CheckedBoundaryMachinePlan {
+        reference_outputs: reference_outputs(program, program.operator_parameters(operator), &[])
+            .ok()?,
         machine: operator.symbol,
         kind: semantic_vocabulary::BoundaryRequirementKind::Operator,
         state: operator.symbol,
@@ -606,6 +625,136 @@ fn build_boundary_operator(
         },
         service_reach,
     })
+}
+
+/// Retain admitted completion separately from ordinary reference-origin
+/// relations. In particular, an input lifetime does not locate provider backing.
+fn reference_outputs(
+    program: &dyn validation::CheckingInput,
+    parameters: &[typed_trees::signature::StateParameter],
+    substitutions: &[(SymbolHandle, typed_trees::types::TypeReferenceHandle)],
+) -> Result<Vec<checked_trees::CheckedBoundaryReferenceOutput>, &'static str> {
+    use checked_trees::{
+        CheckedBoundaryLifetimeDependency as Dependency,
+        CheckedBoundaryReferenceDestination as Destination, CheckedBoundaryReferenceOutput,
+    };
+    use validation::borrow_contracts::{ProviderOutputDestination, ViewReturnInputSource};
+    let parameters = parameters
+        .iter()
+        .map(|parameter| {
+            let mut parameter = parameter.clone();
+            parameter.type_reference =
+                substituted_formal_type(program, parameter.type_reference, substitutions);
+            parameter
+        })
+        .collect::<Vec<_>>();
+    let parameters = parameters.as_slice();
+    let outputs = validation::borrow_contracts::resolve_provider_outputs(program, parameters)
+        .map_err(|error| match error {
+            validation::borrow_contracts::ViewReturnAmbiguity::IncompleteStructure { .. } => {
+                "boundary reference completion has an incomplete type or writable frontier"
+            }
+            validation::borrow_contracts::ViewReturnAmbiguity::ElidedMultipleInputs { .. } => {
+                "boundary reference completion has ambiguous elided lifetime inputs"
+            }
+            validation::borrow_contracts::ViewReturnAmbiguity::LifetimeMatchesNoInput {
+                ..
+            } => "boundary reference completion lifetime has no matching input",
+            validation::borrow_contracts::ViewReturnAmbiguity::IncompatibleSourceAccess {
+                ..
+            } => "boundary reference completion has incompatible lifetime access",
+        })?;
+    outputs
+        .into_iter()
+        .map(|output| {
+            let (destination, root) = match output.destination {
+                ProviderOutputDestination::Parameter(position) => (
+                    Destination::Parameter(
+                        u32::try_from(position)
+                            .map_err(|_| "boundary reference output position exceeds u32")?,
+                    ),
+                    validation::reference_shell(
+                        program,
+                        parameters
+                            .get(position)
+                            .ok_or("boundary reference output parameter is missing")?
+                            .type_reference,
+                    )
+                    .ok_or("boundary reference output parameter has no reference shell")?
+                    .referee,
+                ),
+            };
+            let path = reference_output_path(program, root, &output.owner_path)?;
+            let dependencies = output
+                .dependencies
+                .into_iter()
+                .map(|dependency| {
+                    let parameter_index = u32::try_from(dependency.parameter_index)
+                        .map_err(|_| "boundary reference dependency position exceeds u32")?;
+                    let access = dependency.access;
+                    Ok(match dependency.source {
+                        ViewReturnInputSource::Referent => {
+                            if !dependency.source_path.is_empty() {
+                                return Err(
+                                    "boundary reference dependency has a projected outer referent",
+                                );
+                            }
+                            Dependency::Referent {
+                                parameter_index,
+                                access,
+                            }
+                        }
+                        ViewReturnInputSource::Stored => {
+                            let root = validation::reference_shell(program, dependency.source_type)
+                                .map_or(dependency.source_type, |shell| shell.referee);
+                            Dependency::Stored {
+                                parameter_index,
+                                access,
+                                path: reference_output_path(
+                                    program,
+                                    root,
+                                    &dependency.source_path,
+                                )?,
+                            }
+                        }
+                    })
+                })
+                .collect::<Result<Vec<_>, &'static str>>()?;
+            Ok(CheckedBoundaryReferenceOutput {
+                destination,
+                path,
+                access: output.access,
+                dependencies,
+            })
+        })
+        .collect()
+}
+
+fn reference_output_path(
+    program: &dyn validation::CheckingInput,
+    root: typed_trees::types::TypeReferenceHandle,
+    path: &[checked_trees::BorrowLoanOwnerSegment],
+) -> Result<Vec<checked_trees::CheckedUnitStructuralPathSegment>, &'static str> {
+    let segments = path
+        .iter()
+        .map(|segment| {
+            Ok(match segment {
+                checked_trees::BorrowLoanOwnerSegment::Field(symbol) => {
+                    facts::PlaceSegment::Field { symbol: *symbol }
+                }
+                checked_trees::BorrowLoanOwnerSegment::Case(variant) => {
+                    facts::PlaceSegment::Case { variant: *variant }
+                }
+                checked_trees::BorrowLoanOwnerSegment::FixedIndex(index) => {
+                    facts::PlaceSegment::FixedIndex { index: *index }
+                }
+                checked_trees::BorrowLoanOwnerSegment::DynamicIndex => {
+                    return Err("boundary reference output has an unresolved element path");
+                }
+            })
+        })
+        .collect::<Result<Vec<_>, &'static str>>()?;
+    validation::structural_storage_path(program, root, &segments).map(|(path, _)| path)
 }
 
 /// Substitute a generic requirement's `Type` formals with the actuals its

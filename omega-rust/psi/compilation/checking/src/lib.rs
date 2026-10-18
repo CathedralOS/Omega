@@ -33,6 +33,7 @@ pub use value_custody::partial_affine_residuals::{
 };
 pub use value_custody::places::collection_operations;
 pub use value_custody::places::declaration_type_reference;
+pub use value_custody::places::declared_reference_access;
 
 pub use declarations::selection_resolution;
 pub use declarations::source_completion;
@@ -65,7 +66,8 @@ pub use machine_calls::structural_call_custody::{
     structural_qualification_contract, structural_result_contract,
     structural_result_projected_qualifications, structural_result_qualification_contract,
     structural_result_qualifications, structural_state_contract_scalar_predicates,
-    view_result_carrier_qualifications, zeroed_byte_projected_qualifications,
+    structural_storage_path, view_result_carrier_qualifications,
+    zeroed_byte_projected_qualifications,
 };
 pub use proof_contracts::arithmetic_domains::domain_intervals::{
     closed_interval_from_comparison, declared_domain_predicate_bounds,

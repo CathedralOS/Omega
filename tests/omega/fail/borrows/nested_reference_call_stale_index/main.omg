@@ -1,0 +1,15 @@
+// A checked call reaches caller storage through two local reference holders.
+// Their private homes must not hide the write from later fact invalidation.
+data Inner<'a> { value: &'a mut u64; }
+data Outer<'a, 'b> { inner: &'a mut Inner<'b>; }
+
+machine change(value: &mut Outer) { value.inner.value = 3u64; }
+
+machine exercise(external: &mut u64) -> u8 {
+    external = 0u64;
+    let mut inner: Inner = Inner { value: external };
+    let mut outer: Outer = Outer { inner: &mut inner };
+    change(&mut outer);
+    let values: [u8; 2] = [1, 2];
+    values[external]
+}

@@ -1,0 +1,16 @@
+// Array selectors and an additional holder must not stop write invalidation.
+data Inner<'a> { value: &'a mut u64; }
+data Middle<'a, 'b> { items: &'a mut [Inner<'b>; 1]; }
+data Outer<'a, 'b, 'c> { middle: &'a mut Middle<'b, 'c>; }
+
+machine change(value: &mut Outer) { value.middle.items[0].value = 3u64; }
+
+machine exercise(external: &mut u64) -> u8 {
+    external = 0u64;
+    let mut items: [Inner; 1] = [Inner { value: external }];
+    let mut middle: Middle = Middle { items: &mut items };
+    let mut outer: Outer = Outer { middle: &mut middle };
+    change(&mut outer);
+    let values: [u8; 2] = [1, 2];
+    values[external]
+}

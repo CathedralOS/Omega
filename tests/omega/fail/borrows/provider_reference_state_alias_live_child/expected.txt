@@ -1,0 +1,1 @@
+state `mutate` receives `reference` while local borrow `child` is still active

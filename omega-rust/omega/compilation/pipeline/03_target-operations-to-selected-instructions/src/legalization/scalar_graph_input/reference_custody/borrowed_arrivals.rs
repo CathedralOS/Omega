@@ -104,8 +104,27 @@ fn transport(
             .collect();
         parents.sort();
         parents.dedup();
+        let mut debts = leaf.lifetime_debts.clone();
+        for debt in &mut debts {
+            debt.parents = debt
+                .parents
+                .iter()
+                .flat_map(|parent| {
+                    identities
+                        .get(parent)
+                        .cloned()
+                        .unwrap_or_else(|| vec![parent.clone()])
+                })
+                .collect();
+            debt.parents.sort();
+            debt.parents.dedup();
+        }
+        debts.sort();
+        debts.dedup();
         if arrived.identity != identity
             || arrived.root != leaf.root
+            || arrived.backing != leaf.backing
+            || arrived.lifetime_debts != debts
             || arrived.referent != leaf.referent
             || arrived.formations != leaf.formations
             || arrived.parents != parents

@@ -20,8 +20,9 @@ pub use conformances::{
     closed_conformance_application_commitment, closed_conformance_application_report_fingerprint,
 };
 pub use declarations::{
-    BoundaryContentGuarantee, BoundaryDeclarationRole, BoundaryMachineDeclaration,
-    BoundaryMachineResult, BoundaryParameterKind, BoundaryStructuralResultDeclaration,
+    BoundaryContentGuarantee, BoundaryDeclarationRole, BoundaryLifetimeDependency,
+    BoundaryMachineDeclaration, BoundaryMachineResult, BoundaryParameterKind,
+    BoundaryReferenceDestination, BoundaryReferenceOutput, BoundaryStructuralResultDeclaration,
     CheckedBoundaryCallable, ContentConservationGuarantee, ProgramLocalRootIntroductionSchema,
     StructuralDomainRequirement, find_boundary_machine,
     program_local_root_introduction_compatibility_report_identity,

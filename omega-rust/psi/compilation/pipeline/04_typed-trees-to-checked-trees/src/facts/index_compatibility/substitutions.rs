@@ -320,10 +320,7 @@ pub(crate) fn bound_index_substitutions(
                         subject,
                         expression,
                         ..
-                    } if expression.is_valid() =>
-                    {
-                        BoundIndexArgument::Expression(*expression)
-                    }
+                    } if expression.is_valid() => BoundIndexArgument::Expression(*expression),
                     StaticMachineBindingValue::RuntimeValue { subject, .. }
                         if subject.is_valid() =>
                     {

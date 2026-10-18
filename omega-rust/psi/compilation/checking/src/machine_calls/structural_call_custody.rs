@@ -1044,6 +1044,20 @@ pub fn structural_claim_path(
 /// References cannot be crossed to manufacture ownership of their referents.
 pub fn structural_owned_path(
     program: &dyn crate::CheckingInput,
+    reference: TypeReferenceHandle,
+    segments: &[facts::PlaceSegment],
+) -> Result<(Vec<CheckedUnitStructuralPathSegment>, TypeReferenceHandle), &'static str> {
+    let (path, reference) = structural_storage_path(program, reference, segments)?;
+    structural_result_qualifications(program, reference)?;
+    Ok((path, reference))
+}
+
+/// Name the storage containing a value, including a reference descriptor.
+/// Resolving that slot creates no owned value or referent authority. Reference
+/// crossings are still absent from this grammar; owned consumers separately
+/// require an owned endpoint through `structural_owned_path`.
+pub fn structural_storage_path(
+    program: &dyn crate::CheckingInput,
     mut reference: TypeReferenceHandle,
     segments: &[facts::PlaceSegment],
 ) -> Result<(Vec<CheckedUnitStructuralPathSegment>, TypeReferenceHandle), &'static str> {
@@ -1124,7 +1138,7 @@ pub fn structural_owned_path(
     if payload_fields.is_some() {
         return Err("structural claim ends at a case namespace rather than a value");
     }
-    structural_result_qualifications(program, reference)?;
+    view_result_carrier_qualifications(program, reference)?;
     Ok((path, reference))
 }
 
@@ -1375,7 +1389,6 @@ pub fn structural_call_custody(
                 && event.obligation_live
         })
         .collect::<Vec<_>>();
-    let result_frontier = crate::linear_claim_frontier(program, return_type);
     // Qualification and linear custody are independent. Preserve the exact
     // result domains above even when this carrier returns no linear claims;
     // checking the callee's result establishes that evidence, not this call's

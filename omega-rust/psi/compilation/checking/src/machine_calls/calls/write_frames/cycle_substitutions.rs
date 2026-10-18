@@ -12,7 +12,7 @@
 use super::inference::FrameInference;
 use super::local_aliases::rebase_local_alias_path;
 use super::place_paths::{FramePathPrecision, split_place_root};
-use super::stored_origins::canonical_origins;
+use super::stored_origins::canonical_write_origins;
 use super::transition_equations::CycleFrameEquation;
 use super::transition_topology::strongly_connected_components;
 use super::transparent_results::transparent_place_expression_origins;
@@ -150,7 +150,7 @@ pub(super) fn substitutions_are_finite(
                     }) {
                         spelling.precision = FramePathPrecision::CollectionCoarse;
                     }
-                    let Some(mut sources) = canonical_origins(
+                    let Some(mut sources) = canonical_write_origins(
                         program,
                         &origin,
                         &equation.local_alias_origins,

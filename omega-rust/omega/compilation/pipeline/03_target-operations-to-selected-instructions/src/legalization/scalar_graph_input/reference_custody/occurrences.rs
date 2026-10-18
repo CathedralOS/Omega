@@ -189,6 +189,7 @@ impl Leaf {
         Self {
             identity: identity.clone(),
             backing: vec![super::descriptor_backing::Backing::Source(root.clone())],
+            lifetime_debts: Vec::new(),
             root,
             parents,
             contract: contract.clone(),
@@ -325,6 +326,11 @@ pub(super) fn merge_arrivals(
         existing.backing.extend_from_slice(&incoming.backing);
         existing.backing.sort();
         existing.backing.dedup();
+        existing
+            .lifetime_debts
+            .extend_from_slice(&incoming.lifetime_debts);
+        existing.lifetime_debts.sort();
+        existing.lifetime_debts.dedup();
         existing.parents.extend_from_slice(&incoming.parents);
         existing.parents.sort();
         existing.parents.dedup();
@@ -423,21 +429,25 @@ pub(super) fn remap_parents(
             .values_mut()
             .map(|retired| &mut retired.leaf),
     ) {
-        let mut parents = Vec::with_capacity(leaf.parents.len());
-        for parent in &leaf.parents {
-            let len = parents.len();
-            parents.extend(
-                identities
-                    .iter()
-                    .filter(|(source, _)| source == parent)
-                    .map(|(_, destination)| destination.clone()),
-            );
-            if parents.len() == len {
-                parents.push(parent.clone());
+        for links in std::iter::once(&mut leaf.parents)
+            .chain(leaf.lifetime_debts.iter_mut().map(|debt| &mut debt.parents))
+        {
+            let mut parents = Vec::with_capacity(links.len());
+            for parent in links.iter() {
+                let len = parents.len();
+                parents.extend(
+                    identities
+                        .iter()
+                        .filter(|(source, _)| source == parent)
+                        .map(|(_, destination)| destination.clone()),
+                );
+                if parents.len() == len {
+                    parents.push(parent.clone());
+                }
             }
+            parents.sort();
+            parents.dedup();
+            *links = parents;
         }
-        parents.sort();
-        parents.dedup();
-        leaf.parents = parents;
     }
 }

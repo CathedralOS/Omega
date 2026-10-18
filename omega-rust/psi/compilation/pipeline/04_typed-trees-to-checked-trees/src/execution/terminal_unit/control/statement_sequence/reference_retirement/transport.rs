@@ -35,6 +35,30 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn collect(
         .statement_table
         .admitted_execution_order(state.statement_nodes);
     let mut output = Vec::new();
+    // Receiving occurrences exist independently of materialized results. In
+    // particular a Unit call can preserve or replace a stored descriptor.
+    // Consume its exact supplier edges from the checked state roster before
+    // adding relationships recovered from retained constructor value graphs.
+    for (receiver, loan) in facts
+        .borrow
+        .loans
+        .iter()
+        .filter(|(handle, _)| facts.borrow.state_owns_loan(borrowing, *handle))
+    {
+        for supplier in facts.borrow.loan_suppliers.span(loan.supplying_loans)? {
+            if !facts.borrow.state_owns_loan(borrowing, *supplier)
+                || !order.precedes(
+                    facts.borrow.loans.get(*supplier).statement_index,
+                    loan.statement_index,
+                )
+            {
+                return None;
+            }
+            if !output.contains(&(receiver, *supplier)) {
+                output.push((receiver, *supplier));
+            }
+        }
+    }
     for operation in operations {
         let (owner, formation) =
             if let Some((result, _)) = operation.discardable_structural_result() {
@@ -47,7 +71,7 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn collect(
                 }
                 (*owner, result.statement_index)
             } else if let Some((owner, formation, _)) =
-                super::stores::receiver(program, state, operation)
+                super::stores::receiver(program, facts, machine, state, operation)
             {
                 (owner, formation)
             } else {
@@ -61,28 +85,6 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn collect(
                 && loan.storage_owner == facts::PlaceRoot::Symbol(owner)
                 && loan.statement_index == formation as usize
         }) {
-            // Borrow attribution already knows the exact supplying occurrence
-            // when a stored carrier moves through a call or constructor. Keep
-            // this identity rather than reconstructing call operands from
-            // source syntax, or borrowing the consumed descriptor itself.
-            for supplier in facts
-                .borrow
-                .loan_suppliers
-                .span_or_empty(loan.supplying_loans)
-            {
-                if !facts.borrow.loans.is_valid(*supplier)
-                    || !facts.borrow.state_owns_loan(borrowing, *supplier)
-                    || !order.precedes(
-                        facts.borrow.loans.get(*supplier).statement_index,
-                        loan.statement_index,
-                    )
-                {
-                    return None;
-                }
-                if !output.contains(&(receiver, *supplier)) {
-                    output.push((receiver, *supplier));
-                }
-            }
             let CheckedUnitEffectOperationPlan::EstablishLocal(
                 checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { value, .. },
             ) = operation

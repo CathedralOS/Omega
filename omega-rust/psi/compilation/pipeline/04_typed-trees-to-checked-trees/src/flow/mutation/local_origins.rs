@@ -314,31 +314,80 @@ pub(super) fn rebase_local_write_places(
             call_frames,
         );
     };
+    // An origin identifies the captured referent of one descriptor, not the
+    // transitive storage footprint of that referent. Walk the same immutable
+    // inventory through every writable descriptor before deciding a local
+    // holder is disjoint from caller storage. Do not flatten this inventory:
+    // exact-reference consumers still need the original descriptor coordinates.
+    let mut pending = vec![(place, Vec::<usize>::new())];
     let mut projected = Vec::new();
-    let mut retains_private_storage = true;
-    for origin in origins.iter().filter(|origin| origin.local_symbol == root) {
-        if !canonical_place_segments_may_overlap(program, &place.segments, &origin.local_segments) {
-            continue;
-        }
-        let (mut canonical, precision) = origin_place(program, state, statement_index, origin)?;
-        if place.segments.len() >= origin.local_segments.len() {
-            retains_private_storage = false;
-            if precision != OriginPrecision::Enclosing {
-                canonical.segments = facts::project_captured_view_segments(
-                    &canonical.segments,
-                    &place.segments[origin.local_segments.len()..],
-                )?;
+    while let Some((place, crossed)) = pending.pop() {
+        let root = place.root.as_symbol()?;
+        let mut retains_private_storage = true;
+        for (origin_index, origin) in origins.iter().enumerate() {
+            if origin.local_symbol != root
+                || !canonical_place_segments_may_overlap(
+                    program,
+                    &place.segments,
+                    &origin.local_segments,
+                )
+            {
+                continue;
             }
+            let descriptor = CanonicalPlace {
+                root: place.root,
+                segments: origin.local_segments.clone(),
+            };
+            let reference = validation::canonical_place_type_reference(
+                program,
+                state_symbol,
+                statement_index,
+                &descriptor,
+            )?;
+            if validation::declared_reference_access(program, reference)
+                .is_some_and(|access| !access.is_exclusive())
+                || origin
+                    .source
+                    .as_ref()
+                    .is_some_and(|source| source.is_image_storage)
+            {
+                continue;
+            }
+            let (mut canonical, precision) = origin_place(program, state, statement_index, origin)?;
+            if place.segments.len() >= origin.local_segments.len() {
+                retains_private_storage = false;
+                if precision != OriginPrecision::Enclosing {
+                    canonical.segments = facts::project_captured_view_segments(
+                        &canonical.segments,
+                        &place.segments[origin.local_segments.len()..],
+                    )?;
+                }
+            }
+            // A captured self-origin already names its storage. Other cycles
+            // cannot establish a finite footprint, including cycles which
+            // grow a selector suffix on each crossing. Refuse rather than
+            // returning an incomplete may-write set or looping indefinitely.
+            if canonical == place {
+                // Another possible origin may fully cover this descriptor.
+                // Its replacement cannot erase the retained incoming target.
+                if !projected.contains(&place) {
+                    projected.push(place.clone());
+                }
+                continue;
+            }
+            if crossed.contains(&origin_index) {
+                return None;
+            }
+            let mut next_crossed = crossed.clone();
+            next_crossed.push(origin_index);
+            pending.push((canonical, next_crossed));
         }
-        if !projected.contains(&canonical) {
-            projected.push(canonical);
+        // A disjoint owned field, or an ancestor also containing owned bytes,
+        // still has local facts to invalidate. Caller summaries filter it only
+        // after the reachable external storage has been collected.
+        if retains_private_storage && !projected.contains(&place) {
+            projected.push(place);
         }
-    }
-    // A complete prefix accounts for every write-capable reference leaf.
-    // A disjoint owned field, or an ancestor also containing owned storage,
-    // still has local facts to invalidate. Caller summaries filter that root.
-    if retains_private_storage && !projected.contains(&place) {
-        projected.push(place);
     }
     Some(projected)
 }

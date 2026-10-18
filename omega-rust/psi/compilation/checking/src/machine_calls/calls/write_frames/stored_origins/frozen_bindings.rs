@@ -355,7 +355,8 @@ fn writes_may_replace_binding(
                     // contents of an opaque region. Only modeled slots can
                     // lose this conservative replacement fence.
                     .filter(|leaf| {
-                        !references_known || leaf.kind != super::StoredOriginKind::Reference
+                        !references_known
+                            || !matches!(leaf.kind, super::StoredOriginKind::Reference(_))
                     })
                     .map(|leaf| leaf.local_segments.as_slice())
                     .chain(
@@ -568,7 +569,7 @@ pub(super) fn target_replaces_untracked_origin(
     references_known: bool,
 ) -> bool {
     let untracked = |leaf: &super::StoredWriteOrigin| {
-        !references_known || leaf.kind != super::StoredOriginKind::Reference
+        !references_known || !matches!(leaf.kind, super::StoredOriginKind::Reference(_))
     };
     let Some(source) = binding_source(program, target, aliases) else {
         return stored

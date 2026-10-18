@@ -31,6 +31,8 @@ use crate::sections::semantic_module::wire::{
 };
 use terminal_psi::TerminalIdentityIndex;
 
+mod reference_outputs;
+
 pub(crate) fn encode_boundary_machine(
     writer: &mut Writer,
     declaration: &BoundaryMachineDeclaration,
@@ -102,6 +104,7 @@ pub(crate) fn encode_boundary_machine(
     for proposition in &declaration.scalar_ensures {
         encode_proposition(writer, proposition, 0)?;
     }
+    reference_outputs::encode(writer, &declaration.reference_outputs)?;
     writer.len(
         "program-local root introduction schemas",
         declaration.program_local_root_introductions.len(),
@@ -299,6 +302,7 @@ pub(crate) fn decode_boundary_machine(
         })?,
         scalar_requires: decode_counted(reader, |reader| decode_proposition(reader, 0))?,
         scalar_ensures: decode_counted(reader, |reader| decode_proposition(reader, 0))?,
+        reference_outputs: reference_outputs::decode(reader)?,
         program_local_root_introductions: decode_counted(reader, |reader| {
             let argument_index = reader.u32()?;
             let source_parameter_position = reader.u32()?;

@@ -130,6 +130,36 @@ pub(super) fn encode_boundary_machine(
     );
     encode_boundary_result(bytes, &declaration.result);
     bytes.slice(&declaration.requires, encode_domain_requirement);
+    bytes.slice(&declaration.reference_outputs, |bytes, output| {
+        match output.destination {
+            terminal_psi::BoundaryReferenceDestination::Parameter(position) => {
+                bytes.u8(0);
+                bytes.u32(position);
+            }
+        }
+        bytes.slice(&output.path, encode_structural_path_segment);
+        encode_access(bytes, output.access);
+        bytes.slice(&output.dependencies, |bytes, dependency| match dependency {
+            terminal_psi::BoundaryLifetimeDependency::Referent {
+                argument_index,
+                access,
+            } => {
+                bytes.u8(0);
+                bytes.u32(*argument_index);
+                encode_access(bytes, *access);
+            }
+            terminal_psi::BoundaryLifetimeDependency::Stored {
+                argument_index,
+                path,
+                access,
+            } => {
+                bytes.u8(1);
+                bytes.u32(*argument_index);
+                encode_access(bytes, *access);
+                bytes.slice(path, encode_structural_path_segment);
+            }
+        });
+    });
     bytes.slice(
         &declaration.program_local_root_introductions,
         encode_program_local_root_introduction,

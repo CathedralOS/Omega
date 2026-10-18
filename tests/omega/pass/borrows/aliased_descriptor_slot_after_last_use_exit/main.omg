@@ -1,0 +1,25 @@
+// Expected exit: 0
+// Copying a descriptor reads its holder. The exclusive child must finish
+// first; the same read while it remains live is a separate invalid control.
+data Holder<'a> [copy] { value: &'a u64; }
+
+machine identity(value: &u64) -> &u64 { value }
+
+machine main() crashes Trap {
+    let value: u64 = 7;
+    let mut holder: Holder = Holder { value: &value };
+    let alias: &mut Holder = &mut holder;
+    let exclusive: &mut Holder = &mut alias;
+    let observed: bool = exclusive.value == 7;
+    let next: &mut Holder = &mut alias;
+    let restored: bool = next.value == 7;
+    let copied: &u64 = alias.value;
+    let reborrowed: &u64 = &alias.value;
+    let returned: &u64 = identity(alias.value);
+    transition observed && restored && copied == 7 && reborrowed == 7 && returned == 7 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

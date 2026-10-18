@@ -171,6 +171,11 @@ pub enum CheckedStructuralScalarArgumentSourcePlan {
 pub struct CheckedStructuralControlTransferPlan {
     pub source: CheckedStructuralControlTransferSourcePlan,
     pub target_parameter_index: u32,
+    /// State-local storage named by this captured argument's checked loan
+    /// resources. This is a retention dependency, not permission to move it.
+    /// Reference construction syntax and intermediate descriptors do not name
+    /// the ultimate home; operand-completion provenance does.
+    pub retained_loan_backing: Option<u32>,
 }
 
 impl Default for CheckedStructuralControlTransferPlan {
@@ -178,6 +183,7 @@ impl Default for CheckedStructuralControlTransferPlan {
         Self {
             source: CheckedStructuralControlTransferSourcePlan::Parameter { index: 0 },
             target_parameter_index: 0,
+            retained_loan_backing: None,
         }
     }
 }
@@ -250,6 +256,12 @@ pub enum CheckedStructuralControlTransferSourcePlan {
     /// beside the borrowed referent and retains any parent carrier lifetime.
     ProjectedLoan {
         subject: CheckedUnitStructuralArgumentPlan,
+        /// Independently owned whole backing that may replace this descriptor
+        /// on this selected edge after its checked retirement. The complete
+        /// captured-operand frontier has no other dependency on that home.
+        /// Absence keeps the original address stable; descriptor death alone
+        /// never establishes permission to relocate its referent.
+        retired_carrier_backing: Option<u32>,
         /// The authored borrow and its descriptor type when a storage place
         /// requires a retained address. This prepared type permits formation when
         /// the target chain needs a runtime capture; static geometry can retain

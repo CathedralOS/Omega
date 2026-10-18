@@ -181,14 +181,28 @@ pub(super) fn stored_reference_loans(
     )?;
     // Only the selected descriptor leaf supplies this value. An enclosing
     // reference's loan does not describe a descriptor stored in its referent.
-    let selected = loan_trackers.iter().filter(|loan| {
-        loan.storage_owner == source.root
-            && loan.owner_path.len() == source.segments.len()
-            && owner_path_matches(program, &loan.owner_path, &source.segments)
-    });
-    let loans = transferred_aggregate_loans(
-        program, local_data, expression, &source, owner_path, selected,
-    );
+    // Resolve containing references using the same current-storage traversal
+    // as formation, but retain the final descriptor occurrence before its
+    // pointee is normalized. Pointer geometry cannot select this supplier.
+    let sources = rebase_borrow_places_through_local_loans(program, source, loan_trackers);
+    let mut loans = Vec::new();
+    for source in sources {
+        let mut selected = loan_trackers.iter().filter(|loan| {
+            loan.handle == source.parent_loan
+                && loan.storage_owner == source.source_place.root
+                && loan.owner_path.len() == source.source_place.segments.len()
+                && owner_path_matches(program, &loan.owner_path, &source.source_place.segments)
+        });
+        let first = selected.next()?;
+        loans.extend(transferred_aggregate_loans(
+            program,
+            local_data,
+            expression,
+            &source.source_place,
+            owner_path,
+            std::iter::once(first).chain(selected),
+        ));
+    }
     (!loans.is_empty()).then_some(loans)
 }
 
@@ -496,7 +510,7 @@ fn transferred_aggregate_loans<'loan>(
                 supplying_loans: std::iter::once(loan.handle)
                     .filter(|handle| handle.is_valid())
                     .collect(),
-                lineage: checked_trees::BorrowLoanLineage::UnretainedDerived,
+                lineage: loan.lineage.derived(),
                 kind: loan.kind.clone(),
                 call_result: false,
             })

@@ -75,6 +75,7 @@ pub(super) fn encode_call(bytes: &mut Vec<u8>, row: &SelectedCallContract) {
     length(bytes, call.descriptor_origins.len());
     for origin in &call.descriptor_origins {
         match origin {
+            legalized_operations::LegalizedDescriptorOrigin::Opaque => bytes.push(3),
             legalized_operations::LegalizedDescriptorOrigin::Empty => bytes.push(2),
             legalized_operations::LegalizedDescriptorOrigin::Argument {
                 source,
@@ -196,6 +197,7 @@ pub(super) fn decode_call(
                 place: decode_id(cursor, semantic_vocabulary::PlaceId::new)?,
             },
             2 => legalized_operations::LegalizedDescriptorOrigin::Empty,
+            3 => legalized_operations::LegalizedDescriptorOrigin::Opaque,
             tag => return Err(FixedViewCopyDecodeError::UnknownOption(tag)),
         });
     }

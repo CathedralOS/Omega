@@ -27,6 +27,10 @@ use typed_trees::type_identity::TypeIdentityId;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedStorePlan {
     pub statement_index: u32,
+    /// Selection within the statement's pre-RHS captured destination. Whole
+    /// assignments use an empty path; expanded region stores retain their
+    /// element selection rather than sharing the whole statement's identity.
+    pub captured_selection: Vec<CheckedUnitStructuralPathSegment>,
     pub destination: CheckedStoreDestination,
     pub value: CheckedStoreValue,
 }
@@ -185,7 +189,9 @@ pub enum CheckedStoreLeaf {
     /// Install a completed whole value at its captured structural destination.
     /// An extraction binding identifies restoration debt. Without one, owned
     /// storage has its checked old-value disposition, while intact borrowed
-    /// storage requires unrestricted contents with no cleanup obligation.
+    /// storage requires unrestricted contents or an affine value with intrinsic
+    /// no-code disposal, including reference descriptors. Overwriting such a
+    /// descriptor ends its resident occurrence, not its independent copies.
     StructuralStore {
         type_identity: TypeIdentityId,
         /// Custody of the completed incoming value, including a selected child.
@@ -194,7 +200,7 @@ pub enum CheckedStoreLeaf {
         /// source checker establishes storage equality; lowering must not
         /// infer it from selector evaluation coordinates. None denotes an
         /// store with no extraction debt: owned old contents were disposed in
-        /// place, or unrestricted borrowed contents need no displacement.
+        /// place, or intrinsically discardable borrowed contents need no displacement.
         opening_binding: Option<u32>,
     },
     /// A whole owned binding (local or formal, with an empty path) rebound to a whole owned value

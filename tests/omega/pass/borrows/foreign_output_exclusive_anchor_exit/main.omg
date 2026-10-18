@@ -1,0 +1,44 @@
+// Expected exit: 0. A shared provider output retains an exclusive input loan
+// through an ordinary reference-taking observer; last use releases that loan.
+use omega::language::core::external_binding;
+
+pub data Output<'source> { value: &'source u8; }
+pub data TerminatedInput where terminator == 0, {
+    digit: u8;
+    marker: u8;
+    terminator: u8;
+}
+pub boundary trait ParseNumber {
+    machine parse<'source>(source: &'source mut TerminatedInput, output: &mut Output<'source>, base: i32) -> i64
+    requires base == 10;
+}
+macos_arm64 machine parse_binding() -> ForeignBinding<26, 7, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_strtol",
+        },
+    }
+}
+// The admitted contract deliberately demands stronger input access than
+// strtol uses. Output access must not weaken that retained input obligation.
+macos_arm64 machine parse<'source>(source: &'source mut TerminatedInput, output: &mut Output<'source>, base: i32) -> i64
+satisfies ParseNumber::parse via parse_binding()
+requires base == 10;
+
+machine observe(value: &u8) -> u8 { value }
+
+data Main {}
+machine Main::main(main: &mut Main) reaches ParseNumber crashes Trap {
+    let mut source: TerminatedInput = TerminatedInput { digit: 52, marker: 120, terminator: 0 };
+    let sentinel: u8 = 7;
+    let mut output: Output = Output { value: &sentinel };
+    let number: i64 = ParseNumber::parse(&mut source, &mut output, 10);
+    let observed: u8 = observe(output.value);
+    source.marker = 121;
+    transition number == 4 && observed == 120 && source.marker == 121 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

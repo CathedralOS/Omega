@@ -1087,6 +1087,7 @@ fn adapt(
                         .slots
                         .get(usize::try_from(*slot).ok()?)?;
                     let call = kernel::public_invocation(
+                        node.operation.psi_operation()?,
                         types,
                         slot_kind,
                         slot,
@@ -1181,6 +1182,7 @@ fn adapt(
                         graph.calls.insert(
                             position,
                             DescriptorInvocation {
+                                operation: node.operation.psi_operation()?,
                                 target: kernel::DescriptorInvocationTarget::Machine(callee.machine),
                                 arguments,
                                 argument_contents,
@@ -1326,6 +1328,25 @@ fn adapt(
                                 slot_kind,
                             )?);
                         }
+                    }
+                    let mut declarations = boundaries
+                        .iter()
+                        .filter(|declaration| declaration.id == *boundary);
+                    if let (Some(declaration), None) = (declarations.next(), declarations.next())
+                        && !declaration.reference_outputs.is_empty()
+                        && slot_kind != kernel::DescriptorSlotKind::PlacedOrigins
+                    {
+                        graph.calls.insert(
+                            position,
+                            kernel::provider_invocation(
+                                node.operation.psi_operation()?,
+                                types,
+                                slot_kind,
+                                declaration,
+                                structural_arguments,
+                                &graph.place_types,
+                            )?,
+                        );
                     }
                 }
                 O::ReturnStructural { source, .. } => {

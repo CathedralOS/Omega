@@ -1,0 +1,23 @@
+// An older copy keeps its original debt only through that copy's last use.
+pub data Output<'source> { value: &'source u8; }
+pub boundary trait ReadView {
+    machine acquire<'source>(source: &'source [u8; 3], output: &mut Output<'source>);
+}
+
+machine refresh<'source>(source: &'source [u8; 3], output: &mut Output<'source>)
+reaches ReadView {
+    ReadView::acquire(source, output);
+}
+
+machine exercise() -> u8 reaches ReadView {
+    let mut first: [u8; 3] = [52, 50, 0];
+    let second: [u8; 3] = [53, 51, 0];
+    let sentinel: u8 = 7;
+    let mut output: Output = Output { value: &sentinel };
+    refresh(&first, &mut output);
+    let captured: &u8 = output.value;
+    refresh(&second, &mut output);
+    let result: u8 = captured;
+    first[0] = 51;
+    result
+}

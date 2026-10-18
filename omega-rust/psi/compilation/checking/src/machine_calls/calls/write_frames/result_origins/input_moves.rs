@@ -112,6 +112,7 @@ pub(super) fn instantiate_moves(
                 .references
                 .into_iter()
                 .map(|leaf| StoredWriteOrigin {
+                    lifetime_dependencies: leaf.lifetime_dependencies,
                     kind: leaf.kind,
                     local_symbol: parameter.symbol,
                     local_path: leaf.local_suffix,

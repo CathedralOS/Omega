@@ -54,7 +54,7 @@ pub(super) fn loans(
                     supplying_loans: std::iter::once(source.handle)
                         .filter(|handle| handle.is_valid())
                         .collect(),
-                    lineage: checked_trees::BorrowLoanLineage::UnretainedDerived,
+                    lineage: source.lineage.derived(),
                     kind: source.kind.clone(),
                     call_result: true,
                 });
@@ -76,6 +76,13 @@ pub(super) fn loans(
                 .filter(|candidate| {
                     candidate.place.root == facts::PlaceRoot::Symbol(backing.root)
                         && candidate.place.segments == backing.segments
+                        // An incoming descriptor's stored coordinate names
+                        // its pointer, not its external pointee. Join that
+                        // exact captured carrier to the existing ingress
+                        // identity instead of borrowing its own output slot.
+                        || candidate.place.incoming_reference.is_valid()
+                            && candidate.source_place.root == facts::PlaceRoot::Symbol(backing.root)
+                            && candidate.source_place.segments == backing.segments
                 })
                 .map(Some)
                 .collect();
@@ -100,12 +107,14 @@ pub(super) fn loans(
                     owner_name: program.symbols.name(owner).into(),
                     owner_path: owner_path.clone(),
                     retained_operand: supplying.and_then(|source| source.retained_operand),
-                    place: checked_trees::CapturedPlace {
-                        incoming_reference: supplying
-                            .map_or(Default::default(), |source| source.place.incoming_reference),
-                        root: facts::PlaceRoot::Symbol(backing.root),
-                        segments: backing.segments.clone(),
-                    },
+                    place: supplying.map_or_else(
+                        || checked_trees::CapturedPlace {
+                            incoming_reference: Default::default(),
+                            root: facts::PlaceRoot::Symbol(backing.root),
+                            segments: backing.segments.clone(),
+                        },
+                        |source| source.place.clone(),
+                    ),
                     source_owner_symbol: supplying
                         .map_or(Default::default(), |source| source.source_owner_symbol),
                     supplying_loans: supplying
@@ -113,8 +122,16 @@ pub(super) fn loans(
                         .filter(|loan| loan.is_valid())
                         .into_iter()
                         .collect(),
-                    lineage: checked_trees::BorrowLoanLineage::UnretainedDerived,
-                    kind: super::borrow_access_kind(effect.access),
+                    lineage: if source.lifetime_access.is_some()
+                        || supplying.is_some_and(|source| source.lifetime_only)
+                    {
+                        checked_trees::BorrowLoanLineage::LifetimeDependency
+                    } else {
+                        checked_trees::BorrowLoanLineage::UnretainedDerived
+                    },
+                    kind: super::borrow_access_kind(
+                        source.lifetime_access.unwrap_or(effect.access),
+                    ),
                     call_result: true,
                 });
             }

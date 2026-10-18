@@ -228,7 +228,7 @@ impl Retirement<'_> {
         ) else {
             return false;
         };
-        if !transfers.definite.iter().any(|path| path.is_empty()) {
+        if !self.transfers_cover_references(result, &transfers.definite) {
             return false;
         }
         active.push(result.binding_ordinal);
@@ -236,6 +236,51 @@ impl Retirement<'_> {
             && transfers.possible.iter().all(|transfer| {
                 match &transfer.destination {
                     Destination::Holder(receiver, _) => self.carrier_retired(receiver, active),
+                    Destination::Storage {
+                        statement_index,
+                        captured_selection,
+                    } => {
+                        let statement_index = *statement_index;
+                        if !self
+                            .order
+                            .precedes(statement_index as usize, self.statement_index as usize)
+                        {
+                            return false;
+                        }
+                        let Some((owner, path)) = stores::destination(
+                            self.program,
+                            self.facts,
+                            self.machine,
+                            self.state,
+                            statement_index,
+                            captured_selection,
+                        ) else {
+                            return false;
+                        };
+                        let Some(groups) = validation::reference_result_custody::named_place_loans(
+                            self.program,
+                            self.facts,
+                            self.machine,
+                            self.state,
+                            owner,
+                            statement_index,
+                            &path,
+                        ) else {
+                            return false;
+                        };
+                        // The result was consumed into the destination. Its
+                        // dependency persists through the receiving occurrence,
+                        // even when no named result represents that store.
+                        !groups.is_empty()
+                            && groups.iter().all(|(_, group)| {
+                                self.facts
+                                    .borrow
+                                    .loan_group(*group)
+                                    .is_some_and(|mut loans| {
+                                        loans.all(|(handle, _)| self.holder_retired(handle))
+                                    })
+                            })
+                    }
                     // Consumption retires this holder, but a returned carrier
                     // can retain its parents. Follow that receiving occurrence
                     // before declaring the transferred descriptor settled.
@@ -324,5 +369,50 @@ impl Retirement<'_> {
             });
         active.pop();
         retired
+    }
+
+    /// Descriptor death need not move an aggregate in one operation. A region
+    /// store can consume its leaves separately. Every declared reference leaf
+    /// must be definitely transferred, and `carrier_retired` still follows all
+    /// receivers until their occurrences retire. This grants no disposal of
+    /// the aggregate's other contents or of an unselected sibling descriptor.
+    fn transfers_cover_references(
+        &self,
+        result: &CheckedUnitStructuralResultBindingPlan,
+        transferred: &[Vec<CheckedUnitStructuralPathSegment>],
+    ) -> bool {
+        if transferred.iter().any(|path| path.is_empty()) {
+            return true;
+        }
+        let covered = (|| {
+            let mut owners = self.results.iter().filter(|(binding, _)| binding == result);
+            let (_, root) = owners.next()?;
+            if owners.next().is_some() {
+                return None;
+            }
+            let reference = validation::canonical_place_type_reference(
+                self.program,
+                self.state.symbol,
+                result.statement_index as usize,
+                &validation::CanonicalPlace {
+                    root: *root,
+                    segments: Vec::new(),
+                },
+            )?;
+            let leaves = validation::reference_result_custody::record_carrier_sources(
+                self.program,
+                reference,
+                CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                    binding_ordinal: result.binding_ordinal,
+                },
+            )?;
+            Some(
+                !leaves.is_empty()
+                    && leaves
+                        .iter()
+                        .all(|leaf| transferred.iter().any(|path| leaf.path.starts_with(path))),
+            )
+        })();
+        covered == Some(true)
     }
 }

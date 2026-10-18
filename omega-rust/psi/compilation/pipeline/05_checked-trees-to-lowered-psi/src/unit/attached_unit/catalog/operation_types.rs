@@ -148,7 +148,9 @@ fn collect_projection_type_roots(
                     None => match &declaration.shape {
                         Shape::Record { fields, .. } | Shape::Mixed { fields, .. } => fields,
                         _ => {
-                            return unsupported("atomic receiver field lost its declared container");
+                            return unsupported(
+                                "atomic receiver field lost its declared container",
+                            );
                         }
                     },
                 };

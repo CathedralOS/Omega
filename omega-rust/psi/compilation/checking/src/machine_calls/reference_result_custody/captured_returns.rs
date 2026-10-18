@@ -368,6 +368,10 @@ impl Captures<'_> {
         expression: Option<ExpressionHandle>,
         loans: &[checked_trees::BorrowReturnedLoanFact],
     ) -> Option<Vec<CheckedReferenceOriginSourcePlan>> {
+        if loan.lineage == checked_trees::BorrowLoanLineage::LifetimeDependency {
+            // Lifetime custody does not authenticate a projected input address.
+            return None;
+        }
         let values = &self.facts.values.structural_values;
         if let Some(expression) = expression {
             let root = values

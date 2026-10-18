@@ -1,0 +1,283 @@
+// Expected exit: 0.
+// A successor borrows a local record that itself carries a reference. Losing
+// the record's home erases its stored descriptor even if native stack bytes
+// happen to survive. Exercise entry and later-state homes, selected exits,
+// named carriers, projection, call results, and a forwarded loan.
+data Table { value: u64; }
+data Cycle { table: &Table; started: bool; }
+data Envelope { cycle: Cycle; }
+data Holder { view: &Cycle; }
+data Decision { case Ready; case Rejected(status: u64); }
+
+machine complete(cycle: &mut Cycle) -> Decision {
+    transition cycle.started {
+        true -> Decision::Rejected { status: 2 }
+        false -> start(cycle)
+    }
+    state start(cycle: &mut Cycle) -> Decision {
+        cycle.started = true;
+        Decision::Ready
+    }
+}
+
+machine repeated(table: &Table) -> bool {
+    let mut cycle: Cycle = Cycle { table: table, started: false };
+    let first: Decision = complete(&mut cycle);
+    let second: Decision = complete(&mut cycle);
+    transition second {
+        Decision::Rejected { status } -> observe(first, status, &cycle)
+        _ -> (false)
+    }
+    state observe(first: Decision, status: u64, cycle: &Cycle) -> bool {
+        transition first {
+            Decision::Ready -> (status == 2 && cycle.table.value == 73)
+            _ -> (false)
+        }
+    }
+}
+
+machine later(table: &Table, selected: bool) -> u64 {
+    transition { _ -> prepare(table, selected) }
+    state prepare(table: &Table, selected: bool) -> u64 {
+        let cycle: Cycle = Cycle { table: table, started: false };
+        transition selected {
+            true -> observe(&cycle)
+            false -> absent()
+        }
+    }
+    state observe(cycle: &Cycle) -> u64 {
+        transition { _ -> forwarded(cycle) }
+    }
+    state forwarded(cycle: &Cycle) -> u64 { cycle.table.value }
+    state absent() -> u64 { 0 }
+}
+
+machine projected(table: &Table) -> u64 {
+    transition { _ -> prepare(table) }
+    state prepare(table: &Table) -> u64 {
+        let envelope: Envelope = Envelope {
+            cycle: Cycle { table: table, started: false },
+        };
+        transition { _ -> observe(&envelope.cycle) }
+    }
+    state observe(cycle: &Cycle) -> u64 { cycle.table.value }
+}
+
+machine named(table: &Table) -> u64 {
+    let cycle: Cycle = Cycle { table: table, started: false };
+    let view: &Cycle = &cycle;
+    transition { _ -> observe(view) }
+    state observe(cycle: &Cycle) -> u64 { cycle.table.value }
+}
+
+machine construct(table: &Table) -> Cycle {
+    Cycle { table: table, started: false }
+}
+
+machine returned(table: &Table) -> u64 {
+    let cycle: Cycle = construct(table);
+    transition { _ -> observe(&cycle) }
+    state observe(cycle: &Cycle) -> u64 { cycle.table.value }
+}
+
+machine later_named(table: &Table) -> u64 {
+    transition { _ -> prepare(table) }
+    state prepare(table: &Table) -> u64 {
+        let cycle: Cycle = Cycle { table: table, started: false };
+        let view: &Cycle = &cycle;
+        transition { _ -> observe(view) }
+    }
+    state observe(cycle: &Cycle) -> u64 {
+        transition { _ -> finished(cycle.table.value) }
+    }
+    state finished(value: u64) -> u64 { value }
+}
+
+machine later_mutable_named(table: &Table) -> u64 {
+    transition { _ -> prepare(table) }
+    state prepare(table: &Table) -> u64 {
+        let mut cycle: Cycle = Cycle { table: table, started: false };
+        let view: &mut Cycle = &mut cycle;
+        transition { _ -> observe(view) }
+    }
+    state observe(cycle: &mut Cycle) -> u64 {
+        cycle.started = true;
+        transition { _ -> finished(cycle.table.value) }
+    }
+    state finished(value: u64) -> u64 { value }
+}
+
+machine later_named_branches(table: &Table, selected: bool) -> u64 {
+    transition { _ -> prepare(table, selected) }
+    state prepare(table: &Table, selected: bool) -> u64 {
+        let cycle: Cycle = Cycle { table: table, started: false };
+        let left: &Cycle = &cycle;
+        let right: &Cycle = &cycle;
+        transition selected {
+            true -> observe_left(left)
+            false -> observe_right(right)
+        }
+    }
+    state observe_left(cycle: &Cycle) -> u64 {
+        transition { _ -> finished(cycle.table.value) }
+    }
+    state observe_right(cycle: &Cycle) -> u64 {
+        transition { _ -> finished(cycle.table.value) }
+    }
+    state finished(value: u64) -> u64 { value }
+}
+
+machine joined_named_backings(table: &Table, selected: bool) -> u64 {
+    transition selected {
+        true -> first(table)
+        false -> second(table)
+    }
+    state first(table: &Table) -> u64 {
+        let mut cycle: Cycle = Cycle { table: table, started: false };
+        let view: &mut Cycle = &mut cycle;
+        transition { _ -> observe(view) }
+    }
+    state second(table: &Table) -> u64 {
+        let mut cycle: Cycle = Cycle { table: table, started: true };
+        let view: &mut Cycle = &mut cycle;
+        transition { _ -> observe(view) }
+    }
+    state observe(cycle: &mut Cycle) -> u64 {
+        cycle.started = true;
+        transition { _ -> finished(cycle.table.value) }
+    }
+    state finished(value: u64) -> u64 { value }
+}
+
+machine retained_alias(table: &Table, selected: bool) -> u64 {
+    transition { _ -> prepare(table, selected) }
+    state prepare(table: &Table, selected: bool) -> u64 {
+        let cycle: Cycle = Cycle { table: table, started: false };
+        let view: &Cycle = &cycle;
+        transition selected {
+            true -> reference_first(view, Holder { view: view })
+            false -> carrier_first(Holder { view: view }, view)
+        }
+    }
+    state reference_first(cycle: &Cycle, other: Holder) -> u64 {
+        cycle.table.value ^ other.view.table.value
+    }
+    state carrier_first(other: Holder, cycle: &Cycle) -> u64 {
+        cycle.table.value ^ other.view.table.value
+    }
+}
+
+machine descendant(table: &Table) -> u64 {
+    transition { _ -> prepare(table) }
+    state prepare(table: &Table) -> u64 {
+        let mut cycle: Cycle = Cycle { table: table, started: false };
+        let view: &mut Cycle = &mut cycle;
+        let child: &Cycle = &view;
+        transition { _ -> observe(child) }
+    }
+    state observe(cycle: &Cycle) -> u64 { cycle.table.value }
+}
+
+machine nested_descendant(table: &Table) -> u64 {
+    transition { _ -> prepare(table) }
+    state prepare(table: &Table) -> u64 {
+        let cycle: Cycle = Cycle { table: table, started: false };
+        let holder: Holder = Holder { view: &cycle };
+        let view: &Holder = &holder;
+        let child: &Cycle = &view.view;
+        transition { _ -> observe(child) }
+    }
+    state observe(cycle: &Cycle) -> u64 {
+        transition { _ -> finished(cycle.table.value) }
+    }
+    state finished(value: u64) -> u64 { value }
+}
+
+machine identity<'loan>(value: &'loan Cycle) -> &'loan Cycle { value }
+
+machine direct_descendant(table: &Table) -> u64 {
+    transition { _ -> prepare(table) }
+    state prepare(table: &Table) -> u64 {
+        let cycle: Cycle = Cycle { table: table, started: false };
+        let holder: Holder = Holder { view: &cycle };
+        let view: &Holder = &holder;
+        transition { _ -> observe(&view.view) }
+    }
+    state observe(cycle: &Cycle) -> u64 { cycle.table.value }
+}
+
+machine direct_returned_reference(table: &Table) -> u64 {
+    transition { _ -> prepare(table) }
+    state prepare(table: &Table) -> u64 {
+        let cycle: Cycle = Cycle { table: table, started: false };
+        transition { _ -> observe(identity(&cycle)) }
+    }
+    state observe(cycle: &Cycle) -> u64 { cycle.table.value }
+}
+
+machine returned_reference(table: &Table) -> u64 {
+    transition { _ -> prepare(table) }
+    state prepare(table: &Table) -> u64 {
+        let cycle: Cycle = Cycle { table: table, started: false };
+        let child: &Cycle = identity(&cycle);
+        transition { _ -> observe(child) }
+    }
+    state observe(cycle: &Cycle) -> u64 {
+        transition { _ -> finished(cycle.table.value) }
+    }
+    state finished(value: u64) -> u64 { value }
+}
+
+machine nested_homes(table: &Table) -> u64 {
+    transition { _ -> prepare(table) }
+    state prepare(table: &Table) -> u64 {
+        let cycle: Cycle = Cycle { table: table, started: false };
+        transition { _ -> carry(&cycle) }
+    }
+    state carry(cycle: &Cycle) -> u64 {
+        let holder: Holder = Holder { view: cycle };
+        transition { _ -> observe(&holder, cycle) }
+    }
+    state observe(holder: &Holder, cycle: &Cycle) -> u64 {
+        transition { _ -> finished(holder.view.table.value ^ cycle.table.value) }
+    }
+    state finished(value: u64) -> u64 { value }
+}
+
+machine reversed_homes(table: &Table) -> u64 {
+    transition { _ -> prepare(table) }
+    state carry(cycle: &Cycle) -> u64 {
+        let holder: Holder = Holder { view: cycle };
+        transition { _ -> observe(&holder, cycle) }
+    }
+    state observe(holder: &Holder, cycle: &Cycle) -> u64 {
+        transition { _ -> finished(holder.view.table.value ^ cycle.table.value) }
+    }
+    state prepare(table: &Table) -> u64 {
+        let cycle: Cycle = Cycle { table: table, started: false };
+        transition { _ -> carry(&cycle) }
+    }
+    state finished(value: u64) -> u64 { value }
+}
+
+machine main() crashes Trap {
+    let table: Table = Table { value: 73 };
+    transition repeated(&table) && later(&table, true) == 73 &&
+               later(&table, false) == 0 && projected(&table) == 73 &&
+               named(&table) == 73 && returned(&table) == 73 &&
+               later_named(&table) == 73 && later_mutable_named(&table) == 73 &&
+               later_named_branches(&table, true) == 73 &&
+               later_named_branches(&table, false) == 73 &&
+               joined_named_backings(&table, true) == 73 &&
+               joined_named_backings(&table, false) == 73 &&
+               retained_alias(&table, true) == 0 && retained_alias(&table, false) == 0 &&
+               descendant(&table) == 73 && nested_descendant(&table) == 73 &&
+               direct_descendant(&table) == 73 && direct_returned_reference(&table) == 73 &&
+               returned_reference(&table) == 73 && nested_homes(&table) == 0 &&
+               reversed_homes(&table) == 0 {
+        true -> done()
+        false -> wrong()
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}

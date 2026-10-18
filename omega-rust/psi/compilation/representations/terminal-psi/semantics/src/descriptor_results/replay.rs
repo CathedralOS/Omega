@@ -24,8 +24,9 @@ use crate::descriptor_lifetimes::{DescriptorPathSegment, descriptor_path};
 
 mod analysis;
 mod contents_queries;
+mod provider;
 mod replay;
-pub use analysis::DescriptorAnalysis;
+pub use analysis::{DescriptorAnalysis, DescriptorSourceObservation, DescriptorSourceObservations};
 use replay::Replay;
 use terminal_psi::find_structural_type;
 
@@ -35,6 +36,7 @@ pub enum DescriptorStoredOrigin {
         carrier_type: StructuralTypeId,
         projection: Projection,
     },
+    Provider(DescriptorProviderOrigin<DescriptorStoredOrigin>),
     PlacedFormation {
         machine: MachineId,
         operation: semantic_vocabulary::OperationId,
@@ -115,7 +117,9 @@ fn result_origin(
             carrier_type,
             projection,
         }),
-        DescriptorStoredOrigin::PlacedFormation { .. } => None,
+        DescriptorStoredOrigin::PlacedFormation { .. } | DescriptorStoredOrigin::Provider(_) => {
+            None
+        }
         DescriptorStoredOrigin::Empty => Some(DescriptorResultOrigin::Empty),
         DescriptorStoredOrigin::Parameter {
             position,

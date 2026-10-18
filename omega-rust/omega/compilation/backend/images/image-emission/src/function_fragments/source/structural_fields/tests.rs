@@ -1006,7 +1006,7 @@ fn returned_reference_byte_store_retains_exact_pointer_home_and_candidates() {
                 reference_results: vec![TargetReferenceResult {
                     path: Vec::new(),
                     origins: vec![target_operations::TargetReferenceOrigin {
-                        root,
+                        base: target_operations::TargetReferenceOriginBase::Storage { root },
                         extent: semantic_vocabulary::ReferenceOriginExtent::Projected,
                         path: holder_path
                             .iter()
@@ -1056,11 +1056,14 @@ fn returned_reference_byte_store_retains_exact_pointer_home_and_candidates() {
         field_type: StructuralFieldType::Structural(holder_type),
     });
     let reference_results = structural_call_reference_results_mut(&mut grouped.graph, 0);
-    let root = reference_results[0].origins[0].root;
+    let root = reference_results[0].origins[0]
+        .base
+        .root_place()
+        .expect("storage root");
     reference_results[0]
         .origins
         .push(target_operations::TargetReferenceOrigin {
-            root,
+            base: target_operations::TargetReferenceOriginBase::Storage { root },
             extent: semantic_vocabulary::ReferenceOriginExtent::Projected,
             path: vec![terminal_psi::ReferenceOriginProjection::Exact(
                 StructuralPathSegment::Field(terminal_psi::TerminalIdentityIndex(18)),

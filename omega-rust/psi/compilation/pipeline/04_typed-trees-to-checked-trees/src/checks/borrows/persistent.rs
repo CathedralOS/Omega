@@ -129,11 +129,8 @@ fn check_stored_output_relations(
             obligated.push(machine.symbol);
         }
     }
-    // Only installed loans require a stored-output relation. With no such
-    // callee, walking every statement's call roster cannot add an obligation.
-    if obligated.is_empty() {
-        return;
-    }
+    // Opaque output contracts also create an obligation. Their unavailable
+    // relation must not masquerade as an empty roster of installed loans.
     for machine in program.machines() {
         if obligated.contains(&machine.symbol)
             && program.machine_states(machine).first().is_none_or(|entry| {
@@ -166,9 +163,11 @@ fn check_stored_output_relations(
                 // installed loans merely because the outer result is scalar.
                 let requires_relation = calls.iter().any(|call| {
                     call.statement_index == statement_index
-                        && validation::call_target_state(program, call.target_symbol)
+                        && (frames.is_none_or(|frames| {
+                            frames.provider_output_relation_required(call.target_symbol)
+                        }) || validation::call_target_state(program, call.target_symbol)
                             .and_then(|target| program.machine_holding_state(target.symbol))
-                            .is_some_and(|callee| obligated.contains(&callee.symbol))
+                            .is_some_and(|callee| obligated.contains(&callee.symbol)))
                 });
                 if requires_relation
                     && frames

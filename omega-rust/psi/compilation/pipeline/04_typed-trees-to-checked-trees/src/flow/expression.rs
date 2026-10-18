@@ -146,6 +146,7 @@ pub(super) fn append_statement_calls<'plans>(
             // completed address. Its constraints describe only this epoch.
             let first_write = execution.operand_writes.len();
             let mut children = HandleSpan::empty();
+            let mut alternatives = HandleSpan::empty();
             let mut referents = None;
             execution.evaluate_expression(
                 assignment.target,
@@ -154,9 +155,10 @@ pub(super) fn append_statement_calls<'plans>(
                 constraints,
                 &mut children,
                 &mut referents,
+                &mut alternatives,
             );
             if replaces_reference.is_some() {
-                let captured = execution.capture_place_operand(
+                let mut captured = execution.capture_place_operand(
                     assignment.target,
                     first_write,
                     children,
@@ -164,6 +166,7 @@ pub(super) fn append_statement_calls<'plans>(
                     *contexts,
                     *constraints,
                 );
+                captured.alternatives = alternatives;
                 store_target = execution.context.control.operands.append(captured);
             }
             // Unknown slot identity is an unknown write, never a singleton
@@ -461,8 +464,10 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         Option<bool>,
         HandleSpan<checked_trees::FlowOperandChild>,
         Option<HandleSpan<checked_trees::FlowOperandReferent>>,
+        HandleSpan<checked_trees::FlowOperandFact>,
     ) {
         let mut children = HandleSpan::empty();
+        let mut alternatives = HandleSpan::empty();
         let mut referents = None;
         let value = self.evaluate_expression(
             expression,
@@ -471,9 +476,10 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             constraints,
             &mut children,
             &mut referents,
+            &mut alternatives,
         );
         self.append_result_facts(expression, contexts, constraints);
-        (value, children, referents)
+        (value, children, referents, alternatives)
     }
 
     /// Capture the completed evaluation itself, including nested constructed
@@ -500,7 +506,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         constraints: &mut HandleSpan<FlowConstraintRef>,
     ) -> EvaluatedOperand {
         let first_write = self.operand_writes.len();
-        let (boolean, children, referents) =
+        let (boolean, children, referents, alternatives) =
             self.expression_result(expression, destination, contexts, constraints);
         // Place evaluation may have formed an address for an owned field.
         // Copying that field does not turn the copy into a live view: even a
@@ -518,6 +524,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         let mut capture =
             self.capture_operand(expression, first_write, *contexts, *constraints, referents);
         capture.children = children;
+        capture.alternatives = alternatives;
         capture.type_reference = destination;
         EvaluatedOperand { boolean, capture }
     }
@@ -532,13 +539,13 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         constraints: &mut HandleSpan<FlowConstraintRef>,
     ) -> EvaluatedOperand {
         let first_write = self.operand_writes.len();
-        let (boolean, children, referents) = self.expression_result(
+        let (boolean, children, referents, alternatives) = self.expression_result(
             expression,
             TypeReferenceHandle::invalid(),
             contexts,
             constraints,
         );
-        let capture = self.capture_place_operand(
+        let mut capture = self.capture_place_operand(
             expression,
             first_write,
             children,
@@ -546,6 +553,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             *contexts,
             *constraints,
         );
+        capture.alternatives = alternatives;
         EvaluatedOperand { boolean, capture }
     }
 
@@ -651,6 +659,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             statement_index: self.statement_index,
             type_reference: TypeReferenceHandle::invalid(),
             children: HandleSpan::empty(),
+            alternatives: HandleSpan::empty(),
             entry_origin_writes: self.entry_origin_writes,
             entry_origin_unknown_write: self.entry_origin_unknown_write,
             constraints: captured_constraints,
@@ -968,6 +977,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         constraints: &mut HandleSpan<FlowConstraintRef>,
         children: &mut HandleSpan<checked_trees::FlowOperandChild>,
         referents: &mut Option<HandleSpan<checked_trees::FlowOperandReferent>>,
+        alternatives: &mut HandleSpan<checked_trees::FlowOperandFact>,
     ) -> Option<bool> {
         if !self
             .program
@@ -978,7 +988,8 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         }
         match self.program.expression_table.expression(expression) {
             ExpressionNode::Match(dispatch) => {
-                self.dispatch(expression, *dispatch, contexts, constraints);
+                *alternatives =
+                    self.dispatch(expression, *dispatch, destination, contexts, constraints);
                 return None;
             }
             ExpressionNode::Boolean(value) => return Some(*value),

@@ -182,7 +182,13 @@ pub(super) fn checked_unit_provider_candidates(
     *retained_requirements = boundary_symbols.clone();
     let mut output = Vec::new();
     for boundary_symbol in boundary_symbols {
-        let boundary = unique_unit_boundary(plans, boundary_symbol)?;
+        let boundary = unique_unit_boundary(plans, boundary_symbol).map_err(
+            crate::lowering_error::unit_machine_plan_error(
+                checked,
+                checked.symbols.name(boundary_symbol),
+                boundary_symbol,
+            ),
+        )?;
         let exact_requirements = checked
             .typed
             .traits()

@@ -1,0 +1,23 @@
+// Each element of a region store keeps its own received reference occurrence.
+data Holder<'a> [copy] { value: &'a u64; }
+
+machine main() crashes Trap {
+    let mut original: u64 = 7;
+    let replacement: u64 = 42;
+    let parent: &mut u64 = &mut original;
+    let mut holders: [Holder; 3] = [Holder { value: &replacement }, Holder { value: &replacement }, Holder { value: &replacement }];
+    let slots: &mut [Holder; 3] = &mut holders;
+    slots[1..3] = [Holder { value: &parent }, Holder { value: &parent }];
+    let copied: &u64 = slots[1].value;
+    slots[1].value = &replacement;
+    let first: u64 = copied;
+    parent = 9;
+    let second: u64 = slots[2].value;
+    slots[2].value = &replacement;
+    transition first == 7 && second == 7 && parent == 9 && slots[0].value == 42 && slots[1].value == 42 && slots[2].value == 42 {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
